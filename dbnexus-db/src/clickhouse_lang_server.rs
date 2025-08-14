@@ -13,10 +13,10 @@ use crate::sqlparser_completion::TempTableColumn;
 
 impl LanguageServer for ClickHouseDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = try_completion_on_syntax(
-            &sql,
+            sql,
             line,
             col,
             sqlparser::dialect::SQLiteDialect {},
@@ -51,7 +51,7 @@ impl ClickHouseDB {
         if schema.is_some() {
             return schema;
         }
-        return self.config.db.as_deref();
+        self.config.db.as_deref()
     }
 
     fn not_allow_none_schema(schema: Option<&str>) -> anyhow::Result<&str> {
@@ -130,7 +130,7 @@ impl AstCompletionHelper for ClickHouseDB {
                 .map(|x| {
                     let JsonRespMeta { name, r#type } = x;
                     TempTableColumn {
-                        name: name.into(),
+                        name,
                         typ: Some(r#type),
                     }
                 })
@@ -192,7 +192,7 @@ impl LexerCompletionTrait for ClickHouseDB {
 
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut lock = self.key_word_completion.lock().await;
-        if lock.len() > 0 {
+        if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
 
@@ -223,7 +223,7 @@ impl LexerCompletionTrait for ClickHouseDB {
     }
 }
 
-const TYPES: &'static [&'static str] = &[
+const TYPES: &[&str] = &[
     "UInt8",
     "UInt16",
     "UInt32",

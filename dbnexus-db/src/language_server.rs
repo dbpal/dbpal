@@ -13,7 +13,7 @@ use crate::sqlparser_completion::{CompletionStatement, TempTableColumn};
 #[async_trait::async_trait]
 pub trait LanguageServer: GetBackendKind {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
 
     fn format_sql(&self, _sql: &str, _ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
@@ -60,9 +60,9 @@ pub enum CompletionKind {
     ClickHouseTableProjection,
 }
 
-impl Into<u32> for CompletionKind {
-    fn into(self) -> u32 {
-        self as u32
+impl From<CompletionKind> for u32 {
+    fn from(val: CompletionKind) -> Self {
+        val as u32
     }
 }
 impl std::fmt::Display for CompletionKind {
@@ -147,7 +147,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let tokens = sqlparser::tokenizer::Tokenizer::new(dialect, sql)
             .tokenize_with_location()
-            .unwrap_or(vec![]);
+            .unwrap_or_default();
         let mut all_item = self.all_completion_items().await?;
         all_item.extend(self.get_table_columns_if_possible(&tokens[..]).await);
         return anyhow::Ok(all_item);
@@ -234,16 +234,13 @@ pub trait LexerCompletionTrait: LangServerCommon {
             .collect::<HashSet<_>>();
         let mut table_hits = HashSet::new();
         for t in tokens.iter() {
-            match &t.token {
-                Token::Word(x) => {
-                    // lowcase match is ok for me
-                    // we just need make sure this table is in the database(not exactly)
-                    let name = x.value.to_lowercase();
-                    if tables.contains(&name) {
-                        table_hits.insert(x.value.clone());
-                    }
+            if let Token::Word(x) = &t.token {
+                // lowcase match is ok for me
+                // we just need make sure this table is in the database(not exactly)
+                let name = x.value.to_lowercase();
+                if tables.contains(&name) {
+                    table_hits.insert(x.value.clone());
                 }
-                _ => {}
             }
         }
         let mut ret = vec![];
@@ -416,63 +413,63 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
         if index == 0 {
             continue;
         }
-        match (&t.token, tokens.get(index - 1).map(|x| &x.token)) {
-            (Token::Period, Some(Token::Word(x))) => {
-                if in_pos(loc, t.span.start, 1u64) {
-                    //matched a `aaa.`
-                    let schema = &x.value;
-                    let mut ret = vec![];
-                    ret.extend(
-                        helper
-                            .list_table(None, Some(&schema))
-                            .await
-                            .map_err(|e| log::error!("list table failed,err:{}", e))
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|x| CompletionItem {
-                                item: x.into(),
-                                kind: CompletionKind::Table,
-                                desc: None,
-                            }),
-                    );
-                    ret.extend(
-                        helper
-                            .list_view(None, Some(&schema))
-                            .await
-                            .map_err(|e| log::error!("list view failed,err:{}", e))
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|x| CompletionItem {
-                                item: x.into(),
-                                kind: CompletionKind::View,
-                                desc: None,
-                            }),
-                    );
-                    ret.extend(
-                        helper
-                            .list_function(None, Some(&schema), false)
-                            .await
-                            .map_err(|e| log::error!("list function failed,err:{}", e))
-                            .unwrap_or_default()
-                            .into_iter(),
-                    );
-                    ret.extend(
-                        helper
-                            .list_procedure(None, Some(&schema))
-                            .await
-                            .map_err(|e| log::error!("list procedure failed,err:{}", e))
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|x| CompletionItem {
-                                item: x.into(),
-                                kind: CompletionKind::Procedure,
-                                desc: None,
-                            }),
-                    );
-                    return anyhow::Ok(ret);
-                }
+        if let (Token::Period, Some(Token::Word(x))) =
+            (&t.token, tokens.get(index - 1).map(|x| &x.token))
+        {
+            if in_pos(loc, t.span.start, 1u64) {
+                //matched a `aaa.`
+                let schema = &x.value;
+                let mut ret = vec![];
+                ret.extend(
+                    helper
+                        .list_table(None, Some(schema))
+                        .await
+                        .map_err(|e| log::error!("list table failed,err:{}", e))
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|x| CompletionItem {
+                            item: x.into(),
+                            kind: CompletionKind::Table,
+                            desc: None,
+                        }),
+                );
+                ret.extend(
+                    helper
+                        .list_view(None, Some(schema))
+                        .await
+                        .map_err(|e| log::error!("list view failed,err:{}", e))
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|x| CompletionItem {
+                            item: x.into(),
+                            kind: CompletionKind::View,
+                            desc: None,
+                        }),
+                );
+
+                ret.extend(
+                    helper
+                        .list_function(None, Some(schema), false)
+                        .await
+                        .map_err(|e| log::error!("list function failed,err:{}", e))
+                        .unwrap_or_default()
+                        .into_iter(),
+                );
+                ret.extend(
+                    helper
+                        .list_procedure(None, Some(schema))
+                        .await
+                        .map_err(|e| log::error!("list procedure failed,err:{}", e))
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|x| CompletionItem {
+                            item: x.into(),
+                            kind: CompletionKind::Procedure,
+                            desc: None,
+                        }),
+                );
+                return anyhow::Ok(ret);
             }
-            _ => {}
         }
     }
 
@@ -592,7 +589,7 @@ select xxxx
             for i in item.tests.iter() {
                 log::trace!("on pos:{}", i.0);
                 let items = db
-                    .auto_completion(&item.sql, 1, i.0 as u32, use_lexer)
+                    .auto_completion(None, &item.sql, 1, i.0 as u32, use_lexer)
                     .await
                     .unwrap();
                 for should in i.1.iter() {

@@ -14,10 +14,10 @@ use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
 impl LanguageServer for LibSqlDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = try_completion_on_syntax(
-            &sql,
+            sql,
             line,
             col,
             sqlparser::dialect::SQLiteDialect {},
@@ -65,7 +65,7 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
     // some backend can use a query to query this.
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut lock = self.keywords_completion.lock().await;
-        if lock.len() > 0 {
+        if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
         lock.extend(
@@ -123,17 +123,17 @@ impl AstCompletionHelper for LibSqlDB {
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let conn = self.get_conn().await?;
         log::info!("sql:{}", sql);
-        let mut stmt = conn.prepare(&sql).await?;
+        let mut stmt = conn.prepare(sql).await?;
         let ret = stmt
             .columns()
             .iter()
             .map(|x| TempTableColumn {
-                name: x.name().to_string().into(),
-                typ: Some(x.decl_type().unwrap_or_default().to_string().into()),
+                name: x.name().to_string(),
+                typ: Some(x.decl_type().unwrap_or_default().to_string()),
             })
             .collect::<Vec<_>>();
         // check if prepare return the reuslt.
-        if ret.len() > 0 {
+        if !ret.is_empty() {
             return anyhow::Ok(ret);
         }
 
@@ -141,7 +141,7 @@ impl AstCompletionHelper for LibSqlDB {
         anyhow::Ok(
             (0..row.column_count())
                 .map(|index| TempTableColumn {
-                    name: row.column_name(index).unwrap_or_default().to_owned().into(),
+                    name: row.column_name(index).unwrap_or_default().to_owned(),
                     typ: row.column_type(index).ok().map(|x| format!("{:?}", x)),
                 })
                 .collect(),
@@ -156,10 +156,14 @@ impl AstCompletionHelper for LibSqlDB {
     }
 
     async fn list_function(
-        &self, _catelog: Option<&str>, _schema: Option<&str>, _include_build_in: bool,
+        &self, _catelog: Option<&str>, _schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        if !include_build_in {
+            // if we don't want build in function, we can return empty.
+            return anyhow::Ok(vec![]);
+        }
         let mut lock = self.build_fn_cache.lock().await;
-        if lock.len() > 0 {
+        if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
 
@@ -168,7 +172,7 @@ impl AstCompletionHelper for LibSqlDB {
             FROM pragma_function_list()
             ORDER BY name;
         "#;
-        let conn = self.get_conn().await?;
+        let conn: bb8::PooledConnection<'_, crate::libsql::PoolManager> = self.get_conn().await?;
         let mut rows = conn.query(sql, params!()).await?;
         while let Some(row) = rows.next().await? {
             let name: String = row.get(0)?;
@@ -187,7 +191,7 @@ impl AstCompletionHelper for LibSqlDB {
 
     async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut lock = self.pragma_completion.lock().await;
-        if lock.len() > 0 {
+        if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
         let sql = r#"

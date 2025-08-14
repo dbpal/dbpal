@@ -111,7 +111,7 @@ impl PageCache {
         }
         let end = page * page_size;
         let end = std::cmp::min(end, length);
-        let data = (&self.result.data[start..end]).to_vec();
+        let data = self.result.data[start..end].to_vec();
 
         QueryResp {
             fields: self.result.fields.clone(),
@@ -242,11 +242,7 @@ fn encode_rows_as_json(
 
                 ColType::Decimal => {
                     let value: Option<Decimal> = row.get_by_index(index)?;
-                    if let Some(value) = value {
-                        Some(format_decimal(&value))
-                    } else {
-                        None
-                    }
+                    value.map(|value| format_decimal(&value))
                     .map(serde_json::Value::from)
                 }
                 ColType::Double => {
@@ -303,7 +299,7 @@ fn encode_rows_as_json(
                 }
                 ColType::Time => {
                     let value: Option<i64> = row.get_by_index(index)?;
-                    value.map(|x| format_time(x)).map(serde_json::Value::from)
+                    value.map(format_time).map(serde_json::Value::from)
                 }
                 ColType::Smallint => {
                     let value: Option<i16> = row.get_by_index(index)?;
@@ -421,8 +417,8 @@ fn encode_rows_as_json(
         hash_map: &mut HashMap<String, CassandraType>,
     ) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
         let mut ret = serde_json::Map::new();
-        for mut v in hash_map.iter_mut() {
-            ret.insert(v.0.clone(), encode_rows_canssrandra_type(&mut v.1)?);
+        for v in hash_map.iter_mut() {
+            ret.insert(v.0.clone(), encode_rows_canssrandra_type(v.1)?);
         }
         anyhow::Ok(ret)
     }
@@ -509,11 +505,7 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
                 }
                 ColType::Decimal => {
                     let value: Option<Decimal> = row.get_by_index(index)?;
-                    if let Some(value) = value {
-                        Some(format_decimal(&value))
-                    } else {
-                        None
-                    }
+                    value.map(|value| format_decimal(&value))
                 }
                 ColType::Double => {
                     let value: Option<f64> = row.get_by_index(index)?;
@@ -567,7 +559,7 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
                 }
                 ColType::Time => {
                     let value: Option<i64> = row.get_by_index(index)?;
-                    value.map(|x| format_time(x))
+                    value.map(format_time)
                 }
                 ColType::Smallint => {
                     let value: Option<i16> = row.get_by_index(index)?;
@@ -699,7 +691,7 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
             CassandraType::Varchar(x) => format!("'{}'", x),
             CassandraType::Varint(big_int) => big_int.to_string(),
             CassandraType::Timeuuid(uuid) => uuid.to_string(),
-            CassandraType::Inet(ip_addr) => format!("'{}'", ip_addr.to_string()),
+            CassandraType::Inet(ip_addr) => format!("'{}'", ip_addr),
             CassandraType::Date(x) => format!("'{}'", format_date(*x)?),
             CassandraType::Time(x) => format!("'{}'", format_time(*x)),
             CassandraType::Smallint(x) => x.to_string(),
@@ -723,7 +715,7 @@ fn format_decimal(x: &Decimal) -> String {
 
     format!(
         "{}{}",
-        x.as_plain().to_string(),
+        x.as_plain(),
         if r == BigInt::from(0) {
             "".to_string()
         } else {
@@ -743,7 +735,7 @@ fn format_timestamp(x: i64) -> anyhow::Result<String> {
     let time = DateTime::from_timestamp_millis(x);
     match time {
         Some(x) => anyhow::Ok(x.naive_local().to_string()),
-        None => Err(anyhow::Error::msg(format!(""))),
+        None => Err(anyhow::Error::msg(String::new())),
     }
 }
 
@@ -766,7 +758,7 @@ fn format_date(mut days_since_epoch: i32) -> anyhow::Result<String> {
 }
 
 fn sql_to_each(sql: &str) -> Vec<&str> {
-    CassandraAST::new(&sql)
+    CassandraAST::new(sql)
         .statements
         .iter()
         .map(|x| &sql[x.start_byte..x.end_byte])
@@ -829,12 +821,12 @@ impl QuerySql for CassandraDB {
         let mut ret = vec![];
         let mut ml = MemoryLimit::new();
 
-        for sql in sql_to_each(&sql) {
+        for sql in sql_to_each(sql) {
             match self.session.query(&sql).await {
                 Ok(x) => {
                     let body = x.response_body()?;
                     ml.exceed_error()?;
-                    let meta = body.as_rows_metadata().map(|x| x.clone());
+                    let meta = body.as_rows_metadata().cloned();
                     let rows = body.into_rows().unwrap_or_default();
                     if meta.is_some() {
                         let meta = meta.unwrap();
@@ -933,7 +925,7 @@ impl CassandraDB {
             ret.push(name.unwrap());
         }
 
-        anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
+        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 }
 
@@ -1018,12 +1010,10 @@ impl CassandraDB {
             },
             if allow_filtering && where_str.is_some() {
                 "".to_string()
+            } else if let Some(order_by) = order_by {
+                format!(" ORDER BY {} ", order_by)
             } else {
-                if let Some(order_by) = order_by {
-                    format!(" ORDER BY {} ", order_by)
-                } else {
-                    "".to_string()
-                }
+                "".to_string()
             },
             if allow_filtering && where_str.is_some() {
                 "".to_string()
@@ -1034,7 +1024,7 @@ impl CassandraDB {
         log::info!("sql:{:?}", sql);
 
         let body = self.session.query(&sql).await?.response_body()?;
-        let meta = body.as_rows_metadata().map(|x| x.clone());
+        let meta = body.as_rows_metadata().cloned();
         if meta.is_none() {
             return anyhow::Ok(QueryResp {
                 fields: vec![],
@@ -1071,7 +1061,7 @@ impl CassandraDB {
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let resp = self.session.query(sql).await?.response_body()?;
-        let meta = resp.as_rows_metadata().map(|x| x.clone());
+        let meta = resp.as_rows_metadata().cloned();
         if meta.is_none() {
             anyhow::bail!("no as_rows_metadata")
         }
@@ -1094,7 +1084,7 @@ impl CassandraDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let resp = self.session.query(sql).await?.response_body()?;
-        let meta = resp.as_rows_metadata().map(|x| x.clone());
+        let meta = resp.as_rows_metadata().cloned();
         if meta.is_none() {
             anyhow::bail!("no as_rows_metadata")
         }
@@ -1125,7 +1115,7 @@ impl CassandraDB {
         &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let resp = self.session.query(sql).await?.response_body()?;
-        let meta = resp.as_rows_metadata().map(|x| x.clone());
+        let meta = resp.as_rows_metadata().cloned();
         if meta.is_none() {
             anyhow::bail!("no as_rows_metadata")
         }
@@ -1188,7 +1178,7 @@ impl CassandraDB {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
         let body = self.session.query(sql).await?.response_body()?;
-        let meta = body.as_rows_metadata().map(|x| x.clone());
+        let meta = body.as_rows_metadata().cloned();
 
         let rows = body.into_rows().unwrap_or_default();
         let meta = match meta {
@@ -1362,10 +1352,10 @@ impl SchemaTrait for CassandraDB {
             .response_body()?
             .into_rows()
             .unwrap_or_default();
-        if rows.len() == 0 {
+        if rows.is_empty() {
             anyhow::bail!("query create table expect return on result.");
         }
-        let row = rows.get(0).unwrap();
+        let row = rows.first().unwrap();
 
         // { flags: RowsMetadataFlags(GLOBAL_TABLE_SPACE), columns_count: 4,
         // paging_state: None, new_metadata_id: None, global_table_spec: Some(TableSpec
@@ -1490,8 +1480,8 @@ impl SchemaTrait for CassandraDB {
             .page_caching_show(table_name, where_str, order_by, page, page_size, extra)
             .await?;
 
-        let fields = self.show_table_columns(&table_name).await?;
-        if ret.fields.len() == 0 {
+        let fields = self.show_table_columns(table_name).await?;
+        if ret.fields.is_empty() {
             return anyhow::Ok(QueryResp {
                 fields,
                 data: vec![],
@@ -1550,7 +1540,7 @@ impl SchemaTrait for CassandraDB {
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
-        let fs = self.show_table_columns(&table_name).await?;
+        let fs = self.show_table_columns(table_name).await?;
         let sql = self.insert_sql(None, table_name, &fs, &values)?;
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
@@ -1569,7 +1559,7 @@ impl SchemaTrait for CassandraDB {
 
         let fs = self.show_table_columns(table_name).await?;
         let sql = self.update_sql(
-            self.config.db.as_ref().map(|x| x.as_str()),
+            self.config.db.as_deref(),
             table_name,
             &fs,
             &values,
@@ -1597,7 +1587,7 @@ impl SchemaTrait for CassandraDB {
         let fs = self.show_table_columns(table_name).await?;
 
         let sql = self.delete_sql(
-            self.config.db.as_ref().map(|x| x.as_str()),
+            self.config.db.as_deref(),
             table_name,
             &fs,
             &wheres,
@@ -1792,7 +1782,7 @@ fn extract_parameter_for_function(sql: &str) -> anyhow::Result<Vec<ColumnDefinit
 
     match &s.statement {
         CassandraStatement::CreateFunction(x) => {
-            return anyhow::Ok(x.params.clone());
+            anyhow::Ok(x.params.clone())
         }
         _ => {
             anyhow::bail!("this should be create function statement.")
@@ -2027,7 +2017,7 @@ impl CassandraDB {
             let typ: Option<String> = row.get_by_index(1)?;
             let create_statement: Option<String> = row.get_by_index(3)?;
             let create_statement = create_statement.unwrap();
-            let parameters_try_match = vec![extract_parameter_for_aggregate(&create_statement)?];
+            let parameters_try_match = [extract_parameter_for_aggregate(&create_statement)?];
             if parameters.len() != parameters_try_match.len() {
                 continue;
             }

@@ -23,7 +23,7 @@ impl LexerCompletionTrait for OracleDB {
         AstCompletionHelper::list_column(self, None, None, table_name, false).await
     }
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let sql = format!(r#"SELECT TABLE_NAME FROM DBA_TABLES"#);
+        let sql = r#"SELECT TABLE_NAME FROM DBA_TABLES"#.to_string();
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         let result = block_in_place(|| conn.query(&sql, &[]))?;
@@ -38,7 +38,7 @@ impl LexerCompletionTrait for OracleDB {
 
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut lock = self.key_word_completion.lock().await;
-        if lock.len() > 0 {
+        if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
         let conn = self.get_conn()?;
@@ -46,7 +46,7 @@ impl LexerCompletionTrait for OracleDB {
              SELECT  keyword 
                 FROM V$RESERVED_WORDS
         "#;
-        let result = block_in_place(|| conn.query(&sql, &[]))?;
+        let result = block_in_place(|| conn.query(sql, &[]))?;
         let mut ret = Vec::new();
         for r in result {
             let r = r?;
@@ -86,12 +86,12 @@ impl OracleDB {
         if schema.is_some() {
             return schema;
         }
-        return self.config.schema.as_deref();
+        self.config.schema.as_deref()
     }
 
-    fn not_allow_empty_schema<'a>(schema: Option<&'a str>) -> anyhow::Result<&'a str> {
+    fn not_allow_empty_schema(schema: Option<&str>) -> anyhow::Result<&str> {
         match schema {
-            Some(x) => return anyhow::Ok(x),
+            Some(x) => anyhow::Ok(x),
             None => anyhow::bail!("empty schema"),
         }
     }
@@ -143,8 +143,8 @@ impl AstCompletionHelper for OracleDB {
             row.column_info()
                 .iter()
                 .map(|x| TempTableColumn {
-                    name: x.name().to_string().into(),
-                    typ: Some(x.oracle_type().to_string().into()),
+                    name: x.name().to_string(),
+                    typ: Some(x.oracle_type().to_string()),
                 })
                 .collect(),
         )
@@ -254,10 +254,10 @@ impl LangServerCommon for OracleDB {
 #[async_trait::async_trait]
 impl LanguageServer for OracleDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = try_completion_on_syntax(
-            &sql,
+            sql,
             line,
             col,
             sqlparser::dialect::MySqlDialect {},
@@ -307,7 +307,7 @@ mod tests {
         println!("{}", s);
     }
 }
-pub(crate) const ORACLE_TYPES: &'static [&'static str] = &[
+pub(crate) const ORACLE_TYPES: &[&str] = &[
     "NUMBER",
     "BINARY_FLOAT",
     "BINARY_DOUBLE",
@@ -331,7 +331,7 @@ pub(crate) const ORACLE_TYPES: &'static [&'static str] = &[
 
 /// https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/Single-Row-Functions.html#GUID-B93F789D-B486-49FF-B0CD-0C6181C5D85C
 ///  all function collect from.
-const ORACLE_BUILD_IN_FUNCTIONS: &'static [&'static str] = &[
+const ORACLE_BUILD_IN_FUNCTIONS: &[&str] = &[
     // Numeric Functions
     "ABS",
     "ACOS",

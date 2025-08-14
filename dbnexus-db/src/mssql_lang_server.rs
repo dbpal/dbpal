@@ -67,12 +67,12 @@ impl MsSqlServerDB {
         if db.is_some() {
             return db;
         }
-        return self.config.db.as_ref().map(|x| x.as_str());
+        self.config.db.as_deref()
     }
 
-    fn not_allow_empty_db<'a>(db: Option<&'a str>) -> anyhow::Result<&'a str> {
+    fn not_allow_empty_db(db: Option<&str>) -> anyhow::Result<&str> {
         match db {
-            Some(x) => return anyhow::Ok(x),
+            Some(x) => anyhow::Ok(x),
             None => anyhow::bail!("empty database"),
         }
     }
@@ -80,10 +80,10 @@ impl MsSqlServerDB {
 #[async_trait::async_trait]
 impl LanguageServer for MsSqlServerDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = try_completion_on_syntax(
-            &sql,
+            sql,
             line,
             col,
             sqlparser::dialect::MsSqlDialect {},
@@ -209,8 +209,8 @@ impl AstCompletionHelper for MsSqlServerDB {
                             .columns()
                             .iter()
                             .map(|x| TempTableColumn {
-                                name: x.name().to_string().into(),
-                                typ: Some(format!("{:?}", x.column_type()).into()),
+                                name: x.name().to_string(),
+                                typ: Some(format!("{:?}", x.column_type())),
                             })
                             .collect(),
                     );
@@ -371,7 +371,7 @@ mod tests {
 
 // https://www.dofactory.com/sql/keywords
 
-const KEYWORDS: &'static [&'static str] = &[
+const KEYWORDS: &[&str] = &[
     "ABSOLUTE",
     "EXEC",
     "OVERLAPS",
@@ -609,7 +609,7 @@ const KEYWORDS: &'static [&'static str] = &[
     "EXCEPTION",
 ];
 
-const TYPES: &'static [&'static str] = &[
+const TYPES: &[&str] = &[
     "tinyint",
     "smallint",
     "int",
@@ -638,7 +638,7 @@ const TYPES: &'static [&'static str] = &[
 ];
 
 fn mssql_build_in() -> Vec<CompletionItem> {
-    static SS: &'static [[&'static str; 2]] = &[
+    static SS: &[[&str; 2]] = &[
         [
             "ASCII",
             "Returns the ASCII value for the specific character",
@@ -839,12 +839,12 @@ fn mssql_build_in() -> Vec<CompletionItem> {
 
     lazy_static::lazy_static! {
         static ref CS : Vec<CompletionItem> = SS.iter().map(|x| CompletionItem {
-            item : Cow::Borrowed(x[0].into()),
+            item : Cow::Borrowed(x[0]),
             kind : CompletionKind::Pragma,
             desc: Some( x[1].into()),
         }).collect();
     }
-    return CS.clone();
+    CS.clone()
 }
 
 #[cfg(test)]

@@ -228,10 +228,10 @@ impl ServerMetas for RedisDB {
 fn split_info_colon(info: &str) -> anyhow::Result<(String, String)> {
     match info.find(":") {
         Some(index) => {
-            return anyhow::Ok((
-                (&info[..index]).to_string(),
-                (&info[index + 1..]).to_string(),
-            ));
+            anyhow::Ok((
+                info[..index].to_string(),
+                info[index + 1..].to_string(),
+            ))
         }
         None => anyhow::bail!("info should contains ':'"),
     }
@@ -766,7 +766,7 @@ impl SchemaTrait for RedisDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => self.export_table_to_command(key, sender).await,
-            ExportKind::JsonLine => self.export_table_as_json_line(&key, sender).await,
+            ExportKind::JsonLine => self.export_table_as_json_line(key, sender).await,
         }
     }
 
@@ -972,7 +972,7 @@ impl RedisDB {
     }
 }
 fn parse_db_number(db: &str) -> anyhow::Result<i32> {
-    (&db[2..]).parse::<i32>().map_err(|err| {
+    db[2..].parse::<i32>().map_err(|err| {
         anyhow::Error::msg(format!(
             "can't parse redis db number,err:{:?} db:{}",
             err, db
@@ -1003,10 +1003,10 @@ impl DBTrait for RedisDB {
         let mut ret = db_has_keys.into_iter().collect::<Vec<_>>();
 
         ret.sort_by(|x, y| {
-            let index_x = parse_db_number(&x)
+            let index_x = parse_db_number(x)
                 .map_err(|x| log::error!("parse db number failed,err:{}", x))
                 .unwrap_or_default();
-            let index_y = parse_db_number(&y)
+            let index_y = parse_db_number(y)
                 .map_err(|x| log::error!("parse db number failed,err:{}", x))
                 .unwrap_or_default();
             index_x.cmp(&index_y)
@@ -1090,7 +1090,7 @@ impl QuerySql for RedisDB {
         let client: redis::Client = self.get_client().await?;
         let conn = client.get_multiplexed_async_connection().await?;
         self.query_connections
-            .insert(id.clone(), Arc::new(Mutex::new(conn)));
+            .insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
@@ -1098,7 +1098,7 @@ impl QuerySql for RedisDB {
         let client = self.get_client().await?;
         let conn = client.get_multiplexed_async_connection().await?;
         self.query_connections
-            .insert(id.clone(), Arc::new(Mutex::new(conn)));
+            .insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(())
     }
 
@@ -1296,15 +1296,13 @@ enum RedisValueEncodeHit {
 
 impl RedisValueEncodeHit {
     fn from_cmd(cmd: &[String]) -> Option<Self> {
-        if cmd
-            .get(0)
+        if cmd.first()
             .map(|x| x.eq_ignore_ascii_case("HGETALL"))
             .unwrap_or(false)
         {
             return Some(Self::Hash);
         }
-        if cmd
-            .get(0)
+        if cmd.first()
             .map(|x| x.eq_ignore_ascii_case("ZRANGE"))
             .unwrap_or(false)
             && cmd
@@ -1326,7 +1324,7 @@ fn encode_response_value(
             // a set
             let result: Vec<_> = vs
                 .iter()
-                .map(|x| encode_response_value_to_string(x))
+                .map(encode_response_value_to_string)
                 .map(Some)
                 .collect();
             QueryResp::result("set", None, result)
@@ -1370,7 +1368,7 @@ fn encode_response_value(
                 RedisValueEncodeHit::None => {
                     let result: Vec<_> = vs
                         .iter()
-                        .map(|x| encode_response_value_to_string(x))
+                        .map(encode_response_value_to_string)
                         .map(Some)
                         .collect();
                     QueryResp::result("array", None, result)
@@ -1404,7 +1402,7 @@ fn encode_response_value(
         Value::Attribute {
             data,
             attributes: _, // TODO how to handle this???
-        } => encode_response_value(&data, array_type_notice)?,
+        } => encode_response_value(data, array_type_notice)?,
         Value::VerbatimString { format, text } => {
             let fields = vec![
                 Field::from_name_type("format", ""),

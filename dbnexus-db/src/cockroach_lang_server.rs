@@ -13,10 +13,10 @@ use crate::sqlparser_completion::TempTableColumn;
 
 impl LanguageServer for CockRoachDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = try_completion_on_syntax(
-            &sql,
+            sql,
             line,
             col,
             sqlparser::dialect::PostgreSqlDialect {},

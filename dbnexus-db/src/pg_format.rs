@@ -112,15 +112,15 @@ pub(crate) fn encode_row_as_json(
                 let value: Option<Vec<MacAddr8>> = r.get_unchecked(c);
                 let value = value.map(|x| x.into_iter().map(|x| x.to_string()).collect::<Vec<_>>());
 
-                let value = value
+                
+
+                value
                     .map(|x| {
                         x.into_iter()
                             .map(serde_json::Value::from)
                             .collect::<Vec<_>>()
                     })
-                    .map(|x| serde_json::Value::Array(x));
-
-                value
+                    .map(serde_json::Value::Array)
             }
 
             "MACADDR" => {
@@ -141,7 +141,7 @@ pub(crate) fn encode_row_as_json(
                             .map(serde_json::Value::from)
                             .collect::<Vec<_>>()
                     })
-                    .map(|x| serde_json::Value::Array(x))
+                    .map(serde_json::Value::Array)
             }
             "BYTEA[]" => {
                 let value: Option<Vec<Vec<u8>>> = r.try_get(c)?;
@@ -156,7 +156,7 @@ pub(crate) fn encode_row_as_json(
                             .map(serde_json::Value::from)
                             .collect::<Vec<_>>()
                     })
-                    .map(|x| serde_json::Value::Array(x))
+                    .map(serde_json::Value::Array)
             }
             "NAME[]" => {
                 let value: Option<Vec<String>> = r.try_get(c)?;
@@ -166,26 +166,26 @@ pub(crate) fn encode_row_as_json(
                             .map(serde_json::Value::from)
                             .collect::<Vec<_>>()
                     })
-                    .map(|x| serde_json::Value::Array(x))
+                    .map(serde_json::Value::Array)
             }
             "INT2[]" => {
                 let value: Option<Vec<i16>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
-                        .map(|x| serde_json::Value::from(x))
+                        .map(serde_json::Value::from)
                         .collect::<Vec<_>>()
                 });
 
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "INT4[]" => {
                 let value: Option<Vec<i32>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
-                        .map(|x| serde_json::Value::from(x))
+                        .map(serde_json::Value::from)
                         .collect::<Vec<_>>()
                 });
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "TEXT[]" | "CHAR[]" | "BPCHAR[]" | "VARCHAR[]" => {
                 let value: Option<Vec<String>> = r.try_get(c)?;
@@ -195,18 +195,18 @@ pub(crate) fn encode_row_as_json(
                         .collect::<Vec<_>>()
                 });
 
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
 
             "INT8[]" => {
                 let value: Option<Vec<i64>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
-                        .map(|x| serde_json::Value::from(x))
+                        .map(serde_json::Value::from)
                         .collect::<Vec<_>>()
                 });
 
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "POINT[]" => {
                 return err;
@@ -227,21 +227,21 @@ pub(crate) fn encode_row_as_json(
                 let value: Option<Vec<f32>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
-                        .map(|x| serde_json::Value::from(x))
+                        .map(serde_json::Value::from)
                         .collect::<Vec<_>>()
                 });
 
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "FLOAT8[]" => {
                 let value: Option<Vec<f64>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
-                        .map(|x| serde_json::Value::from(x))
+                        .map(serde_json::Value::from)
                         .collect::<Vec<_>>()
                 });
 
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "POLYGON[]" => {
                 return err;
@@ -255,7 +255,7 @@ pub(crate) fn encode_row_as_json(
                         .collect::<Vec<_>>()
                 });
 
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "MACADDR[]" => {
                 let value: Option<Vec<mac_address::MacAddress>> = r.try_get(c)?;
@@ -266,7 +266,7 @@ pub(crate) fn encode_row_as_json(
                         .collect::<Vec<_>>()
                 });
 
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "INET[]" => {
                 let value: Option<Vec<ipnetwork::IpNetwork>> = r.try_get(c)?;
@@ -276,7 +276,7 @@ pub(crate) fn encode_row_as_json(
                         .collect::<Vec<_>>()
                 });
 
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
 
             "CHAR" => {
@@ -314,7 +314,7 @@ pub(crate) fn encode_row_as_json(
                         .map(|x| serde_json::Value::from(x.to_string()))
                         .collect::<Vec<_>>()
                 });
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "DATE[]" => {
                 let value: Option<Vec<chrono::NaiveDate>> = r.try_get(c)?;
@@ -323,7 +323,7 @@ pub(crate) fn encode_row_as_json(
                         .map(|x| serde_json::Value::from(x.to_string()))
                         .collect::<Vec<_>>()
                 });
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "TIME[]" => {
                 let value: Option<Vec<chrono::NaiveTime>> = r.try_get(c)?;
@@ -332,7 +332,7 @@ pub(crate) fn encode_row_as_json(
                         .map(|x| serde_json::Value::from(x.to_string()))
                         .collect::<Vec<_>>()
                 });
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "TIMESTAMPTZ" | "TIMESTAMP WITH TIME ZONE" => {
                 let value: Option<chrono::DateTime<FixedOffset>> = r.try_get(c)?;
@@ -352,7 +352,7 @@ pub(crate) fn encode_row_as_json(
                         .collect::<Vec<_>>()
                 });
 
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "INTERVAL" => {
                 let value: Option<sqlx::postgres::types::PgInterval> = r.try_get(c)?;
@@ -365,12 +365,10 @@ pub(crate) fn encode_row_as_json(
                 let value: Option<Vec<PgInterval>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
-                        .map(|x| serde_json::Value::from(output_pg_interval(&x)))
-                        .map(serde_json::Value::from)
-                        .collect::<Vec<_>>()
+                        .map(|x| serde_json::Value::from(output_pg_interval(&x))).collect::<Vec<_>>()
                 });
 
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
 
             "NUMERIC" => {
@@ -381,11 +379,9 @@ pub(crate) fn encode_row_as_json(
                 let value: Option<Vec<BigDecimal>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
-                        .map(|x| serde_json::Value::from(x.to_string()))
-                        .map(serde_json::Value::from)
-                        .collect::<Vec<_>>()
+                        .map(|x| serde_json::Value::from(x.to_string())).collect::<Vec<_>>()
                 });
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
 
             "TIMETZ" | "TIME WITH TIME ZONE" => {
@@ -398,12 +394,10 @@ pub(crate) fn encode_row_as_json(
                 let value: Option<Vec<PgTimeTz>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
-                        .map(|x| serde_json::Value::from(output_pg_timez(&x)))
-                        .map(serde_json::Value::from)
-                        .collect::<Vec<_>>()
+                        .map(|x| serde_json::Value::from(output_pg_timez(&x))).collect::<Vec<_>>()
                 });
 
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "BIT" => {
                 let value: Option<bit_vec::BitVec> = r.try_get(c)?;
@@ -416,12 +410,10 @@ pub(crate) fn encode_row_as_json(
                 let value: Option<Vec<bit_vec::BitVec>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
-                        .map(|x| serde_json::Value::from(output_bit_vec(&x)))
-                        .map(serde_json::Value::from)
-                        .collect::<Vec<_>>()
+                        .map(|x| serde_json::Value::from(output_bit_vec(&x))).collect::<Vec<_>>()
                 });
 
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
 
             "VARBIT" | "BIT VARYING" => {
@@ -434,11 +426,9 @@ pub(crate) fn encode_row_as_json(
                 let value: Option<Vec<bit_vec::BitVec>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
-                        .map(|x| serde_json::Value::from(output_bit_vec(&x)))
-                        .map(serde_json::Value::from)
-                        .collect::<Vec<_>>()
+                        .map(|x| serde_json::Value::from(output_bit_vec(&x))).collect::<Vec<_>>()
                 });
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "RECORD" => {
                 return err;
@@ -459,14 +449,14 @@ pub(crate) fn encode_row_as_json(
                         .map(serde_json::Value::from)
                         .collect::<Vec<_>>()
                 });
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
 
             "JSON" => {
                 let value: Option<serde_json::Value> = r.try_get(c)?;
                 value
                     .map(|x| x.to_string())
-                    .map(|x| serde_json::Value::from(x))
+                    .map(serde_json::Value::from)
             }
             "JSONB" => {
                 let value: Option<serde_json::Value> = r.try_get(c)?;
@@ -475,7 +465,7 @@ pub(crate) fn encode_row_as_json(
             "JSONB[]" => {
                 let value: Option<Vec<serde_json::Value>> = r.try_get(c)?;
 
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "INT4RANGE" => {
                 let value: Option<PgRange<i32>> = r.try_get(c)?;
@@ -489,7 +479,7 @@ pub(crate) fn encode_row_as_json(
                         .map(serde_json::Value::from)
                         .collect::<Vec<_>>()
                 });
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "NUMRANGE" => {
                 let value: Option<PgRange<BigDecimal>> = r.try_get(c)?;
@@ -510,11 +500,11 @@ pub(crate) fn encode_row_as_json(
                 let value = value.map(|x| {
                     x.into_iter()
                         .map(|x| output_range(&x))
-                        .map(|x| serde_json::Value::from(x))
+                        .map(serde_json::Value::from)
                         .collect::<Vec<_>>()
                 });
 
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
 
             "TSTZRANGE" => {
@@ -528,10 +518,10 @@ pub(crate) fn encode_row_as_json(
                 let value = value.map(|x| {
                     x.into_iter()
                         .map(|x| output_range_data_time_fixoffset(&x))
-                        .map(|x| serde_json::Value::from(x))
+                        .map(serde_json::Value::from)
                         .collect::<Vec<_>>()
                 });
-                value.map(|x| serde_json::value::Value::Array(x))
+                value.map(serde_json::value::Value::Array)
             }
 
             "DATERANGE" => {
@@ -543,10 +533,10 @@ pub(crate) fn encode_row_as_json(
                 let value = value.map(|x| {
                     x.into_iter()
                         .map(|x| output_range(&x))
-                        .map(|x| serde_json::Value::from(x))
+                        .map(serde_json::Value::from)
                         .collect::<Vec<_>>()
                 });
-                value.map(|x| serde_json::value::Value::Array(x))
+                value.map(serde_json::value::Value::Array)
             }
             "INT8RANGE" => {
                 let value: Option<PgRange<i64>> = r.try_get(c)?;
@@ -562,7 +552,7 @@ pub(crate) fn encode_row_as_json(
                         .collect::<Vec<_>>()
                 });
 
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
 
             "JSONPATH" => {
@@ -586,7 +576,7 @@ pub(crate) fn encode_row_as_json(
                         .map(|x| serde_json::Value::from(PgMoneyFmt::from(x).to_string()))
                         .collect::<Vec<_>>()
                 });
-                value.map(|x| serde_json::Value::Array(x))
+                value.map(serde_json::Value::Array)
             }
             "VOID" => {
                 // TODO it this right.
@@ -1077,18 +1067,18 @@ impl From<PgMoney> for PgMoneyFmt {
 }
 
 pub(crate) fn output_pg_money_array(array: &Vec<PgMoney>) -> String {
-    if array.len() == 0 {
+    if array.is_empty() {
         return "{}".to_string();
     }
     let last = array.len() - 1;
     let mut ret = "{".to_string();
     for (index, v) in array.iter().enumerate() {
-        ret.push_str(format!("{}", PgMoneyFmt::from(v.clone())).as_str());
+        ret.push_str(format!("{}", PgMoneyFmt::from(*v)).as_str());
         if index != last {
-            ret.push_str(",")
+            ret.push(',')
         }
     }
-    ret.push_str("}");
+    ret.push('}');
     ret
 }
 
@@ -1103,7 +1093,7 @@ pub(crate) fn output_range<T: std::fmt::Display>(r: &PgRange<T>) -> String {
     match &r.end {
         Included(x) => ret.push_str(format!("{}]", x).as_str()),
         Excluded(x) => ret.push_str(format!("{})", x).as_str()),
-        Unbounded => ret.push_str(")"),
+        Unbounded => ret.push(')'),
     }
     ret
 }
@@ -1121,7 +1111,7 @@ pub(crate) fn output_range_data_time_fixoffset(
     match &r.end {
         Included(x) => ret.push_str(format!("{}]", format_data_time_fix_offset(x)).as_str()),
         Excluded(x) => ret.push_str(format!("{})", format_data_time_fix_offset(x)).as_str()),
-        Unbounded => ret.push_str(")"),
+        Unbounded => ret.push(')'),
     }
     ret
 }
@@ -1129,7 +1119,7 @@ pub(crate) fn output_range_data_time_fixoffset(
 pub(crate) fn output_range_data_time_fix_offset_array(
     array: &Vec<PgRange<chrono::DateTime<FixedOffset>>>,
 ) -> String {
-    if array.len() == 0 {
+    if array.is_empty() {
         return "{}".to_string();
     }
     let last = array.len() - 1;
@@ -1137,10 +1127,10 @@ pub(crate) fn output_range_data_time_fix_offset_array(
     for (index, v) in array.iter().enumerate() {
         ret.push_str(format!("\"{}\"", output_range_data_time_fixoffset(v)).as_str());
         if index != last {
-            ret.push_str(",")
+            ret.push(',')
         }
     }
-    ret.push_str("}");
+    ret.push('}');
     ret
 }
 
@@ -1181,7 +1171,7 @@ pub(crate) fn test_output_int_range() {
 }
 
 pub(crate) fn output_range_array<T: std::fmt::Display>(array: &Vec<PgRange<T>>) -> String {
-    if array.len() == 0 {
+    if array.is_empty() {
         return "{}".to_string();
     }
     let last = array.len() - 1;
@@ -1189,10 +1179,10 @@ pub(crate) fn output_range_array<T: std::fmt::Display>(array: &Vec<PgRange<T>>) 
     for (index, v) in array.iter().enumerate() {
         ret.push_str(format!("\"{}\"", output_range(v)).as_str());
         if index != last {
-            ret.push_str(",")
+            ret.push(',')
         }
     }
-    ret.push_str("}");
+    ret.push('}');
     ret
 }
 
@@ -1209,7 +1199,7 @@ pub(crate) fn output_bit_vec(v: &bit_vec::BitVec) -> String {
 }
 
 pub(crate) fn output_bit_vec_array(array: &Vec<bit_vec::BitVec>) -> String {
-    if array.len() == 0 {
+    if array.is_empty() {
         return "{}".to_string();
     }
     let last = array.len() - 1;
@@ -1217,11 +1207,11 @@ pub(crate) fn output_bit_vec_array(array: &Vec<bit_vec::BitVec>) -> String {
     for (index, v) in array.iter().enumerate() {
         ret.push_str(output_bit_vec(v).as_str());
         if index != last {
-            ret.push_str(",")
+            ret.push(',')
         }
     }
 
-    ret.push_str("}");
+    ret.push('}');
     ret
 }
 pub(crate) fn output_pg_timez(v: &PgTimeTz) -> String {
@@ -1229,7 +1219,7 @@ pub(crate) fn output_pg_timez(v: &PgTimeTz) -> String {
 }
 
 pub(crate) fn output_pg_timez_array(array: &Vec<PgTimeTz>) -> String {
-    if array.len() == 0 {
+    if array.is_empty() {
         return "{}".to_string();
     }
     let last = array.len() - 1;
@@ -1237,10 +1227,10 @@ pub(crate) fn output_pg_timez_array(array: &Vec<PgTimeTz>) -> String {
     for (index, v) in array.iter().enumerate() {
         ret.push_str(output_pg_timez(v).as_str());
         if index != last {
-            ret.push_str(",")
+            ret.push(',')
         }
     }
-    ret.push_str("}");
+    ret.push('}');
     ret
 }
 
@@ -1250,7 +1240,7 @@ pub(crate) fn output_pg_interval(v: &PgInterval) -> String {
 }
 
 pub(crate) fn output_pg_interval_array(array: &Vec<PgInterval>) -> String {
-    if array.len() == 0 {
+    if array.is_empty() {
         return "{}".to_string();
     }
     let last = array.len() - 1;
@@ -1258,17 +1248,17 @@ pub(crate) fn output_pg_interval_array(array: &Vec<PgInterval>) -> String {
     for (index, v) in array.iter().enumerate() {
         ret.push_str(format!("\"{}\"", output_pg_interval(v)).as_str());
         if index != last {
-            ret.push_str(",")
+            ret.push(',')
         }
     }
-    ret.push_str("}");
+    ret.push('}');
     ret
 }
 
 pub(crate) fn output_date_time_fixoffset_array(
     array: &Vec<chrono::DateTime<FixedOffset>>,
 ) -> String {
-    if array.len() == 0 {
+    if array.is_empty() {
         return "{}".to_string();
     }
     let last = array.len() - 1;
@@ -1276,15 +1266,15 @@ pub(crate) fn output_date_time_fixoffset_array(
     for (index, v) in array.iter().enumerate() {
         ret.push_str(format!("\"{}\"", format_data_time_fix_offset(v)).as_str());
         if index != last {
-            ret.push_str(",")
+            ret.push(',')
         }
     }
-    ret.push_str("}");
+    ret.push('}');
     ret
 }
 
 pub(crate) fn output_naive_time_array(array: &Vec<chrono::NaiveTime>) -> String {
-    if array.len() == 0 {
+    if array.is_empty() {
         return "{}".to_string();
     }
     let last = array.len() - 1;
@@ -1292,14 +1282,14 @@ pub(crate) fn output_naive_time_array(array: &Vec<chrono::NaiveTime>) -> String 
     for (index, v) in array.iter().enumerate() {
         ret.push_str(format!("{}", v).as_str());
         if index != last {
-            ret.push_str(",")
+            ret.push(',')
         }
     }
-    ret.push_str("}");
+    ret.push('}');
     ret
 }
 pub(crate) fn output_naive_date_array(array: &Vec<chrono::NaiveDate>) -> String {
-    if array.len() == 0 {
+    if array.is_empty() {
         return "{}".to_string();
     }
     let last = array.len() - 1;
@@ -1307,15 +1297,15 @@ pub(crate) fn output_naive_date_array(array: &Vec<chrono::NaiveDate>) -> String 
     for (index, v) in array.iter().enumerate() {
         ret.push_str(format!("{}", v).as_str());
         if index != last {
-            ret.push_str(",")
+            ret.push(',')
         }
     }
-    ret.push_str("}");
+    ret.push('}');
     ret
 }
 
 pub(crate) fn output_naive_datetime_array(array: &Vec<chrono::NaiveDateTime>) -> String {
-    if array.len() == 0 {
+    if array.is_empty() {
         return "{}".to_string();
     }
     let last = array.len() - 1;
@@ -1323,15 +1313,15 @@ pub(crate) fn output_naive_datetime_array(array: &Vec<chrono::NaiveDateTime>) ->
     for (index, v) in array.iter().enumerate() {
         ret.push_str(format!("\"{}\"", v).as_str());
         if index != last {
-            ret.push_str(",")
+            ret.push(',')
         }
     }
-    ret.push_str("}");
+    ret.push('}');
     ret
 }
 
 pub(crate) fn output_jsonb_array(array: &Vec<serde_json::Value>) -> String {
-    if array.len() == 0 {
+    if array.is_empty() {
         return "{}".to_string();
     }
     let last = array.len() - 1;
@@ -1339,14 +1329,14 @@ pub(crate) fn output_jsonb_array(array: &Vec<serde_json::Value>) -> String {
     for (index, v) in array.iter().enumerate() {
         ret.push_str(format!("\"{}\"", v.to_string().replace("\"", "\\\"")).as_str());
         if index != last {
-            ret.push_str(",")
+            ret.push(',')
         }
     }
-    ret.push_str("}");
+    ret.push('}');
     ret
 }
 pub(crate) fn output_array<T: std::fmt::Display>(array: &Vec<T>) -> String {
-    if array.len() == 0 {
+    if array.is_empty() {
         return "{}".to_string();
     }
     let last = array.len() - 1;
@@ -1354,14 +1344,14 @@ pub(crate) fn output_array<T: std::fmt::Display>(array: &Vec<T>) -> String {
     for (index, v) in array.iter().enumerate() {
         ret.push_str(format!("{}", v).as_str());
         if index != last {
-            ret.push_str(",")
+            ret.push(',')
         }
     }
-    ret.push_str("}");
+    ret.push('}');
     ret
 }
 pub(crate) fn output_bytes_array(array: &Vec<Vec<u8>>) -> String {
-    if array.len() == 0 {
+    if array.is_empty() {
         return "{}".to_string();
     }
     let last = array.len() - 1;
@@ -1369,10 +1359,10 @@ pub(crate) fn output_bytes_array(array: &Vec<Vec<u8>>) -> String {
     for (index, v) in array.iter().enumerate() {
         ret.push_str(format!("\"\\{}\"", &output_bytes(v)).as_str());
         if index != last {
-            ret.push_str(",")
+            ret.push(',')
         }
     }
-    ret.push_str("}");
+    ret.push('}');
     ret
 }
 
@@ -1381,7 +1371,7 @@ pub(crate) fn output_bytes(bs: &[u8]) -> String {
 }
 
 pub(crate) fn output_macaddr8_array(array: &Vec<MacAddr8>) -> String {
-    if array.len() == 0 {
+    if array.is_empty() {
         return "{}".to_string();
     }
     let last = array.len() - 1;
@@ -1389,9 +1379,9 @@ pub(crate) fn output_macaddr8_array(array: &Vec<MacAddr8>) -> String {
     for (index, v) in array.iter().enumerate() {
         ret.push_str(format!("{}", v).as_str());
         if index != last {
-            ret.push_str(",")
+            ret.push(',')
         }
     }
-    ret.push_str("}");
+    ret.push('}');
     ret
 }

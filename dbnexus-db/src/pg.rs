@@ -171,7 +171,7 @@ impl PostGresDB {
                 }
 
                 let insert_sql = self.insert_sql(
-                    self.config.schema.as_ref().map(|x| x.as_str()),
+                    self.config.schema.as_deref(),
                     table_name,
                     &cols,
                     &m,
@@ -269,9 +269,8 @@ impl PostGresDB {
 
         while let Some(rows) = stream.next().await {
             let rows = rows?;
-            if first && rows.len() > 0 && include_header {
-                let fs = rows
-                    .get(0)
+            if first && !rows.is_empty() && include_header {
+                let fs = rows.first()
                     .unwrap()
                     .columns()
                     .iter()
@@ -636,7 +635,7 @@ impl SchemaTrait for PostGresDB {
         sqlx::query(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await
-            .map_err(|e| anyhow::Error::msg(format!("err:{} sql:{}", e.to_string(), sql)))?;
+            .map_err(|e| anyhow::Error::msg(format!("err:{} sql:{}", e, sql)))?;
         anyhow::Ok(())
     }
 
@@ -1116,12 +1115,12 @@ impl SchemaTrait for PostGresDB {
             .fetch_one(conn.deref_mut())
             .await?;
         let create_sql: String = row.try_get(0)?;
-        let indexes = self.show_indexes(&table_name).await?;
+        let indexes = self.show_indexes(table_name).await?;
 
         let mut sqls = Vec::with_capacity(indexes.len());
         for index in indexes.iter() {
             let index_sql =
-                get_index_def(&mut conn, table_name, &index.name.as_ref().unwrap()).await?;
+                get_index_def(&mut conn, table_name, index.name.as_ref().unwrap()).await?;
             sqls.push(index_sql);
         }
         anyhow::Ok(CreateTableAndIndexSql {
@@ -1158,7 +1157,7 @@ impl SchemaTrait for PostGresDB {
             .fetch_all(conn.deref_mut())
             .await?;
 
-        if rows.len() == 0 {
+        if rows.is_empty() {
             let f = self.show_view_columns(view_name).await?;
             return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
         }
@@ -1227,7 +1226,7 @@ impl SchemaTrait for PostGresDB {
         self.can_write()?;
         let fields = self.show_table_columns(table_name).await?;
         let sql = self.delete_sql(
-            self.config.schema.as_ref().map(|x: &String| x.as_str()),
+            self.config.schema.as_deref(),
             table_name,
             &fields,
             &wheres,
@@ -1264,7 +1263,7 @@ impl SchemaTrait for PostGresDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = self.update_sql(
-            self.config.schema.as_ref().map(|x| x.as_str()),
+            self.config.schema.as_deref(),
             table_name,
             &fs,
             &values,
@@ -1288,7 +1287,7 @@ impl SchemaTrait for PostGresDB {
         self.can_write()?;
         let fs = self.show_table_columns(table_name).await?;
         let sql = self.insert_sql(
-            self.config.schema.as_ref().map(|x| x.as_str()),
+            self.config.schema.as_deref(),
             table_name,
             &fs,
             &values,
@@ -1412,7 +1411,7 @@ impl SchemaTrait for PostGresDB {
         };
 
         for r in rows.iter() {
-            let name: String = r.get(0 as usize);
+            let name: String = r.get(0_usize);
             let data_type: String = r.get(1);
             let data_type = data_type.to_uppercase();
             let nullable: String = r.get(2);
@@ -1447,7 +1446,7 @@ impl SchemaTrait for PostGresDB {
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
-        let total = self.query_count(table_name, where_str.clone()).await?;
+        let total = self.query_count(table_name, where_str).await?;
         let sql = gen_show_sql(
             self.config.schema_str(),
             table_name,
@@ -1525,7 +1524,7 @@ impl SchemaTrait for PostGresDB {
             ret.push(Index::new(
                 index_name,
                 index_kind,
-                column_names.unwrap_or(vec![]),
+                column_names.unwrap_or_default(),
             ))
         }
         anyhow::Ok(ret)
@@ -1565,10 +1564,10 @@ impl PostGresDB {
             .port(config.port)
             .username(&config.username);
         if let Some(pass) = &config.password {
-            opts = opts.password(&pass);
+            opts = opts.password(pass);
         }
         if let Some(db) = config.db.as_ref() {
-            opts = opts.database(&db);
+            opts = opts.database(db);
         }
         println!("ssl:{:?}", config.ssl);
         if config.ssl.ssl_enable {
@@ -1601,12 +1600,12 @@ impl PostGresDB {
         if let Some(s) = &self.config.schema {
             set_current_schema(conn.deref_mut(), s).await?;
         }
-        return anyhow::Ok(conn);
+        anyhow::Ok(conn)
     }
 }
 
 fn get_rows_types(rows: &Vec<PgRow>) -> Vec<Field> {
-    if rows.len() == 0 {
+    if rows.is_empty() {
         log::warn!("info type on empty rows");
         return vec![];
     }
@@ -1682,7 +1681,7 @@ fn get_pg_type_base_on_data_type_and_udtname(
         return Ok(x);
     }
 
-    return Ok(data_type.to_string());
+    Ok(data_type.to_string())
 }
 
 async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Result<()> {
@@ -1876,7 +1875,7 @@ impl QuerySql for PostGresDB {
             };
             match item {
                 sqlx::Either::Left(row_aff) => {
-                    if rows.len() > 0 {
+                    if !rows.is_empty() {
                         let fields = get_rows_types(&rows);
                         let data = encode_rows(&rows)?;
                         ret.push(Ok(QueryResp::new(fields, 0, data, None)?));
@@ -1893,7 +1892,7 @@ impl QuerySql for PostGresDB {
         }
         drop(stream);
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
-        if ret.len() == 0 {
+        if ret.is_empty() {
             use sqlx::Statement;
             let s = conn
                 .deref_mut()

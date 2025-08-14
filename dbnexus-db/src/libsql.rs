@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::time::Duration;
@@ -157,7 +156,7 @@ impl QuerySql for LibSqlDB {
 
         let tr = self.query_connections_transaction.get(&query_id);
         let conn = self.query_connections.get(&query_id);
-        let conn = conn.as_ref().map(|x| x.deref());
+        let conn = conn.as_deref();
         let conn = match &tr {
             Some(x) => x.deref().deref(),
             None => match &conn {
@@ -183,7 +182,7 @@ impl QuerySql for LibSqlDB {
 
         let tr = self.query_connections_transaction.get(&query_id);
         let conn = self.query_connections.get(&query_id);
-        let conn = conn.as_ref().map(|x| x.deref());
+        let conn = conn.as_deref();
         let conn = match &tr {
             Some(x) => x.deref().deref(),
             None => match &conn {
@@ -202,8 +201,8 @@ impl QuerySql for LibSqlDB {
                 ml.exceed_error()?;
                 rows.push(row);
             }
-            if rows.len() > 0 {
-                let fields = get_row_types(rows.get(0).unwrap());
+            if !rows.is_empty() {
+                let fields = get_row_types(rows.first().unwrap());
                 let data = encode_rows(&rows)?;
                 ret.push(Ok(QueryResp {
                     fields,
@@ -285,49 +284,43 @@ impl bb8::ManageConnection for PoolManager {
     type Connection = Connection;
     type Error = libsql::Error;
 
-    fn connect(&self) -> impl Future<Output = Result<Self::Connection, Self::Error>> + Send {
-        async {
-            let replica = self.config.replica;
-            let conn = match &self.config.source {
-                LibSqlDBConfigSouce::Local { path } => {
-                    let b = if replica {
-                        libsql::Builder::new_local_replica(path).build().await?
-                    } else {
-                        libsql::Builder::new_local(path).build().await?
-                    };
-                    let conn = b.connect()?;
-                    conn
-                }
-                LibSqlDBConfigSouce::Remote {
-                    url,
-                    auth_token,
-                    path,
-                } => {
-                    let conn = if replica {
-                        libsql::Builder::new_remote_replica(path, url.clone(), auth_token.clone())
-                            .build()
-                            .await?
-                            .connect()?
-                    } else {
-                        libsql::Builder::new_remote(url.clone(), auth_token.clone())
-                            .build()
-                            .await?
-                            .connect()?
-                    };
-                    conn
-                }
-            };
-            Ok(conn)
-        }
+    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
+        let replica = self.config.replica;
+        let conn = match &self.config.source {
+            LibSqlDBConfigSouce::Local { path } => {
+                let b = if replica {
+                    libsql::Builder::new_local_replica(path).build().await?
+                } else {
+                    libsql::Builder::new_local(path).build().await?
+                };
+
+                b.connect()?
+            }
+            LibSqlDBConfigSouce::Remote {
+                url,
+                auth_token,
+                path,
+            } => {
+                let conn = if replica {
+                    libsql::Builder::new_remote_replica(path, url.clone(), auth_token.clone())
+                        .build()
+                        .await?
+                        .connect()?
+                } else {
+                    libsql::Builder::new_remote(url.clone(), auth_token.clone())
+                        .build()
+                        .await?
+                        .connect()?
+                };
+                conn
+            }
+        };
+        Ok(conn)
     }
 
-    fn is_valid(
-        &self, conn: &mut Self::Connection,
-    ) -> impl Future<Output = Result<(), Self::Error>> + Send {
-        async {
-            conn.query("select 1", params![]).await?;
-            Ok(())
-        }
+    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
+        conn.query("select 1", params![]).await?;
+        Ok(())
     }
 
     fn has_broken(&self, _conn: &mut Self::Connection) -> bool {
@@ -502,7 +495,7 @@ impl SchemaTrait for LibSqlDB {
 
     async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
         let mut conn = self.get_conn().await?;
-        query_trigger_detail(conn.deref_mut(), &name).await
+        query_trigger_detail(conn.deref_mut(), name).await
     }
 
     async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
@@ -681,7 +674,7 @@ impl SchemaTrait for LibSqlDB {
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let increment_key = self.query_auto_increment_key(table_name).await?;
-        let increment_key = increment_key.as_ref().map(|x| x.as_str());
+        let increment_key = increment_key.as_deref();
 
         let s = format!(r#"pragma table_info("{table_name}")"#);
         let conn = self.get_conn().await?;
@@ -714,7 +707,7 @@ impl SchemaTrait for LibSqlDB {
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
-        let total = self.query_count(table_name, where_str.clone()).await?;
+        let total = self.query_count(table_name, where_str).await?;
         let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
         log::info!("show table sql:{}", sql);
         let conn = self.get_conn().await?;
@@ -733,7 +726,7 @@ impl SchemaTrait for LibSqlDB {
         page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         let conn = self.get_conn().await?;
-        let total = self.query_count(view_name, where_str.clone()).await?;
+        let total = self.query_count(view_name, where_str).await?;
         let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
         log::info!("show table sql:{}", sql);
         let mut raw_rows = conn.query(&sql, params!()).await?;
@@ -741,12 +734,12 @@ impl SchemaTrait for LibSqlDB {
         while let Some(x) = raw_rows.next().await? {
             rows.push(x);
         }
-        if rows.len() == 0 {
+        if rows.is_empty() {
             let f = self.show_view_columns(view_name).await?;
             return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
         }
         let data = encode_rows(&rows)?;
-        let fields = match rows.get(0) {
+        let fields = match rows.first() {
             Some(x) => get_row_types(x),
             None => vec![],
         };
@@ -914,7 +907,7 @@ impl LibSqlDB {
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
 
-        let mut stream = conn.query(&sql, params!()).await?;
+        let mut stream = conn.query(sql, params!()).await?;
 
         sender.send("[".into()).await?;
         let mut first = true;
@@ -957,7 +950,7 @@ impl LibSqlDB {
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
 
-        let mut stream = conn.query(&sql, params!()).await?;
+        let mut stream = conn.query(sql, params!()).await?;
         let mut first = true;
         while let Some(row) = stream.next().await? {
             if first && include_header {
@@ -1070,23 +1063,20 @@ fn encode_row_as_json(r: &Row) -> anyhow::Result<serde_json::Value> {
             }
             ValueType::Text => {
                 let v: Option<String> = r.get(c)?;
-                v.map(|x| serde_json::Value::String(x))
+                v.map(serde_json::Value::String)
                     .unwrap_or(null_value.clone())
             }
             ValueType::Real => {
                 let v: Option<f64> = r.get(c)?;
-                v.map(|x| serde_json::Value::from(x))
-                    .unwrap_or(null_value.clone())
+                v.map(serde_json::Value::from).unwrap_or(null_value.clone())
             }
             ValueType::Integer => {
                 let v: Option<i64> = r.get(c)?;
-                v.map(|x| serde_json::Value::from(x))
-                    .unwrap_or(null_value.clone())
+                v.map(serde_json::Value::from).unwrap_or(null_value.clone())
             }
             ValueType::Blob => {
                 let v: Option<Vec<u8>> = r.get(c)?;
-                v.map(|x| serde_json::Value::from(x))
-                    .unwrap_or(null_value.clone())
+                v.map(serde_json::Value::from).unwrap_or(null_value.clone())
             }
         };
         values.insert(r.column_name(c).unwrap_or_default().to_owned(), v);

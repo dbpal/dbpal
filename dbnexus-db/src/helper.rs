@@ -175,7 +175,7 @@ pub fn sql_to_sql_seq(
     match cut_sql_to_each_statement_ast(sql, dialect, statement_kind_stmt) {
         Ok(x) => return Ok(x),
         Err(err) => {
-            log::error!("on ast failedmerr:{}", err.to_string());
+            log::error!("on ast failedmerr:{}", err);
         }
     }
     // cut sql by semicolon
@@ -189,7 +189,7 @@ pub fn sql_to_sql_seq(
             .filter(|x| !matches!(x.token, Token::Whitespace(_)))
             .collect();
 
-        if tokens.len() == 0 {
+        if tokens.is_empty() {
             anyhow::bail!("empty sql.");
         }
 
@@ -260,7 +260,7 @@ pub(crate) fn create_csv(ds: &Vec<Vec<Option<String>>>, delimiter: char) -> Stri
             }
         }
         s.push_str(s2.as_str());
-        s.push_str("\n");
+        s.push('\n');
     }
     s
 }
@@ -294,11 +294,7 @@ pub(crate) fn is_dangerous_sql_by_parser(sql: &str, dialect: &dyn Dialect) -> an
             Statement::DropFunction { .. } => true,
             Statement::DropSecret { .. } => true,
             Statement::Delete(x) => {
-                if x.selection.is_none() {
-                    true
-                } else {
-                    false
-                }
+                x.selection.is_none()
             }
             _ => false,
         };

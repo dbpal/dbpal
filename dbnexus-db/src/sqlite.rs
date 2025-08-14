@@ -34,12 +34,13 @@ pub struct SqliteDB {
     pool: sqlx::SqlitePool,
     read_only: bool,
     path: String,
-    query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
+    pub(crate) query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
     tx_execute_times: TXExecuteTimes,
     query_logs: QueryLogMap,
     pub(crate) build_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) query_id: Option<uuid::Uuid>,
 }
 
 impl SqliteDB {
@@ -195,9 +196,9 @@ impl SqliteDB {
         let mut first = true;
         while let Some(rows) = stream.next().await {
             let rows = rows?;
-            if first && rows.len() > 0 && include_header {
+            if first && !rows.is_empty() && include_header {
                 let fs = rows
-                    .get(0)
+                    .first()
                     .unwrap()
                     .columns()
                     .iter()
@@ -237,20 +238,17 @@ fn extract_trigger_base_on_lexer(name: &str, sql: String) -> anyhow::Result<Trig
     let mut event = None;
     let mut timing = None;
     for token in t {
-        match token {
-            Token::Word(x) => {
-                let word = x.to_string().to_uppercase();
-                match word.as_str() {
-                    "INSERT" | "UPDATE" | "DELETE" => {
-                        event = Some(word);
-                    }
-                    "AFTER" | "BEFORE" => {
-                        timing = Some(word);
-                    }
-                    _ => {}
+        if let Token::Word(x) = token {
+            let word = x.to_string().to_uppercase();
+            match word.as_str() {
+                "INSERT" | "UPDATE" | "DELETE" => {
+                    event = Some(word);
                 }
+                "AFTER" | "BEFORE" => {
+                    timing = Some(word);
+                }
+                _ => {}
             }
-            _ => {}
         }
     }
     if event.is_none() || timing.is_none() {
@@ -371,23 +369,35 @@ impl GetBackendKind for SqliteDB {
 
 impl SqliteDB {
     pub(crate) async fn list_table_impl(&self, db: &str) -> anyhow::Result<Vec<ListTable>> {
-        let mut conn = self.get_conn().await?;
         let sql =
             format!(r#"SELECT name FROM "{db}".sqlite_master WHERE type='table' ORDER BY name "#);
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = match self.query_id {
+            Some(id) => {
+                self.query_connection
+                    .get(&id)
+                    .ok_or_else(|| anyhow::anyhow!("query connection not found for id: {}", id))?
+                    .lock()
+                    .await
+                    .deref_mut()
+                    .fetch_all(sqlx::query(AssertSqlSafe(sql.as_str())))
+                    .await?
+            }
+            None => {
+                let mut conn = self.get_conn().await?;
+                sqlx::query(AssertSqlSafe(sql.as_str()))
+                    .fetch_all(conn.deref_mut())
+                    .await?
+            }
+        };
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let table_name: String = r.get(0);
-
             ret.push(table_name);
         }
         anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 
     pub(crate) async fn list_view_impl(&self, db: &str) -> anyhow::Result<Vec<NamedStaff>> {
-        let mut conn = self.get_conn().await?;
         let sql = format!(
             r#"
             SELECT name
@@ -395,10 +405,26 @@ impl SqliteDB {
             WHERE type = 'view'; 
         "#
         );
-
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+        let rows = match self.query_id {
+            Some(query_id) => {
+                self.query_connection
+                    .get(&query_id)
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("query connection not found for id: {}", query_id)
+                    })?
+                    .lock()
+                    .await
+                    .deref_mut()
+                    .fetch_all(sqlx::query(AssertSqlSafe(sql.as_str())))
+                    .await?
+            }
+            None => {
+                let mut conn = self.get_conn().await?;
+                sqlx::query(AssertSqlSafe(sql.as_str()))
+                    .fetch_all(conn.deref_mut())
+                    .await?
+            }
+        };
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.get(0);
@@ -409,7 +435,7 @@ impl SqliteDB {
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let increment_key = self.query_auto_increment_key(table_name).await?;
-        let increment_key = increment_key.as_ref().map(|x| x.as_str());
+        let increment_key = increment_key.as_deref();
 
         let s = format!(r#"pragma table_info("{table_name}")"#);
         let mut conn = self.get_conn().await?;
@@ -569,7 +595,7 @@ impl SchemaTrait for SqliteDB {
 
     async fn show_trigger(&self, _table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
         let mut conn = self.get_conn().await?;
-        query_trigger_detail(conn.deref_mut(), &name).await
+        query_trigger_detail(conn.deref_mut(), name).await
     }
 
     async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
@@ -735,7 +761,7 @@ impl SchemaTrait for SqliteDB {
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let increment_key = self.query_auto_increment_key(table_name).await?;
-        let increment_key = increment_key.as_ref().map(|x| x.as_str());
+        let increment_key = increment_key.as_deref();
 
         let s = format!(r#"pragma table_info("{table_name}")"#);
         let mut conn = self.get_conn().await?;
@@ -771,7 +797,7 @@ impl SchemaTrait for SqliteDB {
         page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         log::trace!("begin to show table");
-        let total = self.query_count(table_name, where_str.clone()).await?;
+        let total = self.query_count(table_name, where_str).await?;
         log::trace!("query count ok");
         let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
         log::info!("show table sql:{}", sql);
@@ -794,13 +820,13 @@ impl SchemaTrait for SqliteDB {
         page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
-        let total = self.query_count(view_name, where_str.clone()).await?;
+        let total = self.query_count(view_name, where_str).await?;
         let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
         log::info!("show table sql:{}", sql);
         let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
-        if rows.len() == 0 {
+        if rows.is_empty() {
             let f = self.show_view_columns(view_name).await?;
             return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
         }
@@ -867,7 +893,7 @@ impl SqliteDB {
 }
 
 fn get_rows_types(rows: &Vec<SqliteRow>) -> Vec<Field> {
-    if rows.len() == 0 {
+    if rows.is_empty() {
         return vec![];
     }
     let mut ret = Vec::with_capacity(rows[0].columns().len());
@@ -951,36 +977,32 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
 
             _ if text_like(&typ) => {
                 let v: Option<String> = r.try_get(c)?;
-                v.map(|x| serde_json::Value::String(x))
+                v.map(serde_json::Value::String)
                     .unwrap_or(null_value.clone())
             }
             _ if real_like(&typ) => {
                 let v: Option<f64> = r.try_get(c)?;
-                v.map(|x| serde_json::Value::from(x))
-                    .unwrap_or(null_value.clone())
+                v.map(serde_json::Value::from).unwrap_or(null_value.clone())
             }
             _ if integer_like(&typ) => {
                 let v: Option<i64> = r.try_get(c)?;
-                v.map(|x| serde_json::Value::from(x))
-                    .unwrap_or(null_value.clone())
+                v.map(serde_json::Value::from).unwrap_or(null_value.clone())
             }
             "BLOB" => {
                 let v: Option<Vec<u8>> = r.try_get(c)?;
                 v.map(|x| format!("X'{}'", encode_bytes(x.as_slice())))
-                    .map(|x| serde_json::Value::from(x))
+                    .map(serde_json::Value::from)
                     .unwrap_or(null_value.clone())
             }
 
             _ if numreic_like(&typ) => {
                 let v: Option<f64> = r.try_get(c)?;
-                v.map(|x| serde_json::Value::from(x))
-                    .unwrap_or(null_value.clone())
+                v.map(serde_json::Value::from).unwrap_or(null_value.clone())
             }
             // non-standard extensions 这些实际上不存在？
             "BOOLEAN" => {
                 let v: Option<bool> = r.try_get(c)?;
-                v.map(|x| serde_json::Value::from(x))
-                    .unwrap_or(null_value.clone())
+                v.map(serde_json::Value::from).unwrap_or(null_value.clone())
             }
             "DATE" => {
                 let v: Option<chrono::NaiveDate> = r.try_get(c)?;
@@ -1017,18 +1039,18 @@ pub(crate) fn integer_like(typ: &str) -> bool {
 }
 
 pub(crate) fn numreic_like(typ: &str) -> bool {
-    return typ == "NUMERIC" || typ.starts_with("DECIMAL");
+    typ == "NUMERIC" || typ.starts_with("DECIMAL")
 }
 
 pub(crate) fn text_like(typ: &str) -> bool {
-    return typ.starts_with("CHARACTER")
+    typ.starts_with("CHARACTER")
         || typ.starts_with("VARCHAR")
         || typ.starts_with("VARYING CHARACTER")
         || typ.starts_with("NCHAR")
         || typ.starts_with("NATIVE CHARACTER")
         || typ.starts_with("NVARCHAR")
         || typ == "TEXT"
-        || typ == "CLOB";
+        || typ == "CLOB"
 }
 
 pub(crate) fn real_like(typ: &str) -> bool {
@@ -1135,6 +1157,7 @@ impl SqliteDB {
             build_fn_cache: Default::default(),
             keywords_completion: Default::default(),
             pragma_completion: Default::default(),
+            query_id: Default::default(),
         })
     }
 
@@ -1154,7 +1177,7 @@ impl SqliteDB {
 
     pub async fn get_conn(&self) -> anyhow::Result<PoolConnection<sqlx::Sqlite>> {
         let conn = self.pool.acquire().await?;
-        return anyhow::Ok(conn);
+        anyhow::Ok(conn)
     }
 }
 
@@ -1164,7 +1187,7 @@ pub(crate) fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<Str
     if ss.len() != 1 {
         anyhow::bail!("should contains one statement");
     }
-    let s = ss.get(0).unwrap();
+    let s = ss.first().unwrap();
     match s {
         Statement::CreateTable(create_table) => {
             for c in create_table.columns.iter() {
@@ -1346,7 +1369,7 @@ impl QuerySql for SqliteDB {
             };
             match item {
                 sqlx::Either::Left(row_aff) => {
-                    if rows.len() > 0 {
+                    if !rows.is_empty() {
                         let fields = get_rows_types(&rows);
                         let data = encode_rows(&rows)?;
                         ret.push(Ok(QueryResp::new(fields, 0, data, None)?));
@@ -1365,7 +1388,7 @@ impl QuerySql for SqliteDB {
         drop(stream);
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
 
-        if ret.len() == 0 {
+        if ret.is_empty() {
             use sqlx::Statement;
             let s = conn
                 .deref_mut()
@@ -1418,7 +1441,7 @@ fn extract_index(sql: &str) -> anyhow::Result<Option<(Option<String>, Vec<String
         log::error!("statements are:{:?}", ss);
         anyhow::bail!("should contains one statement.");
     }
-    let s = ss.get(0).unwrap();
+    let s = ss.first().unwrap();
 
     match s {
         Statement::CreateIndex(create_index) => {

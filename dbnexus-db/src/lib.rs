@@ -92,6 +92,12 @@ pub struct MemoryLimit {
     m: usize,
 }
 
+impl Default for MemoryLimit {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MemoryLimit {
     pub fn new() -> Self {
         Self { count: 0, m: 10000 }

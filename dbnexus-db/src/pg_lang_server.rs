@@ -36,7 +36,7 @@ impl LexerCompletionTrait for PostGresDB {
 
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut lock = self.key_word_completion.lock().await;
-        if lock.len() > 0 {
+        if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
         let mut conn = self.get_conn().await?;
@@ -69,7 +69,7 @@ impl PostGresDB {
         if db.is_some() {
             return db;
         }
-        return self.config.db.as_ref().map(|x| x.as_str());
+        self.config.db.as_deref()
     }
 
     fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
@@ -79,14 +79,14 @@ impl PostGresDB {
         if schema.is_some() {
             return schema;
         }
-        return self.config.schema.as_deref();
+        self.config.schema.as_deref()
     }
 }
 
 impl PostGresDB {
     async fn list_build_functions(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut lock = self.build_in_fn.lock().await;
-        if lock.len() > 0 {
+        if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
         let sql = r#"SELECT p.proname AS function_name,
@@ -164,8 +164,7 @@ impl AstCompletionHelper for PostGresDB {
                 schema
             )
         } else {
-            format!(
-                r#"
+            r#"
             SELECT 
                 p.proname AS procedure_name
             FROM 
@@ -177,7 +176,7 @@ impl AstCompletionHelper for PostGresDB {
             ORDER BY 
                 p.proname;
             "#
-            )
+            .to_string()
         };
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -202,7 +201,11 @@ impl AstCompletionHelper for PostGresDB {
             sql.push_str(format!(" WHERE schemaname='{}'", schema).as_str());
         }
         // postgres has materilized view in other table
-        sql.push_str(format!("UNION SELECT matviewname from pg_matviews").as_str());
+        sql.push_str(
+            "UNION SELECT matviewname from pg_matviews"
+                .to_string()
+                .as_str(),
+        );
 
         if let Some(schema) = self.schema_merge_config(schema) {
             sql.push_str(format!(" WHERE schemaname='{}'", schema).as_str());
@@ -231,8 +234,8 @@ impl AstCompletionHelper for PostGresDB {
             .columns()
             .iter()
             .map(|x| TempTableColumn {
-                name: x.name().to_string().into(),
-                typ: Some(x.type_info().to_string().into()),
+                name: x.name().to_string(),
+                typ: Some(x.type_info().to_string()),
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
@@ -278,15 +281,14 @@ impl AstCompletionHelper for PostGresDB {
                 schema
             );
         } else {
-            sql = format!(
-                r#"
+            sql = r#"
             SELECT 
                 p.proname AS function_name
             FROM pg_catalog.pg_proc p
             JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
             ORDER BY p.proname;
-        "#,
-            );
+        "#
+            .to_string();
         }
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -568,10 +570,10 @@ impl LangServerCommon for PostGresDB {
 #[async_trait::async_trait]
 impl LanguageServer for PostGresDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = try_completion_on_syntax(
-            &sql,
+            sql,
             line,
             col,
             sqlparser::dialect::PostgreSqlDialect {},

@@ -159,8 +159,8 @@ impl ServerMetas for MsSqlServerDB {
         let metas = encode_rows(&rows)?;
         for m in metas.iter() {
             ret.push(MetaValue::new_opt(
-                m.get(0).unwrap().as_ref().unwrap().to_string(),
-                (&m[1]).clone(),
+                m.first().unwrap().as_ref().unwrap().to_string(),
+                m[1].clone(),
             ));
         }
 
@@ -192,7 +192,7 @@ fn make_config(c: &SqlServerDBConfig) -> tiberius::Config {
     }
 
     if let Some(db) = c.db.as_ref() {
-        config.database(&db);
+        config.database(db);
     }
 
     if c.trust_cert {
@@ -314,23 +314,20 @@ fn gen_select_sql(
 // TODO sqlparse don't support parse trigger statement
 // use lexer to solve this issue.
 fn extract_trigger_event_base_on_lexer(sql: &str) -> anyhow::Result<TriggerEvent> {
-    let t = sqlparser::tokenizer::Tokenizer::new(&sqlparser::dialect::SQLiteDialect {}, &sql)
+    let t = sqlparser::tokenizer::Tokenizer::new(&sqlparser::dialect::SQLiteDialect {}, sql)
         .tokenize()?;
     let mut event = None;
 
     for token in t {
-        match token {
-            Token::Word(x) => {
-                let word = x.to_string().to_uppercase();
-                match word.as_str() {
-                    "INSERT" | "UPDATE" | "DELETE" => {
-                        event = Some(word);
-                    }
-
-                    _ => {}
+        if let Token::Word(x) = token {
+            let word = x.to_string().to_uppercase();
+            match word.as_str() {
+                "INSERT" | "UPDATE" | "DELETE" => {
+                    event = Some(word);
                 }
+
+                _ => {}
             }
-            _ => {}
         }
     }
     if event.is_none() {
@@ -718,7 +715,7 @@ impl SchemaTrait for MsSqlServerDB {
     ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        let total = MsSqlServerDB::query_count(conn, view_name, where_str.clone()).await?;
+        let total = MsSqlServerDB::query_count(conn, view_name, where_str).await?;
         let sql = gen_select_sql(
             self.config.must_schema().as_str(),
             view_name,
@@ -809,7 +806,7 @@ impl SchemaTrait for MsSqlServerDB {
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let mut conn = self.get_conn().await?;
-        let mut conn = conn.deref_mut();
+        let conn = conn.deref_mut();
         let mut stream = conn
             .query(
                 format!(
@@ -850,9 +847,9 @@ impl SchemaTrait for MsSqlServerDB {
         }
         drop(stream);
         for f in ret.iter_mut() {
-            let is_primary = MsSqlServerDB::is_primary(&mut conn, table_name, &f.field).await?;
+            let is_primary = MsSqlServerDB::is_primary(conn, table_name, &f.field).await?;
             let is_auto_increment =
-                MsSqlServerDB::is_auto_increment(&mut conn, table_name, &f.field).await?;
+                MsSqlServerDB::is_auto_increment(conn, table_name, &f.field).await?;
             f.is_primary = is_primary;
             f.is_auto_increment = is_auto_increment;
         }
@@ -866,7 +863,7 @@ impl SchemaTrait for MsSqlServerDB {
     ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        let total = MsSqlServerDB::query_count(conn, table_name, where_str.clone()).await?;
+        let total = MsSqlServerDB::query_count(conn, table_name, where_str).await?;
         let sql = gen_select_sql(
             self.config.must_schema().as_str(),
             table_name,
@@ -949,7 +946,7 @@ impl SchemaTrait for MsSqlServerDB {
                 tiberius::QueryItem::Metadata(_) => {}
             }
         }
-        anyhow::Ok(ret.into_iter().map(|(_, v)| v).collect())
+        anyhow::Ok(ret.into_values().collect())
     }
 
     async fn table_insert(
@@ -959,7 +956,7 @@ impl SchemaTrait for MsSqlServerDB {
 
         let fs = self.show_table_columns(table_name).await?;
         let s = self.insert_sql(
-            self.config.schema.as_ref().map(|x| x.as_str()),
+            self.config.schema.as_deref(),
             table_name,
             &fs,
             &values,
@@ -984,7 +981,7 @@ impl SchemaTrait for MsSqlServerDB {
 
         let fs = self.show_table_columns(table_name).await?;
         let s = self.update_sql(
-            self.config.schema.as_ref().map(|x| x.as_str()),
+            self.config.schema.as_deref(),
             table_name,
             &fs,
             &values,
@@ -1016,7 +1013,7 @@ impl SchemaTrait for MsSqlServerDB {
 
         let fields = self.show_table_columns(table_name).await?;
         let sql = self.delete_sql(
-            self.config.schema.as_ref().map(|x| x.as_str()),
+            self.config.schema.as_deref(),
             table_name,
             &fields,
             &wheres,
@@ -1357,13 +1354,13 @@ struct ExtractValueAsJson {
 impl<'a> FromSql<'a> for ExtractValueAsJson {
     fn from_sql(value: &'a ColumnData<'static>) -> tiberius::Result<Option<Self>> {
         let value = match value {
-            tiberius::ColumnData::U8(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::I16(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::I32(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::I64(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::F32(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::F64(x) => x.clone().map(serde_json::Value::from),
-            tiberius::ColumnData::Bit(x) => x.clone().map(serde_json::Value::from),
+            tiberius::ColumnData::U8(x) => (*x).map(serde_json::Value::from),
+            tiberius::ColumnData::I16(x) => (*x).map(serde_json::Value::from),
+            tiberius::ColumnData::I32(x) => (*x).map(serde_json::Value::from),
+            tiberius::ColumnData::I64(x) => (*x).map(serde_json::Value::from),
+            tiberius::ColumnData::F32(x) => (*x).map(serde_json::Value::from),
+            tiberius::ColumnData::F64(x) => (*x).map(serde_json::Value::from),
+            tiberius::ColumnData::Bit(x) => (*x).map(serde_json::Value::from),
             tiberius::ColumnData::String(x) => x
                 .as_ref()
                 .map(|x| x.to_string())
@@ -1467,7 +1464,7 @@ impl MsSqlServerDB {
                 }
 
                 let insert_sql = self.insert_sql(
-                    self.config.schema.as_ref().map(|x| x.as_str()),
+                    self.config.schema.as_deref(),
                     table_name,
                     &cols,
                     &m,
@@ -1598,7 +1595,7 @@ impl MsSqlServerDB {
                 }
             }
 
-            if rows_row.len() > 0 {
+            if !rows_row.is_empty() {
                 let s = create_csv(&encode_rows(&rows_row)?, delimiter);
                 sender.send(Cow::Owned(s)).await?;
             }
@@ -1749,14 +1746,14 @@ impl QuerySql for MsSqlServerDB {
 
         let id = uuid::Uuid::new_v4();
         self.query_connections
-            .insert(id.clone(), Arc::new(Mutex::new(conn)));
+            .insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         let conn = self.new_tcp_conn().await?;
         self.query_connections
-            .insert(id.clone(), Arc::new(Mutex::new(conn)));
+            .insert(id, Arc::new(Mutex::new(conn)));
         self.tx_execute_times.reset(id);
         anyhow::Ok(())
     }
@@ -1893,8 +1890,8 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
     sql_to_sql_seq(
         sql,
         &dialect,
-        |s| SqlKind::get_from_statement(s),
-        |x| SqlKind::get_from_sql(x),
+        SqlKind::get_from_statement,
+        SqlKind::get_from_sql,
     )
 }
 

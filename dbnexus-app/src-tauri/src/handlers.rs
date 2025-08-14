@@ -44,16 +44,16 @@ pub async fn save_entered_password(
             .as_ref()
             .map(|x| x(&name))
             .unwrap()
-            .map_err(|x| ErrorFrontend::from(x))?
+            .map_err(ErrorFrontend::from)?
     };
     conn.set_password(pass.clone());
-    let o = conn.open().await.map_err(|x| ErrorFrontend::from(x))?;
+    let o = conn.open().await.map_err(ErrorFrontend::from)?;
     match o {
         Open::Catalog(x) => x.check_conn().await,
         Open::DataBase(x) => x.check_conn().await,
         Open::Schema(x) => x.check_conn().await,
     }
-    .map_err(|x| ErrorFrontend::from(x))?;
+    .map_err(ErrorFrontend::from)?;
     app.saved_password.insert(name, pass);
     Ok(())
 }
@@ -87,7 +87,7 @@ pub async fn drop_database(
     let x = app
         .get_opened(name.as_str())
         .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+        .map_err(ErrorFrontend::from)?;
 
     // first close connections because we want delete it
 
@@ -99,7 +99,7 @@ pub async fn drop_database(
 
             x.drop_database(&database)
                 .await
-                .map_err(|x| ErrorFrontend::from(x))?;
+                .map_err(ErrorFrontend::from)?;
 
             Ok(())
         }
@@ -123,13 +123,11 @@ pub async fn drop_schema(
     let x = app
         .get_opened(name.as_str())
         .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+        .map_err(ErrorFrontend::from)?;
     match x {
         Open::DataBase(x) => {
             app.opens.lock().await.remove(&key);
-            x.drop_schema(&schema)
-                .await
-                .map_err(|x| ErrorFrontend::from(x))?;
+            x.drop_schema(&schema).await.map_err(ErrorFrontend::from)?;
             Ok(())
         }
         _ => Err(ErrorFrontend::from(format!(
@@ -149,23 +147,20 @@ pub async fn create_database(
     let x = app
         .get_opened(name.as_str())
         .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+        .map_err(ErrorFrontend::from)?;
     match x {
         Open::Catalog(x) => {
             x.create_database(&database, extra)
                 .await
-                .map_err(|x| ErrorFrontend::from(x))?;
+                .map_err(ErrorFrontend::from)?;
 
             let key = format!("{}/{}", name, database);
 
-            let db = x
-                .open_db(&database)
-                .await
-                .map_err(|x| ErrorFrontend::from(x))?;
+            let db = x.open_db(&database).await.map_err(ErrorFrontend::from)?;
 
             app.enter_open_child(&key, &Open::from(db.clone()))
                 .await
-                .map_err(|x| ErrorFrontend::from(x))?;
+                .map_err(ErrorFrontend::from)?;
 
             app.insert_open(key, db.into()).await;
 
@@ -189,17 +184,14 @@ pub async fn create_schema(
     let x = app
         .get_opened(name.as_str())
         .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+        .map_err(ErrorFrontend::from)?;
     match x {
         Open::DataBase(x) => {
             x.create_schema(&schema, extra)
                 .await
-                .map_err(|x| ErrorFrontend::from(x))?;
+                .map_err(ErrorFrontend::from)?;
             let key = format!("{}/{}", name, schema);
-            let schema = x
-                .open_schema(&schema)
-                .await
-                .map_err(|x| ErrorFrontend::from(x))?;
+            let schema = x.open_schema(&schema).await.map_err(ErrorFrontend::from)?;
 
             app.insert_open(key, schema.into()).await;
             Ok(())
@@ -257,16 +249,13 @@ pub async fn mongo_list_time_serial_collection(
 ) -> Result<Vec<ListTable>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let schema = app
-        .get_schema(&name)
-        .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+    let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
 
     let ret = match schema.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x
             .list_time_serial_collection()
             .await
-            .map_err(|x| ErrorFrontend::from(x))?,
+            .map_err(ErrorFrontend::from)?,
         None => {
             return Err(ErrorFrontend::from(format!("'{}' is not a mongo", name)));
         }
@@ -281,15 +270,9 @@ pub async fn redis_list_table(
 ) -> Result<RedisListTable, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app
-        .get_schema(&name)
-        .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+    let db = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
     match db.as_any().downcast_ref::<RedisDB>() {
-        Some(x) => {
-            x.redis_list_table(filter.as_ref().map(|x| x.as_str()), max)
-                .await
-        }
+        Some(x) => x.redis_list_table(filter.as_deref(), max).await,
         None => return Err(ErrorFrontend::from(format!("'{}' not a redis", name))),
     }
     .map_err(ErrorFrontend::from)
@@ -301,10 +284,7 @@ pub async fn redis_zset_show_table(
 ) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let schema = app
-        .get_schema(&name)
-        .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+    let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
 
     let r = match schema.as_any().downcast_ref::<RedisDB>() {
         Some(r) => r,
@@ -313,7 +293,7 @@ pub async fn redis_zset_show_table(
     let x = r
         .zset_show_table(&key, where_str, min, max)
         .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+        .map_err(ErrorFrontend::from)?;
 
     Ok(MuiDataGridData::from(x))
 }
@@ -369,13 +349,12 @@ pub async fn create_index(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let index_kind =
-        IndexKind::try_from(index_type.as_str()).map_err(|x| ErrorFrontend::from(x))?;
+    let index_kind = IndexKind::try_from(index_type.as_str()).map_err(ErrorFrontend::from)?;
 
     schema
         .create_index(&table_name, &index_name, index_kind, &fields[..])
         .await
-        .map_err(|x| ErrorFrontend::from(x))
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -394,7 +373,7 @@ pub async fn mongo_create_index(
         Some(x) => x
             .create_index(&table_name, index_name, unique, keys)
             .await
-            .map_err(|x| ErrorFrontend::from(x))?,
+            .map_err(ErrorFrontend::from)?,
         None => {
             return Err(ErrorFrontend::from(format!("'{}' not a mongo", name)));
         }
@@ -415,7 +394,7 @@ pub async fn rename_index(
     schema
         .rename_index(&table_name, &old_name, &new_name)
         .await
-        .map_err(|x| ErrorFrontend::from(x))
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -432,7 +411,7 @@ pub async fn drop_index(
     schema
         .drop_index(&table_name, &index)
         .await
-        .map_err(|x| ErrorFrontend::from(x))
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -566,16 +545,13 @@ pub async fn server_metas(
 ) -> Result<Vec<MetaValue>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let o = app
-        .get_opened(&name)
-        .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+    let o = app.get_opened(&name).await.map_err(ErrorFrontend::from)?;
     match o {
         Open::Catalog(x) => x.show_metas().await,
         Open::DataBase(x) => x.show_metas().await,
         Open::Schema(x) => x.show_metas().await,
     }
-    .map_err(|x| ErrorFrontend::from(x))
+    .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -590,7 +566,7 @@ pub async fn list_materialized_view(
         .map_err(ErrorFrontend::from)?;
     s.list_materialized_view()
         .await
-        .map_err(|x| ErrorFrontend::from(x))
+        .map_err(ErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn drop_view(
@@ -608,15 +584,12 @@ pub async fn drop_materialized_view(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let schema = app
-        .get_schema(&name)
-        .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+    let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
 
     schema
         .drop_materialized_view(&view_name)
         .await
-        .map_err(|e| ErrorFrontend::from(e))
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -686,17 +659,17 @@ pub async fn export_query_result_to_file(
         Open::Catalog(x) => {
             x.export_query_result_to_file(&sql, kind, &file)
                 .await
-                .map_err(|x| ErrorFrontend::from(x))?;
+                .map_err(ErrorFrontend::from)?;
         }
         Open::DataBase(x) => {
             x.export_query_result_to_file(&sql, kind, &file)
                 .await
-                .map_err(|x| ErrorFrontend::from(x))?;
+                .map_err(ErrorFrontend::from)?;
         }
         Open::Schema(x) => {
             x.export_query_result_to_file(&sql, kind, &file)
                 .await
-                .map_err(|x| ErrorFrontend::from(x))?;
+                .map_err(ErrorFrontend::from)?;
         }
     };
 
@@ -719,7 +692,7 @@ pub async fn is_dangerous_sql(
         Open::Schema(x) => x.is_dangerous_sql(&sql),
         Open::Catalog(x) => x.is_dangerous_sql(&sql),
     }
-    .map_err(|x| ErrorFrontend::from(x))?;
+    .map_err(ErrorFrontend::from)?;
 
     Ok(result)
 }
@@ -762,8 +735,8 @@ pub async fn execute_sql(
         Open::Schema(x) => x.execute_sql(query_id, &sql).await,
         Open::Catalog(x) => x.execute_sql(query_id, &sql).await,
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
-    Ok(result.map(|x| MuiDataGridData::from(x)))
+    .map_err(ErrorFrontend::from)?;
+    Ok(result.map(MuiDataGridData::from))
 }
 
 #[tauri::command]
@@ -779,7 +752,7 @@ pub async fn query_logs(
         Open::Schema(x) => x.get_query_log(query_id),
         Open::Catalog(x) => x.get_query_log(query_id),
     }
-    .map_err(|x| ErrorFrontend::from(x))
+    .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -809,7 +782,7 @@ pub async fn query_sql_re_connection(
         Open::Schema(x) => x.re_connect(query_id).await,
         Open::Catalog(x) => x.re_connect(query_id).await,
     };
-    result.map_err(|e| ErrorFrontend::from(e))
+    result.map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -877,7 +850,7 @@ pub async fn format_sql(
         Open::Schema(x) => x.format_sql(sql.as_str(), opts),
         Open::Catalog(x) => x.format_sql(sql.as_str(), opts),
     };
-    ret.map_err(|e| ErrorFrontend::from(e))
+    ret.map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -1007,29 +980,28 @@ pub async fn list_schema(
 }
 #[tauri::command]
 pub async fn auto_completion(
-    name: String, sql: String, line: u32, col: u32, app: tauri::State<'_, App>,
+    name: String, sql: String, query_id: Option<uuid::Uuid>, line: u32, col: u32,
+    app: tauri::State<'_, App>,
 ) -> Result<Vec<CompletionItem>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let use_lexer = true;
     let db = app.get_opened(name.as_str()).await?;
     let ret = match db {
-        Open::Catalog(x) => x.auto_completion(&sql, line, col, use_lexer).await,
-        Open::DataBase(x) => x.auto_completion(&sql, line, col, use_lexer).await,
-        Open::Schema(x) => x.auto_completion(&sql, line, col, use_lexer).await,
+        Open::Catalog(x) => {
+            x.auto_completion(query_id, &sql, line, col, use_lexer)
+                .await
+        }
+        Open::DataBase(x) => {
+            x.auto_completion(query_id, &sql, line, col, use_lexer)
+                .await
+        }
+        Open::Schema(x) => {
+            x.auto_completion(query_id, &sql, line, col, use_lexer)
+                .await
+        }
     }
-    .map_err(|x| ErrorFrontend::from(x))?;
-    // let mut names = HashSet::new();
-    // let mut ret2 = Vec::new();
-    // for item in ret.into_iter() {
-    //     let name = item.item.to_lowercase();
-    //     if names.contains(&name) {
-    //         continue;
-    //     }
-    //     names.insert(name);
-    //     ret2.push(item);
-    // }
-    //  Ok(ret2)
+    .map_err(ErrorFrontend::from)?;
     Ok(ret)
 }
 
@@ -1048,7 +1020,7 @@ pub async fn query_set_autocommit(
         Open::DataBase(x) => x.set_auto_commit(query_id, commit).await,
         Open::Schema(x) => x.set_auto_commit(query_id, commit).await,
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(())
 }
 
@@ -1067,7 +1039,7 @@ pub async fn query_get_commit(
         Open::DataBase(x) => x.get_auto_commit(query_id).await,
         Open::Schema(x) => x.get_auto_commit(query_id).await,
     }
-    .map_err(|e| ErrorFrontend::from(e))
+    .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -1085,7 +1057,7 @@ pub async fn query_commit(
         Open::DataBase(x) => x.commit(query_id).await,
         Open::Schema(x) => x.commit(query_id).await,
     }
-    .map_err(|e| ErrorFrontend::from(e))
+    .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -1103,7 +1075,7 @@ pub async fn query_tx_execute_counts(
         Open::DataBase(x) => x.tx_execute_counts(query_id),
         Open::Schema(x) => x.tx_execute_counts(query_id),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(size)
 }
 
@@ -1122,7 +1094,7 @@ pub async fn query_rollback(
         Open::DataBase(x) => x.rollback(query_id).await,
         Open::Schema(x) => x.rollback(query_id).await,
     }
-    .map_err(|x| ErrorFrontend::from(x))
+    .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -1134,11 +1106,11 @@ pub async fn drop_trigger(
     let db = app
         .get_schema(name.as_str())
         .await
-        .map_err(|e| ErrorFrontend::from(e))?;
+        .map_err(ErrorFrontend::from)?;
 
     db.drop_trigger(&table_name, &trigger)
         .await
-        .map_err(|e| ErrorFrontend::from(e))
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -1150,11 +1122,11 @@ pub async fn enable_trigger(
     let db = app
         .get_schema(name.as_str())
         .await
-        .map_err(|e| ErrorFrontend::from(e))?;
+        .map_err(ErrorFrontend::from)?;
 
     db.enable_trigger(&table_name, &trigger)
         .await
-        .map_err(|e| ErrorFrontend::from(e))
+        .map_err(ErrorFrontend::from)
 }
 #[tauri::command]
 pub async fn disable_trigger(
@@ -1165,11 +1137,11 @@ pub async fn disable_trigger(
     let db = app
         .get_schema(name.as_str())
         .await
-        .map_err(|e| ErrorFrontend::from(e))?;
+        .map_err(ErrorFrontend::from)?;
 
     db.disable_trigger(&table_name, &trigger)
         .await
-        .map_err(|e| ErrorFrontend::from(e))
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -1181,12 +1153,12 @@ pub async fn show_trigger(
     let db = app
         .get_schema(name.as_str())
         .await
-        .map_err(|e| ErrorFrontend::from(e))?;
+        .map_err(ErrorFrontend::from)?;
 
     let x = db
         .list_trigger(&table_name)
         .await
-        .map_err(|e| ErrorFrontend::from(e))?;
+        .map_err(ErrorFrontend::from)?;
 
     let mut ret = Vec::with_capacity(x.len());
 
@@ -1194,7 +1166,7 @@ pub async fn show_trigger(
         let d = db
             .show_trigger(&table_name, &tri.name)
             .await
-            .map_err(|e| ErrorFrontend::from(e))?;
+            .map_err(ErrorFrontend::from)?;
 
         ret.push(d);
     }
@@ -1211,11 +1183,11 @@ pub async fn rename_table(
     let db = app
         .get_schema(name.as_str())
         .await
-        .map_err(|e| ErrorFrontend::from(e))?;
+        .map_err(ErrorFrontend::from)?;
 
     db.rename_table(&old, &new)
         .await
-        .map_err(|e| ErrorFrontend::from(e))
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -1227,12 +1199,12 @@ pub async fn create_table_and_index_sql(
     let db = app
         .get_schema(name.as_str())
         .await
-        .map_err(|e| ErrorFrontend::from(e))?;
+        .map_err(ErrorFrontend::from)?;
 
     let ret = db
         .create_table_and_index_sql(&table_name)
         .await
-        .map_err(|e| ErrorFrontend::from(e))?;
+        .map_err(ErrorFrontend::from)?;
     Ok(ret)
 }
 
@@ -1245,12 +1217,12 @@ pub async fn create_view_sql(
     let db = app
         .get_schema(name.as_str())
         .await
-        .map_err(|e| ErrorFrontend::from(e))?;
+        .map_err(ErrorFrontend::from)?;
 
     let ret = db
         .create_view_sql(&view_name, materialized)
         .await
-        .map_err(|e| ErrorFrontend::from(e))?;
+        .map_err(ErrorFrontend::from)?;
     Ok(ret)
 }
 
@@ -1263,11 +1235,11 @@ pub async fn duplicate_table(
     let db = app
         .get_schema(name.as_str())
         .await
-        .map_err(|e| ErrorFrontend::from(e))?;
+        .map_err(ErrorFrontend::from)?;
 
     db.duplicate_table(&from, &to)
         .await
-        .map_err(|e| ErrorFrontend::from(e))
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -1281,12 +1253,12 @@ pub async fn mongo_insert(
     let db = app
         .get_schema(name.as_str())
         .await
-        .map_err(|e| ErrorFrontend::from(e))?;
+        .map_err(ErrorFrontend::from)?;
     match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.insert(table_name.as_str(), doc).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))
+    .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -1299,12 +1271,12 @@ pub async fn mongo_update_one(
     let db = app
         .get_schema(name.as_str())
         .await
-        .map_err(|e| ErrorFrontend::from(e))?;
+        .map_err(ErrorFrontend::from)?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => x.update_one(table_name.as_str(), doc).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     if ret.modified_count != 1 {
         return Err(ErrorFrontend::from("modified count is not 1"));
     }
@@ -1326,7 +1298,7 @@ pub async fn mongo_delete_ids(
         Some(x) => x.delete_by_ids(table_name.as_str(), ids).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))
+    .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -1349,7 +1321,7 @@ pub async fn mongo_show_collection_table_list(
         }
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))
+    .map_err(ErrorFrontend::from)
     .map(MuiDataGridData::from)
 }
 
@@ -1373,7 +1345,7 @@ pub async fn mongo_show_collection_docs(
         }
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     DocsAndCount::try_from(docs).map_err(|e| e.into())
 }
 #[tauri::command]
@@ -1391,8 +1363,8 @@ pub async fn mongo_get_one_document_by_id(
         Some(x) => x.get_one_document_by_id(table_name.as_str(), id).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
-    Ok(encode_bson_doc(&doc).map_err(ErrorFrontend::from)?)
+    .map_err(ErrorFrontend::from)?;
+    encode_bson_doc(&doc).map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -1409,7 +1381,7 @@ pub async fn mongo_query_db_drop(
         Some(x) => x.query_db_drop().await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(())
 }
 #[tauri::command]
@@ -1426,7 +1398,7 @@ pub async fn mongo_query_db_list_collection_names(
         Some(x) => x.query_db_list_collection_names().await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(ret)
 }
 #[tauri::command]
@@ -1444,7 +1416,7 @@ pub async fn mongo_query_db_run_command(
         Some(x) => x.query_db_run_command(command).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(encode_bson_doc(&ret)?)
 }
 
@@ -1462,7 +1434,7 @@ pub async fn mongo_query_collection_count_docs(
         Some(x) => x.query_collection_count_docs(&col).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(ret)
 }
 
@@ -1481,7 +1453,7 @@ pub async fn mongo_query_collection_create_index(
         Some(x) => x.query_collection_create_index(&col, index).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(ret.index_name)
 }
 #[tauri::command]
@@ -1503,7 +1475,7 @@ pub async fn mongo_query_collection_create_search_index(
         }
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(ret)
 }
 #[tauri::command]
@@ -1521,7 +1493,7 @@ pub async fn mongo_query_collection_delete_many(
         Some(x) => x.query_collection_delete_many(&col, query).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(serde_json::to_string(&ret)?)
 }
 #[tauri::command]
@@ -1539,7 +1511,7 @@ pub async fn mongo_query_collection_delete_one(
         Some(x) => x.query_collection_delete_one(&col, query).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(serde_json::to_string(&ret)?)
 }
 
@@ -1558,8 +1530,8 @@ pub async fn mongo_query_collection_distinct(
         Some(x) => x.query_collection_distinct(&col, query, &field).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
-    Ok(serde_json::to_string(&values).map_err(|x| ErrorFrontend::from(x))?)
+    .map_err(ErrorFrontend::from)?;
+    serde_json::to_string(&values).map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -1577,7 +1549,7 @@ pub async fn mongo_query_collection_drop(
         Some(x) => x.query_collection_drop(&col).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(())
 }
 
@@ -1596,7 +1568,7 @@ pub async fn mongo_query_collection_drop_index(
         Some(x) => x.query_collection_drop_index(&col, &index).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(())
 }
 
@@ -1614,7 +1586,7 @@ pub async fn mongo_query_collection_drop_indexes(
         Some(x) => x.query_collection_drop_indexes(&col).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(())
 }
 #[tauri::command]
@@ -1631,7 +1603,7 @@ pub async fn mongo_query_collection_drop_search_index(
         Some(x) => x.query_collection_drop_search_index(&col, &index).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(())
 }
 
@@ -1645,23 +1617,23 @@ pub async fn mongo_query_collection_find(
     random_error()?;
 
     let max = if let Some(max) = max.as_ref() {
-        Some(parse_bson_doc(&max)?)
+        Some(parse_bson_doc(max)?)
     } else {
         None
     };
     let min = if let Some(min) = min.as_ref() {
-        Some(parse_bson_doc(&min)?)
+        Some(parse_bson_doc(min)?)
     } else {
         None
     };
 
     let sort = if let Some(sort) = sort.as_ref() {
-        Some(parse_bson_doc(&sort)?)
+        Some(parse_bson_doc(sort)?)
     } else {
         None
     };
     let projection = if let Some(projection) = projection.as_ref() {
-        Some(parse_bson_doc(&projection)?)
+        Some(parse_bson_doc(projection)?)
     } else {
         None
     };
@@ -1677,7 +1649,7 @@ pub async fn mongo_query_collection_find(
         }
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     let mut ret = Vec::with_capacity(docs.len());
     for d in docs.iter() {
         ret.push(encode_bson_doc(d)?);
@@ -1694,23 +1666,23 @@ pub async fn mongo_query_collection_find_one(
     random_error()?;
 
     let max = if let Some(max) = max.as_ref() {
-        Some(parse_bson_doc(&max)?)
+        Some(parse_bson_doc(max)?)
     } else {
         None
     };
     let min = if let Some(min) = min.as_ref() {
-        Some(parse_bson_doc(&min)?)
+        Some(parse_bson_doc(min)?)
     } else {
         None
     };
 
     let sort = if let Some(sort) = sort.as_ref() {
-        Some(parse_bson_doc(&sort)?)
+        Some(parse_bson_doc(sort)?)
     } else {
         None
     };
     let projection = if let Some(projection) = projection.as_ref() {
-        Some(parse_bson_doc(&projection)?)
+        Some(parse_bson_doc(projection)?)
     } else {
         None
     };
@@ -1726,7 +1698,7 @@ pub async fn mongo_query_collection_find_one(
         }
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
 
     Ok(match ret {
         Some(x) => Some(encode_bson_doc(&x)?),
@@ -1749,7 +1721,7 @@ pub async fn mongo_query_collection_find_one_and_delete(
         Some(x) => x.query_collection_find_one_and_delete(&col, query).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
 
     Ok(match ret {
         Some(x) => Some(encode_bson_doc(&x)?),
@@ -1775,7 +1747,7 @@ pub async fn mongo_query_collection_find_one_and_replace(
         }
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
 
     Ok(match ret {
         Some(x) => Some(encode_bson_doc(&x)?),
@@ -1791,7 +1763,7 @@ pub async fn mongo_query_collection_insert_many(
     random_error()?;
     let mut docs = Vec::with_capacity(data.len());
     for d in data.iter() {
-        let d = parse_bson_doc(&d)?;
+        let d = parse_bson_doc(d)?;
         docs.push(d);
     }
     let db = app
@@ -1802,7 +1774,7 @@ pub async fn mongo_query_collection_insert_many(
         Some(x) => x.query_collection_insert_many(&col, docs).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(serde_json::to_string(&ret)?)
 }
 
@@ -1821,7 +1793,7 @@ pub async fn mongo_query_collection_insert_one(
         Some(x) => x.query_collection_insert_one(&col, doc).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(serde_json::to_string(&ret)?)
 }
 
@@ -1839,7 +1811,7 @@ pub async fn mongo_query_collection_list_index_names(
         Some(x) => x.query_collection_list_index_names(&col).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(ret)
 }
 #[tauri::command]
@@ -1856,7 +1828,7 @@ pub async fn mongo_query_collection_list_indexes(
         Some(x) => x.query_collection_list_indexes(&col).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     Ok(serde_json::to_string(&indexes)?)
 }
 
@@ -1874,7 +1846,7 @@ pub async fn mongo_query_collection_list_search_indexes(
         Some(x) => x.query_collection_list_search_indexes(&col).await,
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
     let mut ret = Vec::with_capacity(indexes.len());
     for i in indexes.iter() {
         ret.push(encode_bson_doc(i)?);
@@ -1902,7 +1874,7 @@ pub async fn mongo_query_collection_replace_one(
         }
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
 
     Ok(serde_json::to_string(&ret)?)
 }
@@ -1925,7 +1897,7 @@ pub async fn mongo_query_collection_update_many(
         }
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
 
     Ok(serde_json::to_string(&ret)?)
 }
@@ -1949,7 +1921,7 @@ pub async fn mongo_query_collection_update_one(
         }
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
-    .map_err(|e| ErrorFrontend::from(e))?;
+    .map_err(ErrorFrontend::from)?;
 
     Ok(serde_json::to_string(&ret)?)
 }
@@ -1972,7 +1944,7 @@ pub async fn redis_list_lpush(
         }
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
-    return Ok(());
+    Ok(())
 }
 
 #[tauri::command]
@@ -1993,7 +1965,7 @@ pub async fn redis_list_rpush(
         }
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
-    return Ok(());
+    Ok(())
 }
 
 #[tauri::command]
@@ -2014,7 +1986,7 @@ pub async fn redis_list_remove(
         }
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
-    return Ok(());
+    Ok(())
 }
 
 #[tauri::command]
@@ -2035,7 +2007,7 @@ pub async fn redis_list_set(
         }
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
-    return Ok(());
+    Ok(())
 }
 
 #[tauri::command]
@@ -2057,7 +2029,7 @@ pub async fn redis_set_replace(
         }
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
-    return Ok(());
+    Ok(())
 }
 
 #[tauri::command]
@@ -2078,7 +2050,7 @@ pub async fn redis_set_del(
         }
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
-    return Ok(());
+    Ok(())
 }
 
 #[tauri::command]
@@ -2099,7 +2071,7 @@ pub async fn redis_set_add(
         }
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
-    return Ok(());
+    Ok(())
 }
 
 #[tauri::command]
@@ -2124,7 +2096,7 @@ pub async fn redis_hash_replace(
         }
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
-    return Ok(());
+    Ok(())
 }
 
 #[tauri::command]
@@ -2145,7 +2117,7 @@ pub async fn redis_hash_del(
         }
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
-    return Ok(());
+    Ok(())
 }
 
 #[tauri::command]
@@ -2167,7 +2139,7 @@ pub async fn redis_hash_add(
         }
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
-    return Ok(());
+    Ok(())
 }
 
 #[tauri::command]
@@ -2190,7 +2162,7 @@ pub async fn redis_zset_replace(
         }
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
-    return Ok(());
+    Ok(())
 }
 
 #[tauri::command]
@@ -2211,7 +2183,7 @@ pub async fn redis_zset_del(
         }
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
-    return Ok(());
+    Ok(())
 }
 #[tauri::command]
 pub async fn redis_zset_add(
@@ -2231,7 +2203,7 @@ pub async fn redis_zset_add(
         }
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
-    return Ok(());
+    Ok(())
 }
 
 #[tauri::command]
@@ -2242,10 +2214,7 @@ pub async fn list_procedure(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let sx = schema
-        .list_procedure()
-        .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+    let sx = schema.list_procedure().await.map_err(ErrorFrontend::from)?;
     check_named_staff_unique(&sx[..])?;
     Ok(sx)
 }
@@ -2262,7 +2231,7 @@ pub async fn show_procedure(
     schema
         .show_procedure(&procedure, arg)
         .await
-        .map_err(|x| ErrorFrontend::from(x))
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -2277,7 +2246,7 @@ pub async fn drop_procedure(
     schema
         .drop_procedure(&procedure, arg)
         .await
-        .map_err(|x| ErrorFrontend::from(x))
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -2288,10 +2257,7 @@ pub async fn list_udf(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let sx = schema
-        .list_udf()
-        .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+    let sx = schema.list_udf().await.map_err(ErrorFrontend::from)?;
     // TODO why cockroach database  build in udf  `pg_get_function_arguments` return
     // null
     check_named_staff_unique(&sx[..])?;
@@ -2306,10 +2272,7 @@ pub async fn list_sequences(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let sx = schema
-        .list_sequences()
-        .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+    let sx = schema.list_sequences().await.map_err(ErrorFrontend::from)?;
 
     Ok(sx)
 }
@@ -2325,7 +2288,7 @@ pub async fn drop_sequence(
     schema
         .drop_sequence(&seq, cascade)
         .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+        .map_err(ErrorFrontend::from)?;
     Ok(())
 }
 
@@ -2340,7 +2303,7 @@ pub async fn rename_sequnce(
     schema
         .rename_sequnce(&old, &new)
         .await
-        .map_err(|x| ErrorFrontend::from(x))?;
+        .map_err(ErrorFrontend::from)?;
 
     Ok(())
 }
@@ -2401,7 +2364,7 @@ pub async fn show_udf(
     schema
         .show_udf(&udf, arg)
         .await
-        .map_err(|x| ErrorFrontend::from(x))
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -2416,7 +2379,7 @@ pub async fn drop_udf(
     schema
         .drop_udf(&udf, arg)
         .await
-        .map_err(|x| ErrorFrontend::from(x))
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
@@ -2437,7 +2400,7 @@ pub async fn redis_string_set(
         }
         None => return Err(format!("uuid {} is not redis", name).into()),
     }
-    return Ok(());
+    Ok(())
 }
 
 #[tauri::command]
@@ -2458,7 +2421,7 @@ pub async fn put_value_in_sql(
         if let Some(x) = a.downcast_ref::<T>() {
             return x
                 .put_value_in_sql(typ, None, value)
-                .map_err(|x| ErrorFrontend::from(x));
+                .map_err(ErrorFrontend::from);
         }
         Err(ErrorFrontend::from("type not match"))
     }
@@ -2481,7 +2444,7 @@ pub async fn put_value_in_sql(
             });
         }
     }
-    let value = value.as_ref().map(|x| x.as_str());
+    let value = value.as_deref();
     if let Ok(e) = xxx::<SqliteDB>(a, &typ, value) {
         return Ok(e);
     }
@@ -2806,15 +2769,11 @@ impl From<QueryResp> for MuiDataGridData {
             .into_iter()
             .map(|x| {
                 let mut values = HashMap::new();
-                fields_renamed
-                    .iter()
-                    .zip(x.into_iter())
-                    .for_each(|(f, value)| match value {
-                        Some(value) => {
-                            values.insert(f.field.clone(), value);
-                        }
-                        None => {}
-                    });
+                fields_renamed.iter().zip(x).for_each(|(f, value)| {
+                    if let Some(value) = value {
+                        values.insert(f.field.clone(), value);
+                    }
+                });
                 values
             })
             .collect();

@@ -14,10 +14,10 @@ use sqlx::{AssertSqlSafe, Row};
 #[async_trait::async_trait]
 impl LanguageServer for MariaDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = try_completion_on_syntax(
-            &sql,
+            sql,
             line,
             col,
             sqlparser::dialect::MySqlDialect {},
@@ -80,7 +80,7 @@ impl AstCompletionHelper for MariaDB {
     async fn list_column(
         &self, _db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self.db.as_ref(), None, schema, &name, is_call).await
+        AstCompletionHelper::list_column(self.db.as_ref(), None, schema, name, is_call).await
     }
 
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
@@ -109,19 +109,19 @@ impl AstCompletionHelper for MariaDB {
     async fn list_partition(
         &self, _db: Option<&str>, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_partition(self.db.as_ref(), None, schema, &table).await
+        AstCompletionHelper::list_partition(self.db.as_ref(), None, schema, table).await
     }
 
     async fn list_constraint(
         &self, _db: Option<&str>, schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_constraint(self.db.as_ref(), None, schema, &table_name).await
+        AstCompletionHelper::list_constraint(self.db.as_ref(), None, schema, table_name).await
     }
 
     async fn list_table_trigger(
         &self, _db: Option<&str>, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_table_trigger(self.db.as_ref(), None, schema, &table).await
+        AstCompletionHelper::list_table_trigger(self.db.as_ref(), None, schema, table).await
     }
 }
 

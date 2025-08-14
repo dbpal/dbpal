@@ -14,8 +14,8 @@ use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResu
 use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
-    BackendKind, GetBackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult,
-    Field, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait,
+    BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
+    GetBackendKind, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait,
     SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, not_support_feature,
 };
 use crate::language_server::{CompletionItem, LanguageServer};
@@ -43,7 +43,7 @@ impl MongoDB {
             host: ds.host.to_string(),
             port: Some(ds.port),
         }];
-        opts.connect_timeout = ds.call_timeout.clone().map(Duration::from_millis);
+        opts.connect_timeout = ds.call_timeout.map(Duration::from_millis);
 
         if let Some(user) = &ds.username {
             let b = mongodb::options::Credential::builder();
@@ -72,7 +72,7 @@ impl GetBackendKind for MongoDB {
 #[async_trait::async_trait]
 impl LanguageServer for MongoDB {
     async fn auto_completion(
-        &self, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
+        &self, _query_id: Option<uuid::Uuid>, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         not_support_feature(self.backend_name())
     }
@@ -134,7 +134,7 @@ impl DBTrait for MongoDB {
 }
 
 fn collect_table_resp_vec(bs: &[bson::Bson]) -> anyhow::Result<String> {
-    if bs.len() == 0 {
+    if bs.is_empty() {
         return anyhow::Ok("[]".to_string());
     }
     let last = bs.len() - 1;
@@ -186,7 +186,7 @@ fn collect_table_resp(
         let mut values = vec![];
         for f in fs.iter() {
             if f.field == "_id" {
-                let value = doc.get(&f.field).map(|x| serde_json::to_string(x));
+                let value = doc.get(&f.field).map(serde_json::to_string);
                 let value = match value {
                     Some(x) => Some(x?),
                     None => None,
@@ -196,8 +196,7 @@ fn collect_table_resp(
             }
             let value = doc
                 .get(&f.field)
-                .map(|b| bson_value_to_string(b).ok())
-                .flatten()
+                .and_then(|b| bson_value_to_string(b).ok())
                 .flatten();
             values.push(value);
         }
@@ -242,7 +241,7 @@ fn infer_multi_value_column_names(docs: &[Document]) -> anyhow::Result<Vec<Field
         }
     }
 
-    let mut ret: Vec<_> = ret.into_iter().map(|(_, v)| v).collect();
+    let mut ret: Vec<_> = ret.into_values().collect();
     let id_field = "_id";
     ret.sort_by(|a, b| {
         if a.field.as_str() == id_field {
@@ -303,7 +302,7 @@ impl MongoDB {
             .find_one(bson::doc! { "_id" :  id.clone() })
             .await?
         {
-            return anyhow::Ok(document);
+            anyhow::Ok(document)
         } else {
             anyhow::bail!(format!("uuid '{:?}' not found doc", id));
         }
@@ -477,7 +476,7 @@ fn write_bson_as_json_to_file(doc: &Document, file: &str) {
     op.write(true);
     op.create(true);
     use std::io::Write;
-    let mut f = op.open(&Path::new(file)).unwrap();
+    let mut f = op.open(Path::new(file)).unwrap();
 
     f.write(json_str.as_bytes()).unwrap();
 }
@@ -607,7 +606,7 @@ impl SchemaTrait for MongoDB {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        if let Err(err) = self.duplicate_collection_impl(&old_collection, dup).await {
+        if let Err(err) = self.duplicate_collection_impl(old_collection, dup).await {
             if let Err(err) = self.delete_collection(dup).await {
                 log::error!(
                     "dup error has happen,but delete old collection failed,err:{:?}",
@@ -682,7 +681,7 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        self.show_columns_impl(&table_name).await
+        self.show_columns_impl(table_name).await
     }
 
     async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
@@ -690,7 +689,7 @@ impl SchemaTrait for MongoDB {
             anyhow::bail!("can't drop this index");
         }
         let db = self.get_db().await?;
-        db.collection::<Document>(&table_name)
+        db.collection::<Document>(table_name)
             .drop_index(index)
             .await?;
         anyhow::Ok(())
@@ -710,8 +709,7 @@ impl SchemaTrait for MongoDB {
             if index_model
                 .options
                 .as_ref()
-                .map(|x| x.name.as_ref().map(|x| x == oldname))
-                .flatten()
+                .and_then(|x| x.name.as_ref().map(|x| x == oldname))
                 .unwrap_or(false)
             {
                 // found
@@ -746,27 +744,21 @@ impl SchemaTrait for MongoDB {
         let mut ret = Vec::new();
         while let Some(index_model) = stream.next().await {
             let index_model = index_model?;
-            let name = index_model
-                .options
-                .as_ref()
-                .map(|x| x.name.clone())
-                .flatten();
+            let name = index_model.options.as_ref().and_then(|x| x.name.clone());
 
             ret.push(Index::new(
                 name.clone(),
-                if name.as_ref().map(|x| x.as_str()).unwrap_or_default() == "_id" {
+                if name.as_deref().unwrap_or_default() == "_id" {
                     IndexKind::Primary
+                } else if index_model
+                    .options
+                    .as_ref()
+                    .map(|x| x.unique.unwrap_or_default())
+                    .unwrap_or_default()
+                {
+                    IndexKind::Unique
                 } else {
-                    if index_model
-                        .options
-                        .as_ref()
-                        .map(|x| x.unique.unwrap_or_default())
-                        .unwrap_or_default()
-                    {
-                        IndexKind::Unique
-                    } else {
-                        IndexKind::Index
-                    }
+                    IndexKind::Index
                 },
                 vec![serde_json::to_string(&index_model.keys)?],
             ))
@@ -806,7 +798,7 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
-        self.show_columns_impl(&view_name).await
+        self.show_columns_impl(view_name).await
     }
 }
 

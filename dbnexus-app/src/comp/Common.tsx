@@ -620,6 +620,11 @@ function reloadOK(showNotification) {
 }
 const registeredLanguage = new Set<string>();
 
+let queryId = '';
+function setQueryId(id: string) {
+  queryId = id;
+}
+
 function makeAutoComplete(
   uuid
 ): (sql: string, pos: Position) => Promise<languages.CompletionList> {
@@ -628,6 +633,7 @@ function makeAutoComplete(
     pos: Position
   ): Promise<languages.CompletionList> => {
     try {
+      console.log('makeAutoComplete queryId:', queryId);
       let completionItem = await invoke<types.CompletionItem[]>(
         'auto_completion',
         {
@@ -635,6 +641,7 @@ function makeAutoComplete(
           sql,
           line: pos.lineNumber,
           col: pos.column,
+          queryId: queryId ? queryId : null,
         }
       );
       let suggestions = backendCompletionItemToEditor(completionItem);
@@ -1001,6 +1008,7 @@ interface IQueryConn {
   rollback: () => Promise<void>;
   supportTransaction: () => boolean;
   txExecuteCounts: () => Promise<number>;
+  queryId: string;
 }
 
 class QueryConn implements IQueryConn {
@@ -1238,6 +1246,7 @@ export {
   keyNotInTable,
   extractBaseName,
   makeAutoComplete,
+  setQueryId,
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent };

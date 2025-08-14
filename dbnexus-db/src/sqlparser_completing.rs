@@ -10,9 +10,9 @@ use crate::sqlparser_completion::{
     CompletionStatement, Scope, ScopesDropGuard, TableEntered, TempTable, TempTableColumn,
 };
 
-impl Into<CompletionKind> for ObjectType {
-    fn into(self) -> CompletionKind {
-        match self {
+impl From<ObjectType> for CompletionKind {
+    fn from(val: ObjectType) -> Self {
+        match val {
             ObjectType::Table => CompletionKind::Table,
             ObjectType::View => CompletionKind::View,
             ObjectType::Index => CompletionKind::Index,
@@ -27,9 +27,9 @@ impl Into<CompletionKind> for ObjectType {
     }
 }
 
-impl Into<CompletionKind> for ShowCreateObject {
-    fn into(self) -> CompletionKind {
-        match self {
+impl From<ShowCreateObject> for CompletionKind {
+    fn from(val: ShowCreateObject) -> Self {
+        match val {
             ShowCreateObject::Event => CompletionKind::Event,
             ShowCreateObject::Function => CompletionKind::Function,
             ShowCreateObject::Procedure => CompletionKind::Procedure,
@@ -40,9 +40,9 @@ impl Into<CompletionKind> for ShowCreateObject {
     }
 }
 
-impl Into<CompletionKind> for CommentObject {
-    fn into(self) -> CompletionKind {
-        match self {
+impl From<CommentObject> for CompletionKind {
+    fn from(val: CommentObject) -> Self {
+        match val {
             CommentObject::Column => CompletionKind::Column,
             CommentObject::Table => CompletionKind::Table,
             CommentObject::Extension => CompletionKind::Extension,
@@ -151,11 +151,11 @@ impl CompletionStatement {
             ShowCreateObject::Event => {
                 // not support rigth now.
             }
-            ShowCreateObject::Function => self.c_on_function(&name).await,
-            ShowCreateObject::Procedure => self.c_on_procedure(&name).await,
-            ShowCreateObject::Table => self.c_on_table(&name).await,
-            ShowCreateObject::Trigger => self.c_on_mysql_trigger(&name).await,
-            ShowCreateObject::View => self.c_on_view(&name).await,
+            ShowCreateObject::Function => self.c_on_function(name).await,
+            ShowCreateObject::Procedure => self.c_on_procedure(name).await,
+            ShowCreateObject::Table => self.c_on_table(name).await,
+            ShowCreateObject::Trigger => self.c_on_mysql_trigger(name).await,
+            ShowCreateObject::View => self.c_on_view(name).await,
         }
     }
 
@@ -271,7 +271,7 @@ impl CompletionStatement {
                         }
 
                         self.result =
-                            Some(cols.into_iter().map(|x| CompletionItem::from(x)).collect());
+                            Some(cols.into_iter().map(CompletionItem::from).collect());
                     }
                 }
             }
@@ -300,7 +300,7 @@ impl CompletionStatement {
             }
             CommentObject::Column => {
                 if name.0.len() >= 2 {
-                    let table = (&name.0[..name.0.len() - 1]).to_vec();
+                    let table = name.0[..name.0.len() - 1].to_vec();
                     self.c_on_column(
                         &ObjectName(table),
                         match name.0.last().unwrap() {
@@ -435,7 +435,7 @@ impl CompletionStatement {
                 log::error!("wrong ObjectName:{:?}", item_name);
             }
         };
-        return (db, schema, table);
+        (db, schema, table)
     }
 
     pub(crate) async fn c_on_postgres_rule(&mut self, table_name: &ObjectName, rule: &Ident) {
@@ -445,7 +445,7 @@ impl CompletionStatement {
         let (db, schema, table) = self.extract_db_schme_item(table_name);
         self.result = Some(
             self.helper
-                .list_postgres_rule(db, schema, &table)
+                .list_postgres_rule(db, schema, table)
                 .await
                 .map_err(|err| {
                     log::error!("list_postgres_rule,err:{}", err);
@@ -990,10 +990,10 @@ impl CompletionStatement {
                     .await;
                     return;
                 }
-                if let Some(table) = self.scopes.nearest_table_named(&table) {
+                if let Some(table) = self.scopes.nearest_table_named(table) {
                     match &table {
                         TableEntered::FromTable { table, .. } => {
-                            self.c_on_column(&table, &idents[1], false).await;
+                            self.c_on_column(table, &idents[1], false).await;
                         }
                         TableEntered::Temp { table, .. } => {
                             self.result =
@@ -1014,7 +1014,7 @@ impl CompletionStatement {
                     idents[0..idents.len() - 1]
                         .to_vec()
                         .into_iter()
-                        .map(|x| ObjectNamePart::Identifier(x))
+                        .map(ObjectNamePart::Identifier)
                         .collect::<Vec<_>>(),
                 );
 
@@ -1053,8 +1053,7 @@ impl CompletionStatement {
                     results.extend(
                         items
                             .into_iter()
-                            .into_iter()
-                            .map(|x| CompletionItem::from(x)),
+                            .map(CompletionItem::from),
                     );
                 }
                 TableEntered::Temp { table, .. } => {
@@ -1156,7 +1155,7 @@ impl CompletionStatement {
             ColumnOption::Tags(_tags_column_option) => {}
             ColumnOption::Collation(..) => {}
             ColumnOption::Srid(expr) => {
-                self.c_on_expr(&expr).await;
+                self.c_on_expr(expr).await;
             }
         }
     }
@@ -1166,63 +1165,63 @@ impl CompletionStatement {
         match expr {
             Expr::Identifier(ident) => self.c_on_expr_ident(ident).await,
             Expr::CompoundIdentifier(vec) => {
-                self.c_on_expr_compund_identifier(&vec).await;
+                self.c_on_expr_compund_identifier(vec).await;
             }
             Expr::JsonAccess { .. } => {
                 // snowflake databricks not support
             }
             Expr::IsFalse(expr) => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::IsNotFalse(expr) => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::IsTrue(expr) => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::IsNotTrue(expr) => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::IsNull(expr) => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::IsNotNull(expr) => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::IsUnknown(expr) => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::IsNotUnknown(expr) => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::IsDistinctFrom(expr, expr1) => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
                     return;
                 }
-                Box::pin(self.c_on_expr(&expr1)).await;
+                Box::pin(self.c_on_expr(expr1)).await;
             }
             Expr::IsNotDistinctFrom(expr, expr1) => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
                     return;
                 }
-                Box::pin(self.c_on_expr(&expr1)).await;
+                Box::pin(self.c_on_expr(expr1)).await;
             }
             Expr::InList { expr, list, .. } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
                     return;
                 }
                 for expr in list.iter() {
-                    Box::pin(self.c_on_expr(&expr)).await;
+                    Box::pin(self.c_on_expr(expr)).await;
                     if self.finished() {
                         return;
                     }
                 }
             }
             Expr::InSubquery { expr, subquery, .. } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
                     return;
                 }
@@ -1235,113 +1234,112 @@ impl CompletionStatement {
             Expr::InUnnest {
                 expr, array_expr, ..
             } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
                     return;
                 }
-                Box::pin(self.c_on_expr(&array_expr)).await;
+                Box::pin(self.c_on_expr(array_expr)).await;
             }
             Expr::Between {
                 expr, low, high, ..
             } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
                     return;
                 }
-                Box::pin(self.c_on_expr(&low)).await;
+                Box::pin(self.c_on_expr(low)).await;
                 if self.finished() {
                     return;
                 }
-                Box::pin(self.c_on_expr(&high)).await;
+                Box::pin(self.c_on_expr(high)).await;
             }
             Expr::BinaryOp { left, right, .. } => {
-                Box::pin(self.c_on_expr(&left)).await;
+                Box::pin(self.c_on_expr(left)).await;
                 if self.finished() {
                     return;
                 }
-                Box::pin(self.c_on_expr(&right)).await;
+                Box::pin(self.c_on_expr(right)).await;
             }
             Expr::Like { expr, pattern, .. } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
                     return;
                 }
-                Box::pin(self.c_on_expr(&pattern)).await;
+                Box::pin(self.c_on_expr(pattern)).await;
             }
             Expr::ILike { expr, pattern, .. } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
                     return;
                 }
-                Box::pin(self.c_on_expr(&pattern)).await;
+                Box::pin(self.c_on_expr(pattern)).await;
             }
             Expr::SimilarTo { expr, pattern, .. } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
                     return;
                 }
-                Box::pin(self.c_on_expr(&pattern)).await;
+                Box::pin(self.c_on_expr(pattern)).await;
             }
             Expr::RLike { expr, pattern, .. } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
                     return;
                 }
-                Box::pin(self.c_on_expr(&pattern)).await;
+                Box::pin(self.c_on_expr(pattern)).await;
             }
             Expr::AnyOp { left, right, .. } => {
-                Box::pin(self.c_on_expr(&left)).await;
+                Box::pin(self.c_on_expr(left)).await;
                 if self.finished() {
                     return;
                 }
-                Box::pin(self.c_on_expr(&right)).await;
+                Box::pin(self.c_on_expr(right)).await;
             }
             Expr::AllOp { left, right, .. } => {
-                Box::pin(self.c_on_expr(&left)).await;
+                Box::pin(self.c_on_expr(left)).await;
                 if self.finished() {
                     return;
                 }
-                Box::pin(self.c_on_expr(&right)).await;
+                Box::pin(self.c_on_expr(right)).await;
             }
             Expr::UnaryOp { expr, .. } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
-                    return;
                 }
             }
             Expr::Convert { expr, styles, .. } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 for style in styles.iter() {
-                    Box::pin(self.c_on_expr(&style)).await;
+                    Box::pin(self.c_on_expr(style)).await;
                     if self.finished() {
                         return;
                     }
                 }
             }
             Expr::Cast { expr, .. } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::AtTimeZone {
                 timestamp,
                 time_zone,
             } => {
-                Box::pin(self.c_on_expr(&timestamp)).await;
+                Box::pin(self.c_on_expr(timestamp)).await;
                 if self.finished() {
                     return;
                 }
-                Box::pin(self.c_on_expr(&time_zone)).await;
+                Box::pin(self.c_on_expr(time_zone)).await;
             }
             Expr::Extract { expr, .. } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::Ceil { expr, .. } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::Floor { expr, .. } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::Position { expr, r#in } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
                     return;
                 }
@@ -1353,15 +1351,15 @@ impl CompletionStatement {
                 substring_for,
                 ..
             } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
                     return;
                 }
                 if let Some(from) = substring_from {
-                    Box::pin(self.c_on_expr(&from)).await;
+                    Box::pin(self.c_on_expr(from)).await;
                 }
                 if let Some(f) = substring_for {
-                    Box::pin(self.c_on_expr(&f)).await;
+                    Box::pin(self.c_on_expr(f)).await;
                 }
             }
             Expr::Trim {
@@ -1370,19 +1368,19 @@ impl CompletionStatement {
                 trim_characters,
                 ..
             } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
                     return;
                 }
                 if let Some(what) = trim_what {
-                    Box::pin(self.c_on_expr(&what)).await;
+                    Box::pin(self.c_on_expr(what)).await;
                     if self.finished() {
                         return;
                     }
                 }
                 if let Some(cs) = trim_characters {
                     for c in cs.iter() {
-                        Box::pin(self.c_on_expr(&c)).await;
+                        Box::pin(self.c_on_expr(c)).await;
                         if self.finished() {
                             return;
                         }
@@ -1395,27 +1393,27 @@ impl CompletionStatement {
                 overlay_from,
                 overlay_for,
             } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
                     return;
                 }
-                Box::pin(self.c_on_expr(&overlay_what)).await;
+                Box::pin(self.c_on_expr(overlay_what)).await;
                 if self.finished() {
                     return;
                 }
-                Box::pin(self.c_on_expr(&overlay_from)).await;
+                Box::pin(self.c_on_expr(overlay_from)).await;
                 if self.finished() {
                     return;
                 }
                 if let Some(overlay_for) = overlay_for {
-                    Box::pin(self.c_on_expr(&overlay_for)).await;
+                    Box::pin(self.c_on_expr(overlay_for)).await;
                 }
             }
             Expr::Collate { expr, .. } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::Nested(expr) => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::Value(..) => {
                 // literal value
@@ -1432,7 +1430,7 @@ impl CompletionStatement {
                 ..
             } => {
                 if let Some(operand) = operand {
-                    Box::pin(self.c_on_expr(&operand)).await;
+                    Box::pin(self.c_on_expr(operand)).await;
                     if self.finished() {
                         return;
                     }
@@ -1453,13 +1451,13 @@ impl CompletionStatement {
                 }
             }
             Expr::Exists { subquery, .. } => {
-                let _ = Box::pin(self.c_on_query(&subquery))
+                let _ = Box::pin(self.c_on_query(subquery))
                     .await
                     .map_err(|e| log::error!("a error:{}", e))
                     .ok();
             }
             Expr::Subquery(query) => {
-                let _ = Box::pin(self.c_on_query(&query))
+                let _ = Box::pin(self.c_on_query(query))
                     .await
                     .map_err(|e| log::error!("a error:{}", e))
                     .ok();
@@ -1528,7 +1526,7 @@ impl CompletionStatement {
             Expr::MatchAgainst { columns, .. } => {
                 for c in columns.iter() {
                     match c.0.len() {
-                        1 => match c.0.get(0).unwrap() {
+                        1 => match c.0.first().unwrap() {
                             ObjectNamePart::Identifier(ident) => self.c_on_expr_ident(ident).await,
                         },
                         _ => {
@@ -1558,25 +1556,25 @@ impl CompletionStatement {
                 self.c_on_table(table).await;
             }
             Expr::OuterJoin(expr) => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::Prior(expr) => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::Lambda(..) => {
                 // databricks no support
             }
             Expr::CompoundFieldAccess { root, access_chain } => {
-                Box::pin(self.c_on_expr(&root)).await;
+                Box::pin(self.c_on_expr(root)).await;
 
                 for acc in access_chain.iter() {
                     match acc {
                         AccessExpr::Dot(expr) => {
-                            Box::pin(self.c_on_expr(&expr)).await;
+                            Box::pin(self.c_on_expr(expr)).await;
                         }
                         AccessExpr::Subscript(subscript) => match subscript {
                             Subscript::Index { index } => {
-                                Box::pin(self.c_on_expr(&index)).await;
+                                Box::pin(self.c_on_expr(index)).await;
                             }
                             Subscript::Slice {
                                 lower_bound,
@@ -1584,13 +1582,13 @@ impl CompletionStatement {
                                 stride,
                             } => {
                                 if let Some(lower_bound) = lower_bound {
-                                    Box::pin(self.c_on_expr(&lower_bound)).await;
+                                    Box::pin(self.c_on_expr(lower_bound)).await;
                                 }
                                 if let Some(upper_bound) = upper_bound {
-                                    Box::pin(self.c_on_expr(&upper_bound)).await;
+                                    Box::pin(self.c_on_expr(upper_bound)).await;
                                 }
                                 if let Some(stride) = stride {
-                                    Box::pin(self.c_on_expr(&stride)).await;
+                                    Box::pin(self.c_on_expr(stride)).await;
                                 }
                             }
                         },
@@ -1598,10 +1596,10 @@ impl CompletionStatement {
                 }
             }
             Expr::IsNormalized { expr, .. } => {
-                Box::pin(self.c_on_expr(&expr)).await;
+                Box::pin(self.c_on_expr(expr)).await;
             }
             Expr::Prefixed { value, .. } => {
-                Box::pin(self.c_on_expr(&value)).await;
+                Box::pin(self.c_on_expr(value)).await;
             }
         }
     }
@@ -1627,7 +1625,6 @@ impl CompletionStatement {
             if let Some(step) = full.step.as_ref() {
                 self.c_on_expr(step).await;
                 if self.finished() {
-                    return;
                 }
             }
         }
@@ -1918,7 +1915,7 @@ impl CompletionStatement {
                 }
             }
         }
-        return scope;
+        scope
     }
 
     pub(crate) async fn c_on_join_constraint(&mut self, c: &JoinConstraint) {
@@ -1946,7 +1943,7 @@ impl CompletionStatement {
                                         })
                                         .unwrap_or_default()
                                         .into_iter()
-                                        .map(|x| CompletionItem::from(x)),
+                                        .map(CompletionItem::from),
                                 );
                             }
                             TableEntered::Temp { table, .. } => {
@@ -2168,7 +2165,7 @@ impl CompletionStatement {
                 if let Some(exprs) = &interpolate.exprs {
                     for expr in exprs.iter() {
                         if let Some(expr) = &expr.expr {
-                            self.c_on_expr(&expr).await;
+                            self.c_on_expr(expr).await;
                         }
                     }
                 }
@@ -2211,11 +2208,11 @@ impl CompletionStatement {
                 return self.c_on_select(select, s).await;
             }
             SetExpr::Query(query) => {
-                return Box::pin(self.c_on_query(&query)).await;
+                return Box::pin(self.c_on_query(query)).await;
             }
             SetExpr::SetOperation { left, right, .. } => {
-                let _ = Box::pin(self.c_on_set_expr(&left, s)).await?;
-                return Box::pin(self.c_on_set_expr(&right, s)).await;
+                let _ = Box::pin(self.c_on_set_expr(left, s)).await?;
+                return Box::pin(self.c_on_set_expr(right, s)).await;
             }
             SetExpr::Values(_values) => {
                 unimplemented!()
@@ -2236,9 +2233,7 @@ impl CompletionStatement {
                         None,
                         table.schema_name.as_deref(),
                         table
-                            .table_name
-                            .as_ref()
-                            .map(|x| x.as_str())
+                            .table_name.as_deref()
                             .unwrap_or_default(),
                         false,
                     )
@@ -2248,9 +2243,7 @@ impl CompletionStatement {
                     })
                     .ok()
                     .unwrap_or_default()
-                    .into_iter()
-                    .map(TempTableColumn::from)
-                    .collect();
+                    .into_iter().collect();
                 return anyhow::Ok(cols);
             }
             SetExpr::Delete(statement) => {
@@ -2299,16 +2292,14 @@ impl CompletionStatement {
                         // TODO how to handle this case
                         let columns = self
                             .helper
-                            .list_column(db, schema, &name, true)
+                            .list_column(db, schema, name, true)
                             .await
                             .map_err(|e| log::error!("list column failed,e:{}", e))
                             .ok()
                             .unwrap_or_default()
-                            .into_iter()
-                            .map(TempTableColumn::from)
-                            .collect::<Vec<_>>();
+                            .into_iter().collect::<Vec<_>>();
 
-                        if columns.len() > 0 {
+                        if !columns.is_empty() {
                             Some(columns)
                         } else {
                             None
@@ -2387,7 +2378,7 @@ impl CompletionStatement {
                 subquery, alias, ..
             } => {
                 let cols = self
-                    .c_on_query(&subquery)
+                    .c_on_query(subquery)
                     .await
                     .map_err(|e| log::error!("self.c_on_query failed,err:{:?}", e))
                     .unwrap_or_default();
@@ -2431,12 +2422,12 @@ impl CompletionStatement {
                 // TODO how to handle this case
                 let columns = self
                     .helper
-                    .list_column(db, schema, &name, true)
+                    .list_column(db, schema, name, true)
                     .await
                     .map_err(|e| log::error!("list column failed,e:{}", e))
                     .ok()
                     .unwrap_or_default();
-                let columns: Vec<_> = columns.into_iter().map(TempTableColumn::from).collect();
+                let columns: Vec<_> = columns.into_iter().collect();
 
                 if let Some(alias) = alias {
                     s.enter_temp_table(
@@ -2521,7 +2512,7 @@ impl CompletionStatement {
         match &function.args {
             FunctionArguments::None => {}
             FunctionArguments::Subquery(query) => {
-                let _ = self.c_on_query(&query).await;
+                let _ = self.c_on_query(query).await;
             }
             FunctionArguments::List(function_argument_list) => {
                 for arg in function_argument_list.args.iter() {
@@ -2530,11 +2521,8 @@ impl CompletionStatement {
                             if self.in_pos(&name.span) {
                                 return;
                             }
-                            match arg {
-                                FunctionArgExpr::Expr(expr) => {
-                                    self.c_on_expr(expr).await;
-                                }
-                                _ => {}
+                            if let FunctionArgExpr::Expr(expr) = arg {
+                                self.c_on_expr(expr).await;
                             };
                         }
                         FunctionArg::ExprNamed { name, arg, .. } => {
@@ -2542,18 +2530,12 @@ impl CompletionStatement {
                                 // make suggest nothing.
                                 return;
                             }
-                            match arg {
-                                FunctionArgExpr::Expr(expr) => {
-                                    self.c_on_expr(expr).await;
-                                }
-                                _ => {}
+                            if let FunctionArgExpr::Expr(expr) = arg {
+                                self.c_on_expr(expr).await;
                             };
                         }
-                        FunctionArg::Unnamed(function_arg_expr) => match function_arg_expr {
-                            FunctionArgExpr::Expr(expr) => {
-                                self.c_on_expr(expr).await;
-                            }
-                            _ => {}
+                        FunctionArg::Unnamed(function_arg_expr) => if let FunctionArgExpr::Expr(expr) = function_arg_expr {
+                            self.c_on_expr(expr).await;
                         },
                     }
                 }

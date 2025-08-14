@@ -182,7 +182,7 @@ fn gen_show_sql(
 
     sql
 }
-pub(crate) const COCKROACH_DATA_TYPES: &'static [&'static str] = &[
+pub(crate) const COCKROACH_DATA_TYPES: &[&str] = &[
     "BIT",
     "BIT[]",
     "BOOL",
@@ -283,7 +283,7 @@ impl SchemaTrait for CockRoachDB {
     ) -> anyhow::Result<QueryResp> {
         let fields = self.show_table_columns(table_name).await?;
         let cols = fields.iter().map(|x| x.field.as_str()).collect::<Vec<_>>();
-        let total = self.pg.query_count(table_name, where_str.clone()).await?;
+        let total = self.pg.query_count(table_name, where_str).await?;
         let sql = gen_show_sql(
             self.pg.config.schema_str(),
             table_name,

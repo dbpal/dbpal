@@ -34,7 +34,7 @@ impl LexerCompletionTrait for MysqlDB {
 
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut lock = self.key_word_completion.lock().await;
-        if lock.len() > 0 {
+        if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
         let mut conn = self.get_conn().await?;
@@ -112,10 +112,10 @@ impl MysqlDB {
 #[async_trait::async_trait]
 impl LanguageServer for MysqlDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = try_completion_on_syntax(
-            &sql,
+            sql,
             line,
             col,
             sqlparser::dialect::MySqlDialect {},
@@ -153,12 +153,12 @@ impl MysqlDB {
         if schema.is_some() {
             return schema;
         }
-        return self.config.db.as_deref();
+        self.config.db.as_deref()
     }
 
-    pub(crate) fn not_allow_empty_schema<'a>(schema: Option<&'a str>) -> anyhow::Result<&'a str> {
+    pub(crate) fn not_allow_empty_schema(schema: Option<&str>) -> anyhow::Result<&str> {
         match schema {
-            Some(x) => return anyhow::Ok(x),
+            Some(x) => anyhow::Ok(x),
             None => anyhow::bail!("empty schema"),
         }
     }
@@ -236,8 +236,8 @@ impl AstCompletionHelper for MysqlDB {
             .columns()
             .iter()
             .map(|x| TempTableColumn {
-                name: x.name().to_string().into(),
-                typ: Some(x.type_info().to_string().into()),
+                name: x.name().to_string(),
+                typ: Some(x.type_info().to_string()),
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
@@ -532,7 +532,7 @@ mod tests {
     }
 }
 
-pub(crate) const TYPES: &'static [&'static str] = &[
+pub(crate) const TYPES: &[&str] = &[
     "BOOLEAN",
     "BOOL",
     "TINYINT",
@@ -554,7 +554,7 @@ pub(crate) const TYPES: &'static [&'static str] = &[
 ];
 
 fn mysql_build_in() -> Vec<CompletionItem> {
-    static SS: &'static [[&'static str; 2]] = &[
+    static SS: &[[&str; 2]] = &[
         ["ABS", "Return the absolute value"],
         ["ACOS", "Return the arc cosine"],
         ["ADDDATE", "Add time values (intervals) to a date value"],
@@ -1658,12 +1658,12 @@ fn mysql_build_in() -> Vec<CompletionItem> {
 
     lazy_static::lazy_static! {
         static ref CS : Vec<CompletionItem> = SS.iter().map(|x| CompletionItem {
-            item : Cow::Borrowed(x[0].into()),
+            item : Cow::Borrowed(x[0]),
             kind : CompletionKind::Pragma,
             desc: Some( x[1].into()),
         }).collect();
     }
-    return CS.clone();
+    CS.clone()
 }
 
 #[cfg(test)]

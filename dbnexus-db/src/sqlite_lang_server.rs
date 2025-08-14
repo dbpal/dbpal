@@ -16,8 +16,23 @@ use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
 impl LangServerCommon for SqliteDB {
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let mut conn = self.get_conn().await?;
+        // schema is connection related
+        // so we need use query related connection.
+        if self.query_id.is_none() {
+            log::error!("query_id is none, should be set before call this function");
+            return anyhow::Ok(vec![]);
+        }
+        let query_id = self.query_id.clone().unwrap();
         let sql = "PRAGMA database_list";
+        log::info!("sql:{}", sql);
+        let conn = self.query_connection.get(&query_id);
+        if conn.is_none() {
+            log::error!("should able to get connection");
+            return anyhow::Ok(vec![]);
+        }
+        let conn = conn.unwrap();
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         let rows = sqlx::query(AssertSqlSafe(sql))
             .fetch_all(conn.deref_mut())
             .await?;
@@ -48,7 +63,7 @@ impl crate::language_server::LexerCompletionTrait for SqliteDB {
     // some backend can use a query to query this.
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut lock = self.keywords_completion.lock().await;
-        if lock.len() > 0 {
+        if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
         let ret: Vec<_> = SQLITE_KEY_WORDS
@@ -85,14 +100,18 @@ impl crate::language_server::LexerCompletionTrait for SqliteDB {
 #[async_trait::async_trait]
 impl LanguageServer for SqliteDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut c = Clone::clone(self);
+        c.query_id = query_id;
+        let c2 = c.clone();
+
         let r = try_completion_on_syntax(
-            &sql,
+            sql,
             line,
             col,
             sqlparser::dialect::SQLiteDialect {},
-            Arc::new(Clone::clone(self)),
+            Arc::new(c),
         )
         .await;
 
@@ -107,7 +126,7 @@ impl LanguageServer for SqliteDB {
             return anyhow::Ok(vec![]);
         }
         return LexerCompletionTrait::do_auto_completion(
-            self,
+            &c2,
             sql,
             &sqlparser::dialect::SQLiteDialect {},
         )
@@ -128,10 +147,28 @@ impl SqliteDB {
             WHERE type = 'index';"#
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
+
+        let rows = match self.query_id {
+            Some(x) => {
+                let conn = self.query_connection.get(&x);
+                if conn.is_none() {
+                    log::error!("should able to get connection");
+                    return anyhow::Ok(vec![]);
+                }
+                let conn = conn.unwrap();
+                let mut conn = conn.lock().await;
+                sqlx::query(AssertSqlSafe(sql.as_str()))
+                    .fetch_all(conn.deref_mut().deref_mut())
+                    .await?
+            }
+            None => {
+                let mut conn = self.get_conn().await?;
+                sqlx::query(AssertSqlSafe(sql.as_str()))
+                    .fetch_all(conn.deref_mut())
+                    .await?
+            }
+        };
+
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name = r.get(0);
@@ -171,7 +208,19 @@ impl AstCompletionHelper for SqliteDB {
     }
 
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        let mut conn = self.get_conn().await?;
+        if self.query_id.is_none() {
+            log::error!("query_id is none, should be set before call this function");
+            return anyhow::Ok(vec![]);
+        }
+        let query_id = self.query_id.clone().unwrap();
+        let conn = self.query_connection.get(&query_id);
+        if conn.is_none() {
+            log::error!("should able to get connection");
+            return anyhow::Ok(vec![]);
+        }
+        let conn = conn.unwrap();
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         log::info!("sql:{}", sql);
         let s = conn
             .deref_mut()
@@ -181,8 +230,8 @@ impl AstCompletionHelper for SqliteDB {
             .columns()
             .iter()
             .map(|x| TempTableColumn {
-                name: x.name().to_string().into(),
-                typ: Some(x.type_info().to_string().into()),
+                name: x.name().to_string(),
+                typ: Some(x.type_info().to_string()),
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
@@ -201,13 +250,17 @@ impl AstCompletionHelper for SqliteDB {
     }
 
     async fn list_function(
-        &self, _catelog: Option<&str>, _schema: Option<&str>, _include_build_in: bool,
+        &self, _catelog: Option<&str>, _schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.build_fn_cache.lock().await;
-        if lock.len() > 0 {
-            return anyhow::Ok(lock.clone());
+        // sqlite function are all build in functions
+        if !include_build_in {
+            return anyhow::Ok(vec![]);
         }
 
+        let mut lock = self.build_fn_cache.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
         let sql = r#"
             SELECT name 
             FROM pragma_function_list()
@@ -241,7 +294,7 @@ impl AstCompletionHelper for SqliteDB {
 
     async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut lock = self.pragma_completion.lock().await;
-        if lock.len() > 0 {
+        if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
         let sql = "PRAGMA pragma_list";

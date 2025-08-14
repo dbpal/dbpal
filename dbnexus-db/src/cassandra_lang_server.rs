@@ -21,7 +21,7 @@ use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
 impl LanguageServer for CassandraDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         //
         let r = AstCompletion::completion(sql, line - 1, col - 1, Clone::clone(self)).await;
@@ -103,7 +103,7 @@ impl LexerCompletionTrait for CassandraDB {
         if let Some(key_space) = self.config.db.as_ref() {
             {
                 ret.extend(
-                    self.list_aggregate_impl(&key_space)
+                    self.list_aggregate_impl(key_space)
                         .await?
                         .into_iter()
                         .map(|x| CompletionItem {
@@ -114,7 +114,7 @@ impl LexerCompletionTrait for CassandraDB {
                 );
             }
             {
-                ret.extend(self.list_udf_impl(&key_space).await?.into_iter().map(|x| {
+                ret.extend(self.list_udf_impl(key_space).await?.into_iter().map(|x| {
                     CompletionItem {
                         kind: CompletionKind::Function,
                         desc: x.cassandra_parameters.clone().map(|x| x.join(",").into()),
@@ -134,7 +134,7 @@ impl LexerCompletionTrait for CassandraDB {
     }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let sql = format!("SELECT table_name FROM system_schema.tables");
+        let sql = "SELECT table_name FROM system_schema.tables".to_string();
         log::info!("sql:{}", sql);
         let rows = self
             .session
@@ -221,7 +221,7 @@ impl AstCompletion {
 
     fn need_key_space_identifier(&self, key_space: Option<&Identifier>) -> anyhow::Result<String> {
         let x = key_space.map(|x| x.to_string());
-        self.need_key_space(x.as_ref().map(|x| x.as_str()))
+        self.need_key_space(x.as_deref())
     }
 
     fn in_pos(&self, span: Option<&Span>) -> bool {
@@ -368,7 +368,7 @@ impl AstCompletion {
         match w {
             WithItem::Option { .. } => {}
             WithItem::ClusterOrder(order_clause) => {
-                self.on_table_or_view_column(&table, &order_clause.name)
+                self.on_table_or_view_column(table, &order_clause.name)
                     .await?;
                 if self.finished() {
                     return anyhow::Ok(());
@@ -385,7 +385,7 @@ impl AstCompletion {
             return anyhow::Ok(());
         }
 
-        let sql = format!(" SELECT role FROM system_auth.roles;");
+        let sql = " SELECT role FROM system_auth.roles;".to_string();
         log::info!("sql:{}", sql);
         let rows = self
             .db
@@ -417,9 +417,9 @@ impl AstCompletion {
         if !self.in_pos(r.span()) {
             return anyhow::Ok(());
         }
-        let sql = format!(
+        let sql =
             "SELECT role FROM system_auth.roles WHERE is_superuser = false   allow filtering  ;"
-        );
+                .to_string();
         log::info!("sql:{}", sql);
 
         let rows = self
@@ -547,7 +547,7 @@ impl AstCompletion {
         let body = self
             .db
             .session
-            .query(format!("DESCRIBE TYPE {};", typ.name.to_string()))
+            .query(format!("DESCRIBE TYPE {};", typ.name))
             .await?
             .response_body()?;
 
@@ -1255,7 +1255,7 @@ WHERE keyspace_name = '{key_space}';"#
                             if self.finished() {
                                 return anyhow::Ok(());
                             }
-                            if self.in_pos(named.alias.as_ref().map(|x| x.span()).flatten()) {
+                            if self.in_pos(named.alias.as_ref().and_then(|x| x.span())) {
                                 self.on_def = true;
                                 return anyhow::Ok(());
                             }
@@ -1266,7 +1266,7 @@ WHERE keyspace_name = '{key_space}';"#
                             if self.finished() {
                                 return anyhow::Ok(());
                             }
-                            if self.in_pos(named.alias.as_ref().map(|x| x.span()).flatten()) {
+                            if self.in_pos(named.alias.as_ref().and_then(|x| x.span())) {
                                 self.on_def = true;
                                 return anyhow::Ok(());
                             }

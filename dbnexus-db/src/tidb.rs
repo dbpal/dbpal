@@ -131,7 +131,7 @@ impl SchemaTrait for TiDB {
         page_size: usize, extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         self.db
-            .show_table(&table_name, where_str, order_by, page, page_size, extra)
+            .show_table(table_name, where_str, order_by, page, page_size, extra)
             .await
     }
 
@@ -146,19 +146,19 @@ impl SchemaTrait for TiDB {
     }
 
     async fn drop_index(&self, table_name: &str, index: &str) -> anyhow::Result<()> {
-        self.db.drop_index(&table_name, index).await
+        self.db.drop_index(table_name, index).await
     }
 
     async fn create_index(
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
-        self.db.create_index(&table, name, kind, &fields).await
+        self.db.create_index(table, name, kind, fields).await
     }
 
     async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        self.db.table_insert(&table_name, values).await
+        self.db.table_insert(table_name, values).await
     }
 
     async fn table_update(
@@ -181,7 +181,7 @@ impl SchemaTrait for TiDB {
         &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
         self.db
-            .modify_table_column(table, &old_name, &new_name, typ)
+            .modify_table_column(table, old_name, new_name, typ)
             .await
     }
 
@@ -206,7 +206,7 @@ impl SchemaTrait for TiDB {
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
-        self.db.drop_view(&view_name).await
+        self.db.drop_view(view_name).await
     }
 
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
@@ -337,7 +337,7 @@ impl DBTrait for TiDB {
     }
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
-        let db = self.db.open_schema(&name).await?;
+        let db = self.db.open_schema(name).await?;
         let db = Clone::clone(db.as_any().downcast_ref::<MysqlDB>().unwrap());
         anyhow::Ok(Arc::new(Self { db: Arc::new(db) }))
     }
@@ -349,7 +349,7 @@ impl DBTrait for TiDB {
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
-        self.db.drop_schema(&name).await
+        self.db.drop_schema(name).await
     }
 }
 

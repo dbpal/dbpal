@@ -13,10 +13,10 @@ use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
 impl LanguageServer for FireBirdDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = try_completion_on_syntax(
-            &sql,
+            sql,
             line,
             col,
             sqlparser::dialect::GenericDialect {},
@@ -76,7 +76,7 @@ impl AstCompletionHelper for FireBirdDB {
 
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let mut conn = self.get_conn()?;
-        let row: Option<Row> = conn.query_first(&sql, ())?;
+        let row: Option<Row> = conn.query_first(sql, ())?;
         if let Some(row) = row {
             let ret: Vec<_> = row
                 .cols
@@ -222,7 +222,7 @@ mod tests {
     }
 }
 
-const TYPES: &'static [&'static str] = &[
+const TYPES: &[&str] = &[
     "INT64",
     "CHAR",
     "TIMESTAMP",
@@ -240,7 +240,7 @@ const TYPES: &'static [&'static str] = &[
 #[async_trait::async_trait]
 impl LangServerCommon for FireBirdDB {}
 //  https://firebirdsql.org/refdocs/langrefupd25-reskeywords-full-keywords.html
-const KEY_WORDS: &'static [&'static str] = &[
+const KEY_WORDS: &[&str] = &[
     "ABS",
     "ACCENT",
     "ACOS",

@@ -368,7 +368,7 @@ pub trait SqlBuilder: GetBackendKind {
         let mut first = true;
         for (k, v) in wheres.iter() {
             let f = field_by_name.get(k);
-            let f = f.map(|x| *x);
+            let f = f.copied();
 
             if f.is_none() {
                 continue;
@@ -469,7 +469,7 @@ pub trait SqlBuilder: GetBackendKind {
                     .as_str(),
                 );
                 if index != last {
-                    sql.push_str(",")
+                    sql.push(',')
                 }
             }
         }
@@ -500,7 +500,7 @@ pub trait SqlBuilder: GetBackendKind {
                     continue;
                 }
                 if !first {
-                    sql.push_str(",");
+                    sql.push(',');
                 }
                 sql.push_str(
                     format!(
@@ -513,7 +513,7 @@ pub trait SqlBuilder: GetBackendKind {
                 );
                 first = false;
             }
-            sql.push_str(")");
+            sql.push(')');
         }
         // values
         sql.push_str(" VALUES (");
@@ -524,9 +524,9 @@ pub trait SqlBuilder: GetBackendKind {
                     continue;
                 }
                 if !first {
-                    sql.push_str(",");
+                    sql.push(',');
                 }
-                let value = values.get(&f.field).map(|x| x.clone()).flatten();
+                let value = values.get(&f.field).cloned().flatten();
                 sql.push_str(&self.put_value_in_sql(
                     &f.typ,
                     f.firebird_binary_sub_type,
@@ -534,7 +534,7 @@ pub trait SqlBuilder: GetBackendKind {
                 )?);
                 first = false;
             }
-            sql.push_str(")");
+            sql.push(')');
         }
         anyhow::Ok(sql)
     }
@@ -668,15 +668,15 @@ pub enum FormatSqlOptsIndent {
     Tabs,
 }
 
-impl Into<sqlformat::FormatOptions<'static>> for FormatSqlOpts {
-    fn into(self) -> sqlformat::FormatOptions<'static> {
+impl From<FormatSqlOpts> for sqlformat::FormatOptions<'static> {
+    fn from(val: FormatSqlOpts) -> Self {
         sqlformat::FormatOptions {
-            indent: match self.indent {
+            indent: match val.indent {
                 FormatSqlOptsIndent::Spaces(x) => sqlformat::Indent::Spaces(x),
                 FormatSqlOptsIndent::Tabs => sqlformat::Indent::Tabs,
             },
-            uppercase: self.uppercase,
-            lines_between_queries: self.lines_between_queries,
+            uppercase: val.uppercase,
+            lines_between_queries: val.lines_between_queries,
             ignore_case_convert: None,
         }
     }
@@ -866,7 +866,7 @@ impl Display for HumanSize {
             "{}",
             humansize::format_size_i(
                 self.0.as_ref().to_f64(),
-                &humansize::FormatSizeOptions::default()
+                humansize::FormatSizeOptions::default()
             )
         )
     }
@@ -1270,14 +1270,14 @@ pub fn monaco_editor_keyword_regexp(keywords: &[&str]) -> String {
     let mut ret = "/\\b(".to_string();
     let last = keywords.len() - 1;
     for (index, c) in keywords.iter().enumerate() {
-        ret.push_str(*c);
+        ret.push_str(c);
         if index != last {
-            ret.push_str("|");
+            ret.push('|');
         }
     }
     ret.push_str(")\\b/");
 
-    return ret;
+    ret
 }
 
 #[cfg(test)]

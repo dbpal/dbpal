@@ -320,7 +320,7 @@ impl DBConnectionConfig {
             }
             DBConnectionConfig::LibSql { conn, .. } => {
                 let db = dbnexus_db::libsql::LibSqlDB::new(conn.clone()).await?;
-                return anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>));
+                anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>))
             }
             DBConnectionConfig::FireBird { conn, .. } => {
                 let db = dbnexus_db::firebird::FireBirdDB::new(conn.clone())?;
@@ -364,6 +364,12 @@ pub struct App {
     pub saved_password: Arc<DashMap<String, String>>,
 }
 
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl App {
     pub fn new() -> Self {
         Self {
@@ -401,7 +407,7 @@ impl App {
                         }
                         Err(_) => {
                             log::info!("enter child named:{}", name);
-                            let dbtrait = catalog_trait.open_db(&database).await?;
+                            let dbtrait = catalog_trait.open_db(database).await?;
                             self.insert_open(name.clone(), dbtrait.clone().into()).await;
                             dbtrait.clone()
                         }
@@ -414,7 +420,7 @@ impl App {
                             Ok(_) => {}
                             Err(_) => {
                                 log::info!("enter child named:{}", name);
-                                let s = dbtrait.open_schema(&schema).await?;
+                                let s = dbtrait.open_schema(schema).await?;
                                 self.insert_open(name, s.clone().into()).await;
                             }
                         }
@@ -429,7 +435,7 @@ impl App {
                         Ok(_) => {}
                         Err(_) => {
                             log::info!("enter child named:{}", name);
-                            let s = dbtrait.open_schema(&schema).await?;
+                            let s = dbtrait.open_schema(schema).await?;
                             self.insert_open(name, s.clone().into()).await;
                         }
                     }
@@ -485,7 +491,7 @@ impl App {
     }
 
     pub async fn get_opened(&self, name: &str) -> anyhow::Result<Open> {
-        let db = self.opens.lock().await.get(name).map(|x| x.clone());
+        let db = self.opens.lock().await.get(name).cloned();
         let x = match db {
             Some(x) => x,
             None => anyhow::bail!("'{}' not found,the connection maybe closed???", name),

@@ -43,15 +43,9 @@ impl serde::Serialize for MetaValue {
     {
         let mut s = serializer.serialize_struct("MetaValue", 3)?;
         s.serialize_field("name", &self.name)?;
-        match &self.value {
-            Some(value) => s.serialize_field("value", &value.to_string())?,
-            None => {}
-        }
-        match &self.desc {
-            Some(x) => {
-                s.serialize_field("desc", x)?;
-            }
-            None => {}
+        if let Some(value) = &self.value { s.serialize_field("value", &value.to_string())? }
+        if let Some(x) = &self.desc {
+            s.serialize_field("desc", x)?;
         }
         s.end()
     }
@@ -68,10 +62,7 @@ impl std::fmt::Debug for MetaValue {
 
         let m = MetaValue {
             name: self.name.clone(),
-            value: match &self.value {
-                Some(x) => Some(x.to_string()),
-                None => None,
-            },
+            value: self.value.as_ref().map(|x| x.to_string()),
         };
         write!(f, "{:?}", m)
     }

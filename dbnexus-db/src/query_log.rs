@@ -29,7 +29,7 @@ impl QueryLogMap {
         self.logs
             .get(id)
             .map(|x| x.lock().unwrap().logs.clone())
-            .unwrap_or(vec![])
+            .unwrap_or_default()
     }
 }
 

@@ -28,7 +28,7 @@ pub struct MysqlDBConfig {
 
 impl MysqlDBConfig {
     pub(crate) fn db_str(&self) -> &str {
-        self.db.as_ref().map(|x| x.as_str()).expect("must be some")
+        self.db.as_deref().expect("must be some")
     }
 }
 
@@ -76,7 +76,7 @@ pub struct ClickHouseConfig {
 
 impl ClickHouseConfig {
     pub(crate) fn db_str(&self) -> &str {
-        self.db.as_ref().map(|x| x.as_str()).expect("must be some")
+        self.db.as_deref().expect("must be some")
     }
 }
 
@@ -147,33 +147,24 @@ impl RedisDBConfig {
 
     pub(crate) fn make_conn_string(&self) -> String {
         let mut ret = "redis://".to_owned();
-        match &self.username {
-            Some(username) => {
-                ret.push_str(&username);
-                match &self.password {
-                    Some(pass) => {
-                        ret.push_str(format!(":{}", pass).as_str());
-                    }
-                    None => {}
-                }
-                ret.push('@');
+        if let Some(username) = &self.username {
+            ret.push_str(username);
+            if let Some(pass) = &self.password {
+                ret.push_str(format!(":{}", pass).as_str());
             }
-            None => {}
+            ret.push('@');
         }
         // host and port
         ret.push_str(self.host.as_str());
-        match self.port {
-            Some(port) => {
-                ret.push_str(format!(":{}", port).as_str());
-            }
-            None => {}
+        if let Some(port) = self.port {
+            ret.push_str(format!(":{}", port).as_str());
         }
         match &self.db {
             Some(db) => {
                 ret.push_str(format!("/{}", &db[2..]).as_str());
             }
             None => {
-                ret.push_str("/");
+                ret.push('/');
             }
         }
         ret

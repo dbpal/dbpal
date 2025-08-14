@@ -36,6 +36,7 @@ import {
   MakeIQueryConn,
   modalStyle,
   msgTimeout,
+  setQueryId,
   SettingContext,
 } from './Common.tsx';
 import { BsFillLightbulbFill } from 'react-icons/bs';
@@ -45,7 +46,12 @@ import { MdOutlineReply } from 'react-icons/md';
 import { NotificationContext } from './Notification.tsx';
 import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { DataSourceKind, SaveSizesToStore, secondConfirm } from './helper.ts';
+import {
+  DataSourceKind,
+  SaveSizesToStore,
+  secondConfirm,
+  VisiableContext,
+} from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
 import { CiTimer } from 'react-icons/ci';
@@ -493,6 +499,14 @@ function SqlQuery(props: {
       }
     });
   }, []);
+  const vis = useContext(VisiableContext);
+  useEffect(() => {
+    // console.log('SqlQuery vis changed', vis);
+    if (vis && conn) {
+      console.log('SqlQuery setQueryId', conn.queryId);
+      setQueryId(conn.queryId);
+    }
+  }, [vis, conn]);
   return (
     //@ts-ignore
     <SplitPane

@@ -75,8 +75,8 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
     sql_to_sql_seq(
         sql,
         &dialect,
-        |s| SqlKind::get_from_statement(s),
-        |x| SqlKind::get_from_sql(x),
+        SqlKind::get_from_statement,
+        SqlKind::get_from_sql,
     )
 }
 
@@ -113,15 +113,13 @@ fn encode_rows(
     let get_binary_sub_type = |name: &String| {
         types
             .as_ref()
-            .map(|x| x.get(name).map(|x| x.firebird_binary_sub_type))
-            .flatten()
+            .and_then(|x| x.get(name).map(|x| x.firebird_binary_sub_type))
             .flatten()
     };
     let get_type = |name: &String| {
         types
             .as_ref()
-            .map(|x| x.get(name).map(|x| &x.typ))
-            .flatten()
+            .and_then(|x| x.get(name).map(|x| &x.typ))
             .map(|x| x.to_uppercase())
     };
     let mut ret = Vec::with_capacity(rows.len());
@@ -269,8 +267,8 @@ fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Value> {
     for col in row.cols.iter() {
         let value = match &col.value {
             SqlType::Text(x) => Some(serde_json::Value::from(x.clone())),
-            SqlType::Integer(x) => Some(serde_json::Value::from(x.clone())),
-            SqlType::Floating(x) => Some(serde_json::Value::from(x.clone())),
+            SqlType::Integer(x) => Some(serde_json::Value::from(*x)),
+            SqlType::Floating(x) => Some(serde_json::Value::from(*x)),
             SqlType::Timestamp(naive_date_time) => {
                 Some(serde_json::Value::from(naive_date_time.to_string()))
             }
@@ -281,7 +279,7 @@ fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Value> {
                     .collect::<Vec<_>>();
                 Some(serde_json::Value::Array(items))
             }
-            SqlType::Boolean(x) => Some(serde_json::Value::from(x.clone())),
+            SqlType::Boolean(x) => Some(serde_json::Value::from(*x)),
             SqlType::Null => None,
         };
         m.insert(col.name.clone(), value.unwrap_or(serde_json::Value::Null));
@@ -409,8 +407,8 @@ impl QuerySql for FireBirdDB {
                         Ok(rows) => {
                             ml.exceed_error()?;
 
-                            if rows.len() > 0 {
-                                let fields = infer_fields(rows.get(0).unwrap());
+                            if !rows.is_empty() {
+                                let fields = infer_fields(rows.first().unwrap());
                                 let data = encode_rows(&rows, true, None)?;
                                 ret.push(Ok(QueryResp {
                                     fields,
@@ -463,14 +461,14 @@ impl QuerySql for FireBirdDB {
         let id = uuid::Uuid::new_v4();
         let conn = self.get_conn()?;
         self.query_connections
-            .insert(id.clone(), Arc::new(Mutex::new(conn)));
+            .insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         let conn = self.get_conn()?;
         self.query_connections
-            .insert(id.clone(), Arc::new(Mutex::new(conn)));
+            .insert(id, Arc::new(Mutex::new(conn)));
         self.query_connections_tx.remove(&id);
         self.tx_execute_times.reset(id);
         anyhow::Ok(())
@@ -625,8 +623,7 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        let sql = format!(
-            "
+        let sql = "
         
             SELECT 
                 RDB$RELATION_NAME AS TABLE_NAME
@@ -637,8 +634,7 @@ impl SchemaTrait for FireBirdDB {
                 AND RDB$SYSTEM_FLAG = 0  -- 排除系统表
             ORDER BY 
                 RDB$RELATION_NAME
-        "
-        );
+        ".to_string();
         let mut conn = self.get_conn()?;
         let rows: Vec<(String,)> = block_in_place(|| conn.query(&sql, ()))?;
         anyhow::Ok(
@@ -737,7 +733,7 @@ impl SchemaTrait for FireBirdDB {
         let mut conn = self.get_conn()?;
         let rows: Vec<rsfbclient::Row> = block_in_place(|| conn.query(&sql, ()))?;
 
-        if rows.len() == 0 {
+        if rows.is_empty() {
             return anyhow::Ok(QueryResp {
                 fields: fs,
                 total: 0,
@@ -912,7 +908,7 @@ impl SchemaTrait for FireBirdDB {
                 }
             };
         }
-        anyhow::Ok(m.values().map(|x| x.clone()).collect())
+        anyhow::Ok(m.values().cloned().collect())
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
@@ -931,7 +927,7 @@ impl SchemaTrait for FireBirdDB {
         let mut conn = self.get_conn()?;
         let rows: Vec<rsfbclient::Row> = block_in_place(|| conn.query(&sql, ()))?;
 
-        if rows.len() == 0 {
+        if rows.is_empty() {
             let fields = self.show_view_columns(view_name).await?;
 
             return anyhow::Ok(QueryResp {
@@ -943,7 +939,7 @@ impl SchemaTrait for FireBirdDB {
         }
         let data = encode_rows(&rows, true, None)?;
         let total = self.query_count(view_name, where_str)?;
-        let fields = match rows.get(0) {
+        let fields = match rows.first() {
             Some(x) => infer_fields(x),
             None => {
                 vec![]

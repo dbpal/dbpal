@@ -101,7 +101,7 @@ impl ClickHouseDB {
                 m
             };
             let s = self.insert_sql(
-                self.config.db.as_ref().map(|x| x.as_str()),
+                self.config.db.as_deref(),
                 table_name,
                 &fs,
                 &values,
@@ -145,7 +145,7 @@ impl ClickHouseDB {
         let conn = self.get_conn()?;
 
         let ret: Vec<String> = conn.query(&sql).fetch_all().await?;
-        anyhow::Ok(ret.into_iter().map(|x| NamedStaff::from(x)).collect())
+        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
 
     pub(crate) async fn list_materialized_view_impl(
@@ -165,7 +165,7 @@ impl ClickHouseDB {
         let ret: Vec<String> = conn.query(&sql).fetch_all().await?;
         anyhow::Ok(
             ret.into_iter()
-                .map(|x| ListMaterializedView::from(x))
+                .map(ListMaterializedView::from)
                 .collect(),
         )
     }
@@ -190,7 +190,7 @@ impl ClickHouseDB {
         }
         let mut ret = ret.into_iter().collect::<Vec<_>>();
         ret.sort();
-        anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
+        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 }
 
@@ -259,11 +259,11 @@ impl SchemaTrait for ClickHouseDB {
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
-        let fs = self.show_table_columns(&table_name).await?;
+        let fs = self.show_table_columns(table_name).await?;
 
         let sql = (self).delete_sql(
-            self.config.db.as_ref().map(|x| x.as_str()),
-            &table_name,
+            self.config.db.as_deref(),
+            table_name,
             &fs,
             &wheres,
         )?;
@@ -491,8 +491,8 @@ impl SchemaTrait for ClickHouseDB {
         let fs = self.show_table_columns(table_name).await?;
 
         let sql = self.insert_sql(
-            self.config.db.as_ref().map(|x| x.as_str()),
-            &table_name,
+            self.config.db.as_deref(),
+            table_name,
             &fs,
             &values,
         )?;
@@ -510,7 +510,7 @@ impl SchemaTrait for ClickHouseDB {
 
         let fs = self.show_table_columns(table_name).await?;
         let sql = self.update_sql(
-            self.config.db.as_ref().map(|x| x.as_str()),
+            self.config.db.as_deref(),
             table_name,
             &fs,
             &values,
@@ -676,7 +676,7 @@ impl r2d2::ManageConnection for PoolManager {
 
     fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
         let sql = "select 1";
-        let _ = conn.query(&sql).fetch::<i32>()?;
+        let _ = conn.query(sql).fetch::<i32>()?;
         Ok(())
     }
 
@@ -710,8 +710,8 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
     sql_to_sql_seq(
         sql,
         &dialect,
-        |s| SqlKind::get_from_statement(s),
-        |x| SqlKind::get_from_sql(x),
+        SqlKind::get_from_statement,
+        SqlKind::get_from_sql,
     )
 }
 
@@ -808,7 +808,7 @@ impl QuerySql for ClickHouseDB {
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = self.get_conn()?;
-        let ret = match conn.query(&sql).execute().await {
+        let ret = match conn.query(sql).execute().await {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
         };
@@ -1144,7 +1144,7 @@ impl ClickHouseDB {
 fn parse_type(typ: &str) -> anyhow::Result<DataType> {
     let d = sqlparser::dialect::ClickHouseDialect {};
     let mut p = sqlparser::parser::Parser::new(&d);
-    p = p.try_with_sql(&typ)?;
+    p = p.try_with_sql(typ)?;
     let ret = p.parse_data_type()?;
     anyhow::Ok(ret)
 }
@@ -1193,7 +1193,7 @@ impl SqlBuilder for ClickHouseDB {
                     .as_str(),
                 );
                 if index != last {
-                    sql.push_str(",")
+                    sql.push(',')
                 }
             }
         }

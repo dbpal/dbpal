@@ -94,31 +94,31 @@ impl MongoDB {
 
     pub async fn query_collection_drop(&self, col: &str) -> anyhow::Result<()> {
         let db = self.get_db().await?;
-        let c = db.collection::<Document>(col).drop().await?;
-        anyhow::Ok(c)
+        db.collection::<Document>(col).drop().await?;
+        anyhow::Ok(())
     }
 
     pub async fn query_collection_drop_index(&self, col: &str, index: &str) -> anyhow::Result<()> {
         let db = self.get_db().await?;
-        let c = db.collection::<Document>(col).drop_index(index).await?;
-        anyhow::Ok(c)
+        db.collection::<Document>(col).drop_index(index).await?;
+        anyhow::Ok(())
     }
 
     pub async fn query_collection_drop_indexes(&self, col: &str) -> anyhow::Result<()> {
         let db = self.get_db().await?;
-        let c = db.collection::<Document>(col).drop_indexes().await?;
-        anyhow::Ok(c)
+        db.collection::<Document>(col).drop_indexes().await?;
+        anyhow::Ok(())
     }
 
     pub async fn query_collection_drop_search_index(
         &self, col: &str, index: &str,
     ) -> anyhow::Result<()> {
         let db = self.get_db().await?;
-        let c = db
+        db
             .collection::<Document>(col)
             .drop_search_index(index)
             .await?;
-        anyhow::Ok(c)
+        anyhow::Ok(())
     }
 
     pub async fn query_collection_find(

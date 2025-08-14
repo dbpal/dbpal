@@ -49,7 +49,7 @@ impl ServerMetas for OracleDB {
 
             {
                 let sql = "SELECT * FROM v$version";
-                let row = conn.query_row(&sql, &[])?;
+                let row = conn.query_row(sql, &[])?;
                 let banner: String = row.get(0)?;
                 let banner_full: String = row.get(1)?;
                 let banner_legacy: String = row.get(2)?;
@@ -95,8 +95,8 @@ fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
     sql_to_sql_seq(
         sql,
         &dialect,
-        |s| SqlKind::get_from_statement(s),
-        |x| SqlKind::get_from_sql(x),
+        SqlKind::get_from_statement,
+        SqlKind::get_from_sql,
     )
 }
 
@@ -200,7 +200,7 @@ impl QuerySql for OracleDB {
         let mut conn = self.get_conn()?;
         conn.set_autocommit(QUERY_AUTO_COMMIT);
         self.query_connections
-            .insert(id.clone(), Arc::new(Mutex::new(conn)));
+            .insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
@@ -211,7 +211,7 @@ impl QuerySql for OracleDB {
         let mut conn = self.get_conn()?;
         conn.set_autocommit(QUERY_AUTO_COMMIT);
         self.query_connections
-            .insert(id.clone(), Arc::new(Mutex::new(conn)));
+            .insert(id, Arc::new(Mutex::new(conn)));
         self.tx_execute_times.reset(id);
 
         anyhow::Ok(())
@@ -354,7 +354,7 @@ impl OracleDB {
 }
 
 fn infer_schema_by_result(rows: &Vec<oracle::Result<Row>>) -> anyhow::Result<Vec<Field>> {
-    if rows.len() == 0 {
+    if rows.is_empty() {
         return anyhow::Ok(vec![]);
     }
 
@@ -812,7 +812,7 @@ impl OracleDB {
     ) -> anyhow::Result<()> {
         let conn = self.get_conn()?;
 
-        let rows = block_in_place(|| conn.query(&sql, &[]))?;
+        let rows = block_in_place(|| conn.query(sql, &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
         for r in rows {
             let r = r?;
@@ -838,7 +838,7 @@ impl OracleDB {
     ) -> anyhow::Result<()> {
         let conn = self.get_conn()?;
 
-        let rows = block_in_place(|| conn.query(&sql, &[]))?;
+        let rows = block_in_place(|| conn.query(sql, &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
         let json = encode_rows_as_json(rows)?;
         let str = if pretty {
@@ -867,10 +867,10 @@ impl OracleDB {
     ) -> anyhow::Result<()> {
         let conn = self.get_conn()?;
 
-        let rows = block_in_place(|| conn.query(&sql, &[]))?;
+        let rows = block_in_place(|| conn.query(sql, &[]))?;
         let rows: Vec<_> = rows.collect();
-        if include_header && rows.len() > 0 {
-            let fs = match rows.get(0).unwrap() {
+        if include_header && !rows.is_empty() {
+            let fs = match rows.first().unwrap() {
                 Ok(x) => x
                     .column_info()
                     .iter()
@@ -982,8 +982,7 @@ impl OracleDB {
                 .map(|x| ListTable {
                     size: sizes
                         .get(&x)
-                        .map(|x| x.clone().map(|x| HumanSize(Box::new(x))))
-                        .flatten(),
+                        .and_then(|x| (*x).map(|x| HumanSize(Box::new(x)))),
                     name: x,
                 })
                 .collect(),
@@ -1041,8 +1040,7 @@ impl SchemaTrait for OracleDB {
                 .map(|x| ListTable {
                     size: sizes
                         .get(&x)
-                        .map(|x| x.clone().map(|x| HumanSize(Box::new(x))))
-                        .flatten(),
+                        .and_then(|x| (*x).map(|x| HumanSize(Box::new(x)))),
                     name: x,
                 })
                 .collect(),
@@ -1104,10 +1102,10 @@ impl SchemaTrait for OracleDB {
         let conn = self.get_conn()?;
 
         let create_table = create_table_sql(&conn, table_name)?;
-        let indexes = self.show_indexes(&table_name).await?;
+        let indexes = self.show_indexes(table_name).await?;
         let mut indexes_sql = Vec::new();
         for i in indexes.iter() {
-            let s = create_index_sql(&conn, &i.name.as_ref().unwrap(), self.schema_str())?;
+            let s = create_index_sql(&conn, i.name.as_ref().unwrap(), self.schema_str())?;
             indexes_sql.push(s);
         }
         anyhow::Ok(CreateTableAndIndexSql {
@@ -1374,7 +1372,7 @@ impl SchemaTrait for OracleDB {
                 );
             }
         }
-        anyhow::Ok(ret.into_iter().map(|(_, v)| v).collect())
+        anyhow::Ok(ret.into_values().collect())
     }
 
     async fn table_insert(
@@ -1384,7 +1382,7 @@ impl SchemaTrait for OracleDB {
         let mut conn = self.get_conn()?;
         conn.set_autocommit(true);
 
-        let fs = self.show_table_columns(&table_name).await?;
+        let fs = self.show_table_columns(table_name).await?;
         let sql = (self).insert_sql(None, table_name, &fs, &values)?;
         log::info!("insert sql:{}", sql);
 
@@ -1460,7 +1458,7 @@ impl SchemaTrait for OracleDB {
         };
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
-        let _ = block_in_place(|| conn.execute(&sql.as_str(), &[]))?;
+        let _ = block_in_place(|| conn.execute(sql.as_str(), &[]))?;
         anyhow::Ok(())
     }
 
@@ -1475,7 +1473,7 @@ impl SchemaTrait for OracleDB {
         log::info!("query sql:{}", sql);
         let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         let rows = rows.into_iter().collect::<Vec<_>>();
-        if rows.len() == 0 {
+        if rows.is_empty() {
             return anyhow::Ok(QueryResp::new(
                 self.show_view_columns(view_name).await?,
                 total as usize,
@@ -1746,13 +1744,10 @@ impl DBTrait for OracleDB {
 impl OracleDB {
     pub(crate) fn get_conn(&self) -> anyhow::Result<oracle::Connection> {
         let mut conn: oracle::Connection = block_in_place(|| self.pool.get())?;
-        match &self.config.schema {
-            Some(db_name) => {
-                let sql = format!("ALTER SESSION SET CURRENT_SCHEMA={db_name}");
-                log::info!("sql:{}", sql);
-                block_in_place(|| conn.execute(&sql, &[]))?;
-            }
-            None => {}
+        if let Some(db_name) = &self.config.schema {
+            let sql = format!("ALTER SESSION SET CURRENT_SCHEMA={db_name}");
+            log::info!("sql:{}", sql);
+            block_in_place(|| conn.execute(&sql, &[]))?;
         }
         block_in_place(|| {
             conn.set_autocommit(true);
@@ -1760,7 +1755,7 @@ impl OracleDB {
         if let Some(timeout) = self.config.call_timeout {
             conn.set_call_timeout(Some(Duration::from_millis(timeout)))?;
         }
-        return anyhow::Ok(conn);
+        anyhow::Ok(conn)
     }
 }
 

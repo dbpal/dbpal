@@ -39,7 +39,7 @@ pub struct MysqlDB {
 }
 
 fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
-    if rows.len() == 0 {
+    if rows.is_empty() {
         return vec![];
     }
     let mut ret = Vec::with_capacity(rows[0].columns().len());
@@ -178,10 +178,10 @@ fn encode_row_as_json(row: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<s
                     value
                         .map(|x| {
                             x.into_iter()
-                                .map(|x| serde_json::Value::from(x))
+                                .map(serde_json::Value::from)
                                 .collect::<Vec<_>>()
                         })
-                        .map(|x| serde_json::Value::Array(x))
+                        .map(serde_json::Value::Array)
                         .unwrap_or(null_value.clone())
                 }
             }
@@ -383,9 +383,8 @@ impl MysqlDB {
         while let Some(rows) = stream.next().await {
             let rows = rows?;
 
-            if first && rows.len() > 0 && include_header {
-                let fs = rows
-                    .get(0)
+            if first && !rows.is_empty() && include_header {
+                let fs = rows.first()
                     .unwrap()
                     .columns()
                     .iter()
@@ -929,8 +928,8 @@ impl SchemaTrait for MysqlDB {
             let row = sqlx::query(AssertSqlSafe(sql.as_str()))
                 .fetch_one(conn.deref_mut())
                 .await?;
-            let create_stmt = row.try_get::<String, _>(2)?;
-            create_stmt
+            
+            row.try_get::<String, _>(2)?
         };
 
         let mut d = TriggerDetail::new(name, timing, event, create_stmt, None);
@@ -1048,7 +1047,7 @@ impl SchemaTrait for MysqlDB {
         let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
-        if rows.len() == 0 {
+        if rows.is_empty() {
             let f = self.show_view_columns(view_name).await?;
             return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
         }
@@ -1156,7 +1155,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.list_table_impl(self.config.db.as_ref().map(|x| x.as_str()).unwrap())
+        self.list_table_impl(self.config.db.as_deref().unwrap())
             .await
     }
 
@@ -1208,7 +1207,7 @@ impl SchemaTrait for MysqlDB {
                 ty,
                 null != "NO",
                 default_value,
-                key.map_or(false, |x| x == "PRI"),
+                key.is_some_and(|x| x == "PRI"),
                 extra == "auto_increment",
             ));
         }
@@ -1219,7 +1218,7 @@ impl SchemaTrait for MysqlDB {
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
-        let total = self.query_count(table_name, where_str.clone()).await?;
+        let total = self.query_count(table_name, where_str).await?;
         let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -1325,11 +1324,11 @@ fn encode_rows(
 
                 _ if type_is_string(&ty) => {
                     let value: Option<String> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
+                    value.map(|x| x.to_string())
                 }
                 "ENUM" => {
                     let value: Option<String> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
+                    value.map(|x| x.to_string())
                 }
                 _ if type_is_blob(&ty) => {
                     let x: Option<Vec<u8>> = r.try_get(c)?;
@@ -1400,10 +1399,10 @@ impl MysqlDB {
         }
 
         if let Some(pass) = &config.password {
-            opts = opts.password(&pass);
+            opts = opts.password(pass);
         }
         if let Some(db) = &config.db {
-            opts = opts.database(&db);
+            opts = opts.database(db);
         }
         let pool = sqlx::mysql::MySqlPool::connect_with(opts).await?;
 
@@ -1432,7 +1431,7 @@ impl MysqlDB {
 
     pub async fn get_conn(&self) -> anyhow::Result<PoolConnection<sqlx::MySql>> {
         let conn = self.pool.acquire().await?;
-        return anyhow::Ok(conn);
+        anyhow::Ok(conn)
     }
 }
 
@@ -1682,7 +1681,7 @@ impl QuerySql for MysqlDB {
             log::trace!("item: {:?}", item);
             match item {
                 sqlx::Either::Left(row_aff) => {
-                    if rows.len() > 0 {
+                    if !rows.is_empty() {
                         let fields = get_rows_types(&rows);
                         let data = encode_rows(&rows, true)?;
                         ret.push(Ok(QueryResp::new(fields, 0, data, None)?));
@@ -1698,7 +1697,7 @@ impl QuerySql for MysqlDB {
             }
         }
         drop(stream);
-        if ret.len() == 0 {
+        if ret.is_empty() {
             use sqlx::Statement;
             let s = conn
                 .deref_mut()

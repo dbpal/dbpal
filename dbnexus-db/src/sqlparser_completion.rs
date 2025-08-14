@@ -96,7 +96,7 @@ impl Scopes {
     pub(crate) fn push_scopes(&self, scopes: Vec<Scope>) -> ScopesDropGuard {
         let length = scopes.len();
 
-        self.ss.lock().unwrap().extend(scopes.into_iter());
+        self.ss.lock().unwrap().extend(scopes);
         ScopesDropGuard {
             ss: self.ss.clone(),
             n: length,
@@ -217,7 +217,7 @@ impl TableEntered {
             .map(
                 |x: &Ident| match (x.quote_style.is_some(), name.quote_style.is_some()) {
                     (false, false) => name.value.eq_ignore_ascii_case(&x.value),
-                    _ => &x.value == &name.value,
+                    _ => x.value == name.value,
                 },
             )
             .unwrap_or(false)
@@ -356,7 +356,6 @@ impl CompletionStatement {
                 if let Some(on_cluster) = on_cluster.as_ref() {
                     self.c_on_cluster(on_cluster).await;
                     if self.finished() {
-                        return;
                     }
                 }
                 // TODO how should I handle partitions
@@ -365,7 +364,7 @@ impl CompletionStatement {
                 // hive not support rigth now
             }
             Statement::Query(query) => {
-                let _ = self.c_on_query(&query).await;
+                let _ = self.c_on_query(query).await;
             }
             Statement::Insert(insert) => {
                 match &insert.table {
@@ -392,7 +391,7 @@ impl CompletionStatement {
 
                 //
                 if let Some(query) = &insert.source {
-                    let _ = self.c_on_query(&query).await;
+                    let _ = self.c_on_query(query).await;
                     if self.finished() {
                         return;
                     }
@@ -471,13 +470,13 @@ impl CompletionStatement {
             }
 
             Statement::Install { extension_name } => {
-                self.c_on_duck_extension(&extension_name, Some(false)).await;
+                self.c_on_duck_extension(extension_name, Some(false)).await;
             }
             Statement::Load { extension_name } => {
-                self.c_on_duck_extension(&extension_name, Some(true)).await;
+                self.c_on_duck_extension(extension_name, Some(true)).await;
             }
             Statement::Directory { source, .. } => {
-                let _ = self.c_on_query(&source).await;
+                let _ = self.c_on_query(source).await;
             }
             Statement::Call(function) => {
                 Box::pin(self.c_on_function_call(function)).await;
@@ -495,7 +494,7 @@ impl CompletionStatement {
                             return;
                         }
                         for c in columns.iter() {
-                            self.c_on_column(table_name, &c, false).await;
+                            self.c_on_column(table_name, c, false).await;
                             if self.finished() {
                                 return;
                             }
@@ -518,7 +517,7 @@ impl CompletionStatement {
                     }
 
                     CopySource::Query(query) => {
-                        let columns = self.c_on_query(&query).await.ok().unwrap_or_default();
+                        let columns = self.c_on_query(query).await.ok().unwrap_or_default();
                         for op in options.iter() {
                             match op {
                                 CopyOption::ForceQuote(idents)
@@ -529,7 +528,7 @@ impl CompletionStatement {
                                             self.result = Some(
                                                 columns
                                                     .iter()
-                                                    .map(|x| CompletionItem::from(x))
+                                                    .map(CompletionItem::from)
                                                     .collect::<Vec<_>>(),
                                             );
                                         }
@@ -616,7 +615,7 @@ impl CompletionStatement {
                     }
                 }
                 if let Some(p) = returning {
-                    self.c_on_select_item(&p).await;
+                    self.c_on_select_item(p).await;
                 }
             }
             Statement::Delete(delete) => {
@@ -625,7 +624,7 @@ impl CompletionStatement {
                     return;
                 }
                 let _guard = if let Some(other) = &delete.using {
-                    let _guard = self.c_on_table_with_joins(&other).await;
+                    let _guard = self.c_on_table_with_joins(other).await;
                     if self.finished() {
                         return;
                     }
@@ -663,7 +662,7 @@ impl CompletionStatement {
                     return;
                 }
                 // name is user defined no need completion.
-                let _ = self.c_on_query(&query).await;
+                let _ = self.c_on_query(query).await;
             }
             Statement::CreateTable(create_table) => {
                 if self.in_pos(&create_table.name.span()) {
@@ -803,7 +802,7 @@ impl CompletionStatement {
                                 }
                             }
 
-                            Box::pin(self.c_on_expr(&expr)).await;
+                            Box::pin(self.c_on_expr(expr)).await;
                         }
                         TableConstraint::Index { name, columns, .. } => {
                             if let Some(name) = name {
@@ -862,8 +861,7 @@ impl CompletionStatement {
             Statement::CreateVirtualTable { name, .. } => {
                 if self.in_pos(&name.span()) {
                     self.set_on_def();
-                    return;
-                };
+                }
             }
             Statement::CreateIndex(create_index) => {
                 if let Some(name) = &create_index.name {
@@ -901,7 +899,6 @@ impl CompletionStatement {
                 if let Some(expr) = &create_index.predicate {
                     self.c_on_expr(expr).await;
                     if self.finished() {
-                        return;
                     }
                 }
             }
@@ -961,7 +958,6 @@ impl CompletionStatement {
                 if let Some(x) = with_check {
                     self.c_on_expr(x).await;
                     if self.finished() {
-                        return;
                     }
                 }
             }
@@ -988,7 +984,6 @@ impl CompletionStatement {
                     AlterIndexOperation::RenameIndex { index_name } => {
                         if self.in_pos(&index_name.span()) {
                             self.set_on_def();
-                            return;
                         }
                     }
                 }
@@ -998,7 +993,7 @@ impl CompletionStatement {
                 if self.finished() {
                     return;
                 }
-                let _ = self.c_on_query(&query).await;
+                let _ = self.c_on_query(query).await;
             }
             Statement::AlterRole { name, operation } => {
                 self.c_on_role(name).await;
@@ -1006,7 +1001,6 @@ impl CompletionStatement {
                     AlterRoleOperation::RenameRole { role_name } => {
                         if self.in_pos(&role_name.span) {
                             self.set_on_def();
-                            return;
                         }
                     }
                     AlterRoleOperation::AddMember { member_name } => {
@@ -1050,7 +1044,7 @@ impl CompletionStatement {
                 object_type, names, ..
             } => {
                 for name in names.iter() {
-                    self.c_on_type_drop(object_type.clone(), name).await;
+                    self.c_on_type_drop(*object_type, name).await;
                     if self.finished() {
                         return;
                     }
@@ -1095,24 +1089,24 @@ impl CompletionStatement {
                     if let Some(expr) = &d.assignment {
                         match expr {
                             DeclareAssignment::Expr(expr) => {
-                                self.c_on_expr(&expr).await;
+                                self.c_on_expr(expr).await;
                             }
                             DeclareAssignment::Default(expr) => {
-                                self.c_on_expr(&expr).await;
+                                self.c_on_expr(expr).await;
                             }
                             DeclareAssignment::DuckAssignment(expr) => {
-                                self.c_on_expr(&expr).await;
+                                self.c_on_expr(expr).await;
                             }
                             DeclareAssignment::For(expr) => {
-                                self.c_on_expr(&expr).await;
+                                self.c_on_expr(expr).await;
                             }
                             DeclareAssignment::MsSqlAssignment(expr) => {
-                                self.c_on_expr(&expr).await;
+                                self.c_on_expr(expr).await;
                             }
                         }
                     }
                     if let Some(for_query) = &d.for_query {
-                        let _ = self.c_on_query(&for_query).await;
+                        let _ = self.c_on_query(for_query).await;
                     }
                     self.scopes.enter_declare(Arc::new(d.clone()));
                 }
@@ -1157,7 +1151,7 @@ impl CompletionStatement {
                 // 给我的语法结构不好做自动完成
             }
             Statement::ShowCreate { obj_type, obj_name } => {
-                self.c_on_mysql_show_create(obj_type.clone(), obj_name)
+                self.c_on_mysql_show_create(*obj_type, obj_name)
                     .await;
             }
             Statement::ShowColumns { .. } => {}
@@ -1196,7 +1190,7 @@ impl CompletionStatement {
                 ..
             } => {
                 //
-                self.c_on_postgres_comment_object(object_type.clone(), object_name)
+                self.c_on_postgres_comment_object(*object_type, object_name)
                     .await;
             }
             Statement::Commit { .. } => {
@@ -1211,19 +1205,16 @@ impl CompletionStatement {
                     SchemaName::Simple(object_name) => {
                         if self.in_pos(&object_name.span()) {
                             self.set_on_def();
-                            return;
                         }
                     }
                     SchemaName::UnnamedAuthorization(ident) => {
                         if self.in_pos(&ident.span) {
                             self.set_on_def();
-                            return;
                         }
                     }
                     SchemaName::NamedAuthorization(_object_name, ident) => {
                         if self.in_pos(&ident.span) {
                             self.set_on_def();
-                            return;
                         }
                     }
                 }
@@ -1232,7 +1223,6 @@ impl CompletionStatement {
                 //
                 if self.in_pos(&db_name.span()) {
                     self.set_on_def();
-                    return;
                 }
             }
             Statement::CreateFunction(create_f) => {
@@ -1315,16 +1305,13 @@ impl CompletionStatement {
                     return;
                 }
                 for e in events.iter() {
-                    match e {
-                        TriggerEvent::Update(fields) => {
-                            for field in fields.iter() {
-                                self.c_on_column(table_name, field, false).await;
-                                if self.finished() {
-                                    return;
-                                }
+                    if let TriggerEvent::Update(fields) = e {
+                        for field in fields.iter() {
+                            self.c_on_column(table_name, field, false).await;
+                            if self.finished() {
+                                return;
                             }
                         }
-                        _ => {}
                     }
                 }
                 if let Some(r) = referenced_table_name {
@@ -1529,7 +1516,6 @@ impl CompletionStatement {
             Statement::Savepoint { name } => {
                 if self.in_pos(&name.span) {
                     self.set_on_def();
-                    return;
                 }
             }
             Statement::ReleaseSavepoint { .. } => {
@@ -1631,7 +1617,7 @@ impl CompletionStatement {
                 // not support right now
             }
             Statement::OptimizeTable { name, .. } => {
-                self.c_on_table(&name).await;
+                self.c_on_table(name).await;
             }
             Statement::LISTEN { .. } => {}
             Statement::UNLISTEN { .. } => {}
@@ -1661,11 +1647,11 @@ impl CompletionStatement {
                 arguments,
                 ..
             } => {
-                self.c_on_expr(&message).await;
-                self.c_on_expr(&severity).await;
-                self.c_on_expr(&state).await;
+                self.c_on_expr(message).await;
+                self.c_on_expr(severity).await;
+                self.c_on_expr(state).await;
                 for ar in arguments.iter() {
-                    self.c_on_expr(&ar).await;
+                    self.c_on_expr(ar).await;
                 }
             }
             Statement::Set(set) => self.c_on_set(set).await,
