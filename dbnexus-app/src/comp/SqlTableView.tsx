@@ -399,9 +399,7 @@ function SqlTableView_(props: {
         };
         return (
           <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
-            <Tooltip title={makeTitle()}>
-              <strong>{def.field}</strong>
-            </Tooltip>
+            <Tooltip title={makeTitle()}>{def.field}</Tooltip>
             {def.is_primary && <KeyIcon style={{ fontSize: '16px' }}></KeyIcon>}
           </Stack>
         );

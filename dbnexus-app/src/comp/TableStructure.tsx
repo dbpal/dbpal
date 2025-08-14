@@ -1700,7 +1700,7 @@ function StatementStructure(props: {
   const [dom, setDom] = useState(null);
   useEffect(() => {
     if (dom) {
-      let c = saveAndSetSize(dom, 'table-create-sql');
+      let c = saveAndSetSize(dom, 'table-create-sql', 'height');
       return c;
     }
   }, [dom]);

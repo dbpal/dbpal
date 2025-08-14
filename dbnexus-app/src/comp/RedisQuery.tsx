@@ -118,7 +118,6 @@ function RedisQuery(props: {
       onDragFinished={(_: number): void => {
         setIsDragging(false);
       }} // 拖动结束
-      // style={{ position: 'relative' }}
       onChange={(newsize) => {
         SaveSizesToStore.saveSize(sizeKey, { width: newsize });
       }}
@@ -150,29 +149,17 @@ function RedisQuery(props: {
         ]}
       ></SqlQuery>
 
-      <div
+      <iframe
+        hidden={!showDoc}
+        ref={iframeRef} // 绑定 iframe 引用
+        src={getURL(command)}
         style={{
-          height: '100vh',
-          position: 'relative',
+          width: '99%',
+          height: '100%',
+          border: 'none', // 去掉边框
         }}
-      >
-        <iframe
-          hidden={!showDoc}
-          ref={iframeRef} // 绑定 iframe 引用
-          src={getURL(command)}
-          style={{
-            width: '100%',
-            height: '100%',
-            border: 'none', // 去掉边框
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            padding: 0,
-            margin: 0,
-          }}
-          title="Full Size Iframe"
-        />
-      </div>
+        title="Full Size Iframe"
+      />
     </SplitPane>
   );
 }

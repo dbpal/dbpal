@@ -173,7 +173,11 @@ function TabsWithContent_(props: {
           })}
         </Tabs>
       </div>
-      <div style={{ paddingRight: '18px' }}>
+      <div
+        style={{
+          paddingRight: '18px',
+        }}
+      >
         {tabs.map((tab, index) => (
           <VisiableContext.Provider key={tab.id} value={selectIndex == index}>
             <div hidden={selectIndex !== index}>{tab.content}</div>
