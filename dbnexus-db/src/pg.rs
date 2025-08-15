@@ -38,7 +38,6 @@ pub struct PostGresDB {
     pub(crate) key_word_completion: Arc<Mutex<Vec<CompletionItem>>>,
     tx_execute_times: TXExecuteTimes,
     pub(crate) build_in_fn: Arc<Mutex<Vec<CompletionItem>>>,
-    pub(crate) query_id: Option<uuid::Uuid>,
 }
 
 #[async_trait::async_trait]
@@ -1583,7 +1582,6 @@ impl PostGresDB {
             tx_execute_times: Default::default(),
             key_word_completion: Default::default(),
             build_in_fn: Default::default(),
-            query_id: Default::default(),
         })
     }
 

@@ -32,7 +32,7 @@ use crate::query_log::{QueryLogEvent, QueryLogMap};
 pub struct MysqlDB {
     pool: sqlx::MySqlPool,
     pub(crate) config: MysqlDBConfig,
-    query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
+    pub(crate) query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
     query_logs: QueryLogMap,
     tx_execute_times: TXExecuteTimes,
     pub(crate) key_word_completion: Arc<Mutex<Vec<CompletionItem>>>,

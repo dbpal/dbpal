@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::collections::HashSet;
-use std::sync::Arc;
 
 use sqlparser::ast::Statement;
 use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
@@ -13,7 +12,7 @@ use crate::sqlparser_completion::{CompletionStatement, TempTableColumn};
 #[async_trait::async_trait]
 pub trait LanguageServer: GetBackendKind {
     async fn auto_completion(
-        &self, query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
 
     fn format_sql(&self, _sql: &str, _ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
@@ -132,6 +131,10 @@ pub trait LexerCompletionTrait: LangServerCommon {
     // some backend can use a query to query this.
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>>;
 
+    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+        anyhow::Ok(vec![])
+    }
+
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>>;
 
     // table use very often.
@@ -149,12 +152,12 @@ pub trait LexerCompletionTrait: LangServerCommon {
         let tokens = sqlparser::tokenizer::Tokenizer::new(dialect, sql)
             .tokenize_with_location()
             .unwrap_or_default();
-        let mut all_item = self.all_completion_items().await?;
+        let mut all_item = self.all_completion_items().await;
         all_item.extend(self.get_table_columns_if_possible(&tokens[..]).await);
         return anyhow::Ok(all_item);
     }
 
-    async fn all_completion_items(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn all_completion_items(&self) -> Vec<CompletionItem> {
         let mut ret = Vec::new();
         ret.extend(
             self.get_key_words_fn()
@@ -246,7 +249,15 @@ pub trait LexerCompletionTrait: LangServerCommon {
                     desc: None,
                 }),
         );
-        anyhow::Ok(ret)
+        ret.extend(
+            self.list_prepares()
+                .await
+                .map_err(|err| log::error!("list prepares failed,err:{}", err))
+                .unwrap_or_default()
+                .into_iter()
+                .map(CompletionItem::from),
+        );
+        ret
     }
 
     async fn get_table_columns_if_possible(&self, tokens: &[TokenWithSpan]) -> Vec<CompletionItem> {
@@ -405,7 +416,7 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
 }
 
 pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Send + Sync>(
-    sql: &str, line: u32, col: u32, dialet: T, helper: Arc<dyn AstCompletionHelper>,
+    sql: &str, line: u32, col: u32, dialet: T, helper: &dyn AstCompletionHelper,
 ) -> anyhow::Result<Vec<CompletionItem>> {
     let loc = Location {
         line: line as u64,
@@ -437,7 +448,7 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
 
     for statement in statements {
         log::trace!("completion on ast:{:?}", statement);
-        let mut c = CompletionStatement::new(loc, helper.clone());
+        let mut c = CompletionStatement::new(loc, helper);
         c.completion_on_statement(&statement).await;
         if c.finished() {
             let m = c.result.unwrap_or_default();
@@ -633,7 +644,7 @@ select xxxx
             for i in item.tests.iter() {
                 log::trace!("on pos:{}", i.0);
                 let items = db
-                    .auto_completion(None, &item.sql, 1, i.0 as u32, use_lexer)
+                    .auto_completion(&item.sql, 1, i.0 as u32, use_lexer)
                     .await
                     .unwrap();
                 for should in i.1.iter() {

@@ -242,8 +242,9 @@ fn encode_rows_as_json(
 
                 ColType::Decimal => {
                     let value: Option<Decimal> = row.get_by_index(index)?;
-                    value.map(|value| format_decimal(&value))
-                    .map(serde_json::Value::from)
+                    value
+                        .map(|value| format_decimal(&value))
+                        .map(serde_json::Value::from)
                 }
                 ColType::Double => {
                     let value: Option<f64> = row.get_by_index(index)?;
@@ -1558,13 +1559,7 @@ impl SchemaTrait for CassandraDB {
         self.can_write()?;
 
         let fs = self.show_table_columns(table_name).await?;
-        let sql = self.update_sql(
-            self.config.db.as_deref(),
-            table_name,
-            &fs,
-            &values,
-            &wheres,
-        )?;
+        let sql = self.update_sql(self.config.db.as_deref(), table_name, &fs, &values, &wheres)?;
 
         log::info!("update sql:{}", sql);
         self.session.query(&sql).await?;
@@ -1586,12 +1581,7 @@ impl SchemaTrait for CassandraDB {
         self.can_write()?;
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = self.delete_sql(
-            self.config.db.as_deref(),
-            table_name,
-            &fs,
-            &wheres,
-        )?;
+        let sql = self.delete_sql(self.config.db.as_deref(), table_name, &fs, &wheres)?;
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
         self.invalid_page_caching(Some(table_name));
@@ -1781,9 +1771,7 @@ fn extract_parameter_for_function(sql: &str) -> anyhow::Result<Vec<ColumnDefinit
     let s = &x.statements[0];
 
     match &s.statement {
-        CassandraStatement::CreateFunction(x) => {
-            anyhow::Ok(x.params.clone())
-        }
+        CassandraStatement::CreateFunction(x) => anyhow::Ok(x.params.clone()),
         _ => {
             anyhow::bail!("this should be create function statement.")
         }

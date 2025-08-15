@@ -6,10 +6,10 @@ use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::cockroach::CockRoachDB;
 use dbnexus_db::db::{
-    ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
-    DefAndMetas, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, SequenceDetail, ShowExtraArgs, SqlExecuteRet, TriggerDetail,
-    UdfOrProcedureExtraParameter, escape_sql_str,
+    AutoCompletionUuid, ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql,
+    CreatedType, DefAndMetas, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable,
+    NamedStaff, ProcedureDetail, QueryResp, SequenceDetail, ShowExtraArgs, SqlExecuteRet,
+    TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::CompletionItem;
@@ -987,19 +987,14 @@ pub async fn auto_completion(
     random_error()?;
     let use_lexer = true;
     let db = app.get_opened(name.as_str()).await?;
+    if let Some(x) = query_id {
+        AutoCompletionUuid::set(x);
+    }
+
     let ret = match db {
-        Open::Catalog(x) => {
-            x.auto_completion(query_id, &sql, line, col, use_lexer)
-                .await
-        }
-        Open::DataBase(x) => {
-            x.auto_completion(query_id, &sql, line, col, use_lexer)
-                .await
-        }
-        Open::Schema(x) => {
-            x.auto_completion(query_id, &sql, line, col, use_lexer)
-                .await
-        }
+        Open::Catalog(x) => x.auto_completion(&sql, line, col, use_lexer).await,
+        Open::DataBase(x) => x.auto_completion(&sql, line, col, use_lexer).await,
+        Open::Schema(x) => x.auto_completion(&sql, line, col, use_lexer).await,
     }
     .map_err(ErrorFrontend::from)?;
     Ok(ret)

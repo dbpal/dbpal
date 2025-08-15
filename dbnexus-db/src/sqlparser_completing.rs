@@ -54,7 +54,7 @@ impl From<CommentObject> for CompletionKind {
     }
 }
 
-impl CompletionStatement {
+impl<'a> CompletionStatement<'a> {
     pub(crate) async fn c_on_duck_extension(&mut self, name: &Ident, installed: Option<bool>) {
         if !self.in_pos(&name.span) {
             return;
@@ -431,9 +431,9 @@ impl CompletionStatement {
         );
     }
 
-    pub(crate) fn extract_db_schme_item<'a>(
-        &mut self, item_name: &'a ObjectName,
-    ) -> (Option<&'a str>, Option<&'a str>, &'a str) {
+    pub(crate) fn extract_db_schme_item<'b>(
+        &mut self, item_name: &'b ObjectName,
+    ) -> (Option<&'b str>, Option<&'b str>, &'b str) {
         let mut db = None;
         let mut schema = None;
         let mut table = "";

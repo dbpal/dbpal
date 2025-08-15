@@ -13,7 +13,7 @@ use crate::MemoryLimit;
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce};
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql,
+    Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, AutoCompletionUuid,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     TriggerDetail, escape_sql_str,
 };
@@ -37,7 +37,6 @@ pub struct LibSqlDB {
     pub(crate) build_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
-    pub(crate) query_id: Option<uuid::Uuid>,
 }
 
 impl GetBackendKind for LibSqlDB {
@@ -345,7 +344,6 @@ impl LibSqlDB {
             build_fn_cache: Default::default(),
             keywords_completion: Default::default(),
             pragma_completion: Default::default(),
-            query_id: Default::default(),
         })
     }
 
@@ -383,13 +381,8 @@ impl LibSqlDB {
         let sql =
             format!(r#"SELECT name FROM "{db}".sqlite_master WHERE type='table' ORDER BY name "#);
         log::info!("sql:{}", sql);
-        let mut rows: libsql::Rows = match self.query_id {
-            Some(x) => {
-                let conn = self.query_connections.get(&x);
-                if conn.is_none() {
-                    anyhow::bail!("query connection not found for id: {}", x);
-                }
-                let conn = conn.unwrap();
+        let mut rows: libsql::Rows = match self.query_connections.get(&AutoCompletionUuid::get()) {
+            Some(conn) => {
                 let conn = conn.deref();
                 conn.query(&sql, params!()).await?
             }
@@ -416,13 +409,8 @@ impl LibSqlDB {
             WHERE type = 'view'; "#
         );
         log::info!("sql:{}", sql);
-        let mut rows = match self.query_id {
-            Some(x) => {
-                let conn = self.query_connections.get(&x);
-                if conn.is_none() {
-                    anyhow::bail!("query connection not found for id: {}", x);
-                }
-                let conn = conn.unwrap();
+        let mut rows = match self.query_connections.get(&AutoCompletionUuid::get()) {
+            Some(conn) => {
                 let conn = conn.deref();
                 conn.query(&sql, params!()).await?
             }

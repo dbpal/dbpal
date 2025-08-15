@@ -1,4 +1,4 @@
-use crate::db::name_start_ascii_alphabetic;
+use crate::db::{AutoCompletionUuid, name_start_ascii_alphabetic};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
     LexerCompletionTrait, try_completion_on_syntax,
@@ -8,24 +8,15 @@ use crate::sqlite::SqliteDB;
 use crate::sqlite_lang_server_static::{SQLITE_KEY_WORDS, SQLITE_TYPES};
 use crate::sqlparser_completion::TempTableColumn;
 use libsql::params;
-use std::sync::Arc;
 
 #[async_trait::async_trait]
 impl LanguageServer for LibSqlDB {
     async fn auto_completion(
-        &self, query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut db = Clone::clone(self);
-        db.query_id = query_id;
-        let db = Arc::new(db);
-        let r = try_completion_on_syntax(
-            sql,
-            line,
-            col,
-            sqlparser::dialect::SQLiteDialect {},
-            db.clone() as Arc<dyn AstCompletionHelper>,
-        )
-        .await;
+        let r =
+            try_completion_on_syntax(sql, line, col, sqlparser::dialect::SQLiteDialect {}, self)
+                .await;
         match r {
             Ok(xs) => return Ok(xs),
             Err(err) => {
@@ -37,7 +28,7 @@ impl LanguageServer for LibSqlDB {
             return anyhow::Ok(vec![]);
         }
         return LexerCompletionTrait::do_auto_completion(
-            db.as_ref(),
+            self,
             sql,
             &sqlparser::dialect::SQLiteDialect {},
         )
@@ -102,11 +93,7 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
 #[async_trait::async_trait]
 impl LangServerCommon for LibSqlDB {
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let query_id = match self.query_id.as_ref() {
-            Some(x) => *x,
-            None => return anyhow::Ok(vec![]),
-        };
-        let conn = self.query_connections.get(&query_id);
+        let conn = self.query_connections.get(&AutoCompletionUuid::get());
         if conn.is_none() {
             anyhow::bail!("query id should have connection")
         }

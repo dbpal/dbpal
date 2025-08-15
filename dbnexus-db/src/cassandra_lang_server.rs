@@ -21,7 +21,7 @@ use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
 impl LanguageServer for CassandraDB {
     async fn auto_completion(
-        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         //
         let r = AstCompletion::completion(sql, line - 1, col - 1, Clone::clone(self)).await;

@@ -15,10 +15,10 @@ use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
-pub struct CompletionStatement {
+pub struct CompletionStatement<'a> {
     pub(crate) loc: Location,
     pub(crate) result: Option<Vec<CompletionItem>>,
-    pub(crate) helper: Arc<dyn AstCompletionHelper>,
+    pub(crate) helper: &'a dyn AstCompletionHelper,
     pub(crate) scopes: Scopes,
     pub(crate) on_def: bool,
 }
@@ -290,8 +290,8 @@ impl Scope {
     }
 }
 
-impl CompletionStatement {
-    pub(crate) fn new(loc: Location, helper: Arc<dyn AstCompletionHelper>) -> Self {
+impl<'a> CompletionStatement<'a> {
+    pub(crate) fn new(loc: Location, helper: &'a dyn AstCompletionHelper) -> Self {
         Self {
             loc,
             helper,
@@ -314,7 +314,7 @@ impl CompletionStatement {
             && (self.loc.column >= span.start.column && self.loc.column <= span.end.column)
     }
 }
-impl CompletionStatement {
+impl<'a> CompletionStatement<'a> {
     pub(crate) async fn completion_on_statement(&mut self, statement: &Statement) {
         match statement {
             Statement::Analyze {
@@ -1675,7 +1675,7 @@ impl CompletionStatement {
     }
 }
 
-impl CompletionStatement {
+impl<'a> CompletionStatement<'a> {
     async fn c_on_grant_objects(
         &mut self, objects: &GrantObjects, tables: &mut Option<Vec<ObjectName>>,
     ) {

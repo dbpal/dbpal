@@ -1,9 +1,7 @@
-use std::ops::DerefMut;
-use std::sync::Arc;
-
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
+use std::ops::DerefMut;
 
-use crate::db::{FormatSqlOpts, name_start_ascii_alphabetic};
+use crate::db::{FormatSqlOpts, AutoCompletionUuid, name_start_ascii_alphabetic};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
@@ -16,16 +14,9 @@ use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
 impl LangServerCommon for SqliteDB {
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        // schema is connection related
-        // so we need use query related connection.
-        if self.query_id.is_none() {
-            log::error!("query_id is none, should be set before call this function");
-            return anyhow::Ok(vec![]);
-        }
-        let query_id = self.query_id.unwrap();
         let sql = "PRAGMA database_list";
         log::info!("sql:{}", sql);
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&AutoCompletionUuid::get());
         if conn.is_none() {
             log::error!("should able to get connection");
             return anyhow::Ok(vec![]);
@@ -100,20 +91,11 @@ impl crate::language_server::LexerCompletionTrait for SqliteDB {
 #[async_trait::async_trait]
 impl LanguageServer for SqliteDB {
     async fn auto_completion(
-        &self, query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut sqlite = Clone::clone(self);
-        sqlite.query_id = query_id;
-        let sqlite = Arc::new(sqlite);
-
-        let r = try_completion_on_syntax(
-            sql,
-            line,
-            col,
-            sqlparser::dialect::SQLiteDialect {},
-            sqlite.clone() as Arc<dyn AstCompletionHelper>,
-        )
-        .await;
+        let r =
+            try_completion_on_syntax(sql, line, col, sqlparser::dialect::SQLiteDialect {}, self)
+                .await;
 
         match r {
             Ok(xs) => return Ok(xs),
@@ -126,7 +108,7 @@ impl LanguageServer for SqliteDB {
             return anyhow::Ok(vec![]);
         }
         return LexerCompletionTrait::do_auto_completion(
-            sqlite.as_ref(),
+            self,
             sql,
             &sqlparser::dialect::SQLiteDialect {},
         )
@@ -148,14 +130,8 @@ impl SqliteDB {
         );
         log::info!("sql:{}", sql);
 
-        let rows = match self.query_id {
-            Some(x) => {
-                let conn = self.query_connection.get(&x);
-                if conn.is_none() {
-                    log::error!("should able to get connection");
-                    return anyhow::Ok(vec![]);
-                }
-                let conn = conn.unwrap();
+        let rows = match self.query_connection.get(&AutoCompletionUuid::get()) {
+            Some(conn) => {
                 let mut conn = conn.lock().await;
                 sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                     .fetch_all(conn.deref_mut().deref_mut())
@@ -208,12 +184,7 @@ impl AstCompletionHelper for SqliteDB {
     }
 
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        if self.query_id.is_none() {
-            log::error!("query_id is none, should be set before call this function");
-            return anyhow::Ok(vec![]);
-        }
-        let query_id = self.query_id.unwrap();
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&AutoCompletionUuid::get());
         if conn.is_none() {
             log::error!("should able to get connection");
             return anyhow::Ok(vec![]);

@@ -1,10 +1,9 @@
 use std::borrow::Cow;
-use std::sync::Arc;
 
 use crate::db::DBTrait;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_completion_on_syntax,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBPrepare, LangServerCommon,
+    LanguageServer, LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -13,16 +12,10 @@ use crate::tidb::TiDB;
 #[async_trait::async_trait]
 impl LanguageServer for TiDB {
     async fn auto_completion(
-        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(
-            sql,
-            line,
-            col,
-            sqlparser::dialect::MySqlDialect {},
-            Arc::new(Clone::clone(self)),
-        )
-        .await;
+        let r = try_completion_on_syntax(sql, line, col, sqlparser::dialect::MySqlDialect {}, self)
+            .await;
         match r {
             Ok(xs) => return Ok(xs),
             Err(err) => {
@@ -54,6 +47,9 @@ impl AstCompletionHelper for TiDB {
         AstCompletionHelper::list_table(self.db.as_ref(), None, schema).await
     }
 
+    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+        AstCompletionHelper::list_prepares(self.db.as_ref()).await
+    }
     async fn list_view(
         &self, _db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
@@ -160,6 +156,9 @@ impl LexerCompletionTrait for TiDB {
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
         self.db.list_table_or_view().await
+    }
+    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+        AstCompletionHelper::list_prepares(self.db.as_ref()).await
     }
 }
 

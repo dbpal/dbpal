@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::vec;
 
 use crate::clickhouse::{ClickHouseDB, JsonRespMeta};
@@ -13,16 +12,11 @@ use crate::sqlparser_completion::TempTableColumn;
 
 impl LanguageServer for ClickHouseDB {
     async fn auto_completion(
-        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(
-            sql,
-            line,
-            col,
-            sqlparser::dialect::SQLiteDialect {},
-            Arc::new(Clone::clone(self)),
-        )
-        .await;
+        let r =
+            try_completion_on_syntax(sql, line, col, sqlparser::dialect::SQLiteDialect {}, self)
+                .await;
 
         match r {
             Ok(xs) => return Ok(xs),

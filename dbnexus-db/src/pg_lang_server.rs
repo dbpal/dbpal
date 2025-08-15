@@ -1,9 +1,8 @@
 use std::ops::DerefMut;
-use std::sync::Arc;
 
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 
-use crate::db::{CatalogTrait, FormatSqlOpts};
+use crate::db::{CatalogTrait, FormatSqlOpts, AutoCompletionUuid};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBPrepare, LangServerCommon,
@@ -31,6 +30,9 @@ impl LexerCompletionTrait for PostGresDB {
         anyhow::Ok(ret)
     }
 
+    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+        AstCompletionHelper::list_prepares(self).await
+    }
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         AstCompletionHelper::list_column(self, None, None, table_name, false).await
     }
@@ -121,11 +123,7 @@ impl PostGresDB {
 
 impl AstCompletionHelper for PostGresDB {
     async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
-        let query_id = match self.query_id {
-            Some(x) => x,
-            None => anyhow::bail!("this should not be null"),
-        };
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&AutoCompletionUuid::get());
         if conn.is_none() {
             anyhow::bail!("query_id should get connection")
         }
@@ -578,17 +576,14 @@ impl LangServerCommon for PostGresDB {
 #[async_trait::async_trait]
 impl LanguageServer for PostGresDB {
     async fn auto_completion(
-        &self, query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut pg = Clone::clone(self);
-        pg.query_id = query_id;
-        let pg = Arc::new(pg);
         let r = try_completion_on_syntax(
             sql,
             line,
             col,
             sqlparser::dialect::PostgreSqlDialect {},
-            pg.clone() as Arc<dyn AstCompletionHelper>,
+            self,
         )
         .await;
         match r {
@@ -602,7 +597,7 @@ impl LanguageServer for PostGresDB {
             return anyhow::Ok(vec![]);
         }
         return LexerCompletionTrait::do_auto_completion(
-            pg.as_ref(),
+            self,
             sql,
             &sqlparser::dialect::PostgreSqlDialect {},
         )

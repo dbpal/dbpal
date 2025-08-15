@@ -16,7 +16,7 @@ use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, SqliteConnection, T
 use crate::MemoryLimit;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql,
+    Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, AutoCompletionUuid,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     TriggerDetail, TriggerEvent, TriggerTiming, escape_sql_str,
 };
@@ -40,7 +40,6 @@ pub struct SqliteDB {
     pub(crate) build_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
-    pub(crate) query_id: Option<uuid::Uuid>,
 }
 
 impl SqliteDB {
@@ -313,7 +312,9 @@ impl CheckConn for SqliteDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let mut conn = self.get_conn().await?;
         let ins = std::time::Instant::now();
-        sqlx::raw_sql("select 1").fetch_all(conn.deref_mut()).await?;
+        sqlx::raw_sql("select 1")
+            .fetch_all(conn.deref_mut())
+            .await?;
         anyhow::Ok(ins.elapsed())
     }
 }
@@ -371,15 +372,11 @@ impl SqliteDB {
     pub(crate) async fn list_table_impl(&self, db: &str) -> anyhow::Result<Vec<ListTable>> {
         let sql =
             format!(r#"SELECT name FROM "{db}".sqlite_master WHERE type='table' ORDER BY name "#);
-        let rows = match self.query_id {
-            Some(id) => {
-                self.query_connection
-                    .get(&id)
-                    .ok_or_else(|| anyhow::anyhow!("query connection not found for id: {}", id))?
-                    .lock()
-                    .await
-                    .deref_mut()
-                    .fetch_all(sqlx::raw_sql(AssertSqlSafe(sql.as_str())))
+        let rows = match self.query_connection.get(&AutoCompletionUuid::get()) {
+            Some(conn) => {
+                let mut conn = conn.lock().await;
+                sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                    .fetch_all(conn.deref_mut().deref_mut())
                     .await?
             }
             None => {
@@ -405,17 +402,11 @@ impl SqliteDB {
             WHERE type = 'view'; 
         "#
         );
-        let rows = match self.query_id {
-            Some(query_id) => {
-                self.query_connection
-                    .get(&query_id)
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("query connection not found for id: {}", query_id)
-                    })?
-                    .lock()
-                    .await
-                    .deref_mut()
-                    .fetch_all(sqlx::raw_sql(AssertSqlSafe(sql.as_str())))
+        let rows = match self.query_connection.get(&AutoCompletionUuid::get()) {
+            Some(conn) => {
+                let mut conn = conn.lock().await;
+                sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                    .fetch_all(conn.deref_mut().deref_mut())
                     .await?
             }
             None => {
@@ -1157,7 +1148,6 @@ impl SqliteDB {
             build_fn_cache: Default::default(),
             keywords_completion: Default::default(),
             pragma_completion: Default::default(),
-            query_id: Default::default(),
         })
     }
 

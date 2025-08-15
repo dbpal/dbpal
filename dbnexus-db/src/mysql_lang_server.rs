@@ -1,14 +1,14 @@
+use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
 use std::borrow::Cow;
 use std::ops::DerefMut;
-use std::sync::Arc;
 
-use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
-
-use crate::db::{FormatSqlOpts, GetBackendKind, name_start_ascii_alphabetic, not_support_feature};
+use crate::db::{
+    FormatSqlOpts, GetBackendKind, AutoCompletionUuid, name_start_ascii_alphabetic, not_support_feature,
+};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_completion_on_syntax,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBPrepare, LangServerCommon,
+    LanguageServer, LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -24,6 +24,9 @@ impl LexerCompletionTrait for MysqlDB {
         AstCompletionHelper::list_column(self, None, None, table_name, false).await
     }
 
+    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+        AstCompletionHelper::list_prepares(self).await
+    }
     async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
         AstCompletionHelper::list_procedure(self, None, None).await
     }
@@ -112,16 +115,10 @@ impl MysqlDB {
 #[async_trait::async_trait]
 impl LanguageServer for MysqlDB {
     async fn auto_completion(
-        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(
-            sql,
-            line,
-            col,
-            sqlparser::dialect::MySqlDialect {},
-            Arc::new(Clone::clone(self)),
-        )
-        .await;
+        let r = try_completion_on_syntax(sql, line, col, sqlparser::dialect::MySqlDialect {}, self)
+            .await;
         match r {
             Ok(xs) => return Ok(xs),
             Err(err) => {
@@ -179,6 +176,39 @@ impl LangServerCommon for MysqlDB {
 impl AstCompletionHelper for MysqlDB {
     async fn keywords(&self) -> anyhow::Result<Vec<CompletionItem>> {
         LexerCompletionTrait::get_key_words_fn(self).await
+    }
+    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+        /*
+            TODO should execute this sql but somehow owner_thread_id = connection_id()  match not working
+            why????
+            SELECT statement_id, sql_text ,statement_name   FROM performance_schema.prepared_statements_instances WHERE owner_thread_id = connection_id() and  statement_name is not null;
+        */
+
+        let conn = self.query_connection.get(&AutoCompletionUuid::get());
+        if conn.is_none() {
+            anyhow::bail!("should be able to get connection")
+        }
+        let conn = conn.unwrap();
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        let sql = r#"
+            SELECT  sql_text ,statement_name   
+                FROM performance_schema.prepared_statements_instances WHERE 
+                 statement_name is not null;
+        "#;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let text: String = row.try_get(0)?;
+            let name: String = row.try_get(1)?;
+            ret.push(DBPrepare {
+                name,
+                statement: Some(text),
+            });
+        }
+        anyhow::Ok(ret)
     }
     async fn list_table(
         &self, _db: Option<&str>, schema: Option<&str>,

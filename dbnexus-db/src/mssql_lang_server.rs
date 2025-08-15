@@ -1,7 +1,7 @@
 use futures_util::StreamExt;
 use std::borrow::Cow;
 use std::ops::DerefMut;
-use std::sync::Arc;
+
 use tiberius::QueryItem;
 
 use crate::db::{CatalogTrait, FormatSqlOpts, SchemaTrait};
@@ -80,16 +80,10 @@ impl MsSqlServerDB {
 #[async_trait::async_trait]
 impl LanguageServer for MsSqlServerDB {
     async fn auto_completion(
-        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(
-            sql,
-            line,
-            col,
-            sqlparser::dialect::MsSqlDialect {},
-            Arc::new(Clone::clone(self)),
-        )
-        .await;
+        let r = try_completion_on_syntax(sql, line, col, sqlparser::dialect::MsSqlDialect {}, self)
+            .await;
         match r {
             Ok(xs) => return Ok(xs),
             Err(err) => {

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::cockroach::{COCKROACH_DATA_TYPES, CockRoachDB};
 use crate::db::FormatSqlOpts;
 use crate::language_server::{
@@ -13,14 +11,14 @@ use crate::sqlparser_completion::TempTableColumn;
 
 impl LanguageServer for CockRoachDB {
     async fn auto_completion(
-        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let r = try_completion_on_syntax(
             sql,
             line,
             col,
             sqlparser::dialect::PostgreSqlDialect {},
-            Arc::new(Clone::clone(self.pg.as_ref())),
+            self.pg.as_ref(),
         )
         .await;
         match r {

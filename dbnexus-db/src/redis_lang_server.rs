@@ -1386,7 +1386,7 @@ impl RedisDB {
 #[async_trait::async_trait]
 impl LanguageServer for RedisDB {
     async fn auto_completion(
-        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, _use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         for (index, sql) in sql.lines().enumerate() {
             if sql.trim().is_empty() {

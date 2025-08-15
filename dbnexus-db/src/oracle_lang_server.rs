@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use tokio::task::block_in_place;
 
 use crate::db::{DBTrait, name_start_ascii_alphabetic};
@@ -254,16 +252,10 @@ impl LangServerCommon for OracleDB {
 #[async_trait::async_trait]
 impl LanguageServer for OracleDB {
     async fn auto_completion(
-        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(
-            sql,
-            line,
-            col,
-            sqlparser::dialect::MySqlDialect {},
-            Arc::new(Clone::clone(self)),
-        )
-        .await;
+        let r = try_completion_on_syntax(sql, line, col, sqlparser::dialect::MySqlDialect {}, self)
+            .await;
         match r {
             Ok(xs) => return Ok(xs),
             Err(err) => {

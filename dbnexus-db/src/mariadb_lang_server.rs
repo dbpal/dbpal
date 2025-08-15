@@ -1,10 +1,9 @@
 use std::ops::DerefMut;
-use std::sync::Arc;
 
 use crate::db::DBTrait;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, LangServerCommon, LanguageServer, LexerCompletionTrait,
-    try_completion_on_syntax,
+    AstCompletionHelper, CompletionItem, DBPrepare, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::mariadb::MariaDB;
 use crate::mysql::MysqlDB;
@@ -14,16 +13,10 @@ use sqlx::{AssertSqlSafe, Row};
 #[async_trait::async_trait]
 impl LanguageServer for MariaDB {
     async fn auto_completion(
-        &self, _query_id: Option<uuid::Uuid>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(
-            sql,
-            line,
-            col,
-            sqlparser::dialect::MySqlDialect {},
-            Arc::new(Clone::clone(self)),
-        )
-        .await;
+        let r = try_completion_on_syntax(sql, line, col, sqlparser::dialect::MySqlDialect {}, self)
+            .await;
         match r {
             Ok(xs) => return Ok(xs),
             Err(err) => {
@@ -47,6 +40,10 @@ impl LanguageServer for MariaDB {
 impl AstCompletionHelper for MariaDB {
     async fn keywords(&self) -> anyhow::Result<Vec<CompletionItem>> {
         LexerCompletionTrait::get_key_words_fn(self).await
+    }
+
+    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+        AstCompletionHelper::list_prepares(self.db.as_ref()).await
     }
 
     async fn list_table(
@@ -156,5 +153,8 @@ impl LexerCompletionTrait for MariaDB {
 
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         self.db.get_key_words_fn().await
+    }
+    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+        AstCompletionHelper::list_prepares(self.db.as_ref()).await
     }
 }

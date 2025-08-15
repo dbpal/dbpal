@@ -1402,3 +1402,20 @@ pub(crate) fn name_start_ascii_alphabetic(name: &str) -> bool {
         .map(|c| c.is_ascii_alphabetic())
         .unwrap_or(false)
 }
+
+pub struct AutoCompletionUuid {}
+
+impl AutoCompletionUuid {
+    fn loc() -> &'static std::sync::Mutex<uuid::Uuid> {
+        static X: std::sync::LazyLock<std::sync::Mutex<uuid::Uuid>> =
+            std::sync::LazyLock::new(|| std::sync::Mutex::new(uuid::Uuid::new_v4()));
+        &X
+    }
+
+    pub(crate) fn get() -> uuid::Uuid {
+        Self::loc().lock().unwrap().clone()
+    }
+    pub fn set(x: uuid::Uuid) {
+        *Self::loc().lock().unwrap() = x;
+    }
+}
