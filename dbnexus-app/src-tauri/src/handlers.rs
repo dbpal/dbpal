@@ -208,7 +208,7 @@ pub async fn open_conn(name: String, app: tauri::State<'_, App>) -> Result<(), E
     random_sleep().await;
     random_error()?;
     log::info!("open db:{}", name);
-    let secs = 5;
+    let secs = 10;
     let name_clone = name.clone();
 
     tokio::time::timeout(Duration::from_secs(secs), async move {

@@ -33,7 +33,7 @@ impl LangServerCommon for SqliteDB {
         let conn = conn.unwrap();
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-        let rows = sqlx::query(AssertSqlSafe(sql))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = vec![];
@@ -157,13 +157,13 @@ impl SqliteDB {
                 }
                 let conn = conn.unwrap();
                 let mut conn = conn.lock().await;
-                sqlx::query(AssertSqlSafe(sql.as_str()))
+                sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                     .fetch_all(conn.deref_mut().deref_mut())
                     .await?
             }
             None => {
                 let mut conn = self.get_conn().await?;
-                sqlx::query(AssertSqlSafe(sql.as_str()))
+                sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                     .fetch_all(conn.deref_mut())
                     .await?
             }
@@ -268,7 +268,7 @@ impl AstCompletionHelper for SqliteDB {
         "#;
         let mut conn = self.get_conn().await?;
 
-        let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::raw_sql(sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = vec![];
 
         for row in rows.iter() {
@@ -299,7 +299,7 @@ impl AstCompletionHelper for SqliteDB {
         }
         let sql = "PRAGMA pragma_list";
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+        let rows = sqlx::raw_sql(sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for row in rows.iter() {
             let name: String = row.try_get(0)?;

@@ -295,7 +295,7 @@ impl SchemaTrait for CockRoachDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
@@ -374,7 +374,7 @@ impl SchemaTrait for CockRoachDB {
             self.pg.config.schema_str(),
         );
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::new();

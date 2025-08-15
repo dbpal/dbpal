@@ -61,7 +61,7 @@ impl AstCompletionHelper for MariaDB {
                 .ok()
                 .unwrap_or("")
         );
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         for row in rows.iter() {

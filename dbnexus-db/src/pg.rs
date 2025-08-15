@@ -46,7 +46,9 @@ impl CheckConn for PostGresDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
         let mut conn = self.get_conn().await?;
-        sqlx::query("select 1").fetch_all(conn.deref_mut()).await?;
+        sqlx::raw_sql("select 1")
+            .fetch_all(conn.deref_mut())
+            .await?;
         anyhow::Ok(ins.elapsed())
     }
 }
@@ -82,7 +84,7 @@ impl PostGresDB {
         };
         log::info!("sql:{}", sql);
 
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
 
@@ -119,7 +121,7 @@ impl DBTrait for PostGresDB {
         let sql = format!("CREATE SCHEMA {name};");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -130,7 +132,7 @@ impl DBTrait for PostGresDB {
         let sql = format!("DROP SCHEMA {name};");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -399,14 +401,14 @@ impl ServerMetas for PostGresDB {
         let mut ret = Vec::new();
 
         {
-            let row = sqlx::query("SELECT version()")
+            let row = sqlx::raw_sql("SELECT version()")
                 .fetch_one(conn.deref_mut())
                 .await?;
             let version: String = row.try_get(0)?;
             ret.push(MetaValue::new("server version", version));
         }
         {
-            let row = sqlx::query("SELECT current_user;")
+            let row = sqlx::raw_sql("SELECT current_user;")
                 .fetch_one(conn.deref_mut())
                 .await?;
             let version: String = row.try_get(0)?;
@@ -421,7 +423,7 @@ impl ServerMetas for PostGresDB {
                 ORDER BY name;
                 "#;
             log::info!("sql:{}", sql);
-            let rows = sqlx::query(AssertSqlSafe(sql))
+            let rows = sqlx::raw_sql(AssertSqlSafe(sql))
                 .fetch_all(conn.deref_mut())
                 .await?;
             for r in rows.iter() {
@@ -452,7 +454,7 @@ impl SchemaTrait for PostGresDB {
             self.config.schema_str(),
         );
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -487,7 +489,7 @@ impl SchemaTrait for PostGresDB {
                     name
                 );
 
-                let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+                let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                     .fetch_one(conn.deref_mut())
                     .await?;
 
@@ -503,7 +505,7 @@ impl SchemaTrait for PostGresDB {
                 "#,
                     self.config.schema_str()
                 );
-                let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+                let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                     .fetch_one(conn.deref_mut())
                     .await?;
                 let start_value: i64 = row.try_get(0)?;
@@ -531,7 +533,7 @@ impl SchemaTrait for PostGresDB {
     async fn rename_sequnce(&self, old: &str, new: &str) -> anyhow::Result<()> {
         let sql = format!("ALTER SEQUENCE {old} RENAME TO {new};");
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -544,7 +546,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -560,7 +562,7 @@ impl SchemaTrait for PostGresDB {
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
 
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -581,7 +583,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -591,7 +593,7 @@ impl SchemaTrait for PostGresDB {
         let sql = format!("DROP INDEX \"{index}\";");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -603,7 +605,7 @@ impl SchemaTrait for PostGresDB {
         let sql = format!("ALTER INDEX \"{old_name}\" RENAME TO \"{new_name}\";");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -631,7 +633,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:{} sql:{}", e, sql)))?;
@@ -652,7 +654,7 @@ impl SchemaTrait for PostGresDB {
             ALTER TABLE "{table}" RENAME COLUMN "{old_name}" TO "{new_name}";
             "#
             );
-            sqlx::query(AssertSqlSafe(sql.as_str()))
+            sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                 .execute(conn.deref_mut())
                 .await?;
             log::info!("sql:{}", sql);
@@ -666,7 +668,7 @@ impl SchemaTrait for PostGresDB {
                 typ.typ
             );
             log::info!("sql:{}", sql);
-            sqlx::query(AssertSqlSafe(sql.as_str()))
+            sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                 .execute(conn.deref_mut())
                 .await?;
             if let Some(null) = typ.nullness.as_ref() {
@@ -686,7 +688,7 @@ impl SchemaTrait for PostGresDB {
                     )
                 };
                 log::info!("sql:{}", sql);
-                sqlx::query(AssertSqlSafe(sql.as_str()))
+                sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                     .execute(conn.deref_mut())
                     .await?;
             }
@@ -703,7 +705,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -741,7 +743,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -789,7 +791,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_one(conn.deref_mut())
             .await?;
         let return_type: Option<String> = row.try_get(0)?;
@@ -818,7 +820,7 @@ impl SchemaTrait for PostGresDB {
         };
         let sql = format!("DROP PROCEDURE {}({})", name, p);
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -842,7 +844,7 @@ impl SchemaTrait for PostGresDB {
         log::info!("sql:{}", sql);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -887,7 +889,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_one(conn.deref_mut())
             .await?;
         let result_type: Option<String> = row.try_get(0)?;
@@ -924,7 +926,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -934,7 +936,7 @@ impl SchemaTrait for PostGresDB {
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"ALTER TABLE {table} DISABLE TRIGGER "{name}""#);
         log::info!("sql:{}", sql);
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -944,7 +946,7 @@ impl SchemaTrait for PostGresDB {
         let mut conn = self.get_conn().await?;
         let sql = format!(r#"ALTER TABLE {table} ENABLE TRIGGER "{name}""#);
         log::info!("sql:{}", sql);
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -959,7 +961,7 @@ impl SchemaTrait for PostGresDB {
         let sql = format!(r#"CREATE TABLE {schema}.{dup} AS TABLE "{schema}"."{table}""#);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -971,7 +973,7 @@ impl SchemaTrait for PostGresDB {
         log::info!("sql:{}", sql);
 
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -987,7 +989,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -1013,7 +1015,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_one(conn.deref_mut())
             .await?;
         let definition: String = row.get(0);
@@ -1041,7 +1043,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -1110,7 +1112,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_one(conn.deref_mut())
             .await?;
         let create_sql: String = row.try_get(0)?;
@@ -1152,7 +1154,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
 
@@ -1173,7 +1175,7 @@ impl SchemaTrait for PostGresDB {
 
         let sql = format!(r#"DROP VIEW "{schema}"."{view_name}""#);
         log::info!("sql:{}", sql);
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -1188,7 +1190,7 @@ impl SchemaTrait for PostGresDB {
             if cascade { " CASCADE " } else { "" }
         );
         log::info!("sql:{}", sql);
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -1197,7 +1199,7 @@ impl SchemaTrait for PostGresDB {
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let mut conn = self.get_conn().await?;
         let schema = self.config.schema_str();
-        let rows = sqlx::query(AssertSqlSafe(
+        let rows = sqlx::raw_sql(AssertSqlSafe(
             format!(
                 r#"
         SELECT table_name
@@ -1227,7 +1229,7 @@ impl SchemaTrait for PostGresDB {
         let sql = self.delete_sql(self.config.schema.as_deref(), table_name, &fields, &wheres)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let r = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(SqlExecuteRet {
@@ -1245,7 +1247,7 @@ impl SchemaTrait for PostGresDB {
         "#
         );
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(s.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(s.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -1266,7 +1268,7 @@ impl SchemaTrait for PostGresDB {
         log::info!("update sql:{}", sql);
         let mut conn = self.get_conn().await?;
 
-        let r = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(SqlExecuteRet {
@@ -1283,7 +1285,7 @@ impl SchemaTrait for PostGresDB {
         let sql = self.insert_sql(self.config.schema.as_deref(), table_name, &fs, &values)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let r = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(SqlExecuteRet {
@@ -1303,7 +1305,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
 
@@ -1315,7 +1317,7 @@ impl SchemaTrait for PostGresDB {
                 table.as_str()
             );
             log::info!("sql:{}", sql);
-            let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+            let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                 .fetch_one(conn.deref_mut())
                 .await;
             let size: Option<i64> = match row {
@@ -1343,7 +1345,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -1368,13 +1370,13 @@ impl SchemaTrait for PostGresDB {
         );
 
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(s.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
             .fetch_all(conn.deref_mut())
             .await
             .unwrap();
         let mut ret = Vec::with_capacity(rows.len());
         let primary_keys = {
-            let sql = format!(
+            let sql: String = format!(
                 r#"
                 -- 查表的主键详情
                 SELECT  kcu.column_name
@@ -1387,7 +1389,7 @@ impl SchemaTrait for PostGresDB {
             );
             log::info!("sql:{}", sql);
 
-            let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                 .fetch_all(conn.deref_mut())
                 .await?;
 
@@ -1463,7 +1465,7 @@ impl SchemaTrait for PostGresDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -1473,7 +1475,7 @@ impl SchemaTrait for PostGresDB {
         let mut conn = self.get_conn().await?;
 
         // this sql copied from https://stackoverflow.com/questions/2204058/list-columns-with-indexes-in-postgresql
-        let rows = sqlx::query(AssertSqlSafe(
+        let rows = sqlx::raw_sql(AssertSqlSafe(
             format!(
                 r#"
             SELECT
@@ -1531,7 +1533,7 @@ impl PostGresDB {
         if let Some(where_str) = where_str {
             sql.push_str(format!(" where {where_str}").as_str());
         }
-        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_one(conn.deref_mut())
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
@@ -1675,7 +1677,7 @@ fn get_pg_type_base_on_data_type_and_udtname(
 }
 
 async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Result<()> {
-    sqlx::query(AssertSqlSafe(
+    sqlx::raw_sql(AssertSqlSafe(
         format!("SET search_path TO {schema},public").as_str(),
     ))
     .execute(conn)
@@ -1906,7 +1908,7 @@ async fn get_index_def(
         "SELECT indexdef from pg_indexes where tablename='{table_name}' and indexname='{index_name}'"
     );
     log::info!("sql:{}", sql);
-    let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+    let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
         .fetch_one(conn.deref_mut())
         .await?;
 
@@ -1955,7 +1957,7 @@ impl GetBackendKind for PostGresDB {
 impl CatalogTrait for PostGresDB {
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(
+        let rows = sqlx::raw_sql(
             "SELECT datname FROM pg_database where datname not in ('template0' , 'template1') order by datname",
         )
         .fetch_all(conn.deref_mut())
@@ -1983,7 +1985,7 @@ impl CatalogTrait for PostGresDB {
         let sql = format!("CREATE DATABASE {name}");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -1994,7 +1996,7 @@ impl CatalogTrait for PostGresDB {
         let sql = format!("DROP DATABASE {name}");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -2058,7 +2060,7 @@ mod tests {
     //     let list = db.list_created_types().await.unwrap();
     //     for l in list.iter() {
     //         println!("create type:{:?}", l);
-    //     }
+    //     }x
     // }
 
     #[tokio::test]
@@ -2832,7 +2834,7 @@ mod tests {
         .await
         .unwrap();
 
-        // sqlx::query(
+        // sqlx::raw_sql(
         //     r#"
         //             INSERT INTO test_types2 (text_column, oid_column, json_column,
         // float4_column, float8_column, macaddr8_column, macaddr8_array_column)
@@ -3100,7 +3102,7 @@ mod tests {
         .await
         .unwrap();
 
-        //         sqlx::query(
+        //         sqlx::raw_sql(
         //             r#"
 
         //             INSERT INTO test_types4 (int2_array_column, int4_array_column,
@@ -3200,7 +3202,7 @@ mod tests {
         .await
         .unwrap();
 
-        //         sqlx::query(
+        //         sqlx::raw_sql(
         //             r#"
 
         //             INSERT INTO test_types5 (path_column, path_array_column,
@@ -3727,21 +3729,21 @@ mod tests {
         values.insert("num_range".to_string(), Some("[1,10)".to_string()));
         values.insert(
             "num_range_array".to_string(),
-            Some("{\"[1,5)\",\"[6,10]\"}".to_string()),
+            Some(r#"{"[1,5)","[6,10]"}"#.to_string()),
         );
         values.insert(
             "ts_range".to_string(),
-            Some("[\"2024-01-01 00:00:00\",\"2024-01-10 00:00:00\")".to_string()),
+            Some(r#"["2024-01-01 00:00:00","2024-01-10 00:00:00")"#.to_string()),
         );
-        values.insert(
-            "ts_range_array".to_string(),
-            Some("{\"[\\\"2024-01-01 00:00:00\\\",\\\"2024-01-05 00:00:00\\\")\",\"[\\\"2024-01-06 00:00:00\\\",\\\"2024-01-10 00:00:00\\\"]\"}".to_string()),
-        );
+        values.insert("ts_range_array".to_string(), Some(r#"{"[\"2024-01-01 00:00:00\",\"2024-01-05 00:00:00\")","[\"2024-01-06 00:00:00\",\"2024-01-10 00:00:00\")"}"#.to_string()));
         values.insert(
             "tstz_range".to_string(),
-            Some("[\"2024-01-01 00:00:00+00\",\"2024-01-10 00:00:00+00\")".to_string()),
+            Some(r#"["2024-01-01 00:00:00+00","2024-01-10 00:00:00+00")"#.to_string()),
         );
-        values.insert("tstz_range_array".to_string(), Some("{}".to_string()));
+        values.insert(
+            "tstz_range_array".to_string(),
+            Some(r#"{"[\"2024-07-01 08:00:00+00\",\"2024-07-01 18:00:00+00\")"}"#.to_string()),
+        );
 
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg

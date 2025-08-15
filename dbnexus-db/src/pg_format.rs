@@ -112,8 +112,6 @@ pub(crate) fn encode_row_as_json(
                 let value: Option<Vec<MacAddr8>> = r.get_unchecked(c);
                 let value = value.map(|x| x.into_iter().map(|x| x.to_string()).collect::<Vec<_>>());
 
-                
-
                 value
                     .map(|x| {
                         x.into_iter()
@@ -365,7 +363,8 @@ pub(crate) fn encode_row_as_json(
                 let value: Option<Vec<PgInterval>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
-                        .map(|x| serde_json::Value::from(output_pg_interval(&x))).collect::<Vec<_>>()
+                        .map(|x| serde_json::Value::from(output_pg_interval(&x)))
+                        .collect::<Vec<_>>()
                 });
 
                 value.map(serde_json::Value::Array)
@@ -379,7 +378,8 @@ pub(crate) fn encode_row_as_json(
                 let value: Option<Vec<BigDecimal>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
-                        .map(|x| serde_json::Value::from(x.to_string())).collect::<Vec<_>>()
+                        .map(|x| serde_json::Value::from(x.to_string()))
+                        .collect::<Vec<_>>()
                 });
                 value.map(serde_json::Value::Array)
             }
@@ -394,7 +394,8 @@ pub(crate) fn encode_row_as_json(
                 let value: Option<Vec<PgTimeTz>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
-                        .map(|x| serde_json::Value::from(output_pg_timez(&x))).collect::<Vec<_>>()
+                        .map(|x| serde_json::Value::from(output_pg_timez(&x)))
+                        .collect::<Vec<_>>()
                 });
 
                 value.map(serde_json::Value::Array)
@@ -410,7 +411,8 @@ pub(crate) fn encode_row_as_json(
                 let value: Option<Vec<bit_vec::BitVec>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
-                        .map(|x| serde_json::Value::from(output_bit_vec(&x))).collect::<Vec<_>>()
+                        .map(|x| serde_json::Value::from(output_bit_vec(&x)))
+                        .collect::<Vec<_>>()
                 });
 
                 value.map(serde_json::Value::Array)
@@ -426,7 +428,8 @@ pub(crate) fn encode_row_as_json(
                 let value: Option<Vec<bit_vec::BitVec>> = r.try_get(c)?;
                 let value = value.map(|x| {
                     x.into_iter()
-                        .map(|x| serde_json::Value::from(output_bit_vec(&x))).collect::<Vec<_>>()
+                        .map(|x| serde_json::Value::from(output_bit_vec(&x)))
+                        .collect::<Vec<_>>()
                 });
                 value.map(serde_json::Value::Array)
             }
@@ -454,9 +457,7 @@ pub(crate) fn encode_row_as_json(
 
             "JSON" => {
                 let value: Option<serde_json::Value> = r.try_get(c)?;
-                value
-                    .map(|x| x.to_string())
-                    .map(serde_json::Value::from)
+                value.map(|x| x.to_string()).map(serde_json::Value::from)
             }
             "JSONB" => {
                 let value: Option<serde_json::Value> = r.try_get(c)?;
@@ -1104,13 +1105,13 @@ pub(crate) fn output_range_data_time_fixoffset(
     use std::ops::Bound::*;
     let mut ret = "".to_string();
     match &r.start {
-        Included(x) => ret.push_str(format!("[{},", format_data_time_fix_offset(x)).as_str()),
-        Excluded(x) => ret.push_str(format!("({},", format_data_time_fix_offset(x)).as_str()),
+        Included(x) => ret.push_str(format!(r#"["{}","#, format_data_time_fix_offset(x)).as_str()),
+        Excluded(x) => ret.push_str(format!(r#"("{}","#, format_data_time_fix_offset(x)).as_str()),
         Unbounded => ret.push_str("(,"),
     };
     match &r.end {
-        Included(x) => ret.push_str(format!("{}]", format_data_time_fix_offset(x)).as_str()),
-        Excluded(x) => ret.push_str(format!("{})", format_data_time_fix_offset(x)).as_str()),
+        Included(x) => ret.push_str(format!(r#""{}"]"#, format_data_time_fix_offset(x)).as_str()),
+        Excluded(x) => ret.push_str(format!(r#""{}")"#, format_data_time_fix_offset(x)).as_str()),
         Unbounded => ret.push(')'),
     }
     ret
@@ -1125,7 +1126,13 @@ pub(crate) fn output_range_data_time_fix_offset_array(
     let last = array.len() - 1;
     let mut ret = "{".to_string();
     for (index, v) in array.iter().enumerate() {
-        ret.push_str(format!("\"{}\"", output_range_data_time_fixoffset(v)).as_str());
+        ret.push_str(
+            format!(
+                "\"{}\"",
+                output_range_data_time_fixoffset(v).replace("\"", "\\\"")
+            )
+            .as_str(),
+        );
         if index != last {
             ret.push(',')
         }

@@ -321,7 +321,7 @@ impl SchemaTrait for MariaDB {
             self.db.config.db_str()
         );
         let mut conn = self.db.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -335,7 +335,7 @@ impl SchemaTrait for MariaDB {
             let increment: i64 = row.try_get(5)?;
             let create_sql = {
                 let sql = format!("SHOW CREATE SEQUENCE {name}");
-                let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+                let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                     .fetch_one(conn.deref_mut())
                     .await?;
                 let create_sql: String = row.try_get(1)?;
@@ -359,7 +359,7 @@ impl SchemaTrait for MariaDB {
     async fn rename_sequnce(&self, old: &str, new: &str) -> anyhow::Result<()> {
         let sql = format!("RENAME TABLE {old}  TO {new}");
         let mut conn = self.db.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
@@ -368,7 +368,7 @@ impl SchemaTrait for MariaDB {
     async fn drop_sequence(&self, name: &str, _cascade: bool) -> anyhow::Result<()> {
         let sql = format!("DROP SEQUENCE IF EXISTS {name};");
         let mut conn = self.db.get_conn().await?;
-        sqlx::query(AssertSqlSafe(sql.as_str()))
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())

@@ -922,11 +922,6 @@ function SqlTableViewData(props: {
   if (!initValues) {
     initValues = {};
   }
-  fields.forEach((e) => {
-    if (e.is_auto_increment) {
-      delete initValues[e.field];
-    }
-  });
   const [filter, setFilter] = useState(SqlTableViewDataMatch);
 
   const filterFn = useMemo(() => {
@@ -976,9 +971,6 @@ function SqlTableViewData(props: {
             (args[f.field] ? filterFn(args[f.field]) : !filter)
         )
         .map((f) => {
-          if (f.is_auto_increment) {
-            return;
-          }
           return (
             <Stack
               key={f.field}
@@ -990,9 +982,16 @@ function SqlTableViewData(props: {
                 inputRef={(x) => {
                   inputDoms.current[f.field] = x;
                 }}
+                disabled={f.is_auto_increment}
                 size="small"
                 value={args[f.field]}
-                helperText={f.typ + ' ' + (f.nullable ? 'null' : 'not null')}
+                helperText={
+                  f.typ +
+                  ' ' +
+                  (f.nullable ? 'null' : 'not null') +
+                  ' ' +
+                  (f.is_auto_increment ? 'auto increment' : '')
+                }
                 required={!f.nullable}
                 label={f.field}
                 multiline={isTypeLargeText(f.typ)}

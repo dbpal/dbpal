@@ -38,7 +38,7 @@ impl LexerCompletionTrait for MysqlDB {
             return anyhow::Ok(lock.clone());
         }
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query("SELECT  * from information_schema.KEYWORDS")
+        let rows = sqlx::raw_sql("SELECT  * from information_schema.KEYWORDS")
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = vec![];
@@ -70,7 +70,7 @@ impl LexerCompletionTrait for MysqlDB {
         "#;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -90,7 +90,7 @@ impl MysqlDB {
     async fn build_fn_completion_items(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut conn = self.get_conn().await?;
 
-        let rows = sqlx::query("SHOW FUNCTION STATUS;")
+        let rows = sqlx::raw_sql("SHOW FUNCTION STATUS;")
             .fetch_all(conn.deref_mut())
             .await
             .unwrap();
@@ -200,7 +200,7 @@ impl AstCompletionHelper for MysqlDB {
             schema
         );
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -311,7 +311,7 @@ impl AstCompletionHelper for MysqlDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -325,7 +325,7 @@ impl AstCompletionHelper for MysqlDB {
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
         let sql = "show variables";
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -349,7 +349,7 @@ impl AstCompletionHelper for MysqlDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -378,7 +378,7 @@ impl AstCompletionHelper for MysqlDB {
         log::info!("sql:{}", sql);
 
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
@@ -401,7 +401,7 @@ impl AstCompletionHelper for MysqlDB {
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         let mut ret = Vec::with_capacity(rows.len());
