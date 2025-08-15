@@ -1,9 +1,6 @@
-use futures_util::StreamExt;
 use std::ops::DerefMut;
 
-use tiberius::QueryItem;
-
-use crate::db::{CatalogTrait, FormatSqlOpts, SchemaTrait};
+use crate::db::{FormatSqlOpts, SchemaTrait};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
@@ -11,17 +8,19 @@ use crate::language_server::{
 };
 use crate::mssql::MsSqlServerDB;
 use crate::sqlparser_completion::TempTableColumn;
+use futures_util::StreamExt;
+use tiberius::QueryItem;
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for MsSqlServerDB {
     type Dialect = sqlparser::dialect::MsSqlDialect;
 
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+        AstCompletionHelper::list_column(self, None, table_name, false).await
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_procedure(self, None, None).await
+        AstCompletionHelper::list_procedure(self, None).await
     }
 
     const TYPES: &'static [&'static str] = SQLSERVER_TYPES;
@@ -41,11 +40,11 @@ impl LexerCompletionTrait for MsSqlServerDB {
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
         // TODO select maybe allow empty database and schema
-        let mut ret = AstCompletionHelper::list_table(self, None, None)
+        let mut ret = AstCompletionHelper::list_table(self, None)
             .await
             .unwrap_or_default();
         ret.extend(
-            AstCompletionHelper::list_view(self, None, None)
+            AstCompletionHelper::list_view(self, None)
                 .await
                 .unwrap_or_default()
                 .into_iter(),
@@ -54,28 +53,10 @@ impl LexerCompletionTrait for MsSqlServerDB {
     }
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
+        AstCompletionHelper::list_function(self, None, true).await
     }
 }
 
-impl MsSqlServerDB {
-    fn db_merge_config<'a, 'b>(&'a self, db: Option<&'b str>) -> Option<&'a str>
-    where
-        'b: 'a,
-    {
-        if db.is_some() {
-            return db;
-        }
-        self.config.db.as_deref()
-    }
-
-    fn not_allow_empty_db(db: Option<&str>) -> anyhow::Result<&str> {
-        match db {
-            Some(x) => anyhow::Ok(x),
-            None => anyhow::bail!("empty database"),
-        }
-    }
-}
 #[async_trait::async_trait]
 impl LanguageServer for MsSqlServerDB {
     async fn auto_completion(
@@ -108,11 +89,7 @@ impl LanguageServer for MsSqlServerDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for MsSqlServerDB {
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
-        CatalogTrait::list_database(self).await
-    }
-
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![MsSqlServerDB::ONLY_SCHEMA.to_string()])
     }
 }
@@ -141,19 +118,18 @@ impl AstCompletionHelper for MsSqlServerDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_table(
-        &self, db: Option<&str>, _schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_empty_db(self.db_merge_config(db))?;
+    async fn list_table(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let db = self.config.must_db();
+
         self.list_table_impl(db, Self::ONLY_SCHEMA)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
     async fn list_constraint(
-        &self, db: Option<&str>, _schema: Option<&str>, table_name: &str,
+        &self, _schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_empty_db(self.db_merge_config(db))?;
+        let db = self.config.must_db();
         let sql = format!(
             r#"
             SELECT CONSTRAINT_NAME
@@ -181,9 +157,7 @@ impl AstCompletionHelper for MsSqlServerDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_view(
-        &self, _db: Option<&str>, _schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_view(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         SchemaTrait::list_view(self)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
@@ -215,14 +189,10 @@ impl AstCompletionHelper for MsSqlServerDB {
     }
 
     async fn list_column(
-        &self, db: Option<&str>, schema: Option<&str>, name: &str, _is_call: bool,
+        &self, schema: Option<&str>, name: &str, _is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!(
-            r#"  select TOP 1 * from  {}{}"{}" "#,
-            match db {
-                Some(x) => format!("\"{}\".", x),
-                None => "".to_string(),
-            },
+            r#"  select TOP 1 * from  {}"{}" "#,
             match schema {
                 Some(x) => format!("\"{}\".", x),
                 None => "".to_string(),
@@ -233,7 +203,7 @@ impl AstCompletionHelper for MsSqlServerDB {
     }
 
     async fn list_function(
-        &self, _db: Option<&str>, _schema: Option<&str>, include_build_in: bool,
+        &self, _schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let mut ret = SchemaTrait::list_udf(self)
             .await
@@ -255,10 +225,8 @@ impl AstCompletionHelper for MsSqlServerDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_procedure(
-        &self, db: Option<&str>, _schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_empty_db(self.db_merge_config(db))?;
+    async fn list_procedure(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let db = self.config.must_db();
         self.list_procedure_impl(db, Self::ONLY_SCHEMA)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())

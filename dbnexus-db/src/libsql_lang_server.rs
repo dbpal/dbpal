@@ -45,7 +45,7 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
     const TYPES: &'static [&'static str] = SQLITE_TYPES;
 
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+        AstCompletionHelper::list_column(self, None, table_name, false).await
     }
 
     async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
@@ -86,13 +86,13 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
     }
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
+        AstCompletionHelper::list_function(self, None, true).await
     }
 }
 
 #[async_trait::async_trait]
 impl LangServerCommon for LibSqlDB {
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.query_connections.get(&AutoCompletionUuid::get());
         if conn.is_none() {
             anyhow::bail!("query id should have connection")
@@ -117,18 +117,14 @@ impl LibSqlDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for LibSqlDB {
-    async fn list_view(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = Self::merge_schema(schema);
         self.list_view_impl(schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
-    async fn list_table(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = Self::merge_schema(schema);
         self.list_table_impl(schema)
             .await
@@ -164,7 +160,7 @@ impl AstCompletionHelper for LibSqlDB {
     }
 
     async fn list_column(
-        &self, _db: Option<&str>, _schema: Option<&str>, name: &str, is_call: bool,
+        &self, _schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!(
             r#"select * from "{name}"{} limit 1"#,
@@ -174,7 +170,7 @@ impl AstCompletionHelper for LibSqlDB {
     }
 
     async fn list_function(
-        &self, _catelog: Option<&str>, _schema: Option<&str>, include_build_in: bool,
+        &self, _schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         if !include_build_in {
             // if we don't want build in function, we can return empty.

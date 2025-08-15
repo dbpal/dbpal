@@ -11,14 +11,14 @@ use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
 impl LexerCompletionTrait for OracleDB {
     async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_procedure(self, None, None).await
+        AstCompletionHelper::list_procedure(self, None).await
     }
     type Dialect = sqlparser::dialect::GenericDialect;
 
     const TYPES: &'static [&'static str] = ORACLE_TYPES;
 
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+        AstCompletionHelper::list_column(self, None, table_name, false).await
     }
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
         let sql = r#"SELECT TABLE_NAME FROM DBA_TABLES"#.to_string();
@@ -72,7 +72,7 @@ impl LexerCompletionTrait for OracleDB {
     }
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
+        AstCompletionHelper::list_function(self, None, true).await
     }
 }
 
@@ -112,9 +112,7 @@ impl OracleDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for OracleDB {
-    async fn list_table(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
 
         self.list_table_impl(schema)
@@ -122,9 +120,7 @@ impl AstCompletionHelper for OracleDB {
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
-    async fn list_view(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
 
         self.list_view_impl(schema)
@@ -148,7 +144,7 @@ impl AstCompletionHelper for OracleDB {
         )
     }
     async fn list_column(
-        &self, _db: Option<&str>, schema: Option<&str>, name: &str, _is_call: bool,
+        &self, schema: Option<&str>, name: &str, _is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!(
             r#"select * from {}"{}""#,
@@ -163,7 +159,7 @@ impl AstCompletionHelper for OracleDB {
     }
 
     async fn list_function(
-        &self, _db: Option<&str>, schema: Option<&str>, include_build_in: bool,
+        &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let ret = self.extact_names(
             r#"
@@ -212,9 +208,7 @@ impl AstCompletionHelper for OracleDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_procedure(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
         self.list_procedure_impl(schema)
             .await
@@ -244,7 +238,7 @@ impl AstCompletionHelper for OracleDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for OracleDB {
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         DBTrait::list_schema(self).await
     }
 }

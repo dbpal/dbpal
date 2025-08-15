@@ -22,11 +22,11 @@ impl LexerCompletionTrait for MysqlDB {
     const TYPES: &'static [&'static str] = TYPES;
 
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+        AstCompletionHelper::list_column(self, None, table_name, false).await
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_procedure(self, None, None).await
+        AstCompletionHelper::list_procedure(self, None).await
     }
 
     async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
@@ -83,7 +83,7 @@ impl LexerCompletionTrait for MysqlDB {
     }
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
+        AstCompletionHelper::list_function(self, None, true).await
     }
 }
 
@@ -161,11 +161,7 @@ impl MysqlDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for MysqlDB {
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![])
-    }
-
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         MysqlDB::list_schema_impl(self).await
     }
     async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
@@ -209,9 +205,7 @@ impl AstCompletionHelper for MysqlDB {
         LexerCompletionTrait::get_key_words_fn(self).await
     }
 
-    async fn list_table(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
         self.list_table_impl(schema)
             .await
@@ -246,9 +240,7 @@ impl AstCompletionHelper for MysqlDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_view(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
         self.list_view_impl(schema)
             .await
@@ -272,7 +264,7 @@ impl AstCompletionHelper for MysqlDB {
         anyhow::Ok(ret)
     }
     async fn list_column(
-        &self, _db: Option<&str>, schema: Option<&str>, name: &str, _is_call: bool,
+        &self, schema: Option<&str>, name: &str, _is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!(
             r#"select * from {}`{name}` limit 1"#,
@@ -286,7 +278,7 @@ impl AstCompletionHelper for MysqlDB {
     }
 
     async fn list_function(
-        &self, _db: Option<&str>, schema: Option<&str>, include_build_in: bool,
+        &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let schema = self.merge_schema(schema);
         let mut conn = self.get_conn().await?;
@@ -320,9 +312,7 @@ impl AstCompletionHelper for MysqlDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_procedure(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
         let mut conn = self.get_conn().await?;
         crate::mysql::FunctionOrProcedure::query_list(
@@ -370,7 +360,7 @@ impl AstCompletionHelper for MysqlDB {
     }
 
     async fn list_partition(
-        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
+        &self, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
         let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
         let sql = format!(
@@ -399,7 +389,7 @@ impl AstCompletionHelper for MysqlDB {
     }
 
     async fn list_constraint(
-        &self, _db: Option<&str>, schema: Option<&str>, table_name: &str,
+        &self, schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
         let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
         let sql = format!(
@@ -423,7 +413,7 @@ impl AstCompletionHelper for MysqlDB {
     }
 
     async fn list_table_trigger(
-        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
+        &self, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
         let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
         let sql = format!(
@@ -452,8 +442,8 @@ mod tests {
 
     use crate::datasource_config::MysqlDBConfig;
     use crate::db::{AutoCompletionUuid, QuerySql, monaco_editor_keyword_regexp};
-    use crate::language_server::{LangServerCommon, LexerCompletionTrait};
     use crate::language_server::completion_test::test_file_auto_completion;
+    use crate::language_server::{LangServerCommon, LexerCompletionTrait};
     use crate::mysql::MysqlDB;
     use crate::{TEST_HOST, enable_test_log};
 

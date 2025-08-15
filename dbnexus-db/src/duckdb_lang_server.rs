@@ -70,18 +70,14 @@ impl AstCompletionHelper for DuckDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_table(
-        &self, db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let db = Self::not_allow_empty_db(self.db_merge_config(db))?;
         let schema = Self::not_allow_empty_db(self.schema_merge_config(schema))?;
         let ret = self.list_table_impl(db, schema)?;
         anyhow::Ok(ret.into_iter().map(|x| x.name).collect())
     }
 
-    async fn list_view(
-        &self, db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let db = Self::not_allow_empty_db(self.db_merge_config(db))?;
         let schema = Self::not_allow_empty_db(self.schema_merge_config(schema))?;
         let ret = self.list_view_impl(db, schema)?;
@@ -89,7 +85,7 @@ impl AstCompletionHelper for DuckDB {
     }
 
     async fn list_column(
-        &self, db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
+        &self, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let schema = Self::not_allow_empty_db(self.schema_merge_config(schema))?;
         let sql = format!(r#"select * from "{}" limit 1"#, schema, name);
@@ -111,7 +107,7 @@ impl AstCompletionHelper for DuckDB {
     }
 
     async fn list_function(
-        &self, _db: Option<&str>, _schema: Option<&str>, _include_build_in: bool,
+        &self, _schema: Option<&str>, _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let sql = r#"SELECT function_name ,description  FROM duckdb_functions()"#;
 
@@ -233,7 +229,7 @@ impl LangServerCommon for DuckDB {
         CatalogTrait::list_database(self).await
     }
 
-    async fn list_schema(&self, db: Option<&str>) -> anyhow::Result<Vec<String>> {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let db = self.db_merge_config(db);
         if let Some(db) = db {
             self.list_schema_impl(db)

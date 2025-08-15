@@ -82,8 +82,8 @@ SET search_path TO my_schema;
 16 search_path
 DROP TRIGGER trigger_insert_test_create_trigger on test_create_trigger;
 48 trigger_insert_test_create_trigger ; 71 test_create_trigger
-select * from test.xxx.employees;
-19 test ; 23 xxx ; 33 employees
+select * from xxx.employees;
+18 xxx ; 28 employees
 GRANT UPDATE (id) ON employees TO user_role WITH GRANT OPTION  GRANTED BY current_user;
 17 id ; 31 employees ; 44 postgres ; 87 postgres
 PREPARE select_user AS SELECT * FROM employees WHERE id = $1;

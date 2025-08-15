@@ -46,12 +46,8 @@ impl LanguageServer for CockRoachDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for CockRoachDB {
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_database(self.pg.as_ref()).await
-    }
-
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_schema(self.pg.as_ref(), None).await
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_schema(self.pg.as_ref()).await
     }
     async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
         LangServerCommon::list_prepares(self.pg.as_ref()).await
@@ -61,11 +57,11 @@ impl LangServerCommon for CockRoachDB {
 #[async_trait::async_trait]
 impl LexerCompletionTrait for CockRoachDB {
     async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_procedure(self.pg.as_ref(), None, None).await
+        AstCompletionHelper::list_procedure(self.pg.as_ref(), None).await
     }
 
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self.pg.as_ref(), None, None, table_name, false).await
+        AstCompletionHelper::list_column(self.pg.as_ref(), None, table_name, false).await
     }
     type Dialect = sqlparser::dialect::PostgreSqlDialect;
 
@@ -76,9 +72,9 @@ impl LexerCompletionTrait for CockRoachDB {
     }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let mut ret = AstCompletionHelper::list_table(self.pg.as_ref(), None, None).await?;
+        let mut ret = AstCompletionHelper::list_table(self.pg.as_ref(), None).await?;
         ret.extend(
-            AstCompletionHelper::list_view(self.pg.as_ref(), None, None)
+            AstCompletionHelper::list_view(self.pg.as_ref(), None)
                 .await?
                 .into_iter(),
         );
@@ -86,7 +82,7 @@ impl LexerCompletionTrait for CockRoachDB {
     }
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self.pg.as_ref(), None, None, true).await
+        AstCompletionHelper::list_function(self.pg.as_ref(), None, true).await
     }
 }
 

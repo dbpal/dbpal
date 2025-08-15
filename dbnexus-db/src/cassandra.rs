@@ -1780,7 +1780,7 @@ fn extract_parameter_for_function(sql: &str) -> anyhow::Result<Vec<ColumnDefinit
 
 #[async_trait::async_trait]
 impl LangServerCommon for CassandraDB {
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+    async fn list_schema(&self,) -> anyhow::Result<Vec<String>> {
         DBTrait::list_schema(self).await
     }
 }

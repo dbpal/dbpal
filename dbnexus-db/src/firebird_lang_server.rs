@@ -38,9 +38,7 @@ impl LanguageServer for FireBirdDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for FireBirdDB {
-    async fn list_table(
-        &self, _db: Option<&str>, _schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_table(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let sql = r#"
             SELECT 
                 RDB$RELATION_NAME AS TABLE_NAME
@@ -54,9 +52,7 @@ impl AstCompletionHelper for FireBirdDB {
         anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
     }
 
-    async fn list_view(
-        &self, _db: Option<&str>, _schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_view(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let sql = r#"
           SELECT RDB$RELATION_NAME
             FROM RDB$RELATIONS
@@ -87,7 +83,7 @@ impl AstCompletionHelper for FireBirdDB {
     }
 
     async fn list_column(
-        &self, _db: Option<&str>, _schema: Option<&str>, name: &str, _is_call: bool,
+        &self, _schema: Option<&str>, name: &str, _is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         SchemaTrait::show_table_columns(self, name).await.map(|x| {
             x.into_iter()
@@ -100,7 +96,7 @@ impl AstCompletionHelper for FireBirdDB {
     }
 
     async fn list_function(
-        &self, _db: Option<&str>, _schema: Option<&str>, _include_build_in: bool,
+        &self, _schema: Option<&str>, _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let sql = r#"
             SELECT 
@@ -140,7 +136,7 @@ impl LexerCompletionTrait for FireBirdDB {
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = TYPES;
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+        AstCompletionHelper::list_column(self, None, table_name, false).await
     }
 
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
@@ -157,10 +153,10 @@ impl LexerCompletionTrait for FireBirdDB {
     }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let mut ret: Vec<_> = AstCompletionHelper::list_table(self, None, None).await?;
+        let mut ret: Vec<_> = AstCompletionHelper::list_table(self, None).await?;
 
         ret.extend(
-            AstCompletionHelper::list_view(self, None, None)
+            AstCompletionHelper::list_view(self, None)
                 .await?
                 .into_iter(),
         );
@@ -169,7 +165,7 @@ impl LexerCompletionTrait for FireBirdDB {
     }
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
+        AstCompletionHelper::list_function(self, None, true).await
     }
 }
 

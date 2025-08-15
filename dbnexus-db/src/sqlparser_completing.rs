@@ -217,10 +217,10 @@ impl<'a> CompletionStatement<'a> {
         if !self.in_pos(&name.span) {
             return;
         }
-        let (db, schema, table) = self.extract_db_schme_item(table_name);
+        let (schema, table) = self.extract_db_schme_item(table_name);
         self.result = Some(
             self.helper
-                .postgres_table_policy(db, schema, table)
+                .postgres_table_policy(schema, table)
                 .await
                 .map_err(|e| log::error!("postgres_table_policy failed,err:{:?}", e))
                 .unwrap_or_default()
@@ -289,10 +289,10 @@ impl<'a> CompletionStatement<'a> {
                             if self.finished() {
                                 return;
                             }
-                            let (db, schema, table) = self.extract_db_schme_item(table);
+                            let (schema, table) = self.extract_db_schme_item(table);
                             let cs = self
                                 .helper
-                                .list_column(db, schema, table, false)
+                                .list_column(schema, table, false)
                                 .await
                                 .map_err(|e| {
                                     log::error!("list_column failed,err:{}", e);
@@ -365,12 +365,12 @@ impl<'a> CompletionStatement<'a> {
     pub(crate) async fn c_on_partition_expr(&mut self, table_name: &ObjectName, p: &Expr) {
         match p {
             Expr::Identifier(x) => {
-                let (db, schema, table) = self.extract_db_schme_item(table_name);
+                let (schema, table) = self.extract_db_schme_item(table_name);
 
                 if self.in_pos(&x.span) {
                     self.result = Some(
                         self.helper
-                            .list_partition(db, schema, table)
+                            .list_partition(schema, table)
                             .await
                             .map_err(|e| {
                                 log::error!("list partition failed,err:{}", e);
@@ -433,8 +433,7 @@ impl<'a> CompletionStatement<'a> {
 
     pub(crate) fn extract_db_schme_item<'b>(
         &mut self, item_name: &'b ObjectName,
-    ) -> (Option<&'b str>, Option<&'b str>, &'b str) {
-        let mut db = None;
+    ) -> (Option<&'b str>, &'b str) {
         let mut schema = None;
         let mut table = "";
         match item_name.0.len() {
@@ -451,32 +450,21 @@ impl<'a> CompletionStatement<'a> {
                     ObjectNamePart::Identifier(ident) => ident.value.as_str(),
                 };
             }
-            3 => {
-                db = Some(match &item_name.0[0] {
-                    ObjectNamePart::Identifier(ident) => ident.value.as_str(),
-                });
-                schema = Some(match &item_name.0[1] {
-                    ObjectNamePart::Identifier(ident) => ident.value.as_str(),
-                });
-                table = match &item_name.0[2] {
-                    ObjectNamePart::Identifier(ident) => ident.value.as_str(),
-                };
-            }
             _ => {
                 log::error!("wrong ObjectName:{:?}", item_name);
             }
         };
-        (db, schema, table)
+        (schema, table)
     }
 
     pub(crate) async fn c_on_postgres_rule(&mut self, table_name: &ObjectName, rule: &Ident) {
         if !self.in_pos(&rule.span) {
             return;
         }
-        let (db, schema, table) = self.extract_db_schme_item(table_name);
+        let (schema, table) = self.extract_db_schme_item(table_name);
         self.result = Some(
             self.helper
-                .list_postgres_rule(db, schema, table)
+                .list_postgres_rule(schema, table)
                 .await
                 .map_err(|err| {
                     log::error!("list_postgres_rule,err:{}", err);
@@ -495,10 +483,10 @@ impl<'a> CompletionStatement<'a> {
 
     pub(crate) async fn c_on_constraint(&mut self, table_name: &ObjectName, name: &Ident) {
         if self.in_pos(&name.span) {
-            let (db, schema, table_name) = self.extract_db_schme_item(table_name);
+            let (schema, table_name) = self.extract_db_schme_item(table_name);
             self.result = Some(
                 self.helper
-                    .list_constraint(db, schema, table_name)
+                    .list_constraint(schema, table_name)
                     .await
                     .map_err(|err| {
                         log::error!("list_constraint failed,err:{}", err);
@@ -547,7 +535,7 @@ impl<'a> CompletionStatement<'a> {
         }
         // hit pos
 
-        let (_, schema, table) = self.extract_db_schme_item(table_name);
+        let (schema, table) = self.extract_db_schme_item(table_name);
 
         self.result = Some(
             self.helper
@@ -961,10 +949,10 @@ impl<'a> CompletionStatement<'a> {
             return;
         }
         // here match
-        let (db, schema, _name) = self.extract_db_schme_item(name);
+        let (schema, _name) = self.extract_db_schme_item(name);
         self.result = Some(
             self.helper
-                .list_view(db, schema)
+                .list_view(schema)
                 .await
                 .map_err(|e| {
                     log::error!("list view failed,err:{}", e);
@@ -994,7 +982,7 @@ impl<'a> CompletionStatement<'a> {
                 // try match for schema
                 if self
                     .helper
-                    .list_schema(None)
+                    .list_schema()
                     .await
                     .unwrap_or_default()
                     .iter()
@@ -1071,10 +1059,10 @@ impl<'a> CompletionStatement<'a> {
         for t in tables.iter() {
             match t {
                 TableEntered::FromTable { table, .. } => {
-                    let (db, schema, table) = self.extract_db_schme_item(table);
+                    let (schema, table) = self.extract_db_schme_item(table);
                     let items = self
                         .helper
-                        .list_column(db, schema, table, false)
+                        .list_column(schema, table, false)
                         .await
                         .map_err(|e| {
                             log::error!("list_column failed,err:{}", e);
@@ -1105,7 +1093,7 @@ impl<'a> CompletionStatement<'a> {
             // 我们也要函数
             let fs = self
                 .helper
-                .list_function(None, None, true)
+                .list_function(None, true)
                 .await
                 .ok()
                 .unwrap_or_default();
@@ -1114,7 +1102,7 @@ impl<'a> CompletionStatement<'a> {
         //也要schema
         let schemas: Vec<_> = self
             .helper
-            .list_schema(None)
+            .list_schema()
             .await
             .ok()
             .unwrap_or_default()
@@ -1662,13 +1650,13 @@ impl<'a> CompletionStatement<'a> {
             if suggest_table {
                 self.c_on_table_or_view(table_name).await;
             }
-            let (db, schema, table_name) = self.extract_db_schme_item(table_name);
+            let (schema, table_name) = self.extract_db_schme_item(table_name);
             if self.result.is_none() {
                 self.result = Some(vec![]);
             }
             let items = self
                 .helper
-                .list_column(db, schema, table_name, false)
+                .list_column(schema, table_name, false)
                 .await
                 .map_err(|e| {
                     log::error!("list column error:{:?}", e);
@@ -1686,10 +1674,10 @@ impl<'a> CompletionStatement<'a> {
         &mut self, table_name: &ObjectName, trigger_name: &Ident,
     ) {
         if self.in_pos(&trigger_name.span) {
-            let (db, schema, table_name) = self.extract_db_schme_item(table_name);
+            let (schema, table_name) = self.extract_db_schme_item(table_name);
             self.result = Some(
                 self.helper
-                    .list_table_trigger(db, schema, table_name)
+                    .list_table_trigger(schema, table_name)
                     .await
                     .map_err(|e| {
                         log::error!("list_table_trigger failed,err:{:?}", e);
@@ -1715,51 +1703,7 @@ impl<'a> CompletionStatement<'a> {
                 if self.in_pos(&schema.span()) {
                     self.result = Some(
                         self.helper
-                            .list_schema(None)
-                            .await
-                            .map_err(|e| {
-                                log::error!("list schema error:{:?}", e);
-                            })
-                            .ok()
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|x| CompletionItem {
-                                kind: CompletionKind::Schema,
-                                item: x.into(),
-                                desc: None,
-                            })
-                            .collect::<Vec<_>>(),
-                    );
-                }
-            }
-            3 => {
-                let db = &name.0[0];
-                if self.in_pos(&db.span()) {
-                    self.result = Some(
-                        self.helper
-                            .list_database()
-                            .await
-                            .map_err(|e| {
-                                log::error!("list db error:{:?}", e);
-                            })
-                            .ok()
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|x| CompletionItem {
-                                kind: CompletionKind::Database,
-                                item: x.into(),
-                                desc: None,
-                            })
-                            .collect::<Vec<_>>(),
-                    );
-                }
-                let schema = &name.0[1];
-                if self.in_pos(&schema.span()) {
-                    self.result = Some(
-                        self.helper
-                            .list_schema(Some(match db {
-                                ObjectNamePart::Identifier(ident) => ident.value.as_str(),
-                            }))
+                            .list_schema()
                             .await
                             .map_err(|e| {
                                 log::error!("list schema error:{:?}", e);
@@ -1796,11 +1740,11 @@ impl<'a> CompletionStatement<'a> {
 
     pub(crate) async fn c_on_select_target(&mut self, name: &ObjectName) {
         self.c_on_table_or_view(name).await;
-        let (_, schema, _) = self.extract_db_schme_item(name);
+        let (schema, _) = self.extract_db_schme_item(name);
         let mut items = self.result.take().unwrap_or_default();
         let f = self
             .helper
-            .list_function(None, schema, schema.is_none())
+            .list_function(schema, schema.is_none())
             .await
             .map_err(|e| log::error!("list function failed , e:{}", e))
             .ok()
@@ -1824,10 +1768,10 @@ impl<'a> CompletionStatement<'a> {
             }
         }
         // here match
-        let (db, schema, _table_name) = self.extract_db_schme_item(table_name);
+        let (schema, _table_name) = self.extract_db_schme_item(table_name);
         items.extend(
             self.helper
-                .list_table(db, schema)
+                .list_table(schema)
                 .await
                 .map_err(|e| {
                     log::error!("list table failed,err:{:?}", e);
@@ -1836,8 +1780,7 @@ impl<'a> CompletionStatement<'a> {
                 .unwrap_or_default(),
         );
         if table_name.0.len() == 1 {
-            items.extend(self.helper.list_database().await.unwrap_or_default());
-            items.extend(self.helper.list_schema(None).await.unwrap_or_default());
+            items.extend(self.helper.list_schema().await.unwrap_or_default());
         }
         let items = items
             .into_iter()
@@ -1957,11 +1900,11 @@ impl<'a> CompletionStatement<'a> {
                     for table in tables.iter() {
                         match table {
                             TableEntered::FromTable { table, .. } => {
-                                let (db, schema, table) = self.extract_db_schme_item(table);
+                                let (schema, table) = self.extract_db_schme_item(table);
 
                                 cs.extend(
                                     self.helper
-                                        .list_column(db, schema, table, false)
+                                        .list_column(schema, table, false)
                                         .await
                                         .map_err(|e| {
                                             log::error!("list_column failed,err:{}", e);
@@ -2255,7 +2198,6 @@ impl<'a> CompletionStatement<'a> {
                 let cols = self
                     .helper
                     .list_column(
-                        None,
                         table.schema_name.as_deref(),
                         table.table_name.as_deref().unwrap_or_default(),
                         false,
@@ -2311,12 +2253,12 @@ impl<'a> CompletionStatement<'a> {
                 let columns = match args {
                     Some(_) => {
                         // this maybe a function get is a try
-                        let (db, schema, name) = self.extract_db_schme_item(name);
+                        let (schema, name) = self.extract_db_schme_item(name);
 
                         // TODO how to handle this case
                         let columns = self
                             .helper
-                            .list_column(db, schema, name, true)
+                            .list_column(schema, name, true)
                             .await
                             .map_err(|e| log::error!("list column failed,e:{}", e))
                             .ok()
@@ -2443,11 +2385,11 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             TableFactor::Function { alias, name, .. } => {
-                let (db, schema, name) = self.extract_db_schme_item(name);
+                let (schema, name) = self.extract_db_schme_item(name);
                 // TODO how to handle this case
                 let columns = self
                     .helper
-                    .list_column(db, schema, name, true)
+                    .list_column(schema, name, true)
                     .await
                     .map_err(|e| log::error!("list column failed,e:{}", e))
                     .ok()
@@ -2489,10 +2431,10 @@ impl<'a> CompletionStatement<'a> {
         if !self.last_name_in_pos(name) {
             return;
         }
-        let (db, schema, _) = self.extract_db_schme_item(name);
+        let (schema, _) = self.extract_db_schme_item(name);
         self.result = Some(
             self.helper
-                .list_procedure(db, schema)
+                .list_procedure(schema)
                 .await
                 .map_err(|e| {
                     log::error!("list_procedure error:{:?}", e);
@@ -2578,10 +2520,10 @@ impl<'a> CompletionStatement<'a> {
         if !self.last_name_in_pos(name) {
             return;
         }
-        let (db, schema, _) = self.extract_db_schme_item(name);
+        let (schema, _) = self.extract_db_schme_item(name);
         self.result = Some(
             self.helper
-                .list_function(db, schema, false)
+                .list_function(schema, false)
                 .await
                 .map_err(|e| {
                     log::error!("list function error:{:?}", e);
@@ -2599,10 +2541,10 @@ impl<'a> CompletionStatement<'a> {
         if !self.last_name_in_pos(name) {
             return;
         }
-        let (db, schema, _) = self.extract_db_schme_item(name);
+        let (schema, _) = self.extract_db_schme_item(name);
         self.result = Some(
             self.helper
-                .list_function(db, schema, schema.is_none())
+                .list_function(schema, schema.is_none())
                 .await
                 .map_err(|e| {
                     log::error!("list function error:{:?}", e);

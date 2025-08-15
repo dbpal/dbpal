@@ -58,7 +58,7 @@ impl ClickHouseDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for ClickHouseDB {
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         DBTrait::list_schema(self).await
     }
 }
@@ -93,17 +93,13 @@ impl AstCompletionHelper for ClickHouseDB {
         anyhow::Ok(result)
     }
 
-    async fn list_table(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let db = Self::not_allow_none_schema(self.schema_merge_config(schema))?;
         let v = self.list_table_impl(db).await?;
         anyhow::Ok(v.into_iter().map(|x| x.name).collect())
     }
 
-    async fn list_view(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let db = Self::not_allow_none_schema(self.schema_merge_config(schema))?;
         let mut ret = Vec::new();
         ret.extend(self.list_view_impl(db).await?.into_iter().map(|x| x.name));
@@ -133,7 +129,7 @@ impl AstCompletionHelper for ClickHouseDB {
     }
 
     async fn list_column(
-        &self, _db: Option<&str>, schema: Option<&str>, name: &str, _is_call: bool,
+        &self, schema: Option<&str>, name: &str, _is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!(
             r#"select * from {}"{}""#,
@@ -147,7 +143,7 @@ impl AstCompletionHelper for ClickHouseDB {
     }
 
     async fn list_function(
-        &self, _db: Option<&str>, _schema: Option<&str>, _include_build_in: bool,
+        &self, _schema: Option<&str>, _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let sql = "select name , description from system.functions";
         let conn = self.get_conn()?;
@@ -173,7 +169,7 @@ impl AstCompletionHelper for ClickHouseDB {
 #[async_trait::async_trait]
 impl LexerCompletionTrait for ClickHouseDB {
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+        AstCompletionHelper::list_column(self, None, table_name, false).await
     }
     type Dialect = sqlparser::dialect::ClickHouseDialect;
 
@@ -181,7 +177,7 @@ impl LexerCompletionTrait for ClickHouseDB {
     const TYPES: &'static [&'static str] = TYPES;
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
+        AstCompletionHelper::list_function(self, None, true).await
     }
 
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
@@ -202,12 +198,12 @@ impl LexerCompletionTrait for ClickHouseDB {
     }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let mut x = AstCompletionHelper::list_table(self, None, None)
+        let mut x = AstCompletionHelper::list_table(self, None)
             .await
             .ok()
             .unwrap_or_default();
         x.extend(
-            AstCompletionHelper::list_view(self, None, None)
+            AstCompletionHelper::list_view(self, None)
                 .await
                 .ok()
                 .unwrap_or_default()

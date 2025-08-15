@@ -2,7 +2,7 @@ use std::ops::DerefMut;
 
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 
-use crate::db::{AutoCompletionUuid, CatalogTrait, FormatSqlOpts};
+use crate::db::{AutoCompletionUuid, FormatSqlOpts};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBPrepare, LangServerCommon,
@@ -18,12 +18,12 @@ impl LexerCompletionTrait for PostGresDB {
     const TYPES: &'static [&'static str] = TYPES;
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_procedure(self, None, None).await
+        AstCompletionHelper::list_procedure(self, None).await
     }
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let mut ret = AstCompletionHelper::list_table(self, None, None).await?;
+        let mut ret = AstCompletionHelper::list_table(self, None).await?;
         ret.extend(
-            AstCompletionHelper::list_view(self, None, None)
+            AstCompletionHelper::list_view(self, None)
                 .await?
                 .into_iter(),
         );
@@ -31,7 +31,7 @@ impl LexerCompletionTrait for PostGresDB {
     }
 
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+        AstCompletionHelper::list_column(self, None, table_name, false).await
     }
 
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
@@ -57,7 +57,7 @@ impl LexerCompletionTrait for PostGresDB {
     }
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
+        AstCompletionHelper::list_function(self, None, true).await
     }
 }
 
@@ -119,15 +119,12 @@ impl PostGresDB {
 #[async_trait::async_trait]
 
 impl AstCompletionHelper for PostGresDB {
-    async fn list_table(
-        &self, db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let db = self.config.db_str();
         let mut sql =
             r#"select table_name FROM information_schema.tables  WHERE table_type = 'BASE TABLE' "#
                 .to_string();
-        if let Some(db) = self.db_merge_config(db) {
-            sql.push_str(format!(" AND table_catalog = '{}'", db).as_str());
-        }
+        sql.push_str(format!(" AND table_catalog = '{}'", db).as_str());
         if let Some(schema) = self.schema_merge_config(schema) {
             sql.push_str(format!(" AND table_schema = '{}'", schema).as_str());
         }
@@ -143,9 +140,7 @@ impl AstCompletionHelper for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_procedure(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let sql = if let Some(schema) = self.schema_merge_config(schema) {
             format!(
                 r#"
@@ -191,11 +186,7 @@ impl AstCompletionHelper for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_view(
-        &self,
-        _db: Option<&str>, // can't filter on catelog 根据表结构
-        schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let mut sql = "SELECT viewname FROM pg_views ".to_string();
         if let Some(schema) = self.schema_merge_config(schema) {
             sql.push_str(format!(" WHERE schemaname='{}'", schema).as_str());
@@ -242,14 +233,10 @@ impl AstCompletionHelper for PostGresDB {
     }
 
     async fn list_column(
-        &self, db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
+        &self, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!(
-            r#"select * from {}{}"{}"{}"#,
-            match db {
-                Some(x) => format!("\"{}\".", x),
-                None => "".to_string(),
-            },
+            r#"select * from {}"{}"{}"#,
             match schema {
                 Some(x) => format!("\"{}\".", x),
                 None => "".to_string(),
@@ -262,15 +249,16 @@ impl AstCompletionHelper for PostGresDB {
     }
 
     async fn list_function(
-        &self,
-        _db: Option<&str>, // how to filter on this???
-        schema: Option<&str>,
-        include_build_in: bool,
+        &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let sql;
-        if let Some(schema) = self.schema_merge_config(schema) {
-            sql = format!(
-                r#"
+        let schema = self.schema_merge_config(schema);
+        if schema.is_none() {
+            return anyhow::Ok(vec![]);
+        }
+        let schema = schema.unwrap();
+        sql = format!(
+            r#"
             SELECT  
                 p.proname AS function_name
             FROM pg_catalog.pg_proc p
@@ -278,18 +266,9 @@ impl AstCompletionHelper for PostGresDB {
             WHERE n.nspname = '{}'  -- 替换为你的模式名
             ORDER BY p.proname;
         "#,
-                schema
-            );
-        } else {
-            sql = r#"
-            SELECT 
-                p.proname AS function_name
-            FROM pg_catalog.pg_proc p
-            JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-            ORDER BY p.proname;
-        "#
-            .to_string();
-        }
+            schema
+        );
+
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -355,7 +334,7 @@ impl AstCompletionHelper for PostGresDB {
     }
 
     async fn postgres_table_policy(
-        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
+        &self, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
         let sql = if let Some(schema) = self.schema_merge_config(schema) {
             format!(
@@ -405,7 +384,7 @@ impl AstCompletionHelper for PostGresDB {
     }
 
     async fn list_postgres_rule(
-        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
+        &self, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
         // 这里schemaname实际上是db的名字 我观察出来的
         // 对吗？？？
@@ -434,29 +413,20 @@ impl AstCompletionHelper for PostGresDB {
     }
 
     async fn list_constraint(
-        &self, db: Option<&str>, schema: Option<&str>, table_name: &str,
+        &self, schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
         let mut sql =
             "SELECT constraint_name FROM information_schema.table_constraints".to_string();
-        let mut has_where = false;
-        if let Some(db) = self.db_merge_config(db) {
-            has_where = true;
-            sql.push_str(format!(" WHERE table_catalog='{}'", db).as_str());
+        let db = self.config.db_str();
+        sql.push_str(format!(" WHERE table_catalog='{}'", db).as_str());
+        let schema = self.schema_merge_config(schema);
+        if schema.is_none() {
+            return anyhow::Ok(vec![]);
         }
-        if let Some(schema) = self.schema_merge_config(schema) {
-            if has_where {
-                sql.push_str(" AND ");
-            } else {
-                sql.push_str(" WHERE ");
-            }
-            has_where = true;
-            sql.push_str(format!("table_schema='{}'", schema).as_str());
-        }
-        if has_where {
-            sql.push_str(" AND ");
-        } else {
-            sql.push_str(" WHERE ");
-        }
+        let schema = schema.unwrap();
+        sql.push_str(" AND ");
+        sql.push_str(format!("table_schema='{}'", schema).as_str());
+        sql.push_str(" AND ");
         sql.push_str(format!(" table_name='{}'", table_name).as_str());
         let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -470,7 +440,7 @@ impl AstCompletionHelper for PostGresDB {
         anyhow::Ok(ret)
     }
     async fn list_table_trigger(
-        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
+        &self, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
         let sql = if let Some(schema) = self.schema_merge_config(schema) {
             format!(
@@ -513,23 +483,16 @@ impl AstCompletionHelper for PostGresDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for PostGresDB {
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
-        CatalogTrait::list_database(self).await
-    }
-
-    async fn list_schema(&self, db: Option<&str>) -> anyhow::Result<Vec<String>> {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
-        let db = self.db_merge_config(db);
-        if db.is_none() {
-            log::error!("list_schema using a empty db:{:?}", db);
-        }
+        let db = self.config.db_str();
         let sql = format!(
             r#"
         SELECT schema_name 
             FROM information_schema.schemata
             WHERE schemata.catalog_name ='{}'
     "#,
-            db.unwrap_or_default(),
+            db,
         );
         log::info!("sql:{}", sql);
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))

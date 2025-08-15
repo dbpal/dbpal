@@ -13,7 +13,7 @@ use crate::sqlparser_completion::TempTableColumn;
 
 #[async_trait::async_trait]
 impl LangServerCommon for SqliteDB {
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let sql = "PRAGMA database_list";
         log::info!("sql:{}", sql);
         let conn = self.query_connection.get(&AutoCompletionUuid::get());
@@ -44,7 +44,7 @@ impl crate::language_server::LexerCompletionTrait for SqliteDB {
     const TYPES: &'static [&'static str] = SQLITE_TYPES;
 
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+        AstCompletionHelper::list_column(self, None, table_name, false).await
     }
 
     async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
@@ -84,7 +84,7 @@ impl crate::language_server::LexerCompletionTrait for SqliteDB {
     }
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
+        AstCompletionHelper::list_function(self, None, true).await
     }
 }
 
@@ -165,18 +165,14 @@ impl SqliteDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for SqliteDB {
-    async fn list_view(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = Self::mrege_schema(schema);
         self.list_view_impl(schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
-    async fn list_table(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = Self::mrege_schema(schema);
         self.list_table_impl(schema)
             .await
@@ -184,19 +180,22 @@ impl AstCompletionHelper for SqliteDB {
     }
 
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        let conn = self.query_connection.get(&AutoCompletionUuid::get());
-        if conn.is_none() {
-            log::error!("should able to get connection");
-            return anyhow::Ok(vec![]);
-        }
-        let conn = conn.unwrap();
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        log::info!("sql:{}", sql);
-        let s = conn
-            .deref_mut()
-            .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
-            .await?;
+        let s = match self.query_connection.get(&AutoCompletionUuid::get()) {
+            Some(conn) => {
+                let mut conn = conn.lock().await;
+                let conn = conn.deref_mut();
+                conn.deref_mut()
+                    .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
+                    .await?
+            }
+            None => {
+                let mut conn = self.get_conn().await?;
+                conn.deref_mut()
+                    .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
+                    .await?
+            }
+        };
+
         let ret = s
             .columns()
             .iter()
@@ -209,7 +208,7 @@ impl AstCompletionHelper for SqliteDB {
     }
 
     async fn list_column(
-        &self, _db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
+        &self, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let schema = Self::mrege_schema(schema);
         let sql = format!(
@@ -221,7 +220,7 @@ impl AstCompletionHelper for SqliteDB {
     }
 
     async fn list_function(
-        &self, _catelog: Option<&str>, _schema: Option<&str>, include_build_in: bool,
+        &self, _schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         // sqlite function are all build in functions
         if !include_build_in {
@@ -347,8 +346,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(
-            r#"SELECT * from has_data_0 ORDER BY co 
-37 col1"#,
+            r#"select employees.id  from employees
+ 19 name "#,
             &db,
             false,
         )

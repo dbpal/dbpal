@@ -42,29 +42,25 @@ impl AstCompletionHelper for TiDB {
         LexerCompletionTrait::get_key_words_fn(self).await
     }
 
-    async fn list_table(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_table(self.db.as_ref(), None, schema).await
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::list_table(self.db.as_ref(), schema).await
     }
 
-    async fn list_view(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_view(self.db.as_ref(), None, schema).await
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::list_view(self.db.as_ref(), schema).await
     }
 
     async fn list_column(
-        &self, _db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
+        &self, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self.db.as_ref(), None, schema, name, is_call).await
+        AstCompletionHelper::list_column(self.db.as_ref(), schema, name, is_call).await
     }
 
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         AstCompletionHelper::get_query_columns(self.db.as_ref(), sql).await
     }
     async fn list_function(
-        &self, _db: Option<&str>, _schema: Option<&str>, _include_build_in: bool,
+        &self, _schema: Option<&str>, _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         // rightnow we only support build in functions.
         let mut lock = self.build_in_fn.lock().await;
@@ -91,10 +87,8 @@ impl AstCompletionHelper for TiDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_procedure(
-        &self, _db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_procedure(self.db.as_ref(), None, schema).await
+    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::list_procedure(self.db.as_ref(), schema).await
     }
 
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
@@ -106,32 +100,28 @@ impl AstCompletionHelper for TiDB {
     }
 
     async fn list_partition(
-        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
+        &self, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_partition(self.db.as_ref(), None, schema, table).await
+        AstCompletionHelper::list_partition(self.db.as_ref(), schema, table).await
     }
 
     async fn list_constraint(
-        &self, _db: Option<&str>, schema: Option<&str>, table_name: &str,
+        &self, schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_constraint(self.db.as_ref(), None, schema, table_name).await
+        AstCompletionHelper::list_constraint(self.db.as_ref(), schema, table_name).await
     }
 
     async fn list_table_trigger(
-        &self, _db: Option<&str>, schema: Option<&str>, table: &str,
+        &self, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_table_trigger(self.db.as_ref(), None, schema, table).await
+        AstCompletionHelper::list_table_trigger(self.db.as_ref(), schema, table).await
     }
 }
 
 #[async_trait::async_trait]
 
 impl LangServerCommon for TiDB {
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![])
-    }
-
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         DBTrait::list_schema(self).await
     }
     async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
@@ -143,13 +133,13 @@ impl LexerCompletionTrait for TiDB {
     type Dialect = sqlparser::dialect::MySqlDialect;
 
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, None, table_name, false).await
+        AstCompletionHelper::list_column(self, None, table_name, false).await
     }
     const TEXTS: &'static [&'static str] = MysqlDB::TEXTS;
     const TYPES: &'static [&'static str] = MysqlDB::TYPES;
 
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
+        AstCompletionHelper::list_function(self, None, true).await
     }
 
     // some backend can use a query to query this.

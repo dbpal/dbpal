@@ -208,21 +208,8 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 .unwrap_or_default()
                 .into_iter(),
         );
-
         ret.extend(
-            self.list_database()
-                .await
-                .map_err(|e| log::error!("list database failed,err:{}", e))
-                .unwrap_or_default()
-                .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Database,
-                    desc: None,
-                }),
-        );
-        ret.extend(
-            self.list_schema(None)
+            self.list_schema()
                 .await
                 .map_err(|err| log::error!("list schema failed,err:{}", err))
                 .unwrap_or_default()
@@ -293,10 +280,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
 #[async_trait::async_trait]
 
 pub trait LangServerCommon: GetBackendKind {
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![])
-    }
-    async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
     async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
@@ -323,18 +307,14 @@ impl From<DBPrepare> for CompletionItem {
 
 #[async_trait::async_trait]
 pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServerCommon {
-    async fn list_table(
-        &self, db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>>;
-    async fn list_view(
-        &self, db: Option<&str>, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>>;
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
     async fn list_column(
-        &self, db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
+        &self, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>>;
 
     async fn list_function(
-        &self, db: Option<&str>, schema: Option<&str>, include_build_in: bool,
+        &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
 
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
@@ -347,9 +327,7 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         anyhow::Ok(vec![])
     }
 
-    async fn list_procedure(
-        &self, _db: Option<&str>, _schema: Option<&str>,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn list_procedure(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
     async fn list_clickhouse_table_projects(
@@ -378,12 +356,12 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
     }
 
     async fn list_partition(
-        &self, _db: Option<&str>, _schema: Option<&str>, _table: &str,
+        &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
     async fn postgres_table_policy(
-        &self, _db: Option<&str>, _schema: Option<&str>, _table: &str,
+        &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
@@ -392,17 +370,17 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         not_support_feature(self.backend_name())
     }
     async fn list_postgres_rule(
-        &self, _db: Option<&str>, _schema: Option<&str>, _table: &str,
+        &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
     async fn list_constraint(
-        &self, _db: Option<&str>, _schema: Option<&str>, _table_name: &str,
+        &self, _schema: Option<&str>, _table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
     async fn list_table_trigger(
-        &self, _db: Option<&str>, _schema: Option<&str>, _table: &str,
+        &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
@@ -474,7 +452,7 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
                 let mut ret = vec![];
                 ret.extend(
                     helper
-                        .list_table(None, Some(schema))
+                        .list_table(Some(schema))
                         .await
                         .map_err(|e| log::error!("list table failed,err:{}", e))
                         .unwrap_or_default()
@@ -487,7 +465,7 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
                 );
                 ret.extend(
                     helper
-                        .list_view(None, Some(schema))
+                        .list_view(Some(schema))
                         .await
                         .map_err(|e| log::error!("list view failed,err:{}", e))
                         .unwrap_or_default()
@@ -501,7 +479,7 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
 
                 ret.extend(
                     helper
-                        .list_function(None, Some(schema), false)
+                        .list_function(Some(schema), false)
                         .await
                         .map_err(|e| log::error!("list function failed,err:{}", e))
                         .unwrap_or_default()
@@ -509,7 +487,7 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
                 );
                 ret.extend(
                     helper
-                        .list_procedure(None, Some(schema))
+                        .list_procedure(Some(schema))
                         .await
                         .map_err(|e| log::error!("list procedure failed,err:{}", e))
                         .unwrap_or_default()
