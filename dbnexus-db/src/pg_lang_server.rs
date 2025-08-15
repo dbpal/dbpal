@@ -2,7 +2,7 @@ use std::ops::DerefMut;
 
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 
-use crate::db::{CatalogTrait, FormatSqlOpts, AutoCompletionUuid};
+use crate::db::{AutoCompletionUuid, CatalogTrait, FormatSqlOpts};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBPrepare, LangServerCommon,
@@ -30,9 +30,6 @@ impl LexerCompletionTrait for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
-        AstCompletionHelper::list_prepares(self).await
-    }
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         AstCompletionHelper::list_column(self, None, None, table_name, false).await
     }
@@ -122,32 +119,6 @@ impl PostGresDB {
 #[async_trait::async_trait]
 
 impl AstCompletionHelper for PostGresDB {
-    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
-        let conn = self.query_connection.get(&AutoCompletionUuid::get());
-        if conn.is_none() {
-            anyhow::bail!("query_id should get connection")
-        }
-        let conn = conn.unwrap();
-        let mut conn = conn.lock().await;
-
-        let sql = r#"
-            SELECT name,statement FROM pg_prepared_statements;
-        "#;
-        let rows = sqlx::raw_sql(sql)
-            .fetch_all(conn.deref_mut().deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let name: String = row.try_get(0)?;
-            let statement: String = row.try_get(1)?;
-            ret.push(DBPrepare {
-                name,
-                statement: Some(statement),
-            });
-        }
-        anyhow::Ok(ret)
-    }
-
     async fn list_table(
         &self, db: Option<&str>, schema: Option<&str>,
     ) -> anyhow::Result<Vec<String>> {
@@ -571,6 +542,32 @@ impl LangServerCommon for PostGresDB {
         }
         anyhow::Ok(ret)
     }
+
+    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+        let conn = self.query_connection.get(&AutoCompletionUuid::get());
+        if conn.is_none() {
+            anyhow::bail!("query_id should get connection")
+        }
+        let conn = conn.unwrap();
+        let mut conn = conn.lock().await;
+
+        let sql = r#"
+            SELECT name,statement FROM pg_prepared_statements;
+        "#;
+        let rows = sqlx::raw_sql(sql)
+            .fetch_all(conn.deref_mut().deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            let statement: String = row.try_get(1)?;
+            ret.push(DBPrepare {
+                name,
+                statement: Some(statement),
+            });
+        }
+        anyhow::Ok(ret)
+    }
 }
 
 #[async_trait::async_trait]
@@ -613,10 +610,10 @@ impl LanguageServer for PostGresDB {
 mod tests {
     use std::path::Path;
 
-    use crate::db::{QuerySql, monaco_editor_keyword_regexp};
+    use crate::db::{AutoCompletionUuid, QuerySql, monaco_editor_keyword_regexp};
     use crate::enable_test_log;
-    use crate::language_server::LexerCompletionTrait;
     use crate::language_server::completion_test::test_file_auto_completion;
+    use crate::language_server::{LangServerCommon, LexerCompletionTrait};
     use crate::pg::{PostGresDB, make_test_object};
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -701,5 +698,29 @@ mod tests {
             false,
         )
         .await;
+    }
+
+    #[tokio::test]
+    async fn test_prepare() {
+        let _guard = AutoCompletionUuid::test_mutex().lock().unwrap();
+        let db = make_test_object().await;
+        let query_id = db.open_connection().await.unwrap();
+        AutoCompletionUuid::set(query_id.clone());
+        db.execute_sql(
+            query_id,
+            r#"
+            PREPARE select_one AS SELECT 1;
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(
+            db.list_prepares()
+                .await
+                .unwrap()
+                .iter()
+                .any(|x| x.name.eq("select_one"))
+        );
     }
 }

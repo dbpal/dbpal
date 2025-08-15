@@ -2040,6 +2040,7 @@ mod tests {
         QuerySql, SchemaTrait, ServerMetas, UdfOrProcedureExtraParameter,
     };
     use crate::enable_test_log;
+
     // #[tokio::test]
     // async fn test_list_created_types() {
     //     let db = make_test_object().await;
@@ -2080,7 +2081,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let list = db.list_procedure().await.unwrap();
+        let list = SchemaTrait::list_procedure(&db).await.unwrap();
         for l in list.iter() {
             let details = db
                 .show_procedure(

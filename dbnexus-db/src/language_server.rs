@@ -131,10 +131,6 @@ pub trait LexerCompletionTrait: LangServerCommon {
     // some backend can use a query to query this.
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>>;
 
-    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
-        anyhow::Ok(vec![])
-    }
-
     async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>>;
 
     // table use very often.
@@ -303,8 +299,12 @@ pub trait LangServerCommon: GetBackendKind {
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
+    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+        anyhow::Ok(vec![])
+    }
 }
 
+#[derive(Clone, Debug)]
 pub struct DBPrepare {
     pub(crate) name: String,
     pub(crate) statement: Option<String>,
@@ -333,9 +333,6 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         &self, db: Option<&str>, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>>;
 
-    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
-        not_support_feature(self.backend_name())
-    }
     async fn list_function(
         &self, db: Option<&str>, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;

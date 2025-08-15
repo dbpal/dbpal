@@ -446,14 +446,38 @@ pub(crate) fn make_config() -> MysqlDBConfig {
 mod tests {
 
     use crate::datasource_config::MysqlDBConfig;
-    use crate::db::{QuerySql, SchemaTrait, monaco_editor_keyword_regexp};
-    use crate::language_server::LexerCompletionTrait;
+    use crate::db::{AutoCompletionUuid, QuerySql, SchemaTrait, monaco_editor_keyword_regexp};
+    use crate::language_server::{LangServerCommon, LexerCompletionTrait};
     use crate::mariadb::{MariaDB, make_config};
     use crate::mysql::test_fns::{self, make_test_object};
 
     pub(crate) async fn make_test_object_mariadb(config: MysqlDBConfig) -> MariaDB {
         let db: MariaDB = MariaDB::new(config).await.unwrap();
         db
+    }
+
+    #[tokio::test]
+    async fn test_prepare() {
+        let _guard = AutoCompletionUuid::test_mutex().lock().unwrap();
+        let db = make_test_object_mariadb(make_config()).await;
+        let query_id = db.open_connection().await.unwrap();
+        AutoCompletionUuid::set(query_id.clone());
+        db.execute_sql(
+            query_id,
+            r#"
+            PREPARE stmtxxx FROM 'SELECT 1';
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let ts = db.list_prepares().await.unwrap();
+
+        assert!(
+            ts.iter().any(|x| x.name.eq("stmtxxx")),
+            "!!!!!!!!!!!{:?}",
+            ts
+        );
     }
 
     #[tokio::test]

@@ -1412,6 +1412,11 @@ impl AutoCompletionUuid {
         &X
     }
 
+    #[cfg(test)]
+    pub(crate) fn test_mutex() -> &'static std::sync::Mutex<()> {
+        static X: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        &X
+    }
     pub(crate) fn get() -> uuid::Uuid {
         Self::loc().lock().unwrap().clone()
     }

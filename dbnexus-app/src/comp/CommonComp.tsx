@@ -224,39 +224,46 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
   );
 }
 
-function MenuOpenConn({ handleOpend, name }) {
+function MenuOpenConn({ handleOpend, name, setLoading }) {
   const { showNotification } = useContext(NotificationContext);
-  return (
-    <MenuItem
-      onClick={async () => {
-        // try promote use to enter a password.
-        let config = await getNamedConfig(name);
-        if (!config) {
+
+  const handleOpenXXX = async () => {
+    // try promote use to enter a password.
+    let config = await getNamedConfig(name);
+    if (!config) {
+      return;
+    }
+    const has = await invoke('has_entered_password', { name: name });
+    if (!has) {
+      let key = 'save_password';
+      if (false === config[key]) {
+        let pass = prompt(`enter password for '${name}'`);
+        if (pass == null) {
           return;
         }
-        const has = await invoke('has_entered_password', { name: name });
-        if (!has) {
-          let key = 'save_password';
-          if (false === config[key]) {
-            let pass = prompt(`enter password for '${name}'`);
-            if (pass == null) {
-              return;
-            }
-            try {
-              await invoke('save_entered_password', { name: name, pass: pass });
-            } catch (e) {
-              showNotification('error', 'password not correct???', e);
-              return;
-            }
-          }
+        try {
+          await invoke('save_entered_password', { name: name, pass: pass });
+        } catch (e) {
+          showNotification('error', 'password not correct???', e);
+          return;
         }
-        invoke('open_conn', { name })
-          .then(() => {
-            handleOpend();
-          })
-          .catch((e) => {
-            showNotification('error', 'open connection failed', e);
-          });
+      }
+    }
+    try {
+      await invoke('open_conn', { name });
+    } catch (e) {
+      showNotification('error', 'open connection failed', e);
+      return;
+    }
+    handleOpend();
+  };
+  return (
+    <MenuItem
+      onClick={() => {
+        setLoading(true);
+        handleOpenXXX().finally(() => {
+          setLoading(false);
+        });
       }}
     >
       <ListItemIcon>

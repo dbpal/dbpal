@@ -510,7 +510,6 @@ impl FunctionOrProcedure {
             let name: String = r.get(0);
             ret.push(name);
         }
-
         anyhow::Ok(ret)
     }
 

@@ -1,7 +1,7 @@
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 use std::ops::DerefMut;
 
-use crate::db::{FormatSqlOpts, AutoCompletionUuid, name_start_ascii_alphabetic};
+use crate::db::{AutoCompletionUuid, FormatSqlOpts, name_start_ascii_alphabetic};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
@@ -287,12 +287,11 @@ impl AstCompletionHelper for SqliteDB {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
     use crate::db::QuerySql;
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::sqlite::make_test_object;
+    use std::path::Path;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {

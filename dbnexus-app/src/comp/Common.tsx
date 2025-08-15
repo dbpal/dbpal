@@ -504,39 +504,23 @@ class UserSettings {
   datagridRowHeight: number = 24;
   datagridHeaderHeight: number = 30;
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
+
   editorTheme(): string {
     return this.theme === 'dark' ? 'vs-dark' : 'light';
   }
-  constructor(
-    theme?,
-    pageSize?,
-    editorFontSize?,
-    rootFontSize?,
-    datagridRowHeight?,
-    datagridHeaderHeight?,
-    editorOption?
-  ) {
-    if (theme) {
-      this.theme = theme;
+  static merge(x: object): UserSettings {
+    if (!x) {
+      x = {};
     }
-    if (pageSize) {
-      this.pageSize = pageSize;
+    let d = new UserSettings();
+    for (const key in x) {
+      const v = x[key];
+      if (!v) {
+        continue;
+      }
+      d[key] = x[key];
     }
-    if (editorFontSize) {
-      this.editorFontSize = editorFontSize;
-    }
-    if (rootFontSize) {
-      this.rootFontSize = rootFontSize;
-    }
-    if (datagridHeaderHeight) {
-      this.datagridHeaderHeight = datagridHeaderHeight;
-    }
-    if (datagridRowHeight) {
-      this.datagridRowHeight = datagridRowHeight;
-    }
-    if (editorOption) {
-      this.editorOption = editorOption;
-    }
+    return d;
   }
 }
 

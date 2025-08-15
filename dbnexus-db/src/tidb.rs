@@ -1,3 +1,5 @@
+use tokio::sync::Mutex;
+
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
@@ -5,6 +7,7 @@ use crate::db::{
     NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
 };
+use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
 use crate::query_log::QueryLogEvent;
@@ -16,6 +19,7 @@ use std::time::Duration;
 #[derive(Clone)]
 pub struct TiDB {
     pub(crate) db: Arc<MysqlDB>,
+    pub(crate) build_in_fn: Arc<Mutex<Vec<CompletionItem>>>,
 }
 
 impl GetBackendKind for TiDB {
@@ -28,6 +32,7 @@ impl TiDB {
     pub async fn new(config: MysqlDBConfig) -> anyhow::Result<Self> {
         let db = Self {
             db: Arc::new(MysqlDB::new(config).await?),
+            build_in_fn: Default::default(),
         };
         anyhow::Ok(db)
     }
@@ -339,7 +344,10 @@ impl DBTrait for TiDB {
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let db = self.db.open_schema(name).await?;
         let db = Clone::clone(db.as_any().downcast_ref::<MysqlDB>().unwrap());
-        anyhow::Ok(Arc::new(Self { db: Arc::new(db) }))
+        anyhow::Ok(Arc::new(Self {
+            db: Arc::new(db),
+            build_in_fn: self.build_in_fn.clone(),
+        }))
     }
 
     async fn create_schema(

@@ -1,5 +1,4 @@
 pub(crate) const SQLITE_TYPES: &[&str] = &[
-    "NULL",
     "INTEGER",
     "REAL",
     "TEXT",

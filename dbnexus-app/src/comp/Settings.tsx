@@ -78,15 +78,15 @@ function ModifySettings({ handleClose }) {
     appStore
       .set(
         AppStoreKey.UserSetttings,
-        new UserSettings(
+        UserSettings.merge({
           theme,
           pageSize,
           editorFontSize,
           rootFontSize,
           datagridRowHeight,
           datagridHeaderHeight,
-          JSON.parse(editorOptions)
-        )
+          editorOption: JSON.parse(editorOptions),
+        } as UserSettings)
       )
       .then(() => {
         handleClose();
@@ -354,7 +354,7 @@ const components: Components<
   MuiMenuItem: {
     styleOverrides: {
       root: {
-        height: '1.7rem',
+        height: '1.6rem',
         fontSize: '1rem',
       },
     },
@@ -364,14 +364,14 @@ const components: Components<
     styleOverrides: {
       root: {
         '.MuiDataGrid-columnHeaderTitle': {
-          fontWeight: 'bold', // or '600', '700', etc.
+          fontWeight: 'bold',
         },
       },
       cell: {
         fontSize: '1rem',
       },
       columnHeaders: {
-        fontSize: '0.9rem', // 调整表头字体大小
+        fontSize: '0.9rem',
         boxShadow: '0 2px 4px',
       },
     },
@@ -475,25 +475,11 @@ function SettingComp(props: { children }) {
     appStore
       .get<UserSettings>(AppStoreKey.UserSetttings)
       .then((setting) => {
-        if (!setting) {
-          setting = new UserSettings();
-        }
-        setSetting(
-          // why new a object because of js is a dynamic language
-          // UserSettings maybe have no value on store
-          new UserSettings(
-            setting.theme,
-            setting.pageSize,
-            setting.editorFontSize,
-            setting.rootFontSize,
-            setting.datagridRowHeight,
-            setting.datagridHeaderHeight,
-            setting.editorOption
-          )
-        );
-
-        document.documentElement.style.fontSize =
-          (setting.rootFontSize ? setting.rootFontSize : 15) + 'px';
+        let x = UserSettings.merge(setting);
+        setSetting(x);
+        // why new a object because of js is a dynamic language
+        // UserSettings maybe have no value on store
+        document.documentElement.style.fontSize = x.rootFontSize + 'px';
       })
       .catch((e) => {
         alert(`list user settings failed ${e.toString()}`);

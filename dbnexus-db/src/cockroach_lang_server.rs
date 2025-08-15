@@ -1,8 +1,8 @@
 use crate::cockroach::{COCKROACH_DATA_TYPES, CockRoachDB};
 use crate::db::FormatSqlOpts;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, LangServerCommon, LanguageServer, LexerCompletionTrait,
-    try_completion_on_syntax,
+    AstCompletionHelper, CompletionItem, DBPrepare, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, try_completion_on_syntax,
 };
 
 use crate::sqlparser_completion::TempTableColumn;
@@ -52,6 +52,9 @@ impl LangServerCommon for CockRoachDB {
 
     async fn list_schema(&self, _db: Option<&str>) -> anyhow::Result<Vec<String>> {
         LangServerCommon::list_schema(self.pg.as_ref(), None).await
+    }
+    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+        LangServerCommon::list_prepares(self.pg.as_ref()).await
     }
 }
 

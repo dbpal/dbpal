@@ -887,7 +887,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
     DataSourceKind.Postgres,
   ].includes(kind);
   let { setUpMenu } = useContext(ContextMenuContext);
-
+  const [loading, setLoading] = useState(false);
   return (
     <TreeItem
       itemId={getPrefix()}
@@ -900,6 +900,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
               <SchemaMenu
                 opened={opened}
                 schema={schema}
+                setLoading={setLoading}
                 handleOpend={() => {
                   setOpened(true);
                 }}
@@ -922,6 +923,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
         {schema && <LuDatabase></LuDatabase>}
         <span> {schema ? schema : uuid}</span>
         {!schema && opened && <ConnPingTime uuid={uuid}></ConnPingTime>}
+        {loading && <CircularProgress size={progressBarSizeSmall} />}
       </Stack>
     >
       {opened && kind == DataSourceKind.Sqlite && (
@@ -1032,6 +1034,7 @@ function DatabaseMenu(props: {
   reloadDatabase;
   kind: DataSourceKind;
   schemas: string[];
+  setLoading;
 }) {
   const {
     database,
@@ -1043,6 +1046,7 @@ function DatabaseMenu(props: {
     reloadDatabase,
     kind,
     schemas,
+    setLoading,
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showCreateSchema, setShowCreateSchema] = useState(false);
@@ -1068,7 +1072,11 @@ function DatabaseMenu(props: {
         )}
 
         {!opened && !database && (
-          <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
+          <MenuOpenConn
+            name={uuid}
+            setLoading={setLoading}
+            handleOpend={handleOpend}
+          ></MenuOpenConn>
         )}
 
         {opened && <MenuRefresh reload={reload}></MenuRefresh>}
@@ -1143,15 +1151,28 @@ function CatalogMenu(props: {
   handleOpend;
   opened;
   handleCloseConn;
+  setLoading;
   kind: DataSourceKind;
 }) {
-  const { uuid, reload, handleOpend, opened, handleCloseConn, kind } = props;
+  const {
+    uuid,
+    reload,
+    handleOpend,
+    opened,
+    handleCloseConn,
+    kind,
+    setLoading,
+  } = props;
   const [showCreateDB, setShowCreateDB] = useState(false);
   return (
     <div>
       <MenuList>
         {!opened && (
-          <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
+          <MenuOpenConn
+            name={uuid}
+            setLoading={setLoading}
+            handleOpend={handleOpend}
+          ></MenuOpenConn>
         )}
 
         {opened && kind != DataSourceKind.DuckDB && (
@@ -1301,6 +1322,7 @@ function SchemaMenu(props: {
   handleCloseConn;
   kind: DataSourceKind;
   reloadSchemas?;
+  setLoading;
 }) {
   const {
     schema,
@@ -1310,13 +1332,18 @@ function SchemaMenu(props: {
     handleCloseConn,
     reloadSchemas,
     kind,
+    setLoading,
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const { setSelectTab, setTabs } = useContext(TabsSetContext);
   return (
     <MenuList>
       {!schema && !opened && (
-        <MenuOpenConn name={uuid} handleOpend={handleOpend}></MenuOpenConn>
+        <MenuOpenConn
+          name={uuid}
+          setLoading={setLoading}
+          handleOpend={handleOpend}
+        ></MenuOpenConn>
       )}
 
       {opened && (
@@ -1402,6 +1429,7 @@ function CatalogTree(_props: {}) {
             content: (
               <CatalogMenu
                 uuid={name}
+                setLoading={setLoading}
                 reload={handleReload}
                 opened={opened}
                 handleOpend={() => {
@@ -1482,6 +1510,7 @@ function DatabaseTree(props: {
           setUpMenu({
             content: (
               <DatabaseMenu
+                setLoading={setLoading}
                 opened={opened}
                 handleOpend={() => {
                   setOpened(true);

@@ -220,7 +220,6 @@ function initMongoBsonLanguage() {
             const result = formatMongoBsonStr(text, options.tabSize);
             return [{ range: model.getFullModelRange(), text: result }];
           } catch (e) {
-            console.log(e);
             if (e instanceof MongoBsonError) {
               alert(e.msgWithLoc);
             } else {
