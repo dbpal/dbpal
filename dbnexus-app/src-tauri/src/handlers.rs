@@ -57,6 +57,10 @@ pub async fn save_entered_password(
     app.saved_password.insert(name, pass);
     Ok(())
 }
+#[tauri::command]
+pub fn set_auto_completion_query_id(query_id: uuid::Uuid) {
+    AutoCompletionUuid::set(query_id);
+}
 
 #[tauri::command]
 pub async fn delete_password(name: String) -> Result<(), ErrorFrontend> {
@@ -980,17 +984,12 @@ pub async fn list_schema(
 }
 #[tauri::command]
 pub async fn auto_completion(
-    name: String, sql: String, query_id: Option<uuid::Uuid>, line: u32, col: u32,
-    app: tauri::State<'_, App>,
+    name: String, sql: String, line: u32, col: u32, app: tauri::State<'_, App>,
 ) -> Result<Vec<CompletionItem>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let use_lexer = true;
     let db = app.get_opened(name.as_str()).await?;
-    if let Some(x) = query_id {
-        AutoCompletionUuid::set(x);
-    }
-
     let ret = match db {
         Open::Catalog(x) => x.auto_completion(&sql, line, col, use_lexer).await,
         Open::DataBase(x) => x.auto_completion(&sql, line, col, use_lexer).await,

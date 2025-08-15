@@ -38,10 +38,10 @@ use handlers::{
     redis_hash_replace, redis_list_lpush, redis_list_remove, redis_list_rpush, redis_list_set,
     redis_list_table, redis_set_add, redis_set_del, redis_set_replace, redis_string_set,
     redis_zset_add, redis_zset_del, redis_zset_replace, redis_zset_show_table, rename_index,
-    rename_sequnce, rename_table, save_entered_password, save_password, server_metas, show_indexes,
-    show_procedure, show_table, show_table_columns, show_trigger, show_udf, show_view,
-    show_view_columns, table_delete, table_insert, table_update, test_connection, truncate_table,
-    valid_json,
+    rename_sequnce, rename_table, save_entered_password, save_password, server_metas,
+    set_auto_completion_query_id, show_indexes, show_procedure, show_table, show_table_columns,
+    show_trigger, show_udf, show_view, show_view_columns, table_delete, table_insert, table_update,
+    test_connection, truncate_table, valid_json,
 };
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
@@ -391,7 +391,8 @@ fn main_() {
             list_sequences,
             drop_sequence,
             rename_sequnce,
-            command_panic
+            command_panic,
+            set_auto_completion_query_id
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

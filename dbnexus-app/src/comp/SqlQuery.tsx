@@ -37,7 +37,6 @@ import {
   MakeIQueryConn,
   modalStyle,
   msgTimeout,
-  setQueryId,
   SettingContext,
 } from './Common.tsx';
 import { BsFillLightbulbFill } from 'react-icons/bs';
@@ -56,6 +55,7 @@ import {
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
 import { CiTimer } from 'react-icons/ci';
+import { invoke } from '@tauri-apps/api/core';
 
 const fileFilter = {
   filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
@@ -507,7 +507,13 @@ function SqlQuery(props: {
     // console.log('SqlQuery vis changed', vis);
     if (vis && conn) {
       console.log('SqlQuery setQueryId', conn.queryId);
-      setQueryId(conn.queryId);
+      invoke('set_auto_completion_query_id', { queryId: conn.queryId })
+        .then(() => {
+          console.log('set ok');
+        })
+        .catch((e) => {
+          console.log('set auto completion id failed,err:{}', e);
+        });
     }
   }, [vis, conn]);
   return (

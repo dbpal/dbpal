@@ -604,11 +604,6 @@ function reloadOK(showNotification) {
 }
 const registeredLanguage = new Set<string>();
 
-let queryId = '';
-function setQueryId(id: string) {
-  queryId = id;
-}
-
 function makeAutoComplete(
   uuid
 ): (sql: string, pos: Position) => Promise<languages.CompletionList> {
@@ -624,7 +619,6 @@ function makeAutoComplete(
           sql,
           line: pos.lineNumber,
           col: pos.column,
-          queryId: queryId ? queryId : null,
         }
       );
       let suggestions = backendCompletionItemToEditor(completionItem);
@@ -1229,7 +1223,6 @@ export {
   keyNotInTable,
   extractBaseName,
   makeAutoComplete,
-  setQueryId,
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent };
