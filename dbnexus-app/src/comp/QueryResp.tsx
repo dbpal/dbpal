@@ -239,7 +239,7 @@ function MultiQueryResp_(props: { data: any[] }) {
   useEffect(() => {
     setTimeout(() => {
       setData(oldData);
-    }, 600);
+    }, 500);
   }, [oldData]);
 
   if (data.length == 0) {
