@@ -1800,7 +1800,7 @@ impl<'a> CompletionStatement<'a> {
         let mut items = self.result.take().unwrap_or_default();
         let f = self
             .helper
-            .list_function(None, schema, true)
+            .list_function(None, schema, schema.is_none())
             .await
             .map_err(|e| log::error!("list function failed , e:{}", e))
             .ok()
@@ -2602,7 +2602,7 @@ impl<'a> CompletionStatement<'a> {
         let (db, schema, _) = self.extract_db_schme_item(name);
         self.result = Some(
             self.helper
-                .list_function(db, schema, true)
+                .list_function(db, schema, schema.is_none())
                 .await
                 .map_err(|e| {
                     log::error!("list function error:{:?}", e);
