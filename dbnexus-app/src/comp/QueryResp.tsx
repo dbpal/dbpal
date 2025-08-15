@@ -212,16 +212,16 @@ function getRowId(row) {
 }
 
 let styleForTrans: CSSProperties = {
-  transition: 'all 0.3s ease',
+  transition: 'all 0.5s ease',
   position: 'relative',
   overflow: 'hidden',
 };
 
 function MultiQueryResp_(props: { data: any[] }) {
-  let { data } = props;
-  if (data.length == 0) {
-    return <></>;
-  }
+  let { data: oldData } = props;
+
+  const [data, setData] = useState([]);
+
   const [top, setTop] = useState(0);
   const [value, setValue] = React.useState(0);
   const [opacity, setOpacity] = useState(1);
@@ -234,9 +234,17 @@ function MultiQueryResp_(props: { data: any[] }) {
     setTimeout(() => {
       setTop(0);
       setOpacity(1);
-    }, 400);
-  }, [data]);
+    }, 600);
+  }, [oldData]);
+  useEffect(() => {
+    setTimeout(() => {
+      setData(oldData);
+    }, 600);
+  }, [oldData]);
 
+  if (data.length == 0) {
+    return <></>;
+  }
   if (data.length == 1) {
     return data[0].Err ? (
       <Alert
