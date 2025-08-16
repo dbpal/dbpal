@@ -150,17 +150,21 @@ function RedisQuery(props: {
         ]}
       ></SqlQuery>
 
-      <iframe
-        hidden={!showDoc}
-        ref={iframeRef} // 绑定 iframe 引用
-        src={getURL(command)}
-        style={{
-          width: '100%',
-          height: '100%',
-          border: 'none', // 去掉边框
-        }}
-        title="Full Size Iframe"
-      />
+      <div>
+        {showDoc && (
+          <iframe
+            hidden={!showDoc}
+            ref={iframeRef} // 绑定 iframe 引用
+            src={getURL(command)}
+            style={{
+              width: '100%',
+              height: '100%',
+              border: 'none', // 去掉边框
+            }}
+            title="Full Size Iframe"
+          />
+        )}
+      </div>
     </SplitPane>
   );
 }

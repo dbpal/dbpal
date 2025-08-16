@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use dashmap::DashMap;
 use futures_util::{StreamExt, TryStreamExt};
-use sqlx::pool::PoolConnection;
+use sqlx::pool::{PoolConnection, PoolOptions};
 use sqlx::postgres::{PgRow, PgSslMode};
 use sqlx::{AssertSqlSafe, Column, Executor, PgConnection, Postgres, Row, SqlSafeStr};
 use tokio::sync::Mutex;
@@ -1572,8 +1572,9 @@ impl PostGresDB {
                 opts = opts.ssl_client_key(key);
             }
         }
-
-        let pool = sqlx::postgres::PgPool::connect_with(opts).await?;
+        let pool_opts = PoolOptions::new();
+        let pool_opts = pool_opts.max_connections(100);
+        let pool = pool_opts.connect_with(opts).await?;
         anyhow::Ok(Self {
             pool,
             config,

@@ -8,7 +8,7 @@ use chrono::Utc;
 use dashmap::DashMap;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::mysql::{MySqlRow, MySqlSslMode};
-use sqlx::pool::PoolConnection;
+use sqlx::pool::{PoolConnection, PoolOptions};
 use sqlx::types::BigDecimal;
 use sqlx::{AssertSqlSafe, Column, Executor, MySqlConnection, Row, SqlSafeStr, TypeInfo};
 use tokio::sync::Mutex;
@@ -1406,8 +1406,9 @@ impl MysqlDB {
         if let Some(db) = &config.db {
             opts = opts.database(db);
         }
-        let pool = sqlx::mysql::MySqlPool::connect_with(opts).await?;
-
+        let pool_options = PoolOptions::new();
+        let pool_options = pool_options.max_connections(100);
+        let pool = pool_options.connect_with(opts).await?;
         anyhow::Ok(Self {
             pool,
             config,

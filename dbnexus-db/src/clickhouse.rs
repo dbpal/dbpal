@@ -870,10 +870,11 @@ impl CheckConn for ClickHouseDB {
 
 impl ClickHouseDB {
     pub fn new(config: ClickHouseConfig) -> anyhow::Result<Self> {
-        let pool = r2d2::Builder::<PoolManager>::new().build(PoolManager {
+        let mut builder = r2d2::Builder::<PoolManager>::new();
+        builder = builder.max_size(100);
+        let pool = builder.build(PoolManager {
             config: config.clone(),
         })?;
-
         let client = {
             let mut b = reqwest::Client::builder();
             b = b.connect_timeout(Duration::from_secs(10));

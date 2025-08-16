@@ -169,7 +169,7 @@ impl ServerMetas for MsSqlServerDB {
 impl MsSqlServerDB {
     pub async fn new(c: SqlServerDBConfig) -> anyhow::Result<Self> {
         let manager = bb8_tiberius::ConnectionManager::new(make_config(&c));
-        let pool = bb8::Pool::builder().max_size(50).build(manager).await?;
+        let pool = bb8::Pool::builder().max_size(100).build(manager).await?;
         anyhow::Ok(Self {
             config: c,
             pool,

@@ -12,9 +12,9 @@ use tokio::sync::Mutex;
 use crate::MemoryLimit;
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce};
 use crate::db::{
-    BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, AutoCompletionUuid,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    AutoCompletionUuid, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
+    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, QueryResp,
+    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     TriggerDetail, escape_sql_str,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
@@ -333,7 +333,9 @@ impl LibSqlDB {
         let manager = PoolManager {
             config: config.clone(),
         };
-        let pool = bb8::Pool::builder().build(manager).await?;
+        let mut builder = bb8::Pool::builder();
+        builder = builder.max_size(100);
+        let pool = builder.build(manager).await?;
         anyhow::Ok(Self {
             config,
             pool,

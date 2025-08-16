@@ -1014,10 +1014,11 @@ impl CheckConn for FireBirdDB {
 
 impl FireBirdDB {
     pub fn new(config: FireBirdConfig) -> anyhow::Result<Self> {
-        let pool = r2d2::Pool::builder().build(PoolManager {
+        let mut builder = r2d2::Pool::builder();
+        builder = builder.max_size(100);
+        let pool = builder.build(PoolManager {
             config: config.clone(),
         })?;
-
         anyhow::Ok(Self {
             config,
             pool,

@@ -39,6 +39,7 @@ impl std::fmt::Debug for MongoDB {
 impl MongoDB {
     pub fn new(ds: MongoDBConfig) -> anyhow::Result<Self> {
         let mut opts = mongodb::options::ClientOptions::default();
+        opts.max_connecting = Some(100);
         opts.hosts = vec![ServerAddress::Tcp {
             host: ds.host.to_string(),
             port: Some(ds.port),

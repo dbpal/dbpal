@@ -15,9 +15,9 @@ use typescript_type_def::TypeDef;
 
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
-    BackendKind, GetBackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult,
-    Field, ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlExecuteRet,
+    BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
+    GetBackendKind, ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlExecuteRet,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 use crate::meta_value::MetaValue;
@@ -41,6 +41,7 @@ impl RedisDB {
         log::info!("connect to redis var:{:?}", conn_str);
 
         let client = redis::Client::open(conn_str.as_str())?;
+
         let m = redis::aio::ConnectionManager::new(client).await?;
         anyhow::Ok(Self {
             config,
@@ -227,12 +228,7 @@ impl ServerMetas for RedisDB {
 
 fn split_info_colon(info: &str) -> anyhow::Result<(String, String)> {
     match info.find(":") {
-        Some(index) => {
-            anyhow::Ok((
-                info[..index].to_string(),
-                info[index + 1..].to_string(),
-            ))
-        }
+        Some(index) => anyhow::Ok((info[..index].to_string(), info[index + 1..].to_string())),
         None => anyhow::bail!("info should contains ':'"),
     }
 }
@@ -1296,13 +1292,15 @@ enum RedisValueEncodeHit {
 
 impl RedisValueEncodeHit {
     fn from_cmd(cmd: &[String]) -> Option<Self> {
-        if cmd.first()
+        if cmd
+            .first()
             .map(|x| x.eq_ignore_ascii_case("HGETALL"))
             .unwrap_or(false)
         {
             return Some(Self::Hash);
         }
-        if cmd.first()
+        if cmd
+            .first()
             .map(|x| x.eq_ignore_ascii_case("ZRANGE"))
             .unwrap_or(false)
             && cmd
