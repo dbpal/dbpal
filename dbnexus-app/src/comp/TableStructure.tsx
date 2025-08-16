@@ -16,6 +16,7 @@ import {
   SimpleFlexSizeEditor,
 } from './Common';
 import {
+  appFontWeight,
   calMenuStyle,
   columnWidths,
   ContextMenuContext,
@@ -902,7 +903,7 @@ function AddIndex(props: {
         style={{ flexWrap: 'wrap', alignItems: 'center' }}
         spacing={1}
       >
-        <Typography color="info" fontWeight="bold">
+        <Typography color="info" fontWeight={appFontWeight}>
           includes:
         </Typography>
         {includes.map((x) => (

@@ -519,7 +519,7 @@ function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "bo
     e.unobserve(dom);
   };
 }
-
+const appFontWeight = "560";
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -554,5 +554,6 @@ export {
   quoteStyle,
   saveAndSetSize,
   SaveSizesToStore,
+  appFontWeight
 };
 

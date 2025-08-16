@@ -23,7 +23,7 @@ import { types } from './ApiStruct';
 import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { appStore, AppStoreKey, extractBaseName, msgTimeout } from './Common';
-import { DataSourceKind } from './helper';
+import { appFontWeight, DataSourceKind } from './helper';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 async function selectOneFile() {
@@ -1164,7 +1164,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           test
         </Button>
         {testOk && (
-          <Typography color="success" style={{ fontWeight: '600' }}>
+          <Typography color="success" style={{ fontWeight: appFontWeight }}>
             Test OK
           </Typography>
         )}

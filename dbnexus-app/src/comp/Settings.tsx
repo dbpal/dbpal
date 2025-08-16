@@ -29,7 +29,7 @@ import {
 } from './Common';
 import { ModalHeader, SelectPageSize } from './CommonComp';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { validJson } from './helper';
+import { appFontWeight, validJson } from './helper';
 
 function ModifySettings({ handleClose }) {
   const { showNotification } = useContext(NotificationContext);
@@ -338,7 +338,7 @@ const components: Components<
         fontSize: '1rem',
         padding: '2px  4px',
         textTransform: 'none',
-        fontWeight: '550',
+        fontWeight: appFontWeight,
       },
     },
   },
@@ -364,7 +364,7 @@ const components: Components<
     styleOverrides: {
       root: {
         '.MuiDataGrid-columnHeaderTitle': {
-          fontWeight: 'bold',
+          fontWeight: appFontWeight,
         },
       },
       cell: {
@@ -387,7 +387,7 @@ const components: Components<
     styleOverrides: {
       root: {
         '& .MuiInputBase-input': {
-          fontWeight: '570',
+          fontWeight: appFontWeight,
         },
       },
     },
@@ -396,7 +396,7 @@ const components: Components<
     styleOverrides: {
       root: {
         fontSize: '1rem',
-        fontWeight: 'bold',
+        fontWeight: appFontWeight,
       },
     },
   },
@@ -414,7 +414,7 @@ const components: Components<
 const lightTheme = createTheme({
   typography: {
     allVariants: {
-      fontWeight: '570',
+      fontWeight: appFontWeight,
     },
   },
   palette: {
@@ -450,7 +450,7 @@ lightTheme.components.MuiDataGrid.styleOverrides.row = {
 const darkTheme = createTheme({
   typography: {
     allVariants: {
-      fontWeight: '570',
+      fontWeight: appFontWeight,
     },
   },
   palette: {

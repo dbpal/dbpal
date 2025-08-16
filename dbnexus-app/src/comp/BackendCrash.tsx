@@ -1,6 +1,6 @@
 import { Button, Paper, Stack } from '@mui/material';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { handleCopyToClipboard } from './helper';
+import { appFontWeight, handleCopyToClipboard } from './helper';
 import { useContext } from 'react';
 import { NotificationContext } from './Notification';
 
@@ -40,7 +40,7 @@ function BackendCrash(props: { msg: string }) {
             padding: '2px 8px',
           }}
         >
-          <pre style={{ color: 'red', fontWeight: 'bold' }}>{msg}</pre>
+          <pre style={{ color: 'red', fontWeight: appFontWeight }}>{msg}</pre>
         </Paper>
       </div>
     </Stack>

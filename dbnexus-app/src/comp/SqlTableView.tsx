@@ -53,6 +53,7 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import { FaArrowsAltV } from 'react-icons/fa';
 import {
+  appFontWeight,
   calMenuStyle,
   columnWidths,
   ContextMenuContext,
@@ -760,7 +761,6 @@ function SqlTableView_(props: {
               fontSize: '0.9rem',
               fontStyle: 'italic',
               color: 'success',
-              fontWeight: '600',
             }}
             variant="body1"
             onClick={() => {
@@ -1093,7 +1093,7 @@ function Menu(props: {
   let quoteField = `${quoteStyle}${field}${quoteStyle}`;
   return (
     <div>
-      <MenuList style={{ fontWeight: 'bold' }}>
+      <MenuList style={{ fontWeight: appFontWeight }}>
         {addOP && (
           <MenuItem
             onClick={() => {
@@ -1330,7 +1330,7 @@ function FilterOnValue(props: {
         >
           set
         </Button>
-        <Typography color="success" fontWeight="bold">
+        <Typography color="success" fontWeight={appFontWeight}>
           <em> {where()} </em>
         </Typography>
       </Stack>
