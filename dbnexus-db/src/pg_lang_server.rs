@@ -251,13 +251,13 @@ impl AstCompletionHelper for PostGresDB {
     async fn list_function(
         &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let sql;
+        
         let schema = self.schema_merge_config(schema);
         if schema.is_none() {
             return anyhow::Ok(vec![]);
         }
         let schema = schema.unwrap();
-        sql = format!(
+        let sql = format!(
             r#"
             SELECT  
                 p.proname AS function_name

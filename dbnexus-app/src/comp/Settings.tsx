@@ -448,6 +448,11 @@ lightTheme.components.MuiDataGrid.styleOverrides.row = {
 };
 
 const darkTheme = createTheme({
+  typography: {
+    allVariants: {
+      fontWeight: '570',
+    },
+  },
   palette: {
     mode: 'dark',
     background: {

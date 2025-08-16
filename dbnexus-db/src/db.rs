@@ -1418,7 +1418,7 @@ impl AutoCompletionUuid {
         &X
     }
     pub(crate) fn get() -> uuid::Uuid {
-        Self::loc().lock().unwrap().clone()
+        *Self::loc().lock().unwrap()
     }
     pub fn set(x: uuid::Uuid) {
         *Self::loc().lock().unwrap() = x;
