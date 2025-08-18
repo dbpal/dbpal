@@ -1,8 +1,10 @@
 use std::ops::DerefMut;
 
+#[cfg(test)]
+use crate::datasource_config::MysqlDBConfig;
 use crate::db::DBTrait;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBPrepare, LangServerCommon,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, LangServerCommon,
     LanguageServer, LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::mysql::MysqlDB;
@@ -124,10 +126,11 @@ impl LangServerCommon for TiDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         DBTrait::list_schema(self).await
     }
-    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
-        LangServerCommon::list_prepares(self.db.as_ref()).await
+    async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
+        LangServerCommon::list_execute(self.db.as_ref(), None).await
     }
 }
+
 #[async_trait::async_trait]
 impl LexerCompletionTrait for TiDB {
     type Dialect = sqlparser::dialect::MySqlDialect;
@@ -172,6 +175,67 @@ impl LexerCompletionTrait for TiDB {
     }
 }
 
+#[allow(dead_code)]
+#[cfg(test)]
+pub(crate) fn make_config() -> MysqlDBConfig {
+    MysqlDBConfig {
+        connection_timeout: None,
+        host: crate::TEST_HOST.to_string(),
+        username: "root".to_string(),
+        password: Some("root".to_string()),
+        port: 3307,
+        db: Some("test".to_string()),
+        read_only: false,
+        save_password: true,
+        ssl: Default::default(),
+    }
+}
+
+#[cfg(test)]
+pub(crate) async fn make_test_object_tidb(config: MysqlDBConfig) -> TiDB {
+    let db: TiDB = TiDB::new(config).await.unwrap();
+    db
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        db::{AutoCompletionUuid, QuerySql},
+        language_server::LangServerCommon,
+        tidb::make_config,
+        tidb_lang_server::make_test_object_tidb,
+    };
+
+    /*
+    TODO support this.
+    在 TiDB 中，“当前连接” 已经 PREPARE 的语句不会单独写入 information_schema 表，而是 保存在会话内存 里，因此官方没有 “一条 SQL 列出所有 prepare” 的固定表。
+    但你可以通过以下 两种方式 实时查看：
+     */
+    #[ignore = "xxxx"]
+    #[tokio::test]
+    async fn test_prepare() {
+        let _guard = AutoCompletionUuid::test_mutex().lock().unwrap();
+        let db = make_test_object_tidb(make_config()).await;
+        let query_id = db.open_connection().await.unwrap();
+        AutoCompletionUuid::set(query_id.clone());
+        db.execute_sql(
+            query_id,
+            r#"
+            PREPARE stmtxxx FROM 'SELECT 1';
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(
+            db.list_execute(None)
+                .await
+                .unwrap()
+                .iter()
+                .any(|x| x.name.eq("stmtxxx"))
+        );
+    }
+}
 /// TiDB 关键字全集（含保留/非保留）
 pub const TIDB_KEYWORDS: &[&str] = &[
     "ACCOUNT",

@@ -12,8 +12,8 @@ use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     ExportKind, ExportQueryResult, Field, GetBackendKind, ListMaterializedView, ListTable,
-    NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs,
-    SqlBuilder, SqlExecuteRet, escape_sql_str, ty_is_float, ty_is_int,
+    NamedStaff, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, ty_is_float, ty_is_int,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, sql_cut_by_semicolon};
 use crate::language_server::CompletionItem;
@@ -871,13 +871,15 @@ impl CheckConn for ClickHouseDB {
 impl ClickHouseDB {
     pub fn new(config: ClickHouseConfig) -> anyhow::Result<Self> {
         let mut builder = r2d2::Builder::<PoolManager>::new();
-        builder = builder.max_size(100);
+        builder = builder.max_size(POOL_MAX_CONNECTIONS);
         let pool = builder.build(PoolManager {
             config: config.clone(),
         })?;
         let client = {
             let mut b = reqwest::Client::builder();
-            b = b.connect_timeout(Duration::from_secs(10));
+            if let Some(x) = config.connection_timeout {
+                b = b.timeout(Duration::from_millis(x as u64));
+            }
             b = b.pool_max_idle_per_host(10);
             b.build()?
         };
@@ -1172,6 +1174,7 @@ impl SqlBuilder for ClickHouseDB {
 #[cfg(test)]
 pub(crate) fn make_test_object() -> ClickHouseDB {
     ClickHouseDB::new(ClickHouseConfig {
+        connection_timeout: None,
         host: "127.0.0.1".to_string(),
         port: 8123,
         read_only: false,

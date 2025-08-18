@@ -1,14 +1,15 @@
 use std::ops::DerefMut;
 
-use crate::db::{FormatSqlOpts, SchemaTrait};
+use crate::db::FormatSqlOpts;
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_completion_on_syntax,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, LangServerCommon,
+    LanguageServer, LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::mssql::MsSqlServerDB;
 use crate::sqlparser_completion::TempTableColumn;
 use futures_util::StreamExt;
+
 use tiberius::QueryItem;
 
 #[async_trait::async_trait]
@@ -39,7 +40,6 @@ impl LexerCompletionTrait for MsSqlServerDB {
     }
 
     async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        // TODO select maybe allow empty database and schema
         let mut ret = AstCompletionHelper::list_table(self, None)
             .await
             .unwrap_or_default();
@@ -90,7 +90,34 @@ impl LanguageServer for MsSqlServerDB {
 #[async_trait::async_trait]
 impl LangServerCommon for MsSqlServerDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![MsSqlServerDB::ONLY_SCHEMA.to_string()])
+        anyhow::Ok(vec![
+            MsSqlServerDB::DBO_SCHEMA.to_string(),
+            MsSqlServerDB::SYS_SCHEMA.to_string(),
+        ])
+    }
+
+    async fn list_execute(&self, schema: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
+        let mut x = self.list_procedure_impl(Self::DBO_SCHEMA).await?;
+        let b = self.list_procedure_impl(Self::SYS_SCHEMA).await?;
+        match schema {
+            Some(schema) => match schema {
+                Self::SYS_SCHEMA => x = b,
+                _ => {
+                    x.extend(b.into_iter());
+                }
+            },
+            None => {
+                x.extend(b.into_iter());
+            }
+        };
+        anyhow::Ok(
+            x.into_iter()
+                .map(|x| DBExecutable {
+                    name: x.name.into(),
+                    statement: None,
+                })
+                .collect(),
+        )
     }
 }
 
@@ -118,10 +145,10 @@ impl AstCompletionHelper for MsSqlServerDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_table(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let db = self.config.must_db();
-
-        self.list_table_impl(db, Self::ONLY_SCHEMA)
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let db = self.config.db_str();
+        let schema = schema.unwrap_or(Self::DBO_SCHEMA);
+        self.list_table_impl(db, schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
@@ -129,7 +156,7 @@ impl AstCompletionHelper for MsSqlServerDB {
     async fn list_constraint(
         &self, _schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
-        let db = self.config.must_db();
+        let db: &String = self.config.db_str();
         let sql = format!(
             r#"
             SELECT CONSTRAINT_NAME
@@ -137,7 +164,7 @@ impl AstCompletionHelper for MsSqlServerDB {
             WHERE   CONSTRAINT_CATALOG='{}'  AND CONSTRAINT_SCHEMA ='{}' AND TABLE_NAME = '{}';
         "#,
             db,
-            Self::ONLY_SCHEMA,
+            Self::DBO_SCHEMA,
             table_name
         );
         log::info!("sql:{}", sql);
@@ -157,8 +184,9 @@ impl AstCompletionHelper for MsSqlServerDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_view(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        SchemaTrait::list_view(self)
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = schema.unwrap_or(Self::DBO_SCHEMA);
+        self.list_view_impl(schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
@@ -203,9 +231,12 @@ impl AstCompletionHelper for MsSqlServerDB {
     }
 
     async fn list_function(
-        &self, _schema: Option<&str>, include_build_in: bool,
+        &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut ret = SchemaTrait::list_udf(self)
+        // 在 SQL Server 中，sys 模式下并没有直接的用户定义函数 (UDF)，而是包含了一系列的系统视图和存储过程。不过，你可以使用一些系统函数来获取数据库元数据。以下是一些常用的系统函数，这些可以帮助你查询数据库的信息：
+        let schema = schema.unwrap_or(Self::DBO_SCHEMA);
+        let mut ret = self
+            .list_udf_impl(schema)
             .await
             .map(|x| {
                 x.into_iter().map(|x| CompletionItem {
@@ -225,9 +256,8 @@ impl AstCompletionHelper for MsSqlServerDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_procedure(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let db = self.config.must_db();
-        self.list_procedure_impl(db, Self::ONLY_SCHEMA)
+    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_execute(self, schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
@@ -282,6 +312,7 @@ mod tests {
 
     use crate::db::QuerySql;
     use crate::enable_test_log;
+    use crate::language_server::LangServerCommon;
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::mssql::{make_test_object, test_lock};
 
@@ -330,6 +361,14 @@ mod tests {
             false,
         )
         .await;
+    }
+    #[ignore = "手动跑跑的测试"]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_completion_execute() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        let x = db.list_execute(None).await;
+        println!("###########:{:?}", x);
     }
 }
 

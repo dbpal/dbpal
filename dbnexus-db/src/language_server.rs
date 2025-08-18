@@ -233,7 +233,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 }),
         );
         ret.extend(
-            self.list_prepares()
+            self.list_execute(None)
                 .await
                 .map_err(|err| log::error!("list prepares failed,err:{}", err))
                 .unwrap_or_default()
@@ -283,19 +283,19 @@ pub trait LangServerCommon: GetBackendKind {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
-    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+    async fn list_execute(&self, _schema: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
         anyhow::Ok(vec![])
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct DBPrepare {
+pub struct DBExecutable {
     pub(crate) name: String,
     pub(crate) statement: Option<String>,
 }
-impl From<DBPrepare> for CompletionItem {
-    fn from(value: DBPrepare) -> Self {
-        let DBPrepare { name, statement } = value;
+impl From<DBExecutable> for CompletionItem {
+    fn from(value: DBExecutable) -> Self {
+        let DBExecutable { name, statement } = value;
 
         CompletionItem {
             item: name.into(),

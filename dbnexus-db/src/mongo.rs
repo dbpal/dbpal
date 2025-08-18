@@ -44,8 +44,7 @@ impl MongoDB {
             host: ds.host.to_string(),
             port: Some(ds.port),
         }];
-        opts.connect_timeout = ds.call_timeout.map(Duration::from_millis);
-
+        opts.connect_timeout = ds.connection_timeout.map(Duration::from_millis);
         if let Some(user) = &ds.username {
             let b = mongodb::options::Credential::builder();
             let b = b.username(Some(user.to_owned()));
@@ -317,11 +316,10 @@ impl MongoDB {
             Some(x) => x,
             None => anyhow::bail!("no _id provide"),
         };
-        let doc = bson::doc! { "$set" : doc };
         let db = self.get_db().await?;
         let ret = db
             .collection::<Document>(collection_name)
-            .update_one(bson::doc! {"_id" : id }, doc)
+            .replace_one(bson::doc! {"_id" : id }, doc)
             .await?;
         anyhow::Ok(ret)
     }
@@ -361,11 +359,33 @@ impl MongoDB {
             let item = item?;
             docs.push(item);
         }
-
         let cols = infer_multi_value_column_names(&docs[..])?;
         let data = collect_table_resp(&cols, docs.as_slice())?;
-
         anyhow::Ok(QueryResp::new(cols, count as usize, data, None)?)
+    }
+
+    pub async fn show_collection_json(
+        &self, collection_name: &str, filter: Document, sort: Document, page: u64, page_size: u64,
+    ) -> anyhow::Result<JsonAndCount> {
+        let db = self.get_db().await?;
+        let count = db
+            .collection::<u64>(collection_name)
+            .count_documents(filter.clone())
+            .await?;
+        let mut stream = db
+            .collection::<serde_json::Value>(collection_name)
+            .find(filter)
+            .skip((page - 1) * page_size)
+            .limit(page_size as i64)
+            .sort(sort)
+            .await?;
+
+        let mut docs = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            docs.push(item);
+        }
+        anyhow::Ok(JsonAndCount { docs, count })
     }
 
     pub async fn show_collection_docs(
@@ -404,6 +424,11 @@ pub struct DocsAndCount {
     pub count: u64,
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct JsonAndCount {
+    pub docs: Vec<serde_json::Value>,
+    pub count: u64,
+}
 impl MongoDB {
     async fn duplicate_collection_impl(
         &self, old_collection: &str, dup: &str,
@@ -849,16 +874,15 @@ impl MongoDB {
 #[allow(unused)]
 pub(crate) fn make_test_object() -> MongoDB {
     let x = MongoDB::new(MongoDBConfig {
+        connection_timeout: None,
         host: TEST_HOST.to_string(),
         port: 27017,
         username: None,
         password: None,
-        call_timeout: None,
         db: Some("test".to_string()),
         read_only: false,
         save_password: true,
     });
-
     x.unwrap()
 }
 

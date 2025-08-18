@@ -16,9 +16,9 @@ use crate::db::{
     BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedType, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
     Field, GetBackendKind, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff,
-    ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, not_support_feature,
+    POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    SequenceDetail, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, not_support_feature,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
@@ -1572,8 +1572,11 @@ impl PostGresDB {
                 opts = opts.ssl_client_key(key);
             }
         }
-        let pool_opts = PoolOptions::new();
-        let pool_opts = pool_opts.max_connections(100);
+        let mut pool_opts = PoolOptions::new();
+        if let Some(x) = config.connection_timeout {
+            pool_opts = pool_opts.acquire_timeout(Duration::from_millis(x as u64));
+        }
+        pool_opts = pool_opts.max_connections(POOL_MAX_CONNECTIONS);
         let pool = pool_opts.connect_with(opts).await?;
         anyhow::Ok(Self {
             pool,
@@ -1885,16 +1888,19 @@ impl QuerySql for PostGresDB {
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
         if ret.is_empty() {
             use sqlx::Statement;
-            let s = conn
+            let fields = conn
                 .deref_mut()
                 .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
-                .await?;
-            let field = s
-                .columns()
-                .iter()
-                .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
-                .collect::<Vec<_>>();
-            ret = vec![Ok(QueryResp::new(field, 0, vec![], sql.to_owned())?)];
+                .await
+                .map(|s| {
+                    s.columns()
+                        .iter()
+                        .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+
+            ret = vec![Ok(QueryResp::new(fields, 0, vec![], sql.to_owned())?)];
         }
         anyhow::Ok(ret)
     }
@@ -2014,6 +2020,7 @@ pub(crate) async fn make_test_object() -> PostGresDB {
         read_only: false,
         save_password: true,
         ssl: Default::default(),
+        connection_timeout: None,
     })
     .await
     .unwrap();

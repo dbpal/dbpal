@@ -52,6 +52,8 @@ import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 
+import logoImg from '../../icon.png';
+
 import { TabContent } from './Tabs';
 import wcmatch from 'wildcard-match';
 
@@ -148,7 +150,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
         >
           <Tooltip title="DBPal site">
             <img
-              src="https://dbpal.site/images/icon.png"
+              src={logoImg}
               style={{ width: '3.3rem', cursor: 'pointer' }}
               onClick={() => {
                 openUrl('https://dbpal.site/');

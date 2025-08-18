@@ -1,6 +1,6 @@
 use crate::db::DBTrait;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBPrepare, LangServerCommon,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, LangServerCommon,
     LanguageServer, LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::mariadb::MariaDB;
@@ -106,6 +106,10 @@ impl AstCompletionHelper for MariaDB {
         AstCompletionHelper::list_partition(self.db.as_ref(), schema, table).await
     }
 
+    async fn mysql_show_create_trigger(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        AstCompletionHelper::mysql_show_create_trigger(self.db.as_ref()).await
+    }
+
     async fn list_constraint(
         &self, schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -125,8 +129,8 @@ impl LangServerCommon for MariaDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         DBTrait::list_schema(self).await
     }
-    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
-        LangServerCommon::list_prepares(self.db.as_ref()).await
+    async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
+        LangServerCommon::list_execute(self.db.as_ref(), None).await
     }
 }
 

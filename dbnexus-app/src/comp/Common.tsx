@@ -24,7 +24,6 @@ import {
 } from 'monaco-editor';
 import { types } from './ApiStruct';
 
-import { BSON } from 'bson';
 import {
   createContext,
   ReactNode,
@@ -104,10 +103,6 @@ const getNamedConfig = async (
   }
   return x.find((x) => x.name == name);
 };
-
-class DocsAndCount {
-  constructor(public docs: BSON.Document[], public total: number) {}
-}
 
 function EditorBar(props: { left?: any; pos: EditorPositon }) {
   let { left, pos } = props;
@@ -1197,7 +1192,6 @@ type EscDownEvent = { preventDefault: () => void };
 
 export {
   modalStyle,
-  DocsAndCount,
   EditorBar,
   SimpleFlexSizeEditor,
   tabsHasId,

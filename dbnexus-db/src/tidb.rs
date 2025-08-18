@@ -370,6 +370,21 @@ impl ServerMetas for TiDB {
 }
 
 #[cfg(test)]
+pub(crate) fn make_config() -> MysqlDBConfig {
+    MysqlDBConfig {
+        connection_timeout: None,
+        host: crate::TEST_HOST.to_string(),
+        username: "root".to_string(),
+        password: Some("root".to_string()),
+        port: 4000,
+        db: None,
+        read_only: false,
+        save_password: true,
+        ssl: Default::default(),
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use crate::TEST_HOST;
     use crate::datasource_config::MysqlDBConfig;
@@ -377,6 +392,7 @@ mod tests {
 
     pub(crate) fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {
+            connection_timeout: None,
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
             password: None,

@@ -7,8 +7,8 @@ pub struct MongoDBConfig {
     pub username: Option<String>,
     pub password: Option<String>,
     pub save_password: bool,
-    /// milliseconds
-    pub call_timeout: Option<u64>,
+    #[serde(default)]
+    pub connection_timeout: Option<u64>,
     pub db: Option<String>,
     pub read_only: bool,
 }
@@ -24,6 +24,8 @@ pub struct MysqlDBConfig {
     pub read_only: bool,
     #[serde(flatten)]
     pub ssl: EnableSsl,
+    #[serde(default)]
+    pub connection_timeout: Option<u32>,
 }
 
 impl MysqlDBConfig {
@@ -38,6 +40,8 @@ pub struct LibSqlDBConfig {
     #[serde(flatten)]
     pub source: LibSqlDBConfigSouce,
     pub read_only: bool,
+    #[serde(default)]
+    pub connection_timeout: Option<u32>,
 }
 #[derive(Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 #[serde(tag = "source", rename_all = "lowercase")]
@@ -72,6 +76,8 @@ pub struct ClickHouseConfig {
     pub db: Option<String>,
     pub read_only: bool,
     pub https: bool,
+    #[serde(default)]
+    pub connection_timeout: Option<u32>,
 }
 
 impl ClickHouseConfig {
@@ -84,6 +90,8 @@ impl ClickHouseConfig {
 pub struct SqliteDBConfig {
     pub path: String,
     pub read_only: bool,
+    #[serde(default)]
+    pub connection_timeout: Option<u32>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
@@ -103,6 +111,8 @@ pub struct FireBirdConfig {
     pub save_password: bool,
     pub db: String,
     pub read_only: bool,
+    #[serde(default)]
+    pub connection_timeout: Option<u32>,
 }
 
 impl DuckDBConfig {
@@ -126,7 +136,10 @@ pub struct RedisDBConfig {
     pub save_password: bool,
     pub db: Option<String>,
     pub read_only: bool,
+    // #[serde(default)]
+    // pub connection_timeout: Option<u32>,
 }
+
 impl RedisDBConfig {
     // I used this in test and why??
     #[cfg(test)]
@@ -230,6 +243,8 @@ pub struct PGDBConfig {
     pub read_only: bool,
     #[serde(flatten)]
     pub ssl: EnableSsl,
+    #[serde(default)]
+    pub connection_timeout: Option<u32>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef, Default)]
@@ -265,14 +280,16 @@ pub struct SqlServerDBConfig {
     pub trust_cert: bool,
     pub schema: Option<String>,
     pub read_only: bool,
+    #[serde(default)]
+    pub connection_timeout: Option<u32>,
 }
 
 impl SqlServerDBConfig {
-    pub(crate) fn must_db(&self) -> &String {
+    pub(crate) fn db_str(&self) -> &String {
         self.db.as_ref().unwrap()
     }
 
-    pub(crate) fn must_schema(&self) -> &String {
+    pub(crate) fn schema_str(&self) -> &String {
         self.schema.as_ref().unwrap()
     }
 }
@@ -285,8 +302,8 @@ pub struct OracleDBConfig {
     pub host: String,
     pub port: u16,
     pub schema: Option<String>,
-    // millisecond.
-    pub call_timeout: Option<u64>,
+    #[serde(default)]
+    pub connection_timeout: Option<u32>,
     pub read_only: bool,
     pub db: String,
 }

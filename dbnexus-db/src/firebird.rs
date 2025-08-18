@@ -19,8 +19,8 @@ use crate::MemoryLimit;
 use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     BackendKind, CheckConn, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
-    ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, not_support_feature,
+    ListTable, NamedStaff, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, not_support_feature,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_cut_by_semicolon};
 use crate::meta_value::MetaValue;
@@ -1015,7 +1015,10 @@ impl CheckConn for FireBirdDB {
 impl FireBirdDB {
     pub fn new(config: FireBirdConfig) -> anyhow::Result<Self> {
         let mut builder = r2d2::Pool::builder();
-        builder = builder.max_size(100);
+        builder = builder.max_size(POOL_MAX_CONNECTIONS);
+        if let Some(x) = config.connection_timeout {
+            builder = builder.connection_timeout(Duration::from_millis(x as u64));
+        }
         let pool = builder.build(PoolManager {
             config: config.clone(),
         })?;
@@ -1060,6 +1063,7 @@ pub(crate) fn make_test_object() -> FireBirdDB {
         password: "root".to_string(),
         db: "/var/lib/firebird/data/test.fdb".to_string(),
         read_only: false,
+        connection_timeout: None,
         save_password: true,
     })
     .unwrap()

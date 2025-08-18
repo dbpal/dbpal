@@ -53,6 +53,7 @@ import {
 } from 'bson';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
+import { TbJson } from 'react-icons/tb';
 import {
   DataGrid,
   GridPaginationModel,
@@ -60,13 +61,13 @@ import {
 } from '@mui/x-data-grid';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import {
-  DocsAndCount,
   modalStyle,
   SettingContext,
   reloadOK,
   keyNotInTable,
   EscDownEvent,
   EditorBar,
+  SimpleFlexSizeEditor,
 } from './Common';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
@@ -83,16 +84,20 @@ import {
   calMenuStyle,
   columnWidths,
   ContextMenuContext,
+  DocsAndCount,
   filterStyle,
   handleCopyToClipboard,
+  JsonAndCount,
   resetMuiDataRespWidth,
   saveAndSetSize,
+  validJsonBson,
   VisiableContext,
 } from './helper';
 
 enum MongoDataViewModel {
   List,
   Object,
+  Json,
 }
 const mongoBsonKeywords =
   /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|vector|user_define|true|false|null|undefined|code|float32|int8)\b/;
@@ -488,7 +493,7 @@ function MongoTableListToolBar(props: {
         ></Chip>
       </Stack>
       <Stack direction="row">
-        <ButtonGroup>
+        <ButtonGroup sx={{ gap: 0.5 }}>
           <IconButton
             disabled={viewModel == MongoDataViewModel.Object}
             onClick={() => {
@@ -496,7 +501,7 @@ function MongoTableListToolBar(props: {
             }}
             edge="start"
           >
-            <DataObjectIcon />
+            <DataObjectIcon style={{ fontSize: '1.8rem' }} />
           </IconButton>
           <IconButton
             onClick={() => {
@@ -505,7 +510,16 @@ function MongoTableListToolBar(props: {
             disabled={viewModel == MongoDataViewModel.List}
             edge="start"
           >
-            <ListIcon />
+            <ListIcon style={{ fontSize: '2rem' }} />
+          </IconButton>
+          <IconButton
+            onClick={() => {
+              handleViewModel(MongoDataViewModel.Json);
+            }}
+            disabled={viewModel == MongoDataViewModel.Json}
+            edge="start"
+          >
+            <TbJson style={{ fontSize: '2.2rem' }} />
           </IconButton>
         </ButtonGroup>
       </Stack>
@@ -835,6 +849,185 @@ function MongoTableListMenuFilter(props: {
   );
 }
 
+function MongoTableJson(props: {
+  filter: BSON.Document;
+  sort: BSON.Document;
+  reloadOPJson: (
+    filter: BSON.Document,
+    sort: BSON.Document,
+    page: number,
+    pageSize: number
+  ) => Promise<JsonAndCount>;
+  modifyOP?: (doc: BSON.Document) => Promise<void>;
+  deleteOP?: (ids: any[] | any) => Promise<void>;
+  nonse;
+}) {
+  const { filter, sort, reloadOPJson, modifyOP, deleteOP, nonse } = props;
+  const [jsons, setJsons] = useState<JsonAndCount>({ docs: [], count: 0 });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const { showNotification } = useContext(NotificationContext);
+  const handleReload = async (showOK) => {
+    reloadOPJson(filter, sort, page, pageSize)
+      .then((resp) => {
+        setJsons(resp);
+        if (showOK) {
+          reloadOK(showNotification);
+        }
+      })
+      .catch((e) => {
+        showNotification('error', 'fetch data failed', e);
+      });
+  };
+  const handleDetele = async (ids: any[]) => {
+    deleteOP(ids)
+      .then(() => {
+        showNotification('success', 'Delete OK');
+        handleReload(false);
+      })
+      .catch((e) => {
+        showNotification('error', 'Delete failure', e);
+      });
+  };
+
+  useEffect(() => {
+    handleReload(false);
+  }, [page, pageSize, filter, sort]);
+  useEffect(() => {
+    handleReload(true);
+  }, [nonse]);
+  return (
+    <Stack spacing={1}>
+      {jsons.docs.map((doc) => {
+        return (
+          <JsonXXX
+            key={renderId(doc['_id'])}
+            value={doc}
+            modifyOP={async (doc) => {
+              try {
+                await modifyOP(doc);
+              } catch (e) {
+                showNotification('error', 'modify failed', e);
+                return;
+              }
+              handleReload(false);
+            }}
+            handleDetele={() => {
+              handleDetele(doc['_id']);
+            }}
+          ></JsonXXX>
+        );
+      })}
+
+      {/* // here is pagination */}
+      <BsonJsonPagination
+        pageSize={pageSize}
+        total={jsons.count}
+        length={jsons.docs.length}
+        page={page}
+        setPage={setPage}
+        setPageSize={setPageSize}
+      ></BsonJsonPagination>
+    </Stack>
+  );
+}
+
+function JsonXXX(props: {
+  value: object;
+  modifyOP: (x: object) => void;
+  handleDetele;
+}) {
+  const { value, modifyOP, handleDetele } = props;
+  const [newValue, setNewValue] = useState(JSON.stringify(value, null, 2));
+  const [jsonErr, setJsonErr] = useState('');
+  useEffect(() => {
+    validJsonBson(newValue)
+      .then(() => {
+        setJsonErr(null);
+      })
+      .catch((e) => {
+        setJsonErr(e);
+      });
+  }, [newValue]);
+
+  return (
+    <ResizeWrapper
+      sizeKeyKind="height"
+      sizeKey="mongo-view-data-json"
+      height="300px"
+    >
+      <SimpleFlexSizeEditor
+        value={newValue}
+        language="json"
+        onMount={(editor: editor.IStandaloneCodeEditor) => {
+          editor.onDidChangeModelContent(() => {
+            setNewValue(editor.getValue());
+          });
+        }}
+        barLeft=<Stack direction="row" alignItems="center">
+          <Button
+            disabled={!!jsonErr}
+            onClick={() => {
+              modifyOP(JSON.parse(newValue));
+            }}
+          >
+            set
+          </Button>
+
+          <Button
+            onClick={() => {
+              handleDetele();
+            }}
+            color="error"
+          >
+            delete
+          </Button>
+
+          {jsonErr && (
+            <Typography color="error" fontWeight="bold">
+              {jsonErr}
+            </Typography>
+          )}
+        </Stack>
+      ></SimpleFlexSizeEditor>
+    </ResizeWrapper>
+  );
+}
+
+function BsonJsonPagination({
+  pageSize,
+  total,
+  setPage,
+  length,
+  page,
+  setPageSize,
+}) {
+  return (
+    <Stack direction="row" spacing={1} alignItems="center">
+      <Pagination
+        page={page}
+        defaultPage={1}
+        count={Math.ceil(total / pageSize)}
+        showFirstButton
+        showLastButton
+        onChange={(_e, page) => {
+          setPage(page);
+        }}
+      />
+      <Typography>
+        result {length} of {total}
+      </Typography>
+      <SelectPageSize
+        options={[10, 20]}
+        pageSize={pageSize}
+        handleChange={(size) => {
+          setPageSize(size);
+        }}
+      ></SelectPageSize>
+    </Stack>
+  );
+}
+
 function MongoTableList(props: {
   filter: BSON.Document;
   sort: BSON.Document;
@@ -848,7 +1041,7 @@ function MongoTableList(props: {
   setFilter;
   loadOne: (id: any) => Promise<BSON.Document>;
   modifyOP?: (doc: BSON.Document) => Promise<void>;
-  deleteOP?: (ids: any[]) => Promise<void>;
+  deleteOP?: (ids: any[] | any) => Promise<void>;
   nonse;
 }) {
   const {
@@ -1114,11 +1307,11 @@ function MongoTableObject(props: {
     pageSize: number
   ) => Promise<DocsAndCount>;
   modifyOP?: (doc: BSON.Document) => Promise<void>;
-  deleteOP?: (ids: any[]) => Promise<void>;
+  deleteOP?: (ids: any[] | any) => Promise<void>;
   nonse;
 }) {
   const { filter, sort, realodOPDocs, modifyOP, deleteOP, nonse } = props;
-  const [docs, setDocs] = useState<DocsAndCount>({ docs: [], total: 0 });
+  const [docs, setDocs] = useState<DocsAndCount>({ docs: [], count: 0 });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const { showNotification } = useContext(NotificationContext);
@@ -1194,28 +1387,14 @@ function MongoTableObject(props: {
       })}
 
       {/* // here is pagination */}
-      <Stack direction="row" spacing={1} alignItems="center">
-        <Pagination
-          page={page}
-          defaultPage={1}
-          count={Math.ceil(docs.total / pageSize)}
-          showFirstButton
-          showLastButton
-          onChange={(_e, page) => {
-            setPage(page);
-          }}
-        />
-        <Typography>
-          result {docs.docs.length} of {docs.total}
-        </Typography>
-        <SelectPageSize
-          options={[10, 20]}
-          pageSize={pageSize}
-          handleChange={(size) => {
-            setPageSize(size);
-          }}
-        ></SelectPageSize>
-      </Stack>
+      <BsonJsonPagination
+        total={docs.count}
+        length={docs.docs.length}
+        page={page}
+        setPage={setPage}
+        pageSize={pageSize}
+        setPageSize={setPageSize}
+      ></BsonJsonPagination>
     </Stack>
   );
 }
@@ -1228,18 +1407,30 @@ function MongoTable(props: {
     page: number,
     pageSize: number
   ) => Promise<types.MuiDataGridData>;
-  realodOPDocs: (
+  reloadOPDocs: (
     filter: BSON.Document,
     sort: BSON.Document,
     page: number,
     pageSize: number
   ) => Promise<DocsAndCount>;
+  reloadOPJson: (
+    filter: BSON.Document,
+    sort: BSON.Document,
+    page: number,
+    pageSize: number
+  ) => Promise<JsonAndCount>;
   loadOne: (id: any) => Promise<BSON.Document>;
   modifyOP?: (doc: BSON.Document) => Promise<void>;
-  deleteOP?: (ids: any[]) => Promise<void>;
+  deleteOP?: (ids: any[] | any) => Promise<void>;
 }) {
-  const { reloadOPTableList, loadOne, modifyOP, realodOPDocs, deleteOP } =
-    props;
+  const {
+    reloadOPTableList,
+    loadOne,
+    modifyOP,
+    reloadOPDocs,
+    reloadOPJson,
+    deleteOP,
+  } = props;
   const [filter, setFilter] = useState<BSON.Document>({});
   const [sort, setSort] = useState<BSON.Document>({});
   const [viewModel, setViewModel] = useState(cacheViewModel);
@@ -1289,11 +1480,21 @@ function MongoTable(props: {
         <MongoTableObject
           filter={filter}
           sort={sort}
-          realodOPDocs={realodOPDocs}
+          realodOPDocs={reloadOPDocs}
           modifyOP={modifyOP}
           deleteOP={deleteOP}
           nonse={nonse}
         ></MongoTableObject>
+      )}
+      {viewModel == MongoDataViewModel.Json && (
+        <MongoTableJson
+          filter={filter}
+          sort={sort}
+          reloadOPJson={reloadOPJson}
+          modifyOP={modifyOP}
+          deleteOP={deleteOP}
+          nonse={nonse}
+        ></MongoTableJson>
       )}
     </Stack>
   );

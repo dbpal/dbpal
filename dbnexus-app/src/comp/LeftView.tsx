@@ -11,7 +11,6 @@ import {
   progressBarSizeSmall,
   tabsHasId,
   modalStyle,
-  DocsAndCount,
   SettingContext,
   initMonacoLanague,
   SimpleFlexSizeEditor,
@@ -56,6 +55,7 @@ import {
   generateRandomString,
   handleCopyToClipboard,
   MatchPatternContext,
+  MongoTableHandler,
   quoteStyle,
   saveAndSetSize,
   secondConfirm,
@@ -65,7 +65,6 @@ import {
 } from './helper';
 import { MenuRefresh } from './CommonComp';
 import { MongoTable } from './MongoDB';
-import { BSON, EJSON } from 'bson';
 
 enum ViewKind {
   Normal,
@@ -573,53 +572,13 @@ function ViewMenu(props: {
       case DataSourceKind.Mongo:
         list = (
           <MongoTable
-            reloadOPTableList={async (filter, sort, page, pageSize) => {
-              return await invoke('mongo_show_collection_table_list', {
-                name: uuid,
-                tableName: view,
-                filter: BSON.serialize(filter),
-                sort: BSON.serialize(sort),
-                page,
-                pageSize,
-              });
-            }}
-            realodOPDocs={async (filter, sort, page, pageSize) => {
-              try {
-                let x = await invoke('mongo_show_collection_docs', {
-                  name: uuid,
-                  tableName: view,
-                  filter: BSON.serialize(filter),
-                  sort: BSON.serialize(sort),
-                  page,
-                  pageSize,
-                });
-                //@ts-ignore
-                let docs = x.docs.map((e) =>
-                  BSON.deserialize(new Uint8Array(e))
-                );
-                //@ts-ignore
-                let count = x.count;
-                return new DocsAndCount(docs, count);
-              } catch (e) {
-                throw e;
-              }
-            }}
-            loadOne={async (id) => {
-              try {
-                let x = await invoke<number[]>('mongo_get_one_document_by_id', {
-                  name: uuid,
-                  tableName: view,
-                  id: JSON.stringify(EJSON.serialize(id)),
-                });
-                return BSON.deserialize(new Uint8Array(x));
-              } catch (e) {
-                throw e;
-              }
-            }}
+            reloadOPTableList={MongoTableHandler.reloadTableList(uuid, view)}
+            reloadOPJson={MongoTableHandler.reloadJson(uuid, view)}
+            reloadOPDocs={MongoTableHandler.reloadDocs(uuid, view)}
+            loadOne={MongoTableHandler.loadOne(uuid, view)}
           ></MongoTable>
         );
         break;
-
       default:
         showNotification('error', `datasouce ${kind} need impl view`);
     }

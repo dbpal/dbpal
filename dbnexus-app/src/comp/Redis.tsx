@@ -21,6 +21,7 @@ import {
   Radio,
   FormControlLabel,
   Chip,
+  Tooltip,
 } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -42,7 +43,7 @@ import {
   GridSlotsComponentsProps,
   GridSortModel,
 } from '@mui/x-data-grid';
-
+import { BsFillLightbulbFill } from 'react-icons/bs';
 import {
   calMenuStyle,
   ContextMenuContext,
@@ -887,7 +888,7 @@ function RedisSetTable(props: {
 
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <TextField
           size="small"
           label="key match could be *key,key*,*key*"
@@ -1197,7 +1198,7 @@ function RedisListTable(props: {
   }, [modalBox]);
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <Button
           variant="contained"
           color="primary"
@@ -1842,9 +1843,9 @@ function RedisModifyKeyName(props: {
 
 function DoubleClickToModify() {
   return (
-    <Typography color="info" variant="subtitle1">
-      double click a row to modify.
-    </Typography>
+    <Tooltip title="double click a row to modify.">
+      <BsFillLightbulbFill />
+    </Tooltip>
   );
 }
 

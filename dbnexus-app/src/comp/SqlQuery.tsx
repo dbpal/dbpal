@@ -12,7 +12,6 @@ import {
   Stack,
   TextField,
   Tooltip,
-  Typography,
 } from '@mui/material';
 
 import CloseIcon from '@mui/icons-material/Close';
@@ -556,9 +555,9 @@ function SqlQuery(props: {
               >
                 <CloseIcon></CloseIcon>
               </IconButton>
-              <Typography color="info">
-                double click to open code editor
-              </Typography>
+              <Tooltip title="double click to open code editor">
+                <BsFillLightbulbFill />
+              </Tooltip>
             </Stack>
             <QueryLog uuid={language} logs={queryLogs}></QueryLog>
           </Paper>

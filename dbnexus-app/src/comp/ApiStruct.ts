@@ -2,9 +2,11 @@
 
 export default types;
 export namespace types {
+    export type U32 = number;
     export type SqliteDBConfig = {
         "path": string;
         "read_only": boolean;
+        "connection_timeout"?: (types.U32 | null);
     };
     export type EnableSsl = {
         "ssl_enable"?: boolean;
@@ -21,6 +23,7 @@ export namespace types {
         "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
+        "connection_timeout"?: (types.U32 | null);
     });
     export type PGDBConfig = (types.EnableSsl & {
         "host": string;
@@ -31,6 +34,7 @@ export namespace types {
         "db": (string | null);
         "schema": (string | null);
         "read_only": boolean;
+        "connection_timeout"?: (types.U32 | null);
     });
     export type SqlServerDBConfig = {
         "host": string;
@@ -42,6 +46,7 @@ export namespace types {
         "trust_cert": boolean;
         "schema": (string | null);
         "read_only": boolean;
+        "connection_timeout"?: (types.U32 | null);
     };
     export type U64 = number;
     export type MongoDBConfig = {
@@ -50,11 +55,7 @@ export namespace types {
         "username": (string | null);
         "password": (string | null);
         "save_password": boolean;
-
-        /**
-         * milliseconds
-         */
-        "call_timeout": (types.U64 | null);
+        "connection_timeout"?: (types.U64 | null);
         "db": (string | null);
         "read_only": boolean;
     };
@@ -74,7 +75,7 @@ export namespace types {
         "host": string;
         "port": types.U16;
         "schema": (string | null);
-        "call_timeout": (types.U64 | null);
+        "connection_timeout"?: (types.U32 | null);
         "read_only": boolean;
         "db": string;
     };
@@ -96,6 +97,7 @@ export namespace types {
         "db": (string | null);
         "read_only": boolean;
         "https": boolean;
+        "connection_timeout"?: (types.U32 | null);
     };
     export type LibSqlDBConfigSouce = (({
         "source": "local";
@@ -111,6 +113,7 @@ export namespace types {
     export type LibSqlDBConfig = (types.LibSqlDBConfigSouce & {
         "replica": boolean;
         "read_only": boolean;
+        "connection_timeout"?: (types.U32 | null);
     });
     export type FireBirdConfig = {
         "host": string;
@@ -120,6 +123,7 @@ export namespace types {
         "save_password": boolean;
         "db": string;
         "read_only": boolean;
+        "connection_timeout"?: (types.U32 | null);
     };
     export type DuckDBConfig = {
         "path": string;

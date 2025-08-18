@@ -8,7 +8,7 @@ use crate::db::{
 };
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBPrepare, LangServerCommon,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, LangServerCommon,
     LanguageServer, LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::mysql::MysqlDB;
@@ -164,7 +164,7 @@ impl LangServerCommon for MysqlDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         MysqlDB::list_schema_impl(self).await
     }
-    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+    async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
         /*
             TODO should execute this sql but somehow owner_thread_id = connection_id()  match not working
             why????
@@ -190,7 +190,7 @@ impl LangServerCommon for MysqlDB {
         for row in rows.iter() {
             let text: String = row.try_get(0)?;
             let name: String = row.try_get(1)?;
-            ret.push(DBPrepare {
+            ret.push(DBExecutable {
                 name,
                 statement: Some(text),
             });
@@ -453,6 +453,7 @@ mod tests {
     }
     fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {
+            connection_timeout: None,
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
             password: Some("root".to_string()),
@@ -569,7 +570,7 @@ mod tests {
         .unwrap()
         .unwrap();
         assert!(
-            db.list_prepares()
+            db.list_execute(None)
                 .await
                 .unwrap()
                 .iter()

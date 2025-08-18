@@ -9,7 +9,6 @@ use crate::db::{
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
 use crate::query_log::QueryLogEvent;
-
 use sqlx::types::BigDecimal;
 use sqlx::{AssertSqlSafe, Row};
 use std::borrow::Cow;
@@ -431,6 +430,7 @@ impl ServerMetas for MariaDB {
 #[cfg(test)]
 pub(crate) fn make_config() -> MysqlDBConfig {
     MysqlDBConfig {
+        connection_timeout: None,
         host: crate::TEST_HOST.to_string(),
         username: "root".to_string(),
         password: Some("root".to_string()),
@@ -443,18 +443,18 @@ pub(crate) fn make_config() -> MysqlDBConfig {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) async fn make_test_object_mariadb(config: MysqlDBConfig) -> MariaDB {
+    let db: MariaDB = MariaDB::new(config).await.unwrap();
+    db
+}
 
-    use crate::datasource_config::MysqlDBConfig;
+#[cfg(test)]
+mod tests {
+    use super::*;
     use crate::db::{AutoCompletionUuid, QuerySql, SchemaTrait, monaco_editor_keyword_regexp};
     use crate::language_server::{LangServerCommon, LexerCompletionTrait};
     use crate::mariadb::{MariaDB, make_config};
     use crate::mysql::test_fns::{self, make_test_object};
-
-    pub(crate) async fn make_test_object_mariadb(config: MysqlDBConfig) -> MariaDB {
-        let db: MariaDB = MariaDB::new(config).await.unwrap();
-        db
-    }
 
     #[tokio::test]
     async fn test_prepare() {
@@ -471,7 +471,7 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        let ts = db.list_prepares().await.unwrap();
+        let ts = db.list_execute(None).await.unwrap();
 
         assert!(
             ts.iter().any(|x| x.name.eq("stmtxxx")),

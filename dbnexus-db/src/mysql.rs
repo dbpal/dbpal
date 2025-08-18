@@ -18,9 +18,9 @@ use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
-    NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, escape_sql_str,
+    NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use crate::language_server::CompletionItem;
 
@@ -1406,8 +1406,11 @@ impl MysqlDB {
         if let Some(db) = &config.db {
             opts = opts.database(db);
         }
-        let pool_options = PoolOptions::new();
-        let pool_options = pool_options.max_connections(100);
+        let mut pool_options = PoolOptions::new();
+        if let Some(x) = config.connection_timeout {
+            pool_options = pool_options.acquire_timeout(Duration::from_millis(x as u64));
+        }
+        pool_options = pool_options.max_connections(POOL_MAX_CONNECTIONS);
         let pool = pool_options.connect_with(opts).await?;
         anyhow::Ok(Self {
             pool,
@@ -1701,17 +1704,19 @@ impl QuerySql for MysqlDB {
         drop(stream);
         if ret.is_empty() {
             use sqlx::Statement;
-            let s = conn
+            let fields = conn
                 .deref_mut()
                 .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
-                .await?;
-            let field = s
-                .columns()
-                .iter()
-                .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
-                .collect::<Vec<_>>();
+                .await
+                .map(|s| {
+                    s.columns()
+                        .iter()
+                        .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
             ret = vec![Ok(QueryResp {
-                fields: field,
+                fields,
                 total: 0,
                 data: vec![],
                 sql: Some(sql.to_string()),
@@ -2714,6 +2719,7 @@ mod tests {
 
     pub(crate) fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {
+            connection_timeout: None,
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
             password: Some("root".to_string()),

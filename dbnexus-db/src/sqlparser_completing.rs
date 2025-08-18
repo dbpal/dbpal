@@ -83,7 +83,7 @@ impl<'a> CompletionStatement<'a> {
                 .list_role()
                 .await
                 .map_err(|e| {
-                    log::error!("list_role failed,err:{}", e);
+                    log::error!("list role failed,err:{}", e);
                 })
                 .unwrap_or_default()
                 .into_iter()
@@ -104,7 +104,7 @@ impl<'a> CompletionStatement<'a> {
             self.helper
                 .list_cluster()
                 .await
-                .map_err(|x| log::error!("list_cluster failed,err:{}", x))
+                .map_err(|x| log::error!("list cluster failed,err:{}", x))
                 .unwrap_or_default()
                 .into_iter()
                 .map(|name| CompletionItem {
@@ -117,7 +117,7 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_mysql_trigger(&mut self, object_name: &ObjectName) {
-        self.c_on_db_schema(object_name).await;
+        self.c_on_schema(object_name).await;
         if self.finished() {
             return;
         }
@@ -168,7 +168,7 @@ impl<'a> CompletionStatement<'a> {
                 .list_variable()
                 .await
                 .map_err(|e| {
-                    log::error!("list_variable failed,err:{:?}", e);
+                    log::error!("list variable failed,err:{:?}", e);
                 })
                 .unwrap_or_default()
                 .into_iter()
@@ -180,14 +180,15 @@ impl<'a> CompletionStatement<'a> {
                 .collect(),
         );
     }
-    pub(crate) async fn c_on_prepare(&mut self, name: &ObjectName) {
+    pub(crate) async fn c_on_execute(&mut self, name: &ObjectName) {
         // todo why this is a object name can be`aaa.bbb`???
         if !self.last_name_in_pos(name) {
             return;
         }
+        let (schema, _) = self.extract_schema_and_item(name);
         self.result = Some(
             self.helper
-                .list_prepares()
+                .list_execute(schema)
                 .await
                 .map_err(|e| log::error!("list prepare failed,err:{}", e))
                 .unwrap_or_default()
@@ -203,7 +204,7 @@ impl<'a> CompletionStatement<'a> {
         }
         self.result = Some(
             self.helper
-                .list_prepares()
+                .list_execute(None)
                 .await
                 .map_err(|e| log::error!("list prepare failed,err:{}", e))
                 .unwrap_or_default()
@@ -217,7 +218,7 @@ impl<'a> CompletionStatement<'a> {
         if !self.in_pos(&name.span) {
             return;
         }
-        let (schema, table) = self.extract_db_schme_item(table_name);
+        let (schema, table) = self.extract_schema_and_item(table_name);
         self.result = Some(
             self.helper
                 .postgres_table_policy(schema, table)
@@ -248,7 +249,7 @@ impl<'a> CompletionStatement<'a> {
                 // 所以加一个假的
                 let mut name = name.0.clone();
                 name.push(ObjectNamePart::Identifier(Ident::new("fake")));
-                self.c_on_db_schema(&ObjectName(name)).await;
+                self.c_on_schema(&ObjectName(name)).await;
             }
             ObjectType::Role => match name.0.len() {
                 1 => {
@@ -289,7 +290,7 @@ impl<'a> CompletionStatement<'a> {
                             if self.finished() {
                                 return;
                             }
-                            let (schema, table) = self.extract_db_schme_item(table);
+                            let (schema, table) = self.extract_schema_and_item(table);
                             let cs = self
                                 .helper
                                 .list_column(schema, table, false)
@@ -324,7 +325,7 @@ impl<'a> CompletionStatement<'a> {
                 // 所以加一个假的
                 let mut name = name.0.clone();
                 name.push(ObjectNamePart::Identifier(Ident::new("fake")));
-                self.c_on_db_schema(&ObjectName(name)).await;
+                self.c_on_schema(&ObjectName(name)).await;
             }
             CommentObject::Role => {
                 // not support right now
@@ -365,7 +366,7 @@ impl<'a> CompletionStatement<'a> {
     pub(crate) async fn c_on_partition_expr(&mut self, table_name: &ObjectName, p: &Expr) {
         match p {
             Expr::Identifier(x) => {
-                let (schema, table) = self.extract_db_schme_item(table_name);
+                let (schema, table) = self.extract_schema_and_item(table_name);
 
                 if self.in_pos(&x.span) {
                     self.result = Some(
@@ -397,21 +398,14 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_index(&mut self, name: &ObjectName) {
-        if !self.in_pos(&name.span()) {
+        self.c_on_schema(name).await;
+        if self.finished() {
             return;
         }
-        let mut schema = None;
-        match name.0.len() {
-            2 => {
-                schema = Some(match &name.0[1] {
-                    ObjectNamePart::Identifier(ident) => ident.value.as_str(),
-                });
-            }
-            1 => {}
-            _ => {
-                log::error!("should have this kind of index name:{:?}", name);
-            }
+        if !self.last_name_in_pos(&name) {
+            return;
         }
+        let (schema, _) = self.extract_schema_and_item(name);
         self.result = Some(
             self.helper
                 .list_index(schema)
@@ -431,7 +425,7 @@ impl<'a> CompletionStatement<'a> {
         );
     }
 
-    pub(crate) fn extract_db_schme_item<'b>(
+    pub(crate) fn extract_schema_and_item<'b>(
         &mut self, item_name: &'b ObjectName,
     ) -> (Option<&'b str>, &'b str) {
         let mut schema = None;
@@ -451,7 +445,7 @@ impl<'a> CompletionStatement<'a> {
                 };
             }
             _ => {
-                log::error!("wrong ObjectName:{:?}", item_name);
+                log::error!("wrong ObjectName:{:?},size not right", item_name);
             }
         };
         (schema, table)
@@ -461,7 +455,7 @@ impl<'a> CompletionStatement<'a> {
         if !self.in_pos(&rule.span) {
             return;
         }
-        let (schema, table) = self.extract_db_schme_item(table_name);
+        let (schema, table) = self.extract_schema_and_item(table_name);
         self.result = Some(
             self.helper
                 .list_postgres_rule(schema, table)
@@ -483,7 +477,7 @@ impl<'a> CompletionStatement<'a> {
 
     pub(crate) async fn c_on_constraint(&mut self, table_name: &ObjectName, name: &Ident) {
         if self.in_pos(&name.span) {
-            let (schema, table_name) = self.extract_db_schme_item(table_name);
+            let (schema, table_name) = self.extract_schema_and_item(table_name);
             self.result = Some(
                 self.helper
                     .list_constraint(schema, table_name)
@@ -530,13 +524,11 @@ impl<'a> CompletionStatement<'a> {
     pub(crate) async fn c_on_clickhouse_table_projection(
         &mut self, table_name: &ObjectName, name: &Ident,
     ) {
-        if self.in_pos(&name.span) {
+        if !self.in_pos(&name.span) {
             return;
         }
         // hit pos
-
-        let (schema, table) = self.extract_db_schme_item(table_name);
-
+        let (schema, table) = self.extract_schema_and_item(table_name);
         self.result = Some(
             self.helper
                 .list_clickhouse_table_projects(schema, table)
@@ -936,20 +928,15 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_view(&mut self, name: &ObjectName) {
-        self.c_on_db_schema(name).await;
+        self.c_on_schema(name).await;
         if self.finished() {
             return;
         }
-        if !name
-            .0
-            .last()
-            .map(|x| self.in_pos(&x.span()))
-            .unwrap_or(false)
-        {
+        if !self.last_name_in_pos(name) {
             return;
         }
         // here match
-        let (schema, _name) = self.extract_db_schme_item(name);
+        let (schema, _name) = self.extract_schema_and_item(name);
         self.result = Some(
             self.helper
                 .list_view(schema)
@@ -1059,7 +1046,7 @@ impl<'a> CompletionStatement<'a> {
         for t in tables.iter() {
             match t {
                 TableEntered::FromTable { table, .. } => {
-                    let (schema, table) = self.extract_db_schme_item(table);
+                    let (schema, table) = self.extract_schema_and_item(table);
                     let items = self
                         .helper
                         .list_column(schema, table, false)
@@ -1650,7 +1637,7 @@ impl<'a> CompletionStatement<'a> {
             if suggest_table {
                 self.c_on_table_or_view(table_name).await;
             }
-            let (schema, table_name) = self.extract_db_schme_item(table_name);
+            let (schema, table_name) = self.extract_schema_and_item(table_name);
             if self.result.is_none() {
                 self.result = Some(vec![]);
             }
@@ -1674,7 +1661,7 @@ impl<'a> CompletionStatement<'a> {
         &mut self, table_name: &ObjectName, trigger_name: &Ident,
     ) {
         if self.in_pos(&trigger_name.span) {
-            let (schema, table_name) = self.extract_db_schme_item(table_name);
+            let (schema, table_name) = self.extract_schema_and_item(table_name);
             self.result = Some(
                 self.helper
                     .list_table_trigger(schema, table_name)
@@ -1695,8 +1682,8 @@ impl<'a> CompletionStatement<'a> {
         }
     }
 
-    // completion 假设  database.schema
-    pub(crate) async fn c_on_db_schema(&mut self, name: &ObjectName) {
+    // completion 假设  schema.table
+    pub(crate) async fn c_on_schema(&mut self, name: &ObjectName) {
         match name.0.len() {
             2 => {
                 let schema = &name.0[0];
@@ -1740,7 +1727,7 @@ impl<'a> CompletionStatement<'a> {
 
     pub(crate) async fn c_on_select_target(&mut self, name: &ObjectName) {
         self.c_on_table_or_view(name).await;
-        let (schema, _) = self.extract_db_schme_item(name);
+        let (schema, _) = self.extract_schema_and_item(name);
         let mut items = self.result.take().unwrap_or_default();
         let f = self
             .helper
@@ -1754,7 +1741,7 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_table(&mut self, table_name: &ObjectName) {
-        self.c_on_db_schema(table_name).await;
+        self.c_on_schema(table_name).await;
         if self.finished() {
             return;
         }
@@ -1768,7 +1755,7 @@ impl<'a> CompletionStatement<'a> {
             }
         }
         // here match
-        let (schema, _table_name) = self.extract_db_schme_item(table_name);
+        let (schema, _table_name) = self.extract_schema_and_item(table_name);
         items.extend(
             self.helper
                 .list_table(schema)
@@ -1900,7 +1887,7 @@ impl<'a> CompletionStatement<'a> {
                     for table in tables.iter() {
                         match table {
                             TableEntered::FromTable { table, .. } => {
-                                let (schema, table) = self.extract_db_schme_item(table);
+                                let (schema, table) = self.extract_schema_and_item(table);
 
                                 cs.extend(
                                     self.helper
@@ -2239,7 +2226,7 @@ impl<'a> CompletionStatement<'a> {
                 partitions,
                 ..
             } => {
-                self.c_on_db_schema(name).await;
+                self.c_on_schema(name).await;
                 if self.finished() {
                     return;
                 }
@@ -2253,7 +2240,7 @@ impl<'a> CompletionStatement<'a> {
                 let columns = match args {
                     Some(_) => {
                         // this maybe a function get is a try
-                        let (schema, name) = self.extract_db_schme_item(name);
+                        let (schema, name) = self.extract_schema_and_item(name);
 
                         // TODO how to handle this case
                         let columns = self
@@ -2385,7 +2372,7 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             TableFactor::Function { alias, name, .. } => {
-                let (schema, name) = self.extract_db_schme_item(name);
+                let (schema, name) = self.extract_schema_and_item(name);
                 // TODO how to handle this case
                 let columns = self
                     .helper
@@ -2424,14 +2411,14 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_procedure(&mut self, name: &ObjectName) {
-        self.c_on_db_schema(name).await;
+        self.c_on_schema(name).await;
         if self.finished() {
             return;
         }
         if !self.last_name_in_pos(name) {
             return;
         }
-        let (schema, _) = self.extract_db_schme_item(name);
+        let (schema, _) = self.extract_schema_and_item(name);
         self.result = Some(
             self.helper
                 .list_procedure(schema)
@@ -2513,14 +2500,14 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_function_drop(&mut self, name: &ObjectName) {
-        self.c_on_db_schema(name).await;
+        self.c_on_schema(name).await;
         if self.finished() {
             return;
         }
         if !self.last_name_in_pos(name) {
             return;
         }
-        let (schema, _) = self.extract_db_schme_item(name);
+        let (schema, _) = self.extract_schema_and_item(name);
         self.result = Some(
             self.helper
                 .list_function(schema, false)
@@ -2534,23 +2521,36 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_function(&mut self, name: &ObjectName) {
-        self.c_on_db_schema(name).await;
+        self.c_on_schema(name).await;
         if self.finished() {
             return;
         }
         if !self.last_name_in_pos(name) {
             return;
         }
-        let (schema, _) = self.extract_db_schme_item(name);
-        self.result = Some(
+        let (schema, _) = self.extract_schema_and_item(name);
+        let mut ret = self
+            .helper
+            .list_function(schema, schema.is_none())
+            .await
+            .map_err(|e| {
+                log::error!("list function error:{:?}", e);
+            })
+            .ok()
+            .unwrap_or_default();
+        ret.extend(
             self.helper
-                .list_function(schema, schema.is_none())
+                .list_procedure(schema)
                 .await
-                .map_err(|e| {
-                    log::error!("list function error:{:?}", e);
-                })
-                .ok()
-                .unwrap_or_default(),
-        )
+                .map_err(|e| log::error!("list precedure error:{:?}", e))
+                .unwrap_or_default()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Procedure,
+                    desc: None,
+                }),
+        );
+        self.result = Some(ret)
     }
 }

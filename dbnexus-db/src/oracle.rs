@@ -17,8 +17,8 @@ use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, HumanSize, Index, IndexKind,
-    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    ListMaterializedView, ListTable, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp,
+    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
     escape_sql_str, not_support_feature,
 };
@@ -68,14 +68,19 @@ impl std::fmt::Debug for OracleDB {
 
 impl OracleDB {
     pub fn new(config: OracleDBConfig, min_conn: Option<u32>) -> anyhow::Result<Self> {
-        let pool = oracle::pool::PoolBuilder::new(
+        let mut builder = oracle::pool::PoolBuilder::new(
             &config.username,
             &config.password,
             format!("//{}:{}/{}", config.host, config.port, config.db),
-        )
-        .min_connections(min_conn.unwrap_or(10))
-        .max_connections(100)
-        .build()?;
+        );
+
+        builder
+            .min_connections(min_conn.unwrap_or(10))
+            .max_connections(POOL_MAX_CONNECTIONS);
+        let mut pool = builder.build()?;
+        if let Some(x) = config.connection_timeout {
+            pool.set_timeout(Duration::from_millis(x as u64))?;
+        }
         anyhow::Ok(Self {
             pool,
             query_connections: Default::default(),
@@ -1725,9 +1730,6 @@ impl OracleDB {
         block_in_place(|| {
             conn.set_autocommit(true);
         });
-        if let Some(timeout) = self.config.call_timeout {
-            conn.set_call_timeout(Some(Duration::from_millis(timeout)))?;
-        }
         anyhow::Ok(conn)
     }
 }
@@ -1736,13 +1738,13 @@ impl OracleDB {
 pub(crate) fn make_test_object(schema: Option<String>) -> OracleDB {
     let x = OracleDB::new(
         OracleDBConfig {
+            connection_timeout: None,
             username: "system".to_string(),
             password: "welcome123".to_string(),
             schema,
             read_only: false,
             host: crate::TEST_HOST.to_string(),
             port: 1521,
-            call_timeout: None,
             db: "XE".to_string(),
             save_password: true,
         },

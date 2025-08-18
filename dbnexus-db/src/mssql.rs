@@ -47,7 +47,8 @@ impl std::fmt::Debug for MsSqlServerDB {
 }
 
 impl MsSqlServerDB {
-    pub const ONLY_SCHEMA: &str = "dbo";
+    pub(crate) const DBO_SCHEMA: &str = "dbo";
+    pub(crate) const SYS_SCHEMA: &str = "sys";
 }
 #[async_trait::async_trait]
 impl ServerMetas for MsSqlServerDB {
@@ -366,7 +367,7 @@ impl MsSqlServerDB {
     ) -> anyhow::Result<Vec<ListTable>> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        let mut stream = conn
+        let mut stream: tiberius::QueryStream<'_> = conn
             .query(
                 format!(
                     r#"
@@ -400,18 +401,16 @@ impl MsSqlServerDB {
     }
 
     pub(crate) async fn list_procedure_impl(
-        &self, db: &str, schema: &str,
+        &self, schema: &str,
     ) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
-            SELECT 
-                ROUTINE_NAME 
-            FROM 
-                INFORMATION_SCHEMA.ROUTINES 
-            WHERE 
-                ROUTINE_TYPE = 'PROCEDURE'  AND SPECIFIC_CATALOG='{}' AND  SPECIFIC_SCHEMA='{}';
+                SELECT  name
+                    FROM    sys.all_objects
+                    WHERE   type = 'P'              -- P 表示存储过程
+                    AND   schema_id = SCHEMA_ID('{}');   -- 只取 sys schema 下的
             "#,
-            db, schema
+            schema
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -443,6 +442,70 @@ fn type_support_compare(_tpe: &str) -> bool {
     true
 }
 
+impl MsSqlServerDB {
+    pub(crate) async fn list_udf_impl(&self, schema: &str) -> anyhow::Result<Vec<NamedStaff>> {
+        let sql = format!(
+            r#"
+            SELECT 
+                name AS FunctionName
+            FROM 
+                sys.objects
+            WHERE 
+                type IN ('FN', 'IF', 'TF') AND  SCHEMA_NAME(schema_id) = '{}';
+        "#,
+            schema
+        );
+        log::info!("sql:{}", sql);
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut stream = conn.query(sql.as_str(), &[]).await?;
+        let mut ret = Vec::new();
+
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                tiberius::QueryItem::Row(row) => {
+                    let name: Option<&str> = row.try_get(0)?;
+                    ret.push(NamedStaff::from(name.unwrap().to_owned()));
+                }
+
+                tiberius::QueryItem::Metadata(_result_metadata) => {}
+            }
+        }
+
+        anyhow::Ok(ret)
+    }
+
+    pub(crate) async fn list_view_impl(&self, schema: &str) -> anyhow::Result<Vec<NamedStaff>> {
+        let sql = format!(
+            r#"
+            SELECT 
+                TABLE_NAME AS ViewName
+            FROM 
+                INFORMATION_SCHEMA.VIEWS
+            WHERE 
+                TABLE_SCHEMA = '{schema}';
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut stream = conn.query(sql, &[]).await?;
+        let mut ret = vec![];
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            match row {
+                tiberius::QueryItem::Row(row) => {
+                    let name: Option<&str> = row.try_get(0)?;
+                    if let Some(name) = name {
+                        ret.push(NamedStaff::from(name.to_string()));
+                    }
+                }
+                tiberius::QueryItem::Metadata(_) => {}
+            }
+        }
+        anyhow::Ok(ret)
+    }
+}
 #[async_trait::async_trait]
 impl SchemaTrait for MsSqlServerDB {
     async fn create_index(
@@ -556,7 +619,7 @@ impl SchemaTrait for MsSqlServerDB {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        let schema = self.config.must_schema().as_str();
+        let schema = self.config.schema_str().as_str();
         let sql = format!(
             r#"
             SELECT * INTO "{schema}"."{dup}" FROM "{schema}"."{table}" 
@@ -664,7 +727,7 @@ impl SchemaTrait for MsSqlServerDB {
             r#"
          DROP TRIGGER "{}"."{name}" ON "{table}";
         "#,
-            Self::ONLY_SCHEMA
+            Self::DBO_SCHEMA
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -716,7 +779,7 @@ impl SchemaTrait for MsSqlServerDB {
         let conn = conn.deref_mut();
         let total = MsSqlServerDB::query_count(conn, view_name, where_str).await?;
         let sql = gen_select_sql(
-            self.config.must_schema().as_str(),
+            self.config.schema_str().as_str(),
             view_name,
             where_str,
             order_by,
@@ -745,7 +808,7 @@ impl SchemaTrait for MsSqlServerDB {
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let schema = self.config.must_schema().as_str();
+        let schema = self.config.schema_str().as_str();
 
         let s = format!(r#"DROP VIEW "{schema}"."{view_name}""#);
         let mut conn = self.get_conn().await?;
@@ -766,39 +829,13 @@ impl SchemaTrait for MsSqlServerDB {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        let mut stream = conn
-            .query(
-                r#"
-                SELECT name
-                FROM sys.views;
-        "#,
-                &[],
-            )
-            .await?;
-        let mut ret = Vec::new();
-
-        while let Some(item) = stream.next().await {
-            let item = item?;
-
-            match item {
-                tiberius::QueryItem::Row(r) => {
-                    let table_name: Option<&str> = r.try_get(0)?;
-                    ret.push(table_name.unwrap().to_string());
-                }
-                tiberius::QueryItem::Metadata(_) => {
-                    // I know the meta pretty well
-                }
-            }
-        }
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        self.list_view_impl(self.config.schema_str().as_str()).await
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_table_impl(
-            self.config.must_db().as_str(),
-            self.config.must_schema().as_str(),
+            self.config.db_str().as_str(),
+            self.config.schema_str().as_str(),
         )
         .await
     }
@@ -864,7 +901,7 @@ impl SchemaTrait for MsSqlServerDB {
         let conn = conn.deref_mut();
         let total = MsSqlServerDB::query_count(conn, table_name, where_str).await?;
         let sql = gen_select_sql(
-            self.config.must_schema().as_str(),
+            self.config.schema_str().as_str(),
             table_name,
             where_str,
             order_by,
@@ -1039,36 +1076,7 @@ impl SchemaTrait for MsSqlServerDB {
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        let sql = format!(
-            r#"
-            SELECT 
-                name AS FunctionName
-            FROM 
-                sys.objects
-            WHERE 
-                type IN ('FN', 'IF', 'TF') AND  SCHEMA_NAME(schema_id) = '{}';
-        "#,
-            Self::ONLY_SCHEMA
-        );
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        let mut stream = conn.query(sql.as_str(), &[]).await?;
-        let mut ret = Vec::new();
-
-        while let Some(item) = stream.next().await {
-            let item = item?;
-            match item {
-                tiberius::QueryItem::Row(row) => {
-                    let name: Option<&str> = row.try_get(0)?;
-                    ret.push(NamedStaff::from(name.unwrap().to_owned()));
-                }
-
-                tiberius::QueryItem::Metadata(_result_metadata) => {}
-            }
-        }
-
-        anyhow::Ok(ret)
+        self.list_udf_impl(self.config.schema_str()).await
     }
 
     async fn show_udf(
@@ -1143,7 +1151,7 @@ impl SchemaTrait for MsSqlServerDB {
     async fn drop_udf(
         &self, name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        let sql = format!(r#"DROP FUNCTION "{}"."{name}""#, Self::ONLY_SCHEMA);
+        let sql = format!(r#"DROP FUNCTION "{}"."{name}""#, Self::DBO_SCHEMA);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -1153,11 +1161,8 @@ impl SchemaTrait for MsSqlServerDB {
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.list_procedure_impl(
-            self.config.must_db().as_str(),
-            self.config.must_schema().as_str(),
-        )
-        .await
+        self.list_procedure_impl(self.config.schema_str().as_str())
+            .await
     }
 
     async fn show_procedure(
@@ -1955,12 +1960,13 @@ impl CatalogTrait for MsSqlServerDB {
 pub(crate) async fn make_test_object() -> MsSqlServerDB {
     let ss = MsSqlServerDB::new(SqlServerDBConfig {
         host: TEST_HOST.to_string(),
+        connection_timeout: None,
         port: 1433,
         username: Some("sa".to_string()),
         password: Some("sfdewRE123".to_string()),
         db: Some("test".to_string()),
         trust_cert: true,
-        schema: Some(MsSqlServerDB::ONLY_SCHEMA.to_string()),
+        schema: Some(MsSqlServerDB::DBO_SCHEMA.to_string()),
         read_only: false,
         save_password: true,
     })
@@ -2366,7 +2372,7 @@ mod tests {
         let db = &db as &dyn crate::db::DBTrait;
 
         let dbnames = db.list_schema().await.unwrap();
-        assert_eq!(dbnames, vec![MsSqlServerDB::ONLY_SCHEMA]);
+        assert_eq!(dbnames, vec![MsSqlServerDB::DBO_SCHEMA]);
         for dbname in dbnames.iter() {
             db.open_schema(&dbname).await.unwrap();
         }

@@ -9,6 +9,7 @@ import { ask } from '@tauri-apps/plugin-dialog';
 import { load } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
+import { BSON, EJSON } from "bson";
 
 
 interface ConfirmOptions {
@@ -480,6 +481,9 @@ function validJson(s: string): Promise<void> {
   return invoke<void>("valid_json", { jsonStr: s })
 }
 
+function validJsonBson(s: string): Promise<void> {
+  return invoke<void>("valid_json_bson", { jsonStr: s })
+}
 
 function resetMuiDataRespWidth(old: types.MuiDataGridData): types.MuiDataGridData {
   return {
@@ -519,6 +523,78 @@ function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "bo
     e.unobserve(dom);
   };
 }
+
+
+class DocsAndCount {
+  constructor(public docs: BSON.Document[], public count: number) { }
+}
+class JsonAndCount {
+  docs: object[];
+  count: number;
+}
+class MongoTableHandler {
+  static reloadTableList(uuid: string, table) {
+    return async (filter, sort, page, pageSize): Promise<types.MuiDataGridData> => {
+      return await invoke('mongo_show_collection_table_list', {
+        name: uuid,
+        tableName: table,
+        filter: BSON.serialize(filter),
+        sort: BSON.serialize(sort),
+        page,
+        pageSize,
+      });
+    }
+  }
+  static reloadDocs(uuid: string, table) {
+    return async (filter, sort, page, pageSize): Promise<DocsAndCount> => {
+      try {
+        let x = await invoke('mongo_show_collection_docs', {
+          name: uuid,
+          tableName: table,
+          filter: BSON.serialize(filter),
+          sort: BSON.serialize(sort),
+          page,
+          pageSize,
+        });
+        //@ts-ignore
+        let docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
+        //@ts-ignore
+        let count = x.count;
+        return new DocsAndCount(docs, count);
+      } catch (e) {
+        throw e;
+      }
+    }
+  }
+  static reloadJson(uuid: string, table) {
+    return async (filter, sort, page, pageSize): Promise<JsonAndCount> => {
+      return await invoke('mongo_show_collection_json', {
+        name: uuid,
+        tableName: table,
+        filter: BSON.serialize(filter),
+        sort: BSON.serialize(sort),
+        page,
+        pageSize,
+      });
+    }
+  }
+  static loadOne(uuid: string, table) {
+    return async (id): Promise<BSON.Document> => {
+      try {
+        let x = await invoke<number[]>('mongo_get_one_document_by_id', {
+          name: uuid,
+          tableName: table,
+          id: JSON.stringify(EJSON.serialize(id)),
+        });
+        return BSON.deserialize(new Uint8Array(x));
+      } catch (e) {
+        throw e;
+      }
+    }
+  }
+
+
+}
 const appFontWeight = "560";
 export {
   TabsSetContext,
@@ -554,6 +630,10 @@ export {
   quoteStyle,
   saveAndSetSize,
   SaveSizesToStore,
-  appFontWeight
+  appFontWeight,
+  DocsAndCount,
+  MongoTableHandler,
+  JsonAndCount,
+  validJsonBson
 };
 

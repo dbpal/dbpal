@@ -14,11 +14,13 @@ use sqlx::sqlite::SqliteRow;
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, SqliteConnection, TypeInfo};
 
 use crate::MemoryLimit;
+use crate::datasource_config::SqliteDBConfig;
 use crate::db::{
-    BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, AutoCompletionUuid,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
-    TriggerDetail, TriggerEvent, TriggerTiming, escape_sql_str,
+    AutoCompletionUuid, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
+    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
+    POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
+    escape_sql_str,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
@@ -1124,10 +1126,13 @@ fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>
 }
 
 impl SqliteDB {
-    pub async fn new(path: String, read_only: bool) -> anyhow::Result<Self> {
+    pub async fn new(conn: SqliteDBConfig, read_only: bool) -> anyhow::Result<Self> {
         let mut opts: PoolOptions<sqlx::sqlite::Sqlite> = PoolOptions::new();
-        opts = opts.max_connections(100);
-        let pool = opts.connect(path.as_str()).await?;
+        opts = opts.max_connections(POOL_MAX_CONNECTIONS);
+        if let Some(timeout) = conn.connection_timeout {
+            opts = opts.acquire_timeout(Duration::from_millis(timeout as u64));
+        }
+        let pool = opts.connect(conn.path.as_str()).await?;
 
         if read_only {
             let r = sqlx::raw_sql("PRAGMA query_only = true;")
@@ -1142,7 +1147,7 @@ impl SqliteDB {
             pool,
             read_only,
             query_connection: Default::default(),
-            path,
+            path: conn.path.clone(),
             query_logs: Default::default(),
             tx_execute_times: Default::default(),
             build_fn_cache: Default::default(),
@@ -1377,19 +1382,20 @@ impl QuerySql for SqliteDB {
         }
         drop(stream);
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
-
         if ret.is_empty() {
             use sqlx::Statement;
-            let s = conn
+            let fields = conn
                 .deref_mut()
                 .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
-                .await?;
-            let field = s
-                .columns()
-                .iter()
-                .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
-                .collect::<Vec<_>>();
-            ret = vec![Ok(QueryResp::new(field, 0, vec![], sql.to_owned())?)];
+                .await
+                .map(|s| {
+                    s.columns()
+                        .iter()
+                        .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            ret = vec![Ok(QueryResp::new(fields, 0, vec![], sql.to_owned())?)];
         }
 
         anyhow::Ok(ret)
@@ -1476,7 +1482,16 @@ pub(crate) fn gen_show_sql(
 pub(crate) async fn make_test_object() -> SqliteDB {
     let path = std::env::var("DBPAL_SQLITE_TEST_FILE").unwrap();
 
-    let db = SqliteDB::new(path, false).await.unwrap();
+    let db = SqliteDB::new(
+        SqliteDBConfig {
+            path,
+            read_only: false,
+            connection_timeout: None,
+        },
+        false,
+    )
+    .await
+    .unwrap();
     db
 }
 

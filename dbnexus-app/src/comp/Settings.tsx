@@ -359,6 +359,27 @@ const components: Components<
       },
     },
   },
+  MuiAlert: {
+    styleOverrides: {
+      root: {
+        fontWeight: appFontWeight,
+      },
+    },
+  },
+  MuiTooltip: {
+    styleOverrides: {
+      tooltip: {
+        fontSize: '0.9rem',
+      },
+    },
+  },
+  MuiAlertTitle: {
+    styleOverrides: {
+      root: {
+        fontWeight: appFontWeight,
+      },
+    },
+  },
   //@ts-ignore
   MuiDataGrid: {
     styleOverrides: {

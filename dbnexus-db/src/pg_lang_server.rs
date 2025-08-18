@@ -5,7 +5,7 @@ use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 use crate::db::{AutoCompletionUuid, FormatSqlOpts};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBPrepare, LangServerCommon,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, LangServerCommon,
     LanguageServer, LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::mysql_lang_server::TYPES;
@@ -251,7 +251,6 @@ impl AstCompletionHelper for PostGresDB {
     async fn list_function(
         &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        
         let schema = self.schema_merge_config(schema);
         if schema.is_none() {
             return anyhow::Ok(vec![]);
@@ -506,7 +505,7 @@ impl LangServerCommon for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_prepares(&self) -> anyhow::Result<Vec<DBPrepare>> {
+    async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
         let conn = self.query_connection.get(&AutoCompletionUuid::get());
         if conn.is_none() {
             anyhow::bail!("query_id should get connection")
@@ -524,7 +523,7 @@ impl LangServerCommon for PostGresDB {
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
             let statement: String = row.try_get(1)?;
-            ret.push(DBPrepare {
+            ret.push(DBExecutable {
                 name,
                 statement: Some(statement),
             });
@@ -679,7 +678,7 @@ mod tests {
         .unwrap()
         .unwrap();
         assert!(
-            db.list_prepares()
+            db.list_execute(None)
                 .await
                 .unwrap()
                 .iter()

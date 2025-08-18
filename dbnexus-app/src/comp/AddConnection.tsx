@@ -405,6 +405,12 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   const [replica, setReplica] = useState(getConfig('replica', false));
   const [authToken, setAuthToken] = useState(getConfig('auth_token'));
   const [schemaCandidates, setSchemesCandidats] = useState([]);
+  //@ts-ignore
+  const supportConnectionTimeout = ![
+    DataSourceKind.Redis,
+    DataSourceKind.Cassandra,
+  ].includes(connectionType);
+
   const makeConfig = (): types.DBConnectionConfig | null => {
     let portInt = parseInt(port);
     let user_null = user ? user : null;
@@ -573,7 +579,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           db: db_null,
           username: user_null,
           password: pass_null,
-          call_timeout: null,
+          connection_timeout: null,
           save_password: savePassword,
         };
       case DataSourceKind.MsSql:
@@ -601,7 +607,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           db: database,
           read_only: readOnly,
           schema: schema ? schema : null,
-          call_timeout: null,
+          connection_timeout: null,
           save_password: savePassword,
         };
     }

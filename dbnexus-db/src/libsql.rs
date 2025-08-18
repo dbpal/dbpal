@@ -13,9 +13,9 @@ use crate::MemoryLimit;
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce};
 use crate::db::{
     AutoCompletionUuid, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
-    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, QueryResp,
-    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
-    TriggerDetail, escape_sql_str,
+    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
+    POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, escape_sql_str,
 };
 use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
@@ -334,7 +334,10 @@ impl LibSqlDB {
             config: config.clone(),
         };
         let mut builder = bb8::Pool::builder();
-        builder = builder.max_size(100);
+        if let Some(x) = config.connection_timeout {
+            builder = builder.connection_timeout(Duration::from_millis(x as u64));
+        }
+        builder = builder.max_size(POOL_MAX_CONNECTIONS);
         let pool = builder.build(manager).await?;
         anyhow::Ok(Self {
             config,
@@ -1119,6 +1122,7 @@ fn encode_row_as_json(r: &Row) -> anyhow::Result<serde_json::Value> {
 // this test no need clean up, we use memory sqlite db.
 pub(crate) async fn make_test_object() -> LibSqlDB {
     LibSqlDB::new(LibSqlDBConfig {
+        connection_timeout: None,
         replica: false,
         source: LibSqlDBConfigSouce::Remote {
             url: "http://localhost:8080".to_string(),

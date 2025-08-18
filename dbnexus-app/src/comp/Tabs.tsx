@@ -131,17 +131,7 @@ function TabsWithContent_(props: {
             return (
               <Tab
                 key={tab.id}
-                label=<Tooltip
-                  title={tab.header}
-                  arrow
-                  slotProps={{
-                    tooltip: {
-                      sx: {
-                        fontSize: '1rem',
-                      },
-                    },
-                  }}
-                >
+                label=<Tooltip title={tab.header} arrow>
                   <Chip
                     label={tab.header}
                     onDelete={() => {

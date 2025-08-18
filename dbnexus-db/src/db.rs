@@ -1424,3 +1424,5 @@ impl AutoCompletionUuid {
         *Self::loc().lock().unwrap() = x;
     }
 }
+
+pub(crate) const POOL_MAX_CONNECTIONS: u32 = 100;

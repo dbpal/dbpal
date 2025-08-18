@@ -1142,20 +1142,39 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::ShowStatus { .. } => {
-                //
+                // nothing to show here
+                // SHOW STATUS LIKE 'Connections';
+                // fallback to lexer
             }
             Statement::ShowVariables { .. } => {
                 // 给我的语法结构不好做自动完成
+                // SHOW VARIABLES LIKE 'version';
+                // fallback to lexer
             }
             Statement::ShowCreate { obj_type, obj_name } => {
                 self.c_on_mysql_show_create(*obj_type, obj_name).await;
             }
-            Statement::ShowColumns { .. } => {}
-            Statement::ShowDatabases { .. } => {}
-            Statement::ShowSchemas { .. } => {}
-            Statement::ShowTables { .. } => {}
-            Statement::ShowViews { .. } => {}
-            Statement::ShowCollation { .. } => {}
+            Statement::ShowColumns { .. } => {
+                // can completion on table name etc
+                // right now fall back to lexer
+                // lexer completon will suggest tables.
+            }
+            Statement::ShowDatabases { .. } => {
+                // fallback to lexer
+            }
+            Statement::ShowSchemas { .. } => {
+                //  fallback to lexer
+            }
+            Statement::ShowTables { .. } => {
+                // SHOW TABLES LIKE 'emp%';
+                // fallback to lexer
+            }
+            Statement::ShowViews { .. } => {
+                // SHOW VIEWS LIKE 'emp%';
+            }
+            Statement::ShowCollation { .. } => {
+                // fallback to lexer
+            }
             Statement::Use(_x) => {
                 // TODO maybe can auto completion.
                 // wo perfer use don't use this statment.
@@ -1482,7 +1501,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
                 if let Some(name) = name.as_ref() {
-                    self.c_on_prepare(name).await;
+                    self.c_on_execute(name).await;
                 }
             }
             Statement::Prepare {
@@ -1620,14 +1639,26 @@ impl<'a> CompletionStatement<'a> {
             Statement::Unload { .. } => {
                 // not support right now
             }
-            Statement::OptimizeTable { name, .. } => {
+            Statement::OptimizeTable {
+                name, on_cluster, ..
+            } => {
                 self.c_on_table(name).await;
+                if let Some(on_cluster) = on_cluster {
+                    self.c_on_cluster(on_cluster).await;
+                }
             }
-            Statement::LISTEN { .. } => {}
+            Statement::LISTEN { .. } => {
+                // 非常奇怪的命令像是 消息中间件
+            }
             Statement::UNLISTEN { .. } => {}
             Statement::NOTIFY { .. } => {}
-            Statement::LoadData { .. } => {}
-            Statement::CreateConnector(..) => {}
+
+            Statement::LoadData { table_name, .. } => {
+                self.c_on_table(table_name).await;
+            }
+            Statement::CreateConnector(..) => {
+                // hive not support
+            }
             Statement::AlterType(..) => {
                 // TODO list type for this.
             }
@@ -1635,15 +1666,25 @@ impl<'a> CompletionStatement<'a> {
             Statement::AlterSession { .. } => {}
             Statement::DropConnector { .. } => {}
             Statement::DropExtension { .. } => {}
-            Statement::ShowObjects(..) => {}
+            Statement::ShowObjects(..) => {
+                // Snowflake  not support
+            }
             Statement::RenameTable(rename_tables) => {
                 for rename in rename_tables.iter() {
                     self.c_on_table(&rename.old_name).await;
-                    self.c_on_table(&rename.new_name).await;
+                    self.c_on_schema(&rename.new_name).await;
+                    if self.last_name_in_pos(&rename.new_name) {
+                        self.set_on_def();
+                        return;
+                    }
                 }
             }
-            Statement::List(..) => {}
-            Statement::Remove(..) => {}
+            Statement::List(..) => {
+                // Snowflake not support
+            }
+            Statement::Remove(..) => {
+                // Snowflake not support
+            }
             Statement::RaisError {
                 message,
                 severity,
@@ -1826,8 +1867,10 @@ impl<'a> CompletionStatement<'a> {
         }
     }
 
-    async fn c_on_open(&mut self, _ast: &OpenStatement) {
-        // nothing to do here
+    async fn c_on_open(&mut self, ast: &OpenStatement) {
+        if self.in_pos(&ast.cursor_name.span) {
+            self.set_on_def();
+        }
     }
     async fn c_on_drop_domain(&mut self, _ast: &DropDomain) {
         // nothing to do here

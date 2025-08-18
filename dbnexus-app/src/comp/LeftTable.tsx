@@ -3,7 +3,6 @@ import {
   modalStyle,
   progressBarSizeSmall,
   tabsHasId,
-  DocsAndCount,
   makeAutoComplete,
   EscDownEvent,
 } from './Common';
@@ -68,6 +67,7 @@ import {
   UuidContext,
   handleCopyToClipboard,
   quoteStyle,
+  MongoTableHandler,
 } from './helper';
 import { MenuRefresh, ModalHeader } from './CommonComp';
 import { TableStructure } from './TableStructure';
@@ -536,35 +536,9 @@ async function makeViewTable(
     case DataSourceKind.Mongo:
       tableList = (
         <MongoTable
-          reloadOPTableList={async (filter, sort, page, pageSize) => {
-            return await invoke('mongo_show_collection_table_list', {
-              name: uuid,
-              tableName: table,
-              filter: BSON.serialize(filter),
-              sort: BSON.serialize(sort),
-              page,
-              pageSize,
-            });
-          }}
-          realodOPDocs={async (filter, sort, page, pageSize) => {
-            try {
-              let x = await invoke('mongo_show_collection_docs', {
-                name: uuid,
-                tableName: table,
-                filter: BSON.serialize(filter),
-                sort: BSON.serialize(sort),
-                page,
-                pageSize,
-              });
-              //@ts-ignore
-              let docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
-              //@ts-ignore
-              let count = x.count;
-              return new DocsAndCount(docs, count);
-            } catch (e) {
-              throw e;
-            }
-          }}
+          reloadOPTableList={MongoTableHandler.reloadTableList(uuid, table)}
+          reloadOPJson={MongoTableHandler.reloadJson(uuid, table)}
+          reloadOPDocs={MongoTableHandler.reloadDocs(uuid, table)}
           modifyOP={async (doc) => {
             return invoke('mongo_update_one', {
               name: uuid,
@@ -572,19 +546,11 @@ async function makeViewTable(
               doc: BSON.serialize(doc),
             });
           }}
-          loadOne={async (id) => {
-            try {
-              let x = await invoke<number[]>('mongo_get_one_document_by_id', {
-                name: uuid,
-                tableName: table,
-                id: JSON.stringify(EJSON.serialize(id)),
-              });
-              return BSON.deserialize(new Uint8Array(x));
-            } catch (e) {
-              throw e;
-            }
-          }}
+          loadOne={MongoTableHandler.loadOne(uuid, table)}
           deleteOP={async (ids) => {
+            if (!Array.isArray(ids)) {
+              ids = [ids];
+            }
             return invoke('mongo_delete_ids', {
               name: uuid,
               tableName: table,
