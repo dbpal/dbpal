@@ -248,8 +248,9 @@ impl LanguageServer for OracleDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(sql, line, col, sqlparser::dialect::MySqlDialect {}, self)
-            .await;
+        let r =
+            try_completion_on_syntax(sql, line, col, sqlparser::dialect::GenericDialect {}, self)
+                .await;
         match r {
             Ok(xs) => return Ok(xs),
             Err(err) => {
