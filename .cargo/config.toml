@@ -24,4 +24,3 @@ rustflags = ["-C", "link-arg=-Wl,--stack,8000000"]
 
 [profile.dev]
 split-debuginfo = "unpacked"
-strip = "debuginfo"

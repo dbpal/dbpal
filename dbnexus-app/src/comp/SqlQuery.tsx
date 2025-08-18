@@ -128,7 +128,7 @@ function SqlTransaction(props: { conn: IQueryConn; nonce }) {
 
   return (
     <>
-      <Tooltip title="reverse commit mode">
+      <Tooltip title="reverse commit mode" arrow>
         <Chip
           onClick={handleReverse}
           label={`${commit ? 'auto' : 'manual'}-commit`}
@@ -139,16 +139,16 @@ function SqlTransaction(props: { conn: IQueryConn; nonce }) {
 
       {!commit && (
         <>
-          <Tooltip title="executes after begin transaction">
+          <Tooltip title="executes after begin transaction" arrow>
             <Chip label={txCount} size="small" color="info"></Chip>
           </Tooltip>
 
-          <Tooltip title="commit">
+          <Tooltip title="commit" arrow>
             <IconButton onClick={handleCommit} color="primary">
               <FaUpload fontSize="1.1rem"></FaUpload>
             </IconButton>
           </Tooltip>
-          <Tooltip title="rollback">
+          <Tooltip title="rollback" arrow>
             <IconButton onClick={handleRollback} color="primary">
               <MdOutlineReply fontSize="1.7rem"></MdOutlineReply>
             </IconButton>
@@ -555,7 +555,7 @@ function SqlQuery(props: {
               >
                 <CloseIcon></CloseIcon>
               </IconButton>
-              <Tooltip title="double click to open code editor">
+              <Tooltip title="double click to open code editor" arrow>
                 <BsFillLightbulbFill />
               </Tooltip>
             </Stack>
@@ -568,7 +568,7 @@ function SqlQuery(props: {
           spacing={1}
           sx={{ alignItems: 'center', flexWrap: 'wrap' }}
         >
-          <Tooltip title="execute">
+          <Tooltip title="execute" arrow>
             <IconButton
               loading={loading}
               disabled={loading || conn == null}
@@ -581,7 +581,7 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="execute and append result to tabs">
+          <Tooltip title="execute and append result to tabs" arrow>
             <IconButton
               loading={loading}
               disabled={loading || conn == null}
@@ -594,7 +594,7 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="execute sql not expecting result">
+          <Tooltip title="execute sql not expecting result" arrow>
             <IconButton
               loading={loading}
               disabled={loading || conn == null}
@@ -605,7 +605,7 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
           {supportExplain && (
-            <Tooltip title="explain sql">
+            <Tooltip title="explain sql" arrow>
               <IconButton
                 loading={loading}
                 disabled={loading || conn == null}
@@ -619,7 +619,7 @@ function SqlQuery(props: {
             </Tooltip>
           )}
 
-          <Tooltip title="sql execute time">
+          <Tooltip title="sql execute time" arrow>
             <Chip
               color="default"
               size="small"
@@ -637,6 +637,7 @@ function SqlQuery(props: {
                 ? `query used ${showSuggestReconn}ms,try reconnect?`
                 : 'reconnect'
             }
+            arrow
           >
             <IconButton
               onClick={() => {
@@ -648,7 +649,7 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="export query result to a file">
+          <Tooltip title="export query result to a file" arrow>
             <IconButton
               loading={loading}
               disabled={loading || conn == null}
@@ -665,6 +666,7 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
           <Tooltip
+            arrow
             title={
               !favoriteName
                 ? 'save sql to favorite.'
@@ -702,7 +704,7 @@ function SqlQuery(props: {
             openOpt={{ ...fileFilter }}
             saveOpt={{ ...fileFilter }}
           ></LoadStoreFileForQuery>
-          <Tooltip title="query log">
+          <Tooltip title="query log" arrow>
             <IconButton
               onClick={() => {
                 setShowQueryLog((prev) => !prev);

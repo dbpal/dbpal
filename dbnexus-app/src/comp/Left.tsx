@@ -148,7 +148,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
           direction="row"
           style={{ justifyContent: 'center', flexWrap: 'wrap' }}
         >
-          <Tooltip title="DBPal site">
+          <Tooltip title="DBPal site" arrow>
             <img
               src={logoImg}
               style={{ width: '3.3rem', cursor: 'pointer' }}
@@ -159,7 +159,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             ></img>
           </Tooltip>
 
-          <Tooltip title="make a connection">
+          <Tooltip title="make a connection" arrow>
             <IconButton
               onClick={() => {
                 setShowAddConnection(true);
@@ -169,7 +169,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="Favorite sql statement">
+          <Tooltip title="Favorite sql statement" arrow>
             <IconButton
               onClick={() => {
                 setShowFavoriteSql(true);
@@ -179,7 +179,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="copy a connection">
+          <Tooltip title="copy a connection" arrow>
             <IconButton
               onClick={() => {
                 setShowCopyConn(true);

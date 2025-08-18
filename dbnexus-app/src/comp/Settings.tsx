@@ -202,6 +202,7 @@ function ModifySettings({ handleClose }) {
           <Tooltip
             title="dbpal use monaco editor as build in editor"
             placement="top"
+            arrow
           >
             <Typography width={headerSize} textAlign="right">
               monaco editor options:
@@ -371,6 +372,7 @@ const components: Components<
       tooltip: {
         fontSize: '0.9rem',
       },
+      arrow: true,
     },
   },
   MuiAlertTitle: {

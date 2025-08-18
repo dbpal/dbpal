@@ -1172,12 +1172,12 @@ function LoadStoreFileForQuery(props: {
           </Tooltip>
         </Stack>
       )}
-      <Tooltip title="attach file">
+      <Tooltip title="attach file" arrow>
         <IconButton onClick={loadFile} color="primary">
           <AttachFileIcon />
         </IconButton>
       </Tooltip>
-      <Tooltip title="save query to file">
+      <Tooltip title="save query to file" arrow>
         <IconButton onClick={handleSave} color="primary">
           <SaveIcon />
         </IconButton>

@@ -186,11 +186,11 @@ function ConnPingTime({ uuid }) {
   return (
     (status || err) &&
     (status ? (
-      <Tooltip title="ping time">
+      <Tooltip title="ping time" arrow>
         <Typography color="green"> {status} </Typography>
       </Tooltip>
     ) : (
-      <Tooltip title={err}>
+      <Tooltip title={err} arrow>
         <Typography color="error"> err </Typography>
       </Tooltip>
     ))

@@ -1340,6 +1340,10 @@ pub async fn mongo_show_collection_json(
         None => return Err(format!("db '{}' not mongo", name).into()),
     }
     .map_err(ErrorFrontend::from)
+    .map(|x| {
+        log::error!("!!!!!!!!!!!!!!!! :{:?}", x);
+        x
+    })
 }
 
 #[tauri::command]

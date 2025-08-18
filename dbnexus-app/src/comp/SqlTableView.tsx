@@ -400,7 +400,9 @@ function SqlTableView_(props: {
         };
         return (
           <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
-            <Tooltip title={makeTitle()}>{def.field}</Tooltip>
+            <Tooltip title={makeTitle()} arrow>
+              {def.field}
+            </Tooltip>
             {def.is_primary && <KeyIcon style={{ fontSize: '16px' }}></KeyIcon>}
           </Stack>
         );
@@ -712,7 +714,7 @@ function SqlTableView_(props: {
         </Button>
         {/* <Typography color="info"> select * from {tableName} where </Typography> */}
 
-        <Tooltip title="filter something like 'age=18'">
+        <Tooltip title="filter something like 'age=18'" arrow>
           <Chip
             label={where}
             onClick={() => {
@@ -724,7 +726,7 @@ function SqlTableView_(props: {
           ></Chip>
         </Tooltip>
         {/* <Typography color="info"> order by </Typography> */}
-        <Tooltip title="sort something like 'age asc'">
+        <Tooltip title="sort something like 'age asc'" arrow>
           <Chip
             label={sort}
             onClick={() => {
@@ -771,7 +773,7 @@ function SqlTableView_(props: {
           </Typography>
         </Stack>
         <Stack direction="row" spacing={1}>
-          <Tooltip title="query time">
+          <Tooltip title="query time" arrow>
             <Chip
               color="default"
               size="small"

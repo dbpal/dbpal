@@ -871,6 +871,7 @@ function MongoTableJson(props: {
     reloadOPJson(filter, sort, page, pageSize)
       .then((resp) => {
         setJsons(resp);
+
         if (showOK) {
           reloadOK(showNotification);
         }

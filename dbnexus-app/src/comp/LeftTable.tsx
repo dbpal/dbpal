@@ -1282,7 +1282,10 @@ function RedisTables(prpos: { schema?: string }) {
           }}
         >
           {tables && tables.has_more ? (
-            <Tooltip title={`result exceed ${max},some result are omited`}>
+            <Tooltip
+              title={`result exceed ${max},some result are omited`}
+              arrow
+            >
               <Chip
                 size="small"
                 color="error"

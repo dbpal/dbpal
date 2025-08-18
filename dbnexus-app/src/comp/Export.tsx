@@ -168,7 +168,7 @@ function ExportView(props: {
           }}
           loading={loading}
         >
-          <Tooltip title="export">
+          <Tooltip title="export" arrow>
             <ArrowCircleDownIcon> </ArrowCircleDownIcon>
           </Tooltip>
         </Button>

@@ -120,7 +120,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
       e.renderHeader = (e) => {
         let def = e.colDef;
         return (
-          <Tooltip title={`${def.field} ${def.typ}`}>
+          <Tooltip title={`${def.field} ${def.typ}`} arrow>
             <strong> {def.field}</strong>
           </Tooltip>
         );

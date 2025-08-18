@@ -1072,7 +1072,9 @@ function RedisListTable(props: {
 }) {
   const { reloadOP, modifyOP, delOP } = props;
   const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
-  const [resp2, setResp2] = useState<types.MuiDataGridData | null>(null);
+  const [respOrigin, setRespOrigin] = useState<types.MuiDataGridData | null>(
+    null
+  );
   const [selectRow, setSelectRow] = useState<any>(null);
   const { showNotification } = useContext(NotificationContext);
   const [pageSize, setPageSize] = useState(useContext(SettingContext).pageSize);
@@ -1086,14 +1088,15 @@ function RedisListTable(props: {
         resp.data.forEach((e) => {
           e.id = uuidv4();
         });
+
+        // resp.fields[0]['flex'] = 1;
         resp.fields[1]['sortable'] = false;
         resp.fields[1]['flex'] = 1;
-        resp.fields[0]['flex'] = 1;
         resp.fields[1]['renderCell'] = (p) => {
           return redisRenderCell(p.row.value);
         };
         setResp(resp);
-        setResp2(resp);
+        setRespOrigin(resp);
         if (showReloadOK) {
           reloadOK(showNotification);
         }
@@ -1135,26 +1138,26 @@ function RedisListTable(props: {
   const onSortModelChange = useCallback(
     (c: GridSortModel) => {
       if (c.length == 0) {
-        setResp(resp2);
+        setResp(respOrigin);
         return;
       }
       let s = c[0];
       if (!s.sort) {
-        setResp(resp2);
+        setResp(respOrigin);
         return;
       }
       if (s.sort == 'asc') {
-        setResp(resp2);
+        setResp(respOrigin);
         return;
       }
       setResp({
-        sql: resp2.sql,
-        total: resp2.total,
-        fields: resp2.fields,
-        data: resp2.data.slice().reverse(),
+        sql: respOrigin.sql,
+        total: respOrigin.total,
+        fields: respOrigin.fields,
+        data: respOrigin.data.slice().reverse(),
       } as types.MuiDataGridData);
     },
-    [resp2]
+    [respOrigin]
   );
   const vis = useContext(VisiableContext);
   const { setUpMenu } = useContext(ContextMenuContext);
@@ -1843,7 +1846,7 @@ function RedisModifyKeyName(props: {
 
 function DoubleClickToModify() {
   return (
-    <Tooltip title="double click a row to modify.">
+    <Tooltip title="double click a row to modify." arrow>
       <BsFillLightbulbFill />
     </Tooltip>
   );

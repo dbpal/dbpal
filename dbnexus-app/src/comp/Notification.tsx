@@ -36,6 +36,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   ) => {
     if (typeof message == 'object' && 'reason' in message) {
       // TODO show message
+      //@ts-ignore
+      console.log('detail:', message.detail);
       message = message['reason'];
     }
     if (typeof message == 'object' && message instanceof Error) {

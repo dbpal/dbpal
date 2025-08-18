@@ -164,7 +164,7 @@ function MongoQuery(props: {
   return (
     <Stack spacing={1}>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Tooltip title="execute">
+        <Tooltip title="execute" arrow>
           <IconButton
             onClick={() => {
               handleExecute();
@@ -175,7 +175,7 @@ function MongoQuery(props: {
           </IconButton>
         </Tooltip>
 
-        <Tooltip title="logger level">
+        <Tooltip title="logger level" arrow>
           <Chip
             label={loggerlevel}
             color="primary"
@@ -187,6 +187,7 @@ function MongoQuery(props: {
         </Tooltip>
 
         <Tooltip
+          arrow
           title={
             !favoriteName
               ? 'save sql to favorite.'
