@@ -516,7 +516,7 @@ class MongoBsonValue {
         }
         valueObj.eles.forEach((e, index) => {
           ret += MongoBsonValue.doIdent(newLine, tabSize, ident);
-          ret += '"' + e.key.value + '"' + ': ';
+          ret += e.key.value + ': ';
           if (e.value == null) {
             ret += 'null';
           } else if (e.value == undefined) {
