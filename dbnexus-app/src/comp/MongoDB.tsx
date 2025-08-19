@@ -1001,6 +1001,7 @@ function JsonEditor(props: {
             onClick={() => {
               modifyOP(EJSON.parse(newValue));
             }}
+            variant="contained"
           >
             {modifyOPName ? modifyOPName : 'set'}
           </Button>
@@ -1010,6 +1011,7 @@ function JsonEditor(props: {
             onClick={() => {
               handleDetele();
             }}
+            variant="contained"
             color="error"
           >
             delete
@@ -1403,6 +1405,7 @@ function MongoTableObject(props: {
                   ? [
                       {
                         buttonText: 'set',
+                        variant: 'contained',
                         callBack: (doc) => {
                           modifyOP(doc)
                             .then(() => {
@@ -1414,6 +1417,7 @@ function MongoTableObject(props: {
                         },
                       },
                       {
+                        variant: 'contained',
                         buttonText: 'delete',
                         color: 'error',
                         callBack: (_) => {
