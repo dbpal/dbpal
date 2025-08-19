@@ -251,35 +251,31 @@ function initMongoBsonLanguage() {
 
 initMongoBsonLanguage();
 
-interface MongoBsonEditorCallback {
-  color?: string;
-  disabled?: (docHasChange: boolean) => boolean;
-  variant?: string;
-  callBack: (doc: BSON.Document) => void;
-  buttonText: string;
-}
-
 function MongoBsonEditor(props: {
   doc: BSON.Document;
-  buttons: MongoBsonEditorCallback[];
+  setOP?: (doc) => Promise<void>;
+  setOPName?;
+  delOP?;
 }) {
-  let { doc, buttons } = props;
+  let { doc, setOP, delOP, setOPName } = props;
+  if (!setOPName) {
+    setOPName = 'set';
+  }
   let editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
-  const [docHasChange, setDocHasChange] = useState(false);
   const [err, setErr] = useState<MongoBsonError>(null);
   const setting = useContext(SettingContext);
   const [loading, setLoading] = useState(false);
-
+  const newDoc = useRef(doc);
   const handleEditorDidMount = useCallback(
     (ce: editor.IStandaloneCodeEditor, _monaco) => {
       editor.current = ce;
       ce.onDidChangeModelContent((_event) => {
         let text = ce.getValue();
-        setDocHasChange(true);
         try {
-          parseMongoBson(text).compile();
+          const doc = parseMongoBson(text).compile();
           setErr(null);
+          newDoc.current = doc;
         } catch (e) {
           setErr(e);
         }
@@ -291,7 +287,6 @@ function MongoBsonEditor(props: {
     []
   );
   const content = useRef(bsonValue2MongoBson(doc).format());
-  const { showNotification } = useContext(NotificationContext);
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
       fontSize: setting.editorFontSize,
@@ -319,37 +314,34 @@ function MongoBsonEditor(props: {
         pos={pos}
         left={
           <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
-            {buttons.map((button) => {
-              return (
-                //@ts-ignore
-                <Button
-                  loading={loading}
-                  key={button.buttonText}
-                  variant={button.variant}
-                  color={button.color}
-                  onClick={() => {
-                    setLoading(true);
-                    try {
-                      let doc = parseMongoBson(
-                        editor.current.getValue()
-                      ).compile();
-                      button.callBack(doc);
-                    } catch (e) {
-                      setLoading(false);
-                      showNotification('error', 'mongo bson compile failed', e);
-                      console.log('mongo bson compile failed', e);
-                      return;
-                    }
+            {setOP && (
+              <Button
+                variant="contained"
+                loading={loading}
+                onClick={() => {
+                  setLoading(true);
+                  setOP(newDoc.current).finally(() => {
                     setLoading(false);
-                  }}
-                  disabled={
-                    button.disabled ? button.disabled(docHasChange) : false
-                  }
-                >
-                  {button.buttonText}
-                </Button>
-              );
-            })}
+                  });
+                }}
+              >
+                {setOPName}
+              </Button>
+            )}
+            {delOP && (
+              <Button
+                variant="contained"
+                loading={loading}
+                onClick={() => {
+                  setLoading(true);
+                  delOP().finally(() => {
+                    setLoading(false);
+                  });
+                }}
+              >
+                delete
+              </Button>
+            )}
             {err ? (
               <Typography color="error">{err.msgWithLoc}</Typography>
             ) : (
@@ -364,16 +356,13 @@ function MongoBsonEditor(props: {
 
 function MongoValueEditor(props: {
   doc: BSON.Document;
-  setOP?: (doc: BSON.Document) => void;
+  setOP?: (doc: BSON.Document) => Promise<void>;
   setName?;
 }) {
   let { doc, setOP, setName } = props;
   if (!setName) {
     setName = 'set';
   }
-  const handleModify = (doc) => {
-    setOP(doc);
-  };
   const [viewModel, setViewModel] = useState(MongoDataViewModel.Object);
   return (
     <Stack flex={1}>
@@ -402,38 +391,17 @@ function MongoValueEditor(props: {
       {viewModel == MongoDataViewModel.Json && (
         <JsonEditor
           value={JSON.parse(EJSON.stringify(doc))}
-          modifyOP={
-            setOP
-              ? (e) => {
-                  handleModify(e);
-                }
-              : undefined
-          }
+          modifyOP={setOP}
           modifyOPName={setName}
         ></JsonEditor>
       )}
       {viewModel == MongoDataViewModel.Object && (
         <MongoBsonEditor
           doc={doc}
-          buttons={
-            setOP
-              ? [
-                  {
-                    color: 'primary',
-                    callBack: (doc) => {
-                      handleModify(doc);
-                    },
-                    variant: 'contained',
-                    buttonText: setName,
-                    disabled: (changed) => {
-                      return !changed;
-                    },
-                  },
-                ]
-              : []
-          }
+          setOP={setOP}
+          setOPName={setName}
         ></MongoBsonEditor>
-      )}
+      )}{' '}
     </Stack>
   );
 }
@@ -569,7 +537,7 @@ function MongoTableToolBar(props: {
           >
             <ModalHeader title="Modify Filter"></ModalHeader>
             <MongoValueEditor
-              setOP={(doc) => {
+              setOP={async (doc) => {
                 handleFilter(doc);
                 setShowModifyFilter(false);
               }}
@@ -599,7 +567,7 @@ function MongoTableToolBar(props: {
           >
             <ModalHeader title="Modify Sort"></ModalHeader>
             <MongoValueEditor
-              setOP={(doc) => {
+              setOP={async (doc) => {
                 handleSort(doc);
                 setShowModifySort(false);
               }}
@@ -899,14 +867,14 @@ function MongoTableJson(props: {
       });
   };
   const handleDetele = async (ids: any[]) => {
-    deleteOP(ids)
-      .then(() => {
-        showNotification('success', 'Delete OK');
-        handleReload(false);
-      })
-      .catch((e) => {
-        showNotification('error', 'Delete failure', e);
-      });
+    try {
+      await deleteOP(ids);
+    } catch (e) {
+      showNotification('success', 'Delete failure', e);
+      return;
+    }
+    handleReload(false);
+    showNotification('success', 'Delete OK');
   };
 
   useEffect(() => {
@@ -937,13 +905,14 @@ function MongoTableJson(props: {
                         return;
                       }
                       handleReload(false);
+                      showNotification('success', 'Modify OK');
                     }
                   : undefined
               }
               handleDetele={
                 deleteOP
-                  ? () => {
-                      handleDetele(doc['_id']);
+                  ? async () => {
+                      await handleDetele(doc['_id']);
                     }
                   : undefined
               }
@@ -967,13 +936,14 @@ function MongoTableJson(props: {
 
 function JsonEditor(props: {
   value: object;
-  modifyOP?: (x: object) => void;
+  modifyOP?: (x: object) => Promise<void>;
   modifyOPName?: string;
-  handleDetele?;
+  handleDetele?: () => Promise<void>;
 }) {
   const { value, modifyOP, handleDetele, modifyOPName } = props;
-  const [newValue, setNewValue] = useState(JSON.stringify(value, null, 2));
+  const [newValue, setNewValue] = useState(EJSON.stringify(value, null, 2));
   const [jsonErr, setJsonErr] = useState('');
+  const [loading, setLoading] = useState(false);
   useEffect(() => {
     validJsonBson(newValue)
       .then(() => {
@@ -999,8 +969,12 @@ function JsonEditor(props: {
           <Button
             disabled={!!jsonErr}
             onClick={() => {
-              modifyOP(EJSON.parse(newValue));
+              setLoading(true);
+              modifyOP(EJSON.parse(newValue)).finally(() => {
+                setLoading(false);
+              });
             }}
+            loading={loading}
             variant="contained"
           >
             {modifyOPName ? modifyOPName : 'set'}
@@ -1009,8 +983,12 @@ function JsonEditor(props: {
         {handleDetele && (
           <Button
             onClick={() => {
-              handleDetele();
+              setLoading(true);
+              handleDetele().finally(() => {
+                setLoading(false);
+              });
             }}
+            loading={loading}
             variant="contained"
             color="error"
           >
@@ -1372,16 +1350,14 @@ function MongoTableObject(props: {
       });
   };
   const handleDetele = async (ids: any[]) => {
-    deleteOP(ids)
-      .then(() => {
-        showNotification('success', 'Delete OK');
-        handleReload(false);
-      })
-      .catch((e) => {
-        showNotification('error', 'Delete failure', e);
-      });
+    try {
+      await deleteOP(ids);
+    } catch (e) {
+      showNotification('error', 'Delete failure', e);
+    }
+    showNotification('success', 'Delete OK');
+    handleReload(false);
   };
-
   useEffect(() => {
     handleReload(false);
   }, [page, pageSize, filter, sort]);
@@ -1400,32 +1376,26 @@ function MongoTableObject(props: {
           >
             <MongoBsonEditor
               doc={doc}
-              buttons={
+              setOP={
                 modifyOP
-                  ? [
-                      {
-                        buttonText: 'set',
-                        variant: 'contained',
-                        callBack: (doc) => {
-                          modifyOP(doc)
-                            .then(() => {
-                              showNotification('success', 'Modify OK');
-                            })
-                            .catch((e) => {
-                              showNotification('error', 'Modify failure', e);
-                            });
-                        },
-                      },
-                      {
-                        variant: 'contained',
-                        buttonText: 'delete',
-                        color: 'error',
-                        callBack: (_) => {
-                          handleDetele([doc._id]);
-                        },
-                      },
-                    ]
-                  : []
+                  ? async (doc) => {
+                      try {
+                        await modifyOP(doc);
+                      } catch (e) {
+                        showNotification('error', 'Modify failed', e);
+                        return;
+                      }
+                      showNotification('success', 'modify ok');
+                      handleReload(false);
+                    }
+                  : undefined
+              }
+              delOP={
+                deleteOP
+                  ? async () => {
+                      return await handleDetele(doc['_id']);
+                    }
+                  : undefined
               }
             ></MongoBsonEditor>
           </ResizeWrapper>
@@ -1463,14 +1433,8 @@ function MongoTable(props: {
   modifyOP?: (doc: BSON.Document) => Promise<void>;
   deleteOP?: (ids: any[] | any) => Promise<void>;
 }) {
-  const {
-    reloadOPTableList,
-    loadOne,
-    modifyOP,
-    reloadOPDocs,
-
-    deleteOP,
-  } = props;
+  const { reloadOPTableList, loadOne, modifyOP, reloadOPDocs, deleteOP } =
+    props;
   const [filter, setFilter] = useState<BSON.Document>({});
   const [sort, setSort] = useState<BSON.Document>({});
   const [viewModel, setViewModel] = useState(cacheViewModel);
@@ -1545,14 +1509,14 @@ function MongoTableAdd(props: {
 }) {
   let { addOP } = props;
   const { showNotification } = useContext(NotificationContext);
-  const handleAdd = (doc) => {
-    addOP(doc)
-      .then(() => {
-        showNotification('success', 'Add OK');
-      })
-      .catch((e) => {
-        showNotification('error', 'Add failure', e);
-      });
+  const handleAdd = async (doc) => {
+    try {
+      await addOP(doc);
+    } catch (e) {
+      showNotification('error', 'Add failure', e);
+      return;
+    }
+    showNotification('success', 'Add OK');
   };
   const [dom, setDom] = useState(null);
   useEffect(() => {
@@ -1574,9 +1538,7 @@ function MongoTableAdd(props: {
       <MongoValueEditor
         doc={{}}
         setName="add"
-        setOP={(doc) => {
-          handleAdd(doc);
-        }}
+        setOP={handleAdd}
       ></MongoValueEditor>
     </Stack>
   );
