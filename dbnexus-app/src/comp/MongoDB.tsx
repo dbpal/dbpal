@@ -289,6 +289,7 @@ function MongoBsonEditor(props: {
   const content = useRef(bsonValue2MongoBson(doc).format());
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
+      readOnly: !setOP,
       fontSize: setting.editorFontSize,
       ...setting.editorOption,
     };
@@ -1303,8 +1304,10 @@ function MongoTableList(props: {
                       try {
                         await modifyOP(doc);
                       } catch (e) {
+                        showNotification('error', 'Modify failed', e);
                         throw e;
                       }
+                      showNotification('success', 'Modify OK');
                       setSelectModifyDoc(null);
                       handleReload(false);
                     }
