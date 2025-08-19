@@ -1477,13 +1477,20 @@ impl sqlparser::dialect::Dialect for RedisDialet {
     /// Determine if a character is a valid start character for an unquoted
     /// identifier
     fn is_identifier_start(&self, ch: char) -> bool {
-        // https://blog.csdn.net/csbysj2020/article/details/139585685
+        /*
+        Redis 的键（key）可以包含多种字符，具体包括：
+        字母：大写字母（A-Z）和小写字母（a-z）
+        数字：0-9
+        特殊字符：如下划线（_）、冒号（:）、破折号（-）、点（.）、斜杠（/），以及其他大多数 ASCII 字符。
+        不过，建议避免使用空格和某些特殊字符（如空字符、控制字符等）作为键的一部分，以免造成潜在的问题。同时，键的长度限制为 512 MB，但通常建议保持键的简短和有意义。
+                */
         ch.is_alphabetic()
             || ch == ':'
             || ch == '$'
             || ch == '/'
             || ch.is_numeric()
             || ch == '.'
+            || ch == '-'
             || ch == '_'
     }
 

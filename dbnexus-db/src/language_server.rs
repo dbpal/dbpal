@@ -117,8 +117,6 @@ impl From<CompletionItem> for CompletionItemNameHasher {
 
 #[async_trait::async_trait]
 pub trait LexerCompletionTrait: LangServerCommon {
-    type Dialect: sqlparser::dialect::Dialect + Sync + Send + 'static;
-
     const TYPES: &'static [&'static str];
     const TEXTS: &'static [&'static str] = &[];
 

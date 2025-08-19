@@ -21,8 +21,6 @@ impl LanguageServer for LibSqlDB {
 #[async_trait::async_trait]
 
 impl crate::language_server::LexerCompletionTrait for LibSqlDB {
-    type Dialect = sqlparser::dialect::SQLiteDialect;
-
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = SQLITE_TYPES;
 

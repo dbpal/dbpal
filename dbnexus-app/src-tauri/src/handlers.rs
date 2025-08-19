@@ -15,7 +15,7 @@ use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::CompletionItem;
 use dbnexus_db::libsql::LibSqlDB;
 use dbnexus_db::meta_value::MetaValue;
-use dbnexus_db::mongo::{JsonAndCount, MongoDB};
+use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mssql::MsSqlServerDB;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
@@ -1317,33 +1317,6 @@ pub async fn mongo_show_collection_table_list(
     }
     .map_err(ErrorFrontend::from)
     .map(MuiDataGridData::from)
-}
-
-#[tauri::command]
-pub async fn mongo_show_collection_json(
-    name: String, table_name: String, filter: Vec<u8>, page: u64, page_size: u64, sort: Vec<u8>,
-    app: tauri::State<'_, App>,
-) -> Result<JsonAndCount, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let filter = parse_bson_doc(filter.as_slice())?;
-    let sort = parse_bson_doc(sort.as_slice())?;
-    let db = app
-        .get_schema(name.as_str())
-        .await
-        .map_err(|e| e.to_string())?;
-    match db.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => {
-            x.show_collection_json(table_name.as_str(), filter, sort, page, page_size)
-                .await
-        }
-        None => return Err(format!("db '{}' not mongo", name).into()),
-    }
-    .map_err(ErrorFrontend::from)
-    .map(|x| {
-        log::error!("!!!!!!!!!!!!!!!! :{:?}", x);
-        x
-    })
 }
 
 #[tauri::command]

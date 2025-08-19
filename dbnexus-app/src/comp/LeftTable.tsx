@@ -537,7 +537,6 @@ async function makeViewTable(
       tableList = (
         <MongoTable
           reloadOPTableList={MongoTableHandler.reloadTableList(uuid, table)}
-          reloadOPJson={MongoTableHandler.reloadJson(uuid, table)}
           reloadOPDocs={MongoTableHandler.reloadDocs(uuid, table)}
           modifyOP={async (doc) => {
             return invoke('mongo_update_one', {

@@ -87,7 +87,6 @@ import {
   DocsAndCount,
   filterStyle,
   handleCopyToClipboard,
-  JsonAndCount,
   resetMuiDataRespWidth,
   saveAndSetSize,
   validJsonBson,
@@ -366,18 +365,18 @@ function MongoBsonEditor(props: {
 function MongoDBModify(props: {
   doc: BSON.Document;
   setOP?: (doc: BSON.Document) => Promise<void>;
-  buttonName: string;
   handleClose?;
+  setName?;
 }) {
-  let { doc, setOP, buttonName, handleClose } = props;
-
+  let { doc, setOP, handleClose, setName } = props;
+  if (!setName) {
+    setName = 'set';
+  }
   const { showNotification } = useContext(NotificationContext);
-
   const handleModify = (doc) => {
     setOP(doc)
       .then(() => {
         showNotification('success', 'Modify OK');
-
         if (handleClose) {
           handleClose();
         }
@@ -386,34 +385,67 @@ function MongoDBModify(props: {
         showNotification('error', 'Modify failure', e);
       });
   };
-
+  const [viewModel, setViewModel] = useState(MongoDataViewModel.Object);
   return (
-    <Stack spacing={1} flex={1}>
-      <MongoBsonEditor
-        doc={doc}
-        buttons={
-          setOP
-            ? [
-                {
-                  color: 'primary',
-                  callBack: (doc) => {
-                    handleModify(doc);
+    <Stack flex={1}>
+      <Stack direction="row">
+        <ButtonGroup sx={{ gap: 0.5 }}>
+          <IconButton
+            disabled={viewModel == MongoDataViewModel.Object}
+            onClick={() => {
+              setViewModel(MongoDataViewModel.Object);
+            }}
+            edge="start"
+          >
+            <DataObjectIcon style={{ fontSize: '1.7rem' }} />
+          </IconButton>
+          <IconButton
+            onClick={() => {
+              setViewModel(MongoDataViewModel.Json);
+            }}
+            disabled={viewModel == MongoDataViewModel.Json}
+            edge="start"
+          >
+            <TbJson style={{ fontSize: '2.2rem' }} />
+          </IconButton>
+        </ButtonGroup>
+      </Stack>
+      {viewModel == MongoDataViewModel.Json && (
+        <JsonEditor
+          value={JSON.parse(EJSON.stringify(doc))}
+          modifyOP={(e) => {
+            handleModify(e);
+          }}
+          modifyOPName={setName}
+        ></JsonEditor>
+      )}
+      {viewModel == MongoDataViewModel.Object && (
+        <MongoBsonEditor
+          doc={doc}
+          buttons={
+            setOP
+              ? [
+                  {
+                    color: 'primary',
+                    callBack: (doc) => {
+                      handleModify(doc);
+                    },
+                    variant: 'contained',
+                    buttonText: setName,
+                    disabled: (changed) => {
+                      return !changed;
+                    },
                   },
-                  variant: 'contained',
-                  buttonText: buttonName,
-                  disabled: (changed) => {
-                    return !changed;
-                  },
-                },
-              ]
-            : []
-        }
-      ></MongoBsonEditor>
+                ]
+              : []
+          }
+        ></MongoBsonEditor>
+      )}
     </Stack>
   );
 }
 
-function MongoTableListToolBar(props: {
+function MongoTableToolBar(props: {
   handleReload: () => Promise<void>;
   handleFilter: (doc: BSON.Document) => void;
   handleSort: (doc: BSON.Document) => void;
@@ -501,7 +533,7 @@ function MongoTableListToolBar(props: {
             }}
             edge="start"
           >
-            <DataObjectIcon style={{ fontSize: '1.8rem' }} />
+            <DataObjectIcon style={{ fontSize: '1.7rem' }} />
           </IconButton>
           <IconButton
             onClick={() => {
@@ -544,7 +576,6 @@ function MongoTableListToolBar(props: {
           >
             <ModalHeader title="Modify Filter"></ModalHeader>
             <MongoDBModify
-              buttonName="set"
               setOP={async (doc) => {
                 handleFilter(doc);
               }}
@@ -577,7 +608,6 @@ function MongoTableListToolBar(props: {
           >
             <ModalHeader title="Modify Sort"></ModalHeader>
             <MongoDBModify
-              buttonName="set"
               setOP={async (doc) => {
                 handleSort(doc);
               }}
@@ -852,26 +882,25 @@ function MongoTableListMenuFilter(props: {
 function MongoTableJson(props: {
   filter: BSON.Document;
   sort: BSON.Document;
-  reloadOPJson: (
+  realodOPDocs: (
     filter: BSON.Document,
     sort: BSON.Document,
     page: number,
     pageSize: number
-  ) => Promise<JsonAndCount>;
+  ) => Promise<DocsAndCount>;
   modifyOP?: (doc: BSON.Document) => Promise<void>;
   deleteOP?: (ids: any[] | any) => Promise<void>;
   nonse;
 }) {
-  const { filter, sort, reloadOPJson, modifyOP, deleteOP, nonse } = props;
-  const [jsons, setJsons] = useState<JsonAndCount>({ docs: [], count: 0 });
+  const { filter, sort, realodOPDocs, modifyOP, deleteOP, nonse } = props;
+  const [jsons, setJsons] = useState<DocsAndCount>({ docs: [], count: 0 });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const { showNotification } = useContext(NotificationContext);
   const handleReload = async (showOK) => {
-    reloadOPJson(filter, sort, page, pageSize)
+    realodOPDocs(filter, sort, page, pageSize)
       .then((resp) => {
         setJsons(resp);
-
         if (showOK) {
           reloadOK(showNotification);
         }
@@ -901,22 +930,36 @@ function MongoTableJson(props: {
     <Stack spacing={1}>
       {jsons.docs.map((doc) => {
         return (
-          <JsonXXX
+          <ResizeWrapper
+            sizeKeyKind="height"
+            sizeKey="mongo-view-data-json"
+            height="300px"
             key={renderId(doc['_id'])}
-            value={doc}
-            modifyOP={async (doc) => {
-              try {
-                await modifyOP(doc);
-              } catch (e) {
-                showNotification('error', 'modify failed', e);
-                return;
+          >
+            <JsonEditor
+              value={doc}
+              modifyOP={
+                modifyOP
+                  ? async (doc) => {
+                      try {
+                        await modifyOP(doc);
+                      } catch (e) {
+                        showNotification('error', 'modify failed', e);
+                        return;
+                      }
+                      handleReload(false);
+                    }
+                  : undefined
               }
-              handleReload(false);
-            }}
-            handleDetele={() => {
-              handleDetele(doc['_id']);
-            }}
-          ></JsonXXX>
+              handleDetele={
+                deleteOP
+                  ? () => {
+                      handleDetele(doc['_id']);
+                    }
+                  : undefined
+              }
+            ></JsonEditor>
+          </ResizeWrapper>
         );
       })}
 
@@ -933,12 +976,13 @@ function MongoTableJson(props: {
   );
 }
 
-function JsonXXX(props: {
+function JsonEditor(props: {
   value: object;
-  modifyOP: (x: object) => void;
-  handleDetele;
+  modifyOP?: (x: object) => void;
+  modifyOPName?: string;
+  handleDetele?;
 }) {
-  const { value, modifyOP, handleDetele } = props;
+  const { value, modifyOP, handleDetele, modifyOPName } = props;
   const [newValue, setNewValue] = useState(JSON.stringify(value, null, 2));
   const [jsonErr, setJsonErr] = useState('');
   useEffect(() => {
@@ -952,29 +996,27 @@ function JsonXXX(props: {
   }, [newValue]);
 
   return (
-    <ResizeWrapper
-      sizeKeyKind="height"
-      sizeKey="mongo-view-data-json"
-      height="300px"
-    >
-      <SimpleFlexSizeEditor
-        value={newValue}
-        language="json"
-        onMount={(editor: editor.IStandaloneCodeEditor) => {
-          editor.onDidChangeModelContent(() => {
-            setNewValue(editor.getValue());
-          });
-        }}
-        barLeft=<Stack direction="row" alignItems="center">
+    <SimpleFlexSizeEditor
+      readOnly={!modifyOP}
+      value={newValue}
+      language="json"
+      onMount={(editor: editor.IStandaloneCodeEditor) => {
+        editor.onDidChangeModelContent(() => {
+          setNewValue(editor.getValue());
+        });
+      }}
+      barLeft=<Stack direction="row" alignItems="center">
+        {modifyOP && (
           <Button
             disabled={!!jsonErr}
             onClick={() => {
-              modifyOP(JSON.parse(newValue));
+              modifyOP(EJSON.parse(newValue));
             }}
           >
-            set
+            {modifyOPName ? modifyOPName : 'set'}
           </Button>
-
+        )}
+        {handleDetele && (
           <Button
             onClick={() => {
               handleDetele();
@@ -983,15 +1025,14 @@ function JsonXXX(props: {
           >
             delete
           </Button>
-
-          {jsonErr && (
-            <Typography color="error" fontWeight="bold">
-              {jsonErr}
-            </Typography>
-          )}
-        </Stack>
-      ></SimpleFlexSizeEditor>
-    </ResizeWrapper>
+        )}
+        {jsonErr && (
+          <Typography color="error" fontWeight="bold">
+            {jsonErr}
+          </Typography>
+        )}
+      </Stack>
+    ></SimpleFlexSizeEditor>
   );
 }
 
@@ -1225,41 +1266,15 @@ function MongoTableList(props: {
   const gridStyle = useMemo(() => {
     return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
   }, []);
+  const [modalBox, setModalBox] = useState(null);
+  useEffect(() => {
+    if (modalBox) {
+      let c = saveAndSetSize(modalBox, 'mongo-list-modify');
+      return c;
+    }
+  }, [modalBox]);
   return (
     <>
-      {selectModifyDoc && (
-        <Modal
-          open={!!selectModifyDoc}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-            e.preventDefault();
-            setSelectModifyDoc(null);
-          }}
-        >
-          <Box sx={modalStyle} width="75%">
-            <MongoDBModify
-              setOP={
-                modifyOP
-                  ? async (doc) => {
-                      try {
-                        await modifyOP(doc);
-                      } catch (e) {
-                        throw e;
-                      }
-                      setSelectModifyDoc(null);
-                      handleReload(false);
-                    }
-                  : undefined
-              }
-              doc={selectModifyDoc}
-              buttonName="modify"
-            ></MongoDBModify>
-          </Box>
-        </Modal>
-      )}
-
       {resp && (
         <Stack spacing={1}>
           {vis && (
@@ -1293,6 +1308,43 @@ function MongoTableList(props: {
             </div>
           )}
         </Stack>
+      )}
+      {selectModifyDoc && (
+        <Modal
+          open={!!selectModifyDoc}
+          onClose={(e: EscDownEvent, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            e.preventDefault();
+            setSelectModifyDoc(null);
+          }}
+        >
+          <Box
+            sx={{ resize: 'both', ...modalStyle }}
+            width="75%"
+            height="60vh"
+            ref={setModalBox}
+          >
+            <ModalHeader title="Modify data" />
+            <MongoDBModify
+              setOP={
+                modifyOP
+                  ? async (doc) => {
+                      try {
+                        await modifyOP(doc);
+                      } catch (e) {
+                        throw e;
+                      }
+                      setSelectModifyDoc(null);
+                      handleReload(false);
+                    }
+                  : undefined
+              }
+              doc={selectModifyDoc}
+            ></MongoDBModify>
+          </Box>
+        </Modal>
       )}
     </>
   );
@@ -1414,12 +1466,6 @@ function MongoTable(props: {
     page: number,
     pageSize: number
   ) => Promise<DocsAndCount>;
-  reloadOPJson: (
-    filter: BSON.Document,
-    sort: BSON.Document,
-    page: number,
-    pageSize: number
-  ) => Promise<JsonAndCount>;
   loadOne: (id: any) => Promise<BSON.Document>;
   modifyOP?: (doc: BSON.Document) => Promise<void>;
   deleteOP?: (ids: any[] | any) => Promise<void>;
@@ -1429,7 +1475,7 @@ function MongoTable(props: {
     loadOne,
     modifyOP,
     reloadOPDocs,
-    reloadOPJson,
+
     deleteOP,
   } = props;
   const [filter, setFilter] = useState<BSON.Document>({});
@@ -1441,7 +1487,7 @@ function MongoTable(props: {
   }, [viewModel]);
   return (
     <Stack spacing={1}>
-      <MongoTableListToolBar
+      <MongoTableToolBar
         addOP={async () => {}}
         sort={sort}
         filter={filter}
@@ -1459,7 +1505,7 @@ function MongoTable(props: {
         }}
         viewModel={viewModel}
         nonse={nonse}
-      ></MongoTableListToolBar>
+      ></MongoTableToolBar>
 
       {viewModel == MongoDataViewModel.List && (
         <MongoTableList
@@ -1491,7 +1537,7 @@ function MongoTable(props: {
         <MongoTableJson
           filter={filter}
           sort={sort}
-          reloadOPJson={reloadOPJson}
+          realodOPDocs={reloadOPDocs}
           modifyOP={modifyOP}
           deleteOP={deleteOP}
           nonse={nonse}
@@ -1532,21 +1578,13 @@ function MongoTableAdd(props: {
       }}
       ref={setDom}
     >
-      <MongoBsonEditor
+      <MongoDBModify
         doc={{}}
-        buttons={[
-          {
-            buttonText: 'add',
-            variant: 'contained',
-            disabled: (changed) => {
-              return !changed;
-            },
-            callBack: (doc) => {
-              handleAdd(doc);
-            },
-          },
-        ]}
-      ></MongoBsonEditor>
+        setName="add"
+        setOP={async (doc) => {
+          handleAdd(doc);
+        }}
+      ></MongoDBModify>
     </Stack>
   );
 }

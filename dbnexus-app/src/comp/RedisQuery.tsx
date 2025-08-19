@@ -150,7 +150,7 @@ function RedisQuery(props: {
         ]}
       ></SqlQuery>
 
-      <div>
+      <div style={{ height: '100vh' }}>
         {showDoc && (
           <iframe
             hidden={!showDoc}

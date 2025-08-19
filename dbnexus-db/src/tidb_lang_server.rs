@@ -119,8 +119,6 @@ impl LangServerCommon for TiDB {
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for TiDB {
-    type Dialect = sqlparser::dialect::MySqlDialect;
-
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         AstCompletionHelper::list_column(self, None, table_name, false).await
     }

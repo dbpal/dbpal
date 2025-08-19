@@ -366,14 +366,14 @@ impl MongoDB {
 
     pub async fn show_collection_json(
         &self, collection_name: &str, filter: Document, sort: Document, page: u64, page_size: u64,
-    ) -> anyhow::Result<JsonAndCount> {
+    ) -> anyhow::Result<DocsAndCount> {
         let db = self.get_db().await?;
         let count = db
             .collection::<u64>(collection_name)
             .count_documents(filter.clone())
             .await?;
         let mut stream = db
-            .collection::<serde_json::Value>(collection_name)
+            .collection::<bson::Document>(collection_name)
             .find(filter)
             .skip((page - 1) * page_size)
             .limit(page_size as i64)
@@ -385,7 +385,7 @@ impl MongoDB {
             let item = item?;
             docs.push(item);
         }
-        anyhow::Ok(JsonAndCount { docs, count })
+        anyhow::Ok(DocsAndCount { docs, count })
     }
 
     pub async fn show_collection_docs(

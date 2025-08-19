@@ -14,8 +14,6 @@ use tiberius::QueryItem;
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for MsSqlServerDB {
-    type Dialect = sqlparser::dialect::MsSqlDialect;
-
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         AstCompletionHelper::list_column(self, None, table_name, false).await
     }

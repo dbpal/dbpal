@@ -13,7 +13,6 @@ impl LexerCompletionTrait for OracleDB {
     async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
         AstCompletionHelper::list_procedure(self, None).await
     }
-    type Dialect = sqlparser::dialect::GenericDialect;
 
     const TYPES: &'static [&'static str] = ORACLE_TYPES;
 

@@ -13,8 +13,6 @@ use crate::pg::PostGresDB;
 use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
 impl LexerCompletionTrait for PostGresDB {
-    type Dialect = sqlparser::dialect::PostgreSqlDialect;
-
     const TYPES: &'static [&'static str] = TYPES;
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {

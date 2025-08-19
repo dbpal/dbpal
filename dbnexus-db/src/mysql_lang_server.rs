@@ -17,8 +17,6 @@ use crate::sqlparser_completion::TempTableColumn;
 use sqlx::{Column, Executor, Statement};
 #[async_trait::async_trait]
 impl LexerCompletionTrait for MysqlDB {
-    type Dialect = sqlparser::dialect::MySqlDialect;
-
     const TYPES: &'static [&'static str] = TYPES;
 
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {

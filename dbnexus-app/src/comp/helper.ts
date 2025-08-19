@@ -528,10 +528,8 @@ function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "bo
 class DocsAndCount {
   constructor(public docs: BSON.Document[], public count: number) { }
 }
-class JsonAndCount {
-  docs: object[];
-  count: number;
-}
+
+
 class MongoTableHandler {
   static reloadTableList(uuid: string, table) {
     return async (filter, sort, page, pageSize): Promise<types.MuiDataGridData> => {
@@ -566,18 +564,6 @@ class MongoTableHandler {
       }
     }
   }
-  static reloadJson(uuid: string, table) {
-    return async (filter, sort, page, pageSize): Promise<JsonAndCount> => {
-      return await invoke('mongo_show_collection_json', {
-        name: uuid,
-        tableName: table,
-        filter: BSON.serialize(filter),
-        sort: BSON.serialize(sort),
-        page,
-        pageSize,
-      });
-    }
-  }
   static loadOne(uuid: string, table) {
     return async (id): Promise<BSON.Document> => {
       try {
@@ -592,8 +578,6 @@ class MongoTableHandler {
       }
     }
   }
-
-
 }
 const appFontWeight = "560";
 export {
@@ -633,7 +617,6 @@ export {
   appFontWeight,
   DocsAndCount,
   MongoTableHandler,
-  JsonAndCount,
   validJsonBson
 };
 

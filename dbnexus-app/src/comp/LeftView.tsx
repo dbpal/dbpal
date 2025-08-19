@@ -573,7 +573,6 @@ function ViewMenu(props: {
         list = (
           <MongoTable
             reloadOPTableList={MongoTableHandler.reloadTableList(uuid, view)}
-            reloadOPJson={MongoTableHandler.reloadJson(uuid, view)}
             reloadOPDocs={MongoTableHandler.reloadDocs(uuid, view)}
             loadOne={MongoTableHandler.loadOne(uuid, view)}
           ></MongoTable>

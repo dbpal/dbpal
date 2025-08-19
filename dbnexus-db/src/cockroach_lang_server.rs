@@ -54,7 +54,6 @@ impl LexerCompletionTrait for CockRoachDB {
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         AstCompletionHelper::list_column(self.pg.as_ref(), None, table_name, false).await
     }
-    type Dialect = sqlparser::dialect::PostgreSqlDialect;
 
     const TYPES: &'static [&'static str] = COCKROACH_DATA_TYPES;
 

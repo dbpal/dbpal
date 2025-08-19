@@ -165,7 +165,7 @@ function TabsWithContent_(props: {
       </div>
       <div
         style={{
-          paddingRight: '1.6rem',
+          paddingRight: '1.8rem',
         }}
       >
         {tabs.map((tab, index) => (

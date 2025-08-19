@@ -112,8 +112,6 @@ impl AstCompletionHelper for FireBirdDB {
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for FireBirdDB {
-    type Dialect = sqlparser::dialect::GenericDialect;
-
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = TYPES;
     async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {

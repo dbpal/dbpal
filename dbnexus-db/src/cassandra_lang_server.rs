@@ -40,8 +40,6 @@ impl LanguageServer for CassandraDB {
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for CassandraDB {
-    type Dialect = sqlparser::dialect::GenericDialect;
-
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = TYPES;
 
