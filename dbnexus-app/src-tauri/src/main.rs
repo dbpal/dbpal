@@ -41,7 +41,7 @@ use handlers::{
     rename_sequnce, rename_table, save_entered_password, save_password, server_metas,
     set_auto_completion_query_id, show_indexes, show_procedure, show_table, show_table_columns,
     show_trigger, show_udf, show_view, show_view_columns, table_delete, table_insert, table_update,
-    test_connection, truncate_table, valid_json, valid_json_bson,
+    test_connection, truncate_table, valid_json,
 };
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
@@ -393,7 +393,6 @@ fn main_() {
             rename_sequnce,
             command_panic,
             set_auto_completion_query_id,
-            valid_json_bson,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

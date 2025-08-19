@@ -481,9 +481,7 @@ function validJson(s: string): Promise<void> {
   return invoke<void>("valid_json", { jsonStr: s })
 }
 
-function validJsonBson(s: string): Promise<void> {
-  return invoke<void>("valid_json_bson", { jsonStr: s })
-}
+
 
 function resetMuiDataRespWidth(old: types.MuiDataGridData): types.MuiDataGridData {
   return {
@@ -616,7 +614,6 @@ export {
   SaveSizesToStore,
   appFontWeight,
   DocsAndCount,
-  MongoTableHandler,
-  validJsonBson
+  MongoTableHandler
 };
 

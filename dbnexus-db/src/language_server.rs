@@ -229,7 +229,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
         ret.extend(
             self.list_execute(None)
                 .await
-                .map_err(|err| log::error!("list prepares failed,err:{}", err))
+                .map_err(|err| log::error!("list execute failed,err:{}", err))
                 .unwrap_or_default()
                 .into_iter()
                 .map(CompletionItem::from),

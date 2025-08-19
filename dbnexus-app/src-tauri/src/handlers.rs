@@ -2561,18 +2561,6 @@ pub fn valid_json(json_str: String) -> Result<(), String> {
     }
 }
 
-#[tauri::command]
-pub fn valid_json_bson(json_str: String) -> Result<(), String> {
-    use serde_json::Value;
-    let x = match serde_json::from_str::<Value>(&json_str) {
-        Ok(x) => Ok(x),
-        Err(e) => Err(format!("{}", e)),
-    }?;
-    serde_json::from_value::<bson::Document>(x)
-        .map_err(|x| x.to_string())
-        .map(|_| ())
-}
-
 #[derive(serde::Serialize)]
 pub struct DocsAndCount {
     count: u64,

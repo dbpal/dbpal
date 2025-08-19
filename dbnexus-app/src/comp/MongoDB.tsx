@@ -89,7 +89,7 @@ import {
   handleCopyToClipboard,
   resetMuiDataRespWidth,
   saveAndSetSize,
-  validJsonBson,
+  validJson,
   VisiableContext,
 } from './helper';
 
@@ -946,13 +946,21 @@ function JsonEditor(props: {
   const [jsonErr, setJsonErr] = useState('');
   const [loading, setLoading] = useState(false);
   useEffect(() => {
-    validJsonBson(newValue)
-      .then(() => {
-        setJsonErr(null);
-      })
-      .catch((e) => {
+    (async () => {
+      try {
+        await validJson(newValue);
+      } catch (e) {
         setJsonErr(e);
-      });
+        return;
+      }
+      try {
+        EJSON.parse(newValue);
+      } catch (e) {
+        setJsonErr(e.toString());
+        return;
+      }
+      setJsonErr('');
+    })();
   }, [newValue]);
 
   return (
