@@ -362,28 +362,17 @@ function MongoBsonEditor(props: {
   );
 }
 
-function MongoDBModify(props: {
+function MongoValueEditor(props: {
   doc: BSON.Document;
-  setOP?: (doc: BSON.Document) => Promise<void>;
-  handleClose?;
+  setOP?: (doc: BSON.Document) => void;
   setName?;
 }) {
-  let { doc, setOP, handleClose, setName } = props;
+  let { doc, setOP, setName } = props;
   if (!setName) {
     setName = 'set';
   }
-  const { showNotification } = useContext(NotificationContext);
   const handleModify = (doc) => {
-    setOP(doc)
-      .then(() => {
-        showNotification('success', 'Modify OK');
-        if (handleClose) {
-          handleClose();
-        }
-      })
-      .catch((e) => {
-        showNotification('error', 'Modify failure', e);
-      });
+    setOP(doc);
   };
   const [viewModel, setViewModel] = useState(MongoDataViewModel.Object);
   return (
@@ -413,9 +402,13 @@ function MongoDBModify(props: {
       {viewModel == MongoDataViewModel.Json && (
         <JsonEditor
           value={JSON.parse(EJSON.stringify(doc))}
-          modifyOP={(e) => {
-            handleModify(e);
-          }}
+          modifyOP={
+            setOP
+              ? (e) => {
+                  handleModify(e);
+                }
+              : undefined
+          }
           modifyOPName={setName}
         ></JsonEditor>
       )}
@@ -575,15 +568,13 @@ function MongoTableToolBar(props: {
             height="45vh"
           >
             <ModalHeader title="Modify Filter"></ModalHeader>
-            <MongoDBModify
-              setOP={async (doc) => {
+            <MongoValueEditor
+              setOP={(doc) => {
                 handleFilter(doc);
-              }}
-              handleClose={() => {
                 setShowModifyFilter(false);
               }}
               doc={filter}
-            ></MongoDBModify>
+            ></MongoValueEditor>
           </Box>
         </Modal>
       )}
@@ -607,15 +598,13 @@ function MongoTableToolBar(props: {
             height="45vh"
           >
             <ModalHeader title="Modify Sort"></ModalHeader>
-            <MongoDBModify
-              setOP={async (doc) => {
+            <MongoValueEditor
+              setOP={(doc) => {
                 handleSort(doc);
-              }}
-              handleClose={() => {
                 setShowModifySort(false);
               }}
               doc={sort}
-            ></MongoDBModify>
+            ></MongoValueEditor>
           </Box>
         </Modal>
       )}
@@ -1327,7 +1316,7 @@ function MongoTableList(props: {
             ref={setModalBox}
           >
             <ModalHeader title="Modify data" />
-            <MongoDBModify
+            <MongoValueEditor
               setOP={
                 modifyOP
                   ? async (doc) => {
@@ -1342,7 +1331,7 @@ function MongoTableList(props: {
                   : undefined
               }
               doc={selectModifyDoc}
-            ></MongoDBModify>
+            ></MongoValueEditor>
           </Box>
         </Modal>
       )}
@@ -1578,15 +1567,15 @@ function MongoTableAdd(props: {
       }}
       ref={setDom}
     >
-      <MongoDBModify
+      <MongoValueEditor
         doc={{}}
         setName="add"
-        setOP={async (doc) => {
+        setOP={(doc) => {
           handleAdd(doc);
         }}
-      ></MongoDBModify>
+      ></MongoValueEditor>
     </Stack>
   );
 }
 
-export { MongoBsonEditor, MongoTable, MongoTableAdd };
+export { MongoValueEditor, MongoTable, MongoTableAdd };

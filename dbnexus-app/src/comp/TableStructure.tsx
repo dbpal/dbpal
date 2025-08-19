@@ -63,7 +63,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import AddIcon from '@mui/icons-material/Add';
 import { BSON } from 'bson';
-import { MongoBsonEditor } from './MongoDB';
+import { MongoValueEditor } from './MongoDB';
 import { TriggerDetail } from './TriggerDetail';
 import { ModalHeader, TrueOrFalse } from './CommonComp';
 
@@ -784,18 +784,13 @@ function MongoAddIndex(props: { uuid; table; handleClose; realod }) {
           <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
         ))}
       </RadioGroup>
-      <MongoBsonEditor
+      <MongoValueEditor
+        setOP={async (doc) => {
+          handleAdd(doc);
+        }}
         doc={{}}
-        buttons={[
-          {
-            buttonText: 'create',
-            variant: 'contained',
-            callBack: (keys) => {
-              handleAdd(keys);
-            },
-          },
-        ]}
-      ></MongoBsonEditor>
+        setName="create index"
+      ></MongoValueEditor>
     </Stack>
   );
 }
