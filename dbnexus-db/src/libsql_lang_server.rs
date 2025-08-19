@@ -24,14 +24,22 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = SQLITE_TYPES;
 
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, table_name, false).await
-    }
-
     async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
         AstCompletionHelper::sqlite_pragma(self).await
     }
+}
 
+#[async_trait::async_trait]
+impl LangServerCommon for LibSqlDB {
+    async fn list_column(
+        &self, _schema: Option<&str>, name: &str, is_call: bool,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        let sql = format!(
+            r#"select * from "{name}"{} limit 1"#,
+            if is_call { "()" } else { "" }
+        );
+        self.get_query_columns(&sql).await
+    }
     // some backend can use a query to query this.
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut lock = self.keywords_completion.lock().await;
@@ -50,108 +58,6 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
         );
         return anyhow::Ok(lock.clone());
     }
-
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let mut ret: Vec<_> = self
-            .list_table_impl(SqliteDB::MAIN_DB)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())?;
-        ret.extend(
-            self.list_view_impl(SqliteDB::MAIN_DB)
-                .await
-                .map(|x| x.into_iter().map(|x| x.name).collect::<Vec<_>>())?
-                .into_iter(),
-        );
-        anyhow::Ok(ret)
-    }
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, true).await
-    }
-}
-
-#[async_trait::async_trait]
-impl LangServerCommon for LibSqlDB {
-    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
-        Box::new(sqlparser::dialect::SQLiteDialect {})
-    }
-    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let conn = self.query_connections.get(&AutoCompletionUuid::get());
-        if conn.is_none() {
-            anyhow::bail!("query id should have connection")
-        }
-        let conn = conn.unwrap();
-        let sql = "PRAGMA database_list";
-        let mut rows = conn.query(sql, params!()).await?;
-        let mut ret = vec![];
-        while let Some(row) = rows.next().await? {
-            let name: String = row.get(1)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
-    }
-}
-
-impl LibSqlDB {
-    fn merge_schema(db: Option<&str>) -> &str {
-        db.unwrap_or(SqliteDB::MAIN_DB)
-    }
-}
-
-#[async_trait::async_trait]
-impl AstCompletionHelper for LibSqlDB {
-    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::merge_schema(schema);
-        self.list_view_impl(schema)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-
-    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::merge_schema(schema);
-        self.list_table_impl(schema)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-
-    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        let conn = self.get_conn().await?;
-        log::info!("sql:{}", sql);
-        let mut stmt = conn.prepare(sql).await?;
-        let ret = stmt
-            .columns()
-            .iter()
-            .map(|x| TempTableColumn {
-                name: x.name().to_string(),
-                typ: Some(x.decl_type().unwrap_or_default().to_string()),
-            })
-            .collect::<Vec<_>>();
-        // check if prepare return the reuslt.
-        if !ret.is_empty() {
-            return anyhow::Ok(ret);
-        }
-
-        let row = stmt.query_row(params!()).await?;
-        anyhow::Ok(
-            (0..row.column_count())
-                .map(|index| TempTableColumn {
-                    name: row.column_name(index).unwrap_or_default().to_owned(),
-                    typ: row.column_type(index).ok().map(|x| format!("{:?}", x)),
-                })
-                .collect(),
-        )
-    }
-
-    async fn list_column(
-        &self, _schema: Option<&str>, name: &str, is_call: bool,
-    ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let sql = format!(
-            r#"select * from "{name}"{} limit 1"#,
-            if is_call { "()" } else { "" }
-        );
-        self.get_query_columns(&sql).await
-    }
-
     async fn list_function(
         &self, _schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -183,6 +89,75 @@ impl AstCompletionHelper for LibSqlDB {
             });
         }
         return anyhow::Ok(lock.clone());
+    }
+
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = Self::merge_schema(schema);
+        self.list_view_impl(schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = Self::merge_schema(schema);
+        self.list_table_impl(schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::SQLiteDialect {})
+    }
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        let conn = self.query_connections.get(&AutoCompletionUuid::get());
+        if conn.is_none() {
+            anyhow::bail!("query id should have connection")
+        }
+        let conn = conn.unwrap();
+        let sql = "PRAGMA database_list";
+        let mut rows = conn.query(sql, params!()).await?;
+        let mut ret = vec![];
+        while let Some(row) = rows.next().await? {
+            let name: String = row.get(1)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+}
+
+impl LibSqlDB {
+    fn merge_schema(db: Option<&str>) -> &str {
+        db.unwrap_or(SqliteDB::MAIN_DB)
+    }
+}
+
+#[async_trait::async_trait]
+impl AstCompletionHelper for LibSqlDB {
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        let conn = self.get_conn().await?;
+        log::info!("sql:{}", sql);
+        let mut stmt = conn.prepare(sql).await?;
+        let ret = stmt
+            .columns()
+            .iter()
+            .map(|x| TempTableColumn {
+                name: x.name().to_string(),
+                typ: Some(x.decl_type().unwrap_or_default().to_string()),
+            })
+            .collect::<Vec<_>>();
+        // check if prepare return the reuslt.
+        if !ret.is_empty() {
+            return anyhow::Ok(ret);
+        }
+
+        let row = stmt.query_row(params!()).await?;
+        anyhow::Ok(
+            (0..row.column_count())
+                .map(|index| TempTableColumn {
+                    name: row.column_name(index).unwrap_or_default().to_owned(),
+                    typ: row.column_type(index).ok().map(|x| format!("{:?}", x)),
+                })
+                .collect(),
+        )
     }
 
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {

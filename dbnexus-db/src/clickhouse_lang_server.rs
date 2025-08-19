@@ -39,11 +39,79 @@ impl ClickHouseDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for ClickHouseDB {
+    async fn list_column(
+        &self, schema: Option<&str>, name: &str, _is_call: bool,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        let sql = format!(
+            r#"select * from {}"{}""#,
+            match schema {
+                Some(x) => format!("\"{}\".", x),
+                None => "".to_string(),
+            },
+            name
+        );
+        self.get_query_columns(&sql).await
+    }
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut lock = self.key_word_completion.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+
+        let sql = "select * from system.keywords";
+        let conn = self.get_conn()?;
+        let ret: Vec<String> = conn.query(sql).fetch_all().await?;
+        lock.extend(ret.into_iter().map(|x| CompletionItem {
+            item: x.into(),
+            kind: CompletionKind::KeyWord,
+            desc: None,
+        }));
+        return anyhow::Ok(lock.clone());
+    }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         DBTrait::list_schema(self).await
     }
+
+    async fn list_function(
+        &self, _schema: Option<&str>, _include_build_in: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let sql = "select name , description from system.functions";
+        let conn = self.get_conn()?;
+        let result: Vec<(String, String)> = conn.query(sql).fetch_all().await?;
+
+        anyhow::Ok(
+            result
+                .into_iter()
+                .map(|(name, desc)| CompletionItem {
+                    item: name.into(),
+                    kind: CompletionKind::Function,
+                    desc: Some(desc.into()),
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
         Box::new(sqlparser::dialect::ClickHouseDialect {})
+    }
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let db = Self::not_allow_none_schema(self.schema_merge_config(schema))?;
+        let v = self.list_table_impl(db).await?;
+        anyhow::Ok(v.into_iter().map(|x| x.name).collect())
+    }
+
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let db = Self::not_allow_none_schema(self.schema_merge_config(schema))?;
+        let mut ret = Vec::new();
+        ret.extend(self.list_view_impl(db).await?.into_iter().map(|x| x.name));
+        ret.extend(
+            self.list_materialized_view_impl(db)
+                .await?
+                .into_iter()
+                .map(|x| x.name),
+        );
+        anyhow::Ok(ret)
     }
 }
 
@@ -77,25 +145,6 @@ impl AstCompletionHelper for ClickHouseDB {
         anyhow::Ok(result)
     }
 
-    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_none_schema(self.schema_merge_config(schema))?;
-        let v = self.list_table_impl(db).await?;
-        anyhow::Ok(v.into_iter().map(|x| x.name).collect())
-    }
-
-    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_none_schema(self.schema_merge_config(schema))?;
-        let mut ret = Vec::new();
-        ret.extend(self.list_view_impl(db).await?.into_iter().map(|x| x.name));
-        ret.extend(
-            self.list_materialized_view_impl(db)
-                .await?
-                .into_iter()
-                .map(|x| x.name),
-        );
-        anyhow::Ok(ret)
-    }
-
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!("select * from({}) limit 1", sql);
         let meta = self.query_as_json(&sql).await?.meta;
@@ -112,39 +161,6 @@ impl AstCompletionHelper for ClickHouseDB {
         )
     }
 
-    async fn list_column(
-        &self, schema: Option<&str>, name: &str, _is_call: bool,
-    ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let sql = format!(
-            r#"select * from {}"{}""#,
-            match schema {
-                Some(x) => format!("\"{}\".", x),
-                None => "".to_string(),
-            },
-            name
-        );
-        self.get_query_columns(&sql).await
-    }
-
-    async fn list_function(
-        &self, _schema: Option<&str>, _include_build_in: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let sql = "select name , description from system.functions";
-        let conn = self.get_conn()?;
-        let result: Vec<(String, String)> = conn.query(sql).fetch_all().await?;
-
-        anyhow::Ok(
-            result
-                .into_iter()
-                .map(|(name, desc)| CompletionItem {
-                    item: name.into(),
-                    kind: CompletionKind::Function,
-                    desc: Some(desc.into()),
-                })
-                .collect::<Vec<_>>(),
-        )
-    }
-
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
@@ -152,48 +168,8 @@ impl AstCompletionHelper for ClickHouseDB {
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for ClickHouseDB {
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, table_name, false).await
-    }
-
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = TYPES;
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, true).await
-    }
-
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.key_word_completion.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
-
-        let sql = "select * from system.keywords";
-        let conn = self.get_conn()?;
-        let ret: Vec<String> = conn.query(sql).fetch_all().await?;
-        lock.extend(ret.into_iter().map(|x| CompletionItem {
-            item: x.into(),
-            kind: CompletionKind::KeyWord,
-            desc: None,
-        }));
-        return anyhow::Ok(lock.clone());
-    }
-
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let mut x = AstCompletionHelper::list_table(self, None)
-            .await
-            .ok()
-            .unwrap_or_default();
-        x.extend(
-            AstCompletionHelper::list_view(self, None)
-                .await
-                .ok()
-                .unwrap_or_default()
-                .into_iter(),
-        );
-        anyhow::Ok(x)
-    }
 }
 
 const TYPES: &[&str] = &[
@@ -237,7 +213,7 @@ mod tests {
     use crate::clickhouse::{ClickHouseDB, make_test_object};
     use crate::db::{QuerySql, monaco_editor_keyword_regexp};
     use crate::enable_test_log;
-    use crate::language_server::LexerCompletionTrait;
+    use crate::language_server::LangServerCommon;
     use crate::language_server::completion_test::test_file_auto_completion;
 
     // partition test failed , sqlparser can't parse a valid partition statement.
@@ -311,7 +287,7 @@ mod tests {
     async fn print_key_words() {
         let db = make_test_object();
 
-        let keywords = <ClickHouseDB as LexerCompletionTrait>::get_key_words_fn(&db)
+        let keywords = <ClickHouseDB as LangServerCommon>::get_key_words_fn(&db)
             .await
             .unwrap()
             .into_iter()

@@ -187,22 +187,6 @@ impl LexerCompletionTrait for DuckDB {
         AstCompletionHelper::list_function(self, None, None, true).await
     }
 
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_empty_db(self.db_merge_config(None)).unwrap_or_default();
-        let schema =
-            Self::not_allow_empty_schema(self.schema_merge_config(None)).unwrap_or_default();
-        let mut ret: Vec<String> = vec![];
-        if !db.is_empty() && !schema.is_empty() {
-            ret.extend(
-                self.list_table_impl(db, schema)?
-                    .into_iter()
-                    .map(|x| x.name),
-            );
-            ret.extend(self.list_view_impl(db, schema)?.into_iter().map(|x| x.name));
-        }
-        anyhow::Ok(ret)
-    }
-
     // some backend can use a query to query this.
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let sql = "select  keyword_name from duckdb_keywords() ";

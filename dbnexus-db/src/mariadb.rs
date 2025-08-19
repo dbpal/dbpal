@@ -452,7 +452,7 @@ pub(crate) async fn make_test_object_mariadb(config: MysqlDBConfig) -> MariaDB {
 mod tests {
     use super::*;
     use crate::db::{AutoCompletionUuid, QuerySql, SchemaTrait, monaco_editor_keyword_regexp};
-    use crate::language_server::{LangServerCommon, LexerCompletionTrait};
+    use crate::language_server::LangServerCommon;
     use crate::mariadb::{MariaDB, make_config};
     use crate::mysql::test_fns::{self, make_test_object};
 
@@ -511,7 +511,7 @@ mod tests {
     async fn print_key_words() {
         let db = make_test_object_mariadb(make_config()).await;
 
-        let keywords = <MariaDB as LexerCompletionTrait>::get_key_words_fn(&db)
+        let keywords = <MariaDB as LangServerCommon>::get_key_words_fn(&db)
             .await
             .unwrap()
             .into_iter()

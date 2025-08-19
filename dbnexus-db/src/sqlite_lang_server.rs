@@ -13,6 +13,86 @@ use crate::sqlparser_completion::TempTableColumn;
 
 #[async_trait::async_trait]
 impl LangServerCommon for SqliteDB {
+    async fn list_column(
+        &self, schema: Option<&str>, name: &str, is_call: bool,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        let schema = Self::mrege_schema(schema);
+        let sql = format!(
+            r#"select * from "{schema}"."{name}{}" limit 1"#,
+            if is_call { "()" } else { "" }
+        );
+        log::info!("sql:{}", sql);
+        self.get_query_columns(&sql).await
+    }
+    // some backend can use a query to query this.
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut lock = self.keywords_completion.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+        let ret: Vec<_> = SQLITE_KEY_WORDS
+            .iter()
+            .map(|x| CompletionItem {
+                item: x.to_string().into(),
+                kind: CompletionKind::KeyWord,
+                desc: None,
+            })
+            .collect();
+        *lock = ret.clone();
+        anyhow::Ok(ret)
+    }
+    async fn list_function(
+        &self, _schema: Option<&str>, include_build_in: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        // sqlite function are all build in functions
+        if !include_build_in {
+            return anyhow::Ok(vec![]);
+        }
+
+        let mut lock = self.build_fn_cache.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+        let sql = r#"
+            SELECT name 
+            FROM pragma_function_list()
+            ORDER BY name;
+        "#;
+        let mut conn = self.get_conn().await?;
+
+        let rows = sqlx::raw_sql(sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = vec![];
+
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            if !name_start_ascii_alphabetic(&name) {
+                // I have seen -> comming out
+                continue;
+            }
+            ret.push(CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Function,
+                desc: None,
+            });
+        }
+        *lock = ret.clone();
+        return anyhow::Ok(lock.clone());
+    }
+
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = Self::mrege_schema(schema);
+        self.list_view_impl(schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = Self::mrege_schema(schema);
+        self.list_table_impl(schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
         Box::new(sqlparser::dialect::SQLiteDialect {})
     }
@@ -44,48 +124,8 @@ impl crate::language_server::LexerCompletionTrait for SqliteDB {
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = SQLITE_TYPES;
 
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, table_name, false).await
-    }
-
     async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
         AstCompletionHelper::sqlite_pragma(self).await
-    }
-
-    // some backend can use a query to query this.
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.keywords_completion.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
-        let ret: Vec<_> = SQLITE_KEY_WORDS
-            .iter()
-            .map(|x| CompletionItem {
-                item: x.to_string().into(),
-                kind: CompletionKind::KeyWord,
-                desc: None,
-            })
-            .collect();
-        *lock = ret.clone();
-        anyhow::Ok(ret)
-    }
-
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let mut ret: Vec<_> = self
-            .list_table_impl(SqliteDB::MAIN_DB)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())?;
-        ret.extend(
-            self.list_view_impl(SqliteDB::MAIN_DB)
-                .await
-                .map(|x| x.into_iter().map(|x| x.name).collect::<Vec<_>>())?
-                .into_iter(),
-        );
-        anyhow::Ok(ret)
-    }
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, true).await
     }
 }
 
@@ -147,20 +187,6 @@ impl SqliteDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for SqliteDB {
-    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::mrege_schema(schema);
-        self.list_view_impl(schema)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-
-    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::mrege_schema(schema);
-        self.list_table_impl(schema)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let s = match self.query_connection.get(&AutoCompletionUuid::get()) {
             Some(conn) => {
@@ -187,56 +213,6 @@ impl AstCompletionHelper for SqliteDB {
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
-    }
-
-    async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: bool,
-    ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let schema = Self::mrege_schema(schema);
-        let sql = format!(
-            r#"select * from "{schema}"."{name}{}" limit 1"#,
-            if is_call { "()" } else { "" }
-        );
-        log::info!("sql:{}", sql);
-        self.get_query_columns(&sql).await
-    }
-
-    async fn list_function(
-        &self, _schema: Option<&str>, include_build_in: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        // sqlite function are all build in functions
-        if !include_build_in {
-            return anyhow::Ok(vec![]);
-        }
-
-        let mut lock = self.build_fn_cache.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
-        let sql = r#"
-            SELECT name 
-            FROM pragma_function_list()
-            ORDER BY name;
-        "#;
-        let mut conn = self.get_conn().await?;
-
-        let rows = sqlx::raw_sql(sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = vec![];
-
-        for row in rows.iter() {
-            let name: String = row.try_get(0)?;
-            if !name_start_ascii_alphabetic(&name) {
-                // I have seen -> comming out
-                continue;
-            }
-            ret.push(CompletionItem {
-                item: name.into(),
-                kind: CompletionKind::Function,
-                desc: None,
-            });
-        }
-        *lock = ret.clone();
-        return anyhow::Ok(lock.clone());
     }
 
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {

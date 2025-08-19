@@ -19,69 +19,8 @@ use sqlx::{Column, Executor, Statement};
 impl LexerCompletionTrait for MysqlDB {
     const TYPES: &'static [&'static str] = TYPES;
 
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, table_name, false).await
-    }
-
-    async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_procedure(self, None).await
-    }
-
     async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
         self.build_fn_completion_items().await
-    }
-
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.key_word_completion.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql("SELECT  * from information_schema.KEYWORDS")
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = vec![];
-        for row in rows.iter() {
-            let name: Option<String> = row.try_get(0)?;
-            if let Some(name) = name {
-                if !name_start_ascii_alphabetic(&name) {
-                    continue;
-                }
-                ret.push(CompletionItem {
-                    item: name.into(),
-                    kind: CompletionKind::KeyWord,
-                    desc: None,
-                });
-            }
-        }
-        *lock = ret;
-        return anyhow::Ok(lock.clone());
-    }
-
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        // when suggest on table or view using lexer I don't know the table schema
-        // we just select all from the database
-
-        let sql = r#"
-        
-        SELECT table_name 
-        FROM information_schema.tables  ORDER BY  table_name;
-        "#;
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get_unchecked(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, true).await
     }
 }
 
@@ -142,111 +81,6 @@ impl MysqlDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for MysqlDB {
-    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
-        Box::new(sqlparser::dialect::MySqlDialect {})
-    }
-    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        MysqlDB::list_schema_impl(self).await
-    }
-    async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
-        /*
-            TODO should execute this sql but somehow owner_thread_id = connection_id()  match not working
-            why????
-            SELECT statement_id, sql_text ,statement_name   FROM performance_schema.prepared_statements_instances WHERE owner_thread_id = connection_id() and  statement_name is not null;
-        */
-
-        let conn = self.query_connection.get(&AutoCompletionUuid::get());
-        if conn.is_none() {
-            anyhow::bail!("should be able to get connection")
-        }
-        let conn = conn.unwrap();
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let sql = r#"
-            SELECT  sql_text ,statement_name   
-                FROM performance_schema.prepared_statements_instances WHERE 
-                 statement_name is not null;
-        "#;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let text: String = row.try_get(0)?;
-            let name: String = row.try_get(1)?;
-            ret.push(DBExecutable {
-                name,
-                statement: Some(text),
-            });
-        }
-        anyhow::Ok(ret)
-    }
-}
-
-#[async_trait::async_trait]
-impl AstCompletionHelper for MysqlDB {
-    async fn keywords(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        LexerCompletionTrait::get_key_words_fn(self).await
-    }
-
-    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
-        self.list_table_impl(schema)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-
-    async fn mysql_show_create_trigger(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(None))?;
-        let sql = format!(
-            r#"
-            SELECT TRIGGER_NAME 
-                FROM INFORMATION_SCHEMA.TRIGGERS
-                WHERE TRIGGER_SCHEMA = '{}'
-         "#,
-            schema
-        );
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-
-        for row in rows.iter() {
-            let name: String = row.try_get(0)?;
-            ret.push(CompletionItem {
-                item: name.into(),
-                kind: CompletionKind::Trigger,
-                desc: None,
-            });
-        }
-
-        anyhow::Ok(ret)
-    }
-
-    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
-        self.list_view_impl(schema)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-
-    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        let mut conn = self.get_conn().await?;
-        let s = conn
-            .deref_mut()
-            .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
-            .await?;
-        let ret = s
-            .columns()
-            .iter()
-            .map(|x| TempTableColumn {
-                name: x.name().to_string(),
-                typ: Some(x.type_info().to_string()),
-            })
-            .collect::<Vec<_>>();
-        anyhow::Ok(ret)
-    }
     async fn list_column(
         &self, schema: Option<&str>, name: &str, _is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
@@ -260,7 +94,32 @@ impl AstCompletionHelper for MysqlDB {
         log::info!("sql:{}", sql);
         self.get_query_columns(&sql).await
     }
-
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut lock = self.key_word_completion.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql("SELECT  * from information_schema.KEYWORDS")
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = vec![];
+        for row in rows.iter() {
+            let name: Option<String> = row.try_get(0)?;
+            if let Some(name) = name {
+                if !name_start_ascii_alphabetic(&name) {
+                    continue;
+                }
+                ret.push(CompletionItem {
+                    item: name.into(),
+                    kind: CompletionKind::KeyWord,
+                    desc: None,
+                });
+            }
+        }
+        *lock = ret;
+        return anyhow::Ok(lock.clone());
+    }
     async fn list_function(
         &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -305,6 +164,107 @@ impl AstCompletionHelper for MysqlDB {
             schema,
         )
         .await
+    }
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
+        self.list_table_impl(schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(schema))?;
+        self.list_view_impl(schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::MySqlDialect {})
+    }
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        MysqlDB::list_schema_impl(self).await
+    }
+    async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
+        /*
+            TODO should execute this sql but somehow owner_thread_id = connection_id()  match not working
+            why????
+            SELECT statement_id, sql_text ,statement_name   FROM performance_schema.prepared_statements_instances WHERE owner_thread_id = connection_id() and  statement_name is not null;
+        */
+
+        let conn = self.query_connection.get(&AutoCompletionUuid::get());
+        if conn.is_none() {
+            anyhow::bail!("should be able to get connection")
+        }
+        let conn = conn.unwrap();
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        let sql = r#"
+            SELECT  sql_text ,statement_name   
+                FROM performance_schema.prepared_statements_instances WHERE 
+                 statement_name is not null;
+        "#;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let text: String = row.try_get(0)?;
+            let name: String = row.try_get(1)?;
+            ret.push(DBExecutable {
+                name,
+                statement: Some(text),
+            });
+        }
+        anyhow::Ok(ret)
+    }
+}
+
+#[async_trait::async_trait]
+impl AstCompletionHelper for MysqlDB {
+    async fn mysql_show_create_trigger(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let schema = MysqlDB::not_allow_empty_schema(self.merge_schema(None))?;
+        let sql = format!(
+            r#"
+            SELECT TRIGGER_NAME 
+                FROM INFORMATION_SCHEMA.TRIGGERS
+                WHERE TRIGGER_SCHEMA = '{}'
+         "#,
+            schema
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            ret.push(CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Trigger,
+                desc: None,
+            });
+        }
+
+        anyhow::Ok(ret)
+    }
+
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        let mut conn = self.get_conn().await?;
+        let s = conn
+            .deref_mut()
+            .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
+            .await?;
+        let ret = s
+            .columns()
+            .iter()
+            .map(|x| TempTableColumn {
+                name: x.name().to_string(),
+                typ: Some(x.type_info().to_string()),
+            })
+            .collect::<Vec<_>>();
+        anyhow::Ok(ret)
     }
 
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
@@ -426,8 +386,8 @@ mod tests {
 
     use crate::datasource_config::MysqlDBConfig;
     use crate::db::{AutoCompletionUuid, QuerySql, monaco_editor_keyword_regexp};
+    use crate::language_server::LangServerCommon;
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::language_server::{LangServerCommon, LexerCompletionTrait};
     use crate::mysql::MysqlDB;
     use crate::{TEST_HOST, enable_test_log};
 
@@ -453,7 +413,7 @@ mod tests {
     async fn print_key_words() {
         let db = make_test_object(make_config()).await;
 
-        let keywords = <MysqlDB as LexerCompletionTrait>::get_key_words_fn(&db)
+        let keywords = <MysqlDB as LangServerCommon>::get_key_words_fn(&db)
             .await
             .unwrap()
             .into_iter()

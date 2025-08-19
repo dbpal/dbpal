@@ -124,21 +124,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
         anyhow::Ok(vec![])
     }
 
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>>;
-
-    // some backend can use a query to query this.
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>>;
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>>;
-
-    // table use very often.
-    // if there is some error
-    // we still completion on table.
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>>;
-
-    async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![])
-    }
+    // async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>>;
 
     async fn do_auto_completion(&self, sql: &str) -> anyhow::Result<Vec<CompletionItem>> {
         let tokens = sqlparser::tokenizer::Tokenizer::new(self.dialect().as_ref(), sql)
@@ -186,7 +172,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 .into_iter(),
         );
         ret.extend(
-            self.list_table_or_view()
+            self.list_table(None)
                 .await
                 .map_err(|x| log::error!("list table failed,err:{}", x))
                 .unwrap_or_default()
@@ -198,7 +184,19 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 }),
         );
         ret.extend(
-            self.list_function()
+            self.list_view(None)
+                .await
+                .map_err(|x| log::error!("list table failed,err:{}", x))
+                .unwrap_or_default()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Table,
+                    desc: None,
+                }),
+        );
+        ret.extend(
+            self.list_function(None, true)
                 .await
                 .map_err(|err| log::error!("list function failed,err:{}", err))
                 .unwrap_or_default()
@@ -217,7 +215,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 }),
         );
         ret.extend(
-            self.list_procedure()
+            self.list_procedure(None)
                 .await
                 .map_err(|err| log::error!("list precedure failed,err:{}", err))
                 .unwrap_or_default()
@@ -240,14 +238,25 @@ pub trait LexerCompletionTrait: LangServerCommon {
     }
 
     async fn get_table_columns_if_possible(&self, tokens: &[TokenWithSpan]) -> Vec<CompletionItem> {
-        let tables = self
-            .list_table_or_view()
+        let mut tables = self
+            .list_table(None)
             .await
             .map_err(|e| log::error!("list table or view failed,err:{}", e))
             .unwrap_or_default()
             .into_iter()
             .map(|x: String| x.to_lowercase())
             .collect::<HashSet<_>>();
+
+        let views = self
+            .list_view(None)
+            .await
+            .map_err(|e| log::error!("list table or view failed,err:{}", e))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|x: String| x.to_lowercase())
+            .collect::<HashSet<_>>();
+        tables.extend(views.into_iter());
+
         let mut table_hits = HashSet::new();
         for t in tokens.iter() {
             if let Token::Word(x) = &t.token {
@@ -262,7 +271,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
         let mut ret = vec![];
         for t in table_hits.iter() {
             let columns = self
-                .list_columns(t)
+                .list_column(None, t, false)
                 .await
                 .map_err(|e| log::error!("list columns failed,err:{}", e))
                 .unwrap_or_default();
@@ -283,6 +292,21 @@ pub trait LangServerCommon: GetBackendKind {
         anyhow::Ok(vec![])
     }
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync>;
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
+
+    async fn list_function(
+        &self, schema: Option<&str>, include_build_in: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>>;
+    async fn list_procedure(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        not_support_feature(self.backend_name())
+    }
+    async fn list_column(
+        &self, schema: Option<&str>, name: &str, is_call: bool,
+    ) -> anyhow::Result<Vec<TempTableColumn>>;
+
+    // some backend can use a query to query this.
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>>;
 }
 
 #[derive(Clone, Debug)]
@@ -304,16 +328,6 @@ impl From<DBExecutable> for CompletionItem {
 
 #[async_trait::async_trait]
 pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServerCommon {
-    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
-    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
-    async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: bool,
-    ) -> anyhow::Result<Vec<TempTableColumn>>;
-
-    async fn list_function(
-        &self, schema: Option<&str>, include_build_in: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>>;
-
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
 
     async fn get_query_columns(&self, _sql: &str) -> anyhow::Result<Vec<TempTableColumn>>;
@@ -324,16 +338,9 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         anyhow::Ok(vec![])
     }
 
-    async fn list_procedure(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
-    }
     async fn list_clickhouse_table_projects(
         &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
-    }
-
-    async fn keywords(&self) -> anyhow::Result<Vec<CompletionItem>> {
         not_support_feature(self.backend_name())
     }
 

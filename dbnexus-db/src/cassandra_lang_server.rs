@@ -13,7 +13,7 @@ use cql3_parser::select::SelectElement;
 use crate::cassandra::CassandraDB;
 use crate::db::DBTrait;
 use crate::language_server::{
-    CompletionItem, CompletionKind, LanguageServer, LexerCompletionTrait,
+    CompletionItem, CompletionKind, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 
 use crate::sqlparser_completion::TempTableColumn;
@@ -42,9 +42,14 @@ impl LanguageServer for CassandraDB {
 impl LexerCompletionTrait for CassandraDB {
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = TYPES;
+}
 
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        let key_space = self.config.db.as_ref();
+#[async_trait::async_trait]
+impl LangServerCommon for CassandraDB {
+    async fn list_column(
+        &self, schema: Option<&str>, table_name: &str, _is_call: bool,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        let key_space = self.merge_schema(schema);
         if key_space.is_none() {
             return Err(anyhow::anyhow!("keyspace is not set"));
         }
@@ -77,7 +82,6 @@ impl LexerCompletionTrait for CassandraDB {
         }
         anyhow::Ok(result)
     }
-
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let r = KEY_WORDS
             .iter()
@@ -89,11 +93,12 @@ impl LexerCompletionTrait for CassandraDB {
             .collect::<Vec<_>>();
         anyhow::Ok(r)
     }
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn list_function(
+        &self, schema: Option<&str>, _include_build_in: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
         let mut ret = Vec::new();
-
-        if let Some(key_space) = self.config.db.as_ref() {
+        let schema = self.merge_schema(schema);
+        if let Some(key_space) = schema.as_ref() {
             {
                 ret.extend(
                     self.list_aggregate_impl(key_space)
@@ -125,27 +130,30 @@ impl LexerCompletionTrait for CassandraDB {
 
         anyhow::Ok(ret)
     }
-
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let sql = "SELECT table_name FROM system_schema.tables".to_string();
-        log::info!("sql:{}", sql);
-        let rows = self
-            .session
-            .query(sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
-
-        let mut ret = Vec::new();
-
-        for row in rows.iter() {
-            let name: Option<String> = row.get_by_index(0)?;
-            if let Some(name) = name {
-                ret.push(name);
-            }
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        DBTrait::list_schema(self).await
+    }
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::GenericDialect {})
+    }
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = self.merge_schema(schema);
+        match schema {
+            Some(x) => CassandraDB::list_table_impl(self, &x)
+                .await
+                .map(|x| x.into_iter().map(|x| x.name).collect()),
+            None => anyhow::Ok(vec![]),
         }
-        anyhow::Ok(ret)
+    }
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = self.merge_schema(schema);
+        match schema {
+            Some(x) => self
+                .list_materialized_view_impl(&x)
+                .await
+                .map(|x| x.into_iter().map(|x| x.name).collect()),
+            None => anyhow::Ok(vec![]),
+        }
     }
 }
 
@@ -343,9 +351,8 @@ impl AstCompletion {
     }
 
     async fn table_view_key_spaces(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let ret: Vec<_> = self
-            .db
-            .list_schema()
+        use crate::db::DBTrait;
+        let ret: Vec<_> = DBTrait::list_schema(&self.db)
             .await?
             .into_iter()
             .map(|x| CompletionItem {
@@ -1494,7 +1501,8 @@ const TYPES: &[&str] = &[
     "UDT",
     "TUPLE",
 ];
-const KEY_WORDS: &[&str] = &[
+
+pub(crate) const KEY_WORDS: &[&str] = &[
     "ADD",
     "AGGREGATE",
     "ALLOW",
@@ -1559,7 +1567,7 @@ const KEY_WORDS: &[&str] = &[
 ];
 
 // https://docs.datastax.com/en/cql-oss/3.x/cql/cql_reference/cql_function_r.html
-const BUILD_IN_FN: &[&str] = &[
+pub(crate) const BUILD_IN_FN: &[&str] = &[
     "typeAsBlob",
     "blobAsType",
     "dateOf",

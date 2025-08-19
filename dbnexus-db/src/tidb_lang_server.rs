@@ -23,57 +23,8 @@ impl LanguageServer for TiDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for TiDB {
-    async fn keywords(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        LexerCompletionTrait::get_key_words_fn(self).await
-    }
-
-    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_table(self.db.as_ref(), schema).await
-    }
-
-    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_view(self.db.as_ref(), schema).await
-    }
-
-    async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: bool,
-    ) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self.db.as_ref(), schema, name, is_call).await
-    }
-
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         AstCompletionHelper::get_query_columns(self.db.as_ref(), sql).await
-    }
-    async fn list_function(
-        &self, _schema: Option<&str>, _include_build_in: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        // rightnow we only support build in functions.
-        let mut lock = self.build_in_fn.lock().await;
-
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
-        let mut ret = vec![];
-        let mut conn = self.db.get_conn().await?;
-        let rows = sqlx::raw_sql("SHOW BUILTINS;")
-            .fetch_all(conn.deref_mut())
-            .await?;
-        for row in rows.iter() {
-            let name: Option<String> = row.try_get(0)?;
-            if let Some(name) = name {
-                ret.push(CompletionItem {
-                    item: name.into(),
-                    kind: CompletionKind::Function,
-                    desc: None,
-                });
-            }
-        }
-        *lock = ret.clone();
-        anyhow::Ok(ret)
-    }
-
-    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_procedure(self.db.as_ref(), schema).await
     }
 
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
@@ -106,29 +57,11 @@ impl AstCompletionHelper for TiDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for TiDB {
-    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
-        Box::new(sqlparser::dialect::MySqlDialect {})
+    async fn list_column(
+        &self, schema: Option<&str>, name: &str, is_call: bool,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        LangServerCommon::list_column(self.db.as_ref(), schema, name, is_call).await
     }
-    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        DBTrait::list_schema(self).await
-    }
-    async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
-        LangServerCommon::list_execute(self.db.as_ref(), None).await
-    }
-}
-
-#[async_trait::async_trait]
-impl LexerCompletionTrait for TiDB {
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, table_name, false).await
-    }
-    const TEXTS: &'static [&'static str] = MysqlDB::TEXTS;
-    const TYPES: &'static [&'static str] = MysqlDB::TYPES;
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, true).await
-    }
-
     // some backend can use a query to query this.
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         /*
@@ -154,9 +87,58 @@ impl LexerCompletionTrait for TiDB {
         anyhow::Ok(r)
     }
 
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        self.db.list_table_or_view().await
+    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_procedure(self.db.as_ref(), schema).await
     }
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::MySqlDialect {})
+    }
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        DBTrait::list_schema(self).await
+    }
+    async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
+        LangServerCommon::list_execute(self.db.as_ref(), None).await
+    }
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_table(self.db.as_ref(), schema).await
+    }
+
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_view(self.db.as_ref(), schema).await
+    }
+    async fn list_function(
+        &self, _schema: Option<&str>, _include_build_in: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        // rightnow we only support build in functions.
+        let mut lock = self.build_in_fn.lock().await;
+
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+        let mut ret = vec![];
+        let mut conn = self.db.get_conn().await?;
+        let rows = sqlx::raw_sql("SHOW BUILTINS;")
+            .fetch_all(conn.deref_mut())
+            .await?;
+        for row in rows.iter() {
+            let name: Option<String> = row.try_get(0)?;
+            if let Some(name) = name {
+                ret.push(CompletionItem {
+                    item: name.into(),
+                    kind: CompletionKind::Function,
+                    desc: None,
+                });
+            }
+        }
+        *lock = ret.clone();
+        anyhow::Ok(ret)
+    }
+}
+
+#[async_trait::async_trait]
+impl LexerCompletionTrait for TiDB {
+    const TEXTS: &'static [&'static str] = MysqlDB::TEXTS;
+    const TYPES: &'static [&'static str] = MysqlDB::TYPES;
 }
 
 #[allow(dead_code)]

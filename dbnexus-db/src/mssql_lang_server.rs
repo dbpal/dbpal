@@ -14,45 +14,7 @@ use tiberius::QueryItem;
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for MsSqlServerDB {
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, table_name, false).await
-    }
-
-    async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_procedure(self, None).await
-    }
-
     const TYPES: &'static [&'static str] = SQLSERVER_TYPES;
-
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        anyhow::Ok(
-            SQLSERVER_KEYWORDS
-                .iter()
-                .map(|x| CompletionItem {
-                    item: (*x).into(),
-                    desc: None,
-                    kind: CompletionKind::KeyWord,
-                })
-                .collect(),
-        )
-    }
-
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let mut ret = AstCompletionHelper::list_table(self, None)
-            .await
-            .unwrap_or_default();
-        ret.extend(
-            AstCompletionHelper::list_view(self, None)
-                .await
-                .unwrap_or_default()
-                .into_iter(),
-        );
-        anyhow::Ok(ret)
-    }
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, true).await
-    }
 }
 
 #[async_trait::async_trait]
@@ -70,14 +32,84 @@ impl LanguageServer for MsSqlServerDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for MsSqlServerDB {
+    async fn list_column(
+        &self, schema: Option<&str>, name: &str, _is_call: bool,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        let sql = format!(
+            r#"  select TOP 1 * from  {}"{}" "#,
+            match schema {
+                Some(x) => format!("\"{}\".", x),
+                None => "".to_string(),
+            },
+            name
+        );
+        self.get_query_columns(&sql).await
+    }
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        anyhow::Ok(
+            SQLSERVER_KEYWORDS
+                .iter()
+                .map(|x| CompletionItem {
+                    item: (*x).into(),
+                    desc: None,
+                    kind: CompletionKind::KeyWord,
+                })
+                .collect(),
+        )
+    }
+    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_execute(self, schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+    async fn list_function(
+        &self, schema: Option<&str>, include_build_in: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        // 在 SQL Server 中，sys 模式下并没有直接的用户定义函数 (UDF)，而是包含了一系列的系统视图和存储过程。不过，你可以使用一些系统函数来获取数据库元数据。以下是一些常用的系统函数，这些可以帮助你查询数据库的信息：
+        let schema = schema.unwrap_or(Self::DBO_SCHEMA);
+        let mut ret = self
+            .list_udf_impl(schema)
+            .await
+            .map(|x| {
+                x.into_iter().map(|x| CompletionItem {
+                    item: x.name.into(),
+                    desc: None,
+                    kind: CompletionKind::Function,
+                })
+            })?
+            .collect::<Vec<_>>();
+        if include_build_in {
+            ret.extend(SQLSERVER_FUNCTIONS.iter().map(|x| CompletionItem {
+                item: (*x).into(),
+                kind: CompletionKind::Function,
+                desc: None,
+            }));
+        }
+        anyhow::Ok(ret)
+    }
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
         Box::new(sqlparser::dialect::MsSqlDialect {})
+    }
+
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let db = self.config.db_str();
+        let schema = schema.unwrap_or(Self::DBO_SCHEMA);
+        self.list_table_impl(db, schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
     }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![
             MsSqlServerDB::DBO_SCHEMA.to_string(),
             MsSqlServerDB::SYS_SCHEMA.to_string(),
         ])
+    }
+
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = schema.unwrap_or(Self::DBO_SCHEMA);
+        self.list_view_impl(schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
     async fn list_execute(&self, schema: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
@@ -129,14 +161,6 @@ impl AstCompletionHelper for MsSqlServerDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let db = self.config.db_str();
-        let schema = schema.unwrap_or(Self::DBO_SCHEMA);
-        self.list_table_impl(db, schema)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-
     async fn list_constraint(
         &self, _schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -168,13 +192,6 @@ impl AstCompletionHelper for MsSqlServerDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = schema.unwrap_or(Self::DBO_SCHEMA);
-        self.list_view_impl(schema)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let mut conn = self.get_conn().await?;
         let mut s = conn.simple_query(sql).await?;
@@ -198,52 +215,6 @@ impl AstCompletionHelper for MsSqlServerDB {
         }
         log::error!("no reuslt found");
         anyhow::Ok(vec![])
-    }
-
-    async fn list_column(
-        &self, schema: Option<&str>, name: &str, _is_call: bool,
-    ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let sql = format!(
-            r#"  select TOP 1 * from  {}"{}" "#,
-            match schema {
-                Some(x) => format!("\"{}\".", x),
-                None => "".to_string(),
-            },
-            name
-        );
-        self.get_query_columns(&sql).await
-    }
-
-    async fn list_function(
-        &self, schema: Option<&str>, include_build_in: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        // 在 SQL Server 中，sys 模式下并没有直接的用户定义函数 (UDF)，而是包含了一系列的系统视图和存储过程。不过，你可以使用一些系统函数来获取数据库元数据。以下是一些常用的系统函数，这些可以帮助你查询数据库的信息：
-        let schema = schema.unwrap_or(Self::DBO_SCHEMA);
-        let mut ret = self
-            .list_udf_impl(schema)
-            .await
-            .map(|x| {
-                x.into_iter().map(|x| CompletionItem {
-                    item: x.name.into(),
-                    desc: None,
-                    kind: CompletionKind::Function,
-                })
-            })?
-            .collect::<Vec<_>>();
-        if include_build_in {
-            ret.extend(SQLSERVER_FUNCTIONS.iter().map(|x| CompletionItem {
-                item: (*x).into(),
-                kind: CompletionKind::Function,
-                desc: None,
-            }));
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_execute(self, schema)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {

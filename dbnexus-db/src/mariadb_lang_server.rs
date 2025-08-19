@@ -20,59 +20,8 @@ impl LanguageServer for MariaDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for MariaDB {
-    async fn keywords(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        LexerCompletionTrait::get_key_words_fn(self).await
-    }
-
-    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let mut result = AstCompletionHelper::list_table(self.db.as_ref(), schema).await?;
-        let mut conn = self.db.get_conn().await?;
-        let sql = format!(
-            "select SEQUENCE_NAME  from information_schema.SEQUENCES where SEQUENCE_SCHEMA = '{}'",
-            MysqlDB::not_allow_empty_schema(self.db.merge_schema(schema))
-                .map_err(|e| { log::error!("err:{}", e) })
-                .ok()
-                .unwrap_or("")
-        );
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        for row in rows.iter() {
-            let name: String = row.try_get(0)?;
-            result.push(name);
-        }
-        anyhow::Ok(result)
-    }
-
-    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_view(self.db.as_ref(), schema).await
-    }
-
-    async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: bool,
-    ) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self.db.as_ref(), schema, name, is_call).await
-    }
-
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         AstCompletionHelper::get_query_columns(self.db.as_ref(), sql).await
-    }
-    async fn list_function(
-        &self, schema: Option<&str>, include_build_in: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut ret = AstCompletionHelper::list_function(self.db.as_ref(), schema, false).await?;
-        if include_build_in {
-            ret.extend(MARIADB_FUNCTIONS.iter().map(|x| CompletionItem {
-                item: (*x).into(),
-                kind: CompletionKind::Function,
-                desc: None,
-            }));
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_procedure(self.db.as_ref(), schema).await
     }
 
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
@@ -109,6 +58,31 @@ impl AstCompletionHelper for MariaDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for MariaDB {
+    async fn list_column(
+        &self, schema: Option<&str>, name: &str, is_call: bool,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        LangServerCommon::list_column(self.db.as_ref(), schema, name, is_call).await
+    }
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        self.db.get_key_words_fn().await
+    }
+    async fn list_function(
+        &self, schema: Option<&str>, include_build_in: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut ret = LangServerCommon::list_function(self.db.as_ref(), schema, false).await?;
+        if include_build_in {
+            ret.extend(MARIADB_FUNCTIONS.iter().map(|x| CompletionItem {
+                item: (*x).into(),
+                kind: CompletionKind::Function,
+                desc: None,
+            }));
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_procedure(self.db.as_ref(), schema).await
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         DBTrait::list_schema(self).await
     }
@@ -118,28 +92,35 @@ impl LangServerCommon for MariaDB {
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
         Box::new(sqlparser::dialect::MySqlDialect {})
     }
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let mut result = LangServerCommon::list_table(self.db.as_ref(), schema).await?;
+        let mut conn = self.db.get_conn().await?;
+        let sql = format!(
+            "select SEQUENCE_NAME  from information_schema.SEQUENCES where SEQUENCE_SCHEMA = '{}'",
+            MysqlDB::not_allow_empty_schema(self.db.merge_schema(schema))
+                .map_err(|e| { log::error!("err:{}", e) })
+                .ok()
+                .unwrap_or("")
+        );
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            result.push(name);
+        }
+        anyhow::Ok(result)
+    }
+
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_view(self.db.as_ref(), schema).await
+    }
 }
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for MariaDB {
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, table_name, false).await
-    }
-
     const TEXTS: &'static [&'static str] = MysqlDB::TEXTS;
     const TYPES: &'static [&'static str] = MysqlDB::TYPES;
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, true).await
-    }
-
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        self.db.list_table_or_view().await
-    }
-
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        self.db.get_key_words_fn().await
-    }
 }
 
 // AI generate this cool.

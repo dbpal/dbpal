@@ -10,69 +10,7 @@ use crate::sqlparser_completion::TempTableColumn;
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for OracleDB {
-    async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_procedure(self, None).await
-    }
-
     const TYPES: &'static [&'static str] = ORACLE_TYPES;
-
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, table_name, false).await
-    }
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let sql = r#"SELECT TABLE_NAME FROM DBA_TABLES"#.to_string();
-        log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
-        let result = block_in_place(|| conn.query(&sql, &[]))?;
-        let mut ret = Vec::new();
-        for r in result {
-            let r = r?;
-            let name: String = r.get(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.key_word_completion.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
-        let conn = self.get_conn()?;
-        let sql = r#"
-             SELECT  keyword 
-                FROM V$RESERVED_WORDS
-        "#;
-        let result = block_in_place(|| conn.query(sql, &[]))?;
-        let mut ret = Vec::new();
-        for r in result {
-            let r = r?;
-            let name: Option<String> = r.get(0)?;
-            if let Some(name) = name {
-                let name = name.trim().to_string();
-                if name.is_empty() {
-                    continue;
-                }
-                if !name_start_ascii_alphabetic(&name) {
-                    continue;
-                }
-                ret.push(name);
-            }
-        }
-        *lock = ret
-            .into_iter()
-            .map(|x| CompletionItem {
-                item: x.into(),
-                kind: CompletionKind::KeyWord,
-                desc: None,
-            })
-            .collect();
-        return anyhow::Ok(lock.clone());
-    }
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, true).await
-    }
 }
 
 impl OracleDB {
@@ -111,22 +49,6 @@ impl OracleDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for OracleDB {
-    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
-
-        self.list_table_impl(schema)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-
-    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
-
-        self.list_view_impl(schema)
-            .await
-            .map(|x| x.into_iter().map(|x| x.name).collect())
-    }
-
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let conn = self.get_conn()?;
 
@@ -142,6 +64,30 @@ impl AstCompletionHelper for OracleDB {
                 .collect(),
         )
     }
+
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let sql = format!(
+            "SELECT INDEX_NAME FROM ALL_INDEXES WHERE OWNER='{}'",
+            schema
+        );
+        log::info!("sql:{}", sql);
+        let conn = self.get_conn()?;
+        let rows = conn.query(&sql, &[])?;
+        let mut ret = Vec::new();
+        for row in rows {
+            let row = row?;
+
+            let name: String = row.get(0)?;
+
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+}
+
+#[async_trait::async_trait]
+impl LangServerCommon for OracleDB {
     async fn list_column(
         &self, schema: Option<&str>, name: &str, _is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
@@ -155,6 +101,42 @@ impl AstCompletionHelper for OracleDB {
         );
         log::info!("sql:{}", sql);
         self.get_query_columns(&sql).await
+    }
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut lock = self.key_word_completion.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+        let conn = self.get_conn()?;
+        let sql = r#"
+             SELECT  keyword 
+                FROM V$RESERVED_WORDS
+        "#;
+        let result = block_in_place(|| conn.query(sql, &[]))?;
+        let mut ret = Vec::new();
+        for r in result {
+            let r = r?;
+            let name: Option<String> = r.get(0)?;
+            if let Some(name) = name {
+                let name = name.trim().to_string();
+                if name.is_empty() {
+                    continue;
+                }
+                if !name_start_ascii_alphabetic(&name) {
+                    continue;
+                }
+                ret.push(name);
+            }
+        }
+        *lock = ret
+            .into_iter()
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::KeyWord,
+                desc: None,
+            })
+            .collect();
+        return anyhow::Ok(lock.clone());
     }
 
     async fn list_function(
@@ -214,34 +196,25 @@ impl AstCompletionHelper for OracleDB {
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
-    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
-        let sql = format!(
-            "SELECT INDEX_NAME FROM ALL_INDEXES WHERE OWNER='{}'",
-            schema
-        );
-        log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
-        let rows = conn.query(&sql, &[])?;
-        let mut ret = Vec::new();
-        for row in rows {
-            let row = row?;
-
-            let name: String = row.get(0)?;
-
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
-    }
-}
-
-#[async_trait::async_trait]
-impl LangServerCommon for OracleDB {
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
         Box::new(sqlparser::dialect::GenericDialect {})
     }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         DBTrait::list_schema(self).await
+    }
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
+
+        self.list_table_impl(schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
+    }
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
+
+        self.list_view_impl(schema)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 }
 
@@ -258,14 +231,14 @@ impl LanguageServer for OracleDB {
 mod tests {
     use crate::{
         db::monaco_editor_keyword_regexp,
-        language_server::LexerCompletionTrait,
+        language_server::LangServerCommon,
         oracle::{OracleDB, make_test_object},
     };
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn print_key_words() {
         let db = make_test_object(None);
-        let keywords = <OracleDB as LexerCompletionTrait>::get_key_words_fn(&db)
+        let keywords = <OracleDB as LangServerCommon>::get_key_words_fn(&db)
             .await
             .unwrap()
             .into_iter()

@@ -19,31 +19,6 @@ impl LanguageServer for FireBirdDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for FireBirdDB {
-    async fn list_table(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let sql = r#"
-            SELECT 
-                RDB$RELATION_NAME AS TABLE_NAME
-            FROM 
-                RDB$RELATIONS
-            WHERE 
-                RDB$VIEW_BLR IS NULL  -- 排除视图
-       "#;
-        let mut conn = self.get_conn()?;
-        let rows: Vec<(String,)> = conn.query(sql, ())?;
-        anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
-    }
-
-    async fn list_view(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let sql = r#"
-          SELECT RDB$RELATION_NAME
-            FROM RDB$RELATIONS
-            WHERE RDB$VIEW_BLR IS NOT NULL;
-   "#;
-        let mut conn = self.get_conn()?;
-        let rows: Vec<(String,)> = conn.query(sql, ())?;
-        anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
-    }
-
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let mut conn = self.get_conn()?;
         let row: Option<Row> = conn.query_first(sql, ())?;
@@ -63,41 +38,6 @@ impl AstCompletionHelper for FireBirdDB {
         }
     }
 
-    async fn list_column(
-        &self, _schema: Option<&str>, name: &str, _is_call: bool,
-    ) -> anyhow::Result<Vec<TempTableColumn>> {
-        SchemaTrait::show_table_columns(self, name).await.map(|x| {
-            x.into_iter()
-                .map(|x| TempTableColumn {
-                    name: x.field.clone(),
-                    typ: Some(x.typ.clone()),
-                })
-                .collect()
-        })
-    }
-
-    async fn list_function(
-        &self, _schema: Option<&str>, _include_build_in: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let sql = r#"
-            SELECT 
-            RDB$FUNCTION_NAME AS FunctionName 
-            FROM 
-            RDB$FUNCTIONS
-        "#;
-        let mut conn = self.get_conn()?;
-        let rows: Vec<(String,)> = conn.query(sql, ())?;
-        anyhow::Ok(
-            rows.into_iter()
-                .map(|x| CompletionItem {
-                    item: x.0.trim().to_owned().into(),
-                    kind: CompletionKind::Function,
-                    desc: None,
-                })
-                .collect(),
-        )
-    }
-
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let sql = r#"
             SELECT RDB$INDEX_NAME AS IndexName
@@ -114,38 +54,6 @@ impl AstCompletionHelper for FireBirdDB {
 impl LexerCompletionTrait for FireBirdDB {
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = TYPES;
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, table_name, false).await
-    }
-
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        anyhow::Ok(
-            KEY_WORDS
-                .iter()
-                .map(|x| CompletionItem {
-                    item: x.to_string().into(),
-                    desc: None,
-                    kind: CompletionKind::KeyWord,
-                })
-                .collect(),
-        )
-    }
-
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let mut ret: Vec<_> = AstCompletionHelper::list_table(self, None).await?;
-
-        ret.extend(
-            AstCompletionHelper::list_view(self, None)
-                .await?
-                .into_iter(),
-        );
-
-        anyhow::Ok(ret)
-    }
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, true).await
-    }
 }
 
 #[cfg(test)]
@@ -207,8 +115,76 @@ const TYPES: &[&str] = &[
 
 #[async_trait::async_trait]
 impl LangServerCommon for FireBirdDB {
+    async fn list_column(
+        &self, _schema: Option<&str>, name: &str, _is_call: bool,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        SchemaTrait::show_table_columns(self, name).await.map(|x| {
+            x.into_iter()
+                .map(|x| TempTableColumn {
+                    name: x.field.clone(),
+                    typ: Some(x.typ.clone()),
+                })
+                .collect()
+        })
+    }
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        anyhow::Ok(
+            KEY_WORDS
+                .iter()
+                .map(|x| CompletionItem {
+                    item: x.to_string().into(),
+                    desc: None,
+                    kind: CompletionKind::KeyWord,
+                })
+                .collect(),
+        )
+    }
+    async fn list_function(
+        &self, _schema: Option<&str>, _include_build_in: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let sql = r#"
+            SELECT 
+            RDB$FUNCTION_NAME AS FunctionName 
+            FROM 
+            RDB$FUNCTIONS
+        "#;
+        let mut conn = self.get_conn()?;
+        let rows: Vec<(String,)> = conn.query(sql, ())?;
+        anyhow::Ok(
+            rows.into_iter()
+                .map(|x| CompletionItem {
+                    item: x.0.trim().to_owned().into(),
+                    kind: CompletionKind::Function,
+                    desc: None,
+                })
+                .collect(),
+        )
+    }
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
         Box::new(sqlparser::dialect::GenericDialect {})
+    }
+    async fn list_table(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let sql = r#"
+            SELECT 
+                RDB$RELATION_NAME AS TABLE_NAME
+            FROM 
+                RDB$RELATIONS
+            WHERE 
+                RDB$VIEW_BLR IS NULL  -- 排除视图
+       "#;
+        let mut conn = self.get_conn()?;
+        let rows: Vec<(String,)> = conn.query(sql, ())?;
+        anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
+    }
+    async fn list_view(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let sql = r#"
+          SELECT RDB$RELATION_NAME
+            FROM RDB$RELATIONS
+            WHERE RDB$VIEW_BLR IS NOT NULL;
+   "#;
+        let mut conn = self.get_conn()?;
+        let rows: Vec<(String,)> = conn.query(sql, ())?;
+        anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
     }
 }
 //  https://firebirdsql.org/refdocs/langrefupd25-reskeywords-full-keywords.html

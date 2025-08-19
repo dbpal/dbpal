@@ -53,6 +53,7 @@ use dashmap::DashMap;
 use num_bigint::{BigInt, ToBigInt};
 
 use crate::MemoryLimit;
+
 use crate::datasource_config::CassandraDBConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
@@ -62,7 +63,7 @@ use crate::db::{
     escape_sql_str,
 };
 use crate::helper::create_csv;
-use crate::language_server::{LangServerCommon, LexerCompletionTrait};
+use crate::language_server::LexerCompletionTrait;
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 
@@ -1779,13 +1780,12 @@ fn extract_parameter_for_function(sql: &str) -> anyhow::Result<Vec<ColumnDefinit
     }
 }
 
-#[async_trait::async_trait]
-impl LangServerCommon for CassandraDB {
-    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        DBTrait::list_schema(self).await
-    }
-    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
-        Box::new(sqlparser::dialect::GenericDialect {})
+impl CassandraDB {
+    pub(crate) fn merge_schema(&self, schema: Option<&str>) -> Option<String> {
+        match schema {
+            Some(x) => Some(x.to_string()),
+            None => self.config.db.as_ref().map(|x| x.clone()),
+        }
     }
 }
 
@@ -2197,13 +2197,6 @@ mod tests {
             .await
             .unwrap();
         println!("resp:{:?}", resp);
-    }
-
-    #[tokio::test]
-    async fn test_list_table() {
-        let db = make_test_object(Some("system".to_string())).await;
-        let schemas = db.list_table().await.unwrap();
-        println!("list table:{:?}", schemas)
     }
 
     #[tokio::test]

@@ -1,12 +1,10 @@
 use crate::cockroach::{COCKROACH_DATA_TYPES, CockRoachDB};
 use crate::db::FormatSqlOpts;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, DBExecutable, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_completion_on_syntax,
+    CompletionItem, DBExecutable, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    try_completion_on_syntax,
 };
-
 use crate::sqlparser_completion::TempTableColumn;
-
 #[async_trait::async_trait]
 
 impl LanguageServer for CockRoachDB {
@@ -34,6 +32,14 @@ impl LanguageServer for CockRoachDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for CockRoachDB {
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        self.pg.get_key_words_fn().await
+    }
+    async fn list_column(
+        &self, schema: Option<&str>, name: &str, is_call: bool,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        LangServerCommon::list_column(self.pg.as_ref(), schema, name, is_call).await
+    }
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
         Box::new(sqlparser::dialect::PostgreSqlDialect {})
     }
@@ -43,37 +49,26 @@ impl LangServerCommon for CockRoachDB {
     async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
         LangServerCommon::list_execute(self.pg.as_ref(), None).await
     }
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_table(self.pg.as_ref(), schema).await
+    }
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_view(self.pg.as_ref(), schema).await
+    }
+
+    async fn list_function(
+        &self, schema: Option<&str>, build_in: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        LangServerCommon::list_function(self.pg.as_ref(), schema, build_in).await
+    }
+    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_procedure(self.pg.as_ref(), schema).await
+    }
 }
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for CockRoachDB {
-    async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_procedure(self.pg.as_ref(), None).await
-    }
-
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self.pg.as_ref(), None, table_name, false).await
-    }
-
     const TYPES: &'static [&'static str] = COCKROACH_DATA_TYPES;
-
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        self.pg.get_key_words_fn().await
-    }
-
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let mut ret = AstCompletionHelper::list_table(self.pg.as_ref(), None).await?;
-        ret.extend(
-            AstCompletionHelper::list_view(self.pg.as_ref(), None)
-                .await?
-                .into_iter(),
-        );
-        anyhow::Ok(ret)
-    }
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self.pg.as_ref(), None, true).await
-    }
 }
 
 #[cfg(test)]
@@ -81,14 +76,14 @@ mod tests {
     use crate::{
         cockroach::{CockRoachDB, make_test_object},
         db::monaco_editor_keyword_regexp,
-        language_server::LexerCompletionTrait,
+        language_server::LangServerCommon,
     };
 
     #[tokio::test]
     async fn print_key_words() {
         let db = make_test_object().await;
 
-        let keywords = <CockRoachDB as LexerCompletionTrait>::get_key_words_fn(&db)
+        let keywords = <CockRoachDB as LangServerCommon>::get_key_words_fn(&db)
             .await
             .unwrap()
             .into_iter()

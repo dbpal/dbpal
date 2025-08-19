@@ -14,49 +14,6 @@ use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
 impl LexerCompletionTrait for PostGresDB {
     const TYPES: &'static [&'static str] = TYPES;
-
-    async fn list_procedure(&self) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_procedure(self, None).await
-    }
-    async fn list_table_or_view(&self) -> anyhow::Result<Vec<String>> {
-        let mut ret = AstCompletionHelper::list_table(self, None).await?;
-        ret.extend(
-            AstCompletionHelper::list_view(self, None)
-                .await?
-                .into_iter(),
-        );
-        anyhow::Ok(ret)
-    }
-
-    async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::list_column(self, None, table_name, false).await
-    }
-
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.key_word_completion.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql("select word from pg_get_keywords()")
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = vec![];
-        for row in rows.iter() {
-            let c: String = row.get_unchecked(0);
-            ret.push(CompletionItem {
-                item: c.to_uppercase().into(),
-                kind: CompletionKind::KeyWord,
-                desc: None,
-            });
-        }
-        *lock = ret;
-        return anyhow::Ok(lock.clone());
-    }
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, true).await
-    }
 }
 
 impl PostGresDB {
@@ -117,102 +74,6 @@ impl PostGresDB {
 #[async_trait::async_trait]
 
 impl AstCompletionHelper for PostGresDB {
-    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let db = self.config.db_str();
-        let mut sql =
-            r#"select table_name FROM information_schema.tables  WHERE table_type = 'BASE TABLE' "#
-                .to_string();
-        sql.push_str(format!(" AND table_catalog = '{}'", db).as_str());
-        if let Some(schema) = self.schema_merge_config(schema) {
-            sql.push_str(format!(" AND table_schema = '{}'", schema).as_str());
-        }
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let sql = if let Some(schema) = self.schema_merge_config(schema) {
-            format!(
-                r#"
-            SELECT 
-                p.proname AS procedure_name
-            FROM 
-                pg_catalog.pg_proc p
-            JOIN 
-                pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-            WHERE 
-                n.nspname = '{}'  -- 指定目标模式
-                AND p.prokind = 'p'  -- 仅选择存储过程
-            ORDER BY 
-                p.proname;
-            "#,
-                schema
-            )
-        } else {
-            r#"
-            SELECT 
-                p.proname AS procedure_name
-            FROM 
-                pg_catalog.pg_proc p
-            JOIN 
-                pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-            WHERE 
-                p.prokind = 'p'  -- 仅选择存储过程
-            ORDER BY 
-                p.proname;
-            "#
-            .to_string()
-        };
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let mut sql = "SELECT viewname FROM pg_views ".to_string();
-        if let Some(schema) = self.schema_merge_config(schema) {
-            sql.push_str(format!(" WHERE schemaname='{}'", schema).as_str());
-        }
-        // postgres has materilized view in other table
-        sql.push_str(
-            "UNION SELECT matviewname from pg_matviews"
-                .to_string()
-                .as_str(),
-        );
-
-        if let Some(schema) = self.schema_merge_config(schema) {
-            sql.push_str(format!(" WHERE schemaname='{}'", schema).as_str());
-        }
-
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name);
-        }
-
-        anyhow::Ok(ret)
-    }
-
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let mut conn = self.get_conn().await?;
         let s = conn
@@ -227,62 +88,6 @@ impl AstCompletionHelper for PostGresDB {
                 typ: Some(x.type_info().to_string()),
             })
             .collect::<Vec<_>>();
-        anyhow::Ok(ret)
-    }
-
-    async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: bool,
-    ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let sql = format!(
-            r#"select * from {}"{}"{}"#,
-            match schema {
-                Some(x) => format!("\"{}\".", x),
-                None => "".to_string(),
-            },
-            name,
-            if is_call { "()" } else { "" }
-        );
-        log::info!("sql:{}", sql);
-        self.get_query_columns(&sql).await
-    }
-
-    async fn list_function(
-        &self, schema: Option<&str>, include_build_in: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let schema = self.schema_merge_config(schema);
-        if schema.is_none() {
-            return anyhow::Ok(vec![]);
-        }
-        let schema = schema.unwrap();
-        let sql = format!(
-            r#"
-            SELECT  
-                p.proname AS function_name
-            FROM pg_catalog.pg_proc p
-            JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-            WHERE n.nspname = '{}'  -- 替换为你的模式名
-            ORDER BY p.proname;
-        "#,
-            schema
-        );
-
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(CompletionItem {
-                item: name.into(),
-                desc: None,
-                kind: CompletionKind::Function,
-            });
-        }
-        if include_build_in {
-            ret.extend(self.list_build_functions().await?.into_iter());
-        }
         anyhow::Ok(ret)
     }
 
@@ -480,6 +285,176 @@ impl AstCompletionHelper for PostGresDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for PostGresDB {
+    async fn list_column(
+        &self, schema: Option<&str>, name: &str, is_call: bool,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        let sql = format!(
+            r#"select * from {}"{}"{}"#,
+            match schema {
+                Some(x) => format!("\"{}\".", x),
+                None => "".to_string(),
+            },
+            name,
+            if is_call { "()" } else { "" }
+        );
+        log::info!("sql:{}", sql);
+        self.get_query_columns(&sql).await
+    }
+    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut lock = self.key_word_completion.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql("select word from pg_get_keywords()")
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = vec![];
+        for row in rows.iter() {
+            let c: String = row.get_unchecked(0);
+            ret.push(CompletionItem {
+                item: c.to_uppercase().into(),
+                kind: CompletionKind::KeyWord,
+                desc: None,
+            });
+        }
+        *lock = ret;
+        return anyhow::Ok(lock.clone());
+    }
+    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let sql = if let Some(schema) = self.schema_merge_config(schema) {
+            format!(
+                r#"
+            SELECT 
+                p.proname AS procedure_name
+            FROM 
+                pg_catalog.pg_proc p
+            JOIN 
+                pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+            WHERE 
+                n.nspname = '{}'  -- 指定目标模式
+                AND p.prokind = 'p'  -- 仅选择存储过程
+            ORDER BY 
+                p.proname;
+            "#,
+                schema
+            )
+        } else {
+            r#"
+            SELECT 
+                p.proname AS procedure_name
+            FROM 
+                pg_catalog.pg_proc p
+            JOIN 
+                pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+            WHERE 
+                p.prokind = 'p'  -- 仅选择存储过程
+            ORDER BY 
+                p.proname;
+            "#
+            .to_string()
+        };
+        log::info!("sql:{}", sql);
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_function(
+        &self, schema: Option<&str>, include_build_in: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let schema = self.schema_merge_config(schema);
+        if schema.is_none() {
+            return anyhow::Ok(vec![]);
+        }
+        let schema = schema.unwrap();
+        let sql = format!(
+            r#"
+            SELECT  
+                p.proname AS function_name
+            FROM pg_catalog.pg_proc p
+            JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+            WHERE n.nspname = '{}'  -- 替换为你的模式名
+            ORDER BY p.proname;
+        "#,
+            schema
+        );
+
+        log::info!("sql:{}", sql);
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(CompletionItem {
+                item: name.into(),
+                desc: None,
+                kind: CompletionKind::Function,
+            });
+        }
+        if include_build_in {
+            ret.extend(self.list_build_functions().await?.into_iter());
+        }
+        anyhow::Ok(ret)
+    }
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let mut sql = "SELECT viewname FROM pg_views ".to_string();
+        if let Some(schema) = self.schema_merge_config(schema) {
+            sql.push_str(format!(" WHERE schemaname='{}'", schema).as_str());
+        }
+        // postgres has materilized view in other table
+        sql.push_str(
+            "UNION SELECT matviewname from pg_matviews"
+                .to_string()
+                .as_str(),
+        );
+
+        if let Some(schema) = self.schema_merge_config(schema) {
+            sql.push_str(format!(" WHERE schemaname='{}'", schema).as_str());
+        }
+
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+
+        anyhow::Ok(ret)
+    }
+
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let db = self.config.db_str();
+        let mut sql =
+            r#"select table_name FROM information_schema.tables  WHERE table_type = 'BASE TABLE' "#
+                .to_string();
+        sql.push_str(format!(" AND table_catalog = '{}'", db).as_str());
+        if let Some(schema) = self.schema_merge_config(schema) {
+            sql.push_str(format!(" AND table_schema = '{}'", schema).as_str());
+        }
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
         Box::new(sqlparser::dialect::PostgreSqlDialect {})
     }
@@ -548,13 +523,12 @@ impl LanguageServer for PostGresDB {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
     use crate::db::{AutoCompletionUuid, QuerySql, monaco_editor_keyword_regexp};
     use crate::enable_test_log;
+    use crate::language_server::LangServerCommon;
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::language_server::{LangServerCommon, LexerCompletionTrait};
     use crate::pg::{PostGresDB, make_test_object};
+    use std::path::Path;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {
@@ -615,7 +589,7 @@ mod tests {
     #[tokio::test]
     async fn print_key_words() {
         let db = make_test_object().await;
-        let keywords = <PostGresDB as LexerCompletionTrait>::get_key_words_fn(&db)
+        let keywords = <PostGresDB as LangServerCommon>::get_key_words_fn(&db)
             .await
             .unwrap()
             .into_iter()

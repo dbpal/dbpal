@@ -965,7 +965,7 @@ function JsonEditor(props: {
           setNewValue(editor.getValue());
         });
       }}
-      barLeft=<Stack direction="row" alignItems="center">
+      barLeft=<Stack direction="row" alignItems="center" spacing={1}>
         {modifyOP && (
           <Button
             disabled={!!jsonErr}
