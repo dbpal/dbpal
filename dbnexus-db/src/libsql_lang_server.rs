@@ -1,7 +1,7 @@
 use crate::db::{AutoCompletionUuid, name_start_ascii_alphabetic};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_completion_on_syntax,
+    try_parser_and_lexer,
 };
 use crate::libsql::LibSqlDB;
 use crate::sqlite::SqliteDB;
@@ -14,25 +14,7 @@ impl LanguageServer for LibSqlDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r =
-            try_completion_on_syntax(sql, line, col, sqlparser::dialect::SQLiteDialect {}, self)
-                .await;
-        match r {
-            Ok(xs) => return Ok(xs),
-            Err(err) => {
-                log::error!("completion on ast failed,err:{}", err);
-            }
-        };
-        if !use_lexer {
-            log::warn!("disabled use lexer , we can return empty data.");
-            return anyhow::Ok(vec![]);
-        }
-        return LexerCompletionTrait::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::SQLiteDialect {},
-        )
-        .await;
+        try_parser_and_lexer(self, sql, line, col, use_lexer).await
     }
 }
 
@@ -92,6 +74,9 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for LibSqlDB {
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::SQLiteDialect {})
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.query_connections.get(&AutoCompletionUuid::get());
         if conn.is_none() {

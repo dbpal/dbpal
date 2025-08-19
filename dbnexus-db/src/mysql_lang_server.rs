@@ -9,7 +9,7 @@ use crate::db::{
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, LangServerCommon,
-    LanguageServer, LexerCompletionTrait, try_completion_on_syntax,
+    LanguageServer, LexerCompletionTrait, try_parser_and_lexer,
 };
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -115,24 +115,7 @@ impl LanguageServer for MysqlDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(sql, line, col, sqlparser::dialect::MySqlDialect {}, self)
-            .await;
-        match r {
-            Ok(xs) => return Ok(xs),
-            Err(err) => {
-                log::error!("completion on ast failed,err:{}", err);
-            }
-        };
-        if !use_lexer {
-            log::warn!("disabled use lexer , we will return empty data.");
-            return anyhow::Ok(vec![]);
-        }
-        return LexerCompletionTrait::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::MySqlDialect {},
-        )
-        .await;
+        try_parser_and_lexer(self, sql, line, col, use_lexer).await
     }
 
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
@@ -161,6 +144,9 @@ impl MysqlDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for MysqlDB {
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::MySqlDialect {})
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         MysqlDB::list_schema_impl(self).await
     }

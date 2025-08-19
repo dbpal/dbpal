@@ -4,8 +4,7 @@ use std::ops::DerefMut;
 use crate::db::{AutoCompletionUuid, FormatSqlOpts, name_start_ascii_alphabetic};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_completion_on_syntax,
+    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer, try_parser_and_lexer,
 };
 use crate::sqlite::SqliteDB;
 use crate::sqlite_lang_server_static::{SQLITE_KEY_WORDS, SQLITE_TYPES};
@@ -13,6 +12,9 @@ use crate::sqlparser_completion::TempTableColumn;
 
 #[async_trait::async_trait]
 impl LangServerCommon for SqliteDB {
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::SQLiteDialect {})
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let sql = "PRAGMA database_list";
         log::info!("sql:{}", sql);
@@ -93,26 +95,7 @@ impl LanguageServer for SqliteDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r =
-            try_completion_on_syntax(sql, line, col, sqlparser::dialect::SQLiteDialect {}, self)
-                .await;
-
-        match r {
-            Ok(xs) => return Ok(xs),
-            Err(err) => {
-                log::error!("completion on ast failed,err:{}", err);
-            }
-        };
-        if !use_lexer {
-            log::warn!("disabled use lexer , we can return empty data.");
-            return anyhow::Ok(vec![]);
-        }
-        return LexerCompletionTrait::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::SQLiteDialect {},
-        )
-        .await;
+        try_parser_and_lexer(self, sql, line, col, use_lexer).await
     }
 
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {

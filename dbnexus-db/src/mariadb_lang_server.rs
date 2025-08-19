@@ -1,7 +1,7 @@
 use crate::db::DBTrait;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, LangServerCommon,
-    LanguageServer, LexerCompletionTrait, try_completion_on_syntax,
+    LanguageServer, LexerCompletionTrait, try_parser_and_lexer,
 };
 use crate::mariadb::MariaDB;
 use crate::mysql::MysqlDB;
@@ -14,24 +14,7 @@ impl LanguageServer for MariaDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(sql, line, col, sqlparser::dialect::MySqlDialect {}, self)
-            .await;
-        match r {
-            Ok(xs) => return Ok(xs),
-            Err(err) => {
-                log::error!("completion on ast failed,err:{}", err);
-            }
-        };
-        if !use_lexer {
-            log::warn!("disabled use lexer , we will return empty data.");
-            return anyhow::Ok(vec![]);
-        }
-        return LexerCompletionTrait::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::MySqlDialect {},
-        )
-        .await;
+        try_parser_and_lexer(self, sql, line, col, use_lexer).await
     }
 }
 
@@ -131,6 +114,9 @@ impl LangServerCommon for MariaDB {
     }
     async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
         LangServerCommon::list_execute(self.db.as_ref(), None).await
+    }
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::MySqlDialect {})
     }
 }
 

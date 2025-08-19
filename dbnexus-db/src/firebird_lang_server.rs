@@ -4,7 +4,7 @@ use crate::db::SchemaTrait;
 use crate::firebird::FireBirdDB;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_completion_on_syntax,
+    LexerCompletionTrait, try_parser_and_lexer,
 };
 use crate::sqlparser_completion::TempTableColumn;
 
@@ -13,26 +13,7 @@ impl LanguageServer for FireBirdDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r =
-            try_completion_on_syntax(sql, line, col, sqlparser::dialect::GenericDialect {}, self)
-                .await;
-
-        match r {
-            Ok(xs) => return Ok(xs),
-            Err(err) => {
-                log::error!("completion on ast failed,err:{}", err);
-            }
-        };
-        if !use_lexer {
-            log::warn!("disabled use lexer , we can return empty data.");
-            return anyhow::Ok(vec![]);
-        }
-        return LexerCompletionTrait::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::GenericDialect {},
-        )
-        .await;
+        try_parser_and_lexer(self, sql, line, col, use_lexer).await
     }
 }
 
@@ -227,7 +208,11 @@ const TYPES: &[&str] = &[
 ];
 
 #[async_trait::async_trait]
-impl LangServerCommon for FireBirdDB {}
+impl LangServerCommon for FireBirdDB {
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::GenericDialect {})
+    }
+}
 //  https://firebirdsql.org/refdocs/langrefupd25-reskeywords-full-keywords.html
 const KEY_WORDS: &[&str] = &[
     "ABS",

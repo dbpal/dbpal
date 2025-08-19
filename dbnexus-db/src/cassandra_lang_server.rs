@@ -34,12 +34,7 @@ impl LanguageServer for CassandraDB {
         if !use_lexer {
             return anyhow::Ok(vec![]);
         }
-        return LexerCompletionTrait::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::GenericDialect {},
-        )
-        .await;
+        return LexerCompletionTrait::do_auto_completion(self, sql).await;
     }
 }
 

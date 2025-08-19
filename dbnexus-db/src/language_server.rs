@@ -142,10 +142,8 @@ pub trait LexerCompletionTrait: LangServerCommon {
         anyhow::Ok(vec![])
     }
 
-    async fn do_auto_completion(
-        &self, sql: &str, dialect: &Self::Dialect,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let tokens = sqlparser::tokenizer::Tokenizer::new(dialect, sql)
+    async fn do_auto_completion(&self, sql: &str) -> anyhow::Result<Vec<CompletionItem>> {
+        let tokens = sqlparser::tokenizer::Tokenizer::new(self.dialect().as_ref(), sql)
             .tokenize_with_location()
             .unwrap_or_default();
         let mut all_item = self.all_completion_items().await;
@@ -286,6 +284,7 @@ pub trait LangServerCommon: GetBackendKind {
     async fn list_execute(&self, _schema: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
         anyhow::Ok(vec![])
     }
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync>;
 }
 
 #[derive(Clone, Debug)]
@@ -390,16 +389,33 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
     }
 }
 
-pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Send + Sync>(
-    sql: &str, line: u32, col: u32, dialet: T, helper: &dyn AstCompletionHelper,
+pub(crate) async fn try_parser_and_lexer<T: LexerCompletionTrait + AstCompletionHelper>(
+    t: &T, sql: &str, line: u32, col: u32, use_lexer: bool,
+) -> anyhow::Result<Vec<CompletionItem>> {
+    let r = try_completion_on_syntax(sql, line, col, t).await;
+    match r {
+        Ok(xs) => return Ok(xs),
+        Err(err) => {
+            log::error!("completion on ast failed,err:{}", err);
+        }
+    };
+    if !use_lexer {
+        log::warn!("disabled use lexer , we will return empty data.");
+        return anyhow::Ok(vec![]);
+    }
+    return LexerCompletionTrait::do_auto_completion(t, sql).await;
+}
+
+pub(crate) async fn try_completion_on_syntax(
+    sql: &str, line: u32, col: u32, helper: &dyn AstCompletionHelper,
 ) -> anyhow::Result<Vec<CompletionItem>> {
     let loc = Location {
         line: line as u64,
         column: col as u64,
     };
-
+    let d = helper.dialect();
     let statements = block_in_place(|| -> anyhow::Result<Vec<Statement>> {
-        let parser = sqlparser::parser::Parser::new(&dialet);
+        let parser = sqlparser::parser::Parser::new(d.as_ref());
         let mut parser = parser.try_with_sql(sql)?;
         let mut statements = Vec::new();
         while parser.peek_token().token != Token::EOF {
@@ -430,7 +446,7 @@ pub(crate) async fn try_completion_on_syntax<T: sqlparser::dialect::Dialect + Se
             return anyhow::Ok(m);
         }
     }
-    let tokens: Vec<_> = sqlparser::tokenizer::Tokenizer::new(&dialet, sql)
+    let tokens: Vec<_> = sqlparser::tokenizer::Tokenizer::new(helper.dialect().as_ref(), sql)
         .tokenize_with_location()
         .unwrap_or_default()
         .into_iter()

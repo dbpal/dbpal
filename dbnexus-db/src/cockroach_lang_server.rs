@@ -13,14 +13,7 @@ impl LanguageServer for CockRoachDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(
-            sql,
-            line,
-            col,
-            sqlparser::dialect::PostgreSqlDialect {},
-            self.pg.as_ref(),
-        )
-        .await;
+        let r = try_completion_on_syntax(sql, line, col, self.pg.as_ref()).await;
         match r {
             Ok(xs) => return Ok(xs),
             Err(err) => {
@@ -31,12 +24,7 @@ impl LanguageServer for CockRoachDB {
             log::warn!("disabled use lexer , we will return empty data.");
             return anyhow::Ok(vec![]);
         }
-        return LexerCompletionTrait::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::PostgreSqlDialect {},
-        )
-        .await;
+        LexerCompletionTrait::do_auto_completion(self, sql).await
     }
 
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
@@ -46,6 +34,9 @@ impl LanguageServer for CockRoachDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for CockRoachDB {
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::PostgreSqlDialect {})
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         LangServerCommon::list_schema(self.pg.as_ref()).await
     }

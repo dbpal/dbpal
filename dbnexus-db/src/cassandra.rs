@@ -1784,6 +1784,9 @@ impl LangServerCommon for CassandraDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         DBTrait::list_schema(self).await
     }
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        Box::new(sqlparser::dialect::GenericDialect {})
+    }
 }
 
 #[async_trait::async_trait]
