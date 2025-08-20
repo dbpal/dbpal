@@ -463,6 +463,7 @@ impl SchemaTrait for ClickHouseDB {
             total,
             data,
             sql: Some(sql),
+            cache_time: None,
         })
     }
 
@@ -804,6 +805,7 @@ impl QuerySql for ClickHouseDB {
                         data,
                         sql: Some(sql.clone()),
                         total: 0,
+                        cache_time: None,
                     }));
                 }
 

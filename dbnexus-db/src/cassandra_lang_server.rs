@@ -53,8 +53,9 @@ impl LangServerCommon for CassandraDB {
         if key_space.is_none() {
             return Err(anyhow::anyhow!("keyspace is not set"));
         }
+        // this sql can query view columns too.
         let sql = format!(
-            "SELECT column_name 
+            "SELECT column_name ,type
                             FROM system_schema.columns 
                             WHERE keyspace_name = '{}' 
                             AND table_name = '{}';",
@@ -73,17 +74,18 @@ impl LangServerCommon for CassandraDB {
         let mut result: Vec<TempTableColumn> = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: Option<String> = r.get_by_index(0)?;
+            let typ: Option<String> = r.get_by_index(1)?;
             if let Some(name) = name {
                 result.push(TempTableColumn {
                     name,
-                    typ: None, // Cassandra does not provide data type in this query
+                    typ, // Cassandra does not provide data type in this query
                 });
             }
         }
         anyhow::Ok(result)
     }
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = KEY_WORDS
+        let r = CASSANDRA_KEYWORDS
             .iter()
             .map(|x| CompletionItem {
                 item: x.to_string().into(),
@@ -94,40 +96,36 @@ impl LangServerCommon for CassandraDB {
         anyhow::Ok(r)
     }
     async fn list_function(
-        &self, schema: Option<&str>, _include_build_in: bool,
+        &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let mut ret = Vec::new();
         let schema = self.merge_schema(schema);
         if let Some(key_space) = schema.as_ref() {
-            {
-                ret.extend(
-                    self.list_aggregate_impl(key_space)
-                        .await?
-                        .into_iter()
-                        .map(|x| CompletionItem {
-                            kind: CompletionKind::Function,
-                            desc: x.cassandra_parameters.clone().map(|x| x.join(",").into()),
-                            item: x.name.clone().into(),
-                        }),
-                );
-            }
-            {
-                ret.extend(self.list_udf_impl(key_space).await?.into_iter().map(|x| {
-                    CompletionItem {
+            ret.extend(
+                self.list_aggregate_impl(key_space)
+                    .await?
+                    .into_iter()
+                    .map(|x| CompletionItem {
                         kind: CompletionKind::Function,
                         desc: x.cassandra_parameters.clone().map(|x| x.join(",").into()),
                         item: x.name.clone().into(),
-                    }
-                }));
-            }
+                    }),
+            );
+
+            ret.extend(
+                self.list_udf_impl(key_space)
+                    .await?
+                    .into_iter()
+                    .map(|x| CompletionItem {
+                        kind: CompletionKind::Function,
+                        desc: x.cassandra_parameters.clone().map(|x| x.join(",").into()),
+                        item: x.name.clone().into(),
+                    }),
+            );
         }
-
-        ret.extend(BUILD_IN_FN.iter().map(|x| CompletionItem {
-            item: (*x).into(),
-            kind: CompletionKind::Function,
-            desc: None,
-        }));
-
+        if include_build_in {
+            ret.extend(self.cassandra_build_in_fns().into_iter());
+        }
         anyhow::Ok(ret)
     }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
@@ -139,7 +137,7 @@ impl LangServerCommon for CassandraDB {
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = self.merge_schema(schema);
         match schema {
-            Some(x) => CassandraDB::list_table_impl(self, &x)
+            Some(schema) => CassandraDB::list_table_impl(self, &schema)
                 .await
                 .map(|x| x.into_iter().map(|x| x.name).collect()),
             None => anyhow::Ok(vec![]),
@@ -148,12 +146,25 @@ impl LangServerCommon for CassandraDB {
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = self.merge_schema(schema);
         match schema {
-            Some(x) => self
-                .list_materialized_view_impl(&x)
+            Some(schema) => self
+                .list_materialized_view_impl(&schema)
                 .await
                 .map(|x| x.into_iter().map(|x| x.name).collect()),
             None => anyhow::Ok(vec![]),
         }
+    }
+}
+
+impl CassandraDB {
+    fn cassandra_build_in_fns(&self) -> Vec<CompletionItem> {
+        CASSANDRA_FUNCTIONS
+            .iter()
+            .map(|x| CompletionItem {
+                item: (*x).into(),
+                kind: CompletionKind::Function,
+                desc: None,
+            })
+            .collect()
     }
 }
 
@@ -191,7 +202,7 @@ impl AstCompletion {
     async fn completion(
         sql: &str, line: u32, col: u32, db: CassandraDB,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut c = AstCompletion {
+        let mut c: AstCompletion = AstCompletion {
             line: line as usize,
             col: col as usize,
             on_def: false,
@@ -293,6 +304,8 @@ impl AstCompletion {
                 .collect()
         };
         if name.keyspace.is_none() {
+            // try suggest keyspace on table or view
+            // very common case unfinish statement like `test` then `.`
             result.extend(self.table_view_key_spaces().await?.into_iter());
         }
         self.result = Some(result);
@@ -368,7 +381,7 @@ impl AstCompletion {
         match w {
             WithItem::Option { .. } => {}
             WithItem::ClusterOrder(order_clause) => {
-                self.on_table_or_view_column(table, &order_clause.name)
+                self.on_table_or_view_column(table, &order_clause.name, false)
                     .await?;
                 if self.finished() {
                     return anyhow::Ok(());
@@ -418,8 +431,8 @@ impl AstCompletion {
             return anyhow::Ok(());
         }
         let sql =
-            "SELECT role FROM system_auth.roles WHERE is_superuser = false   allow filtering  ;"
-                .to_string();
+            "SELECT role FROM system_auth.roles WHERE is_superuser = false   allow filtering  ;";
+
         log::info!("sql:{}", sql);
 
         let rows = self
@@ -449,7 +462,7 @@ impl AstCompletion {
     }
 
     async fn on_table_or_view_column(
-        &mut self, table: &FQName, col: &Identifier,
+        &mut self, table: &FQName, col: &Identifier, is_expr: bool,
     ) -> anyhow::Result<()> {
         if !self.in_pos(col.span()) {
             return anyhow::Ok(());
@@ -487,6 +500,19 @@ impl AstCompletion {
                 });
             }
         }
+        if is_expr {
+            self.on_udf(&key_space, col).await?;
+            result.extend(self.result.take().unwrap_or_default().into_iter());
+            self.on_aggregate(&FQName {
+                keyspace: None,
+                name: col.clone(),
+            })
+            .await?;
+            result.extend(self.result.take().unwrap_or_default().into_iter());
+            result.extend(self.db.cassandra_build_in_fns().into_iter());
+            let _ = self.on_key_space(col).await;
+            result.extend(self.result.take().unwrap_or_default().into_iter());
+        }
         self.result = Some(result);
         anyhow::Ok(())
     }
@@ -498,16 +524,13 @@ impl AstCompletion {
                 return anyhow::Ok(());
             }
         }
-
         if !self.in_pos(typ.name.span()) {
             return anyhow::Ok(());
         }
-
         let key_space = self.need_key_space_identifier(typ.keyspace.as_ref())?;
-
         let sql = format!(
             r#"
-              SELECT type_name 
+                SELECT type_name 
                 FROM system_schema.types 
                 WHERE keyspace_name = '{key_space}';"#
         );
@@ -611,8 +634,8 @@ impl AstCompletion {
         let sql = format!(
             r#"
         SELECT aggregate_name 
-FROM system_schema.aggregates 
-WHERE keyspace_name = '{key_space}';"#
+            FROM system_schema.aggregates 
+            WHERE keyspace_name = '{key_space}';"#
         );
         log::info!("sql:{}", sql);
         let rows = self
@@ -698,7 +721,7 @@ WHERE keyspace_name = '{key_space}';"#
 
         let sql = format!(
             r#"
-           SELECT index_name 
+            SELECT index_name 
                 FROM system_schema.indexes 
                 WHERE keyspace_name = '{key_space}'
         "#
@@ -743,7 +766,7 @@ WHERE keyspace_name = '{key_space}';"#
 
         let sql = format!(
             r#"
-           SELECT trigger_name 
+            SELECT trigger_name 
                 FROM system_schema.triggers 
                 WHERE keyspace_name = '{key_space}'
         "#
@@ -788,7 +811,8 @@ WHERE keyspace_name = '{key_space}';"#
                 }
             }
             Operand::Column(identifier) => {
-                self.on_table_or_view_column(table, identifier).await?;
+                self.on_table_or_view_column(table, identifier, true)
+                    .await?;
             }
             Operand::Func(_) => {}
             Operand::Param(_) => {}
@@ -841,7 +865,8 @@ WHERE keyspace_name = '{key_space}';"#
                     }
                     AlterTableOperation::DropColumns(identifiers) => {
                         for col in identifiers.iter() {
-                            self.on_table_or_view_column(&alter_table.name, col).await?;
+                            self.on_table_or_view_column(&alter_table.name, col, false)
+                                .await?;
                             if self.finished() {
                                 return anyhow::Ok(());
                             }
@@ -849,7 +874,7 @@ WHERE keyspace_name = '{key_space}';"#
                     }
                     AlterTableOperation::DropCompactStorage => {}
                     AlterTableOperation::Rename(x) => {
-                        self.on_table_or_view_column(&alter_table.name, &x.0)
+                        self.on_table_or_view_column(&alter_table.name, &x.0, false)
                             .await?;
 
                         if self.in_pos(x.1.span()) {
@@ -972,7 +997,7 @@ WHERE keyspace_name = '{key_space}';"#
                     | IndexColumnType::Keys(identifier)
                     | IndexColumnType::Entries(identifier)
                     | IndexColumnType::Full(identifier) => {
-                        self.on_table_or_view_column(&create_index.table, identifier)
+                        self.on_table_or_view_column(&create_index.table, identifier, false)
                             .await?;
                     }
                 }
@@ -1005,7 +1030,7 @@ WHERE keyspace_name = '{key_space}';"#
                     .chain(create_materialized_view.key.partition.iter())
                     .chain(create_materialized_view.key.clustering.iter())
                 {
-                    self.on_table_or_view_column(&create_materialized_view.table, col)
+                    self.on_table_or_view_column(&create_materialized_view.table, col, false)
                         .await?;
                     if self.finished() {
                         return anyhow::Ok(());
@@ -1150,7 +1175,7 @@ WHERE keyspace_name = '{key_space}';"#
                     return anyhow::Ok(());
                 }
                 for col in delete.columns.iter() {
-                    self.on_table_or_view_column(&delete.table_name, &col.column)
+                    self.on_table_or_view_column(&delete.table_name, &col.column, false)
                         .await?;
                     if self.finished() {
                         return anyhow::Ok(());
@@ -1208,7 +1233,7 @@ WHERE keyspace_name = '{key_space}';"#
                     return anyhow::Ok(());
                 }
                 for col in insert.columns.iter() {
-                    self.on_table_or_view_column(&insert.table_name, col)
+                    self.on_table_or_view_column(&insert.table_name, col, false)
                         .await?;
                     if self.finished() {
                         return anyhow::Ok(());
@@ -1250,18 +1275,20 @@ WHERE keyspace_name = '{key_space}';"#
                     match col {
                         SelectElement::Star => {}
                         SelectElement::Column(named) => {
-                            self.on_table_or_view_column(&select.table_name, &named.name)
+                            self.on_table_or_view_column(&select.table_name, &named.name, true)
                                 .await?;
+
                             if self.finished() {
                                 return anyhow::Ok(());
                             }
+
                             if self.in_pos(named.alias.as_ref().and_then(|x| x.span())) {
                                 self.on_def = true;
                                 return anyhow::Ok(());
                             }
                         }
                         SelectElement::Function(named) => {
-                            self.on_table_or_view_column(&select.table_name, &named.name)
+                            self.on_table_or_view_column(&select.table_name, &named.name, true)
                                 .await?;
                             if self.finished() {
                                 return anyhow::Ok(());
@@ -1283,7 +1310,7 @@ WHERE keyspace_name = '{key_space}';"#
                     return anyhow::Ok(());
                 }
                 for ass in update.assignments.iter() {
-                    self.on_table_or_view_column(&update.table_name, &ass.name.column)
+                    self.on_table_or_view_column(&update.table_name, &ass.name.column, false)
                         .await?;
                     self.on_operand(&update.table_name, &ass.value).await?;
                     if self.finished() {
@@ -1322,7 +1349,7 @@ mod tests {
         enable_test_log();
         let query_id = db.open_connection().await.unwrap();
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
                 CREATE TABLE employees (
@@ -1349,10 +1376,10 @@ mod tests {
             .unwrap();
 
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
-               
+                
                 CREATE MATERIALIZED VIEW employees_by_department AS
                     SELECT employee_id, first_name, last_name, email, hire_date
                     FROM employees
@@ -1365,7 +1392,7 @@ mod tests {
             .unwrap();
 
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
                 CREATE ROLE IF NOT EXISTS role_test WITH PASSWORD = 'password123' AND LOGIN = true;
@@ -1375,7 +1402,7 @@ mod tests {
             .unwrap();
 
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
  
@@ -1393,7 +1420,7 @@ mod tests {
             .unwrap();
 
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
                 CREATE OR REPLACE FUNCTION no_op_final_function(state int)
@@ -1408,10 +1435,9 @@ mod tests {
             .await
             .unwrap();
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
-           
                 CREATE OR REPLACE AGGREGATE no_op_aggregate(int)
                 SFUNC no_op_state_function
                 STYPE int
@@ -1423,11 +1449,10 @@ mod tests {
             .unwrap();
 
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
-           
-               CREATE TYPE IF NOT EXISTS completion_type (
+                CREATE TYPE IF NOT EXISTS completion_type (
                     status TEXT,
                     completion_date TIMESTAMP,
                     remarks TEXT
@@ -1439,10 +1464,10 @@ mod tests {
             .unwrap();
 
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
-             CREATE TYPE address (
+                CREATE TYPE address (
                     zip_code text
                 );
 
@@ -1501,22 +1526,47 @@ const TYPES: &[&str] = &[
     "UDT",
     "TUPLE",
 ];
-
-pub(crate) const KEY_WORDS: &[&str] = &[
+/// Apache Cassandra 官方 CQL 关键字（CQL 3.4）
+pub const CASSANDRA_KEYWORDS: &[&str] = &[
     "ADD",
     "AGGREGATE",
+    "ALL",
     "ALLOW",
     "ALTER",
     "AND",
     "ANY",
     "APPLY",
+    "AS",
     "ASC",
+    "ASCII",
     "AUTHORIZE",
     "BATCH",
     "BEGIN",
+    "BIGINT",
+    "BLOB",
+    "BOOLEAN",
+    "BY",
+    "CLUSTERING",
+    "COLUMNFAMILY",
+    "COMPACT",
+    "CONSISTENCY",
+    "COUNT",
+    "COUNTER",
+    "CREATE",
+    "CUSTOM",
+    "DATE",
+    "DECIMAL",
+    "DELETE",
+    "DESC",
+    "DISTINCT",
+    "DOUBLE",
     "DROP",
     "EACH_QUORUM",
     "ENTRIES",
+    "EXISTS",
+    "FILTERING",
+    "FLOAT",
+    "FROZEN",
     "FROM",
     "FULL",
     "GRANT",
@@ -1526,16 +1576,22 @@ pub(crate) const KEY_WORDS: &[&str] = &[
     "INET",
     "INFINITY",
     "INSERT",
+    "INT",
     "INTO",
+    "KEY",
     "KEYSPACE",
     "KEYSPACES",
+    "LEVEL",
     "LIMIT",
+    "LIST",
     "LOCAL_ONE",
     "LOCAL_QUORUM",
+    "MAP",
     "MATERIALIZED",
     "MODIFY",
     "NAN",
     "NORECURSIVE",
+    "NOSUPERUSER",
     "NOT",
     "OF",
     "ON",
@@ -1544,6 +1600,8 @@ pub(crate) const KEY_WORDS: &[&str] = &[
     "PARTITION",
     "PASSWORD",
     "PER",
+    "PERMISSION",
+    "PERMISSIONS",
     "PRIMARY",
     "QUORUM",
     "RENAME",
@@ -1551,43 +1609,128 @@ pub(crate) const KEY_WORDS: &[&str] = &[
     "SCHEMA",
     "SELECT",
     "SET",
+    "STATIC",
+    "STORAGE",
+    "SUPERUSER",
+    "TABLE",
+    "TEXT",
+    "TIME",
+    "TIMESTAMP",
+    "TIMEUUID",
     "THREE",
     "TO",
     "TOKEN",
     "TRUNCATE",
+    "TTL",
+    "TUPLE",
     "TWO",
+    "TYPE",
     "UNLOGGED",
     "UPDATE",
     "USE",
+    "USER",
+    "USERS",
     "USING",
+    "UUID",
+    "VALUES",
+    "VARCHAR",
+    "VARINT",
     "VIEW",
     "WHERE",
     "WITH",
-    "TABLE",
-];
-
-// https://docs.datastax.com/en/cql-oss/3.x/cql/cql_reference/cql_function_r.html
-pub(crate) const BUILD_IN_FN: &[&str] = &[
-    "typeAsBlob",
-    "blobAsType",
-    "dateOf",
-    "now",
-    "minTimeuuid",
-    "unixTimestampOf",
-    "toDate",
-    "toTimestamp",
-    "toUnixTimestamp",
-    "toDate",
-    "toUnixTimestamp",
-    "toTimestamp",
-    "toUnixTimestamp",
-    "TOKEN",
     "WRITETIME",
-    "TTL",
-    // TODO. I don't find full list on build in aggregate function
-    "COUNT",
-    "MAX",
-    "MIN",
-    "SUM",
-    "AVG",
+];
+/// Apache Cassandra 官方内置函数清单（CQL 3.4+）
+pub const CASSANDRA_FUNCTIONS: &[&str] = &[
+    // 日期/时间
+    "current_timestamp",
+    "current_date",
+    "current_time",
+    "current_timeuuid",
+    "to_date",
+    "to_timestamp",
+    "to_unix_timestamp",
+    "dateof",
+    "unix_timestamp_of",
+    // 转换
+    "cast",
+    "type_as_blob",
+    "blob_as_bigint",
+    "blob_as_date",
+    "blob_as_decimal",
+    "blob_as_double",
+    "blob_as_float",
+    "blob_as_int",
+    "blob_as_smallint",
+    "blob_as_text",
+    "blob_as_time",
+    "blob_as_timestamp",
+    "blob_as_tinyint",
+    "blob_as_uuid",
+    "blob_as_varint",
+    // 数学
+    "abs",
+    "acos",
+    "asin",
+    "atan",
+    "atan2",
+    "ceil",
+    "cos",
+    "exp",
+    "floor",
+    "log",
+    "log10",
+    "pow",
+    "round",
+    "sin",
+    "sqrt",
+    "tan",
+    // 聚合
+    "avg",
+    "count",
+    "min",
+    "max",
+    "sum",
+    // 字符串
+    "length",
+    "char_length",
+    "character_length",
+    "lower",
+    "upper",
+    "trim",
+    "ltrim",
+    "rtrim",
+    "replace",
+    "reverse",
+    "substr",
+    "substring",
+    // 集合
+    "collection_count",
+    "collection_size",
+    // 标识
+    "uuid",
+    "now",
+    // token 计算
+    "token",
+    // 类型检查
+    "typeof",
+    // 其他辅助
+    "ttl",
+    "writetime",
+    // 二进制
+    "bigint_as_blob",
+    "boolean_as_blob",
+    "date_as_blob",
+    "decimal_as_blob",
+    "double_as_blob",
+    "float_as_blob",
+    "inet_as_blob",
+    "int_as_blob",
+    "smallint_as_blob",
+    "text_as_blob",
+    "time_as_blob",
+    "timestamp_as_blob",
+    "tinyint_as_blob",
+    "uuid_as_blob",
+    "varint_as_blob",
 ];

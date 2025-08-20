@@ -1713,6 +1713,7 @@ impl QuerySql for MysqlDB {
                 total: 0,
                 data: vec![],
                 sql: Some(sql.to_string()),
+                cache_time: None,
             })];
         }
         query_log.set_success(ret.iter().all(|x| x.is_ok()));

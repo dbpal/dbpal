@@ -331,6 +331,7 @@ function SqlTableView_(props: {
     pos: Position
   ) => Promise<languages.CompletionList>;
   quoteStyle: string;
+  invalidCassandraTableViewCache?: () => Promise<void>;
 }) {
   let {
     reloadOP,
@@ -343,6 +344,7 @@ function SqlTableView_(props: {
     addOP,
     autoCompletion,
     quoteStyle,
+    invalidCassandraTableViewCache,
   } = props;
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
@@ -357,6 +359,7 @@ function SqlTableView_(props: {
     fields: [],
     data: [],
     total: 0,
+    cache_time: null,
   });
   const { showNotification } = useContext(NotificationContext);
   const [lastLoadTime, setLastLoadTime] = useState(new Date());
@@ -376,6 +379,7 @@ function SqlTableView_(props: {
     resp.data.forEach((data) => {
       data[keyNotInTable] = uuidv4();
     });
+    console.log('!!!!!!!!!!!!!!!!', resp);
     for (let i = 0; i < resp.fields.length; i++) {
       let field = resp.fields[i];
       //@ts-ignore
@@ -738,16 +742,50 @@ function SqlTableView_(props: {
           ></Chip>
         </Tooltip>
         {kind == DataSourceKind.Cassandra && (
-          <FormControlLabel
-            control={
-              <Switch
-                size="small"
-                checked={allowFiltering}
-                onChange={(e) => setAllowFiltering(e.target.checked)}
-              />
-            }
-            label="allow filtering"
-          />
+          <>
+            <FormControlLabel
+              control={
+                <Switch
+                  size="small"
+                  checked={allowFiltering}
+                  onChange={(e) => setAllowFiltering(e.target.checked)}
+                />
+              }
+              label="allow filtering"
+            />
+            {resp.cache_time && (
+              <>
+                <Tooltip title="last cache time" arrow>
+                  <Typography color="info">
+                    {new Date(resp.cache_time * 1000).toLocaleString()}
+                  </Typography>
+                </Tooltip>
+                <Tooltip title="Cassandra does not support pagination with offset and limit, so the data is cached in the background, which returns data based on pagination.">
+                  <Button
+                    variant="contained"
+                    onClick={() => {
+                      invalidCassandraTableViewCache()
+                        .then(() => {
+                          showNotification(
+                            'success',
+                            'invalid cassandra table and view cache OK'
+                          );
+                        })
+                        .catch((e) => {
+                          showNotification(
+                            'error',
+                            'invalid cassandra table and view cache failed',
+                            e
+                          );
+                        });
+                    }}
+                  >
+                    clear cache
+                  </Button>
+                </Tooltip>
+              </>
+            )}
+          </>
         )}
       </Stack>
 

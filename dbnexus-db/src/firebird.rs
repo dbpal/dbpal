@@ -400,6 +400,8 @@ impl QuerySql for FireBirdDB {
                             data,
                             sql: Some(sql.to_owned()),
                             total: 0,
+
+                            cache_time: None,
                         }));
                     }
                 }
@@ -719,6 +721,7 @@ impl SchemaTrait for FireBirdDB {
                 total: 0,
                 data: vec![],
                 sql: Some(sql),
+                cache_time: None,
             });
         }
         let mut fields = infer_fields(&rows[0]);
@@ -732,6 +735,7 @@ impl SchemaTrait for FireBirdDB {
 
         anyhow::Ok(QueryResp {
             fields,
+            cache_time: None,
             total,
             data,
             sql: Some(sql),
@@ -915,6 +919,7 @@ impl SchemaTrait for FireBirdDB {
                 total: 0,
                 data: vec![],
                 sql: Some(sql),
+                cache_time: None,
             });
         }
         let data = encode_rows(&rows, true, None)?;
@@ -930,6 +935,7 @@ impl SchemaTrait for FireBirdDB {
             total,
             data,
             sql: Some(sql),
+            cache_time: None,
         })
     }
 }

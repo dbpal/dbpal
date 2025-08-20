@@ -2479,6 +2479,20 @@ pub async fn put_value_in_sql(
 }
 
 #[tauri::command]
+pub async fn cassandra_invalid_table_or_view_caching(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<(), ErrorFrontend> {
+    let open = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
+    match open.as_any().downcast_ref::<CassandraDB>() {
+        Some(x) => {
+            x.invalid_table_or_view_caching(None);
+            Ok(())
+        }
+        None => Err(ErrorFrontend::from("this is not cassandra")),
+    }
+}
+
+#[tauri::command]
 pub async fn cassandra_list_aggregate(
     name: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<NamedStaff>, ErrorFrontend> {
@@ -2716,6 +2730,7 @@ pub struct MuiDataGridData {
     data: Vec<HashMap<String, String>>,
     sql: Option<String>,
     total: usize,
+    cache_time: Option<u64>,
 }
 
 impl From<QueryResp> for MuiDataGridData {
@@ -2725,6 +2740,7 @@ impl From<QueryResp> for MuiDataGridData {
             data,
             total,
             sql,
+            cache_time,
         } = value;
         #[derive(Default)]
         struct NameIndex {
@@ -2771,11 +2787,14 @@ impl From<QueryResp> for MuiDataGridData {
                 values
             })
             .collect();
+
+        println!("!!!!!!!!!!!!!!!!!!!!!{:?}", cache_time);
         Self {
             fields: fields_renamed,
             data,
             sql,
             total,
+            cache_time,
         }
     }
 }
@@ -2807,6 +2826,7 @@ mod tests {
                 data: vec![],
                 sql: None,
                 total: 0,
+                cache_time: None,
             }),
         ];
 

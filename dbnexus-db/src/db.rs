@@ -987,6 +987,7 @@ impl TryFrom<&str> for IndexKind {
 impl QueryResp {
     pub fn row_affected(affected: u64, sql: impl Into<Option<String>>) -> Self {
         Self {
+            cache_time: None,
             data: vec![vec![Some(affected.to_string())]],
             fields: vec![Field {
                 field: "row affected".to_string(),
@@ -1018,6 +1019,7 @@ impl QueryResp {
             }],
             sql: sql.into(),
             total: 0,
+            cache_time: None,
         }
     }
 }
@@ -1029,7 +1031,8 @@ pub struct QueryResp {
     pub total: usize,
     pub data: Vec<Vec<Option<String>>>,
     pub sql: Option<String>,
-    // pub hit_cahce: bool,
+    // some backend like `cassandra` use cache on the for pagination
+    pub cache_time: Option<u64>,
 }
 
 /// we don't want to check `sql` somehow can be different
@@ -1067,6 +1070,7 @@ impl QueryResp {
             fields,
             total,
             sql,
+            cache_time: None,
             data,
         };
         ret.check()?;
@@ -1080,6 +1084,7 @@ impl QueryResp {
         let col_name = col_name.into();
 
         Self {
+            cache_time: None,
             total: result.len(),
             sql,
             // hit_cahce: false,

@@ -26,11 +26,19 @@
 // user_defined_functions_enabled=true to enable"
 //
 
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
-
+use crate::MemoryLimit;
+use crate::datasource_config::CassandraDBConfig;
+use crate::db::{
+    BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
+    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
+    ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter,
+    escape_sql_str,
+};
+use crate::helper::{create_csv, current_timestamp};
+use crate::language_server::LexerCompletionTrait;
+use crate::meta_value::MetaValue;
+use crate::query_log::{QueryLogEvent, QueryLogMap};
 use cdrs_tokio::authenticators::StaticPasswordAuthenticatorProvider;
 use cdrs_tokio::cluster::NodeTcpConfigBuilder;
 use cdrs_tokio::cluster::session::{SessionBuilder, TcpSessionBuilder};
@@ -51,21 +59,10 @@ use cql3_parser::cassandra_statement::CassandraStatement;
 use cql3_parser::common::{ColumnDefinition, DataType};
 use dashmap::DashMap;
 use num_bigint::{BigInt, ToBigInt};
-
-use crate::MemoryLimit;
-
-use crate::datasource_config::CassandraDBConfig;
-use crate::db::{
-    BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
-    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
-    ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter,
-    escape_sql_str,
-};
-use crate::helper::create_csv;
-use crate::language_server::LexerCompletionTrait;
-use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLogEvent, QueryLogMap};
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct CassandraDB {
@@ -89,6 +86,7 @@ struct PageCache {
     result: QueryResp,
     condition: PageCacheCondition,
     sql: String,
+    cache_time: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -99,8 +97,13 @@ struct PageCacheCondition {
 }
 
 impl PageCache {
-    fn page(&self, page: usize, page_size: usize) -> QueryResp {
+    fn page(&self, page: usize, page_size: usize, hit_cache: bool) -> QueryResp {
         let length = self.result.data.len();
+        let cache_time = if hit_cache {
+            Some(self.cache_time)
+        } else {
+            None
+        };
         let start = (page - 1) * page_size;
         if start >= length {
             return QueryResp {
@@ -108,6 +111,7 @@ impl PageCache {
                 data: vec![],
                 sql: Some(self.sql.clone()),
                 total: 0,
+                cache_time,
             };
         }
         let end = page * page_size;
@@ -119,6 +123,7 @@ impl PageCache {
             data,
             sql: Some(self.sql.clone()),
             total: 0,
+            cache_time,
         }
     }
 }
@@ -804,7 +809,7 @@ impl QuerySql for CassandraDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        self.invalid_page_caching(None);
+        self.invalid_table_or_view_caching(None);
         let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let ret = match self.session.query(sql).await {
@@ -818,7 +823,7 @@ impl QuerySql for CassandraDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        self.invalid_page_caching(None);
+        self.invalid_table_or_view_caching(None);
         let mut query_log = self.query_logs.get_guard(query_id, sql);
         let mut ret = vec![];
         let mut ml = MemoryLimit::new();
@@ -839,6 +844,7 @@ impl QuerySql for CassandraDB {
                             data,
                             sql: Some(sql.to_owned()),
                             total: 0,
+                            cache_time: None,
                         }));
                     }
                 }
@@ -937,7 +943,7 @@ impl CassandraDB {
     const PAGE_CACHE_LIMIG_SIZE: usize = 2000;
 
     // table is none means remove all cached.
-    fn invalid_page_caching(&self, table: Option<&str>) {
+    pub fn invalid_table_or_view_caching(&self, table: Option<&str>) {
         if let Some(table) = table {
             self.paging_cache.remove(&table.to_string());
         } else {
@@ -963,7 +969,7 @@ impl CassandraDB {
         page_size: usize, extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         // try get value from cache
-        let condition = PageCacheCondition {
+        let condition: PageCacheCondition = PageCacheCondition {
             where_str: where_str.map(|x| x.to_owned()),
             order_by: order_by.map(|x| x.to_owned()),
             extra: extra.clone(),
@@ -980,7 +986,7 @@ impl CassandraDB {
                         page,
                         page_size
                     );
-                    return anyhow::Ok(cache.page(page, page_size));
+                    return anyhow::Ok(cache.page(page, page_size, true));
                 }
             }
         }
@@ -997,32 +1003,34 @@ impl CassandraDB {
             },
             None => false,
         };
+
+        /*
+        在 Cassandra 中，使用 ALLOW FILTERING 时确实会有一些限制。特别是，当你在查询中使用 ALLOW FILTERING 时，不能同时使用 ORDER BY。
+
+        这是因为 ORDER BY 需要在分区键（partition key）上进行排序，而 ALLOW FILTERING 通常意味着查询的条件不符合最优的索引使用，这会导致 Cassandra 无法保证结果的顺序。因此，Cassandra 不允许在这种情况下同时使用这两个选项。
+
+        如果你需要排序结果，建议在设计数据模型时考虑索引和查询需求，以避免使用 ALLOW FILTERING。
+
+        好像也不能使用limit了 那就使用
+        */
+
         let sql = format!(
-            r#"SELECT * FROM "{name}"  {}  {} {}"#,
+            r#"SELECT * FROM "{name}"  {}  {} {} {}"#,
             if let Some(where_str) = where_str {
-                format!(
-                    " WHERE {} {}",
-                    where_str,
-                    if allow_filtering {
-                        "ALLOW FILTERING"
-                    } else {
-                        ""
-                    }
-                )
+                format!(" WHERE {} ", where_str,)
             } else {
                 "".to_string()
             },
-            if allow_filtering && where_str.is_some() {
-                "".to_string()
-            } else if let Some(order_by) = order_by {
-                format!(" ORDER BY {} ", order_by)
+            if order_by.is_some() {
+                format!(" ORDER BY {} ", order_by.unwrap())
             } else {
                 "".to_string()
             },
-            if allow_filtering && where_str.is_some() {
-                "".to_string()
+            format!("LIMIT {}", Self::PAGE_CACHE_LIMIG_SIZE),
+            if allow_filtering {
+                "ALLOW FILTERING"
             } else {
-                format!("LIMIT {}", Self::PAGE_CACHE_LIMIG_SIZE)
+                ""
             }
         );
         log::info!("sql:{:?}", sql);
@@ -1035,6 +1043,7 @@ impl CassandraDB {
                 data: vec![],
                 sql: Some(sql.clone()),
                 total: 0,
+                cache_time: None,
             });
         }
         let meta = meta.unwrap();
@@ -1049,12 +1058,13 @@ impl CassandraDB {
                 data,
                 sql: Some(sql.clone()),
                 total: 0,
+                cache_time: None,
             },
             condition,
             sql,
+            cache_time: current_timestamp(),
         };
-
-        let ret = cache.page(page, page_size);
+        let ret = cache.page(page, page_size, false);
         self.paging_cache.insert(name.to_owned(), Arc::new(cache));
         anyhow::Ok(ret)
     }
@@ -1290,6 +1300,7 @@ impl SchemaTrait for CassandraDB {
         let sql = format!("DROP MATERIALIZED VIEW {name};");
         log::info!("sql:{}", sql);
         self.session.query(sql).await?;
+        self.invalid_table_or_view_caching(Some(name));
         anyhow::Ok(())
     }
 
@@ -1490,6 +1501,7 @@ impl SchemaTrait for CassandraDB {
                 data: vec![],
                 total: 0,
                 sql: None,
+                cache_time: ret.cache_time,
             });
         }
         let mut m = HashMap::new();
@@ -1504,13 +1516,20 @@ impl SchemaTrait for CassandraDB {
                 *field = (*f).clone();
             }
         });
-        let QueryResp { fields, data, .. } = ret;
-        anyhow::Ok(QueryResp::new(
+        let QueryResp {
             fields,
-            self.page_caching_totoal(table_name),
             data,
-            self.page_caching_sql(table_name),
-        )?)
+            cache_time,
+            ..
+        } = ret;
+
+        anyhow::Ok(QueryResp {
+            fields,
+            total: self.page_caching_totoal(table_name),
+            data,
+            sql: self.page_caching_sql(table_name),
+            cache_time,
+        })
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -1547,7 +1566,7 @@ impl SchemaTrait for CassandraDB {
         let sql = self.insert_sql(None, table_name, &fs, &values)?;
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
-        self.invalid_page_caching(Some(table_name));
+        self.invalid_table_or_view_caching(Some(table_name));
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(1),
@@ -1565,7 +1584,7 @@ impl SchemaTrait for CassandraDB {
 
         log::info!("update sql:{}", sql);
         self.session.query(&sql).await?;
-        self.invalid_page_caching(Some(table_name));
+        self.invalid_table_or_view_caching(Some(table_name));
         anyhow::Ok(SqlExecuteRet::from((sql, 1)))
     }
 
@@ -1586,7 +1605,7 @@ impl SchemaTrait for CassandraDB {
         let sql = self.delete_sql(self.config.db.as_deref(), table_name, &fs, &wheres)?;
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
-        self.invalid_page_caching(Some(table_name));
+        self.invalid_table_or_view_caching(Some(table_name));
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(1),
@@ -1598,7 +1617,7 @@ impl SchemaTrait for CassandraDB {
         let sql = format!(r#"DROP TABLE "{}";"#, table);
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
-        self.invalid_page_caching(Some(table));
+        self.invalid_table_or_view_caching(Some(table));
         anyhow::Ok(())
     }
 
@@ -1608,7 +1627,7 @@ impl SchemaTrait for CassandraDB {
         let sql = format!("ALTER TABLE {table} ADD {name} {}", col.typ);
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
-        self.invalid_page_caching(Some(table));
+        self.invalid_table_or_view_caching(Some(table));
         anyhow::Ok(())
     }
 
@@ -1617,7 +1636,7 @@ impl SchemaTrait for CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!("ALTER TABLE {table} RENAME {old_name} TO {new_name}");
         log::info!("sql:{}", sql);
-        self.invalid_page_caching(Some(table));
+        self.invalid_table_or_view_caching(Some(table));
         self.session.query(&sql).await?;
         anyhow::Ok(())
     }
@@ -1626,7 +1645,7 @@ impl SchemaTrait for CassandraDB {
         let sql = format!("ALTER TABLE {table} DROP {col};");
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
-        self.invalid_page_caching(Some(table));
+        self.invalid_table_or_view_caching(Some(table));
         anyhow::Ok(())
     }
 
@@ -2042,6 +2061,7 @@ impl CassandraDB {
 }
 
 #[cfg(test)]
+
 mod tests {
     use super::*;
     use crate::enable_test_log;

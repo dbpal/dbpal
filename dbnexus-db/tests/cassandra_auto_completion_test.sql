@@ -43,7 +43,7 @@ INSERT INTO test.employees(employee_id) VALUES (1);
 REVOKE SELECT ON test.employees FROM role_name;
 22 test ; 32 employees
 SELECT employee_id from test.employees
-19 employee_id ; 29 test ; 39 employees
+19  abs; 19 employee_id ; 29 test ; 39 employees
 TRUNCATE test.employees;
 14 test 
 UPDATE test.employees SET employee_id = 1 WHERE employee_id = 2;

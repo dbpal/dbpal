@@ -320,6 +320,7 @@ export namespace types {
         "data": (Record<string, string>)[];
         "sql": (string | null);
         "total": types.Usize;
+        "cache_time": (types.U64 | null);
     };
     export type QueryLogEvent = {
         "time": types.U64;
@@ -350,6 +351,7 @@ export namespace types {
         "total": types.Usize;
         "data": (((string | null))[])[];
         "sql": (string | null);
+        "cache_time": (types.U64 | null);
     };
     export type SequenceDetail = {
         "start_value": string;

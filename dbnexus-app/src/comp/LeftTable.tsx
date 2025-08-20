@@ -310,6 +310,11 @@ async function makeViewTable(
     case DataSourceKind.Cockroach:
       tableList = (
         <SqlTableView
+          invalidCassandraTableViewCache={async () => {
+            return invoke<void>('cassandra_invalid_table_or_view_caching', {
+              name: uuid,
+            });
+          }}
           quoteStyle={quoteStyle(kind)}
           autoCompletion={makeAutoComplete(uuid)}
           tableName={table}
