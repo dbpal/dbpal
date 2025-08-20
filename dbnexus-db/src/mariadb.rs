@@ -447,17 +447,17 @@ pub(crate) async fn make_test_object_mariadb(config: MysqlDBConfig) -> MariaDB {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{AutoCompletionUuid, QuerySql, SchemaTrait, monaco_editor_keyword_regexp};
+    use crate::db::{AutoCompletionQueryUuid, QuerySql, SchemaTrait, monaco_editor_keyword_regexp};
     use crate::language_server::LangServerCommon;
     use crate::mariadb::{MariaDB, make_config};
     use crate::mysql::test_fns::{self, make_test_object};
 
     #[tokio::test]
     async fn test_prepare() {
-        let _guard = AutoCompletionUuid::test_mutex().lock().unwrap();
+        let _guard = AutoCompletionQueryUuid::test_mutex().lock().unwrap();
         let db = make_test_object_mariadb(make_config()).await;
         let query_id = db.open_connection().await.unwrap();
-        AutoCompletionUuid::set(query_id.clone());
+        AutoCompletionQueryUuid::set(query_id.clone());
         db.execute_sql(
             query_id,
             r#"

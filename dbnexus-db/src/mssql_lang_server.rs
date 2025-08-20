@@ -129,7 +129,7 @@ impl LangServerCommon for MsSqlServerDB {
         anyhow::Ok(
             x.into_iter()
                 .map(|x| DBExecutable {
-                    name: x.name.into(),
+                    name: x.name,
                     statement: None,
                 })
                 .collect(),

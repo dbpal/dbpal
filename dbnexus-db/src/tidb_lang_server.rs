@@ -166,7 +166,7 @@ pub(crate) async fn make_test_object_tidb(config: MysqlDBConfig) -> TiDB {
 #[cfg(test)]
 mod tests {
     use crate::{
-        db::{AutoCompletionUuid, QuerySql},
+        db::{AutoCompletionQueryUuid, QuerySql},
         language_server::LangServerCommon,
         tidb::make_config,
         tidb_lang_server::make_test_object_tidb,
@@ -180,10 +180,10 @@ mod tests {
     #[ignore = "xxxx"]
     #[tokio::test]
     async fn test_prepare() {
-        let _guard = AutoCompletionUuid::test_mutex().lock().unwrap();
+        let _guard = AutoCompletionQueryUuid::test_mutex().lock().unwrap();
         let db = make_test_object_tidb(make_config()).await;
         let query_id = db.open_connection().await.unwrap();
-        AutoCompletionUuid::set(query_id.clone());
+        AutoCompletionQueryUuid::set(query_id.clone());
         db.execute_sql(
             query_id,
             r#"

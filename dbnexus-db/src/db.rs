@@ -1413,9 +1413,9 @@ pub(crate) fn name_start_ascii_alphabetic(name: &str) -> bool {
         .unwrap_or(false)
 }
 
-pub struct AutoCompletionUuid {}
+pub struct AutoCompletionQueryUuid {}
 
-impl AutoCompletionUuid {
+impl AutoCompletionQueryUuid {
     fn loc() -> &'static std::sync::Mutex<uuid::Uuid> {
         static X: std::sync::LazyLock<std::sync::Mutex<uuid::Uuid>> =
             std::sync::LazyLock::new(|| std::sync::Mutex::new(uuid::Uuid::new_v4()));

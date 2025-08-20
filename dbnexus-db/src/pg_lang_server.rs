@@ -1,8 +1,4 @@
-use std::ops::DerefMut;
-
-use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
-
-use crate::db::{AutoCompletionUuid, FormatSqlOpts};
+use crate::db::{AutoCompletionQueryUuid, FormatSqlOpts};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, LangServerCommon,
@@ -11,6 +7,8 @@ use crate::language_server::{
 use crate::mysql_lang_server::TYPES;
 use crate::pg::PostGresDB;
 use crate::sqlparser_completion::TempTableColumn;
+use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
+use std::ops::DerefMut;
 #[async_trait::async_trait]
 impl LexerCompletionTrait for PostGresDB {
     const TYPES: &'static [&'static str] = TYPES;
@@ -311,7 +309,7 @@ impl LangServerCommon for PostGresDB {
             .await?;
         let mut ret = vec![];
         for row in rows.iter() {
-            let c: String = row.get_unchecked(0);
+            let c: String = row.try_get(0)?;
             ret.push(CompletionItem {
                 item: c.to_uppercase().into(),
                 kind: CompletionKind::KeyWord,
@@ -371,12 +369,10 @@ impl LangServerCommon for PostGresDB {
         &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let schema = self.schema_merge_config(schema);
-        if schema.is_none() {
-            return anyhow::Ok(vec![]);
-        }
-        let schema = schema.unwrap();
-        let sql = format!(
-            r#"
+        let mut ret = match schema {
+            Some(schema) => {
+                let sql = format!(
+                    r#"
             SELECT  
                 p.proname AS function_name
             FROM pg_catalog.pg_proc p
@@ -384,23 +380,29 @@ impl LangServerCommon for PostGresDB {
             WHERE n.nspname = '{}'  -- 替换为你的模式名
             ORDER BY p.proname;
         "#,
-            schema
-        );
+                    schema
+                );
 
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(CompletionItem {
-                item: name.into(),
-                desc: None,
-                kind: CompletionKind::Function,
-            });
-        }
+                log::info!("sql:{}", sql);
+                let mut conn = self.get_conn().await?;
+                let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                    .fetch_all(conn.deref_mut())
+                    .await?;
+                let mut ret = Vec::with_capacity(rows.len());
+                for r in rows.iter() {
+                    let name: String = r.try_get(0)?;
+                    ret.push(CompletionItem {
+                        item: name.into(),
+                        desc: None,
+                        kind: CompletionKind::Function,
+                    });
+                }
+
+                ret
+            }
+            None => Default::default(),
+        };
+
         if include_build_in {
             ret.extend(self.list_build_functions().await?.into_iter());
         }
@@ -482,7 +484,7 @@ impl LangServerCommon for PostGresDB {
     }
 
     async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
-        let conn = self.query_connection.get(&AutoCompletionUuid::get());
+        let conn = self.query_connection.get(&AutoCompletionQueryUuid::get());
         if conn.is_none() {
             anyhow::bail!("query_id should get connection")
         }
@@ -523,7 +525,7 @@ impl LanguageServer for PostGresDB {
 
 #[cfg(test)]
 mod tests {
-    use crate::db::{AutoCompletionUuid, QuerySql, monaco_editor_keyword_regexp};
+    use crate::db::{AutoCompletionQueryUuid, QuerySql, monaco_editor_keyword_regexp};
     use crate::enable_test_log;
     use crate::language_server::LangServerCommon;
     use crate::language_server::completion_test::test_file_auto_completion;
@@ -616,10 +618,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_prepare() {
-        let _guard = AutoCompletionUuid::test_mutex().lock().unwrap();
+        let _guard = AutoCompletionQueryUuid::test_mutex().lock().unwrap();
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
-        AutoCompletionUuid::set(query_id.clone());
+        AutoCompletionQueryUuid::set(query_id.clone());
         db.execute_sql(
             query_id,
             r#"

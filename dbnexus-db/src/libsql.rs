@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 use crate::MemoryLimit;
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce};
 use crate::db::{
-    AutoCompletionUuid, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
+    AutoCompletionQueryUuid, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, escape_sql_str,
@@ -293,7 +293,6 @@ impl bb8::ManageConnection for PoolManager {
                 } else {
                     libsql::Builder::new_local(path).build().await?
                 };
-
                 b.connect()?
             }
             LibSqlDBConfigSouce::Remote {
@@ -386,7 +385,7 @@ impl LibSqlDB {
         let sql =
             format!(r#"SELECT name FROM "{db}".sqlite_master WHERE type='table' ORDER BY name "#);
         log::info!("sql:{}", sql);
-        let mut rows: libsql::Rows = match self.query_connections.get(&AutoCompletionUuid::get()) {
+        let mut rows: libsql::Rows = match self.query_connections.get(&AutoCompletionQueryUuid::get()) {
             Some(conn) => {
                 let conn = conn.deref();
                 conn.query(&sql, params!()).await?
@@ -414,7 +413,7 @@ impl LibSqlDB {
             WHERE type = 'view'; "#
         );
         log::info!("sql:{}", sql);
-        let mut rows = match self.query_connections.get(&AutoCompletionUuid::get()) {
+        let mut rows = match self.query_connections.get(&AutoCompletionQueryUuid::get()) {
             Some(conn) => {
                 let conn = conn.deref();
                 conn.query(&sql, params!()).await?
@@ -1228,8 +1227,8 @@ mod tests {
         let mut rows = conn
             .query(
                 "select 1  ; CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT 
-     );
+                                id INTEGER PRIMARY KEY AUTOINCREMENT 
+                                );
 ",
                 params!(),
             )

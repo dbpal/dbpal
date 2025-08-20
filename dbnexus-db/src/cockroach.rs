@@ -165,12 +165,12 @@ impl SqlBuilder for CockRoachDB {
 }
 
 fn gen_show_sql(
-    schema: &str, table_name: &str, fs: &[&str], where_str: Option<&str>, order_by: Option<&str>,
-    page: usize, page_size: usize,
+    schema: &str, table_name: &str, fields: &[&str], where_str: Option<&str>,
+    order_by: Option<&str>, page: usize, page_size: usize,
 ) -> String {
     let mut sql = format!(
         r#"SELECT "{}" from "{schema}"."{table_name}""#,
-        fs.join(r#"",""#)
+        fields.join(r#"",""#)
     );
     if let Some(where_str) = where_str {
         sql.push_str(format!(" where {where_str} ").as_str());
@@ -363,11 +363,11 @@ impl SchemaTrait for CockRoachDB {
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
-             SELECT  table_name 
-        FROM information_schema.tables
-        WHERE table_type = 'VIEW'
-          AND table_schema = '{}' and table_name not in (SELECT 
-                matviewname
+            SELECT  table_name 
+            FROM information_schema.tables
+            WHERE table_type = 'VIEW'
+                AND table_schema = '{}' and table_name not in (SELECT 
+                    matviewname
             FROM 
                 pg_matviews where schemaname = '{}' ) 
         "#,
@@ -510,7 +510,7 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-             CREATE TABLE test_commit (
+            CREATE TABLE test_commit (
                 ID INTEGER PRIMARY KEY,
                 NAME VARCHAR(50)
             );

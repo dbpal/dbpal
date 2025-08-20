@@ -402,7 +402,7 @@ impl<'a> CompletionStatement<'a> {
         if self.finished() {
             return;
         }
-        if !self.last_name_in_pos(&name) {
+        if !self.last_name_in_pos(name) {
             return;
         }
         let (schema, _) = self.extract_schema_and_item(name);

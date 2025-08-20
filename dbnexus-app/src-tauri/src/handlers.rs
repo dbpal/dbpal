@@ -6,10 +6,10 @@ use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::cockroach::CockRoachDB;
 use dbnexus_db::db::{
-    AutoCompletionUuid, ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql,
-    CreatedType, DefAndMetas, ExportKind, Field, FormatSqlOpts, Index, IndexKind, ListTable,
-    NamedStaff, ProcedureDetail, QueryResp, SequenceDetail, ShowExtraArgs, SqlExecuteRet,
-    TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
+    AutoCompletionQueryUuid, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
+    CreateTableAndIndexSql, CreatedType, DefAndMetas, ExportKind, Field, FormatSqlOpts, Index,
+    IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, SequenceDetail, ShowExtraArgs,
+    SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::CompletionItem;
@@ -59,7 +59,7 @@ pub async fn save_entered_password(
 }
 #[tauri::command]
 pub fn set_auto_completion_query_id(query_id: uuid::Uuid) {
-    AutoCompletionUuid::set(query_id);
+    AutoCompletionQueryUuid::set(query_id);
 }
 
 #[tauri::command]

@@ -770,6 +770,7 @@ function SqlTableView_(props: {
                             'success',
                             'invalid cassandra table and view cache OK'
                           );
+                          handleReload(false);
                         })
                         .catch((e) => {
                           showNotification(

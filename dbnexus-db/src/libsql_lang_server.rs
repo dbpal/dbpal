@@ -1,4 +1,4 @@
-use crate::db::{AutoCompletionUuid, name_start_ascii_alphabetic};
+use crate::db::{AutoCompletionQueryUuid, name_start_ascii_alphabetic};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
     try_parser_and_lexer,
@@ -62,7 +62,7 @@ impl LangServerCommon for LibSqlDB {
         &self, _schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         if !include_build_in {
-            // if we don't want build in function, we can return empty.
+            // libsql only have build in functions
             return anyhow::Ok(vec![]);
         }
         let mut lock = self.build_in_fn_cache.lock().await;
@@ -108,7 +108,7 @@ impl LangServerCommon for LibSqlDB {
         Box::new(sqlparser::dialect::SQLiteDialect {})
     }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let conn = self.query_connections.get(&AutoCompletionUuid::get());
+        let conn = self.query_connections.get(&AutoCompletionQueryUuid::get());
         if conn.is_none() {
             anyhow::bail!("query id should have connection")
         }
@@ -170,19 +170,21 @@ impl AstCompletionHelper for LibSqlDB {
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
-        let sql = r#"
-           PRAGMA pragma_list
+        let sql: &'static str = r#"
+            PRAGMA pragma_list
         "#;
+        let mut ret = vec![];
         let conn = self.get_conn().await?;
         let mut rows = conn.query(sql, params!()).await?;
         while let Some(row) = rows.next().await? {
             let name: String = row.get(0)?;
-            lock.push(CompletionItem {
+            ret.push(CompletionItem {
                 item: name.into(),
                 kind: CompletionKind::Pragma,
                 desc: None,
             });
         }
+        *lock = ret;
         return anyhow::Ok(lock.clone());
     }
 }

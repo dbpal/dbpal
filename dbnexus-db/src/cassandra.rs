@@ -1803,7 +1803,7 @@ impl CassandraDB {
     pub(crate) fn merge_schema(&self, schema: Option<&str>) -> Option<String> {
         match schema {
             Some(x) => Some(x.to_string()),
-            None => self.config.db.as_ref().map(|x| x.clone()),
+            None => self.config.db.clone(),
         }
     }
 }

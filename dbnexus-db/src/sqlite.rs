@@ -16,7 +16,7 @@ use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, SqliteConnection, T
 use crate::MemoryLimit;
 use crate::datasource_config::SqliteDBConfig;
 use crate::db::{
-    AutoCompletionUuid, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
+    AutoCompletionQueryUuid, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
@@ -327,7 +327,7 @@ impl SqliteDB {
     pub(crate) async fn list_table_impl(&self, db: &str) -> anyhow::Result<Vec<ListTable>> {
         let sql =
             format!(r#"SELECT name FROM "{db}".sqlite_master WHERE type='table' ORDER BY name "#);
-        let rows = match self.query_connection.get(&AutoCompletionUuid::get()) {
+        let rows = match self.query_connection.get(&AutoCompletionQueryUuid::get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
                 sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -357,7 +357,7 @@ impl SqliteDB {
             WHERE type = 'view'; 
         "#
         );
-        let rows = match self.query_connection.get(&AutoCompletionUuid::get()) {
+        let rows = match self.query_connection.get(&AutoCompletionQueryUuid::get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
                 sqlx::raw_sql(AssertSqlSafe(sql.as_str()))

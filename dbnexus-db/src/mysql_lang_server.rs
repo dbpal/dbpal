@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use std::ops::DerefMut;
 
 use crate::db::{
-    AutoCompletionUuid, FormatSqlOpts, GetBackendKind, name_start_ascii_alphabetic,
+    AutoCompletionQueryUuid, FormatSqlOpts, GetBackendKind, name_start_ascii_alphabetic,
     not_support_feature,
 };
 use crate::helper::sqlformat_format_sql;
@@ -192,7 +192,7 @@ impl LangServerCommon for MysqlDB {
             SELECT statement_id, sql_text ,statement_name   FROM performance_schema.prepared_statements_instances WHERE owner_thread_id = connection_id() and  statement_name is not null;
         */
 
-        let conn = self.query_connection.get(&AutoCompletionUuid::get());
+        let conn = self.query_connection.get(&AutoCompletionQueryUuid::get());
         if conn.is_none() {
             anyhow::bail!("should be able to get connection")
         }
@@ -385,7 +385,7 @@ mod tests {
     use std::path::Path;
 
     use crate::datasource_config::MysqlDBConfig;
-    use crate::db::{AutoCompletionUuid, QuerySql, monaco_editor_keyword_regexp};
+    use crate::db::{AutoCompletionQueryUuid, QuerySql, monaco_editor_keyword_regexp};
     use crate::language_server::LangServerCommon;
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::mysql::MysqlDB;
@@ -500,10 +500,10 @@ mod tests {
     }
     #[tokio::test]
     async fn test_prepare() {
-        let _guard = AutoCompletionUuid::test_mutex().lock().unwrap();
+        let _guard = AutoCompletionQueryUuid::test_mutex().lock().unwrap();
         let db = make_test_object(make_config()).await;
         let query_id = db.open_connection().await.unwrap();
-        AutoCompletionUuid::set(query_id.clone());
+        AutoCompletionQueryUuid::set(query_id.clone());
         db.execute_sql(
             query_id,
             r#"
