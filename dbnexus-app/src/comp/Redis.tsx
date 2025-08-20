@@ -1201,7 +1201,9 @@ function RedisListTable(props: {
     }
   }, [modalBox]);
   const onColumnResize = useCallback(({ colDef, width }) => {
-    columnWidths.saveColumnWidths(colDef.field, width);
+    if (colDef.field == 'seq') {
+      columnWidths.saveColumnWidths(colDef.field, width);
+    }
   }, []);
   return (
     <Stack spacing={1}>
@@ -1362,13 +1364,13 @@ function RedisZsetTable(props: {
         resp.data.forEach((e) => {
           e.id = uuidv4();
         });
-        resp.fields[0]['flex'] = 1;
+        resp.fields[1]['flex'] = 1;
         const scoreWidth = columnWidths.getWidth('score');
-        console.log('!!!!!!!!!!!!!!!!!!!!', scoreWidth);
+
         if (scoreWidth) {
-          resp.fields[1]['width'] = scoreWidth;
+          resp.fields[0]['width'] = scoreWidth;
         }
-        resp.fields[0]['renderCell'] = (p) => {
+        resp.fields[1]['renderCell'] = (p) => {
           return redisRenderCell(p.row.key);
         };
         resp.data.forEach((e) => {
@@ -1448,7 +1450,9 @@ function RedisZsetTable(props: {
     }
   }, [modalBox]);
   const onColumnResize = useCallback(({ colDef, width }) => {
-    columnWidths.saveColumnWidths(colDef.field, width);
+    if (colDef.field == 'score') {
+      columnWidths.saveColumnWidths(colDef.field, width);
+    }
   }, []);
   return (
     <Stack spacing={1}>
@@ -1631,7 +1635,11 @@ function RedisHashTable(props: {
         resp.data.forEach((e) => {
           e.id = uuidv4();
         });
-        resp.fields[0]['flex'] = 1;
+        const keyWidth = columnWidths.getWidth('key');
+        if (keyWidth) {
+          resp.fields[0]['width'] = keyWidth;
+        }
+
         resp.fields[1]['flex'] = 1;
         resp.fields[0]['renderCell'] = (p) => {
           return redisRenderCell(p.row.key);
@@ -1711,6 +1719,11 @@ function RedisHashTable(props: {
       return c;
     }
   }, [modalBox]);
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    if (colDef.field == 'key') {
+      columnWidths.saveColumnWidths(colDef.field, width);
+    }
+  }, []);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="center">
@@ -1744,6 +1757,7 @@ function RedisHashTable(props: {
           }}
         >
           <DataGrid
+            onColumnResize={onColumnResize}
             loading={loading}
             style={gridStyle}
             showCellVerticalBorder

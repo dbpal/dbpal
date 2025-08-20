@@ -76,17 +76,19 @@ impl RedisDB {
                     continue;
                 }
             }
-            key_values.push(value);
+            key_values.push((value.1, value.0));
         }
         anyhow::Ok(QueryResp::new(
             vec![
-                Field::from_name_type("key", "string"),
                 Field::from_name_type("score", "f64"),
+                Field::from_name_type("key", "string"),
             ],
             total,
             key_values
                 .into_iter()
-                .map(|(k, v)| vec![Some(hex::encode(k.as_slice())), Some(v.to_string())])
+                .map(|(score, key)| {
+                    vec![Some(score.to_string()), Some(hex::encode(key.as_slice()))]
+                })
                 .collect(),
             None,
         )?)
