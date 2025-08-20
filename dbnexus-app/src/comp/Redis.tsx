@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -79,12 +80,12 @@ function RedisAddList(props: {
   const { lpushOP, rpushOP } = props;
   const [loading, setLoading] = useState(false);
   const [direction, setDirection] = useState<'left' | 'right'>('left');
-  const [key, setKey] = useState('');
+  const key = useRef('');
   const { showNotification } = useContext(NotificationContext);
   const handleAdd = () => {
     // reset some state
     setLoading(true);
-    (direction == 'left' ? lpushOP : rpushOP)(key)
+    (direction == 'left' ? lpushOP : rpushOP)(key.current)
       .then(() => {
         showNotification('success', 'Push OK');
       })
@@ -118,7 +119,11 @@ function RedisAddList(props: {
           </RadioGroup>
         </Stack>
 
-        <RedisValueEditor handleValue={(e) => setKey(e)}></RedisValueEditor>
+        <RedisValueEditor
+          handleValue={(e) => {
+            key.current = e;
+          }}
+        ></RedisValueEditor>
 
         <Stack direction="row" spacing={1}>
           <Button
@@ -212,12 +217,13 @@ function RedisStringTable(props: {
 function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
   let { addOP } = props;
   const [loading, setLoading] = useState(false);
-  const [key, setKey] = useState('');
+  const key = useRef('');
+
   const { showNotification } = useContext(NotificationContext);
   const handleAdd = () => {
     // reset some state
     setLoading(true);
-    addOP(key)
+    addOP(key.current)
       .then(() => {
         showNotification('success', 'Add ok');
       })
@@ -239,7 +245,7 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
       <Stack spacing={1} flex={1}>
         <RedisValueEditor
           handleValue={(e) => {
-            setKey(e);
+            key.current = e;
           }}
         ></RedisValueEditor>
 
@@ -263,14 +269,14 @@ function RedisAddHash(props: {
 }) {
   let { addOP } = props;
   const [loading, setLoading] = useState(false);
-  const [value, setValue] = useState('');
-  const [key, setKey] = useState('');
+  const value = useRef('');
+  const key = useRef('');
 
   const { showNotification } = useContext(NotificationContext);
   const handleAdd = () => {
     // reset some state
     setLoading(true);
-    addOP(key, value)
+    addOP(key.current, value.current)
       .then(() => {
         showNotification('success', 'Add OK');
       })
@@ -291,17 +297,17 @@ function RedisAddHash(props: {
     >
       <Stack spacing={1} flex={1}>
         <RedisValueEditor
-          oldValue={key}
+          oldValue={key.current}
           handleValue={(e) => {
-            setKey(e);
+            key.current = e;
           }}
           header="key"
         ></RedisValueEditor>
 
         <RedisValueEditor
-          oldValue={value}
+          oldValue={value.current}
           handleValue={(e) => {
-            setValue(e);
+            value.current = e;
           }}
           header="value"
         ></RedisValueEditor>
@@ -326,7 +332,7 @@ function RedisAddZset(props: {
   let { addOP } = props;
   const [loading, setLoading] = useState(false);
   const [score, setScore] = useState('');
-  const [key, setKey] = useState('');
+  const key = useRef('');
   const [scoreErr, setScoreErr] = useState(false);
 
   const { showNotification } = useContext(NotificationContext);
@@ -334,7 +340,7 @@ function RedisAddZset(props: {
   const handleAdd = () => {
     // reset some state
     setLoading(true);
-    addOP(key, parseFloat(score))
+    addOP(key.current, parseFloat(score))
       .then(() => {
         showNotification('success', 'Add OK');
       })
@@ -368,7 +374,7 @@ function RedisAddZset(props: {
 
         <RedisValueEditor
           handleValue={(e) => {
-            setKey(e);
+            key.current = e;
           }}
         ></RedisValueEditor>
 
@@ -395,17 +401,18 @@ function RedisEditHash(props: {
 }) {
   const { oldKey, oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
-  const [newKey, setNewKey] = useState(oldKey);
-  const [newValue, setNewValue] = useState(oldValue);
+  const newkey = useRef(oldKey);
+  const newValue = useRef(oldValue);
   const { showNotification } = useContext(NotificationContext);
 
   const handleModify = () => {
     // reset some state
     setLoading(true);
-    modifyOP(new RedisZsetHashModifyReq(oldKey, newKey, newValue))
+    modifyOP(
+      new RedisZsetHashModifyReq(oldKey, newkey.current, newValue.current)
+    )
       .then(() => {
         showNotification('success', 'Modify OK');
-
         handleClose();
       })
       .catch((e) => {
@@ -419,17 +426,17 @@ function RedisEditHash(props: {
   return (
     <Stack spacing={1} flex={1}>
       <RedisValueEditor
-        oldValue={newKey}
+        oldValue={oldKey}
         handleValue={(e) => {
-          setNewKey(e);
+          newkey.current = e;
         }}
         header="key"
       ></RedisValueEditor>
 
       <RedisValueEditor
-        oldValue={newValue}
+        oldValue={oldValue}
         handleValue={(e) => {
-          setNewValue(e);
+          newValue.current = e;
         }}
         header="value"
       ></RedisValueEditor>
@@ -457,17 +464,17 @@ function RedisEditZset(props: {
   const { oldKey, oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
 
-  const [newKey, setNewKey] = useState(oldKey);
+  const newKey = useRef(oldKey);
   const [newValue, setNewValue] = useState(oldValue);
   const [newValueErr, setNewValueErr] = useState(false);
   const { showNotification } = useContext(NotificationContext);
 
   const handleModify = () => {
-    if (oldKey == newKey && oldValue == newValue) {
+    if (oldKey == newKey.current && oldValue == newValue) {
       return;
     }
     setLoading(true);
-    modifyOP(oldKey, newKey, parseInt(newValue))
+    modifyOP(oldKey, newKey.current, parseInt(newValue))
       .then(() => {
         showNotification('success', 'Modify OK');
         handleClose();
@@ -500,7 +507,7 @@ function RedisEditZset(props: {
       <RedisValueEditor
         oldValue={oldKey}
         handleValue={(e) => {
-          setNewKey(e);
+          newKey.current = e;
         }}
       ></RedisValueEditor>
 
@@ -673,15 +680,14 @@ function RedisEditList(props: {
 }) {
   let { oldValue, modifyOP, handleClose, index } = props;
   const [loading, setLoading] = useState(false);
-  const [newValue, setNewValue] = useState('');
+  const newValue = useRef(oldValue);
   const { showNotification } = useContext(NotificationContext);
 
   // really modify the content.
   const handleModify = () => {
     setLoading(true);
-    modifyOP(index, newValue)
+    modifyOP(index, newValue.current)
       .then(() => {
-        setNewValue('');
         showNotification('success', 'Modify OK', '');
         handleClose();
       })
@@ -697,7 +703,7 @@ function RedisEditList(props: {
       <RedisValueEditor
         oldValue={oldValue}
         handleValue={(e) => {
-          setNewValue(e);
+          newValue.current = e;
         }}
       ></RedisValueEditor>
       <Stack direction="row" spacing={1}>
@@ -705,7 +711,6 @@ function RedisEditList(props: {
           loading={loading}
           color="primary"
           variant="contained"
-          disabled={newValue == ''}
           onClick={handleModify}
         >
           modify
@@ -722,15 +727,14 @@ function RedisEditSet(props: {
 }) {
   let { oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
-  const [newValue, setNewValue] = useState('');
+  const newValue = useRef(oldValue);
   const { showNotification } = useContext(NotificationContext);
 
   // really modify the content.
   const handleModify = () => {
     setLoading(true);
-    modifyOP(oldValue, newValue)
+    modifyOP(oldValue, newValue.current)
       .then(() => {
-        setNewValue('');
         showNotification('success', 'Modify OK');
         handleClose();
       })
@@ -747,7 +751,7 @@ function RedisEditSet(props: {
       <RedisValueEditor
         oldValue={oldValue}
         handleValue={(e) => {
-          setNewValue(e);
+          newValue.current = e;
         }}
       ></RedisValueEditor>
       <Stack direction="row" spacing={1}>
@@ -755,7 +759,6 @@ function RedisEditSet(props: {
           loading={loading}
           color="primary"
           variant="contained"
-          disabled={newValue == ''}
           onClick={handleModify}
         >
           modify
