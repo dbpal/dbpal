@@ -147,7 +147,6 @@ function RedisStringTable(props: {
   useEffect(() => {
     loadContent()
       .then((e) => {
-        console.log('!!!!!!!!!!!!!!!!', e);
         setContent(e);
       })
       .catch((e) => {
@@ -186,14 +185,15 @@ function RedisStringTable(props: {
       }}
       ref={setDom}
     >
-      <RedisValueEditor
-        oldValue={content}
-        handleValue={(e) => {
-          setContent(e);
-        }}
-      ></RedisValueEditor>
-
-      <Stack width="100px" direction="row" spacing={1}>
+      {content && (
+        <RedisValueEditor
+          oldValue={content}
+          handleValue={(e) => {
+            setContent(e);
+          }}
+        ></RedisValueEditor>
+      )}
+      <Stack direction="row" spacing={1}>
         <Button
           loading={loading}
           color="primary"
@@ -529,6 +529,7 @@ function RedisEditModeSelect(props: {
         (e) => {
           return (
             <Chip
+              key={e}
               label={e}
               onClick={() => {
                 handleChange(e);
@@ -572,9 +573,13 @@ function RedisValueEditor(props: {
       setEditModel(RedisEditorMode.Hex);
       setNewValue(oldValue);
     }
-  }, [oldValue]);
+  }, []);
 
   useEffect(() => {
+    if (!newValue) {
+      // newvalue is still null no need to set.
+      return;
+    }
     switch (editModel) {
       case RedisEditorMode.Hex:
         handleValue(newValue);

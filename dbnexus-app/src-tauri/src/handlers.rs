@@ -2788,7 +2788,6 @@ impl From<QueryResp> for MuiDataGridData {
             })
             .collect();
 
-        println!("!!!!!!!!!!!!!!!!!!!!!{:?}", cache_time);
         Self {
             fields: fields_renamed,
             data,
