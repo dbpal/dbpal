@@ -7,7 +7,7 @@ import { SqlQuery } from './SqlQuery.tsx';
 import { fetch } from '@tauri-apps/plugin-http';
 import { MakeIQueryConn } from './Common.tsx';
 import { DataSourceKind, SaveSizesToStore } from './helper.ts';
-import { Button } from '@mui/material';
+import { Button, Chip } from '@mui/material';
 
 let showDocOld = true;
 
@@ -139,15 +139,18 @@ function RedisQuery(props: {
         saveFavoriteSql={saveFavoriteSql}
         value={value}
         kind={DataSourceKind.Redis}
-        buttons={[
-          <Button
-            onClick={() => {
-              setShowDoc((e) => !e);
-            }}
-          >
-            {showDoc ? 'hidden' : 'show'} doc
-          </Button>,
-        ]}
+        buttons={
+          <>
+            <Chip
+              size="small"
+              onClick={() => {
+                setShowDoc((e) => !e);
+              }}
+              color="primary"
+              label={`${showDoc ? 'hidden' : 'show'} doc`}
+            ></Chip>
+          </>
+        }
       ></SqlQuery>
 
       <div style={{ height: '100vh' }}>
