@@ -7,7 +7,7 @@ import { SqlQuery } from './SqlQuery.tsx';
 import { fetch } from '@tauri-apps/plugin-http';
 import { MakeIQueryConn } from './Common.tsx';
 import { DataSourceKind, SaveSizesToStore } from './helper.ts';
-import { Button, Chip } from '@mui/material';
+import { Chip } from '@mui/material';
 
 let showDocOld = true;
 

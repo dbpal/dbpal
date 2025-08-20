@@ -286,7 +286,7 @@ function DropTable(props: {
   );
 }
 
-async function makeViewTable(
+function makeViewTable(
   uuid,
   table: string,
   kind: DataSourceKind,
@@ -382,7 +382,7 @@ async function makeViewTable(
                   value,
                 });
               }}
-              content={await (async () => {
+              loadContent={async () => {
                 try {
                   let x = await invoke<types.MuiDataGridData>('show_table', {
                     name: uuid,
@@ -400,7 +400,7 @@ async function makeViewTable(
                     e
                   );
                 }
-              })()}
+              }}
             ></RedisStringTable>
           );
           break;
@@ -620,7 +620,9 @@ async function makeAddTable(
                   value,
                 });
               }}
-              content={''}
+              loadContent={async () => {
+                return Promise.resolve('');
+              }}
             ></RedisStringTable>
           );
           break;

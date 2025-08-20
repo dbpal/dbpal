@@ -491,6 +491,7 @@ function resetMuiDataRespWidth(old: types.MuiDataGridData): types.MuiDataGridDat
       return { width: undefined, ...e } as types.Field;
     }),
     total: old.total,
+    cache_time: old.cache_time
   };
 }
 

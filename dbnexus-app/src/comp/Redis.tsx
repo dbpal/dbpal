@@ -137,15 +137,27 @@ function RedisAddList(props: {
 
 function RedisStringTable(props: {
   modifyOP: (content: string) => Promise<void>;
-  content: string;
+  loadContent: () => Promise<string>;
 }) {
-  const { modifyOP, content } = props;
-  const [newContent, setNewConent] = useState(content);
+  const { modifyOP, loadContent } = props;
+  const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
+
+  useEffect(() => {
+    loadContent()
+      .then((e) => {
+        console.log('!!!!!!!!!!!!!!!!', e);
+        setContent(e);
+      })
+      .catch((e) => {
+        showNotification('error', 'load redis string data failed', e);
+      });
+  }, []);
+
   const handleModify = () => {
     setLoading(true);
-    modifyOP(newContent)
+    modifyOP(content)
       .then(() => {
         showNotification('success', 'Modify OK');
       })
@@ -175,9 +187,9 @@ function RedisStringTable(props: {
       ref={setDom}
     >
       <RedisValueEditor
-        oldValue={newContent}
+        oldValue={content}
         handleValue={(e) => {
-          setNewConent(e);
+          setContent(e);
         }}
       ></RedisValueEditor>
 
@@ -560,7 +572,8 @@ function RedisValueEditor(props: {
       setEditModel(RedisEditorMode.Hex);
       setNewValue(oldValue);
     }
-  }, []);
+  }, [oldValue]);
+
   useEffect(() => {
     switch (editModel) {
       case RedisEditorMode.Hex:
