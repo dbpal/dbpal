@@ -28,7 +28,6 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import {
   modalStyle,
-  SettingContext,
   reloadOK,
   SimpleFlexSizeEditor,
   EscDownEvent,
@@ -46,11 +45,13 @@ import {
 import { BsFillLightbulbFill } from 'react-icons/bs';
 import {
   calMenuStyle,
+  columnWidths,
   ContextMenuContext,
   handleCopyToClipboard,
   hexToString,
   hexTryToString,
   saveAndSetSize,
+  SettingContext,
   stringToHex,
   validJson,
   VisiableContext,
@@ -453,9 +454,7 @@ function RedisEditZset(props: {
     if (oldKey == newKey && oldValue == newValue) {
       return;
     }
-    // reset some state
     setLoading(true);
-
     modifyOP(oldKey, newKey, parseInt(newValue))
       .then(() => {
         showNotification('success', 'Modify OK');
@@ -1088,8 +1087,10 @@ function RedisListTable(props: {
         resp.data.forEach((e) => {
           e.id = uuidv4();
         });
-
-        // resp.fields[0]['flex'] = 1;
+        const seqWidth = columnWidths.getWidth('seq');
+        if (seqWidth) {
+          resp.fields[0]['width'] = seqWidth;
+        }
         resp.fields[1]['sortable'] = false;
         resp.fields[1]['flex'] = 1;
         resp.fields[1]['renderCell'] = (p) => {
@@ -1199,6 +1200,9 @@ function RedisListTable(props: {
       return c;
     }
   }, [modalBox]);
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    columnWidths.saveColumnWidths(colDef.field, width);
+  }, []);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
@@ -1232,6 +1236,7 @@ function RedisListTable(props: {
             disableMultipleRowSelection
             disableColumnFilter
             rows={resp.data}
+            onColumnResize={onColumnResize}
             columns={resp.fields}
             paginationModel={paginationModel}
             onRowDoubleClick={onRowDoubleClick}
@@ -1358,7 +1363,11 @@ function RedisZsetTable(props: {
           e.id = uuidv4();
         });
         resp.fields[0]['flex'] = 1;
-        resp.fields[1]['flex'] = 1;
+        const scoreWidth = columnWidths.getWidth('score');
+        console.log('!!!!!!!!!!!!!!!!!!!!', scoreWidth);
+        if (scoreWidth) {
+          resp.fields[1]['width'] = scoreWidth;
+        }
         resp.fields[0]['renderCell'] = (p) => {
           return redisRenderCell(p.row.key);
         };
@@ -1438,6 +1447,9 @@ function RedisZsetTable(props: {
       return c;
     }
   }, [modalBox]);
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    columnWidths.saveColumnWidths(colDef.field, width);
+  }, []);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
@@ -1502,6 +1514,7 @@ function RedisZsetTable(props: {
         >
           <DataGrid
             style={gridStyle}
+            onColumnResize={onColumnResize}
             loading={loading}
             showCellVerticalBorder
             showColumnVerticalBorder

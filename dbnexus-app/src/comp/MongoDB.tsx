@@ -62,7 +62,6 @@ import {
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import {
   modalStyle,
-  SettingContext,
   reloadOK,
   keyNotInTable,
   EscDownEvent,
@@ -89,6 +88,7 @@ import {
   handleCopyToClipboard,
   resetMuiDataRespWidth,
   saveAndSetSize,
+  SettingContext,
   validJson,
   VisiableContext,
 } from './helper';
@@ -354,6 +354,7 @@ function MongoBsonEditor(props: {
     </Stack>
   );
 }
+let oldMongoValueEdiorMode = MongoDataViewModel.Object;
 
 function MongoValueEditor(props: {
   doc: BSON.Document;
@@ -364,7 +365,10 @@ function MongoValueEditor(props: {
   if (!setName) {
     setName = 'set';
   }
-  const [viewModel, setViewModel] = useState(MongoDataViewModel.Object);
+  const [viewModel, setViewModel] = useState(oldMongoValueEdiorMode);
+  useEffect(() => {
+    oldMongoValueEdiorMode = viewModel;
+  }, [viewModel]);
   return (
     <Stack flex={1}>
       <Stack direction="row">

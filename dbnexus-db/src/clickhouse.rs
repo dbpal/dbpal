@@ -26,10 +26,6 @@ impl GetBackendKind for ClickHouseDB {
     }
 }
 
-fn type_support_compare(_typ: &str) -> bool {
-    true
-}
-
 impl ClickHouseDB {
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
@@ -1158,10 +1154,6 @@ impl SqlBuilder for ClickHouseDB {
         sql.push_str(self.make_where(fs, wheres, &field_by_name)?.as_str());
         log::info!("update sql:{}", sql);
         anyhow::Ok(sql)
-    }
-
-    fn type_support_compare(&self, typ: &str) -> bool {
-        type_support_compare(typ)
     }
 
     fn put_value_in_sql(

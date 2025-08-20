@@ -36,7 +36,6 @@ import {
   MakeIQueryConn,
   modalStyle,
   msgTimeout,
-  SettingContext,
 } from './Common.tsx';
 import { BsFillLightbulbFill } from 'react-icons/bs';
 import { FaBookmark } from 'react-icons/fa';
@@ -49,6 +48,7 @@ import {
   DataSourceKind,
   SaveSizesToStore,
   secondConfirm,
+  SettingContext,
   VisiableContext,
 } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';

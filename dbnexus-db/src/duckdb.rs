@@ -431,7 +431,7 @@ impl QuerySql for DuckDB {
     }
 
     async fn query_sql(
-        &self, , sql: &str,
+        &self, query_id: uuid::UUID, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut _log_gurad = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
@@ -468,7 +468,7 @@ impl QuerySql for DuckDB {
     }
 
     async fn execute_sql(
-        &self, , sql: &str,
+        &self, query_id: uuid::UUID, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let mut _log_gurad = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
@@ -1550,10 +1550,6 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         }
         _ => anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string())),
     }
-}
-
-fn type_support_compare(_typ: &str) -> bool {
-    true
 }
 
 impl DuckDB {

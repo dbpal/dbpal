@@ -58,29 +58,18 @@ impl ReadOnlyTrait for PostGresDB {
 }
 
 impl PostGresDB {
-    async fn list_schema_impl(&self, skip_internal: bool) -> anyhow::Result<Vec<String>> {
+    async fn list_schema_impl(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
-        let sql = if skip_internal {
-            format!(
-                r#"
+        let sql = format!(
+            r#"
         SELECT schema_name 
             FROM information_schema.schemata
             WHERE 
             schemata.catalog_name ='{}' order by schema_name
     "#,
-                self.config.db_str()
-            )
-        } else {
-            format!(
-                r#"
-        SELECT schema_name 
-            FROM information_schema.schemata
-            WHERE 
-            schemata.catalog_name ='{}' order by schema_name
-    "#,
-                self.config.db_str()
-            )
-        };
+            self.config.db_str()
+        );
+
         log::info!("sql:{}", sql);
 
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -103,7 +92,7 @@ impl DBTrait for PostGresDB {
     }
 
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        self.list_schema_impl(true).await
+        self.list_schema_impl().await
     }
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
@@ -117,7 +106,7 @@ impl DBTrait for PostGresDB {
         &self, name: &str, _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
-        let sql = format!("CREATE SCHEMA {name};");
+        let sql = format!(r#"CREATE SCHEMA "{name}";"#);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -128,7 +117,7 @@ impl DBTrait for PostGresDB {
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let sql = format!("DROP SCHEMA {name};");
+        let sql = format!(r#"DROP SCHEMA "{name}";"#);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -312,7 +301,7 @@ fn gen_show_sql(
 ) -> String {
     let mut sql = format!(r#"SELECT * from "{schema}"."{table_name}""#);
     if let Some(where_str) = where_str {
-        sql.push_str(format!(" where {where_str} ").as_str());
+        sql.push_str(format!(" WHERE {where_str} ").as_str());
     }
     if let Some(order_by) = order_by {
         sql.push_str(format!(" ORDER BY {order_by} ").as_str());
@@ -446,9 +435,10 @@ impl SchemaTrait for PostGresDB {
     async fn list_sequences(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         let sql = format!(
             r#"
-        SELECT  
-        sequence_name , data_type     FROM information_schema.sequences 
-        where sequence_catalog = '{}' and sequence_schema ='{}'      "#,
+            SELECT  
+            sequence_name , data_type     FROM information_schema.sequences 
+            where sequence_catalog = '{}' and sequence_schema ='{}' 
+        "#,
             self.config.db_str(),
             self.config.schema_str(),
         );
@@ -530,7 +520,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn rename_sequnce(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        let sql = format!("ALTER SEQUENCE {old} RENAME TO {new};");
+        let sql = format!(r#"ALTER SEQUENCE "{old}" RENAME TO "{new}";"#);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
@@ -540,7 +530,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn drop_sequence(&self, name: &str, cascade: bool) -> anyhow::Result<()> {
         let sql = format!(
-            "DROP SEQUENCE IF EXISTS {name} {};",
+            r#"DROP SEQUENCE IF EXISTS "{name}" {};"#,
             if cascade { "CASCADE" } else { "" }
         );
         log::info!("sql:{}", sql);
@@ -571,13 +561,14 @@ impl SchemaTrait for PostGresDB {
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
         let sql = format!(
-            "CREATE {} INDEX {} ON {table}({})",
+            r#"CREATE {} INDEX "{}" ON "{}"({})"#,
             match kind {
                 IndexKind::Index => "",
                 IndexKind::Primary => anyhow::bail!("can't create primary index"),
                 IndexKind::Unique => "Unique",
             },
             name,
+            table,
             fields.join(",")
         );
         log::info!("sql:{}", sql);
@@ -881,8 +872,8 @@ impl SchemaTrait for PostGresDB {
             FROM pg_catalog.pg_proc p
                 JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
             WHERE p.proname = '{name}' and n.nspname ='{}'  -- 替换为您要查询的函数名称
-                 AND pg_catalog.pg_get_function_arguments(p.oid) = '{}'
-       "#,
+                AND pg_catalog.pg_get_function_arguments(p.oid) = '{}'
+        "#,
             self.config.schema_str(),
             arg
         );
@@ -933,7 +924,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-        let sql = format!(r#"ALTER TABLE {table} DISABLE TRIGGER "{name}""#);
+        let sql = format!(r#"ALTER TABLE "{table}" DISABLE TRIGGER "{name}""#);
         log::info!("sql:{}", sql);
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
@@ -943,7 +934,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-        let sql = format!(r#"ALTER TABLE {table} ENABLE TRIGGER "{name}""#);
+        let sql = format!(r#"ALTER TABLE "{table}" ENABLE TRIGGER "{name}""#);
         log::info!("sql:{}", sql);
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
@@ -957,7 +948,7 @@ impl SchemaTrait for PostGresDB {
         }
         let schema = self.config.schema_str();
 
-        let sql = format!(r#"CREATE TABLE {schema}.{dup} AS TABLE "{schema}"."{table}""#);
+        let sql = format!(r#"CREATE TABLE "{schema}"."{dup}" AS TABLE "{schema}"."{table}""#);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -981,7 +972,7 @@ impl SchemaTrait for PostGresDB {
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
-             SELECT tgname 
+                SELECT tgname 
                 FROM pg_trigger 
                 WHERE tgrelid = '{table_name}'::regclass;
         "#
@@ -1037,7 +1028,7 @@ impl SchemaTrait for PostGresDB {
         let schema = self.config.schema_str();
         let sql = format!(
             r#"
-         DROP TRIGGER "{name}" ON "{schema}"."{table}" 
+            DROP TRIGGER "{name}" ON "{schema}"."{table}" 
         "#
         );
         log::info!("sql:{}", sql);
@@ -1082,31 +1073,31 @@ impl SchemaTrait for PostGresDB {
         SELECT                                          
         'CREATE TABLE ' || relname || E'\n(\n' ||
         array_to_string(
-          array_agg(
+        array_agg(
             '    ' || column_name || ' ' ||  type || ' '|| not_null
-          )
-          , E',\n'
+        )
+        , E',\n'
         ) || E'\n);\n'
-      from
-      (
+        from
+        (
         SELECT 
-          c.relname, a.attname AS column_name,
-          pg_catalog.format_type(a.atttypid, a.atttypmod) as type,
-          case 
+            c.relname, a.attname AS column_name,
+            pg_catalog.format_type(a.atttypid, a.atttypmod) as type,
+            case 
             when a.attnotnull
-          then 'NOT NULL' 
-          else 'NULL' 
-          END as not_null 
+            then 'NOT NULL' 
+            else 'NULL' 
+            END as not_null 
         FROM pg_class c,
-         pg_attribute a,
-         pg_type t
-         WHERE c.relname = '{table_name}'
-         AND a.attnum > 0
-         AND a.attrelid = c.oid
-         AND a.atttypid = t.oid
-       ORDER BY a.attnum
-      ) as tabledefinition
-      group by relname;
+            pg_attribute a,
+            pg_type t
+            WHERE c.relname = '{table_name}'
+            AND a.attnum > 0
+            AND a.attrelid = c.oid
+            AND a.atttypid = t.oid
+        ORDER BY a.attnum
+        ) as tabledefinition
+        group by relname;
         "#
         );
         log::info!("sql:{}", sql);
@@ -1204,7 +1195,7 @@ impl SchemaTrait for PostGresDB {
         SELECT table_name
         FROM information_schema.tables
         WHERE table_type = 'VIEW'
-          AND table_schema = '{schema}';
+            AND table_schema = '{schema}';
         "#
             )
             .as_str(),
@@ -1242,7 +1233,7 @@ impl SchemaTrait for PostGresDB {
         let schema = self.config.schema_str();
         let s = format!(
             r#"
-            TRUNCATE TABLE {schema}.{table_name};
+            TRUNCATE TABLE "{schema}"."{table_name}";
         "#
         );
         let mut conn = self.get_conn().await?;
@@ -1296,9 +1287,9 @@ impl SchemaTrait for PostGresDB {
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             r#"SELECT table_name
-             FROM information_schema.tables
-             WHERE table_type = 'BASE TABLE' AND table_schema = '{}' and table_catalog='{}' ORDER BY table_name
-     "#,
+                FROM information_schema.tables
+                WHERE table_type = 'BASE TABLE' AND table_schema = '{}' and table_catalog='{}' ORDER BY table_name
+            "#,
             self.config.schema_str(),
             &self.config.db_str()
         );
@@ -1359,7 +1350,6 @@ impl SchemaTrait for PostGresDB {
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let s = format!(
             r#"
-
             SELECT  column_name , data_type,is_nullable,column_default,udt_name
             FROM information_schema.columns where table_catalog='{}' and table_schema='{}' and table_name = '{}' ORDER BY ordinal_position
         "#,
@@ -1379,11 +1369,11 @@ impl SchemaTrait for PostGresDB {
                 r#"
                 -- 查表的主键详情
                 SELECT  kcu.column_name
-                  FROM information_schema.table_constraints AS tc
-                  JOIN information_schema.key_column_usage  AS kcu
+                    FROM information_schema.table_constraints AS tc
+                    JOIN information_schema.key_column_usage  AS kcu
                     ON tc.constraint_name = kcu.constraint_name
-                 WHERE tc.constraint_type = 'PRIMARY KEY'
-                   AND tc.table_name      = '{table_name}';
+                    WHERE tc.constraint_type = 'PRIMARY KEY'
+                    AND tc.table_name      = '{table_name}';
         "#
             );
             log::info!("sql:{}", sql);
@@ -1987,7 +1977,7 @@ impl CatalogTrait for PostGresDB {
         &self, name: &str, _extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
-        let sql = format!("CREATE DATABASE {name}");
+        let sql = format!(r#"CREATE DATABASE "{name}""#);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -1998,7 +1988,7 @@ impl CatalogTrait for PostGresDB {
 
     async fn drop_database(&self, name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let sql = format!("DROP DATABASE {name}");
+        let sql = format!(r#"DROP DATABASE "{name}""#);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -2292,10 +2282,10 @@ mod tests {
                 age INT,
                 email VARCHAR(100)
             ); 
-             INSERT INTO test_export (name, age, email) VALUES ('John', 25, 'john@example.com');
-             INSERT INTO test_export (name, age, email) VALUES ('Jane', 30, 'jane@example.com');
-             INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');
-             "#;
+            INSERT INTO test_export (name, age, email) VALUES ('John', 25, 'john@example.com');
+            INSERT INTO test_export (name, age, email) VALUES ('Jane', 30, 'jane@example.com');
+            INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');
+            "#;
         let query_id = db.open_connection().await.unwrap();
 
         db.query_sql(query_id, sql).await.unwrap();

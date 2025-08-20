@@ -2,7 +2,7 @@
 /// used in test
 
 
-import { languages } from "monaco-editor";
+import { editor, languages } from "monaco-editor";
 import types from "./ApiStruct";
 import { createContext, CSSProperties, ReactElement, ReactNode } from "react";
 import { ask } from '@tauri-apps/plugin-dialog';
@@ -577,6 +577,36 @@ class MongoTableHandler {
     }
   }
 }
+
+
+class UserSettings {
+  theme: string = 'light';
+  pageSize: number = 100;
+  editorFontSize: number = 16;
+  rootFontSize: number = 15;
+  datagridRowHeight: number = 24;
+  datagridHeaderHeight: number = 30;
+  editorOption: editor.IStandaloneEditorConstructionOptions = {};
+  editorTheme(): string {
+    return this.theme === 'dark' ? 'vs-dark' : 'light';
+  }
+  static merge(x: object): UserSettings {
+    if (!x) {
+      x = {};
+    }
+    let d = new UserSettings();
+    for (const key in x) {
+      const v = x[key];
+      if (!v) {
+        continue;
+      }
+      d[key] = x[key];
+    }
+    return d;
+  }
+}
+
+const SettingContext = createContext<UserSettings>(null);
 const appFontWeight = "560";
 export {
   TabsSetContext,
@@ -614,6 +644,8 @@ export {
   SaveSizesToStore,
   appFontWeight,
   DocsAndCount,
-  MongoTableHandler
+  MongoTableHandler,
+  UserSettings,
+  SettingContext
 };
 

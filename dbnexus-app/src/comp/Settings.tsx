@@ -23,13 +23,16 @@ import {
   AppStoreKey,
   EscDownEvent,
   modalStyle,
-  SettingContext,
   SimpleFlexSizeEditor,
-  UserSettings,
 } from './Common';
 import { ModalHeader, SelectPageSize } from './CommonComp';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { appFontWeight, validJson } from './helper';
+import {
+  appFontWeight,
+  SettingContext,
+  UserSettings,
+  validJson,
+} from './helper';
 
 function ModifySettings({ handleClose }) {
   const { showNotification } = useContext(NotificationContext);
@@ -42,13 +45,12 @@ function ModifySettings({ handleClose }) {
   const [datagridHeaderHeight, setDatagridHeaderHeight] = useState(30);
   const [editorOptions, setEditorOptions] = useState('{\n}');
   const [showEditorOptions, setShowEditorOptions] = useState(false);
+
   const reload = async () => {
     appStore
       .get<UserSettings>(AppStoreKey.UserSetttings)
       .then((settings) => {
-        if (!settings) {
-          settings = new UserSettings();
-        }
+        settings = UserSettings.merge(settings);
         setPageSize(settings.pageSize);
         setTheme(settings.theme);
         setEditorFontSize(settings.editorFontSize);
@@ -386,7 +388,7 @@ const components: Components<
   MuiDataGrid: {
     styleOverrides: {
       root: {
-        '.MuiDataGrid-columnHeaderTitle': {
+        '& .MuiDataGrid-columnHeaderTitle': {
           fontWeight: appFontWeight,
         },
       },
@@ -426,8 +428,6 @@ const components: Components<
   MuiTab: {
     styleOverrides: {
       root: {
-        // fontSize: '1rem',
-        // height: '1.2rem',
         textTransform: 'none',
       },
     },
@@ -449,15 +449,6 @@ const lightTheme = createTheme({
   },
   components,
 });
-const rowSelected = {
-  // '&.Mui-selected': {
-  //   backgroundColor: '#1976d2', // 蓝色背景
-  //   color: '#ffffff', // 白色字体
-  //   '&:hover': {
-  //     backgroundColor: '#115293', // 悬停时的背景色
-  //   },
-  // },
-};
 
 //@ts-ignore
 lightTheme.components.MuiDataGrid.styleOverrides.row = {
@@ -467,7 +458,6 @@ lightTheme.components.MuiDataGrid.styleOverrides.row = {
   // '&:nth-of-type(even)': {
   //   backgroundColor: '#d0d0d0', // 浅色模式的偶数行背景色
   // },
-  ...rowSelected,
 };
 
 const darkTheme = createTheme({
@@ -493,7 +483,6 @@ darkTheme.components.MuiDataGrid.styleOverrides.row = {
   // '&:nth-of-type(even)': {
   //   backgroundColor: '#2f2f2f', // 深色模式的偶数行背景色
   // },
-  ...rowSelected,
 };
 
 function SettingComp(props: { children }) {
@@ -514,12 +503,7 @@ function SettingComp(props: { children }) {
         console.log('list user setting failed', e);
       });
   };
-  const isDark = () => {
-    if (!setting) {
-      return false;
-    }
-    return setting.theme == 'dark';
-  };
+  const isDark = setting && setting.theme == 'dark';
 
   appStore.onChange((key) => {
     if (key == AppStoreKey.UserSetttings) {
@@ -530,9 +514,8 @@ function SettingComp(props: { children }) {
   useEffect(() => {
     reload();
   }, []);
-
   return (
-    <ThemeProvider theme={!isDark() ? lightTheme : darkTheme}>
+    <ThemeProvider theme={!isDark ? lightTheme : darkTheme}>
       <CssBaseline />
       <SettingContext.Provider value={setting}>
         {children}

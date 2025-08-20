@@ -7,7 +7,7 @@ use std::time::Duration;
 use dashmap::DashMap;
 use futures_util::lock::Mutex;
 use futures_util::{StreamExt, TryStreamExt};
-use sqlparser::ast::{ColumnOption, Expr, Statement};
+use sqlparser::ast::{ColumnOption, Statement};
 use sqlparser::tokenizer::Token;
 use sqlx::pool::{PoolConnection, PoolOptions};
 use sqlx::sqlite::SqliteRow;
@@ -26,10 +26,6 @@ use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
-
-pub(crate) fn type_support_compare(_typ: &str) -> bool {
-    true
-}
 
 #[derive(Clone)]
 pub struct SqliteDB {
@@ -146,9 +142,7 @@ impl SqliteDB {
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
-
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
-
         sender.send("[".into()).await?;
         let mut first = true;
         while let Some(row) = stream.next().await {
@@ -233,7 +227,7 @@ impl SqliteDB {
 }
 // TODO sqlparse don't support parse trigger statement
 // use lexer to solve this issue.
-fn extract_trigger_base_on_lexer(name: &str, sql: String) -> anyhow::Result<TriggerDetail> {
+fn extract_trigger_detail_on_lexer(name: &str, sql: String) -> anyhow::Result<TriggerDetail> {
     let t = sqlparser::tokenizer::Tokenizer::new(&sqlparser::dialect::SQLiteDialect {}, &sql)
         .tokenize()?;
     let mut event = None;
@@ -273,29 +267,7 @@ fn extract_trigger_base_on_lexer(name: &str, sql: String) -> anyhow::Result<Trig
 pub(crate) fn extract_trigger_detail_from_sql(
     name: &str, sql: String,
 ) -> anyhow::Result<TriggerDetail> {
-    extract_trigger_base_on_lexer(name, sql)
-}
-
-#[cfg(test)]
-#[test]
-fn test_extract_trigger_detail_from_sql() {
-    {
-        let x = extract_trigger_detail_from_sql(
-            "after_insert_test_create_trigger",
-            r#"
-            CREATE TRIGGER after_insert_test_create_trigger
-            AFTER INSERT ON test_create_trigger
-            FOR EACH ROW
-            BEGIN
-                INSERT INTO test_create_trigger_update (info)
-                VALUES (NEW.info);
-            END
-        "#
-            .to_owned(),
-        )
-        .unwrap();
-        assert_eq!(x.event, TriggerEvent::Insert);
-    }
+    extract_trigger_detail_on_lexer(name, sql)
 }
 
 async fn query_trigger_detail(
@@ -329,31 +301,12 @@ impl ServerMetas for SqliteDB {
         let sql = r#"
             SELECT sqlite_version(); -- 0 
         "#;
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
-        let mut metas = Vec::with_capacity(8);
-
-        while let Some(item) = stream.next().await {
-            let item = item?;
-            let row = match item {
-                sqlx::Either::Left(_x) => {
-                    // anyhow::bail!(format!("should be sqlrow but result,result:{:?}", x))
-                    // every select contains an MysqlQueryResult . just ignore them.
-                    continue;
-                }
-
-                sqlx::Either::Right(row) => row,
-            };
-            match metas.len() {
-                0 => {
-                    let version: String = row.try_get(0)?;
-                    metas.push(MetaValue::new("version", version));
-                }
-                _ => {
-                    anyhow::bail!("count the row number");
-                }
-            }
-        }
-
+        let row = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_one(conn.deref_mut())
+            .await?;
+        let mut metas = vec![];
+        let version: String = row.try_get(0)?;
+        metas.push(MetaValue::new("version", version));
         anyhow::Ok(metas)
     }
 }
@@ -469,7 +422,7 @@ impl SchemaTrait for SqliteDB {
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
         let sql = format!(
-            "CREATE {} INDEX {} ON {table}({})",
+            r#"CREATE {} INDEX "{}" ON "{table}"({})"#,
             match kind {
                 IndexKind::Index => "",
                 IndexKind::Primary => anyhow::bail!("can't create primary index"),
@@ -891,25 +844,15 @@ fn get_rows_types(rows: &Vec<SqliteRow>) -> Vec<Field> {
     }
     let mut ret = Vec::with_capacity(rows[0].columns().len());
     for c in rows[0].columns().iter() {
-        ret.push(Field {
-            field: c.name().to_string(),
-            typ: c.type_info().name().to_string(),
-            nullable: true,
-            default_value: None,
-            is_primary: false,
-            is_auto_increment: false,
-            sortable: true,
-            firebird_binary_sub_type: None,
-        });
+        ret.push(Field::from_name_type(
+            c.name().to_string(),
+            c.type_info().to_string(),
+        ));
     }
     ret
 }
 
 impl SqlBuilder for SqliteDB {
-    fn type_support_compare(&self, typ: &str) -> bool {
-        type_support_compare(typ)
-    }
-
     fn put_value_in_sql(
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
@@ -1429,37 +1372,6 @@ impl QuerySql for SqliteDB {
     }
 }
 
-#[allow(unused)]
-fn extract_index(sql: &str) -> anyhow::Result<Option<(Option<String>, Vec<String>)>> {
-    use sqlparser::dialect::SQLiteDialect;
-    let ss = sqlparser::parser::Parser::parse_sql(&SQLiteDialect {}, sql)?;
-    if ss.len() != 1 {
-        log::error!("statements are:{:?}", ss);
-        anyhow::bail!("should contains one statement.");
-    }
-    let s = ss.first().unwrap();
-
-    match s {
-        Statement::CreateIndex(create_index) => {
-            let name = create_index.name.clone().map(|x| x.to_string());
-            let mut on = Vec::with_capacity(create_index.columns.len());
-            for c in create_index.columns.iter() {
-                match &c.column.expr {
-                    Expr::Identifier(x) => {
-                        on.push(x.to_string());
-                    }
-                    _ => {
-                        anyhow::bail!(format!("not a valid index expr:{:?}", &c.column.expr));
-                    }
-                }
-            }
-            anyhow::Ok(Some((name, on)))
-        }
-
-        _ => anyhow::Ok(None),
-    }
-}
-
 pub(crate) fn gen_show_sql(
     table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
@@ -1522,6 +1434,26 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_trigger_detail_from_sql() {
+        {
+            let x = extract_trigger_detail_from_sql(
+                "after_insert_test_create_trigger",
+                r#"
+            CREATE TRIGGER after_insert_test_create_trigger
+            AFTER INSERT ON test_create_trigger
+            FOR EACH ROW
+            BEGIN
+                INSERT INTO test_create_trigger_update (info)
+                VALUES (NEW.info);
+            END
+        "#
+                .to_owned(),
+            )
+            .unwrap();
+            assert_eq!(x.event, TriggerEvent::Insert);
+        }
+    }
+    #[test]
     fn test_detect_auto_increment() {
         let x = extract_auto_increment_key(
             r#"
@@ -1548,55 +1480,46 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_index() {
-        let extract_index =
-            extract_index("CREATE INDEX idx_employees_age ON employees (name , age )").unwrap();
-        assert_eq!(
-            format!("{:?}", extract_index),
-            "Some((Some(\"idx_employees_age\"), [\"name\", \"age\"]))"
-        );
-    }
-    #[test]
     fn test_extract_trigger_base_on_lexer() {
         {
             let sql = "after insert".to_string();
             assert_eq!(
-                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+                extract_trigger_detail_on_lexer("", sql.clone()).unwrap(),
                 TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Insert, sql, None)
             );
         }
         {
             let sql = "after update".to_string();
             assert_eq!(
-                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+                extract_trigger_detail_on_lexer("", sql.clone()).unwrap(),
                 TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Update, sql, None)
             );
         }
         {
             let sql = "after delete".to_string();
             assert_eq!(
-                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+                extract_trigger_detail_on_lexer("", sql.clone()).unwrap(),
                 TriggerDetail::new("", TriggerTiming::After, TriggerEvent::Delete, sql, None)
             );
         }
         {
             let sql = "before insert".to_string();
             assert_eq!(
-                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+                extract_trigger_detail_on_lexer("", sql.clone()).unwrap(),
                 TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Insert, sql, None)
             );
         }
         {
             let sql = "before update".to_string();
             assert_eq!(
-                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+                extract_trigger_detail_on_lexer("", sql.clone()).unwrap(),
                 TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Update, sql, None)
             );
         }
         {
             let sql = "before delete".to_string();
             assert_eq!(
-                extract_trigger_base_on_lexer("", sql.clone()).unwrap(),
+                extract_trigger_detail_on_lexer("", sql.clone()).unwrap(),
                 TriggerDetail::new("", TriggerTiming::Before, TriggerEvent::Delete, sql, None)
             );
         }
@@ -1604,11 +1527,11 @@ mod tests {
         // error cases
         {
             let sql = "before xxx".to_string();
-            assert!(extract_trigger_base_on_lexer("", sql.clone()).is_err());
+            assert!(extract_trigger_detail_on_lexer("", sql.clone()).is_err());
         }
         {
             let sql = "insert xxx".to_string();
-            assert!(extract_trigger_base_on_lexer("", sql.clone()).is_err());
+            assert!(extract_trigger_detail_on_lexer("", sql.clone()).is_err());
         }
     }
 

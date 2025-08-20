@@ -88,6 +88,7 @@ import {
   backendCompletionItemToEditor,
   DataSourceKind,
   secondConfirm,
+  SettingContext,
   TabsSetContext,
 } from './helper';
 import { MetaValuesView } from './CommonComp';
@@ -491,35 +492,6 @@ function MenuConnectionInfo({ uuid }) {
     </MenuItem>
   );
 }
-class UserSettings {
-  theme: string = 'light';
-  pageSize: number = 100;
-  editorFontSize: number = 16;
-  rootFontSize: number = 15;
-  datagridRowHeight: number = 24;
-  datagridHeaderHeight: number = 30;
-  editorOption: editor.IStandaloneEditorConstructionOptions = {};
-
-  editorTheme(): string {
-    return this.theme === 'dark' ? 'vs-dark' : 'light';
-  }
-  static merge(x: object): UserSettings {
-    if (!x) {
-      x = {};
-    }
-    let d = new UserSettings();
-    for (const key in x) {
-      const v = x[key];
-      if (!v) {
-        continue;
-      }
-      d[key] = x[key];
-    }
-    return d;
-  }
-}
-
-const SettingContext = createContext<UserSettings>(null);
 
 const OpenedContext = createContext<{ opened: boolean; setOpened }>(null);
 
@@ -1198,9 +1170,7 @@ export {
   msgTimeout,
   progressBarSize,
   progressBarSizeSmall,
-  SettingContext,
   appStore,
-  UserSettings,
   OpenedContext,
   MenuConnectionInfo,
   getNamedConfig,

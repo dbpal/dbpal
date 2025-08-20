@@ -906,9 +906,6 @@ impl CheckConn for OracleDB {
     }
 }
 
-fn type_support_compare(_typ: &str) -> bool {
-    true
-}
 impl OracleDB {
     pub(crate) fn query_size(
         &self, names: &[String],
@@ -1645,10 +1642,6 @@ impl SqlBuilder for OracleDB {
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
         put_value_in_sql(typ, value)
-    }
-
-    fn type_support_compare(&self, typ: &str) -> bool {
-        type_support_compare(typ)
     }
 }
 impl OracleDB {

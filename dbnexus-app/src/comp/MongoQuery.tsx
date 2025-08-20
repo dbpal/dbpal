@@ -18,13 +18,17 @@ import {
   MongoDBQuery,
   BsonExtraDataType,
 } from './MongoQueryBackend';
-import { appFontWeight, generateRandomString, saveAndSetSize } from './helper';
+import {
+  appFontWeight,
+  generateRandomString,
+  saveAndSetSize,
+  SettingContext,
+} from './helper';
 import {
   EditorBar,
   EscDownEvent,
   LoadStoreFileForQuery,
   modalStyle,
-  SettingContext,
 } from './Common';
 import { NotificationContext } from './Notification';
 import { LogLevelSelection, ModalHeader } from './CommonComp';

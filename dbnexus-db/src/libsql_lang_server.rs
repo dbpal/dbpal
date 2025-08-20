@@ -65,7 +65,7 @@ impl LangServerCommon for LibSqlDB {
             // if we don't want build in function, we can return empty.
             return anyhow::Ok(vec![]);
         }
-        let mut lock = self.build_fn_cache.lock().await;
+        let mut lock = self.build_in_fn_cache.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }

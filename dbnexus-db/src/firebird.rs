@@ -940,14 +940,6 @@ impl SqlBuilder for FireBirdDB {
     ) -> anyhow::Result<String> {
         put_value_in_sql(typ, firebird_blob_sub_type, value)
     }
-
-    fn type_support_compare(&self, typ: &str) -> bool {
-        type_support_compare(typ)
-    }
-}
-
-fn type_support_compare(_typ: &str) -> bool {
-    true
 }
 
 impl FireBirdDB {

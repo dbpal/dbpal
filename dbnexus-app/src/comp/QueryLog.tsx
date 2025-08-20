@@ -11,15 +11,10 @@ import {
   useMemo,
   useState,
 } from 'react';
-import {
-  EscDownEvent,
-  modalStyle,
-  SettingContext,
-  SimpleFlexSizeEditor,
-} from './Common.tsx';
+import { EscDownEvent, modalStyle, SimpleFlexSizeEditor } from './Common.tsx';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
-import { saveAndSetSize, VisiableContext } from './helper.ts';
+import { saveAndSetSize, SettingContext, VisiableContext } from './helper.ts';
 import { ModalHeader } from './CommonComp.tsx';
 
 const pageSizeOptions = [10, 15];

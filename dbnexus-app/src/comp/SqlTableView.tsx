@@ -42,7 +42,6 @@ import {
   keyNotInTable,
   modalStyle,
   reloadOK,
-  SettingContext,
   SimpleFlexSizeEditor,
 } from './Common';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
@@ -65,6 +64,7 @@ import {
   resetMuiDataRespWidth,
   saveAndSetSize,
   secondConfirm,
+  SettingContext,
   TabContent,
   TabsSetContext,
   validJson,

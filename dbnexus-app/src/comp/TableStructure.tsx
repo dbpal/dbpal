@@ -12,7 +12,6 @@ import {
   EscDownEvent,
   initMonacoLanague,
   modalStyle,
-  SettingContext,
   SimpleFlexSizeEditor,
 } from './Common';
 import {
@@ -24,6 +23,7 @@ import {
   handleCopyToClipboard,
   saveAndSetSize,
   secondConfirm,
+  SettingContext,
   VisiableContext,
 } from './helper';
 import CloseIcon from '@mui/icons-material/Close';

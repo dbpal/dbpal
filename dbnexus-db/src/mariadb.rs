@@ -380,10 +380,6 @@ impl SqlBuilder for MariaDB {
     ) -> anyhow::Result<String> {
         self.db.put_value_in_sql(typ, None, value)
     }
-
-    fn type_support_compare(&self, typ: &str) -> bool {
-        self.db.type_support_compare(typ)
-    }
 }
 
 impl ReadOnlyTrait for MariaDB {

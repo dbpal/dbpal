@@ -426,12 +426,12 @@ impl MysqlDB {
         let sql = format!(
             r#"
             SELECT 
-    PARTITION_NAME
-FROM 
-    information_schema.partitions
-WHERE 
-    table_name = '{table_name}'
-    AND table_schema = '{db}';
+                PARTITION_NAME
+            FROM 
+                information_schema.partitions
+            WHERE 
+                table_name = '{table_name}'
+                AND table_schema = '{db}';
         "#
         );
         log::info!("sql:{}", sql);
@@ -448,7 +448,6 @@ WHERE
     }
 }
 
-#[allow(dead_code)]
 async fn query_trigger_detail(
     conn: &mut MySqlConnection, name: &str,
 ) -> anyhow::Result<(TriggerEvent, TriggerTiming, Vec<MetaValue>)> {
@@ -495,9 +494,9 @@ impl FunctionOrProcedure {
             FROM INFORMATION_SCHEMA.ROUTINES
             WHERE ROUTINE_SCHEMA = '{}' -- 替换为你的数据库名
             AND ROUTINE_TYPE = '{}'
-       "#,
+            "#,
             db,
-            self.sql_condtion_str()
+            self.routine_type()
         );
         log::info!("sql:{}", sql);
 
@@ -512,8 +511,7 @@ impl FunctionOrProcedure {
         }
         anyhow::Ok(ret)
     }
-
-    fn sql_condtion_str(self) -> &'static str {
+    fn routine_type(self) -> &'static str {
         match self {
             FunctionOrProcedure::Function => "FUNCTION",
             FunctionOrProcedure::Procedure => "PROCEDURE",
@@ -662,9 +660,7 @@ impl MysqlDB {
         anyhow::Ok(ret)
     }
 }
-fn type_support_compare(_tpe: &str) -> bool {
-    true
-}
+
 impl std::fmt::Debug for MysqlDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "mysql on:{:?}", self.config)
@@ -902,7 +898,7 @@ impl SchemaTrait for MysqlDB {
     async fn rename_index(
         &self, table_name: &str, oldname: &str, newname: &str,
     ) -> anyhow::Result<()> {
-        let sql = format!("ALTER TABLE {table_name} RENAME INDEX {oldname} TO {newname}");
+        let sql = format!("ALTER TABLE `{table_name}` RENAME INDEX `{oldname}` TO `{newname}`");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -1013,7 +1009,6 @@ impl SchemaTrait for MysqlDB {
 
         anyhow::Ok(CreateTableAndIndexSql {
             create_table: s,
-
             indexes: vec![],
         })
     }
@@ -1126,9 +1121,7 @@ impl SchemaTrait for MysqlDB {
         self.can_write()?;
         let fs = self.show_table_columns(table_name).await?;
         let s = self.insert_sql(None, table_name, &fs, &values)?;
-
         let mut conn = self.get_conn().await?;
-
         let r = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
             .execute(conn.deref_mut())
             .await?;
@@ -1481,7 +1474,7 @@ impl DBTrait for MysqlDB {
         &self, name: &str, _extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
         self.can_write()?;
-        let sql = format!("CREATE DATABASE {name}");
+        let sql = format!("CREATE DATABASE `{name}`");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -1492,7 +1485,7 @@ impl DBTrait for MysqlDB {
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let sql = format!("DROP DATABASE {name}");
+        let sql = format!("DROP DATABASE `{name}`");
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -1728,10 +1721,6 @@ impl QuerySql for MysqlDB {
 }
 
 impl SqlBuilder for MysqlDB {
-    fn type_support_compare(&self, typ: &str) -> bool {
-        type_support_compare(typ)
-    }
-
     fn put_value_in_sql(
         &self, f: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
@@ -1801,7 +1790,7 @@ pub(crate) mod test_fns {
         db.execute_sql(
             query_id,
             r#"
-             CREATE TABLE test_commit (
+            CREATE TABLE test_commit (
                 ID INTEGER PRIMARY KEY,
                 NAME VARCHAR(50)
             );
@@ -1871,7 +1860,7 @@ pub(crate) mod test_fns {
         db.execute_sql(
             query_id,
             r#" 
-           CREATE PROCEDURE test_procedure()
+            CREATE PROCEDURE test_procedure()
             BEGIN
                 -- 这个存储过程什么都不做
             END;
@@ -2074,7 +2063,7 @@ pub(crate) mod test_fns {
         db.execute_sql(
             query_id,
             r#"
-       CREATE TRIGGER after_insert_test_create_trigger
+            CREATE TRIGGER after_insert_test_create_trigger
             AFTER INSERT ON test_create_trigger
             FOR EACH ROW
             BEGIN
@@ -2089,7 +2078,7 @@ pub(crate) mod test_fns {
         db.execute_sql(
             query_id,
             r#"
-  CREATE TRIGGER after_insert_test_create_trigger2
+            CREATE TRIGGER after_insert_test_create_trigger2
             BEFORE INSERT ON test_create_trigger
             FOR EACH ROW
             BEGIN

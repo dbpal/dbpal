@@ -631,7 +631,6 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
             };
             data.push(value);
         }
-
         ret.push(data);
     }
 
@@ -925,9 +924,10 @@ impl CassandraDB {
         let mut ret = Vec::new();
         for row in body.into_rows().unwrap_or_default() {
             let name: Option<String> = row.get_by_index(0)?;
-            ret.push(name.unwrap());
+            if let Some(name) = name {
+                ret.push(name);
+            }
         }
-
         anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 }
@@ -936,6 +936,7 @@ impl CassandraDB {
     // page caching size
     const PAGE_CACHE_LIMIG_SIZE: usize = 2000;
 
+    // table is none means remove all cached.
     fn invalid_page_caching(&self, table: Option<&str>) {
         if let Some(table) = table {
             self.paging_cache.remove(&table.to_string());
@@ -997,7 +998,7 @@ impl CassandraDB {
             None => false,
         };
         let sql = format!(
-            r#"SELECT * FROM "{name}" {} {}  {} "#,
+            r#"SELECT * FROM "{name}"  {}  {} {}"#,
             if let Some(where_str) = where_str {
                 format!(
                     " WHERE {} {}",
@@ -1234,10 +1235,6 @@ impl SqlBuilder for CassandraDB {
     ) -> anyhow::Result<String> {
         put_value_in_sql(typ, value)
     }
-
-    fn type_support_compare(&self, typ: &str) -> bool {
-        type_support_compare(typ)
-    }
 }
 #[async_trait::async_trait]
 impl SchemaTrait for CassandraDB {
@@ -1330,7 +1327,10 @@ impl SchemaTrait for CassandraDB {
     async fn create_index(
         &self, table: &str, name: &str, _kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
-        let sql = format!("CREATE INDEX {name} ON {table} ({});", fields.join(","));
+        let sql = format!(
+            r#"CREATE INDEX "{name}" ON "{table}" ({});"#,
+            fields.join(",")
+        );
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
         anyhow::Ok(())
@@ -1598,6 +1598,7 @@ impl SchemaTrait for CassandraDB {
         let sql = format!(r#"DROP TABLE "{}";"#, table);
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
+        self.invalid_page_caching(Some(table));
         anyhow::Ok(())
     }
 
@@ -1607,6 +1608,7 @@ impl SchemaTrait for CassandraDB {
         let sql = format!("ALTER TABLE {table} ADD {name} {}", col.typ);
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
+        self.invalid_page_caching(Some(table));
         anyhow::Ok(())
     }
 
@@ -1615,6 +1617,7 @@ impl SchemaTrait for CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!("ALTER TABLE {table} RENAME {old_name} TO {new_name}");
         log::info!("sql:{}", sql);
+        self.invalid_page_caching(Some(table));
         self.session.query(&sql).await?;
         anyhow::Ok(())
     }
@@ -1623,6 +1626,7 @@ impl SchemaTrait for CassandraDB {
         let sql = format!("ALTER TABLE {table} DROP {col};");
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
+        self.invalid_page_caching(Some(table));
         anyhow::Ok(())
     }
 
@@ -1738,10 +1742,6 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         ),
         _ => anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string())),
     }
-}
-
-fn type_support_compare(_typ: &str) -> bool {
-    true
 }
 
 // TODO this parse only support one parameter or `cassandra`

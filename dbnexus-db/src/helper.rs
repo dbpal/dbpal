@@ -133,6 +133,12 @@ pub(crate) fn is_dangerous_sql_by_parser(sql: &str, dialect: &dyn Dialect) -> an
             Statement::Drop { .. } => true,
             Statement::DropFunction { .. } => true,
             Statement::DropSecret { .. } => true,
+            Statement::DropTrigger { .. } => true,
+            Statement::DropDomain(..) => true,
+            Statement::DropProcedure { .. } => true,
+            Statement::DropPolicy { .. } => true,
+            Statement::DropExtension { .. } => true,
+            Statement::Discard { .. } => true,
             Statement::Delete(x) => x.selection.is_none(),
             _ => false,
         };

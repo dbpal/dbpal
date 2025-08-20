@@ -39,7 +39,6 @@ import {
   dropSchema,
   initMonacoLanague,
   QueryConn,
-  SettingContext,
   EscDownEvent,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
@@ -70,6 +69,7 @@ import {
   handleCopyToClipboard,
   MatchPatternContext,
   secondConfirm,
+  SettingContext,
   TabsSetContext,
   UuidContext,
 } from './helper';

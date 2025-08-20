@@ -34,7 +34,7 @@ pub struct LibSqlDB {
     query_connections_transaction: Arc<DashMap<uuid::Uuid, libsql::Transaction>>,
     tx_execute_times: TXExecuteTimes,
     query_logs: QueryLogMap,
-    pub(crate) build_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) build_in_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
 }
@@ -111,7 +111,6 @@ impl QuerySql for LibSqlDB {
 
     async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
         let t = self.query_connections_transaction.remove(&query_id);
-
         match t {
             Some(x) => {
                 x.1.commit().await?;
@@ -346,7 +345,7 @@ impl LibSqlDB {
             query_connections_transaction: Default::default(),
             query_logs: Default::default(),
             tx_execute_times: Default::default(),
-            build_fn_cache: Default::default(),
+            build_in_fn_cache: Default::default(),
             keywords_completion: Default::default(),
             pragma_completion: Default::default(),
         })
@@ -451,13 +450,14 @@ impl SchemaTrait for LibSqlDB {
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
         let sql = format!(
-            "CREATE {} INDEX {} ON {table}({})",
+            r#"CREATE {} INDEX "{}" ON "{}"({})"#,
             match kind {
                 IndexKind::Index => "",
                 IndexKind::Primary => anyhow::bail!("can't create primary index"),
                 IndexKind::Unique => "Unique",
             },
             name,
+            table,
             fields.join(",")
         );
         log::info!("sql:{}", sql);
@@ -559,7 +559,7 @@ impl SchemaTrait for LibSqlDB {
     async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
         let sql = format!(
             r#"
-         DROP TRIGGER "{name}"
+            DROP TRIGGER "{name}"
         "#
         );
         log::info!("sql:{}", sql);
@@ -939,9 +939,7 @@ impl LibSqlDB {
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
-
         let mut stream = conn.query(sql, params!()).await?;
-
         sender.send("[".into()).await?;
         let mut first = true;
         while let Some(row) = stream.next().await? {

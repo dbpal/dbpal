@@ -1029,6 +1029,7 @@ pub struct QueryResp {
     pub total: usize,
     pub data: Vec<Vec<Option<String>>>,
     pub sql: Option<String>,
+    // pub hit_cahce: bool,
 }
 
 /// we don't want to check `sql` somehow can be different
@@ -1054,6 +1055,9 @@ impl QueryResp {
 }
 
 impl QueryResp {
+    // pub fn hit_cahce(&mut self) {
+    //     self.hit_cahce = true;
+    // }
     pub fn new(
         fields: Vec<Field>, total: usize, data: Vec<Vec<Option<String>>>,
         sql: impl Into<Option<String>>,
@@ -1078,6 +1082,7 @@ impl QueryResp {
         Self {
             total: result.len(),
             sql,
+            // hit_cahce: false,
             data: vec![result],
             fields: vec![Field {
                 field: col_name,

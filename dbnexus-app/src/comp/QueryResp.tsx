@@ -20,6 +20,7 @@ import {
   ContextMenuContext,
   VisiableContext,
   resetMuiDataRespWidth,
+  SettingContext,
 } from './helper.ts';
 import {
   DataGrid,
@@ -35,7 +36,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { keyNotInTable, SettingContext } from './Common.tsx';
+import { keyNotInTable } from './Common.tsx';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
