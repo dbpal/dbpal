@@ -1470,6 +1470,28 @@ impl LanguageServer for RedisDB {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use crate::{
+        enable_test_log, language_server::completion_test::test_file_auto_completion,
+        redis::make_test_object,
+    };
+
+    #[tokio::test]
+    async fn test_auto_completion() {
+        enable_test_log();
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir).to_path_buf();
+        file_path.push("tests");
+        file_path.push("redis_auto_completion_test.txt");
+        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
+        let db = make_test_object().await;
+        test_file_auto_completion(&content, &db, false).await;
+    }
+}
+
 #[derive(Debug)]
 pub struct RedisDialet {}
 

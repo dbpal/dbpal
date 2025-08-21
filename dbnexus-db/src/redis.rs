@@ -1449,34 +1449,35 @@ fn extract_db_from_info_key_space(result: &str) -> anyhow::Result<Vec<String>> {
 }
 
 #[cfg(test)]
+pub(crate) async fn make_test_object() -> RedisDB {
+    let db = RedisDB::new(RedisDBConfig {
+        host: crate::TEST_HOST.to_string(),
+        port: None,
+        username: None,
+        password: None,
+        db: Some("db0".to_string()),
+        read_only: false,
+        save_password: true,
+    })
+    .await
+    .unwrap();
+    db
+}
+#[cfg(test)]
 mod tests {
 
-    use std::path::Path;
     use std::time::Duration;
 
+    use super::make_test_object;
     use futures_util::StreamExt;
     use redis::AsyncCommands;
 
     use super::{RedisDB, extract_db_from_info_key_space, split_info_colon};
-    use crate::datasource_config::RedisDBConfig;
-    use crate::db::{DBTrait, ExportKind, QuerySql, SchemaTrait, ServerMetas};
-    use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::{TEST_HOST, enable_test_log};
 
-    async fn make_test_object() -> RedisDB {
-        let db = RedisDB::new(RedisDBConfig {
-            host: TEST_HOST.to_string(),
-            port: None,
-            username: None,
-            password: None,
-            db: Some("db0".to_string()),
-            read_only: false,
-            save_password: true,
-        })
-        .await
-        .unwrap();
-        db
-    }
+    use crate::db::{DBTrait, ExportKind, QuerySql, SchemaTrait, ServerMetas};
+    use crate::enable_test_log;
+    use crate::language_server::completion_test::test_file_auto_completion;
+
     #[tokio::test]
 
     async fn test_select_zset_binary() {
@@ -1497,19 +1498,6 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         )
         .unwrap();
         assert_eq!(r, vec!["db0".to_string(), "db1".to_string()]);
-    }
-
-    #[tokio::test]
-    #[ignore = "should run by hand."]
-    async fn test_auto_completion() {
-        enable_test_log();
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let mut file_path = Path::new(manifest_dir).to_path_buf();
-        file_path.push("tests");
-        file_path.push("redis_auto_completion_test.txt");
-        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        let db = make_test_object().await;
-        test_file_auto_completion(&content, &db, false).await;
     }
 
     #[tokio::test]
