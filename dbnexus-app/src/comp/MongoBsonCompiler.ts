@@ -185,7 +185,7 @@ class MongoBsonAs {
         throw new MongoBsonError("must have field name 't' and have type number", this.kind.loc);
       }
       if (!hasTypeKey(v, "i", "number")) {
-        throw new MongoBsonError("must have field name 'i' and have type number", this.kind.loc);
+        v.i = 0;
       }
       return new Timestamp(v);
     }
