@@ -1479,6 +1479,7 @@ mod tests {
         redis::make_test_object,
     };
 
+    #[ignore = "rely on keys on some other test"]
     #[tokio::test]
     async fn test_auto_completion() {
         enable_test_log();

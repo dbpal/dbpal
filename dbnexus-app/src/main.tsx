@@ -9,7 +9,13 @@ import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
 import * as tauriwindow from '@tauri-apps/api/window';
 import { platform } from '@tauri-apps/plugin-os';
-import { secondConfirm, windowFocusChangeEvent } from './comp/helper';
+import {
+  appStore,
+  AppStoreKey,
+  secondConfirm,
+  UserSettings,
+  windowFocusChangeEvent,
+} from './comp/helper';
 import { emit } from '@tauri-apps/api/event';
 
 if (['windows', 'linux'].includes(platform())) {
@@ -41,6 +47,12 @@ appWindow.onFocusChanged((x) => {
   emit(windowFocusChangeEvent, x.payload);
 });
 
+appWindow.onThemeChanged(async (msg) => {
+  let x = await appStore.get<UserSettings>(AppStoreKey.UserSetttings);
+  x = UserSettings.merge(x);
+  x.theme = msg.payload;
+  appStore.set(AppStoreKey.UserSetttings, x);
+});
 if (!debugBuild) {
   document.addEventListener('contextmenu', function (event) {
     event.preventDefault();
