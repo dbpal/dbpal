@@ -1262,7 +1262,7 @@ mod tests {
         let binary_field3 = Binary::from_base64(input.clone(), None).unwrap();
         let binary_field4 =
             Binary::from_base64(input.clone(), Some(BinarySubtype::Encrypted)).unwrap();
-        let binary_field5 = Binary::from_base64(input, Some(BinarySubtype::Reserved(10))).unwrap();
+        let binary_field5 = Binary::from_base64(input, BinarySubtype::Sensitive).unwrap();
         let data = doc! {
             "_id": ObjectId::new(),
             "string_field": "Hello, world!",
@@ -1287,9 +1287,7 @@ mod tests {
             "decimal_field": Decimal128::from_str("1").unwrap(),
             "timestamp_field": Timestamp {time: now as u32, increment: 1 },
         };
-
         db.insert(&table, data).await.unwrap();
-
         let resp = db
             .show_collection_table_list(table, doc! {}, doc! {}, 1, 100)
             .await

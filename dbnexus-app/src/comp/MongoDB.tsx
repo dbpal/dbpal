@@ -99,7 +99,7 @@ enum MongoDataViewModel {
   Json,
 }
 const mongoBsonKeywords =
-  /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|vector|user_define|true|false|null|undefined|code|float32|int8)\b/;
+  /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|int8_array|float32_array|user_define|true|false|null|undefined|code)\b/;
 function mongoBsonAutoCompletion(): languages.CompletionList {
   let generateSubTypes = MongoBsonBinaryAllSubType.allValues().map((e) => {
     return {
@@ -180,13 +180,13 @@ function mongoBsonAutoCompletion(): languages.CompletionList {
       },
 
       {
-        label: 'float32',
+        label: 'float32_array',
         kind: languages.CompletionItemKind.Class,
         insertText: 'float32',
         range: undefined,
       },
       {
-        label: 'int8',
+        label: 'int8_array',
         kind: languages.CompletionItemKind.Class,
         insertText: 'int8',
         range: undefined,
@@ -194,14 +194,14 @@ function mongoBsonAutoCompletion(): languages.CompletionList {
     ],
   };
 }
+const languageXXX = 'mongoBson-7135637247';
 
 function initMongoBsonLanguage() {
-  const language = 'mongoBson';
   loader
     .init()
     .then((monaco) => {
-      monaco.languages.register({ id: language });
-      monaco.languages.setMonarchTokensProvider(language, {
+      monaco.languages.register({ id: languageXXX });
+      monaco.languages.setMonarchTokensProvider(languageXXX, {
         ignoreCase: true,
         tokenizer: {
           root: [
@@ -217,7 +217,7 @@ function initMongoBsonLanguage() {
         ],
       });
 
-      monaco.languages.registerDocumentFormattingEditProvider(language, {
+      monaco.languages.registerDocumentFormattingEditProvider(languageXXX, {
         provideDocumentFormattingEdits(model, options, _token) {
           let text = model.getValue();
           try {
@@ -233,7 +233,7 @@ function initMongoBsonLanguage() {
         },
       });
 
-      monaco.languages.registerCompletionItemProvider(language, {
+      monaco.languages.registerCompletionItemProvider(languageXXX, {
         provideCompletionItems: (
           _model: editor.ITextModel,
           _position: Position,
@@ -286,7 +286,17 @@ function MongoBsonEditor(props: {
     },
     []
   );
-  const content = useRef(bsonValue2MongoBson(doc).format());
+
+  const { showNotification } = useContext(NotificationContext);
+  const [content, setContent] = useState('{\n}');
+  useEffect(() => {
+    try {
+      let c = bsonValue2MongoBson(doc).format();
+      setContent(c);
+    } catch (e) {
+      showNotification('error', 'format value failed', e);
+    }
+  }, []);
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
       readOnly: !setOP,
@@ -305,8 +315,8 @@ function MongoBsonEditor(props: {
           width="99%"
           height="99%"
           onMount={handleEditorDidMount}
-          language="mongoBson"
-          value={content.current}
+          language={languageXXX}
+          value={content}
           options={options}
           theme={setting.editorTheme()}
         ></Editor>
@@ -325,6 +335,7 @@ function MongoBsonEditor(props: {
                     setLoading(false);
                   });
                 }}
+                disabled={!!err}
               >
                 {setOPName}
               </Button>
@@ -339,6 +350,7 @@ function MongoBsonEditor(props: {
                     setLoading(false);
                   });
                 }}
+                color="error"
               >
                 delete
               </Button>
@@ -407,7 +419,7 @@ function MongoValueEditor(props: {
           setOP={setOP}
           setOPName={setName}
         ></MongoBsonEditor>
-      )}{' '}
+      )}
     </Stack>
   );
 }
@@ -421,7 +433,6 @@ function MongoTableToolBar(props: {
   viewModel: MongoDataViewModel;
   handleViewModel: (doc: MongoDataViewModel) => void;
   addOP: (doc: BSON.Document) => Promise<void>;
-
   nonse;
 }) {
   const {
@@ -472,7 +483,11 @@ function MongoTableToolBar(props: {
         </Button>
 
         <Chip
-          label={bsonValue2MongoBson(filter).format()}
+          label={
+            oldMongoValueEdiorMode == MongoDataViewModel.Object
+              ? bsonValue2MongoBson(filter).format()
+              : EJSON.stringify(filter)
+          }
           onClick={() => {
             setShowModifyFilter(true);
           }}
@@ -482,7 +497,11 @@ function MongoTableToolBar(props: {
         ></Chip>
 
         <Chip
-          label={bsonValue2MongoBson(sort).format()}
+          label={
+            oldMongoValueEdiorMode == MongoDataViewModel.Object
+              ? bsonValue2MongoBson(sort).format()
+              : EJSON.stringify(sort)
+          }
           onClick={() => {
             setShowModifySort(true);
           }}
