@@ -926,9 +926,11 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
             }
             "BLOB" => {
                 let v: Option<Vec<u8>> = r.try_get(c)?;
-                v.map(|x| format!("X'{}'", encode_bytes(x.as_slice())))
-                    .map(serde_json::Value::from)
-                    .unwrap_or(null_value.clone())
+                v.map(|x| {
+                    serde_json::Value::Array(x.into_iter().map(serde_json::Value::from).collect())
+                })
+                .map(serde_json::Value::from)
+                .unwrap_or(null_value.clone())
             }
 
             _ if numreic_like(&typ) => {
