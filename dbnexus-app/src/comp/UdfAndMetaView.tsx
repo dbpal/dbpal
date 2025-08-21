@@ -90,7 +90,7 @@ function DefAndMetasView(props: {
       {detail.metas.length > 0 && (
         <>
           <Typography variant={titleVariant}> Some Metas </Typography>
-          <MetaValuesView values={detail.metas}></MetaValuesView>{' '}
+          <MetaValuesView values={detail.metas}></MetaValuesView>
         </>
       )}
     </Stack>

@@ -578,6 +578,7 @@ class MongoBsonError extends Error {
     let msgWithLoc = MongoBsonError.makeMsg(msg, loc);
     super(msgWithLoc);
     this.msgWithLoc = msgWithLoc;
+
   }
 
   static middleColumn(loc?: Location): number {

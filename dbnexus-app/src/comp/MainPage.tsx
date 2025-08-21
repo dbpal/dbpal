@@ -64,6 +64,8 @@ import {
   SaveSizesToStore,
   secondConfirm,
   TabsSetContext,
+  WindowFocusChangeContext,
+  windowFocusChangeEvent,
 } from './helper.ts';
 
 import { Box, Modal, Paper } from '@mui/material';
@@ -237,6 +239,20 @@ export default function MainPage() {
       </div>
     </SplitPane>
   );
+  const [windowFocus, setWindowsFocus] = useState(true);
+  useEffect(() => {
+    let unlisten = listen<boolean>(
+      windowFocusChangeEvent,
+      (msg: event.Event<boolean>) => {
+        setWindowsFocus(msg.payload);
+      }
+    );
+    return () => {
+      unlisten.then((e) => {
+        e();
+      });
+    };
+  }, []);
 
   return (
     <SettingComp>
@@ -245,58 +261,65 @@ export default function MainPage() {
           value={{ setTabs, tabs, setSelectTab: setTab }}
         >
           <NotificationProvider>
-            <div> {mainContent} </div>
+            <WindowFocusChangeContext value={windowFocus}>
+              <div> {mainContent} </div>
 
-            <div id="menu-div" style={menu && menu.style}>
-              <Paper elevation={24}> {menu && menu.content}</Paper>
-            </div>
-
-            {showEditConfig && (
-              <Modal
-                open={showEditConfig}
-                onClose={(e: EscDownEvent, reason) => {
-                  if (reason === 'backdropClick') {
-                    return;
-                  }
-                  e.preventDefault();
-                  setShowEditConfig(false);
-                }}
-              >
-                <Box
-                  sx={{ resize: 'both', ...modalStyle }}
-                  width="75%"
-                  height="70vh"
+              <div id="menu-div" style={menu && menu.style}>
+                <Paper
+                  elevation={24}
+                  style={{ opacity: windowFocus ? 1 : '0.7' }}
                 >
-                  <ModalHeader title="Edit Config File"></ModalHeader>
-                  <EditConfigFile
-                    handleClose={() => {
-                      setShowEditConfig(false);
-                    }}
-                  />
-                </Box>
-              </Modal>
-            )}
-            {showSetting && (
-              <Modal
-                open={showSetting}
-                onClose={(e: EscDownEvent, reason) => {
-                  if (reason === 'backdropClick') {
-                    return;
-                  }
-                  e.preventDefault();
-                  setShowSetting(false);
-                }}
-              >
-                <Box sx={modalStyle} width="55%">
-                  <ModalHeader title="Modify Settings"></ModalHeader>
-                  <ModifySettings
-                    handleClose={() => {
-                      setShowSetting(false);
-                    }}
-                  ></ModifySettings>
-                </Box>
-              </Modal>
-            )}
+                  {menu && menu.content}
+                </Paper>
+              </div>
+
+              {showEditConfig && (
+                <Modal
+                  open={showEditConfig}
+                  onClose={(e: EscDownEvent, reason) => {
+                    if (reason === 'backdropClick') {
+                      return;
+                    }
+                    e.preventDefault();
+                    setShowEditConfig(false);
+                  }}
+                >
+                  <Box
+                    sx={{ resize: 'both', ...modalStyle }}
+                    width="75%"
+                    height="70vh"
+                  >
+                    <ModalHeader title="Edit Config File"></ModalHeader>
+                    <EditConfigFile
+                      handleClose={() => {
+                        setShowEditConfig(false);
+                      }}
+                    />
+                  </Box>
+                </Modal>
+              )}
+              {showSetting && (
+                <Modal
+                  open={showSetting}
+                  onClose={(e: EscDownEvent, reason) => {
+                    if (reason === 'backdropClick') {
+                      return;
+                    }
+                    e.preventDefault();
+                    setShowSetting(false);
+                  }}
+                >
+                  <Box sx={modalStyle} width="55%">
+                    <ModalHeader title="Modify Settings"></ModalHeader>
+                    <ModifySettings
+                      handleClose={() => {
+                        setShowSetting(false);
+                      }}
+                    ></ModifySettings>
+                  </Box>
+                </Modal>
+              )}
+            </WindowFocusChangeContext>
           </NotificationProvider>
         </TabsSetContext.Provider>
       </ContextMenuContext.Provider>

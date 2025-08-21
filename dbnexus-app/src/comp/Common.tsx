@@ -383,23 +383,35 @@ function SimpleFlexSizeEditor(props: {
   barLeft?: ReactNode;
   wordWrap?: string;
   readOnly?: boolean;
+  errPos?: Position;
 }) {
-  let { language, value, handleValue, barLeft, wordWrap, readOnly } = props;
+  let { language, value, handleValue, barLeft, wordWrap, readOnly, errPos } =
+    props;
   const [pos, setPos] = useState<Position>(null);
   const setting = useContext(SettingContext);
+  const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const handleDidMount = useCallback(
-    (editor: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
-      editor.onDidChangeCursorPosition(() => {
-        setPos(editor.getPosition());
+    (ed: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
+      editor.current = ed;
+      ed.onDidChangeCursorPosition(() => {
+        setPos(ed.getPosition());
       });
-      editor.onDidChangeModelContent(() => {
+      ed.onDidChangeModelContent(() => {
         if (handleValue) {
-          handleValue(editor.getValue());
+          handleValue(ed.getValue());
         }
       });
     },
     []
   );
+  useEffect(() => {
+    if (editor.current && errPos) {
+      editor.current.setPosition(errPos);
+      editor.current.focus();
+      editor.current.revealLines(errPos.lineNumber, errPos.lineNumber);
+    }
+  }, [errPos]);
+
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
       fontSize: setting.editorFontSize,

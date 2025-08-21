@@ -72,6 +72,7 @@ import {
   SettingContext,
   TabsSetContext,
   UuidContext,
+  WindowFocusChangeContext,
 } from './helper';
 import { TbDatabaseSearch } from 'react-icons/tb';
 import { SqlQuery } from './SqlQuery';
@@ -483,10 +484,12 @@ function Left_() {
           return true;
         };
   }, [matchPattern]);
+  const windowFocus = useContext(WindowFocusChangeContext);
   return (
     <Stack
       style={{
         overflow: 'auto',
+        opacity: windowFocus ? 1 : '0.7',
       }}
     >
       <LeftTop

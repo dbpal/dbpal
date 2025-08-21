@@ -51,6 +51,7 @@ import {
   handleCopyToClipboard,
   hexToString,
   hexTryToString,
+  JsonError,
   saveAndSetSize,
   SettingContext,
   stringToHex,
@@ -564,7 +565,7 @@ function RedisValueEditor(props: {
     RedisEditorMode.Text
   );
 
-  const [jsonErr, setJsonErr] = useState<string | null>(null);
+  const [jsonErr, setJsonErr] = useState<JsonError>(null);
   useEffect(() => {
     let value = hexTryToString(oldValue);
     if (typeof value === 'string') {
@@ -662,7 +663,7 @@ function RedisValueEditor(props: {
         barLeft={
           jsonErr ? (
             <Typography color="error" variant="body1">
-              {jsonErr}
+              {jsonErr.msg}
             </Typography>
           ) : undefined
         }

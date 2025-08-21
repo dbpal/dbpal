@@ -24,7 +24,15 @@ use dbnexus_db::redis::{RedisDB, RedisListTable};
 use dbnexus_db::sqlite::SqliteDB;
 
 use crate::app::{self, App, DBConnectionConfig, Open};
+
 pub const PASSWORD_KEY: &str = "site.dbpal.dev";
+
+#[derive(Clone, Debug, typescript_type_def ::TypeDef, serde::Serialize)]
+pub struct JsonError {
+    pub line: u32,
+    pub column: u32,
+    pub msg: String,
+}
 
 #[tauri::command]
 pub fn has_entered_password(
@@ -2539,11 +2547,15 @@ pub async fn command_panic() -> Result<(), ErrorFrontend> {
 }
 
 #[tauri::command]
-pub fn valid_json(json_str: String) -> Result<(), String> {
+pub fn valid_json(json_str: String) -> Result<(), JsonError> {
     use serde_json::Value;
     match serde_json::from_str::<Value>(&json_str) {
         Ok(_) => Ok(()),
-        Err(e) => Err(format!("{}", e)),
+        Err(e) => Err(JsonError {
+            msg: format!("{}", e),
+            line: e.line() as u32,
+            column: e.column() as u32,
+        }),
     }
 }
 

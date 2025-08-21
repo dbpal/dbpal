@@ -9,7 +9,8 @@ import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
 import * as tauriwindow from '@tauri-apps/api/window';
 import { platform } from '@tauri-apps/plugin-os';
-import { secondConfirm } from './comp/helper';
+import { secondConfirm, windowFocusChangeEvent } from './comp/helper';
+import { emit } from '@tauri-apps/api/event';
 
 if (['windows', 'linux'].includes(platform())) {
   document.addEventListener('keydown', function (event) {
@@ -35,6 +36,10 @@ if (appWindow) {
     }
   });
 }
+
+appWindow.onFocusChanged((x) => {
+  emit(windowFocusChangeEvent, x.payload);
+});
 
 if (!debugBuild) {
   document.addEventListener('contextmenu', function (event) {

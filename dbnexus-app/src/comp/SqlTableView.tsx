@@ -61,6 +61,7 @@ import {
   generateRandomString,
   handleCopyToClipboard,
   isTypeLargeText,
+  JsonError,
   resetMuiDataRespWidth,
   saveAndSetSize,
   secondConfirm,
@@ -234,8 +235,8 @@ function EditInModal(props: { content: string; handleModify }) {
     color: string;
   }[];
 
-  const [jsonErr, setJsonErr] = useState<string | null>(null);
-
+  const [jsonErr, setJsonErr] = useState<JsonError>(null);
+  const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   const [language, setLanguage] = useState(EditInModalLanguage);
   const [value, setValue] = useState(content);
   useEffect(() => {
@@ -276,10 +277,21 @@ function EditInModal(props: { content: string; handleModify }) {
         handleValue={(v) => {
           setValue(v);
         }}
+        errPos={jsonErrPos}
         barLeft={
           jsonErr ? (
-            <Typography color="error" variant="body1">
-              {jsonErr}
+            <Typography
+              color="error"
+              variant="body1"
+              style={{ cursor: 'pointer' }}
+              onClick={() => {
+                if (!jsonErr) {
+                  return;
+                }
+                setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
+              }}
+            >
+              {jsonErr.msg}
             </Typography>
           ) : undefined
         }

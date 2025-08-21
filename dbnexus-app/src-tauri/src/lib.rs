@@ -1,5 +1,6 @@
 pub mod app;
 pub mod handlers;
+
 #[cfg(test)]
 mod tests {
     use dbnexus_db::datasource_config::{CassandraDBConfig, EnableSsl, LibSqlDBConfigSouce};

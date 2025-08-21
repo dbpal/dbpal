@@ -29,6 +29,7 @@ import { ModalHeader, SelectPageSize } from './CommonComp';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import {
   appFontWeight,
+  JsonError,
   SettingContext,
   UserSettings,
   validJson,
@@ -270,7 +271,7 @@ function EditorOptions(props: {
   const { showNotification } = useContext(NotificationContext);
   const { editorOptions, setEditorOptions, handleClose } = props;
   const [value, setValue] = useState(editorOptions);
-  const [jsonErr, setJsonErr] = useState<string | null>(null);
+  const [jsonErr, setJsonErr] = useState<JsonError>(null);
   useEffect(() => {
     validJson(value)
       .then(() => {
@@ -303,7 +304,7 @@ function EditorOptions(props: {
         barLeft={
           jsonErr ? (
             <Typography color="error" variant="body1">
-              {jsonErr}
+              {jsonErr.msg}
             </Typography>
           ) : null
         }

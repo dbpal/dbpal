@@ -468,6 +468,12 @@ const filterStyle = {
   } as CSSProperties,
 };
 
+interface JsonError {
+  line: number,
+  column: number,
+  msg: string,
+}
+
 function validJson(s: string): Promise<void> {
   return invoke<void>("valid_json", { jsonStr: s })
 }
@@ -600,6 +606,8 @@ class UserSettings {
 
 const SettingContext = createContext<UserSettings>(null);
 const appFontWeight = "560";
+const windowFocusChangeEvent = "window-focus-change-event";
+const WindowFocusChangeContext = createContext(true);
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -638,6 +646,11 @@ export {
   MongoTableHandler,
   UserSettings,
   SettingContext,
-  SetCloseConfirmTextContext
+  SetCloseConfirmTextContext,
+  windowFocusChangeEvent,
+  WindowFocusChangeContext,
+
 };
+
+export type { JsonError }
 

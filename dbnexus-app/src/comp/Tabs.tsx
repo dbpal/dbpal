@@ -16,6 +16,7 @@ import {
   SetCloseConfirmTextContext,
   TabContent,
   VisiableContext,
+  WindowFocusChangeContext,
 } from './helper';
 
 function TabsMenu(props: {
@@ -109,7 +110,7 @@ function TabsWithContent_(props: {
 }) {
   let { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
   const { setUpMenu } = useContext(ContextMenuContext);
-
+  const windowFocus = useContext(WindowFocusChangeContext);
   return (
     <Stack spacing={1} style={{ width: '100%' }}>
       <div style={{ display: 'grid' }}>
@@ -126,6 +127,7 @@ function TabsWithContent_(props: {
             '& .MuiTabs-flexContainer': { columnGap: 0 }, // 4px
             // 2. Tab 内边距
             '& .MuiTab-root': { minHeight: 36, px: 0.4 }, // 高度36px，左右12px
+            opacity: windowFocus ? 1 : 0.7,
           }}
         >
           {tabs.map((tab, index) => {

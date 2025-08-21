@@ -86,6 +86,7 @@ import {
   DocsAndCount,
   filterStyle,
   handleCopyToClipboard,
+  JsonError,
   resetMuiDataRespWidth,
   saveAndSetSize,
   SettingContext,
@@ -356,7 +357,25 @@ function MongoBsonEditor(props: {
               </Button>
             )}
             {err ? (
-              <Typography color="error">{err.msgWithLoc}</Typography>
+              <Typography
+                color="error"
+                style={{ cursor: 'pointer' }}
+                onClick={() => {
+                  if (err.loc) {
+                    editor.current.setPosition({
+                      lineNumber: err.loc.start.line,
+                      column: err.loc.end.column,
+                    });
+                    editor.current.focus();
+                    editor.current.revealLines(
+                      err.loc.start.line,
+                      err.loc.end.line
+                    );
+                  }
+                }}
+              >
+                {err.msgWithLoc}
+              </Typography>
             ) : (
               <></>
             )}
@@ -967,7 +986,7 @@ function JsonEditor(props: {
 }) {
   const { value, modifyOP, handleDetele, modifyOPName } = props;
   const [newValue, setNewValue] = useState(EJSON.stringify(value, null, 2));
-  const [jsonErr, setJsonErr] = useState('');
+  const [jsonErr, setJsonErr] = useState<JsonError>(null);
   const [loading, setLoading] = useState(false);
   useEffect(() => {
     (async () => {
@@ -983,7 +1002,7 @@ function JsonEditor(props: {
         setJsonErr(e.toString());
         return;
       }
-      setJsonErr('');
+      setJsonErr(null);
     })();
   }, [newValue]);
 
@@ -1028,7 +1047,7 @@ function JsonEditor(props: {
         )}
         {jsonErr && (
           <Typography color="error" fontWeight="bold">
-            {jsonErr}
+            {jsonErr.msg}
           </Typography>
         )}
       </Stack>
