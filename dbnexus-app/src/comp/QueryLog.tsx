@@ -49,14 +49,12 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
     { field: 'sql', flex: 1 },
   ];
 
-  useEffect(() => {
-    logs.forEach((e) => {
-      if (!('id' in e)) {
-        //@ts-ignore
-        e.id = uuidv4();
-      }
-    });
-  }, [logs]);
+  logs.forEach((e) => {
+    if (!('id' in e)) {
+      //@ts-ignore
+      e.id = uuidv4();
+    }
+  });
 
   const [selectSql, setSelectSql] = useState('');
   const [page, setPage] = useState(1);

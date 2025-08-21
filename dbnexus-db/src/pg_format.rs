@@ -678,7 +678,7 @@ pub(crate) fn encode_rows(rows: &Vec<PgRow>) -> anyhow::Result<Vec<Vec<Option<St
                 }
                 "BOOL[]" => {
                     let value: Option<Vec<bool>> = r.try_get(c)?;
-                    value.map(|x| output_array(&x))
+                    value.map(|x| output_bool_array(&x))
                 }
                 "BYTEA[]" => {
                     let value: Option<Vec<Vec<u8>>> = r.try_get(c)?;
@@ -1335,6 +1335,21 @@ pub(crate) fn output_jsonb_array(array: &Vec<serde_json::Value>) -> String {
     let mut ret = "{".to_string();
     for (index, v) in array.iter().enumerate() {
         ret.push_str(format!("\"{}\"", v.to_string().replace("\"", "\\\"")).as_str());
+        if index != last {
+            ret.push(',')
+        }
+    }
+    ret.push('}');
+    ret
+}
+pub(crate) fn output_bool_array(array: &Vec<bool>) -> String {
+    if array.is_empty() {
+        return "{}".to_string();
+    }
+    let last = array.len() - 1;
+    let mut ret = "{".to_string();
+    for (index, v) in array.iter().enumerate() {
+        ret.push_str((if *v { "t" } else { "f" }).to_string().as_str());
         if index != last {
             ret.push(',')
         }

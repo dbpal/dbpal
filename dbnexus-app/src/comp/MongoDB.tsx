@@ -1244,7 +1244,7 @@ function MongoTableList(props: {
           if (!field) {
             return;
           }
-          let row = { ...resp.data.find((e) => e[keyNotInTable] == id) };
+          let row = resp.data.find((e) => e[keyNotInTable] == id);
           setUpMenu({
             content: (
               <MongoTableListContextMenu
@@ -1315,7 +1315,6 @@ function MongoTableList(props: {
                 columns={resp.fields}
                 rows={resp.data}
                 pageSizeOptions={pageSizeOptions}
-                disableColumnFilter
                 paginationMode="server"
                 paginationModel={paginationModel}
                 onPaginationModelChange={onPaginationModelChange}
