@@ -34,7 +34,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Editor, loader, Monaco, OnMount } from '@monaco-editor/react';
+import { Editor, loader, Monaco } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
@@ -48,7 +48,6 @@ const modalStyle: SxProps = {
   bgcolor: 'background.paper',
   border: '2px solid skyblue',
   boxShadow: 24,
-  margin: 0,
   borderRadius: '4px',
   p: 1,
   maxHeight: '85vh',
@@ -109,7 +108,7 @@ function EditorBar(props: { left?: any; pos: EditorPositon }) {
   let { left, pos } = props;
   return (
     <Stack justifyContent="space-between" direction="row" alignItems="center">
-      <div style={{ width: '40%' }}> {left}</div>
+      <div> {left}</div>
       <Stack width="30%" direction="row" spacing={1}>
         <span>Ln {pos ? pos.lineNumber : ''}</span>
         <span>Col {pos ? pos.column : ''}</span>
@@ -118,7 +117,7 @@ function EditorBar(props: { left?: any; pos: EditorPositon }) {
   );
 }
 
-function CreateDatabase({ uuid, handleClose, kind }) {
+function CreateDatabase({ uuid, handleClose }) {
   const { showNotification } = useContext(NotificationContext);
   const [database, setDatabase] = useState('');
   const databaseDom = useRef(null);
@@ -140,12 +139,7 @@ function CreateDatabase({ uuid, handleClose, kind }) {
         showNotification('error', 'Create Failure', e);
       });
   };
-  let createButtonName;
-  switch (kind) {
-    default:
-      createButtonName = 'create';
-      break;
-  }
+
   return (
     <Stack spacing={1}>
       <Stack>
@@ -165,7 +159,7 @@ function CreateDatabase({ uuid, handleClose, kind }) {
             handleCreate();
           }}
         >
-          {createButtonName}
+          create
         </Button>
       </Stack>
     </Stack>
@@ -385,25 +379,26 @@ async function dropSchema({ uuid, schema, showNotification, okCallback }) {
 function SimpleFlexSizeEditor(props: {
   language: string;
   value?: string;
-  onMount?: OnMount;
+  handleValue?: (x: string) => void;
   barLeft?: ReactNode;
   wordWrap?: string;
   readOnly?: boolean;
 }) {
-  let { language, value, onMount, barLeft, wordWrap, readOnly } = props;
+  let { language, value, handleValue, barLeft, wordWrap, readOnly } = props;
   const [pos, setPos] = useState<Position>(null);
   const setting = useContext(SettingContext);
-
   const handleDidMount = useCallback(
-    (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+    (editor: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
       editor.onDidChangeCursorPosition(() => {
         setPos(editor.getPosition());
       });
-      if (onMount) {
-        onMount(editor, monaco);
-      }
+      editor.onDidChangeModelContent(() => {
+        if (handleValue) {
+          handleValue(editor.getValue());
+        }
+      });
     },
-    [onMount]
+    []
   );
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
@@ -421,7 +416,6 @@ function SimpleFlexSizeEditor(props: {
         display: 'flex',
         flexDirection: 'column',
         flex: 1,
-        minHeight: 0,
       }}
     >
       <div style={{ flex: 1 }}>

@@ -354,6 +354,7 @@ function MongoBsonEditor(props: {
     </Stack>
   );
 }
+
 let oldMongoValueEdiorMode = MongoDataViewModel.Object;
 
 function MongoValueEditor(props: {
@@ -972,10 +973,8 @@ function JsonEditor(props: {
       readOnly={!modifyOP}
       value={newValue}
       language="json"
-      onMount={(editor: editor.IStandaloneCodeEditor) => {
-        editor.onDidChangeModelContent(() => {
-          setNewValue(editor.getValue());
-        });
+      handleValue={(v) => {
+        setNewValue(v);
       }}
       barLeft=<Stack direction="row" alignItems="center" spacing={1}>
         {modifyOP && (

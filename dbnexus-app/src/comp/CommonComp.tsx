@@ -11,6 +11,7 @@ import {
 } from '@mui/material';
 import {
   CSSProperties,
+  ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -200,7 +201,7 @@ function ConnPingTime({ uuid }) {
 
 function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
   const { handleCreate, kind } = props;
-  let name = 'database';
+  let name;
   switch (kind) {
     case DataSourceKind.MsSql:
     case DataSourceKind.Postgres:
@@ -210,6 +211,9 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
       break;
     case DataSourceKind.Cassandra:
       name = 'Key Space';
+      break;
+    default:
+      name = 'database';
       break;
   }
   return (
@@ -238,13 +242,19 @@ function MenuOpenConn({ handleOpend, name, setLoading }) {
     const has = await invoke('has_entered_password', { name: name });
     if (!has) {
       let key = 'save_password';
+
       if (false === config[key]) {
-        let pass = prompt(`enter password for '${name}'`);
+        let pass = window.prompt(`enter password for '${name}'`);
+        console.log('!!!!!!!!!!!!!!!!!', pass);
         if (pass == null) {
           return;
         }
         try {
-          await invoke('save_entered_password', { name: name, pass: pass });
+          await invoke('save_entered_password', {
+            name: name,
+            conn: config,
+            pass: pass,
+          });
         } catch (e) {
           showNotification('error', 'password not correct???', e);
           return;
@@ -430,7 +440,6 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
     <div
       style={{
         display: 'grid',
-        backgroundColor: 'green',
       }}
     >
       <DataGrid
@@ -492,7 +501,7 @@ function ModalHeader(props: { title: string }) {
 }
 
 function ResizeWrapper(props: {
-  children;
+  children: ReactNode;
   sizeKey: string;
   sizeKeyKind: 'both' | 'width' | 'height';
   style?: CSSProperties;

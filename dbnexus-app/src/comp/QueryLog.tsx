@@ -16,12 +16,12 @@ import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import { saveAndSetSize, SettingContext, VisiableContext } from './helper.ts';
 import { ModalHeader } from './CommonComp.tsx';
-
 const pageSizeOptions = [10, 15];
 
 const initialState: object = {
   sorting: { sortModel: [{ field: 'time', sort: 'desc' }] },
 };
+
 function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
   let { logs, uuid: language } = props;
   let columns = [
@@ -49,12 +49,14 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
     { field: 'sql', flex: 1 },
   ];
 
-  logs.forEach((e) => {
-    if (!('id' in e)) {
-      //@ts-ignore
-      e.id = uuidv4();
-    }
-  });
+  useEffect(() => {
+    logs.forEach((e) => {
+      if (!('id' in e)) {
+        //@ts-ignore
+        e.id = uuidv4();
+      }
+    });
+  }, [logs]);
 
   const [selectSql, setSelectSql] = useState('');
   const [page, setPage] = useState(1);

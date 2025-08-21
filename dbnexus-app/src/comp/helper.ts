@@ -1,7 +1,3 @@
-/// random throw of something
-/// used in test
-
-
 import { editor, languages } from "monaco-editor";
 import types from "./ApiStruct";
 import { createContext, CSSProperties, ReactElement, ReactNode } from "react";
@@ -43,14 +39,6 @@ function generateRandomString(length: number = 10): string {
     result += characters[randomIndex];
   }
   return result;
-}
-
-function generateRandomUint8Array(length: number = 40): Uint8Array {
-  let result = [];
-  for (let i = 0; i < length; i++) {
-    result.push(Math.floor(Math.random() * 255));
-  }
-  return new Uint8Array(result);
 }
 
 // redis的数据存储的时候都是二进制 有时候包含的是有效的
@@ -443,7 +431,8 @@ class TabContent {
     public id: string,
     public header: ReactNode,
     public content: ReactNode,
-    public icon: ReactElement
+    public icon: ReactElement,
+    public closeConfirmText?: string,
   ) { }
 }
 const TabsSetContext = createContext<{
@@ -451,6 +440,8 @@ const TabsSetContext = createContext<{
   setTabs;
   setSelectTab;
 }>(null);
+
+const SetCloseConfirmTextContext = createContext<(x: string) => void>(null);
 
 const ConnTypeContext = createContext<{
   kind: DataSourceKind;
@@ -616,7 +607,6 @@ export {
   ContextMenuContext,
   TabContent,
   generateRandomString,
-  generateRandomUint8Array,
   hexTryToString,
   hexToString,
   stringToHex,
@@ -647,6 +637,7 @@ export {
   DocsAndCount,
   MongoTableHandler,
   UserSettings,
-  SettingContext
+  SettingContext,
+  SetCloseConfirmTextContext
 };
 

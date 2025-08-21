@@ -16,13 +16,25 @@ import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { invoke } from '@tauri-apps/api/core';
 import { DataSourceKind } from './helper';
 import { ModalHeader } from './CommonComp';
+
+function generateDefaultFilename(name, extension) {
+  // 获取当前时间
+  const now = new Date();
+  // 格式化时间为字符串
+  const timestamp = now.toISOString().replace(/[:.-]/g, '').slice(0, 15);
+  // 生成文件名
+  const filename = `${name}_${timestamp}.${extension}`;
+  return filename;
+}
+
 function ExportView(props: {
+  name: string;
   exportOP: (kind: types.ExportKind, file: string) => Promise<void>;
   supportKind: string[];
   handleClose;
   supportCsvHeader: boolean;
 }) {
-  const { exportOP, handleClose, supportKind, supportCsvHeader } = props;
+  const { exportOP, handleClose, supportKind, supportCsvHeader, name } = props;
   const [kind, setKind] = useState(supportKind[0]);
   const [includeCsvHeader, setIncluCsvdeHeader] = useState(false);
   const [delimiter, setDelimiter] = useState(',');
@@ -58,7 +70,9 @@ function ExportView(props: {
       return;
     }
 
-    const file = await save();
+    const file = await save({
+      defaultPath: generateDefaultFilename(name, kind),
+    });
     if (!file) {
       return;
     }
@@ -212,6 +226,7 @@ function ExportTableOrView(props: {
         kind == DataSourceKind.ClickHouse ||
         kind == DataSourceKind.Oracle
       }
+      name={name}
     ></ExportView>
   );
 }

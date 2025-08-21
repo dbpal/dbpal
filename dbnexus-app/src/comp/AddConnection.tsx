@@ -708,9 +708,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         await invoke('save_entered_password', {
           name: connectionName,
           pass: password,
+          conn: config,
         });
       } catch (e) {
-        showNotification('error', 'save password failed', e);
+        showNotification('error', 'save entered password failed', e);
         return;
       }
     }

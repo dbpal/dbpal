@@ -122,7 +122,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
         let def = e.colDef;
         return (
           <Tooltip title={`${def.field} ${def.typ}`} arrow>
-            <strong> {def.field}</strong>
+            {def.field}
           </Tooltip>
         );
       };
@@ -146,7 +146,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
             return;
           }
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
-          let row = { ...data.data.find((e) => e[keyNotInTable] == id) };
+          let row = data.data.find((e) => e[keyNotInTable] == id);
           let content = row[field];
           setUpMenu({
             content: (
@@ -220,9 +220,7 @@ let styleForTrans: CSSProperties = {
 
 function MultiQueryResp_(props: { data: any[] }) {
   let { data: oldData } = props;
-
   const [data, setData] = useState([]);
-
   const [top, setTop] = useState(0);
   const [value, setValue] = React.useState(0);
   const [opacity, setOpacity] = useState(1);

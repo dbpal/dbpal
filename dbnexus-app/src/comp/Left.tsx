@@ -1217,7 +1217,6 @@ function CatalogMenu(props: {
                 reload();
                 setShowCreateDB(false);
               }}
-              kind={kind}
             ></CreateDatabase>
           </Box>
         </Modal>

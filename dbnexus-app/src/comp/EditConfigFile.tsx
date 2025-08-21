@@ -39,9 +39,9 @@ function EditConfigFile(props: { handleClose }) {
     }
     try {
       const parsed = JSON.parse(config);
-      appStore.clear();
+      await appStore.clear();
       for (const key in parsed) {
-        appStore.set(key, parsed[key]);
+        await appStore.set(key, parsed[key]);
       }
       showNotification('success', 'Success', 'Config file saved successfully');
       handleClose();
@@ -53,10 +53,8 @@ function EditConfigFile(props: { handleClose }) {
     <Stack spacing={1} flex={1}>
       <SimpleFlexSizeEditor
         value={config}
-        onMount={(editor) => {
-          editor.onDidChangeModelContent(() => {
-            setConfig(editor.getValue());
-          });
+        handleValue={(e) => {
+          setConfig(e);
         }}
         language="json"
         barLeft={

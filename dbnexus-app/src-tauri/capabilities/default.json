@@ -1,7 +1,9 @@
 {
   "identifier": "main-capability",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:path:default",
     "core:event:default",
@@ -38,9 +40,12 @@
     "core:window:allow-set-fullscreen",
     {
       "identifier": "fs:scope",
-      "allow": ["**/*"]
+      "allow": [
+        "**/*"
+      ]
     },
     "opener:default",
-    "os:default"
+    "os:default",
+    "process:default"
   ]
 }

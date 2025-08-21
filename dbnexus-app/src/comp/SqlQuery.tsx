@@ -48,6 +48,7 @@ import {
   DataSourceKind,
   SaveSizesToStore,
   secondConfirm,
+  SetCloseConfirmTextContext,
   SettingContext,
   VisiableContext,
 } from './helper.ts';
@@ -62,9 +63,11 @@ const fileFilter = {
 
 function SqlTransaction(props: { conn: IQueryConn; nonce }) {
   const { conn, nonce } = props;
-  const [commit, setCommit] = useState(false);
+  const [commit, setCommit] = useState(true);
   const { showNotification } = useContext(NotificationContext);
   const [txCount, setTxCount] = useState(0);
+
+  const setCloseConfirm = useContext(SetCloseConfirmTextContext);
 
   const handleQueryCommit = async () => {
     try {
@@ -74,6 +77,15 @@ function SqlTransaction(props: { conn: IQueryConn; nonce }) {
       showNotification('error', 'query commit failed', e);
     }
   };
+  useEffect(() => {
+    if (commit) {
+      setCloseConfirm('');
+    } else {
+      setCloseConfirm(
+        'In Transaction,better commit or rollback.uncommit transaction may lead database locks'
+      );
+    }
+  }, [commit]);
 
   const handleReloadTxCount = async () => {
     conn
@@ -769,6 +781,7 @@ function SqlQuery(props: {
                     showNotification('error', 'export failure', e);
                   }
                 }}
+                name="export"
                 supportCsvHeader={true}
               ></ExportView>
             </Box>

@@ -297,10 +297,8 @@ function EditorOptions(props: {
       <SimpleFlexSizeEditor
         language="json"
         value={value}
-        onMount={(editor) => {
-          editor.onDidChangeModelContent(() => {
-            setValue(editor.getValue());
-          });
+        handleValue={(v) => {
+          setValue(v);
         }}
         barLeft={
           jsonErr ? (

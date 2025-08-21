@@ -1,5 +1,4 @@
-import { NotificationContext, NotificationProvider } from './Notification';
-
+import { NotificationProvider } from './Notification';
 import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';
 import { platform } from '@tauri-apps/plugin-os';
@@ -7,7 +6,6 @@ import {
   CSSProperties,
   ReactNode,
   useCallback,
-  useContext,
   useEffect,
   useState,
 } from 'react';
@@ -29,8 +27,9 @@ const shortCuts = {
       if (e.metaKey && e.key == ',') {
         shortCuts.showSetting();
       }
+      // 这个和macos的 quit windows冲突了 要解决
       if (e.metaKey && e.key == 'w') {
-        shortCuts.closeCurrentTab();
+        shortCuts.closeCurrentTab(e);
       }
     }
     if (['windows', 'linux'].includes(platform())) {
@@ -41,7 +40,7 @@ const shortCuts = {
         shortCuts.next();
       }
       if (e.ctrlKey && e.key == 'w') {
-        shortCuts.closeCurrentTab();
+        shortCuts.closeCurrentTab(e);
       }
 
       if (e.ctrlKey && e.key == ',') {
@@ -54,7 +53,7 @@ const shortCuts = {
   next: () => void;
   callback: (e: KeyboardEvent) => void;
   showSetting: () => void;
-  closeCurrentTab: () => void;
+  closeCurrentTab: (_: KeyboardEvent) => void;
 };
 
 import { ModifySettings, SettingComp } from './Settings.tsx';
@@ -62,6 +61,7 @@ import {
   ContextMenuContext,
   generateRandomString,
   SaveSizesToStore,
+  secondConfirm,
   TabsSetContext,
 } from './helper.ts';
 
@@ -76,10 +76,22 @@ export default function MainPage() {
   const [showSetting, setShowSetting] = useState(false);
   const closeTab = useCallback(
     (index: number) => {
-      let id = tabs[index].id;
-      setTabs((prevTabs) => {
-        return prevTabs.filter((x) => x.id !== id);
-      });
+      (async () => {
+        let id = tabs[index].id;
+        if (tabs[index].closeConfirmText) {
+          const c = await secondConfirm({
+            content: tabs[index].closeConfirmText,
+            title: 'close the tab',
+            confirmText: 'close',
+          });
+          if (!c) {
+            return;
+          }
+        }
+        setTabs((prevTabs) => {
+          return prevTabs.filter((x) => x.id !== id);
+        });
+      })();
     },
     [tabs]
   );
@@ -97,8 +109,9 @@ export default function MainPage() {
   shortCuts.showSetting = () => {
     setShowSetting(true);
   };
-  shortCuts.closeCurrentTab = () => {
+  shortCuts.closeCurrentTab = (e) => {
     closeTab(tab);
+    e.preventDefault();
   };
 
   // shortcut
@@ -236,7 +249,7 @@ export default function MainPage() {
             <div id="menu-div" style={menu && menu.style}>
               <Paper elevation={24}> {menu && menu.content}</Paper>
             </div>
-            <WarnUnCommitTx></WarnUnCommitTx>
+
             {showEditConfig && (
               <Modal
                 open={showEditConfig}
@@ -288,23 +301,4 @@ export default function MainPage() {
       </ContextMenuContext.Provider>
     </SettingComp>
   );
-}
-
-function WarnUnCommitTx() {
-  const { showNotification } = useContext(NotificationContext);
-  useEffect(() => {
-    let unlisten = listen('close_connection_has_uncommit_tx', () => {
-      showNotification(
-        'error',
-        'You have uncommitted transaction  may lead to database beed locked'
-      );
-    });
-    return () => {
-      unlisten.then((e) => {
-        e();
-      });
-    };
-  }, []);
-
-  return <></>;
 }

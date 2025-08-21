@@ -16,8 +16,8 @@ use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, SqliteConnection, T
 use crate::MemoryLimit;
 use crate::datasource_config::SqliteDBConfig;
 use crate::db::{
-    AutoCompletionQueryUuid, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
-    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
+    AutoCompletionQueryUuid, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql,
+    ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
     escape_sql_str,
@@ -1000,6 +1000,7 @@ fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>
         let mut values = Vec::with_capacity(r.len());
         for c in 0..r.len() {
             let ty = r.column(c).type_info().name();
+
             let v = match ty {
                 "NULL" | "" => {
                     // null table is not always null. I quote 'suitable for
@@ -1431,6 +1432,17 @@ mod tests {
 
         // println!("{:?}", x);
         println!("time used:{:?}", std::time::Instant::now() - now);
+    }
+    #[tokio::test]
+    async fn test_show_xxx() {
+        let db = make_test_object().await;
+        let r = db
+            .show_table("Persons", None, None, 1, 100, None)
+            .await
+            .unwrap();
+        for d in r.data.iter() {
+            println!("{:?}", d);
+        }
     }
 
     #[test]

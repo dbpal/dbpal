@@ -13,6 +13,7 @@ import {
   calMenuStyle,
   ContextMenuContext,
   secondConfirm,
+  SetCloseConfirmTextContext,
   TabContent,
   VisiableContext,
 } from './helper';
@@ -170,7 +171,13 @@ function TabsWithContent_(props: {
       >
         {tabs.map((tab, index) => (
           <VisiableContext.Provider key={tab.id} value={selectIndex == index}>
-            <div hidden={selectIndex !== index}>{tab.content}</div>
+            <SetCloseConfirmTextContext
+              value={(e) => {
+                tabs[index].closeConfirmText = e;
+              }}
+            >
+              <div hidden={selectIndex !== index}>{tab.content}</div>
+            </SetCloseConfirmTextContext>
           </VisiableContext.Provider>
         ))}
       </div>

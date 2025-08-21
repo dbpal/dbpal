@@ -139,6 +139,7 @@ fn main_() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
@@ -177,6 +178,13 @@ fn main_() {
                                 handle,
                                 "edit_config_file",
                                 "edit config file",
+                                true,
+                                None as Option<&'static str>,
+                            )?,
+                            &MenuItem::with_id(
+                                handle,
+                                "relauch",
+                                "relauch",
                                 true,
                                 None as Option<&'static str>,
                             )?,
@@ -254,6 +262,9 @@ fn main_() {
             }
             if event.id.0 == "edit_config_file" {
                 handle.emit("edit_config_file", "").unwrap();
+            }
+            if event.id.0 == "relauch" {
+                handle.restart();
             }
             if event.id.0 == "open_dev_tools" {
                 let windows = handle.webview_windows();

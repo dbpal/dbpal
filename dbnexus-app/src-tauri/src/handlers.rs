@@ -22,7 +22,6 @@ use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 use dbnexus_db::sqlite::SqliteDB;
-use tauri::{AppHandle, Emitter};
 
 use crate::app::{self, App, DBConnectionConfig, Open};
 pub const PASSWORD_KEY: &str = "site.dbpal.dev";
@@ -37,15 +36,8 @@ pub fn has_entered_password(
 
 #[tauri::command]
 pub async fn save_entered_password(
-    app: tauri::State<'_, App>, name: String, pass: String,
+    app: tauri::State<'_, App>, mut conn: DBConnectionConfig, name: String, pass: String,
 ) -> Result<(), ErrorFrontend> {
-    let mut conn = unsafe {
-        (App::get_config_ref())
-            .as_ref()
-            .map(|x| x(&name))
-            .unwrap()
-            .map_err(ErrorFrontend::from)?
-    };
     conn.set_password(pass.clone());
     let o = conn.open().await.map_err(ErrorFrontend::from)?;
     match o {
@@ -791,31 +783,11 @@ pub async fn query_sql_re_connection(
 
 #[tauri::command]
 pub async fn query_sql_close_connection(
-    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>, handle: AppHandle,
+    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-
     let db = app.open(name.as_str()).await.map_err(|e| e.to_string())?;
-    let commit = match &db {
-        Open::Catalog(x) => x.get_auto_commit(query_id).await,
-        Open::DataBase(x) => x.get_auto_commit(query_id).await,
-        Open::Schema(x) => x.get_auto_commit(query_id).await,
-    }
-    .ok()
-    .unwrap_or(true);
-    let tx_count = match &db {
-        Open::Catalog(x) => x.tx_execute_counts(query_id),
-        Open::DataBase(x) => x.tx_execute_counts(query_id),
-        Open::Schema(x) => x.tx_execute_counts(query_id),
-    }
-    .ok()
-    .unwrap_or(0);
-
-    if !commit && tx_count > 0 {
-        let _ = handle.emit("close_connection_has_uncommit_tx", "");
-    }
-
     let result = match db {
         Open::DataBase(x) => x.close_connection(query_id).await,
         Open::Schema(x) => x.close_connection(query_id).await,

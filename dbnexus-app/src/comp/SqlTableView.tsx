@@ -189,10 +189,8 @@ function WhereSort(props: {
         <ModalHeader title={`set ${label}`}></ModalHeader>
         <SimpleFlexSizeEditor
           value={newValue}
-          onMount={(e) => {
-            e.onDidChangeModelContent(() => {
-              setNewValue(e.getValue());
-            });
+          handleValue={(v) => {
+            setNewValue(v);
           }}
           language={whereLanguage}
         ></SimpleFlexSizeEditor>
@@ -275,10 +273,8 @@ function EditInModal(props: { content: string; handleModify }) {
       <SimpleFlexSizeEditor
         value={content}
         language={language}
-        onMount={(editor, _) => {
-          editor.onDidChangeModelContent(() => {
-            setValue(editor.getValue());
-          });
+        handleValue={(v) => {
+          setValue(v);
         }}
         barLeft={
           jsonErr ? (

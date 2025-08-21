@@ -57,6 +57,7 @@ import {
   validJson,
   VisiableContext,
 } from './helper.ts';
+
 import { ModalHeader, pageSizeOptions, ResizeWrapper } from './CommonComp.tsx';
 
 class RedisZsetHashModifyReq {
@@ -148,10 +149,11 @@ function RedisStringTable(props: {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
-
+  const newContent = useRef('');
   useEffect(() => {
     loadContent()
       .then((e) => {
+        newContent.current = e;
         setContent(e);
       })
       .catch((e) => {
@@ -161,7 +163,7 @@ function RedisStringTable(props: {
 
   const handleModify = () => {
     setLoading(true);
-    modifyOP(content)
+    modifyOP(newContent.current)
       .then(() => {
         showNotification('success', 'Modify OK');
       })
@@ -194,7 +196,7 @@ function RedisStringTable(props: {
         <RedisValueEditor
           oldValue={content}
           handleValue={(e) => {
-            setContent(e);
+            newContent.current = e;
           }}
         ></RedisValueEditor>
       )}
@@ -653,11 +655,8 @@ function RedisValueEditor(props: {
         language={editModel == RedisEditorMode.Json ? 'json' : 'text'}
         // in some times newvalue is not change as a string
         value={typeof newValue == 'object' ? '' : newValue}
-        onMount={(editor) => {
-          editor.onDidChangeModelContent(() => {
-            const value = editor.getValue();
-            setNewValue(value);
-          });
+        handleValue={(v) => {
+          setNewValue(v);
         }}
         wordWrap="on"
         barLeft={
