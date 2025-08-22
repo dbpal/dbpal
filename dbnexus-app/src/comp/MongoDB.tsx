@@ -767,11 +767,13 @@ function MongoTableListContextMenu(props: {
             ref={setModalBox}
             width="75%"
             className="modal-animation"
+            height="65vh"
           >
             <ModalHeader title="View Json"></ModalHeader>
             <SimpleFlexSizeEditor
               value={content}
               language="json"
+              readOnly
             ></SimpleFlexSizeEditor>
           </Box>
         </Modal>
