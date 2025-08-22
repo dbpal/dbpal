@@ -272,7 +272,7 @@ export default function MainPage() {
                   {menu && menu.content}
                 </Paper>
               </div>
-              <div className="fade-in">123456</div>
+
               {showEditConfig && (
                 <Modal
                   open={showEditConfig}
