@@ -431,21 +431,24 @@ function RedisEditHash(props: {
 
   return (
     <Stack spacing={1} flex={1}>
-      <RedisValueEditor
-        oldValue={oldKey}
-        handleValue={(e) => {
-          newkey.current = e;
-        }}
-        header="key"
-      ></RedisValueEditor>
-
-      <RedisValueEditor
-        oldValue={oldValue}
-        handleValue={(e) => {
-          newValue.current = e;
-        }}
-        header="value"
-      ></RedisValueEditor>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <RedisValueEditor
+          oldValue={oldKey}
+          handleValue={(e) => {
+            newkey.current = e;
+          }}
+          header="key"
+        ></RedisValueEditor>
+      </div>
+      <div style={{ flex: 1.5, display: 'flex', flexDirection: 'column' }}>
+        <RedisValueEditor
+          oldValue={oldValue}
+          handleValue={(e) => {
+            newValue.current = e;
+          }}
+          header="value"
+        ></RedisValueEditor>
+      </div>
 
       <Stack direction="row" spacing={1}>
         <Button
