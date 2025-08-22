@@ -35,17 +35,17 @@ import { NotificationContext } from './Notification';
 import InfoIcon from '@mui/icons-material/Info';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 const modalStyle: SxProps = {
-  position: 'absolute',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%, -50%)',
+  position: 'fixed',
+  // top: '50%',
+  // left: '50%',
+  // transform: 'translate(-50%, -50%)',
+  // transform: 'translate(-50%, -50%)',
   bgcolor: 'background.paper',
   border: '2px solid skyblue',
   boxShadow: 24,
-  borderRadius: '4px',
+  // borderRadius: '4px',
   p: 1,
   maxHeight: '85vh',
-
   minHeight: '10vh',
   overflow: 'auto',
   minWidth: '20vw',
