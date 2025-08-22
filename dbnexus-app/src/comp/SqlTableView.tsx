@@ -1047,7 +1047,9 @@ function SqlTableViewData(props: {
                   ' ' +
                   (f.nullable ? 'null' : 'not null') +
                   ' ' +
-                  (f.is_auto_increment ? 'auto increment' : '')
+                  (f.is_auto_increment ? 'auto increment' : '') +
+                  ' ' +
+                  (f.default_value ? `default ${f.default_value}` : '')
                 }
                 required={!f.nullable}
                 label={f.field}
