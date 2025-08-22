@@ -688,7 +688,7 @@ impl SchemaTrait for SqliteDB {
         self.can_write()?;
         let fields = self.show_table_columns(table_name).await?;
         let sql = self.insert_sql(None, table_name, &fields, &values)?;
-        log::trace!("insert sql:{}", sql);
+        log::info!("insert sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())

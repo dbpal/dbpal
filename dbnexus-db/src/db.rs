@@ -343,8 +343,13 @@ pub trait SqlBuilder: GetBackendKind {
         true
     }
 
-    fn quote_style(&self) -> &'static str {
-        self.backend_name().quote_style()
+    fn quote(&self, name: &str) -> String {
+        format!(
+            "{}{}{}",
+            self.backend_name().quote_style(),
+            name,
+            self.backend_name().quote_style()
+        )
     }
 
     /// format a value make it suitable for insert into sql.
@@ -384,11 +389,9 @@ pub trait SqlBuilder: GetBackendKind {
             }
             sql.push_str(
                 format!(
-                    "{} {}{}{} = {}",
+                    "{} {} = {}",
                     if !first { " AND " } else { "" },
-                    self.quote_style(),
-                    k,
-                    self.quote_style(),
+                    self.quote(k),
                     self.put_value_in_sql(
                         &f.typ,
                         f.firebird_binary_sub_type,
@@ -414,11 +417,11 @@ pub trait SqlBuilder: GetBackendKind {
         let mut sql = format!(
             "DELETE FROM {}{} WHERE ",
             if let Some(schema) = schema {
-                format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
+                format!("{}.", self.quote(schema))
             } else {
                 "".to_string()
             },
-            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
+            format!("{}", self.quote(table_name))
         );
 
         sql.push_str(self.make_where(fs, wheres, &field_by_name)?.as_str());
@@ -440,11 +443,11 @@ pub trait SqlBuilder: GetBackendKind {
         let mut sql = format!(
             "UPDATE {}{} SET ",
             if let Some(schema) = schema {
-                format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
+                format!("{}.", self.quote(schema))
             } else {
                 "".to_string()
             },
-            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
+            format!("{}", self.quote(table_name))
         );
         {
             let last = values.len() - 1;
@@ -456,10 +459,8 @@ pub trait SqlBuilder: GetBackendKind {
 
                 sql.push_str(
                     format!(
-                        "{}{}{} = {}",
-                        self.quote_style(),
-                        k,
-                        self.quote_style(),
+                        "{} = {}",
+                        self.quote(k),
                         self.put_value_in_sql(
                             &f.unwrap().typ,
                             f.unwrap().firebird_binary_sub_type,
@@ -486,31 +487,31 @@ pub trait SqlBuilder: GetBackendKind {
         let mut sql = format!(
             "INSERT INTO {}{}(",
             if let Some(schema) = schema {
-                format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
+                format!("{}.", self.quote(schema))
             } else {
                 "".to_string()
             },
-            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
+            format!("{}", self.quote(table_name))
         );
-        // fields
+        let skip_null_value = |f: &Field| {
+            values.get(&f.field).map(|x| x.is_none()).unwrap_or(true) && f.default_value.is_some()
+        };
+        //
+
         {
             let mut first = true;
             for f in fs.iter() {
                 if f.is_auto_increment {
                     continue;
                 }
+                if skip_null_value(f) {
+                    // value is null and has default value
+                    continue;
+                }
                 if !first {
                     sql.push(',');
                 }
-                sql.push_str(
-                    format!(
-                        "{}{}{}",
-                        self.quote_style(),
-                        f.field.as_str(),
-                        self.quote_style()
-                    )
-                    .as_str(),
-                );
+                sql.push_str(format!("{}", self.quote(f.field.as_str())).as_str());
                 first = false;
             }
             sql.push(')');
@@ -521,6 +522,10 @@ pub trait SqlBuilder: GetBackendKind {
             let mut first = true;
             for f in fs.iter() {
                 if f.is_auto_increment {
+                    continue;
+                }
+                if skip_null_value(f) {
+                    // value is null and has default value
                     continue;
                 }
                 if !first {

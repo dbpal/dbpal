@@ -1001,6 +1001,11 @@ function SqlTableViewData(props: {
         return;
       }
     }
+    for (const key in args) {
+      if (!args[key]) {
+        args[key] = null;
+      }
+    }
     setLoading(true);
     handleData(args)
       .then(() => {

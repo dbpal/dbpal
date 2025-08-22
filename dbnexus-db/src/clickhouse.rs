@@ -1119,11 +1119,11 @@ impl SqlBuilder for ClickHouseDB {
         let mut sql = format!(
             "ALTER TABLE {}{} UPDATE ",
             if let Some(schema) = schema {
-                format!("{}{}{}.", self.quote_style(), schema, self.quote_style())
+                format!("{}.", self.quote(schema),)
             } else {
                 "".to_string()
             },
-            format!("{}{}{}", self.quote_style(), table_name, self.quote_style())
+            format!("{}", self.quote(table_name))
         );
         {
             let last = values.len() - 1;
@@ -1135,10 +1135,8 @@ impl SqlBuilder for ClickHouseDB {
 
                 sql.push_str(
                     format!(
-                        "{}{}{} = {}",
-                        self.quote_style(),
-                        k,
-                        self.quote_style(),
+                        "{} = {}",
+                        self.quote(k),
                         self.put_value_in_sql(
                             &f.unwrap().typ,
                             f.unwrap().firebird_binary_sub_type,
