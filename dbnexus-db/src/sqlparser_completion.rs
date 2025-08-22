@@ -1929,7 +1929,8 @@ mod tests {
     #[test]
     fn test_sql_statement() {
         let sql = r#"
-            explain sel
+             from abc  
+             &!
         "#;
         let dialect = sqlparser::dialect::GenericDialect {};
         let p = sqlparser::parser::Parser::new(&dialect);

@@ -911,6 +911,7 @@ function SqlTableView_(props: {
               initValues={editInModalRow}
               buttonName="modify"
               fields={resp.fields}
+              isAdd={false}
               handleData={async (args) => {
                 await handleProcessRowUpdate(args, editInModalRow);
                 setEditInModalRow(null);
@@ -962,11 +963,17 @@ function SqlTableViewData(props: {
   fields: types.Field[];
   initValues?: object;
   buttonName;
+  isAdd: boolean;
 }) {
-  let { handleData, fields, initValues, buttonName } = props;
+  let { handleData, fields, initValues, buttonName, isAdd } = props;
   if (!initValues) {
     initValues = {};
   }
+  fields.forEach((e) => {
+    if (e.is_auto_increment && isAdd) {
+      initValues[e.field] = '';
+    }
+  });
   const [filter, setFilter] = useState(SqlTableViewDataMatch);
 
   const filterFn = useMemo(() => {
@@ -1121,6 +1128,7 @@ function Menu(props: {
           handleData={addOP}
           fields={fields}
           initValues={row}
+          isAdd
         ></SqlTableViewData>
       );
       setSelectTab(tabs.length);

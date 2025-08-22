@@ -592,6 +592,7 @@ async function makeAddTable(
     case DataSourceKind.Cockroach:
       tableList = (
         <SqlTableViewData
+          isAdd
           buttonName="add"
           handleData={async (values) => {
             return invoke('table_insert', {
