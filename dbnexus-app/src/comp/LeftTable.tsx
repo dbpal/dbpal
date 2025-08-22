@@ -946,7 +946,7 @@ function TableMenu(props: {
             setshowDup(false);
           }}
         >
-          <Box sx={modalStyle} className="fade-in" width="45%">
+          <Box sx={modalStyle} className="modal-animation" width="45%">
             <ModalHeader title="Duplicate"></ModalHeader>
             <DupTable
               table={table}
@@ -971,7 +971,7 @@ function TableMenu(props: {
             setShowRename(false);
           }}
         >
-          <Box sx={modalStyle} className="fade-in" width="45%">
+          <Box sx={modalStyle} className="modal-animation" width="45%">
             <ModalHeader title="Rename"></ModalHeader>
             <RenameTable
               uuid={uuid}
@@ -996,7 +996,7 @@ function TableMenu(props: {
             setShowExport(false);
           }}
         >
-          <Box sx={modalStyle} className="fade-in" width="45%">
+          <Box sx={modalStyle} className="modal-animation" width="45%">
             <ExportTableOrView
               uuid={uuid}
               name={table}
@@ -1022,7 +1022,7 @@ function TableMenu(props: {
             setShowDrop(false);
           }}
         >
-          <Box sx={modalStyle} className="fade-in" width="45%">
+          <Box sx={modalStyle} className="modal-animation" width="45%">
             <ModalHeader title="Drop Table"></ModalHeader>
             <DropTable
               uuid={uuid}
@@ -1346,7 +1346,7 @@ function RedisTables(prpos: { schema?: string }) {
             setShowEditFilter(false);
           }}
         >
-          <Box sx={modalStyle} className="fade-in" width="45%">
+          <Box sx={modalStyle} className="modal-animation" width="45%">
             <ModalHeader title="Edit key match string"></ModalHeader>
             <TextField
               size="small"

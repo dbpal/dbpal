@@ -698,7 +698,7 @@ function ViewMenu(props: {
             setShowExport(false);
           }}
         >
-          <Box sx={modalStyle} className="fade-in" width="45%">
+          <Box sx={modalStyle} className="modal-animation" width="45%">
             <ExportTableOrView
               uuid={uuid}
               name={view}

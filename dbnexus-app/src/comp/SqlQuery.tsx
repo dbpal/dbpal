@@ -777,7 +777,7 @@ function SqlQuery(props: {
               setShowExport(false);
             }}
           >
-            <Box sx={modalStyle} width="45%" className="fade-in">
+            <Box sx={modalStyle} width="45%" className="modal-animation">
               <ExportView
                 handleClose={() => {
                   setShowExport(false);
@@ -810,7 +810,7 @@ function SqlQuery(props: {
               setShowFavoriteName(false);
             }}
           >
-            <Box sx={modalStyle} width="40%" className="fade-in">
+            <Box sx={modalStyle} width="40%" className="modal-animation">
               <Stack spacing={1}>
                 <TextField
                   fullWidth

@@ -588,7 +588,7 @@ function MongoTableToolBar(props: {
             width="65%"
             ref={setModalBox}
             height="45vh"
-            className="fade-in"
+            className="modal-animation"
           >
             <ModalHeader title="Modify Filter"></ModalHeader>
             <MongoValueEditor
@@ -619,7 +619,7 @@ function MongoTableToolBar(props: {
             width="65%"
             ref={setModalBox}
             height="45vh"
-            className="fade-in"
+            className="modal-animation"
           >
             <ModalHeader title="Modify Sort"></ModalHeader>
             <MongoValueEditor
@@ -811,7 +811,7 @@ function MongoTableListContextMenu(props: {
             e.preventDefault();
             setShowFilter(false);
           }}
-          className="fade-in"
+          className="modal-animation"
         >
           <Box sx={modalStyle} width="75%">
             <ModalHeader title="Quick Filter"></ModalHeader>
@@ -1369,7 +1369,7 @@ function MongoTableList(props: {
             e.preventDefault();
             setSelectModifyDoc(null);
           }}
-          className="fade-in"
+          className="modal-animation"
         >
           <Box
             sx={{ resize: 'both', ...modalStyle }}

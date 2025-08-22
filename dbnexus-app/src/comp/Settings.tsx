@@ -245,7 +245,12 @@ function ModifySettings({ handleClose }) {
             setShowEditorOptions(false);
           }}
         >
-          <Box sx={modalStyle} width="75%" height="50vh" className="fade-in">
+          <Box
+            sx={modalStyle}
+            width="75%"
+            height="50vh"
+            className="modal-animation"
+          >
             <ModalHeader title="Editor Options"></ModalHeader>
             <EditorOptions
               handleClose={() => {
