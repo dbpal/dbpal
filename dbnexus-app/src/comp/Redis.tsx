@@ -60,6 +60,7 @@ import {
 } from './helper.ts';
 
 import { ModalHeader, pageSizeOptions, ResizeWrapper } from './CommonComp.tsx';
+import { Position } from 'monaco-editor';
 
 class RedisZsetHashModifyReq {
   constructor(
@@ -150,12 +151,14 @@ function RedisStringTable(props: {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
+  const [loadOK, setLoadOK] = useState(false);
   const newContent = useRef('');
   useEffect(() => {
     loadContent()
       .then((e) => {
         newContent.current = e;
         setContent(e);
+        setLoadOK(true);
       })
       .catch((e) => {
         showNotification('error', 'load redis string data failed', e);
@@ -193,7 +196,7 @@ function RedisStringTable(props: {
       }}
       ref={setDom}
     >
-      {content && (
+      {(content || loadOK) && (
         <RedisValueEditor
           oldValue={content}
           handleValue={(e) => {
@@ -566,6 +569,7 @@ function RedisValueEditor(props: {
   );
 
   const [jsonErr, setJsonErr] = useState<JsonError>(null);
+  const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   useEffect(() => {
     let value = hexTryToString(oldValue);
     if (typeof value === 'string') {
@@ -659,10 +663,21 @@ function RedisValueEditor(props: {
         handleValue={(v) => {
           setNewValue(v);
         }}
+        errPos={jsonErrPos}
         wordWrap="on"
         barLeft={
           jsonErr ? (
-            <Typography color="error" variant="body1">
+            <Typography
+              color="error"
+              variant="body1"
+              style={{ cursor: 'pointer' }}
+              onClick={() => {
+                if (!jsonErr) {
+                  return;
+                }
+                setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
+              }}
+            >
               {jsonErr.msg}
             </Typography>
           ) : undefined

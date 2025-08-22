@@ -53,11 +53,13 @@ class MongoBsonKV {
   constructor(public key: Token, public value: MongoBsonValue) { }
 }
 
+
+
 class MongoBsonAs {
   constructor(
     public value: MongoBsonValue,
     public kind: Token,
-    public extra?: MongoBsonBinaryAllSubType
+    public binarySubType?: MongoBsonBinaryAllSubType
   ) { }
   compile(): any {
     switch (this.kind.value.toLocaleLowerCase()) {
@@ -90,14 +92,14 @@ class MongoBsonAs {
     let v = this.value.compile();
     let ty = typeof v;
 
-    let subType = this.extra
-      ? this.extra.toBinarySubTypeNumber()
+    let subType = this.binarySubType
+      ? this.binarySubType.toBinarySubTypeNumber()
       : Binary.SUBTYPE_DEFAULT;
 
-    if (ty === 'object' && v instanceof Array && this.extra.isFloat32()) {
+    if (ty === 'object' && v instanceof Array && this.binarySubType.isFloat32()) {
       return Binary.fromFloat32Array(new Float32Array(v));
     }
-    if (ty === 'object' && v instanceof Array && this.extra.isInt8()) {
+    if (ty === 'object' && v instanceof Array && this.binarySubType.isInt8()) {
       return Binary.fromInt8Array(new Int8Array(v));
     }
     //
@@ -196,6 +198,8 @@ class MongoBsonAs {
 function hasTypeKey(obj, key, t) {
   return Object.prototype.hasOwnProperty.call(obj, key) && typeof obj[key] === t;
 }
+
+const formatMaxNewLineSize = 40;
 
 enum MongoBsonValueKind {
   Number = 'number',
@@ -367,9 +371,8 @@ class MongoBsonValue {
     tabSize: number,
     ident: number
   ): string {
-    let ret: string;
-    ret = '[';
-    newLine = newLine || this.elementsSize() > 100;
+    let ret = '[';
+    newLine = newLine || this.elementsSize() > formatMaxNewLineSize;
     if (newLine) {
       ret += '\n';
     }
@@ -377,11 +380,13 @@ class MongoBsonValue {
       ret += MongoBsonValue.doIdent(newLine, tabSize, ident);
       let ety = typeof e;
       if (ety == 'number') {
+        // float32 array and int8 array goes here.
         ret += e;
       } else {
-        ret += e.format(ident + 1, false, tabSize);
+        // we check the call if this is not number 
+        // must be a MongoBsonValue do the format
+        ret += (e as MongoBsonValue).format(ident + 1, false, tabSize);
       }
-
       if (index != x.length - 1) {
         ret += ',';
       }
@@ -389,10 +394,10 @@ class MongoBsonValue {
         ret += '\n';
       }
     });
-    ret += ']';
     if (newLine) {
-      ret += '\n';
+      ret += MongoBsonValue.doIdent(newLine, tabSize, ident - 1);
     }
+    ret += ']';
     return ret;
   }
   static doIdent(newLine: boolean, tabSize: number, ident: number) {
@@ -440,7 +445,6 @@ class MongoBsonValue {
         ret +=
           ' as binary ' +
           MongoBsonBinaryAllSubType.fromNumber(binaryValue.sub_type);
-
         return ret;
       case MongoBsonValueKind.Date:
         return `'${this.asToken().value}' as date`;
@@ -465,8 +469,8 @@ class MongoBsonValue {
         let as = this.value as MongoBsonAs;
         ret = as.value.format(ident, false, tabSize);
         ret += ` as ${as.kind.value}`;
-        if (as.extra) {
-          ret += ` ${as.extra.kind.value}`;
+        if (as.binarySubType) {
+          ret += ` ${as.binarySubType.kind.value}`;
         }
         return ret;
       case MongoBsonValueKind.Array:
@@ -475,7 +479,7 @@ class MongoBsonValue {
       case MongoBsonValueKind.Object:
         let valueObj = this.value as MongoBsonObject;
         ret = '{';
-        newLine = newLine || this.elementsSize() > 100;
+        newLine = newLine || this.elementsSize() > formatMaxNewLineSize;
         if (newLine) {
           ret += '\n';
         }
@@ -492,15 +496,14 @@ class MongoBsonValue {
           if (index != valueObj.eles.length - 1) {
             ret += ',';
           }
-
           if (newLine) {
             ret += '\n';
           }
         });
-        ret += '}';
         if (newLine) {
-          ret += '\n';
+          ret += MongoBsonValue.doIdent(newLine, tabSize, ident - 1);
         }
+        ret += '}';
         return ret;
       default:
         throw new MongoBsonError(`unhandled type '${this.kind}' of format`);
@@ -508,30 +511,38 @@ class MongoBsonValue {
   }
 
   elementsSize(): number {
-    let count = 0;
+    let size = 0;
     switch (this.kind) {
       case MongoBsonValueKind.Number:
       case MongoBsonValueKind.String:
         return this.asToken().value.length;
       case MongoBsonValueKind.Array:
-        (this.value as MongoBsonArray).eles.forEach((e) => {
-          count += e.elementsSize();
-        });
-        return count;
+        let arr = (this.value as MongoBsonArray);
+        for (let i = 0; i < arr.eles.length; i++) {
+          size += arr.eles[i].elementsSize();
+          if (size > formatMaxNewLineSize)
+            return size;
+        }
+        return size;
       case MongoBsonValueKind.Object:
-        (this.value as MongoBsonObject).eles.forEach((e) => {
-          count += e.value.elementsSize();
-          count += e.key.value.length;
-        });
-        return count;
+        let obj = (this.value as MongoBsonObject);
+        for (let i = 0; i < obj.eles.length; i++) {
+          size += obj.eles[i].value.elementsSize();
+          size += obj.eles[i].key.value.length;
+          if (size > formatMaxNewLineSize) {
+            return size;
+          }
+        }
+        return size;
       case MongoBsonValueKind.As:
-        let as = this.value as MongoBsonAs;
-        count += as.kind.value.length;
-        count += as.value.elementsSize();
-        return count;
+        let as_ = this.value as MongoBsonAs;
+        size += as_.kind.value.length;
+        size += as_.value.elementsSize();
+        return size;
     }
   }
 }
+
 
 class MongoBsonArray {
   constructor(
@@ -823,7 +834,7 @@ function quoteString(quote: string): string {
       return s;
     }
   }
-  return '`' + quote.replace('`', '\\`') + '`';
+  return '`' + quote.replace(/`/g, '\\`') + '`';
 }
 
 function validIdentifier(str): boolean {
@@ -985,41 +996,55 @@ interface Location {
 
 
 if (debugBuild) {
-  //   let x = parseMongoBson(`
-  //     {
-  //   _id: '68099cc166ceba20384e6792' as ObjectID,
-  //   string_field: 'Hello, world!',
-  //   int32_field: 456,
-  //   float_field: 123.45,
-  //   bool_field: false,
-  //   date_field: '2025-04-24T02:06:57.000Z' as date,
-  //   null_field: null,
-  //   regex_field: /hahaxxxxxxxxxxxx/i,
-  //   binary_field: [1,2] as binary vector int8,
-  //   binary_field2: [1,2] as binary vector float32,
-  //   binary_field3: '68656c6c6f' as binary generic,
-  //   binary_field4: '68656c6c6f' as binary encrypted,
-  //   binary_field5: '68656c6c6f' as binary user_define 10,
-  //   uuid_field: '13ce6625862f4204ab1a0f46e8efcc47' as binary uuid,
-  //   array_field: [1,2,3],
-  //   object_field: {nested_key: 'nested_value'},
-  //   decimal_field: '1' as decimal,
-  //   timestamp_field: 1745460417 as timestamp 1
-  // }
+  let x = parseMongoBson(`
+      
 
-  //   `).compile();
-  //   console.log("!!!!!!!!!!!!!!!!!", x);
-
-  try {
-    let x = parseMongoBson(`
     {
-    _id: '68099cc166ceba20384e6792' as ObjectID,
-    binary_field3: 'aaaa' as binary generic,
-    }`).compile();
-    console.log("xxxxxx", x);
-  } catch (e) {
-    console.log("!!!!!!!!!!!!!", e);
+  _id: 'e673e32b21ad-1746683913560',
+  hostname: 'e673e32b21ad',
+  startTime: '2025-05-08T05:58:33.000Z' as date,
+  startTimeLocal: 'Thu May  8 05:58:33.560',
+  cmdLine: {net: {bindIp: '*'}},
+  pid: 1,
+  buildinfo: {
+    version: '8.0.8',
+    gitVersion: '7f52660c14217ed2c8d3240f823a2291a4fe6abd',
+    modules: ["1fsdfsdfewrwerqwrweqrweqrwerwerewrewqrewqrq3r4324234324234234324234234324324",
+    "fsfdsfsdfdsfdsfdsfdsfdsf"],
+    allocator: 'tcmalloc-google',
+    javascriptEngine: 'mozjs',
+    sysInfo: 'deprecated',
+    versionArray: [8,0,8,0],
+    openssl: {
+      running: 'OpenSSL 3.0.13 30 Jan 2024',
+      compiled: 'OpenSSL 3.0.13 30 Jan 2024'
+    },
+    buildEnvironment: {
+      distmod: 'ubuntu2404',
+      distarch: 'aarch64',
+      cc: '/opt/mongodbtoolchain/v4/bin/gcc: gcc (GCC) 11.3.0',
+      ccflags: '-Werror -include mongo/platform/basic.h -ffp-contract=off -fasynchronous-unwind-tables -g2 -Wall -Wsign-compare -Wno-unknown-pragmas -Winvalid-pch -gdwarf-5 -fno-omit-frame-pointer -fno-strict-aliasing -O2 -march=armv8.2-a -mtune=generic -Wno-unused-local-typedefs -Wno-unused-function -Wno-deprecated-declarations -Wno-unused-const-variable -Wno-unused-but-set-variable -Wno-missing-braces -Wno-psabi -fstack-protector-strong -gdwarf64 -Wa,--nocompress-debug-sections -Wimplicit-fallthrough=5',
+      cxx: '/opt/mongodbtoolchain/v4/bin/g++: g++ (GCC) 11.3.0',
+      cxxflags: '-Woverloaded-virtual -Wpessimizing-move -Wno-maybe-uninitialized -fsized-deallocation -std=c++20',
+      linkflags: '-Wl,--fatal-warnings -B/opt/mongodbtoolchain/v4/bin -gdwarf-5 -pthread -Wl,-z,now -fuse-ld=lld -fstack-protector-strong -gdwarf64 -Wl,--build-id -Wl,--hash-style=gnu -Wl,-z,noexecstack -Wl,--warn-execstack -Wl,-z,relro -Wl,--compress-debug-sections=none -Wl,-z,origin -Wl,--enable-new-dtags',
+      target_arch: 'aarch64',
+      target_os: 'linux',
+      cppdefines: 'SAFEINT_USE_INTRINSICS 0 PCRE2_STATIC ABSL_ALLOCATOR_NOTHROW NDEBUG _XOPEN_SOURCE 700 _GNU_SOURCE _FORTIFY_SOURCE 2 ABSL_FORCE_ALIGNED_ACCESS BOOST_ENABLE_ASSERT_DEBUG_HANDLER BOOST_FILESYSTEM_NO_CXX20_ATOMIC_REF BOOST_LOG_NO_SHORTHAND_NAMES BOOST_LOG_USE_NATIVE_SYSLOG BOOST_LOG_WITHOUT_THREAD_ATTR BOOST_MATH_NO_LONG_DOUBLE_MATH_FUNCTIONS BOOST_SYSTEM_NO_DEPRECATED BOOST_THREAD_USES_DATETIME BOOST_THREAD_VERSION 5'
+    },
+    bits: 64,
+    debug: false,
+    maxBsonObjectSize: 16777216,
+    storageEngines: ['devnull','wiredTiger']
   }
+}
+  
+
+      
+
+
+    `).format();
+  console.log("!!!!!!!!!!!!!!!!!", x);
+
 }
 
 export {

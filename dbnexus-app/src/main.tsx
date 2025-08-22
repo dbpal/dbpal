@@ -47,12 +47,20 @@ appWindow.onFocusChanged((x) => {
   emit(windowFocusChangeEvent, x.payload);
 });
 
-appWindow.onThemeChanged(async (msg) => {
-  let x = await appStore.get<UserSettings>(AppStoreKey.UserSetttings);
-  x = UserSettings.merge(x);
-  x.theme = msg.payload;
-  appStore.set(AppStoreKey.UserSetttings, x);
+appWindow.theme().then(async (theme) => {
+  if (!theme) {
+    return;
+  }
+  let set = await UserSettings.get();
+  set.theme = theme;
+  appStore.set(AppStoreKey.UserSetttings, set);
 });
+appWindow.onThemeChanged(async (msg) => {
+  let set = await UserSettings.get();
+  set.theme = msg.payload;
+  appStore.set(AppStoreKey.UserSetttings, set);
+});
+
 if (!debugBuild) {
   document.addEventListener('contextmenu', function (event) {
     event.preventDefault();

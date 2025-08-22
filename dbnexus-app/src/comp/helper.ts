@@ -602,6 +602,11 @@ class UserSettings {
     }
     return d;
   }
+  static async get(): Promise<UserSettings> {
+    let x = await appStore.get<UserSettings>(AppStoreKey.UserSetttings);
+    return UserSettings.merge(x)
+  }
+
 }
 
 const SettingContext = createContext<UserSettings>(null);

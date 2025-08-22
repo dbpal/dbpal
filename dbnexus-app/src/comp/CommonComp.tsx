@@ -245,7 +245,6 @@ function MenuOpenConn({ handleOpend, name, setLoading }) {
 
       if (false === config[key]) {
         let pass = window.prompt(`enter password for '${name}'`);
-        console.log('!!!!!!!!!!!!!!!!!', pass);
         if (pass == null) {
           return;
         }

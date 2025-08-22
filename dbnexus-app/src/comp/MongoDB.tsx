@@ -13,6 +13,7 @@ import {
   Modal,
   Pagination,
   Stack,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import ListIcon from '@mui/icons-material/List';
@@ -31,6 +32,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import {
   CSSProperties,
+  ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -70,7 +72,7 @@ import {
 } from './Common';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-
+import { BsFillLightbulbFill } from 'react-icons/bs';
 import DataObjectIcon from '@mui/icons-material/DataObject';
 import {
   MenuResetColumnWidths,
@@ -452,6 +454,7 @@ function MongoTableToolBar(props: {
   viewModel: MongoDataViewModel;
   handleViewModel: (doc: MongoDataViewModel) => void;
   addOP: (doc: BSON.Document) => Promise<void>;
+  someNotice?: ReactNode;
   nonse;
 }) {
   const {
@@ -462,6 +465,7 @@ function MongoTableToolBar(props: {
     filter,
     viewModel,
     handleViewModel,
+    someNotice,
   } = props;
 
   const [showModifyFilter, setShowModifyFilter] = useState(false);
@@ -491,7 +495,11 @@ function MongoTableToolBar(props: {
         alignItems: 'center',
       }}
     >
-      <Stack direction="row" spacing={1} style={{ flexWrap: 'wrap' }}>
+      <Stack
+        direction="row"
+        spacing={1}
+        style={{ flexWrap: 'wrap', alignItems: 'center' }}
+      >
         <Button
           loading={loading}
           variant="contained"
@@ -528,6 +536,7 @@ function MongoTableToolBar(props: {
           icon={<FaArrowsAltV />}
           style={{ ...filterStyle.style }}
         ></Chip>
+        {someNotice}
       </Stack>
       <Stack direction="row">
         <ButtonGroup sx={{ gap: 0.5 }}>
@@ -978,6 +987,13 @@ function MongoTableJson(props: {
   );
 }
 
+function DoubleClickToModify() {
+  return (
+    <Tooltip title="double click a row to modify." arrow>
+      <BsFillLightbulbFill />
+    </Tooltip>
+  );
+}
 function JsonEditor(props: {
   value: object;
   modifyOP?: (x: object) => Promise<void>;
@@ -988,6 +1004,7 @@ function JsonEditor(props: {
   const [newValue, setNewValue] = useState(EJSON.stringify(value, null, 2));
   const [jsonErr, setJsonErr] = useState<JsonError>(null);
   const [loading, setLoading] = useState(false);
+  const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   useEffect(() => {
     (async () => {
       try {
@@ -1011,6 +1028,7 @@ function JsonEditor(props: {
       readOnly={!modifyOP}
       value={newValue}
       language="json"
+      errPos={jsonErrPos}
       handleValue={(v) => {
         setNewValue(v);
       }}
@@ -1046,7 +1064,16 @@ function JsonEditor(props: {
           </Button>
         )}
         {jsonErr && (
-          <Typography color="error" fontWeight="bold">
+          <Typography
+            color="error"
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              if (!jsonErr) {
+                return;
+              }
+              setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
+            }}
+          >
             {jsonErr.msg}
           </Typography>
         )}
@@ -1513,6 +1540,11 @@ function MongoTable(props: {
         }}
         viewModel={viewModel}
         nonse={nonse}
+        someNotice={
+          viewModel == MongoDataViewModel.List ? (
+            <DoubleClickToModify></DoubleClickToModify>
+          ) : null
+        }
       ></MongoTableToolBar>
 
       {viewModel == MongoDataViewModel.List && (

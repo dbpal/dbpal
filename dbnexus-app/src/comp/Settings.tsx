@@ -34,6 +34,7 @@ import {
   UserSettings,
   validJson,
 } from './helper';
+import { Position } from 'monaco-editor';
 
 function ModifySettings({ handleClose }) {
   const { showNotification } = useContext(NotificationContext);
@@ -46,26 +47,23 @@ function ModifySettings({ handleClose }) {
   const [datagridHeaderHeight, setDatagridHeaderHeight] = useState(30);
   const [editorOptions, setEditorOptions] = useState('{\n}');
   const [showEditorOptions, setShowEditorOptions] = useState(false);
-
   const reload = async () => {
-    appStore
-      .get<UserSettings>(AppStoreKey.UserSetttings)
-      .then((settings) => {
-        settings = UserSettings.merge(settings);
-        setPageSize(settings.pageSize);
-        setTheme(settings.theme);
-        setEditorFontSize(settings.editorFontSize);
-        setRootFontSize(settings.rootFontSize);
-        setDatagridRowHeight(settings.datagridRowHeight);
-        setDatagridHeaderHeight(settings.datagridHeaderHeight);
-        const content = JSON.stringify(settings.editorOption, null, 2);
-        if (content) {
-          setEditorOptions(content);
-        }
-      })
-      .catch((e) => {
-        showNotification('error', 'get config failed', e);
-      });
+    try {
+      let settings = await UserSettings.get();
+      setPageSize(settings.pageSize);
+      setTheme(settings.theme);
+      setEditorFontSize(settings.editorFontSize);
+      setRootFontSize(settings.rootFontSize);
+      setDatagridRowHeight(settings.datagridRowHeight);
+      setDatagridHeaderHeight(settings.datagridHeaderHeight);
+      const content = JSON.stringify(settings.editorOption, null, 2);
+      if (content) {
+        setEditorOptions(content);
+      }
+    } catch (e) {
+      showNotification('error', 'get user config failed', e);
+      return;
+    }
   };
   useEffect(() => {
     reload();
@@ -271,6 +269,7 @@ function EditorOptions(props: {
   const { showNotification } = useContext(NotificationContext);
   const { editorOptions, setEditorOptions, handleClose } = props;
   const [value, setValue] = useState(editorOptions);
+  const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   const [jsonErr, setJsonErr] = useState<JsonError>(null);
   useEffect(() => {
     validJson(value)
@@ -296,6 +295,7 @@ function EditorOptions(props: {
         ></Chip>
       </Stack>
       <SimpleFlexSizeEditor
+        errPos={jsonErrPos}
         language="json"
         value={value}
         handleValue={(v) => {
@@ -303,7 +303,17 @@ function EditorOptions(props: {
         }}
         barLeft={
           jsonErr ? (
-            <Typography color="error" variant="body1">
+            <Typography
+              color="error"
+              variant="body1"
+              style={{ cursor: 'pointer' }}
+              onClick={() => {
+                if (!jsonErrPos) {
+                  return;
+                }
+                setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
+              }}
+            >
               {jsonErr.msg}
             </Typography>
           ) : null
@@ -442,8 +452,8 @@ const lightTheme = createTheme({
   palette: {
     mode: 'light',
     background: {
-      default: '#f0f0f0',
-      paper: '#f0f0f0',
+      default: '#d6d6d6',
+      paper: '#d6d6d6',
     },
   },
   components,
@@ -468,8 +478,8 @@ const darkTheme = createTheme({
   palette: {
     mode: 'dark',
     background: {
-      default: '#1f1f1f',
-      paper: '#1f1f1f',
+      default: '#292929',
+      paper: '#292929',
     },
   },
   components,
@@ -488,8 +498,7 @@ function SettingComp(props: { children }) {
   const { children } = props;
   const [setting, setSetting] = useState<UserSettings>(null);
   const reload = async () => {
-    appStore
-      .get<UserSettings>(AppStoreKey.UserSetttings)
+    UserSettings.get()
       .then((setting) => {
         let x = UserSettings.merge(setting);
         setSetting(x);

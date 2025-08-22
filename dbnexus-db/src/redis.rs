@@ -906,21 +906,10 @@ impl SchemaTrait for RedisDB {
             RedisType::String => {
                 let _: () = conn.set(key, "").await?;
             }
-            RedisType::List => {
-                let _: () = conn.ltrim(key, 1, 0).await?;
-            }
-            RedisType::Set => {
-                let members: Vec<Vec<u8>> = conn.smembers(key).await?;
-                let _: () = conn.srem(key, &members).await?;
-            }
-            RedisType::Hash => {
-                let members: Vec<(Vec<u8>, Vec<u8>)> = conn.hgetall(key).await?;
-                let keys = members.iter().map(|(key, _)| key).collect::<Vec<_>>();
-                let _: () = conn.hdel(key, &keys).await?;
-            }
-            RedisType::Zset => {
-                let keys: Vec<Vec<u8>> = conn.zrange(key, 0, -1).await?;
-                let _: () = conn.zrem(key, &keys).await?;
+            _ => {
+                anyhow::bail!(
+                    "redis collection type delete all element will cause the key been droped"
+                )
             }
         }
         anyhow::Ok(())
@@ -936,7 +925,7 @@ impl SchemaTrait for RedisDB {
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
         let mut conn: ConnectionManager = self.get_conn().await?;
-        conn.del::<_, ()>(table).await?;
+        let _: () = conn.del(table).await?;
         Ok(())
     }
 }
@@ -1532,7 +1521,11 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let db = make_test_object().await;
         tokio::time::sleep(Duration::from_secs(2)).await;
         let redis_tables = db.redis_list_table(None, 100).await.unwrap();
-        println!("redis tables:{:?}", redis_tables);
+        println!("redis string tables:{:?}", redis_tables.string_tables);
+        println!("redis hash tables  :{:?}", redis_tables.hash_tables);
+        println!("redis zset tables  :{:?}", redis_tables.zset_tables);
+        println!("redis list tables  :{:?}", redis_tables.list_tables);
+        println!("redis set tables   :{:?}", redis_tables.set_tables);
     }
 
     #[tokio::test]

@@ -2460,12 +2460,12 @@ pub async fn put_value_in_sql(
 
 #[tauri::command]
 pub async fn cassandra_invalid_table_or_view_caching(
-    name: String, app: tauri::State<'_, App>,
+    name: String, table_name: Option<String>, app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     let open = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
     match open.as_any().downcast_ref::<CassandraDB>() {
         Some(x) => {
-            x.invalid_table_or_view_caching(None);
+            x.invalid_table_or_view_caching(table_name.as_ref().map(|x| x.as_str()));
             Ok(())
         }
         None => Err(ErrorFrontend::from("this is not cassandra")),

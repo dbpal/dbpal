@@ -533,6 +533,12 @@ function ViewMenu(props: {
       case DataSourceKind.Cockroach:
         list = (
           <SqlTableView
+            invalidCassandraTableViewCache={async () => {
+              return invoke<void>('cassandra_invalid_table_or_view_caching', {
+                name: uuid,
+                tableName: view,
+              });
+            }}
             quoteStyle={quoteStyle(kind)}
             autoCompletion={makeAutoComplete(uuid)}
             tableName={view}

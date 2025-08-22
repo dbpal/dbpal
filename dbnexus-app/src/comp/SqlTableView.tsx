@@ -362,7 +362,7 @@ function SqlTableView_(props: {
   const [page, setPage] = useState(0);
   const setting = useContext(SettingContext);
   const [pageSize, setPageSize] = useState(setting.pageSize);
-  const [resp, setResp] = useState<types.MuiDataGridData | null>({
+  const [resp, setResp] = useState<types.MuiDataGridData>({
     sql: '',
     fields: [],
     data: [],
@@ -387,7 +387,6 @@ function SqlTableView_(props: {
     resp.data.forEach((data) => {
       data[keyNotInTable] = uuidv4();
     });
-    console.log('!!!!!!!!!!!!!!!!', resp);
     for (let i = 0; i < resp.fields.length; i++) {
       let field = resp.fields[i];
       //@ts-ignore

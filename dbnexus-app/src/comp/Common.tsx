@@ -15,13 +15,7 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
-import {
-  languages,
-  Position as EditorPositon,
-  editor,
-  Position,
-  CancellationToken,
-} from 'monaco-editor';
+import { languages, editor, Position, CancellationToken } from 'monaco-editor';
 import { types } from './ApiStruct';
 
 import {
@@ -104,7 +98,7 @@ const getNamedConfig = async (
   return x.find((x) => x.name == name);
 };
 
-function EditorBar(props: { left?: any; pos: EditorPositon }) {
+function EditorBar(props: { left?: any; pos: Position }) {
   let { left, pos } = props;
   return (
     <Stack justifyContent="space-between" direction="row" alignItems="center">
