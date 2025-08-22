@@ -286,6 +286,7 @@ export default function MainPage() {
                 >
                   <Box
                     sx={{ resize: 'both', ...modalStyle }}
+                    className="fade-in"
                     width="75%"
                     height="70vh"
                   >
@@ -309,7 +310,7 @@ export default function MainPage() {
                     setShowSetting(false);
                   }}
                 >
-                  <Box sx={modalStyle} width="55%">
+                  <Box className="fade-in" sx={modalStyle} width="55%">
                     <ModalHeader title="Modify Settings"></ModalHeader>
                     <ModifySettings
                       handleClose={() => {

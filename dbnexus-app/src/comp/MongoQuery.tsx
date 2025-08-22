@@ -301,7 +301,7 @@ function MongoQuery(props: {
             setShowLoggerLevel(false);
           }}
         >
-          <Box sx={modalStyle} width="45%">
+          <Box sx={modalStyle} width="45%" className="fade-in">
             <ModalHeader title="Set Logger Level"></ModalHeader>
             <LogLevelSelection
               level={loggerlevel}
@@ -324,7 +324,7 @@ function MongoQuery(props: {
             setShowFavoriteName(false);
           }}
         >
-          <Box sx={modalStyle} width="45%">
+          <Box sx={modalStyle} width="45%" className="fade-in">
             <ModalHeader title="Set Favorite Name"></ModalHeader>
             <Stack spacing={1}>
               <TextField

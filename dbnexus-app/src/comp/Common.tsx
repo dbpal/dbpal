@@ -45,6 +45,7 @@ const modalStyle: SxProps = {
   borderRadius: '4px',
   p: 1,
   maxHeight: '85vh',
+
   minHeight: '10vh',
   overflow: 'auto',
   minWidth: '20vw',

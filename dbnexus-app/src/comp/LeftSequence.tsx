@@ -235,7 +235,7 @@ function SequenceMenu(props: {
             setShowDrop(false);
           }}
         >
-          <Box sx={modalStyle} width="45%">
+          <Box sx={modalStyle} className="fade-in" width="45%">
             <Stack spacing={1}>
               {supportCaacase && (
                 <Stack>

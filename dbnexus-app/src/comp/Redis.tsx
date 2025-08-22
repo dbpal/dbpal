@@ -985,6 +985,7 @@ function RedisSetTable(props: {
             sx={{ resize: 'both', ...modalStyle }}
             width="80%"
             ref={setModalBox}
+            className="fade-in"
             height="70vh"
           >
             <ModalHeader title="Edit Set value"></ModalHeader>
@@ -1062,7 +1063,7 @@ function RedisListTableContextMenu(props: {
             setShowDel(null);
           }}
         >
-          <Box sx={modalStyle} width="40%">
+          <Box sx={modalStyle} width="40%" className="fade-in">
             <ModalHeader title="Delete Redis List"></ModalHeader>
             <Stack spacing={1}>
               <TextField
@@ -1304,6 +1305,7 @@ function RedisListTable(props: {
             width="80%"
             height="70vh"
             ref={setModalBox}
+            className="fade-in"
           >
             <ModalHeader title="Edit List value"></ModalHeader>
             <RedisEditList
@@ -1588,6 +1590,7 @@ function RedisZsetTable(props: {
             width="80%"
             height="70vh"
             ref={setModalBox}
+            className="fade-in"
           >
             <ModalHeader title="Edit Zset Value"></ModalHeader>
             <RedisEditZset
@@ -1828,6 +1831,7 @@ function RedisHashTable(props: {
             width="80%"
             height="70vh"
             ref={setModalBox}
+            className="fade-in"
           >
             <ModalHeader title="Edit Hash Value"></ModalHeader>
             <RedisEditHash

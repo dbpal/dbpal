@@ -2,6 +2,7 @@
 
 import ReactDOM from 'react-dom/client';
 
+import './app.css';
 import './comp/MainPage';
 import MainPage from './comp/MainPage';
 import { debugBuild } from './comp/debug';

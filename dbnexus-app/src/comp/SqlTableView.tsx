@@ -185,6 +185,7 @@ function WhereSort(props: {
         sx={{ resize: 'both', ...modalStyle }}
         width="75%"
         height="30vh"
+        className="fade-in"
         ref={setModalBox}
       >
         <ModalHeader title={`set ${label}`}></ModalHeader>
@@ -878,6 +879,7 @@ function SqlTableView_(props: {
             ref={setEditInMoalBox}
             width="80%"
             height="30vh"
+            className="fade-in"
           >
             <ModalHeader title="edit cell"></ModalHeader>
             <EditInModal
@@ -908,6 +910,7 @@ function SqlTableView_(props: {
             sx={{ resize: 'horizontal', ...modalStyle }}
             ref={setEditRowInMoalBox}
             width="80%"
+            className="fade-in"
           >
             <ModalHeader title="edit row"></ModalHeader>
             <SqlTableViewData
@@ -1273,7 +1276,7 @@ function Menu(props: {
             setShowFilter(false);
           }}
         >
-          <Box sx={modalStyle} width="50%">
+          <Box sx={modalStyle} width="50%" className="fade-in">
             <ModalHeader title="Quick Filter"></ModalHeader>
             <FilterOnValue
               quoteStyle={quoteStyle}
