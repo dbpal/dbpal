@@ -1,6 +1,6 @@
 import { Box, Modal, Stack } from '@mui/material';
 import { types } from './ApiStruct.ts';
-import { DataGrid, GridPaginationModel } from '@mui/x-data-grid';
+import { DataGrid, GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -14,7 +14,12 @@ import {
 import { EscDownEvent, modalStyle, SimpleFlexSizeEditor } from './Common.tsx';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
-import { saveAndSetSize, SettingContext, VisiableContext } from './helper.ts';
+import {
+  columnWidths,
+  saveAndSetSize,
+  SettingContext,
+  VisiableContext,
+} from './helper.ts';
 import { ModalHeader } from './CommonComp.tsx';
 const pageSizeOptions = [10, 15];
 
@@ -27,7 +32,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
   let columns = [
     {
       field: 'time',
-      flex: 1,
+      width: columnWidths.getWidth('time'),
       renderCell: (p) => {
         let t = p.row.time;
         return new Date(t * 1000).toLocaleString();
@@ -35,6 +40,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
       filterable: false,
     },
     {
+      width: columnWidths.getWidth('success'),
       field: 'success',
       renderCell: (p) => {
         let s = p.row.success;
@@ -47,7 +53,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
       filterable: false,
     },
     { field: 'sql', flex: 1 },
-  ];
+  ] as GridColDef[];
 
   logs.forEach((e) => {
     if (!('id' in e)) {
@@ -81,6 +87,13 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
       return c;
     }
   }, [modalBox]);
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    let field = colDef.field;
+    if (field == 'time' || field == 'success') {
+      columnWidths.saveColumnWidths(field, width);
+    }
+  }, []);
+
   return (
     <Stack>
       {vis && (
@@ -102,6 +115,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
             paginationModel={paginationModel}
             onPaginationModelChange={onPaginationModelChange}
             initialState={initialState}
+            onColumnResize={onColumnResize}
           ></DataGrid>
         </div>
       )}
