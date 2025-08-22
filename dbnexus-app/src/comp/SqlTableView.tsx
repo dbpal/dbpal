@@ -1,5 +1,4 @@
 import {
-  CSSProperties,
   memo,
   useCallback,
   useContext,
@@ -59,6 +58,7 @@ import {
   DataSourceKind,
   filterStyle,
   generateRandomString,
+  gridStyle,
   handleCopyToClipboard,
   isTypeLargeText,
   JsonError,
@@ -684,9 +684,6 @@ function SqlTableView_(props: {
       },
     } as GridSlotsComponentsProps;
   }, [resp]);
-  const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
-  }, []);
 
   const [editInModalBox, setEditInMoalBox] = useState(null);
   useEffect(() => {

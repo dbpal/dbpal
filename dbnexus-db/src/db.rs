@@ -803,10 +803,6 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
 
 #[async_trait::async_trait]
 pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
-    fn tx_execute_counts(&self, _query_id: uuid::Uuid) -> anyhow::Result<usize> {
-        not_support_feature(self.backend_name())
-    }
-
     async fn get_auto_commit(&self, _query_id: uuid::Uuid) -> anyhow::Result<bool> {
         not_support_feature(self.backend_name())
     }

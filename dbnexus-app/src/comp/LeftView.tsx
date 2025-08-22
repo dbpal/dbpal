@@ -1,5 +1,4 @@
 import {
-  CSSProperties,
   ReactNode,
   useCallback,
   useContext,
@@ -51,6 +50,7 @@ import {
   ContextMenuContext,
   DataSourceKind,
   generateRandomString,
+  gridStyle,
   handleCopyToClipboard,
   MatchPatternContext,
   MongoTableHandler,
@@ -387,9 +387,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   const getRowId = useCallback((e) => {
     return e['field'];
   }, []);
-  const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
-  }, []);
+
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>

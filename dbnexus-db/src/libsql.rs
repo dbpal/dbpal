@@ -12,12 +12,12 @@ use tokio::sync::Mutex;
 use crate::MemoryLimit;
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce};
 use crate::db::{
-    AutoCompletionQueryUuid, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
-    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
+    AutoCompletionQueryUuid, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql,
+    ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, escape_sql_str,
 };
-use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
+use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
@@ -32,7 +32,6 @@ pub struct LibSqlDB {
     pool: bb8::Pool<PoolManager>,
     pub(crate) query_connections: Arc<DashMap<uuid::Uuid, Connection>>,
     query_connections_transaction: Arc<DashMap<uuid::Uuid, libsql::Transaction>>,
-    tx_execute_times: TXExecuteTimes,
     query_logs: QueryLogMap,
     pub(crate) build_in_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<CompletionItem>>>,
@@ -87,10 +86,6 @@ impl ExportQueryResult for LibSqlDB {
 #[async_trait::async_trait]
 
 impl QuerySql for LibSqlDB {
-    fn tx_execute_counts(&self, query_id: uuid::Uuid) -> anyhow::Result<usize> {
-        anyhow::Ok(self.tx_execute_times.get(query_id))
-    }
-
     async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
         anyhow::Ok(self.query_connections_transaction.get(&query_id).is_none())
     }
@@ -114,7 +109,7 @@ impl QuerySql for LibSqlDB {
         match t {
             Some(x) => {
                 x.1.commit().await?;
-                self.tx_execute_times.reset(query_id);
+
                 anyhow::Ok(())
             }
             None => {
@@ -128,7 +123,6 @@ impl QuerySql for LibSqlDB {
         match t {
             Some(x) => {
                 x.1.rollback().await?;
-                self.tx_execute_times.reset(query_id);
                 anyhow::Ok(())
             }
             None => {
@@ -148,9 +142,6 @@ impl QuerySql for LibSqlDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        if !self.get_auto_commit(query_id).await? {
-            self.tx_execute_times.inc(query_id);
-        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let tr = self.query_connections_transaction.get(&query_id);
@@ -174,9 +165,6 @@ impl QuerySql for LibSqlDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        if !self.get_auto_commit(query_id).await? {
-            self.tx_execute_times.inc(query_id);
-        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let tr = self.query_connections_transaction.get(&query_id);
@@ -228,7 +216,7 @@ impl QuerySql for LibSqlDB {
         let conn = self.connect().await?;
         self.query_connections.insert(id, conn);
         self.query_connections_transaction.remove(&id);
-        self.tx_execute_times.reset(id);
+
         anyhow::Ok(())
     }
 
@@ -236,7 +224,6 @@ impl QuerySql for LibSqlDB {
         self.query_logs.remove(&id);
         self.query_connections_transaction.remove(&id);
         self.query_connections.remove(&id);
-        self.tx_execute_times.reset(id);
         anyhow::Ok(())
     }
 }
@@ -344,7 +331,6 @@ impl LibSqlDB {
             query_connections: Default::default(),
             query_connections_transaction: Default::default(),
             query_logs: Default::default(),
-            tx_execute_times: Default::default(),
             build_in_fn_cache: Default::default(),
             keywords_completion: Default::default(),
             pragma_completion: Default::default(),
@@ -385,16 +371,17 @@ impl LibSqlDB {
         let sql =
             format!(r#"SELECT name FROM "{db}".sqlite_master WHERE type='table' ORDER BY name "#);
         log::info!("sql:{}", sql);
-        let mut rows: libsql::Rows = match self.query_connections.get(&AutoCompletionQueryUuid::get()) {
-            Some(conn) => {
-                let conn = conn.deref();
-                conn.query(&sql, params!()).await?
-            }
-            None => {
-                let conn = self.get_conn().await?;
-                conn.query(&sql, params!()).await?
-            }
-        };
+        let mut rows: libsql::Rows =
+            match self.query_connections.get(&AutoCompletionQueryUuid::get()) {
+                Some(conn) => {
+                    let conn = conn.deref();
+                    conn.query(&sql, params!()).await?
+                }
+                None => {
+                    let conn = self.get_conn().await?;
+                    conn.query(&sql, params!()).await?
+                }
+            };
 
         let mut ret = Vec::new();
         while let Some(r) = rows.next().await? {

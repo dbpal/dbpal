@@ -4,6 +4,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use bson::Bson;
 use dashmap::DashSet;
 use futures_util::StreamExt;
 use mongodb::IndexModel;
@@ -133,49 +134,13 @@ impl DBTrait for MongoDB {
     }
 }
 
-fn collect_table_resp_vec(bs: &[bson::Bson]) -> anyhow::Result<String> {
-    if bs.is_empty() {
-        return anyhow::Ok("[]".to_string());
-    }
-    let last = bs.len() - 1;
-    let mut ret = "[".to_string();
-    for (index, b) in bs.iter().enumerate() {
-        let v = bson_value_to_string(b)?.unwrap_or("null".to_string());
-        ret.push_str(v.as_str());
-        if index != last {
-            ret.push(',');
-        }
-    }
-    ret.push(']');
-
-    anyhow::Ok(ret)
-}
-
 fn bson_value_to_string(b: &bson::Bson) -> anyhow::Result<Option<String>> {
-    let value = match b {
-        bson::Bson::Double(x) => Some(x.to_string()),
-        bson::Bson::String(x) => Some(x.to_string()),
-        bson::Bson::Array(x) => Some(collect_table_resp_vec(&x[..])?),
-        bson::Bson::Document(x) => Some(x.to_string()),
-        bson::Bson::Boolean(x) => Some(x.to_string()),
-        bson::Bson::Null => None,
-        bson::Bson::RegularExpression(x) => Some(x.to_string()),
-        bson::Bson::JavaScriptCode(x) => Some(x.to_string()),
-        bson::Bson::JavaScriptCodeWithScope(x) => Some(x.to_string()),
-        bson::Bson::Int32(x) => Some(x.to_string()),
-        bson::Bson::Int64(x) => Some(x.to_string()),
-        bson::Bson::Timestamp(x) => Some(x.to_string()),
-        bson::Bson::Binary(x) => Some(x.to_string()),
-        bson::Bson::ObjectId(x) => Some(x.to_string()),
-        bson::Bson::DateTime(x) => Some(x.to_string()),
-        bson::Bson::Symbol(x) => Some(x.to_string()),
-        bson::Bson::Decimal128(x) => Some(x.to_string()),
-        bson::Bson::Undefined => None,
-        bson::Bson::MaxKey | bson::Bson::MinKey | bson::Bson::DbPointer(_) => {
-            anyhow::bail!(format!("should not handle those value,bson:{:?}", b))
-        }
-    };
-    anyhow::Ok(value)
+    match b {
+        Bson::Null | Bson::Undefined => return anyhow::Ok(None),
+        _ => {}
+    }
+    let x = serde_json::to_string_pretty(b)?;
+    anyhow::Ok(Some(x))
 }
 
 fn collect_table_resp(
@@ -185,15 +150,6 @@ fn collect_table_resp(
     for doc in docs.iter() {
         let mut values = vec![];
         for f in fs.iter() {
-            if f.field == "_id" {
-                let value = doc.get(&f.field).map(serde_json::to_string);
-                let value = match value {
-                    Some(x) => Some(x?),
-                    None => None,
-                };
-                values.push(value);
-                continue;
-            }
             let value = doc
                 .get(&f.field)
                 .and_then(|b| bson_value_to_string(b).ok())

@@ -3,19 +3,13 @@ import { types } from './ApiStruct.ts';
 import { DataGrid, GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 
 import { v4 as uuidv4 } from 'uuid';
-import {
-  CSSProperties,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { EscDownEvent, modalStyle, SimpleFlexSizeEditor } from './Common.tsx';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import {
   columnWidths,
+  gridStyle,
   saveAndSetSize,
   SettingContext,
   VisiableContext,
@@ -77,9 +71,7 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
   }, []);
   let vis = useContext(VisiableContext);
   const setting = useContext(SettingContext);
-  const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '50vh' } as CSSProperties;
-  }, []);
+
   const [modalBox, setModalBox] = useState(null);
   useEffect(() => {
     if (modalBox) {

@@ -1,5 +1,4 @@
 import {
-  CSSProperties,
   useCallback,
   useContext,
   useEffect,
@@ -48,6 +47,7 @@ import {
   calMenuStyle,
   columnWidths,
   ContextMenuContext,
+  gridStyle,
   handleCopyToClipboard,
   hexToString,
   hexTryToString,
@@ -909,9 +909,6 @@ function RedisSetTable(props: {
     } as GridSlotsComponentsProps;
   }, [resp]);
   const settings = useContext(SettingContext);
-  const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
-  }, []);
 
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -1227,9 +1224,7 @@ function RedisListTable(props: {
     } as GridSlotsComponentsProps;
   }, [resp]);
   const setting = useContext(SettingContext);
-  const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
-  }, []);
+
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modalBox) {
@@ -1477,9 +1472,7 @@ function RedisZsetTable(props: {
     } as GridSlotsComponentsProps;
   }, [resp]);
   const setting = useContext(SettingContext);
-  const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
-  }, []);
+
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modalBox) {
@@ -1748,9 +1741,7 @@ function RedisHashTable(props: {
     } as GridSlotsComponentsProps;
   }, [resp]);
   const setting = useContext(SettingContext);
-  const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
-  }, []);
+
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modalBox) {

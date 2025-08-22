@@ -80,10 +80,6 @@ impl QuerySql for CockRoachDB {
         self.pg.get_query_log(id)
     }
 
-    fn tx_execute_counts(&self, query_id: uuid::Uuid) -> anyhow::Result<usize> {
-        self.pg.tx_execute_counts(query_id)
-    }
-
     async fn get_auto_commit(&self, _query_id: uuid::Uuid) -> anyhow::Result<bool> {
         self.pg.get_auto_commit(_query_id).await
     }

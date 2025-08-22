@@ -951,7 +951,6 @@ interface IQueryConn {
   commit: () => Promise<void>;
   rollback: () => Promise<void>;
   supportTransaction: () => boolean;
-  txExecuteCounts: () => Promise<number>;
   queryId: string;
 }
 
@@ -963,13 +962,6 @@ class QueryConn implements IQueryConn {
     this.queryId = queryId;
     this.uuid = uuid;
     this.kind = kind;
-  }
-
-  txExecuteCounts(): Promise<number> {
-    return invoke<number>('query_tx_execute_counts', {
-      name: this.uuid,
-      queryId: this.queryId,
-    });
   }
 
   supportTransaction(): boolean {

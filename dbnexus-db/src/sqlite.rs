@@ -22,7 +22,7 @@ use crate::db::{
     ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
     escape_sql_str,
 };
-use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
+use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
@@ -33,7 +33,6 @@ pub struct SqliteDB {
     read_only: bool,
     path: String,
     pub(crate) query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
-    tx_execute_times: TXExecuteTimes,
     query_logs: QueryLogMap,
     pub(crate) build_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<CompletionItem>>>,
@@ -1095,7 +1094,7 @@ impl SqliteDB {
             query_connection: Default::default(),
             path: conn.path.clone(),
             query_logs: Default::default(),
-            tx_execute_times: Default::default(),
+
             build_fn_cache: Default::default(),
             keywords_completion: Default::default(),
             pragma_completion: Default::default(),
@@ -1180,10 +1179,6 @@ impl ExportQueryResult for SqliteDB {
 
 #[async_trait::async_trait]
 impl QuerySql for SqliteDB {
-    fn tx_execute_counts(&self, query_id: uuid::Uuid) -> anyhow::Result<usize> {
-        anyhow::Ok(self.tx_execute_times.get(query_id))
-    }
-
     async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
         use sqlx_core::any::AnyConnectionBackend;
 
@@ -1227,7 +1222,7 @@ impl QuerySql for SqliteDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         conn.commit().await?;
-        self.tx_execute_times.reset(query_id);
+
         anyhow::Ok(())
     }
 
@@ -1242,7 +1237,7 @@ impl QuerySql for SqliteDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         conn.rollback().await?;
-        self.tx_execute_times.reset(query_id);
+
         anyhow::Ok(())
     }
 
@@ -1253,9 +1248,6 @@ impl QuerySql for SqliteDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        if !self.get_auto_commit(query_id).await? {
-            self.tx_execute_times.inc(query_id);
-        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = self.query_connection.get(&query_id);
@@ -1279,9 +1271,6 @@ impl QuerySql for SqliteDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        if !self.get_auto_commit(query_id).await? {
-            self.tx_execute_times.inc(query_id);
-        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = self.query_connection.get(&query_id);
@@ -1362,14 +1351,12 @@ impl QuerySql for SqliteDB {
         if let Some((_, _x)) = self.query_connection.remove(&id) {}
         let conn = self.get_conn().await?;
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
-        self.tx_execute_times.reset(id);
+
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.query_logs.remove(&id);
-        self.tx_execute_times.reset(id);
-
         if let Some((_, _x)) = self.query_connection.remove(&id) {}
         anyhow::Ok(())
     }

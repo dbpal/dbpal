@@ -1,7 +1,5 @@
 use std::borrow::Cow;
-use std::sync::Arc;
 
-use dashmap::DashMap;
 use line_index::{LineCol, TextSize};
 use sqlparser::ast::Statement;
 use sqlparser::dialect::Dialect;
@@ -209,32 +207,6 @@ impl TimeSome {
 /// format sql routine for crate `sqlformat`.
 pub(crate) fn sqlformat_format_sql(sql: &str, op: Option<sqlformat::FormatOptions>) -> String {
     sqlformat::format(sql, &sqlformat::QueryParams::None, &op.unwrap_or_default())
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct TXExecuteTimes {
-    times: Arc<DashMap<uuid::Uuid, usize>>,
-}
-
-impl TXExecuteTimes {
-    pub fn inc(&self, uuid: uuid::Uuid) {
-        match self.times.get_mut(&uuid) {
-            Some(mut x) => {
-                *x += 1;
-            }
-            None => {
-                self.times.insert(uuid, 1);
-            }
-        }
-    }
-
-    pub fn reset(&self, uuid: uuid::Uuid) {
-        self.times.remove(&uuid);
-    }
-
-    pub fn get(&self, uuid: uuid::Uuid) -> usize {
-        self.times.get(&uuid).map(|x| *x).unwrap_or_default()
-    }
 }
 
 #[cfg(test)]

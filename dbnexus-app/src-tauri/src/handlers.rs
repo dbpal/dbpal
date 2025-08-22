@@ -1035,25 +1035,6 @@ pub async fn query_commit(
 }
 
 #[tauri::command]
-pub async fn query_tx_execute_counts(
-    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
-) -> Result<usize, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let open = app
-        .get_opened(name.as_str())
-        .await
-        .map_err(|e| e.to_string())?;
-    let size = match open {
-        Open::Catalog(x) => x.tx_execute_counts(query_id),
-        Open::DataBase(x) => x.tx_execute_counts(query_id),
-        Open::Schema(x) => x.tx_execute_counts(query_id),
-    }
-    .map_err(ErrorFrontend::from)?;
-    Ok(size)
-}
-
-#[tauri::command]
 pub async fn query_rollback(
     name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {

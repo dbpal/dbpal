@@ -31,7 +31,6 @@ import {
 } from './MongoBsonCompiler';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  CSSProperties,
   ReactNode,
   useCallback,
   useContext,
@@ -40,19 +39,8 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  Binary,
-  BSON,
-  BSONRegExp,
-  Code,
-  Decimal128,
-  Double,
-  EJSON,
-  Int32,
-  Long,
-  ObjectId,
-  Timestamp,
-} from 'bson';
+
+import { BSON, EJSON } from 'bson';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
 import { TbJson } from 'react-icons/tb';
@@ -87,6 +75,7 @@ import {
   ContextMenuContext,
   DocsAndCount,
   filterStyle,
+  gridStyle,
   handleCopyToClipboard,
   JsonError,
   resetMuiDataRespWidth,
@@ -637,69 +626,7 @@ function MongoTableToolBar(props: {
 }
 
 function renderId(_id): any {
-  if (_id instanceof Int32) {
-    return _id.toString();
-  }
-  // Timestamp 必须在Long前面 可能timestamp继承到Long
-  if (_id instanceof Timestamp) {
-    return _id.toString();
-  }
-  if (_id instanceof Long) {
-    return _id.toString();
-  }
-
-  if (_id instanceof Float32Array) {
-    return _id.toString();
-  }
-  if (_id instanceof Int8Array) {
-    return _id.toString();
-  }
-
-  if (_id instanceof Code) {
-    return _id.code;
-  }
-  if (_id instanceof Date) {
-    return _id.toLocaleString();
-  }
-  if (_id instanceof BSONRegExp) {
-    return _id.pattern + _id.options;
-  }
-  if (_id instanceof RegExp) {
-    return _id.toString();
-  }
-  if (_id instanceof ObjectId) {
-    return _id.toHexString();
-  }
-  if (_id instanceof Double) {
-    return _id.value;
-  }
-  if (_id instanceof Decimal128) {
-    return _id.toString();
-  }
-  if (_id instanceof Binary) {
-    return _id.toString('hex');
-  }
-  if (_id instanceof Array) {
-    return `[${_id.map((e) => renderId(e)).join(',')}]`;
-  }
-  if (_id instanceof Object) {
-    let ret = '{';
-    let first = true;
-    for (const key in _id) {
-      if (!first) {
-        ret += ',';
-      }
-      ret += `${key}:${renderId(_id[key])}`;
-      first = false;
-    }
-    ret += '}';
-    return ret;
-  }
-  if (['boolean', 'number', 'string'].includes(typeof _id)) {
-    return _id.toString();
-  }
-  console.log('_id type not handled', _id);
-  return _id.toString();
+  return EJSON.serialize(_id);
 }
 
 function MongoTableListContextMenu(props: {
@@ -722,9 +649,32 @@ function MongoTableListContextMenu(props: {
   } = props;
   const [showFilter, setShowFilter] = useState(false);
   const { showNotification } = useContext(NotificationContext);
+  const [showViewJson, setShowViewJson] = useState(false);
+  const [modalBox, setModalBox] = useState(null);
+
+  useEffect(() => {
+    if (modalBox) {
+      let c = saveAndSetSize(modalBox, 'mongo--listview-json');
+      return c;
+    }
+  }, [modalBox]);
+
   return (
     <div>
       <MenuList>
+        {content && (
+          <MenuItem
+            onClick={() => {
+              setShowViewJson(true);
+            }}
+          >
+            <ListItemIcon>
+              <ContentCopyIcon></ContentCopyIcon>
+            </ListItemIcon>
+            <ListItemText> View Json in Modal </ListItemText>
+          </MenuItem>
+        )}
+
         {content && (
           <MenuItem
             onClick={() => {
@@ -800,6 +750,32 @@ function MongoTableListContextMenu(props: {
           reset={resetColunmWidthCallBack}
         ></MenuResetColumnWidths>
       </MenuList>
+
+      {showViewJson && (
+        <Modal
+          open={showViewJson}
+          onClose={(e: EscDownEvent, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            e.preventDefault();
+            setShowViewJson(false);
+          }}
+        >
+          <Box
+            sx={{ resize: 'both', ...modalStyle }}
+            ref={setModalBox}
+            width="75%"
+            className="modal-animation"
+          >
+            <ModalHeader title="View Json"></ModalHeader>
+            <SimpleFlexSizeEditor
+              value={content}
+              language="json"
+            ></SimpleFlexSizeEditor>
+          </Box>
+        </Modal>
+      )}
 
       {showFilter && (
         <Modal
@@ -1181,12 +1157,6 @@ function MongoTableList(props: {
             f['width'] = width;
           }
         });
-        if (r.fields.length > 0) {
-          r.fields[0]['renderCell'] = function (value) {
-            let _id = value.row._id;
-            return renderId(_id);
-          };
-        }
         setResp(r);
         if (showOK) {
           reloadOK(showNotification);
@@ -1313,9 +1283,7 @@ function MongoTableList(props: {
     columnWidths.saveColumnWidths(colDef.field, width);
   }, []);
   const setting = useContext(SettingContext);
-  const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
-  }, []);
+
   const [modalBox, setModalBox] = useState(null);
   useEffect(() => {
     if (modalBox) {

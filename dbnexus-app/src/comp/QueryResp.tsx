@@ -21,6 +21,7 @@ import {
   VisiableContext,
   resetMuiDataRespWidth,
   SettingContext,
+  gridStyle,
 } from './helper.ts';
 import {
   DataGrid,
@@ -173,9 +174,6 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
     setSortModel(e);
   }, []);
 
-  const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
-  }, []);
   return (
     data && (
       <Stack spacing={1}>

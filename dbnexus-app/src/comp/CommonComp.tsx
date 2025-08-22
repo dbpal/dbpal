@@ -48,6 +48,7 @@ import {
   DataSourceKind,
   errToString,
   FavoriteSql,
+  gridStyle,
   handleCopyToClipboard,
   saveAndSetSize,
   secondConfirm,
@@ -430,9 +431,6 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
 
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);
-  }, []);
-  const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
   }, []);
 
   return (

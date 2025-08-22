@@ -65,10 +65,6 @@ impl ExportQueryResult for MariaDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MariaDB {
-    fn tx_execute_counts(&self, query_id: uuid::Uuid) -> anyhow::Result<usize> {
-        self.db.tx_execute_counts(query_id)
-    }
-
     async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
         self.db.get_auto_commit(query_id).await
     }

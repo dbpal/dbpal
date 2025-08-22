@@ -26,7 +26,7 @@ use crate::db::{
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
     escape_sql_str, format_data_time_fix_offset, not_support_feature,
 };
-use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
+use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
@@ -37,7 +37,6 @@ pub struct MsSqlServerDB {
     pub(crate) config: SqlServerDBConfig,
     query_logs: QueryLogMap,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
-    tx_execute_times: TXExecuteTimes,
 }
 
 impl std::fmt::Debug for MsSqlServerDB {
@@ -179,7 +178,6 @@ impl MsSqlServerDB {
             pool,
             query_connections: Default::default(),
             query_logs: Default::default(),
-            tx_execute_times: Default::default(),
         })
     }
 }
@@ -1623,10 +1621,6 @@ impl ExportQueryResult for MsSqlServerDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MsSqlServerDB {
-    fn tx_execute_counts(&self, query_id: uuid::Uuid) -> anyhow::Result<usize> {
-        anyhow::Ok(self.tx_execute_times.get(query_id))
-    }
-
     async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
@@ -1675,7 +1669,7 @@ impl QuerySql for MsSqlServerDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         conn.simple_query("COMMIT TRANSACTION;").await?;
-        self.tx_execute_times.reset(query_id);
+
         anyhow::Ok(())
     }
 
@@ -1687,7 +1681,7 @@ impl QuerySql for MsSqlServerDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         conn.simple_query("ROLLBACK TRANSACTION;").await?;
-        self.tx_execute_times.reset(query_id);
+
         anyhow::Ok(())
     }
 
@@ -1712,23 +1706,20 @@ impl QuerySql for MsSqlServerDB {
         let conn = self.new_tcp_conn().await?;
         self.query_connections
             .insert(id, Arc::new(Mutex::new(conn)));
-        self.tx_execute_times.reset(id);
+
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.query_logs.remove(&id);
         self.query_connections.remove(&id);
-        self.tx_execute_times.reset(id);
+
         anyhow::Ok(())
     }
 
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        if !self.get_auto_commit(query_id).await? {
-            self.tx_execute_times.inc(query_id);
-        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
@@ -1748,9 +1739,6 @@ impl QuerySql for MsSqlServerDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        if !self.get_auto_commit(query_id).await? {
-            self.tx_execute_times.inc(query_id);
-        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),

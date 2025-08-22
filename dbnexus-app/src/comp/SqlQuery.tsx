@@ -61,14 +61,16 @@ const fileFilter = {
   filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
 };
 
-function SqlTransaction(props: { conn: IQueryConn; nonce }) {
-  const { conn, nonce } = props;
+function SqlTransaction(props: { conn: IQueryConn; nonce; executeTimes }) {
+  const { conn, nonce, executeTimes } = props;
   const [commit, setCommit] = useState(true);
   const { showNotification } = useContext(NotificationContext);
   const [txCount, setTxCount] = useState(0);
 
+  useEffect(() => {
+    setTxCount((e) => e + 1);
+  }, [executeTimes]);
   const setCloseConfirm = useContext(SetCloseConfirmTextContext);
-
   const handleQueryCommit = async () => {
     try {
       let c = await conn.getAutoCommit();
@@ -78,6 +80,7 @@ function SqlTransaction(props: { conn: IQueryConn; nonce }) {
     }
   };
   useEffect(() => {
+    setTxCount(0);
     if (commit) {
       setCloseConfirm('');
     } else {
@@ -87,24 +90,12 @@ function SqlTransaction(props: { conn: IQueryConn; nonce }) {
     }
   }, [commit]);
 
-  const handleReloadTxCount = async () => {
-    conn
-      .txExecuteCounts()
-      .then((count) => {
-        setTxCount(count);
-      })
-      .catch((e) => {
-        showNotification('error', 'query tx count failed', e);
-      });
-  };
-
   useEffect(() => {
     handleQueryCommit();
   }, []);
 
   useEffect(() => {
     handleQueryCommit();
-    handleReloadTxCount();
   }, [nonce]);
 
   const handleCommit = async () => {
@@ -112,7 +103,6 @@ function SqlTransaction(props: { conn: IQueryConn; nonce }) {
       await conn.commit();
       showNotification('success', 'commit ok');
       handleQueryCommit();
-      handleReloadTxCount();
     } catch (e) {
       showNotification('error', 'commit failed', e);
     }
@@ -123,7 +113,6 @@ function SqlTransaction(props: { conn: IQueryConn; nonce }) {
       await conn.rollback();
       showNotification('success', 'rollback ok');
       handleQueryCommit();
-      handleReloadTxCount();
     } catch (e) {
       showNotification('error', 'rollback failed', e);
     }
@@ -204,6 +193,7 @@ function SqlQuery(props: {
   const [showSuggestReconn, setShowSuggestReconn] = useState<number | null>(
     null
   );
+  const [executeTimes, setExecuteTimes] = useState(0);
   const supportExplain = [
     DataSourceKind.Sqlite,
     DataSourceKind.LibSql,
@@ -392,7 +382,7 @@ function SqlQuery(props: {
     let now = new Date();
     setLoading(true);
     timeExecute();
-
+    setExecuteTimes((e) => e + 1);
     conn
       .executeOP(text)
       .then((e) => {
@@ -434,7 +424,7 @@ function SqlQuery(props: {
     let now = new Date();
     setLoading(true);
     timeExecute();
-
+    setExecuteTimes((e) => e + 1);
     conn
       .queryOP(text)
       .then((resp) => {
@@ -646,7 +636,11 @@ function SqlQuery(props: {
           </Tooltip>
 
           {conn && conn.supportTransaction() && (
-            <SqlTransaction nonce={commitNonce} conn={conn} />
+            <SqlTransaction
+              nonce={commitNonce}
+              executeTimes={executeTimes}
+              conn={conn}
+            />
           )}
           <Tooltip
             title={

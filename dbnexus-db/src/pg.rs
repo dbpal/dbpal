@@ -20,7 +20,7 @@ use crate::db::{
     SequenceDetail, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
     TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, not_support_feature,
 };
-use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser};
+use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::pg_format::*;
@@ -36,7 +36,6 @@ pub struct PostGresDB {
         Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
     query_logs: QueryLogMap,
     pub(crate) key_word_completion: Arc<Mutex<Vec<CompletionItem>>>,
-    tx_execute_times: TXExecuteTimes,
     pub(crate) build_in_fn: Arc<Mutex<Vec<CompletionItem>>>,
 }
 
@@ -1573,7 +1572,6 @@ impl PostGresDB {
             config,
             query_connection: Default::default(),
             query_logs: Default::default(),
-            tx_execute_times: Default::default(),
             key_word_completion: Default::default(),
             build_in_fn: Default::default(),
         })
@@ -1707,10 +1705,6 @@ impl ExportQueryResult for PostGresDB {
 
 #[async_trait::async_trait]
 impl QuerySql for PostGresDB {
-    fn tx_execute_counts(&self, query_id: uuid::Uuid) -> anyhow::Result<usize> {
-        anyhow::Ok(self.tx_execute_times.get(query_id))
-    }
-
     async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
         use sqlx_core::any::AnyConnectionBackend;
 
@@ -1755,7 +1749,6 @@ impl QuerySql for PostGresDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         conn.commit().await?;
-        self.tx_execute_times.reset(query_id);
 
         anyhow::Ok(())
     }
@@ -1770,7 +1763,6 @@ impl QuerySql for PostGresDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         conn.rollback().await?;
-        self.tx_execute_times.reset(query_id);
 
         anyhow::Ok(())
     }
@@ -1794,14 +1786,13 @@ impl QuerySql for PostGresDB {
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
-        self.tx_execute_times.reset(id);
+
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.query_logs.remove(&id);
         self.query_connection.remove(&id);
-        self.tx_execute_times.reset(id);
 
         anyhow::Ok(())
     }
@@ -1809,10 +1800,6 @@ impl QuerySql for PostGresDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        if !self.get_auto_commit(query_id).await? {
-            self.tx_execute_times.inc(query_id);
-        }
-
         let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
@@ -1833,9 +1820,6 @@ impl QuerySql for PostGresDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        if !self.get_auto_commit(query_id).await? {
-            self.tx_execute_times.inc(query_id);
-        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {

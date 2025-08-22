@@ -1,5 +1,4 @@
 import {
-  CSSProperties,
   useCallback,
   useContext,
   useEffect,
@@ -20,6 +19,7 @@ import {
   columnWidths,
   ContextMenuContext,
   DataSourceKind,
+  gridStyle,
   handleCopyToClipboard,
   saveAndSetSize,
   secondConfirm,
@@ -255,9 +255,7 @@ function ColumnsStructure(props: {
   const onRowDoubleClick = useCallback((row) => {
     setRow(row.row);
   }, []);
-  const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
-  }, []);
+
   const [modalBox, setModalBox] = useState(null);
 
   useEffect(() => {
@@ -583,9 +581,6 @@ function IndexesStructure(props: {
     return e['name'];
   }, []);
 
-  const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
-  }, []);
   const [modalBox, setModalBox] = useState(null);
   useEffect(() => {
     if (modalBox) {
@@ -1488,9 +1483,7 @@ function TriggersStructure(props: {
   const onRowDoubleClick = useCallback((row) => {
     setRow(row.row);
   }, []);
-  const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
-  }, []);
+
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>

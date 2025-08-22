@@ -22,7 +22,8 @@ use crate::db::{
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
     escape_sql_str, not_support_feature,
 };
-use crate::helper::{TXExecuteTimes, create_csv, is_dangerous_sql_by_parser, sql_cut_by_semicolon};
+
+use crate::helper::{create_csv, is_dangerous_sql_by_parser, sql_cut_by_semicolon};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
@@ -34,7 +35,6 @@ pub struct OracleDB {
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
     pub(crate) config: OracleDBConfig,
     query_logs: QueryLogMap,
-    tx_execute_times: TXExecuteTimes,
     pub(crate) key_word_completion: Arc<Mutex<Vec<CompletionItem>>>,
 }
 
@@ -86,7 +86,7 @@ impl OracleDB {
             query_connections: Default::default(),
             config,
             query_logs: Default::default(),
-            tx_execute_times: Default::default(),
+
             key_word_completion: Default::default(),
         })
     }
@@ -144,10 +144,6 @@ impl ExportQueryResult for OracleDB {
 
 #[async_trait::async_trait]
 impl QuerySql for OracleDB {
-    fn tx_execute_counts(&self, query_id: uuid::Uuid) -> anyhow::Result<usize> {
-        anyhow::Ok(self.tx_execute_times.get(query_id))
-    }
-
     async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
         self.with_query_connection(query_id, |x| -> anyhow::Result<bool> {
             anyhow::Ok(x.autocommit())
@@ -169,7 +165,6 @@ impl QuerySql for OracleDB {
             anyhow::Ok(())
         })
         .await?;
-        self.tx_execute_times.reset(query_id);
 
         anyhow::Ok(())
     }
@@ -180,7 +175,6 @@ impl QuerySql for OracleDB {
             anyhow::Ok(())
         })
         .await?;
-        self.tx_execute_times.reset(query_id);
 
         anyhow::Ok(())
     }
@@ -210,7 +204,6 @@ impl QuerySql for OracleDB {
         conn.set_autocommit(QUERY_AUTO_COMMIT);
         self.query_connections
             .insert(id, Arc::new(Mutex::new(conn)));
-        self.tx_execute_times.reset(id);
 
         anyhow::Ok(())
     }
@@ -220,16 +213,12 @@ impl QuerySql for OracleDB {
         if let Some((_, x)) = self.query_connections.remove(&id) {
             tokio::spawn(async move { x.lock().await.close() });
         }
-        self.tx_execute_times.reset(id);
         anyhow::Ok(())
     }
 
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        if !self.get_auto_commit(query_id).await? {
-            self.tx_execute_times.inc(query_id);
-        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let conn = match self.query_connections.get(&query_id) {
@@ -249,9 +238,6 @@ impl QuerySql for OracleDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        if !self.get_auto_commit(query_id).await? {
-            self.tx_execute_times.inc(query_id);
-        }
         let mut query_log = self.query_logs.get_guard(query_id, sql);
         let ss = match get_sql_seq(sql) {
             Ok(x) => x,

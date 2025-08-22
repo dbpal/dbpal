@@ -216,7 +216,7 @@ export default function MainPage() {
         height: 'auto',
       }}
       maxSize={800}
-      onDragFinished={async (newsize) => {
+      onChange={(newsize) => {
         SaveSizesToStore.saveSize(leftSizeKey, { width: newsize });
       }}
     >
@@ -265,12 +265,7 @@ export default function MainPage() {
               <div> {mainContent} </div>
 
               <div id="menu-div" style={menu && menu.style}>
-                <Paper
-                  elevation={24}
-                  style={{ opacity: windowFocus ? 1 : '0.7' }}
-                >
-                  {menu && menu.content}
-                </Paper>
+                <Paper elevation={24}>{menu && menu.content}</Paper>
               </div>
 
               {showEditConfig && (

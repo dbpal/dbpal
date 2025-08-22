@@ -16,7 +16,6 @@ import {
 } from '@mui/material';
 
 import {
-  CSSProperties,
   memo,
   useCallback,
   useContext,
@@ -66,6 +65,7 @@ import {
   extractConfigNameFromUuid,
   FavoriteSql,
   generateRandomString,
+  gridStyle,
   handleCopyToClipboard,
   MatchPatternContext,
   secondConfirm,
@@ -407,9 +407,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   useEffect(() => {
     handleReload();
   }, []);
-  const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
-  }, []);
+
   return (
     <Stack spacing={1}>
       <Stack direction="row">
@@ -743,9 +741,7 @@ function FavoriteSqlList(props: { handleClose }) {
     FavoriteSql.clear(showNotification);
     handleClose();
   };
-  const gridStyle = useMemo(() => {
-    return { height: 'auto', maxHeight: '78vh' } as CSSProperties;
-  }, []);
+
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
