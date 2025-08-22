@@ -811,9 +811,8 @@ function MongoTableListContextMenu(props: {
             e.preventDefault();
             setShowFilter(false);
           }}
-          className="modal-animation"
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="75%" className="modal-animation">
             <ModalHeader title="Quick Filter"></ModalHeader>
             <MongoTableListMenuFilter
               loadValue={async () => {
@@ -1376,6 +1375,7 @@ function MongoTableList(props: {
             width="75%"
             height="60vh"
             ref={setModalBox}
+            className="modal-animation"
           >
             <ModalHeader title="Modify data" />
             <MongoValueEditor

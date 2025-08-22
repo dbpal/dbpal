@@ -12,7 +12,7 @@
 }
 
 .modal-animation {
-  animation: modalAnimation 0.6s ease-in; /* 调用动画，持续时间为0.5秒 */
+  animation: modalAnimation 0.8s ease-out; /* 调用动画，持续时间为0.5秒 */
   bottom: 50%;
   right: 50%;
 }

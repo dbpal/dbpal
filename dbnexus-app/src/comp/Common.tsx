@@ -37,6 +37,8 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 const modalStyle: SxProps = {
   position: 'fixed',
   transform: 'translate(50%, 50%)',
+  bottom: '50%',
+  right: '50%',
   bgcolor: 'background.paper',
   border: '2px solid skyblue',
   boxShadow: 24,
