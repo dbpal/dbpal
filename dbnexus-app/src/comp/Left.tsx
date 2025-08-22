@@ -215,7 +215,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             setShowFavoriteSql(false);
           }}
         >
-          <Box sx={modalStyle} className="modal-animation" width="75%">
+          <Box sx={modalStyle} width="75%">
             <ModalHeader title="Favorite SQL Statements"></ModalHeader>
             <FavoriteSqlList
               handleClose={() => {
@@ -237,7 +237,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             setShowAddConnection(false);
           }}
         >
-          <Box className="modal-animation" sx={modalStyle} width="55%">
+          <Box sx={modalStyle} width="55%">
             <ModalHeader title="Add Connection"></ModalHeader>
             <AddConnection
               handleClose={() => {
@@ -259,7 +259,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             setCopyConn(null);
           }}
         >
-          <Box sx={modalStyle} className="modal-animation" width="55%">
+          <Box sx={modalStyle} width="55%">
             <ModalHeader title="Copy Connection"></ModalHeader>
             <AddConnection
               handleClose={() => {
@@ -282,7 +282,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             setShowCopyConn(false);
           }}
         >
-          <Box sx={modalStyle} className="modal-animation" width="65%">
+          <Box sx={modalStyle} width="65%">
             <ModalHeader title="Copy Connection"></ModalHeader>
             <CopyConnection
               handleClose={() => {
@@ -1128,7 +1128,7 @@ function DatabaseMenu(props: {
             setShowCreateSchema(false);
           }}
         >
-          <Box sx={modalStyle} className="modal-animation" width="40%">
+          <Box sx={modalStyle} width="40%">
             <CreateSchema
               uuid={uuid}
               handleClose={() => {
@@ -1208,7 +1208,7 @@ function CatalogMenu(props: {
             setShowCreateDB(false);
           }}
         >
-          <Box sx={modalStyle} className="modal-animation" width="50%">
+          <Box sx={modalStyle} width="50%">
             <ModalHeader title="Create Database"></ModalHeader>
             <CreateDatabase
               uuid={uuid}

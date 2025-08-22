@@ -128,7 +128,6 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
             ref={setModalBox}
             width="60%"
             height="40vh"
-            className="modal-animation"
           >
             <ModalHeader title="View SQL"></ModalHeader>
             <SimpleFlexSizeEditor

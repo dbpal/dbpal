@@ -577,7 +577,6 @@ function MongoTableToolBar(props: {
             width="65%"
             ref={setModalBox}
             height="45vh"
-            className="modal-animation"
           >
             <ModalHeader title="Modify Filter"></ModalHeader>
             <MongoValueEditor
@@ -608,7 +607,6 @@ function MongoTableToolBar(props: {
             width="65%"
             ref={setModalBox}
             height="45vh"
-            className="modal-animation"
           >
             <ModalHeader title="Modify Sort"></ModalHeader>
             <MongoValueEditor
@@ -766,7 +764,6 @@ function MongoTableListContextMenu(props: {
             sx={{ resize: 'both', ...modalStyle }}
             ref={setModalBox}
             width="75%"
-            className="modal-animation"
             height="65vh"
           >
             <ModalHeader title="View Json"></ModalHeader>
@@ -790,7 +787,7 @@ function MongoTableListContextMenu(props: {
             setShowFilter(false);
           }}
         >
-          <Box sx={modalStyle} width="75%" className="modal-animation">
+          <Box sx={modalStyle} width="75%">
             <ModalHeader title="Quick Filter"></ModalHeader>
             <MongoTableListMenuFilter
               loadValue={async () => {
@@ -1338,14 +1335,12 @@ function MongoTableList(props: {
             e.preventDefault();
             setSelectModifyDoc(null);
           }}
-          className="modal-animation"
         >
           <Box
             sx={{ resize: 'both', ...modalStyle }}
             width="75%"
             height="60vh"
             ref={setModalBox}
-            className="modal-animation"
           >
             <ModalHeader title="Modify data" />
             <MongoValueEditor

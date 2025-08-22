@@ -51,6 +51,7 @@ const modalStyle: SxProps = {
   maxWidth: '80vw',
   display: 'flex',
   flexDirection: 'column',
+  animation: 'modalAnimation 0.8s ease-out',
 };
 
 import {

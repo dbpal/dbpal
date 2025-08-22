@@ -10,7 +10,3 @@
     right: 50%;
   }
 }
-
-.modal-animation {
-  animation: modalAnimation 0.8s ease-out; /* 调用动画，持续时间为0.5秒 */
-}

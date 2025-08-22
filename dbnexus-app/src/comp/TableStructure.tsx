@@ -322,7 +322,6 @@ function ColumnsStructure(props: {
             sx={{ resize: 'horizontal', ...modalStyle }}
             width="60%"
             ref={setModalBox}
-            className="modal-animation"
           >
             <ModalHeader title="Add Column"></ModalHeader>
             <TableAddColumn
@@ -354,7 +353,6 @@ function ColumnsStructure(props: {
             sx={{ resize: 'horizontal', ...modalStyle }}
             width="60%"
             ref={setModalBox}
-            className="modal-animation"
           >
             <ModalHeader title="Modify Column"></ModalHeader>
             <ModifyTableColumn
@@ -649,7 +647,6 @@ function IndexesStructure(props: {
             }}
             width="60%"
             ref={setModalBox}
-            className="modal-animation"
             height={kind == DataSourceKind.Mongo ? '40vh' : 'auto'}
           >
             <ModalHeader title="create index"></ModalHeader>
@@ -682,7 +679,6 @@ function IndexesStructure(props: {
               ...modalStyle,
             }}
             width="60%"
-            className="modal-animation"
             ref={setModalBox}
           >
             <ModalHeader title="create index"></ModalHeader>
@@ -710,7 +706,7 @@ function IndexesStructure(props: {
             setRenameIndexName('');
           }}
         >
-          <Box sx={modalStyle} width="40%" className="modal-animation">
+          <Box sx={modalStyle} width="40%">
             <ModalHeader title={`Rename Index`}></ModalHeader>
             <RenameIndex
               uuid={uuid}
@@ -1528,7 +1524,7 @@ function TriggersStructure(props: {
             setRow(null);
           }}
         >
-          <Box sx={modalStyle} width="80%" className="modal-animation">
+          <Box sx={modalStyle} width="80%">
             <ModalHeader title={`Trigger Detail`}></ModalHeader>
             <TriggerDetail
               reloadOP={async () => {
