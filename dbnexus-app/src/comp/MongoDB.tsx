@@ -358,14 +358,7 @@ function MongoBsonEditor(props: {
                 delete
               </Button>
             )}
-            <Button
-              variant="contained"
-              onClick={() => {
-                setContent('{\n}');
-              }}
-            >
-              reset
-            </Button>
+
             {err ? (
               <Typography
                 color="error"
@@ -1071,15 +1064,6 @@ function JsonEditor(props: {
             delete
           </Button>
         )}
-
-        <Button
-          variant="contained"
-          onClick={() => {
-            setNewValue('{\n}');
-          }}
-        >
-          reset
-        </Button>
 
         {jsonErr && (
           <Typography

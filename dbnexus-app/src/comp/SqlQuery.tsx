@@ -528,324 +528,321 @@ function SqlQuery(props: {
     }
   }, [vis, conn]);
   return (
-    <div
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') {
-          setShowQueryLog(false);
-        }
+    //@ts-ignore
+    <SplitPane
+      split="horizontal"
+      defaultSize={500}
+      minSize={200}
+      size={size}
+      style={{ position: 'relative' }}
+      onChange={(newvalue) => {
+        SaveSizesToStore.saveSize(sizeKey, { height: newvalue });
       }}
     >
-      <SplitPane //@ts-ignore
-        split="horizontal"
-        defaultSize={500}
-        minSize={200}
-        size={size}
-        style={{ position: 'relative' }}
-        onChange={(newvalue) => {
-          SaveSizesToStore.saveSize(sizeKey, { height: newvalue });
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          width: '100%',
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            setShowQueryLog(false);
+          }
         }}
       >
+        {/* // here is query log use absolute position to locate. */}
+        {showQueryLog && (
+          <Paper
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: 0,
+              display: showQueryLog ? 'block' : 'none',
+              zIndex: 13,
+              width: '75%',
+            }}
+            elevation={16}
+          >
+            <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+              <IconButton
+                onClick={() => {
+                  setShowQueryLog(false);
+                }}
+              >
+                <CloseIcon></CloseIcon>
+              </IconButton>
+              <Tooltip title="double click to open code editor" arrow>
+                <BsFillLightbulbFill />
+              </Tooltip>
+            </Stack>
+            <QueryLog uuid={language} logs={queryLogs}></QueryLog>
+          </Paper>
+        )}
+
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: 'center', flexWrap: 'wrap' }}
+        >
+          <Tooltip title="execute" arrow>
+            <IconButton
+              loading={loading}
+              disabled={loading || conn == null}
+              onClick={() => {
+                handleQuery(false);
+              }}
+              color="primary"
+            >
+              <PlayArrowIcon />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="execute and append result to tabs" arrow>
+            <IconButton
+              loading={loading}
+              disabled={loading || conn == null}
+              onClick={() => {
+                handleQuery(true);
+              }}
+              color="primary"
+            >
+              <FastForwardIcon />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="execute sql not expecting result" arrow>
+            <IconButton
+              loading={loading}
+              disabled={loading || conn == null}
+              onClick={handleExecute}
+              color="primary"
+            >
+              <FaExclamation />
+            </IconButton>
+          </Tooltip>
+          {supportExplain && (
+            <Tooltip title="explain sql" arrow>
+              <IconButton
+                loading={loading}
+                disabled={loading || conn == null}
+                onClick={() => {
+                  handleQuery(false, true);
+                }}
+                color="primary"
+              >
+                <BsFillLightbulbFill />
+              </IconButton>
+            </Tooltip>
+          )}
+
+          <Tooltip title="sql execute time" arrow>
+            <Chip
+              color="default"
+              size="small"
+              label={<span ref={executeTimeRef}> </span>}
+              icon={<CiTimer />}
+            ></Chip>
+          </Tooltip>
+
+          {conn && conn.supportTransaction() && (
+            <SqlTransaction nonce={commitNonce} conn={conn} />
+          )}
+          <Tooltip
+            title={
+              showSuggestReconn
+                ? `query used ${showSuggestReconn}ms,try reconnect?`
+                : 'reconnect'
+            }
+            arrow
+          >
+            <IconButton
+              onClick={() => {
+                handleReconnect();
+              }}
+              color="primary"
+            >
+              <RefreshIcon color={showSuggestReconn ? 'error' : 'inherit'} />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="export query result to a file" arrow>
+            <IconButton
+              loading={loading}
+              disabled={loading || conn == null}
+              onClick={() => {
+                const value = getText();
+                if (!value) {
+                  return;
+                }
+                setShowExport(true);
+              }}
+              color="primary"
+            >
+              <ArrowCircleDownRoundedIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip
+            arrow
+            title={
+              !favoriteName
+                ? 'save sql to favorite.'
+                : `save favorite sql as named '${favoriteName}'`
+            }
+          >
+            <IconButton
+              onClick={() => {
+                const value = editor.current.getValue();
+                if (!value) {
+                  showNotification('error', "can't save empty statement.");
+                  return;
+                }
+                if (favoriteName) {
+                  saveFavoriteSql(favoriteName, value);
+                } else {
+                  setShowFavoriteName(true);
+                }
+              }}
+              color="primary"
+            >
+              <FaBookmark style={{ fontSize: '1.2rem' }} />
+            </IconButton>
+          </Tooltip>
+
+          <LoadStoreFileForQuery
+            file={file}
+            getQuery={() => {
+              return editor.current.getValue();
+            }}
+            handleChange={(file, content) => {
+              setFile(file);
+              editor.current.setValue(content);
+            }}
+            openOpt={{ ...fileFilter }}
+            saveOpt={{ ...fileFilter }}
+          ></LoadStoreFileForQuery>
+          <Tooltip title="query log" arrow>
+            <IconButton
+              onClick={() => {
+                setShowQueryLog((prev) => !prev);
+              }}
+              color="primary"
+              disabled={conn == null}
+            >
+              <EventNoteIcon></EventNoteIcon>
+            </IconButton>
+          </Tooltip>
+          {buttons}
+        </Stack>
         <div
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            width: '100%',
+            flexGrow: 1,
+            flexShrink: 1,
+            minHeight: 0,
+            height: '400px',
           }}
+          ref={editorDivDom}
         >
-          {/* // here is query log use absolute position to locate. */}
-          {showQueryLog && (
-            <Paper
-              style={{
-                position: 'absolute',
-                right: 0,
-                top: 0,
-                display: showQueryLog ? 'block' : 'none',
-                zIndex: 13,
-                width: '75%',
-              }}
-              elevation={16}
-            >
-              <Stack
-                direction="row"
-                style={{ alignItems: 'center' }}
-                spacing={1}
-              >
-                <IconButton
-                  onClick={() => {
-                    setShowQueryLog(false);
-                  }}
-                >
-                  <CloseIcon></CloseIcon>
-                </IconButton>
-                <Tooltip title="double click to open code editor" arrow>
-                  <BsFillLightbulbFill />
-                </Tooltip>
-              </Stack>
-              <QueryLog uuid={language} logs={queryLogs}></QueryLog>
-            </Paper>
-          )}
+          <Editor
+            language={language}
+            onMount={handleEditorDidMount}
+            width="99%"
+            height="99%"
+            value={value}
+            options={options}
+            theme={setting.editorTheme()}
+          ></Editor>
+        </div>
+        <EditorBar pos={pos}></EditorBar>
+      </div>
 
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{ alignItems: 'center', flexWrap: 'wrap' }}
-          >
-            <Tooltip title="execute" arrow>
-              <IconButton
-                loading={loading}
-                disabled={loading || conn == null}
-                onClick={() => {
-                  handleQuery(false);
-                }}
-                color="primary"
-              >
-                <PlayArrowIcon />
-              </IconButton>
-            </Tooltip>
+      <div
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            setShowQueryLog(false);
+          }
+        }}
+      >
+        <MultiQueryResp data={resp}></MultiQueryResp>
 
-            <Tooltip title="execute and append result to tabs" arrow>
-              <IconButton
-                loading={loading}
-                disabled={loading || conn == null}
-                onClick={() => {
-                  handleQuery(true);
-                }}
-                color="primary"
-              >
-                <FastForwardIcon />
-              </IconButton>
-            </Tooltip>
-
-            <Tooltip title="execute sql not expecting result" arrow>
-              <IconButton
-                loading={loading}
-                disabled={loading || conn == null}
-                onClick={handleExecute}
-                color="primary"
-              >
-                <FaExclamation />
-              </IconButton>
-            </Tooltip>
-            {supportExplain && (
-              <Tooltip title="explain sql" arrow>
-                <IconButton
-                  loading={loading}
-                  disabled={loading || conn == null}
-                  onClick={() => {
-                    handleQuery(false, true);
-                  }}
-                  color="primary"
-                >
-                  <BsFillLightbulbFill />
-                </IconButton>
-              </Tooltip>
-            )}
-
-            <Tooltip title="sql execute time" arrow>
-              <Chip
-                color="default"
-                size="small"
-                label={<span ref={executeTimeRef}> </span>}
-                icon={<CiTimer />}
-              ></Chip>
-            </Tooltip>
-
-            {conn && conn.supportTransaction() && (
-              <SqlTransaction nonce={commitNonce} conn={conn} />
-            )}
-            <Tooltip
-              title={
-                showSuggestReconn
-                  ? `query used ${showSuggestReconn}ms,try reconnect?`
-                  : 'reconnect'
+        {showExport && (
+          <Modal
+            open={showExport}
+            onClose={(e: EscDownEvent, reason) => {
+              if (reason === 'backdropClick') {
+                return;
               }
-              arrow
-            >
-              <IconButton
-                onClick={() => {
-                  handleReconnect();
-                }}
-                color="primary"
-              >
-                <RefreshIcon color={showSuggestReconn ? 'error' : 'inherit'} />
-              </IconButton>
-            </Tooltip>
 
-            <Tooltip title="export query result to a file" arrow>
-              <IconButton
-                loading={loading}
-                disabled={loading || conn == null}
-                onClick={() => {
-                  const value = getText();
-                  if (!value) {
-                    return;
-                  }
-                  setShowExport(true);
-                }}
-                color="primary"
-              >
-                <ArrowCircleDownRoundedIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip
-              arrow
-              title={
-                !favoriteName
-                  ? 'save sql to favorite.'
-                  : `save favorite sql as named '${favoriteName}'`
-              }
-            >
-              <IconButton
-                onClick={() => {
-                  const value = editor.current.getValue();
-                  if (!value) {
-                    showNotification('error', "can't save empty statement.");
-                    return;
-                  }
-                  if (favoriteName) {
-                    saveFavoriteSql(favoriteName, value);
-                  } else {
-                    setShowFavoriteName(true);
-                  }
-                }}
-                color="primary"
-              >
-                <FaBookmark style={{ fontSize: '1.2rem' }} />
-              </IconButton>
-            </Tooltip>
-
-            <LoadStoreFileForQuery
-              file={file}
-              getQuery={() => {
-                return editor.current.getValue();
-              }}
-              handleChange={(file, content) => {
-                setFile(file);
-                editor.current.setValue(content);
-              }}
-              openOpt={{ ...fileFilter }}
-              saveOpt={{ ...fileFilter }}
-            ></LoadStoreFileForQuery>
-            <Tooltip title="query log" arrow>
-              <IconButton
-                onClick={() => {
-                  setShowQueryLog((prev) => !prev);
-                }}
-                color="primary"
-                disabled={conn == null}
-              >
-                <EventNoteIcon></EventNoteIcon>
-              </IconButton>
-            </Tooltip>
-            {buttons}
-          </Stack>
-          <div
-            style={{
-              flexGrow: 1,
-              flexShrink: 1,
-              minHeight: 0,
-              height: '400px',
+              e.preventDefault();
+              setShowExport(false);
             }}
-            ref={editorDivDom}
           >
-            <Editor
-              language={language}
-              onMount={handleEditorDidMount}
-              width="99%"
-              height="99%"
-              value={value}
-              options={options}
-              theme={setting.editorTheme()}
-            ></Editor>
-          </div>
-          <EditorBar pos={pos}></EditorBar>
-        </div>
+            <Box sx={modalStyle} width="45%">
+              <ExportView
+                handleClose={() => {
+                  setShowExport(false);
+                }}
+                supportKind={['csv', 'json', 'jsonline']}
+                exportOP={async (kind, file) => {
+                  try {
+                    const sql = getText();
+                    await conn.exportQueryResult(sql, kind, file);
+                    showNotification('success', 'export OK');
+                  } catch (e) {
+                    showNotification('error', 'export failure', e);
+                  }
+                }}
+                name="export"
+                supportCsvHeader={true}
+              ></ExportView>
+            </Box>
+          </Modal>
+        )}
+        {showSetFavoriteName && (
+          <Modal
+            open={showSetFavoriteName}
+            onClose={(e: EscDownEvent, reason) => {
+              if (reason === 'backdropClick') {
+                return;
+              }
 
-        <div>
-          <MultiQueryResp data={resp}></MultiQueryResp>
-
-          {showExport && (
-            <Modal
-              open={showExport}
-              onClose={(e: EscDownEvent, reason) => {
-                if (reason === 'backdropClick') {
-                  return;
-                }
-
-                e.preventDefault();
-                setShowExport(false);
-              }}
-            >
-              <Box sx={modalStyle} width="45%">
-                <ExportView
-                  handleClose={() => {
-                    setShowExport(false);
+              e.preventDefault();
+              setShowFavoriteName(false);
+            }}
+          >
+            <Box sx={modalStyle} width="40%">
+              <Stack spacing={1}>
+                <TextField
+                  fullWidth
+                  label="name"
+                  value={favoriteName}
+                  onChange={(e) => {
+                    setFavoriteName(e.target.value);
                   }}
-                  supportKind={['csv', 'json', 'jsonline']}
-                  exportOP={async (kind, file) => {
-                    try {
-                      const sql = getText();
-                      await conn.exportQueryResult(sql, kind, file);
-                      showNotification('success', 'export OK');
-                    } catch (e) {
-                      showNotification('error', 'export failure', e);
-                    }
-                  }}
-                  name="export"
-                  supportCsvHeader={true}
-                ></ExportView>
-              </Box>
-            </Modal>
-          )}
-          {showSetFavoriteName && (
-            <Modal
-              open={showSetFavoriteName}
-              onClose={(e: EscDownEvent, reason) => {
-                if (reason === 'backdropClick') {
-                  return;
-                }
-
-                e.preventDefault();
-                setShowFavoriteName(false);
-              }}
-            >
-              <Box sx={modalStyle} width="40%">
-                <Stack spacing={1}>
-                  <TextField
-                    fullWidth
-                    label="name"
-                    value={favoriteName}
-                    onChange={(e) => {
-                      setFavoriteName(e.target.value);
+                  size="small"
+                  required
+                ></TextField>
+                <Stack direction="row">
+                  <IconButton
+                    color="primary"
+                    onClick={() => {
+                      if (!favoriteName) {
+                        showNotification('error', "name can't be empty");
+                        return;
+                      }
+                      saveFavoriteSql(favoriteName, editor.current.getValue());
+                      setShowFavoriteName(false);
                     }}
-                    size="small"
-                    required
-                  ></TextField>
-                  <Stack direction="row">
-                    <IconButton
-                      color="primary"
-                      onClick={() => {
-                        if (!favoriteName) {
-                          showNotification('error', "name can't be empty");
-                          return;
-                        }
-                        saveFavoriteSql(
-                          favoriteName,
-                          editor.current.getValue()
-                        );
-                        setShowFavoriteName(false);
-                      }}
-                    >
-                      <FaBookmark> </FaBookmark>
-                    </IconButton>
-                  </Stack>
+                  >
+                    <FaBookmark> </FaBookmark>
+                  </IconButton>
                 </Stack>
-              </Box>
-            </Modal>
-          )}
-        </div>
-      </SplitPane>
-    </div>
+              </Stack>
+            </Box>
+          </Modal>
+        )}
+      </div>
+    </SplitPane>
   );
 }
 
