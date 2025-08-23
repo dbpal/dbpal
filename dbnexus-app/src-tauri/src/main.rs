@@ -187,27 +187,6 @@ fn main_() {
                                 true,
                                 None as Option<&'static str>,
                             )?,
-                            &MenuItem::with_id(
-                                handle,
-                                "zoom_in",
-                                "zoom in",
-                                true,
-                                Some(if is_mac() { "command+-" } else { "ctrl+-" }),
-                            )?,
-                            &MenuItem::with_id(
-                                handle,
-                                "zoom_out",
-                                "zoom out",
-                                true,
-                                Some(if is_mac() { "command+=" } else { "ctrl+=" }),
-                            )?,
-                            &MenuItem::with_id(
-                                handle,
-                                "zoom_reset",
-                                "reset zoom",
-                                true,
-                                None as Option<&'static str>,
-                            )?,
                             #[cfg(any(target_os = "windows", target_os = "macos"))]
                             &PredefinedMenuItem::close_window(handle, None)?,
                             #[cfg(any(target_os = "windows", target_os = "macos"))]
@@ -239,6 +218,27 @@ fn main_() {
                             &PredefinedMenuItem::minimize(handle, None)?,
                             #[cfg(any(target_os = "macos"))]
                             &PredefinedMenuItem::fullscreen(handle, None)?,
+                            &MenuItem::with_id(
+                                handle,
+                                "zoom_in",
+                                "zoom in",
+                                true,
+                                Some(if is_mac() { "command+-" } else { "ctrl+-" }),
+                            )?,
+                            &MenuItem::with_id(
+                                handle,
+                                "zoom_out",
+                                "zoom out",
+                                true,
+                                Some(if is_mac() { "command+=" } else { "ctrl+=" }),
+                            )?,
+                            &MenuItem::with_id(
+                                handle,
+                                "zoom_reset",
+                                "reset zoom",
+                                true,
+                                None as Option<&'static str>,
+                            )?,
                         ],
                     )?,
                     &Submenu::with_items(
