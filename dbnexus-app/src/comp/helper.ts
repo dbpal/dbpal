@@ -297,6 +297,7 @@ enum AppStoreKey {
   ColumnWidths = 'column_widths',
   FavoriteSql = "favorite_sql",
   Sizes = "sizes",
+  Zoom = "zoom"
 }
 
 

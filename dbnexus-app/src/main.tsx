@@ -17,7 +17,52 @@ import {
   UserSettings,
   windowFocusChangeEvent,
 } from './comp/helper';
-import { emit } from '@tauri-apps/api/event';
+import { emit, listen } from '@tauri-apps/api/event';
+
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+
+async function setZoom(out: boolean) {
+  const webview = WebviewWindow.getCurrent(); // Replace "main" with your webview label
+  let zoom = await appStore.get<number>(AppStoreKey.Zoom);
+  if (!zoom) {
+    zoom = 1;
+  }
+  const min = 0.5;
+  const max = 2.5;
+  if (out) {
+    zoom += 0.1;
+    if (zoom > max) {
+      zoom = max;
+    }
+  } else {
+    zoom -= 0.1;
+    if (zoom < min) {
+      zoom = min;
+    }
+  }
+  webview.setZoom(zoom);
+  await appStore.set(AppStoreKey.Zoom, zoom);
+}
+
+listen('zoom_in', async (_) => {
+  await setZoom(false);
+});
+
+listen('zoom_out', async (_) => {
+  await setZoom(true);
+});
+listen('zoom_reset', async (_) => {
+  const webview = WebviewWindow.getCurrent();
+  webview.setZoom(1);
+  appStore.set(AppStoreKey.Zoom, 1);
+});
+
+appStore.get<number>(AppStoreKey.Zoom).then(async (zoom) => {
+  const webview = WebviewWindow.getCurrent();
+  if (zoom) {
+    await webview.setZoom(zoom);
+  }
+});
 
 if (['windows', 'linux'].includes(platform())) {
   document.addEventListener('keydown', function (event) {
