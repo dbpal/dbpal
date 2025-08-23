@@ -459,8 +459,8 @@ interface DefAndMetas {
   def: string;
   metas: types.MetaValue[];
 }
-const progressBarSize = '30px';
-const progressBarSizeSmall = '20px';
+const progressBarSize = '1.8rem';
+const progressBarSizeSmall = '1.2rem';
 
 function MenuConnectionInfo({ uuid }) {
   const { tabs, setSelectTab, setTabs } = useContext(TabsSetContext);
