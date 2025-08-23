@@ -409,7 +409,7 @@ function SimpleFlexSizeEditor(props: {
 
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
-      fontSize: setting.editorFontSize,
+      fontSize: setting.fontSize,
       //@ts-ignore
       wordWrap: wordWrap,
       fontWeight: setting.fontWeight,

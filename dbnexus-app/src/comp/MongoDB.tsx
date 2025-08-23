@@ -292,7 +292,7 @@ function MongoBsonEditor(props: {
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
       readOnly: !setOP,
-      fontSize: setting.editorFontSize,
+      fontSize: setting.fontSize,
       fontWeight: setting.fontWeight,
       ...setting.editorOption,
     };

@@ -581,8 +581,7 @@ class MongoTableHandler {
 class UserSettings {
   theme: string = 'light';
   pageSize: number = 100;
-  editorFontSize: number = 16;
-  rootFontSize: number = 15;
+  fontSize: number = 15;
   datagridRowHeight: number = 24;
   datagridHeaderHeight: number = 30;
   fontWeight: string = 'normal';

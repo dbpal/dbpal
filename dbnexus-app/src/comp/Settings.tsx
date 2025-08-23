@@ -33,10 +33,8 @@ import { Position } from 'monaco-editor';
 
 function ModifySettings({ handleClose }) {
   const { showNotification } = useContext(NotificationContext);
-
   const [pageSize, setPageSize] = useState(0);
   const [fontWeight, setFontWeight] = useState('normal');
-  const [editorFontSize, setEditorFontSize] = useState(18);
   const [rootFontSize, setRootFontSize] = useState(16);
   const [datagridRowHeight, setDatagridRowHeight] = useState(24);
   const [datagridHeaderHeight, setDatagridHeaderHeight] = useState(30);
@@ -47,8 +45,7 @@ function ModifySettings({ handleClose }) {
       let settings = await UserSettings.get();
       setPageSize(settings.pageSize);
       setFontWeight(settings.fontWeight);
-      setEditorFontSize(settings.editorFontSize);
-      setRootFontSize(settings.rootFontSize);
+      setRootFontSize(settings.fontSize);
       setDatagridRowHeight(settings.datagridRowHeight);
       setDatagridHeaderHeight(settings.datagridHeaderHeight);
       const content = JSON.stringify(settings.editorOption, null, 2);
@@ -78,8 +75,7 @@ function ModifySettings({ handleClose }) {
           theme: s.theme, // theme not depend on setting
           fontWeight,
           pageSize,
-          editorFontSize,
-          rootFontSize,
+          fontSize: rootFontSize,
           datagridRowHeight,
           datagridHeaderHeight,
           editorOption: JSON.parse(editorOptions),
@@ -119,22 +115,6 @@ function ModifySettings({ handleClose }) {
           }}
           size="small"
         ></TextField>
-      </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          code editor font size:
-        </Typography>
-        <Chip label={editorFontSize} />
-        <Slider
-          style={{ width: '30%' }}
-          size="small"
-          value={editorFontSize}
-          onChange={(_, value) => {
-            setEditorFontSize(value as number);
-          }}
-          min={12}
-          max={25}
-        ></Slider>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
@@ -478,7 +458,7 @@ function SettingComp(props: { children }) {
         setSetting(x);
         // why new a object because of js is a dynamic language
         // UserSettings maybe have no value on store
-        document.documentElement.style.fontSize = x.rootFontSize + 'px';
+        document.documentElement.style.fontSize = x.fontSize + 'px';
       })
       .catch((e) => {
         alert(`list user settings failed ${e.toString()}`);
