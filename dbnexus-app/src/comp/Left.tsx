@@ -439,8 +439,8 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
           showCellVerticalBorder
           showColumnVerticalBorder
           slotProps={slotProps}
-          rowHeight={setting.datagridRowHeight}
-          columnHeaderHeight={setting.datagridHeaderHeight}
+          rowHeight={setting.datagridRowHeight()}
+          columnHeaderHeight={setting.datagridRowHeight()}
           columns={cols}
           rows={conns}
           onColumnResize={onColumnResize}
@@ -781,8 +781,8 @@ function FavoriteSqlList(props: { handleClose }) {
           showCellVerticalBorder
           showColumnVerticalBorder
           slotProps={slotProps}
-          rowHeight={setting.datagridRowHeight}
-          columnHeaderHeight={setting.datagridHeaderHeight}
+          rowHeight={setting.datagridRowHeight()}
+          columnHeaderHeight={setting.datagridRowHeight()}
           columns={columns}
           rows={sqls}
           onColumnResize={onColumnResize}

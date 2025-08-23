@@ -36,8 +36,6 @@ function ModifySettings({ handleClose }) {
   const [pageSize, setPageSize] = useState(0);
   const [fontWeight, setFontWeight] = useState('normal');
   const [rootFontSize, setRootFontSize] = useState(16);
-  const [datagridRowHeight, setDatagridRowHeight] = useState(24);
-  const [datagridHeaderHeight, setDatagridHeaderHeight] = useState(30);
   const [editorOptions, setEditorOptions] = useState('{\n}');
   const [showEditorOptions, setShowEditorOptions] = useState(false);
   const reload = async () => {
@@ -46,8 +44,6 @@ function ModifySettings({ handleClose }) {
       setPageSize(settings.pageSize);
       setFontWeight(settings.fontWeight);
       setRootFontSize(settings.fontSize);
-      setDatagridRowHeight(settings.datagridRowHeight);
-      setDatagridHeaderHeight(settings.datagridHeaderHeight);
       const content = JSON.stringify(settings.editorOption, null, 2);
       if (content) {
         setEditorOptions(content);
@@ -76,8 +72,6 @@ function ModifySettings({ handleClose }) {
           fontWeight,
           pageSize,
           fontSize: rootFontSize,
-          datagridRowHeight,
-          datagridHeaderHeight,
           editorOption: JSON.parse(editorOptions),
         } as UserSettings)
       )
@@ -132,38 +126,7 @@ function ModifySettings({ handleClose }) {
           max={25}
         ></Slider>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          table header height:
-        </Typography>
-        <Chip label={datagridHeaderHeight} />
-        <Slider
-          style={{ width: '30%' }}
-          size="small"
-          value={datagridHeaderHeight}
-          onChange={(_, value) => {
-            setDatagridHeaderHeight(value as number);
-          }}
-          min={15}
-          max={50}
-        ></Slider>
-      </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          table row height:
-        </Typography>
-        <Chip label={datagridRowHeight} />
-        <Slider
-          style={{ width: '30%' }}
-          size="small"
-          value={datagridRowHeight}
-          onChange={(_, value) => {
-            setDatagridRowHeight(value as number);
-          }}
-          min={15}
-          max={50}
-        ></Slider>
-      </Stack>
+
       <Stack spacing={1}>
         <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
           <Tooltip

@@ -409,8 +409,8 @@ function ColumnsContent(props: { uuid: string; view: string }) {
             onColumnResize={onColumnResize}
             showCellVerticalBorder
             showColumnVerticalBorder
-            rowHeight={setting.datagridRowHeight}
-            columnHeaderHeight={setting.datagridHeaderHeight}
+            rowHeight={setting.datagridRowHeight()}
+            columnHeaderHeight={setting.datagridRowHeight()}
             columns={cols}
             rows={fields}
           ></DataGrid>

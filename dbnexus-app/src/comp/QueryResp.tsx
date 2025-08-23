@@ -192,8 +192,8 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
               showCellVerticalBorder
               showColumnVerticalBorder
               slotProps={slotProps}
-              rowHeight={setting.datagridRowHeight}
-              columnHeaderHeight={setting.datagridHeaderHeight}
+              rowHeight={setting.datagridRowHeight()}
+              columnHeaderHeight={setting.datagridRowHeight()}
               columns={data.fields}
               rows={data.data}
               filterMode="client" // 使用客户端过滤
