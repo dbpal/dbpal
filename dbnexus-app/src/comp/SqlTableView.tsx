@@ -1003,6 +1003,7 @@ function SqlTableViewData(props: {
     }
     for (const key in args) {
       if (!args[key]) {
+        // make sure '' convert to null
         args[key] = null;
       }
     }

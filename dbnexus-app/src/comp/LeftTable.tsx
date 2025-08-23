@@ -182,7 +182,6 @@ function TableTree(props: {
         <Stack
           direction="row"
           spacing={1}
-          style={{ fontWeight: 'bold' }}
           justifyContent="space-between"
           onContextMenu={(e) => {
             setUpMenu({

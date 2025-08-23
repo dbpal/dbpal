@@ -496,7 +496,7 @@ type UISize = {
   width?: number;
   height?: number;
 };
-const gridStyle = { height: 'auto', maxHeight: '85vh', minHeight: "24vh" } as CSSProperties;
+const gridStyle = { height: 'auto', maxHeight: '80vh', minHeight: "20vh" } as CSSProperties;
 
 function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "both" = "both") {
   let e = new ResizeObserver((en) => {
@@ -611,7 +611,7 @@ class UserSettings {
 }
 
 const SettingContext = createContext<UserSettings>(null);
-const appFontWeight = "560";
+const appFontWeight = '510';
 const windowFocusChangeEvent = "window-focus-change-event";
 const WindowFocusChangeContext = createContext(true);
 export {

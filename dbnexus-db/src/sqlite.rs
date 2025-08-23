@@ -1429,6 +1429,9 @@ mod tests {
             .show_table("Persons", None, None, 1, 100, None)
             .await
             .unwrap();
+        for c in r.fields.iter() {
+            println!("{:?}", c);
+        }
         for d in r.data.iter() {
             println!("{:?}", d);
         }
