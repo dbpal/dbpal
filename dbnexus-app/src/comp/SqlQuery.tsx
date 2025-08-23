@@ -509,14 +509,29 @@ function SqlQuery(props: {
     if (vis && conn) {
       console.log('SqlQuery setQueryId', conn.queryId);
       invoke('set_auto_completion_query_id', { queryId: conn.queryId })
-        .then(() => {
-          console.log('set ok');
-        })
+        .then(() => {})
         .catch((e) => {
           console.log('set auto completion id failed,err:{}', e);
         });
     }
   }, [vis, conn]);
+
+  const keyEscCancelQueryLog = useCallback(
+    (e) => {
+      if (e.key === 'Escape' && vis && showQueryLog) {
+        setShowQueryLog(false);
+        e.preventDefault();
+      }
+    },
+    [vis, showQueryLog]
+  );
+
+  useEffect(() => {
+    document.addEventListener('keydown', keyEscCancelQueryLog);
+    return () => {
+      document.removeEventListener('keydown', keyEscCancelQueryLog);
+    };
+  }, [keyEscCancelQueryLog]);
   return (
     //@ts-ignore
     <SplitPane
@@ -534,11 +549,6 @@ function SqlQuery(props: {
           display: 'flex',
           flexDirection: 'column',
           width: '100%',
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            setShowQueryLog(false);
-          }
         }}
       >
         {/* // here is query log use absolute position to locate. */}
@@ -564,6 +574,9 @@ function SqlQuery(props: {
               </IconButton>
               <Tooltip title="double click to open code editor" arrow>
                 <BsFillLightbulbFill />
+              </Tooltip>
+              <Tooltip title="esc can close query log too" arrow>
+                <span>esc</span>
               </Tooltip>
             </Stack>
             <QueryLog uuid={language} logs={queryLogs}></QueryLog>
@@ -750,13 +763,7 @@ function SqlQuery(props: {
         <EditorBar pos={pos}></EditorBar>
       </div>
 
-      <div
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            setShowQueryLog(false);
-          }
-        }}
-      >
+      <div>
         <MultiQueryResp data={resp}></MultiQueryResp>
 
         {showExport && (

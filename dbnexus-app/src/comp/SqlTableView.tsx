@@ -1058,9 +1058,8 @@ function SqlTableViewData(props: {
                 fullWidth
                 onChange={(e) => {
                   const value = e.target.value;
-                  const v = value ? value : null;
                   let newArgs = { ...args };
-                  newArgs[f.field] = v;
+                  newArgs[f.field] = value;
                   setArgs(newArgs);
                 }}
               ></TextField>

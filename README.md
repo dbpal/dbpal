@@ -10,15 +10,13 @@ pnpm run dev
 cargo r
 
 
-{
-  _id: '688f567bd7730d0bb2f3911d' as ObjectID,
-  name: 123  ff
-} 
-
-这个错误提示不对呢 
-
+ 
 
  
+
+~~~
+
+
  SELECT *
 FROM V$RESERVED_WORDS;
 
@@ -33,4 +31,6 @@ PostgreSQL 外部表（Foreign Table） 是 “看起来像本地表，实际数
 你可以对它做 SELECT、JOIN、INSERT、UPDATE、DELETE，但数据不保存在 PostgreSQL 本地，而是由外部数据源（另一个数据库、文件、对象存储、API…）实时提供。
 
 拉oracle数据库要用美国的代理
-~~~
+
+
+current_timestamp 这种值要怎么放入sql 要特殊处理呢
