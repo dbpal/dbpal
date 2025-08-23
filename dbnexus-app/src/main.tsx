@@ -28,7 +28,7 @@ async function setZoom(out: boolean) {
     zoom = 1;
   }
   const min = 0.5;
-  const max = 2.5;
+  const max = 1.5;
   if (out) {
     zoom += 0.1;
     if (zoom > max) {

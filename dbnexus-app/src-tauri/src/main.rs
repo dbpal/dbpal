@@ -206,7 +206,6 @@ fn main_() {
                             &PredefinedMenuItem::redo(handle, None)?,
                         ],
                     )?,
-                    #[cfg(any(target_os = "windows", target_os = "macos"))]
                     &Submenu::with_items(
                         handle,
                         "window",
