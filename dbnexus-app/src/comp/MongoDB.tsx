@@ -293,6 +293,7 @@ function MongoBsonEditor(props: {
     return {
       readOnly: !setOP,
       fontSize: setting.editorFontSize,
+      fontWeight: setting.fontWeight,
       ...setting.editorOption,
     };
   }, [setting]);

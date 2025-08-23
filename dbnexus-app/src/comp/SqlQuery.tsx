@@ -475,6 +475,7 @@ function SqlQuery(props: {
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
       fontSize: setting.editorFontSize,
+      fontWeight: setting.fontWeight,
       ...setting.editorOption,
     };
   }, [setting]);
