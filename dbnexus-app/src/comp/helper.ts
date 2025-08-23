@@ -585,6 +585,8 @@ class UserSettings {
   rootFontSize: number = 15;
   datagridRowHeight: number = 24;
   datagridHeaderHeight: number = 30;
+  fontWeight: string = 'normal';
+
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
   editorTheme(): string {
     return this.theme === 'dark' ? 'vs-dark' : 'light';
@@ -609,9 +611,7 @@ class UserSettings {
   }
 
 }
-
 const SettingContext = createContext<UserSettings>(null);
-const appFontWeight = '510';
 const windowFocusChangeEvent = "window-focus-change-event";
 const WindowFocusChangeContext = createContext(true);
 export {
@@ -647,7 +647,6 @@ export {
   quoteStyle,
   saveAndSetSize,
   SaveSizesToStore,
-  appFontWeight,
   DocsAndCount,
   MongoTableHandler,
   UserSettings,

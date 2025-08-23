@@ -18,12 +18,7 @@ import {
   MongoDBQuery,
   BsonExtraDataType,
 } from './MongoQueryBackend';
-import {
-  appFontWeight,
-  generateRandomString,
-  saveAndSetSize,
-  SettingContext,
-} from './helper';
+import { generateRandomString, saveAndSetSize, SettingContext } from './helper';
 import {
   EditorBar,
   EscDownEvent,
@@ -263,7 +258,7 @@ function MongoQuery(props: {
       <Chip
         color="info"
         label=" logger"
-        style={{ fontWeight: appFontWeight, fontSize: '1.2rem' }}
+        style={{ fontSize: '1.2rem' }}
         size="small"
       />
       <div

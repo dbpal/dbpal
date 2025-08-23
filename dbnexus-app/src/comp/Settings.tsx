@@ -12,6 +12,7 @@ import {
   Modal,
   Slider,
   Stack,
+  TextField,
   Theme,
   ThemeProvider,
   Tooltip,
@@ -27,20 +28,14 @@ import {
 } from './Common';
 import { ModalHeader, SelectPageSize } from './CommonComp';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import {
-  appFontWeight,
-  JsonError,
-  SettingContext,
-  UserSettings,
-  validJson,
-} from './helper';
+import { JsonError, SettingContext, UserSettings, validJson } from './helper';
 import { Position } from 'monaco-editor';
 
 function ModifySettings({ handleClose }) {
   const { showNotification } = useContext(NotificationContext);
 
   const [pageSize, setPageSize] = useState(0);
-  const [theme, setTheme] = useState('');
+  const [fontWeight, setFontWeight] = useState('normal');
   const [editorFontSize, setEditorFontSize] = useState(18);
   const [rootFontSize, setRootFontSize] = useState(16);
   const [datagridRowHeight, setDatagridRowHeight] = useState(24);
@@ -51,7 +46,7 @@ function ModifySettings({ handleClose }) {
     try {
       let settings = await UserSettings.get();
       setPageSize(settings.pageSize);
-      setTheme(settings.theme);
+      setFontWeight(settings.fontWeight);
       setEditorFontSize(settings.editorFontSize);
       setRootFontSize(settings.rootFontSize);
       setDatagridRowHeight(settings.datagridRowHeight);
@@ -68,7 +63,7 @@ function ModifySettings({ handleClose }) {
   useEffect(() => {
     reload();
   }, []);
-
+  const s = useContext(SettingContext);
   const handleSave = async () => {
     try {
       await validJson(editorOptions);
@@ -80,7 +75,8 @@ function ModifySettings({ handleClose }) {
       .set(
         AppStoreKey.UserSetttings,
         UserSettings.merge({
-          theme,
+          theme: s.theme, // theme not depend on setting
+          fontWeight,
           pageSize,
           editorFontSize,
           rootFontSize,
@@ -114,25 +110,15 @@ function ModifySettings({ handleClose }) {
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
-          theme:
+          font weight:
         </Typography>
-        <Chip
-          label="light"
-          disabled={theme == 'light'}
-          onClick={() => {
-            setTheme('light');
+        <TextField
+          value={fontWeight}
+          onChange={(e) => {
+            setFontWeight(e.target.value);
           }}
-          color="info"
-        ></Chip>
-
-        <Chip
-          label="dark"
-          disabled={theme == 'dark'}
-          onClick={() => {
-            setTheme('dark');
-          }}
-          color="info"
-        ></Chip>
+          size="small"
+        ></TextField>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
@@ -341,157 +327,145 @@ function EditorOptions(props: {
   );
 }
 
-const components: Components<
-  Omit<Theme, 'components' | 'palette'> & CssVarsTheme
-> = {
-  MuiButton: {
-    styleOverrides: {
-      root: {
-        fontSize: '1rem',
-        padding: '2px  4px',
-        textTransform: 'none',
-        fontWeight: appFontWeight,
-      },
-    },
-  },
-  MuiIconButton: {
-    styleOverrides: {
-      root: {
-        fontSize: '1rem',
-        padding: '2px 4px',
-        textTransform: 'none',
-      },
-    },
-  },
-  MuiMenuItem: {
-    styleOverrides: {
-      root: {
-        height: '1.6rem',
-        fontSize: '1rem',
-      },
-    },
-  },
-  MuiAlert: {
-    styleOverrides: {
-      root: {
-        fontWeight: appFontWeight,
-      },
-    },
-  },
-  MuiTooltip: {
-    styleOverrides: {
-      tooltip: {
-        fontSize: '0.9rem',
-      },
-      arrow: true,
-    },
-  },
-  MuiAlertTitle: {
-    styleOverrides: {
-      root: {
-        fontWeight: appFontWeight,
-      },
-    },
-  },
-  //@ts-ignore
-  MuiDataGrid: {
-    styleOverrides: {
-      root: {
-        '& .MuiDataGrid-columnHeaderTitle': {
-          fontWeight: appFontWeight,
-        },
-      },
-      cell: {
-        fontSize: '1rem',
-      },
-      columnHeaders: {
-        fontSize: '0.9rem',
-        boxShadow: '0 2px 4px',
-      },
-    },
-  },
-  MuiMenuList: {
-    styleOverrides: {
-      root: {
-        padding: '0px',
-      },
-    },
-  },
-  MuiTextField: {
-    styleOverrides: {
-      root: {
-        '& .MuiInputBase-input': {
+function makeComponents(appFontWeight) {
+  const components: Components<
+    Omit<Theme, 'components' | 'palette'> & CssVarsTheme
+  > = {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          fontSize: '1rem',
+          padding: '2px  4px',
+          textTransform: 'none',
           fontWeight: appFontWeight,
         },
       },
     },
-  },
-  MuiChip: {
-    styleOverrides: {
-      root: {
-        fontSize: '1rem',
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          fontSize: '1rem',
+          padding: '2px 4px',
+          textTransform: 'none',
+        },
+      },
+    },
+    MuiMenuItem: {
+      styleOverrides: {
+        root: {
+          height: '1.6rem',
+          fontSize: '1rem',
+        },
+      },
+    },
+    MuiAlert: {
+      styleOverrides: {
+        root: {
+          fontWeight: appFontWeight,
+        },
+      },
+    },
+    MuiTooltip: {
+      styleOverrides: {
+        tooltip: {
+          fontSize: '0.9rem',
+        },
+        arrow: true,
+      },
+    },
+    MuiAlertTitle: {
+      styleOverrides: {
+        root: {
+          fontWeight: appFontWeight,
+        },
+      },
+    },
+    //@ts-ignore
+    MuiDataGrid: {
+      styleOverrides: {
+        root: {
+          '& .MuiDataGrid-columnHeaderTitle': {
+            fontWeight: appFontWeight,
+          },
+        },
+        cell: {
+          fontSize: '1rem',
+        },
+        columnHeaders: {
+          fontSize: '0.9rem',
+          boxShadow: '0 2px 4px',
+        },
+      },
+    },
+    MuiMenuList: {
+      styleOverrides: {
+        root: {
+          padding: '0px',
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          '& .MuiInputBase-input': {
+            fontWeight: appFontWeight,
+          },
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          fontSize: '1rem',
+          fontWeight: appFontWeight,
+        },
+      },
+    },
+    MuiTab: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+        },
+      },
+    },
+  };
+  return components;
+}
+
+const lightTheme = (appFontWeight) => {
+  return createTheme({
+    typography: {
+      allVariants: {
         fontWeight: appFontWeight,
       },
     },
-  },
-  MuiTab: {
-    styleOverrides: {
-      root: {
-        textTransform: 'none',
+    palette: {
+      mode: 'light',
+      background: {
+        default: '#d6d6d6',
+        paper: '#d6d6d6',
       },
     },
-  },
+    components: makeComponents(appFontWeight),
+  });
 };
 
-const lightTheme = createTheme({
-  typography: {
-    allVariants: {
-      fontWeight: appFontWeight,
+const darkTheme = (appFontWeight) => {
+  return createTheme({
+    typography: {
+      allVariants: {
+        fontWeight: appFontWeight,
+      },
     },
-  },
-  palette: {
-    mode: 'light',
-    background: {
-      default: '#d6d6d6',
-      paper: '#d6d6d6',
+    palette: {
+      mode: 'dark',
+      background: {
+        default: '#292929',
+        paper: '#292929',
+      },
     },
-  },
-  components,
-});
-
-//@ts-ignore
-lightTheme.components.MuiDataGrid.styleOverrides.row = {
-  // '&:nth-of-type(odd)': {
-  //   backgroundColor: '#ffffff', // 浅色模式的奇数行背景色
-  // },
-  // '&:nth-of-type(even)': {
-  //   backgroundColor: '#d0d0d0', // 浅色模式的偶数行背景色
-  // },
-};
-
-const darkTheme = createTheme({
-  typography: {
-    allVariants: {
-      fontWeight: appFontWeight,
-    },
-  },
-  palette: {
-    mode: 'dark',
-    background: {
-      default: '#292929',
-      paper: '#292929',
-    },
-  },
-  components,
-});
-//@ts-ignore
-darkTheme.components.MuiDataGrid.styleOverrides.row = {
-  // '&:nth-of-type(odd)': {
-  //   backgroundColor: '#00000', // 深色模式的奇数行背景色
-  // },
-  // '&:nth-of-type(even)': {
-  //   backgroundColor: '#2f2f2f', // 深色模式的偶数行背景色
-  // },
+    components: makeComponents(appFontWeight),
+  });
 };
 
 function SettingComp(props: { children }) {
@@ -523,7 +497,13 @@ function SettingComp(props: { children }) {
     reload();
   }, []);
   return (
-    <ThemeProvider theme={!isDark ? lightTheme : darkTheme}>
+    <ThemeProvider
+      theme={
+        !isDark
+          ? lightTheme(setting && setting.fontWeight)
+          : darkTheme(setting && setting.fontWeight)
+      }
+    >
       <CssBaseline />
       <SettingContext.Provider value={setting}>
         {children}

@@ -39,7 +39,6 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import {
-  appFontWeight,
   appStore,
   AppStoreKey,
   calMenuStyle,
@@ -488,7 +487,7 @@ function ModalHeader(props: { title: string }) {
         style={{
           textTransform: 'capitalize',
           paddingBottom: '0.3rem',
-          fontWeight: appFontWeight,
+          fontWeight: '550',
         }}
       >
         {title}

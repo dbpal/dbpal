@@ -51,7 +51,6 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import { FaArrowsAltV } from 'react-icons/fa';
 import {
-  appFontWeight,
   calMenuStyle,
   columnWidths,
   ContextMenuContext,
@@ -1153,7 +1152,7 @@ function Menu(props: {
   let quoteField = `${quoteStyle}${field}${quoteStyle}`;
   return (
     <div>
-      <MenuList style={{ fontWeight: appFontWeight }}>
+      <MenuList>
         {addOP && (
           <MenuItem
             onClick={() => {
@@ -1390,7 +1389,7 @@ function FilterOnValue(props: {
         >
           set
         </Button>
-        <Typography color="success" fontWeight={appFontWeight}>
+        <Typography color="success">
           <em> {where()} </em>
         </Typography>
       </Stack>
