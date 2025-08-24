@@ -173,7 +173,11 @@ function ModifySettings({ handleClose }) {
                 }
               })
               .map((e) => {
-                return <MenuItem value={e}> {e}</MenuItem>;
+                return (
+                  <MenuItem style={{ fontFamily: e }} value={e}>
+                    {e}
+                  </MenuItem>
+                );
               })}
           </Select>
         </FormControl>
