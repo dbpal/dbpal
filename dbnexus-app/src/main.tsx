@@ -93,14 +93,17 @@ appWindow.onFocusChanged((x) => {
   emit(windowFocusChangeEvent, x.payload);
 });
 
-appWindow.theme().then(async (theme) => {
-  if (!theme) {
-    return;
-  }
-  let set = await UserSettings.get();
-  set.theme = theme;
-  appStore.set(AppStoreKey.UserSetttings, set);
-});
+if (!debugBuild) {
+  appWindow.theme().then(async (theme) => {
+    if (!theme) {
+      return;
+    }
+    let set = await UserSettings.get();
+    set.theme = theme;
+    appStore.set(AppStoreKey.UserSetttings, set);
+  });
+}
+
 appWindow.onThemeChanged(async (msg) => {
   let set = await UserSettings.get();
   set.theme = msg.payload;

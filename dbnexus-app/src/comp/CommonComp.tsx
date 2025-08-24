@@ -487,7 +487,7 @@ function ModalHeader(props: { title: string }) {
         style={{
           textTransform: 'capitalize',
           paddingBottom: '0.3rem',
-          fontWeight: '550',
+          fontWeight: 'bold',
         }}
       >
         {title}

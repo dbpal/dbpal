@@ -304,7 +304,7 @@ export default function MainPage() {
                     setShowSetting(false);
                   }}
                 >
-                  <Box sx={modalStyle} width="55%">
+                  <Box sx={modalStyle} width="70%">
                     <ModalHeader title="Modify Settings"></ModalHeader>
                     <ModifySettings
                       handleClose={() => {
