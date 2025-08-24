@@ -793,23 +793,20 @@ function SqlTableView_(props: {
         )}
       </Stack>
 
-      <Stack
-        direction="row"
-        spacing={1}
-        sx={{ alignItems: 'center', justifyContent: 'space-between' }}
-      >
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
         <Typography
           sx={{
             cursor: 'pointer',
             fontSize: '0.9rem',
             fontStyle: 'italic',
             color: 'green',
-            maxWidth: '50%',
+            width: '100px',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             lineHeight: 1.2,
             height: '1.2rem',
+            flex: 1,
           }}
           variant="body1"
           onClick={() => {
@@ -819,7 +816,13 @@ function SqlTableView_(props: {
           {resp.sql}
         </Typography>
 
-        <Stack direction="row" spacing={1}>
+        <Stack
+          direction="row"
+          spacing={1}
+          style={{
+            justifyContent: 'flex-end',
+          }}
+        >
           <Tooltip title="query time" arrow>
             <Chip
               color="default"
