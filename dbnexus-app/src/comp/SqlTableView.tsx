@@ -804,8 +804,6 @@ function SqlTableView_(props: {
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            lineHeight: 1.2,
-            height: '1.2rem',
             flex: 1,
           }}
           variant="body1"
