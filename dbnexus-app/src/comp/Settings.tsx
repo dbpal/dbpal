@@ -63,6 +63,8 @@ function ModifySettings({ handleClose }) {
       setPageSize(settings.pageSize);
       setFontWeight(settings.fontWeight);
       setRootFontSize(settings.fontSize);
+      setFontFamily(settings.fontFamily);
+
       const content = JSON.stringify(settings.editorOption, null, 2);
       if (content) {
         setEditorOptions(content);
