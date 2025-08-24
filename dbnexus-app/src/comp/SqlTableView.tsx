@@ -798,22 +798,27 @@ function SqlTableView_(props: {
         spacing={1}
         sx={{ alignItems: 'center', justifyContent: 'space-between' }}
       >
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-          <Typography
-            sx={{
-              cursor: 'pointer',
-              fontSize: '0.9rem',
-              fontStyle: 'italic',
-              color: 'success',
-            }}
-            variant="body1"
-            onClick={() => {
-              handleCopyToClipboard(resp.sql, showNotification);
-            }}
-          >
-            {resp.sql}
-          </Typography>
-        </Stack>
+        <Typography
+          sx={{
+            cursor: 'pointer',
+            fontSize: '0.9rem',
+            fontStyle: 'italic',
+            color: 'green',
+            maxWidth: '50%',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            lineHeight: 1.2,
+            height: '1.2rem',
+          }}
+          variant="body1"
+          onClick={() => {
+            handleCopyToClipboard(resp.sql, showNotification);
+          }}
+        >
+          {resp.sql}
+        </Typography>
+
         <Stack direction="row" spacing={1}>
           <Tooltip title="query time" arrow>
             <Chip
