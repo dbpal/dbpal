@@ -623,7 +623,11 @@ function RedisValueEditor(props: {
   return (
     <Stack spacing={1} flex={1} style={{ background: '1px solod red' }}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
-        <Typography variant="h6" color="info" style={{ fontWeight: 'bold' }}>
+        <Typography
+          variant="h6"
+          color="info"
+          style={{ fontWeight: 'bold', textDecoration: 'underline' }}
+        >
           {header}
         </Typography>
         <RedisEditModeSelect

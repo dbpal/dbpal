@@ -166,6 +166,9 @@ function ModifySettings({ handleClose }) {
             onChange={(e) => setFontFamily(e.target.value as string)}
             style={{ fontFamily: fontFamily }}
           >
+            <MenuItem style={{ fontFamily: undefined }} value="">
+              default
+            </MenuItem>
             {allFonts
               .filter((e) => {
                 if (fontMatch) {
