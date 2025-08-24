@@ -584,13 +584,14 @@ class UserSettings {
   pageSize: number = 100;
   fontSize: number = 15;
   fontWeight: string = 'normal';
+  fontFamily: string = undefined;
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
   editorTheme(): string {
     return this.theme === 'dark' ? 'vs-dark' : 'light';
   }
 
   datagridRowHeight() {
-    return Math.ceil(this.fontSize * 1.5)
+    return Math.ceil(this.fontSize * 1.8)
   }
   static merge(x: object): UserSettings {
     if (!x) {

@@ -294,6 +294,7 @@ function MongoBsonEditor(props: {
       readOnly: !setOP,
       fontSize: setting.fontSize,
       fontWeight: setting.fontWeight,
+      fontFamily: setting.fontFamily,
       ...setting.editorOption,
     };
   }, [setting]);

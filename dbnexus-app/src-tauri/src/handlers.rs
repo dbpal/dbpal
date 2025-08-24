@@ -43,6 +43,14 @@ pub fn has_entered_password(
 }
 
 #[tauri::command]
+pub async fn fonts_all_families() -> Result<Vec<String>, ErrorFrontend> {
+    let source = font_kit::source::SystemSource::new();
+    let fonts: Result<Vec<String>, font_kit::error::SelectionError> = source.all_families();
+    let x = if let Ok(font) = fonts { font } else { vec![] };
+    Ok(x)
+}
+
+#[tauri::command]
 pub async fn save_entered_password(
     app: tauri::State<'_, App>, mut conn: DBConnectionConfig, name: String, pass: String,
 ) -> Result<(), ErrorFrontend> {

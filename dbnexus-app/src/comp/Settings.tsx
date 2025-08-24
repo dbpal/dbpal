@@ -9,7 +9,11 @@ import {
   CssBaseline,
   CssVarsTheme,
   Divider,
+  FormControl,
+  InputLabel,
+  MenuItem,
   Modal,
+  Select,
   Slider,
   Stack,
   TextField,
@@ -30,6 +34,7 @@ import { ModalHeader, SelectPageSize } from './CommonComp';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { JsonError, SettingContext, UserSettings, validJson } from './helper';
 import { Position } from 'monaco-editor';
+import { invoke } from '@tauri-apps/api/core';
 
 function ModifySettings({ handleClose }) {
   const { showNotification } = useContext(NotificationContext);
@@ -38,6 +43,20 @@ function ModifySettings({ handleClose }) {
   const [rootFontSize, setRootFontSize] = useState(16);
   const [editorOptions, setEditorOptions] = useState('{\n}');
   const [showEditorOptions, setShowEditorOptions] = useState(false);
+  const [fontFamily, setFontFamily] = useState<string>('');
+  const [allFonts, setAllFonts] = useState<string[]>([]);
+  const [fontMatch, setFontMatch] = useState<string>('');
+
+  useEffect(() => {
+    invoke<string[]>('fonts_all_families', {})
+      .then((fonts) => {
+        setAllFonts(fonts);
+      })
+      .catch((e) => {
+        showNotification('error', 'list all fonts failed', e);
+      });
+  }, []);
+
   const reload = async () => {
     try {
       let settings = await UserSettings.get();
@@ -72,6 +91,7 @@ function ModifySettings({ handleClose }) {
           fontWeight,
           pageSize,
           fontSize: rootFontSize,
+          fontFamily,
           editorOption: JSON.parse(editorOptions),
         } as UserSettings)
       )
@@ -83,8 +103,8 @@ function ModifySettings({ handleClose }) {
         showNotification('success', 'Save Setting Failure', e);
       });
   };
-
   const headerSize = '30%';
+
   return (
     <Stack spacing={1}>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
@@ -125,6 +145,47 @@ function ModifySettings({ handleClose }) {
           min={12}
           max={25}
         ></Slider>
+      </Stack>
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography
+          width={headerSize}
+          style={{ fontFamily: fontFamily }}
+          textAlign="right"
+        >
+          font family:
+        </Typography>
+
+        <FormControl style={{ width: '40%' }}>
+          <InputLabel>font family</InputLabel>
+          <Select
+            size="small"
+            value={fontFamily}
+            label="font family"
+            onChange={(e) => setFontFamily(e.target.value as string)}
+            style={{ fontFamily: fontFamily }}
+          >
+            {allFonts
+              .filter((e) => {
+                if (fontMatch) {
+                  return e.toLowerCase().includes(fontMatch.toLowerCase());
+                } else {
+                  return true;
+                }
+              })
+              .map((e) => {
+                return <MenuItem value={e}> {e}</MenuItem>;
+              })}
+          </Select>
+        </FormControl>
+        <TextField
+          size="small"
+          label="match font"
+          value={fontMatch}
+          style={{ fontFamily: fontFamily }}
+          onChange={(e) => {
+            setFontMatch(e.target.value);
+          }}
+        ></TextField>
       </Stack>
 
       <Stack spacing={1}>
@@ -375,12 +436,13 @@ function makeComponents(appFontWeight) {
   return components;
 }
 
-const lightTheme = (appFontWeight) => {
+const lightTheme = (appFontWeight, fontFamily) => {
   return createTheme({
     typography: {
       allVariants: {
         fontWeight: appFontWeight,
       },
+      fontFamily,
     },
     palette: {
       mode: 'light',
@@ -393,12 +455,13 @@ const lightTheme = (appFontWeight) => {
   });
 };
 
-const darkTheme = (appFontWeight) => {
+const darkTheme = (appFontWeight, fontFamily) => {
   return createTheme({
     typography: {
       allVariants: {
         fontWeight: appFontWeight,
       },
+      fontFamily,
     },
     palette: {
       mode: 'dark',
@@ -443,8 +506,14 @@ function SettingComp(props: { children }) {
     <ThemeProvider
       theme={
         !isDark
-          ? lightTheme(setting && setting.fontWeight)
-          : darkTheme(setting && setting.fontWeight)
+          ? lightTheme(
+              setting && setting.fontWeight,
+              setting && setting.fontFamily
+            )
+          : darkTheme(
+              setting && setting.fontWeight,
+              setting && setting.fontFamily
+            )
       }
     >
       <CssBaseline />

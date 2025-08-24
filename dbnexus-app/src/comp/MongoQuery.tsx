@@ -147,6 +147,7 @@ function MongoQuery(props: {
     return {
       fontSize: setting.fontSize,
       fontWeight: setting.fontWeight,
+      fontFamily: setting.fontFamily,
       ...setting.editorOption,
     };
   }, [setting]);

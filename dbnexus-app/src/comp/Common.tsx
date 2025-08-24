@@ -413,6 +413,7 @@ function SimpleFlexSizeEditor(props: {
       //@ts-ignore
       wordWrap: wordWrap,
       fontWeight: setting.fontWeight,
+      fontFamily: setting.fontFamily,
       readOnly,
       ...setting.editorOption,
     };
