@@ -1,11 +1,13 @@
 import { types } from './ApiStruct.ts';
 import {
   Alert,
+  Box,
   Divider,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
+  Modal,
   Stack,
   Tab,
   Tabs,
@@ -22,6 +24,7 @@ import {
   resetMuiDataRespWidth,
   SettingContext,
   gridStyle,
+  saveAndSetSize,
 } from './helper.ts';
 import {
   DataGrid,
@@ -37,21 +40,27 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { keyNotInTable } from './Common.tsx';
+import { EscDownEvent, keyNotInTable, modalStyle } from './Common.tsx';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification.tsx';
-import { MenuResetColumnWidths } from './CommonComp.tsx';
-
+import {
+  MenuResetColumnWidths,
+  ModalHeader,
+  ViewRowInModal,
+} from './CommonComp.tsx';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 function RespContextMenu(props: {
   content;
   field;
   setSort;
   resetColunmWidthCallBack;
+  viewInModal;
 }) {
-  const { content, field, setSort, resetColunmWidthCallBack } = props;
+  const { content, field, setSort, resetColunmWidthCallBack, viewInModal } =
+    props;
   const { showNotification } = useContext(NotificationContext);
   return (
     <MenuList>
@@ -77,6 +86,13 @@ function RespContextMenu(props: {
           <ContentCopyIcon></ContentCopyIcon>
         </ListItemIcon>
         <ListItemText> Copy Field </ListItemText>
+      </MenuItem>
+
+      <MenuItem onClick={viewInModal}>
+        <ListItemIcon>
+          <VisibilityIcon style={{ fontSize: '1.4rem' }}></VisibilityIcon>
+        </ListItemIcon>
+        <ListItemText> View in Modal </ListItemText>
       </MenuItem>
       <Divider></Divider>
       <MenuItem
@@ -130,6 +146,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
     });
     setData(oldData);
   }, [oldData]);
+  const [viewInModal, setViewInModal] = useState<object>(null);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
     columnWidths.saveColumnWidths(colDef.field, width);
@@ -147,11 +164,15 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
             return;
           }
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
-          let row = data.data.find((e) => e[keyNotInTable] == id);
+          let row = { ...data.data.find((e) => e[keyNotInTable] == id) };
+          delete row[keyNotInTable];
           let content = row[field];
           setUpMenu({
             content: (
               <RespContextMenu
+                viewInModal={() => {
+                  setViewInModal(row);
+                }}
                 content={content}
                 field={field}
                 setSort={setSortModel}
@@ -173,36 +194,73 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);
   }, []);
+  const [viewInModalBox, setViewInModalBox] = useState(null);
+  useEffect(() => {
+    if (viewInModalBox) {
+      let x1 = saveAndSetSize(viewInModalBox, 'view-row-in-modal');
+      return () => {
+        x1();
+      };
+    }
+  }, [viewInModalBox]);
 
   return (
-    data && (
-      <Stack spacing={1}>
-        {data.sql && <Typography color="info">sql: {data.sql} </Typography>}
-        {vis && (
-          <div
-            style={{
-              display: 'grid',
-            }}
+    <Stack>
+      {data && (
+        <Stack spacing={1}>
+          {data.sql && <Typography color="info">sql: {data.sql} </Typography>}
+          {vis && (
+            <div
+              style={{
+                display: 'grid',
+              }}
+            >
+              <DataGrid
+                getRowId={getRowId}
+                style={gridStyle}
+                sortModel={sortModel}
+                onSortModelChange={onSortModelChange}
+                showCellVerticalBorder
+                showColumnVerticalBorder
+                slotProps={slotProps}
+                rowHeight={setting.datagridRowHeight()}
+                columnHeaderHeight={setting.datagridRowHeight()}
+                columns={data.fields}
+                rows={data.data}
+                filterMode="client" // 使用客户端过滤
+                onColumnResize={onColumnResize}
+              ></DataGrid>
+            </div>
+          )}
+        </Stack>
+      )}
+
+      {viewInModal && (
+        <Modal
+          open={!!viewInModal}
+          onClose={(e: EscDownEvent, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            e.preventDefault();
+            setViewInModal(null);
+          }}
+        >
+          <Box
+            sx={{ resize: 'both', ...modalStyle }}
+            ref={setViewInModalBox}
+            width="80%"
+            height="30vh"
           >
-            <DataGrid
-              getRowId={getRowId}
-              style={gridStyle}
-              sortModel={sortModel}
-              onSortModelChange={onSortModelChange}
-              showCellVerticalBorder
-              showColumnVerticalBorder
-              slotProps={slotProps}
-              rowHeight={setting.datagridRowHeight()}
-              columnHeaderHeight={setting.datagridRowHeight()}
-              columns={data.fields}
-              rows={data.data}
-              filterMode="client" // 使用客户端过滤
-              onColumnResize={onColumnResize}
-            ></DataGrid>
-          </div>
-        )}
-      </Stack>
-    )
+            <ModalHeader title="View Row"></ModalHeader>
+            <ViewRowInModal
+              fields={data.fields}
+              x={viewInModal}
+            ></ViewRowInModal>
+          </Box>
+        </Modal>
+      )}
+    </Stack>
   );
 }
 

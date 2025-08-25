@@ -78,6 +78,7 @@ import {
   MenuResetColumnWidths,
   ModalHeader,
   pageSizeOptions,
+  ViewRowInModal,
 } from './CommonComp';
 import { CancellationToken, editor, languages, Position } from 'monaco-editor';
 import { loader } from '@monaco-editor/react';
@@ -224,32 +225,6 @@ function WhereSort(props: {
 }
 
 var EditInModalLanguage = 'text';
-
-function ViewInModal(props: { fields: types.Field[]; x: object }) {
-  const { fields, x } = props;
-  return (
-    <Stack spacing={1}>
-      {fields.map((f) => {
-        return (
-          <Stack>
-            <Typography>{f.field}</Typography>
-            <pre
-              style={{
-                border: '2px solid',
-                borderRadius: '10px',
-                padding: '8px',
-                overflow: 'auto',
-                opacity: 0.9,
-              }}
-            >
-              {x[f.field]}
-            </pre>
-          </Stack>
-        );
-      })}
-    </Stack>
-  );
-}
 
 function EditInModal(props: { content: string; handleModify }) {
   const { content, handleModify } = props;
@@ -924,7 +899,10 @@ function SqlTableView_(props: {
             height="30vh"
           >
             <ModalHeader title="View Row"></ModalHeader>
-            <ViewInModal fields={resp.fields} x={viewInModal}></ViewInModal>
+            <ViewRowInModal
+              fields={resp.fields}
+              x={viewInModal}
+            ></ViewRowInModal>
           </Box>
         </Modal>
       )}

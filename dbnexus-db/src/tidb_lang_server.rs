@@ -109,12 +109,16 @@ impl LangServerCommon for TiDB {
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         LangServerCommon::list_view(self.db.as_ref(), schema).await
     }
+
     async fn list_function(
-        &self, _schema: Option<&str>, _include_build_in: bool,
+        &self, _schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        if !include_build_in {
+            return anyhow::Ok(vec![]);
+        }
+
         // rightnow we only support build in functions.
         let mut lock = self.build_in_fn.lock().await;
-
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }

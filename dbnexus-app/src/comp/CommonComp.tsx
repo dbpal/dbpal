@@ -545,6 +545,31 @@ function ResizeWrapper(props: {
   );
 }
 
+function ViewRowInModal(props: { fields: types.Field[]; x: object }) {
+  const { fields, x } = props;
+  return (
+    <Stack spacing={1}>
+      {fields.map((f) => {
+        return (
+          <Stack>
+            <Typography>{f.field}</Typography>
+            <pre
+              style={{
+                border: '2px solid',
+                borderRadius: '10px',
+                padding: '8px',
+                overflow: 'auto',
+                opacity: 0.9,
+              }}
+            >
+              {x[f.field]}
+            </pre>
+          </Stack>
+        );
+      })}
+    </Stack>
+  );
+}
 export {
   LogLevelSelection,
   MetaValuesView,
@@ -562,4 +587,5 @@ export {
   TrueOrFalse,
   ModalHeader,
   ResizeWrapper,
+  ViewRowInModal,
 };
