@@ -3,7 +3,7 @@ use std::ops::DerefMut;
 use crate::db::FormatSqlOpts;
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, LangServerCommon,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
     LanguageServer, LexerCompletionTrait, try_parser_and_lexer,
 };
 use crate::mssql::MsSqlServerDB;
@@ -27,6 +27,9 @@ impl LanguageServer for MsSqlServerDB {
 
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
         anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
+    }
+    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        LangServerCommon::parse_error(self, sql)
     }
 }
 

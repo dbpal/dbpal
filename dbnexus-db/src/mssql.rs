@@ -502,6 +502,9 @@ impl MsSqlServerDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for MsSqlServerDB {
+    fn list_sql_current_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::CURRENT_VALUES
+    }
     async fn create_index(
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
@@ -562,7 +565,7 @@ impl SchemaTrait for MsSqlServerDB {
     }
 
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(crate::mysql_lang_server::TYPES)
+        anyhow::Ok(crate::mysql_lang_server::MYSQL_TYPES)
     }
 
     async fn modify_table_column(
@@ -1189,13 +1192,23 @@ impl SchemaTrait for MsSqlServerDB {
         anyhow::Ok(())
     }
 }
-
+/// SQL Server 里可直接写在 SQL 语句中的 CURRENT_* / 无括号字面量
+pub const SQLSERVER_CURRENT_LITERALS: &[&str] = &[
+    "CURRENT_TIMESTAMP", //  2025-08-25 14:36:07.123
+    "CURRENT_DATE",      //  2025-08-25   （SQL Server 2022+ 支持）
+    "CURRENT_TIME",      //  14:36:07.123 （SQL Server 2022+ 支持）
+    "CURRENT_USER",      //  dbo
+];
 impl SqlBuilder for MsSqlServerDB {
+    const CURRENT_VALUES: &'static [&'static str] = SQLSERVER_CURRENT_LITERALS;
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
     fn put_value_in_sql(
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
+        if self.hit_current_value(value) {
+            return anyhow::Result::Ok(value.unwrap().to_string());
+        }
         let default_value = value.map(|x| x.to_string()).unwrap_or("null".to_string());
         let single_quote = value
             .map(|x| format!("'{}'", escape_sql_str(x)))

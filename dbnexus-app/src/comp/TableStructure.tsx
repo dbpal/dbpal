@@ -44,6 +44,8 @@ import {
   FormControl,
   FormControlLabel,
   FormLabel,
+  IconButton,
+  InputAdornment,
   InputLabel,
   ListItemIcon,
   ListItemText,
@@ -65,7 +67,7 @@ import { BSON } from 'bson';
 import { MongoValueEditor } from './MongoDB';
 import { TriggerDetail } from './TriggerDetail';
 import { ModalHeader, TrueOrFalse } from './CommonComp';
-
+import ClearIcon from '@mui/icons-material/Clear';
 function ColumnsStructure(props: {
   uuid: string;
   kind: DataSourceKind;
@@ -77,17 +79,20 @@ function ColumnsStructure(props: {
   const [fields, setFields] = useState<types.Field[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [row, setRow] = useState<types.Field>(null);
-  const supportModifyColumn =
-    kind == DataSourceKind.MariaDB ||
-    kind == DataSourceKind.MsSql ||
-    kind == DataSourceKind.Mysql ||
-    kind == DataSourceKind.Postgres ||
-    kind == DataSourceKind.Cockroach ||
-    kind == DataSourceKind.Oracle ||
-    kind == DataSourceKind.TiDB ||
-    kind == DataSourceKind.Cassandra ||
-    kind == DataSourceKind.ClickHouse ||
-    kind == DataSourceKind.DuckDB;
+  const supportModifyColumn = new Set([
+    DataSourceKind.MariaDB,
+    DataSourceKind.MsSql,
+    DataSourceKind.Mysql,
+    DataSourceKind.Postgres,
+    DataSourceKind.Cockroach,
+    DataSourceKind.Oracle,
+    DataSourceKind.TiDB,
+    DataSourceKind.Cassandra,
+    DataSourceKind.ClickHouse,
+    DataSourceKind.DuckDB,
+    DataSourceKind.Sqlite,
+    DataSourceKind.LibSql,
+  ]).has(kind);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
     columnWidths.saveColumnWidths(colDef.field, width);
@@ -263,6 +268,13 @@ function ColumnsStructure(props: {
       return c;
     }
   }, [modalBox]);
+  useEffect(() => {
+    if (row) {
+      if ([DataSourceKind.Sqlite, DataSourceKind.LibSql].includes(kind)) {
+        showNotification('error', `${kind} not support modify column`);
+      }
+    }
+  }, [row]);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
@@ -336,38 +348,39 @@ function ColumnsStructure(props: {
           </Box>
         </Modal>
       )}
-      {supportModifyColumn && row && (
-        <Modal
-          open={!!row}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
-            e.preventDefault();
-            setRow(null);
-          }}
-        >
-          <Box
-            sx={{ resize: 'horizontal', ...modalStyle }}
-            width="60%"
-            ref={setModalBox}
+      {supportModifyColumn &&
+        row &&
+        ![DataSourceKind.Sqlite, DataSourceKind.LibSql].includes(kind) && (
+          <Modal
+            open={!!row}
+            onClose={(e: EscDownEvent, reason) => {
+              if (reason === 'backdropClick') {
+                return;
+              }
+              e.preventDefault();
+              setRow(null);
+            }}
           >
-            <ModalHeader title="Modify Column"></ModalHeader>
-            <ModifyTableColumn
-              table={table}
-              uuid={uuid}
-              handleClose={() => {
-                setRow(null);
-              }}
-              col={row.field}
-              typ={row.typ}
-              reload={handleReload}
-              kind={kind}
-            ></ModifyTableColumn>
-          </Box>
-        </Modal>
-      )}
+            <Box
+              sx={{ resize: 'horizontal', ...modalStyle }}
+              width="60%"
+              ref={setModalBox}
+            >
+              <ModalHeader title="Modify Column"></ModalHeader>
+              <ModifyTableColumn
+                table={table}
+                uuid={uuid}
+                handleClose={() => {
+                  setRow(null);
+                }}
+                col={row.field}
+                typ={row.typ}
+                reload={handleReload}
+                kind={kind}
+              ></ModifyTableColumn>
+            </Box>
+          </Modal>
+        )}
     </Stack>
   );
 }
@@ -1003,7 +1016,7 @@ function TableAddColumn(props: {
         required
         inputRef={nameDom}
         onChange={(e) => {
-          setName(e.target.value);
+          setName(e.target.value.trim());
         }}
         label="column name"
       ></TextField>
@@ -1034,14 +1047,11 @@ function TableAddColumn(props: {
       )}
 
       {supportDefault && (
-        <Stack>
-          <TextField
-            size="small"
-            value={defaultValue}
-            onChange={(e) => setDefaultValue(e.target.value)}
-            label="default value"
-          ></TextField>
-        </Stack>
+        <SqlDefaultValue
+          uuid={uuid}
+          defaultValue={defaultValue}
+          setDefautlValue={setDefaultValue}
+        ></SqlDefaultValue>
       )}
 
       {supportAfter && (
@@ -1080,6 +1090,74 @@ function TableAddColumn(props: {
   );
 }
 
+function SqlDefaultValue(props: {
+  uuid: string;
+  defaultValue;
+  setDefautlValue;
+}) {
+  const { uuid, defaultValue, setDefautlValue } = props;
+  const [currentValue, setCurrentValue] = useState<string[]>([]);
+  const { showNotification } = useContext(NotificationContext);
+  useEffect(() => {
+    invoke<string[]>('list_sql_current_values', { name: uuid })
+      .then((ts) => {
+        setCurrentValue(ts);
+      })
+      .catch((e) => {
+        showNotification('error', 'list sql current values failed', e);
+      });
+  }, []);
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row">
+        <TextField
+          label="default value"
+          value={defaultValue}
+          onChange={(e) => {
+            setDefautlValue(e.target.value);
+          }}
+          fullWidth
+          size="small"
+          slotProps={{
+            input: {
+              endAdornment: defaultValue && (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="clear"
+                    onClick={() => {
+                      setDefautlValue('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+        ></TextField>
+
+        <FormControl style={{ width: '400px' }}>
+          <InputLabel>current values </InputLabel>
+          <Select
+            size="small"
+            value={defaultValue}
+            label="font family"
+            onChange={(e) => setDefautlValue(e.target.value as string)}
+          >
+            <MenuItem value="">empty </MenuItem>
+            {currentValue.map((e) => {
+              return <MenuItem value={e}>{e}</MenuItem>;
+            })}
+          </Select>
+        </FormControl>
+      </Stack>
+    </Stack>
+  );
+}
+
 function ModifyTableColumn(props: {
   uuid: string;
   table: string;
@@ -1095,9 +1173,7 @@ function ModifyTableColumn(props: {
   const [newTyp, setNewTyp] = useState(typ);
   const { showNotification } = useContext(NotificationContext);
   const [modifyType, setModifyType] = useState(false);
-
   const [nullness, setNullness] = useState('');
-
   const handleModify = () => {
     if (newName == col && !newTyp) {
       showNotification('error', 'nothing is changed');
@@ -1205,8 +1281,9 @@ function ModifyTableColumn(props: {
 
 function TableTypes(props: { handleChange; uuid }) {
   let { handleChange, uuid } = props;
-  const [types, setTypes] = useState([]);
+  const [types, setTypes] = useState<string[]>([]);
   const [show, setShow] = useState(false);
+  const [match, setMatch] = useState('');
   useEffect(() => {
     invoke<string[]>('list_data_types', { name: uuid })
       .then((ts) => {
@@ -1220,23 +1297,47 @@ function TableTypes(props: { handleChange; uuid }) {
     setShow((e) => !e);
   };
   return (
-    <Stack direction="row" spacing={1} style={{ flexWrap: 'wrap' }}>
+    <Stack
+      direction="row"
+      spacing={1}
+      style={{ flexWrap: 'wrap', alignItems: 'center' }}
+    >
       <Button onClick={toggleShow}>
         {show && <CloseIcon></CloseIcon>} all types
       </Button>
+      {show && (
+        <TextField
+          size="small"
+          style={{ width: '14rem' }}
+          label="type match"
+          value={match}
+          onChange={(e) => {
+            setMatch(e.target.value);
+          }}
+        ></TextField>
+      )}
+
       {show &&
-        types.map((t) => (
-          <Chip
-            color="info"
-            key={t}
-            style={{ margin: '1px' }}
-            size="small"
-            onClick={() => {
-              handleChange(t);
-            }}
-            label={t}
-          ></Chip>
-        ))}
+        types
+          .filter((type) => {
+            if (match) {
+              return type.toLowerCase().includes(match.toLowerCase());
+            } else {
+              return true;
+            }
+          })
+          .map((type) => (
+            <Chip
+              color="info"
+              key={type}
+              style={{ margin: '1px' }}
+              size="small"
+              onClick={() => {
+                handleChange(type);
+              }}
+              label={type}
+            ></Chip>
+          ))}
     </Stack>
   );
 }

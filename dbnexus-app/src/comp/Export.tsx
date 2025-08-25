@@ -8,7 +8,7 @@ import {
   TextField,
   Tooltip,
 } from '@mui/material';
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
 import { save } from '@tauri-apps/plugin-dialog';
@@ -16,8 +16,16 @@ import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { invoke } from '@tauri-apps/api/core';
 import { DataSourceKind } from './helper';
 import { ModalHeader } from './CommonComp';
+import { openPath } from '@tauri-apps/plugin-opener';
 
 function generateDefaultFilename(name, extension) {
+  if (extension == 'jsonline') {
+    /*
+      统一用 .jsonl（全小写，无空格）最好。
+      这是社区事实标准：GitHub、Git LFS、Apache Spark、BigQuery、Hugging Face 等生态都按 .jsonl 识别，工具链（grep、jq、ripgrep、VS Code 插件）也都默认支持。
+    */
+    extension = 'jsonl';
+  }
   // 获取当前时间
   const now = new Date();
   // 格式化时间为字符串
@@ -31,10 +39,10 @@ function ExportView(props: {
   name: string;
   exportOP: (kind: types.ExportKind, file: string) => Promise<void>;
   supportKind: string[];
-  handleClose;
+
   supportCsvHeader: boolean;
 }) {
-  const { exportOP, handleClose, supportKind, supportCsvHeader, name } = props;
+  const { exportOP, supportKind, supportCsvHeader, name } = props;
   const [kind, setKind] = useState(supportKind[0]);
   const [includeCsvHeader, setIncluCsvdeHeader] = useState(false);
   const [delimiter, setDelimiter] = useState(',');
@@ -42,7 +50,7 @@ function ExportView(props: {
   const [includeTableSchema, setIncludeTableScheam] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
-
+  const [file, setFile] = useState<string | null>(null);
   const makeConfig = (): types.ExportKind | null => {
     switch (kind) {
       case 'csv':
@@ -69,7 +77,6 @@ function ExportView(props: {
     if (!config) {
       return;
     }
-
     const file = await save({
       defaultPath: generateDefaultFilename(name, kind),
     });
@@ -85,14 +92,16 @@ function ExportView(props: {
       return;
     }
     setLoading(false);
-
     showNotification('success', 'Export OK');
-    handleClose();
+    setFile(file);
   };
 
+  useEffect(() => {
+    setFile('');
+  }, [kind]);
   return (
     <Stack spacing={1}>
-      <ModalHeader title="Export"></ModalHeader>
+      <ModalHeader title={`export ${name}`}></ModalHeader>
       <Stack direction="row" spacing={1}>
         {supportKind.map((e) => (
           <Chip
@@ -132,6 +141,7 @@ function ExportView(props: {
               }}
               label="delimiter"
               error={delimiter.length > 1}
+              helperText="only accept one character"
             ></TextField>
           </Stack>
         </Stack>
@@ -175,6 +185,23 @@ function ExportView(props: {
       {kind == 'jsonline' && <></>}
 
       <Divider></Divider>
+      {file && (
+        <Tooltip title="open file with default app,if applicable">
+          <Button
+            onClick={() => {
+              openPath(file)
+                .then((e) => {
+                  console.log('open ok', e);
+                })
+                .catch((e) => {
+                  showNotification('error', 'open export file failed', e);
+                });
+            }}
+          >
+            open
+          </Button>
+        </Tooltip>
+      )}
       <Stack>
         <Button
           onClick={async () => {
@@ -192,17 +219,28 @@ function ExportView(props: {
 }
 
 function ExportTableOrView(props: {
-  handleClose;
   uuid: string;
   name: string;
   supportKind: string[];
   kind: DataSourceKind;
 }) {
-  let { handleClose, uuid, name, supportKind, kind } = props;
-
+  let { uuid, name, supportKind, kind } = props;
+  const supportCsvSet = new Set([
+    DataSourceKind.LibSql,
+    DataSourceKind.Sqlite,
+    DataSourceKind.Postgres,
+    DataSourceKind.Cockroach,
+    DataSourceKind.Mysql,
+    DataSourceKind.MariaDB,
+    DataSourceKind.TiDB,
+    DataSourceKind.MsSql,
+    DataSourceKind.Cassandra,
+    DataSourceKind.FireBird,
+    DataSourceKind.ClickHouse,
+    DataSourceKind.Oracle,
+  ]);
   return (
     <ExportView
-      handleClose={handleClose}
       exportOP={async (kind, filepath) => {
         return await invoke('export_table_or_view', {
           name: uuid,
@@ -212,20 +250,7 @@ function ExportTableOrView(props: {
         });
       }}
       supportKind={supportKind}
-      supportCsvHeader={
-        kind == DataSourceKind.LibSql ||
-        kind == DataSourceKind.Sqlite ||
-        kind == DataSourceKind.Postgres ||
-        kind == DataSourceKind.Cockroach ||
-        kind == DataSourceKind.Mysql ||
-        kind == DataSourceKind.MariaDB ||
-        kind == DataSourceKind.TiDB ||
-        kind == DataSourceKind.MsSql ||
-        kind == DataSourceKind.Cassandra ||
-        kind == DataSourceKind.FireBird ||
-        kind == DataSourceKind.ClickHouse ||
-        kind == DataSourceKind.Oracle
-      }
+      supportCsvHeader={supportCsvSet.has(kind)}
       name={name}
     ></ExportView>
   );

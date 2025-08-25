@@ -1,7 +1,7 @@
 import { Button, Stack, Typography } from '@mui/material';
 import { useContext, useEffect, useState } from 'react';
 
-import { appStore, JsonError, validJson } from './helper';
+import { appStore, ErrAndLoc, validJson } from './helper';
 import { NotificationContext } from './Notification';
 import { SimpleFlexSizeEditor } from './Common';
 
@@ -9,7 +9,7 @@ function EditConfigFile(props: { handleClose }) {
   const { handleClose } = props;
 
   const [config, setConfig] = useState('');
-  const [jsonError, setJsonError] = useState<JsonError>(null);
+  const [jsonError, setJsonError] = useState<ErrAndLoc>(null);
 
   const { showNotification } = useContext(NotificationContext);
   useEffect(() => {
@@ -25,11 +25,11 @@ function EditConfigFile(props: { handleClose }) {
 
   useEffect(() => {
     validJson(config)
-      .then(() => {
-        setJsonError(null);
+      .then((e) => {
+        setJsonError(e);
       })
       .catch((e) => {
-        setJsonError(e);
+        showNotification('error', 'call valid json error', e);
       });
   }, [config]);
 

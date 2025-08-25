@@ -24,7 +24,7 @@ use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::pg_format::*;
-use crate::pg_lang_server_static::TYPES;
+use crate::pg_lang_server_static::POSTGRES_TYPES;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 /// postgres version of pg.
@@ -431,6 +431,9 @@ impl ServerMetas for PostGresDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
+    fn list_sql_current_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::CURRENT_VALUES
+    }
     async fn list_sequences(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         let sql = format!(
             r#"
@@ -630,7 +633,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(TYPES)
+        anyhow::Ok(POSTGRES_TYPES)
     }
 
     async fn modify_table_column(
@@ -2001,10 +2004,23 @@ pub(crate) async fn make_test_object() -> PostGresDB {
     pg
 }
 
+/// postgres有哪些值可以直接放在sql语句里面的想current timestamp给我完成的rust列表
+/// PostgreSQL 里可以直接写在 SQL 语句中的 CURRENT_* 字面量
+pub const PG_CURRENT_LITERALS: &[&str] = &[
+    "CURRENT_DATE",      //  2025-08-25
+    "CURRENT_TIME",      //  14:36:07.123+02
+    "CURRENT_TIMESTAMP", //  2025-08-25 14:36:07.123+02
+    "CURRENT_USER",      //  alice
+    "CURRENT_ROLE",      //  alice（或 SET ROLE 后的角色）
+];
 impl SqlBuilder for PostGresDB {
+    const CURRENT_VALUES: &'static [&'static str] = PG_CURRENT_LITERALS;
     fn put_value_in_sql(
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
+        if self.hit_current_value(value) {
+            return anyhow::Result::Ok(value.unwrap().to_string());
+        }
         put_value_in_sql(typ, value)
     }
 

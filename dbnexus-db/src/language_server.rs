@@ -18,6 +18,9 @@ pub trait LanguageServer: GetBackendKind {
     fn format_sql(&self, _sql: &str, _ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
         not_support_feature(self.backend_name())
     }
+    fn parse_error(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        anyhow::Ok(None)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -285,6 +288,14 @@ pub trait LexerCompletionTrait: LangServerCommon {
 #[async_trait::async_trait]
 
 pub trait LangServerCommon: GetBackendKind {
+    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        let dialect = self.dialect();
+        let x = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql);
+        anyhow::Ok(match x {
+            Ok(_) => None,
+            Err(x) => Some(ErrAndLoc::from(x)),
+        })
+    }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
@@ -650,4 +661,11 @@ select xxxx
         }
     }
     //
+}
+
+#[derive(Clone, Debug, typescript_type_def ::TypeDef, serde::Serialize)]
+pub struct ErrAndLoc {
+    pub line: Option<u32>,
+    pub column: Option<u32>,
+    pub msg: String,
 }

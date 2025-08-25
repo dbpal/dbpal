@@ -1,4 +1,4 @@
-pub(crate) const TYPES: &[&str] = &[
+pub(crate) const POSTGRES_TYPES: &[&str] = &[
     "BOOL",
     "BYTEA",
     "NAME",

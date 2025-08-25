@@ -433,6 +433,14 @@ impl ServerMetas for LibSqlDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for LibSqlDB {
+    fn list_sql_current_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::CURRENT_VALUES
+    }
+
+    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
+        anyhow::Ok(crate::sqlite_lang_server_static::SQLITE_TYPES)
+    }
+
     async fn create_index(
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
@@ -456,6 +464,12 @@ impl SchemaTrait for LibSqlDB {
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
         log::info!("sql:{}", sql);
+        let conn = self.get_conn().await?;
+        conn.execute(&sql, params!()).await?;
+        anyhow::Ok(())
+    }
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
+        let sql = format!(r#"ALTER TABLE "{table}" DROP COLUMN "{col}";"#);
         let conn = self.get_conn().await?;
         conn.execute(&sql, params!()).await?;
         anyhow::Ok(())
@@ -800,10 +814,15 @@ impl SchemaTrait for LibSqlDB {
         anyhow::Ok(ret)
     }
 }
+
 impl SqlBuilder for LibSqlDB {
+    const CURRENT_VALUES: &'static [&'static str] = crate::sqlite::SQLITE_CURRENT_LITERALS;
     fn put_value_in_sql(
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
+        if self.hit_current_value(value) {
+            return anyhow::Result::Ok(value.unwrap().to_string());
+        }
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
@@ -1138,6 +1157,42 @@ mod tests {
         let db = make_test_object().await;
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
+    }
+
+    #[tokio::test]
+    async fn test_table_column() {
+        let db = make_test_object().await;
+        let table_name = "test_column";
+        let _ = db.drop_table(table_name, false).await;
+
+        let query_id = db.open_connection().await.unwrap();
+        let _resp = db
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE test_column
+                (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT                      -- 主键，无符号32位整数
+                )
+                "#,
+            )
+            .await
+            .unwrap();
+
+        db.add_table_column(
+            table_name,
+            "name",
+            ColumnType {
+                typ: "VARCHAR(255)".to_string(),
+                nullness: Some("null".to_string()),
+                after: Some("id".to_string()),
+                default_value: Some("abc".to_string()),
+            },
+        )
+        .await
+        .unwrap();
+
+        db.drop_table_column(table_name, "name").await.unwrap();
     }
 
     #[tokio::test]

@@ -113,6 +113,9 @@ impl QuerySql for MariaDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for MariaDB {
+    fn list_sql_current_values(&self) -> &'static [&'static str] {
+        self.db.list_sql_current_values()
+    }
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

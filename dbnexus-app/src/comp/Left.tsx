@@ -39,6 +39,7 @@ import {
   initMonacoLanague,
   QueryConn,
   EscDownEvent,
+  makeGetParserErrr,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -597,6 +598,7 @@ function FavoriteSqlList(props: { handleClose }) {
                   );
                 }}
                 value={row.sql}
+                getParseErr={makeGetParserErrr(row.uuid)}
                 favoriteName={row.name}
               ></RedisQuery>
             );
@@ -604,6 +606,7 @@ function FavoriteSqlList(props: { handleClose }) {
           default:
             content = (
               <SqlQuery
+                getParseErr={makeGetParserErrr(row.uuid)}
                 language={row.uuid}
                 makeConn={async () => {
                   return makeConn(row.uuid, row.kind);
@@ -868,21 +871,25 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
     return uuid + schema;
   };
   const { opened, setOpened } = useContext(OpenedContext);
-  let support_procedure =
-    kind == DataSourceKind.MariaDB ||
-    kind == DataSourceKind.Mysql ||
-    kind == DataSourceKind.Postgres ||
-    kind == DataSourceKind.MsSql ||
-    kind == DataSourceKind.Oracle ||
-    kind == DataSourceKind.Cockroach;
-  let support_udf =
-    kind == DataSourceKind.MariaDB ||
-    kind == DataSourceKind.Mysql ||
-    kind == DataSourceKind.Postgres ||
-    kind == DataSourceKind.MsSql ||
-    kind == DataSourceKind.Oracle ||
-    kind == DataSourceKind.Cassandra ||
-    kind == DataSourceKind.Cockroach;
+  const SUPPORTED_PROCEDURE_KINDS = new Set([
+    DataSourceKind.MariaDB,
+    DataSourceKind.Mysql,
+    DataSourceKind.Postgres,
+    DataSourceKind.MsSql,
+    DataSourceKind.Oracle,
+    DataSourceKind.Cockroach,
+  ]);
+
+  let support_procedure = SUPPORTED_PROCEDURE_KINDS.has(kind);
+  let support_udf = new Set([
+    DataSourceKind.MariaDB,
+    DataSourceKind.Mysql,
+    DataSourceKind.Postgres,
+    DataSourceKind.MsSql,
+    DataSourceKind.Oracle,
+    DataSourceKind.Cassandra,
+    DataSourceKind.Cockroach,
+  ]).has(kind);
   let support_sequence = [
     DataSourceKind.MariaDB,
     DataSourceKind.Postgres,
@@ -1262,6 +1269,7 @@ function openNewQuery(
               showNotification
             );
           }}
+          getParseErr={makeGetParserErrr(uuid)}
           kind={kind}
         ></SqlQuery>
       );
@@ -1279,6 +1287,7 @@ function openNewQuery(
               showNotification
             );
           }}
+          getParseErr={makeGetParserErrr(uuid)}
         ></RedisQuery>
       );
 

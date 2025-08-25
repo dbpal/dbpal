@@ -20,7 +20,7 @@ use crate::db::{
     ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
-    escape_sql_str,
+    escape_sql_str, not_support_feature,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
@@ -417,6 +417,58 @@ impl SqliteDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
+    fn list_sql_current_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::CURRENT_VALUES
+    }
+
+    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
+        anyhow::Ok(crate::sqlite_lang_server_static::SQLITE_TYPES)
+    }
+
+    /*
+       在 SQLite 中，直接修改列类型（ALTER COLUMN TYPE）是不支持的。SQLite 的 ALTER TABLE 语句功能有限，它只允许：
+    */
+    async fn modify_table_column(
+        &self, _table: &str, _old_name: &str, _new_name: &str, _typ: Option<ColumnType>,
+    ) -> anyhow::Result<()> {
+        not_support_feature(self.backend_name())
+    }
+
+    async fn add_table_column(
+        &self, table: &str, name: &str, col: ColumnType,
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
+            col.typ,
+            if let Some(nullness) = col.nullness.as_ref() {
+                nullness.as_str()
+            } else {
+                ""
+            },
+            if let Some(d) = col.default_value.as_ref() {
+                format!(
+                    "DEFAULT {}",
+                    self.put_value_in_sql(&col.typ, None, Some(d.as_str()))?
+                )
+            } else {
+                "".to_owned()
+            }
+        );
+        log::info!("sql:{}", sql);
+        let mut conn = self.get_conn().await?;
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
+        anyhow::Ok(())
+    }
+
+    async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
+        let sql = format!(r#"ALTER TABLE "{table}" DROP COLUMN "{col}";"#);
+        let mut conn = self.get_conn().await?;
+        conn.execute(AssertSqlSafe(sql.as_str())).await?;
+        anyhow::Ok(())
+    }
+
     async fn create_index(
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
@@ -440,34 +492,6 @@ impl SchemaTrait for SqliteDB {
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(())
-    }
-
-    async fn add_table_column(
-        &self, table: &str, name: &str, col: ColumnType,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
-            col.typ,
-            if let Some(nullness) = col.nullness.as_ref() {
-                nullness.as_str()
-            } else {
-                ""
-            },
-            if let Some(d) = col.default_value.as_ref() {
-                format!(
-                    "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, None, Some(d.as_str()))?
-                )
-            } else {
-                "".to_owned()
-            }
-        );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -851,10 +875,22 @@ fn get_rows_types(rows: &Vec<SqliteRow>) -> Vec<Field> {
     ret
 }
 
+/// sqlite有哪些值可以直接放在sql语句里面的想current timestamp给我完成的rust列表
+/// SQLite 里可以直接写在 SQL 语句中的时间字面量
+pub const SQLITE_CURRENT_LITERALS: &[&str] = &[
+    "CURRENT_TIME",      // 15:23:56
+    "CURRENT_DATE",      // 2025-08-25
+    "CURRENT_TIMESTAMP", // 2025-08-25 15:23:56
+];
+
 impl SqlBuilder for SqliteDB {
+    const CURRENT_VALUES: &'static [&'static str] = SQLITE_CURRENT_LITERALS;
     fn put_value_in_sql(
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
+        if self.hit_current_value(value) {
+            return anyhow::Result::Ok(value.unwrap().to_string());
+        }
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
@@ -1435,6 +1471,42 @@ mod tests {
         for d in r.data.iter() {
             println!("{:?}", d);
         }
+    }
+
+    #[tokio::test]
+    async fn test_table_column() {
+        let db = make_test_object().await;
+        let table_name = "test_column";
+        let _ = db.drop_table(table_name, false).await;
+
+        let query_id = db.open_connection().await.unwrap();
+        let _resp = db
+            .query_sql(
+                query_id,
+                r#"
+                CREATE TABLE test_column
+                (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT                      -- 主键，无符号32位整数
+                )
+                "#,
+            )
+            .await
+            .unwrap();
+
+        db.add_table_column(
+            table_name,
+            "name",
+            ColumnType {
+                typ: "VARCHAR(255)".to_string(),
+                nullness: Some("null".to_string()),
+                after: Some("id".to_string()),
+                default_value: Some("abc".to_string()),
+            },
+        )
+        .await
+        .unwrap();
+
+        db.drop_table_column(table_name, "name").await.unwrap();
     }
 
     #[test]

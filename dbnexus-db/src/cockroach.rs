@@ -179,7 +179,7 @@ fn gen_show_sql(
 
     sql
 }
-pub(crate) const COCKROACH_DATA_TYPES: &[&str] = &[
+pub(crate) const COCKROACH_TYPES: &[&str] = &[
     "BIT",
     "BIT[]",
     "BOOL",
@@ -226,6 +226,9 @@ pub(crate) const COCKROACH_DATA_TYPES: &[&str] = &[
 #[async_trait::async_trait]
 
 impl SchemaTrait for CockRoachDB {
+    fn list_sql_current_values(&self) -> &'static [&'static str] {
+        self.pg.list_sql_current_values()
+    }
     async fn add_table_column(
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
@@ -245,7 +248,7 @@ impl SchemaTrait for CockRoachDB {
     }
 
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(COCKROACH_DATA_TYPES)
+        anyhow::Ok(COCKROACH_TYPES)
     }
 
     async fn export_table_or_view(

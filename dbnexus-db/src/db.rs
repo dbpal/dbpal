@@ -336,9 +336,25 @@ pub trait SchemaTrait:
     async fn drop_sequence(&self, _name: &str, _cascade: bool) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
+    fn list_sql_current_values(&self) -> &'static [&'static str] {
+        &[]
+    }
 }
 
 pub trait SqlBuilder: GetBackendKind {
+    // like current_timestamp can directly use in sql
+    const CURRENT_VALUES: &'static [&'static str] = &[];
+
+    fn hit_current_value(&self, value: Option<&str>) -> bool {
+        value
+            .map(|x| {
+                Self::CURRENT_VALUES
+                    .iter()
+                    .any(|y| x.eq_ignore_ascii_case(*y))
+            })
+            .unwrap_or(false)
+    }
+
     fn type_support_compare(&self, _typ: &str) -> bool {
         true
     }

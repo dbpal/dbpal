@@ -1,8 +1,8 @@
-use crate::cockroach::{COCKROACH_DATA_TYPES, CockRoachDB};
+use crate::cockroach::{COCKROACH_TYPES, CockRoachDB};
 use crate::db::FormatSqlOpts;
 use crate::language_server::{
-    CompletionItem, DBExecutable, LangServerCommon, LanguageServer, LexerCompletionTrait,
-    try_completion_on_syntax,
+    CompletionItem, DBExecutable, ErrAndLoc, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, try_completion_on_syntax,
 };
 use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
@@ -24,7 +24,9 @@ impl LanguageServer for CockRoachDB {
         }
         LexerCompletionTrait::do_auto_completion(self, sql).await
     }
-
+    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        LanguageServer::parse_error(self.pg.as_ref(), sql)
+    }
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
         self.pg.format_sql(sql, ops)
     }
@@ -68,7 +70,7 @@ impl LangServerCommon for CockRoachDB {
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for CockRoachDB {
-    const TYPES: &'static [&'static str] = COCKROACH_DATA_TYPES;
+    const TYPES: &'static [&'static str] = COCKROACH_TYPES;
 }
 
 #[cfg(test)]

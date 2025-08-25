@@ -977,6 +977,9 @@ impl ReadOnlyTrait for OracleDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for OracleDB {
+    fn list_sql_current_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::CURRENT_VALUES
+    }
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
         let sql = format!(
             "SELECT MVIEW_NAME FROM USER_MVIEWS  WHERE OWNER='{}' ",
@@ -1620,13 +1623,23 @@ impl OracleDB {
         anyhow::Ok(ret)
     }
 }
+/// Oracle 里可直接写在 SQL 语句中的 CURRENT_* 无括号字面量
+pub const ORACLE_CURRENT_LITERALS: &[&str] = &[
+    "CURRENT_DATE", // 2025-08-25 14:36:07   （会话时区）
+    "CURRENT_TIMESTAMP", //  2025-08-25 14:36:07.123456   （会话时区，带微秒）
+                    //   "CURRENT_TIMESTAMP(n)", //  同上，精度可调；裸写 CURRENT_TIMESTAMP 默认为 6
+];
 
 impl SqlBuilder for OracleDB {
+    const CURRENT_VALUES: &'static [&'static str] = ORACLE_CURRENT_LITERALS;
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
     fn put_value_in_sql(
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
+        if self.hit_current_value(value) {
+            return anyhow::Result::Ok(value.unwrap().to_string());
+        }
         put_value_in_sql(typ, value)
     }
 }

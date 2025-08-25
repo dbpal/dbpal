@@ -4,8 +4,8 @@ use std::ops::DerefMut;
 use crate::db::{AutoCompletionQueryUuid, FormatSqlOpts, name_start_ascii_alphabetic};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    try_parser_and_lexer,
+    AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc, LangServerCommon,
+    LanguageServer, try_parser_and_lexer,
 };
 use crate::sqlite::SqliteDB;
 use crate::sqlite_lang_server_static::{SQLITE_KEY_WORDS, SQLITE_TYPES};
@@ -139,6 +139,9 @@ impl LanguageServer for SqliteDB {
 
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
         anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
+    }
+    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        LangServerCommon::parse_error(self, sql)
     }
 }
 

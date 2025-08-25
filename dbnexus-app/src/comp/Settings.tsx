@@ -32,7 +32,7 @@ import {
 } from './Common';
 import { ModalHeader, SelectPageSize } from './CommonComp';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { JsonError, SettingContext, UserSettings, validJson } from './helper';
+import { ErrAndLoc, SettingContext, UserSettings, validJson } from './helper';
 import { Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -80,9 +80,13 @@ function ModifySettings({ handleClose }) {
   const s = useContext(SettingContext);
   const handleSave = async () => {
     try {
-      await validJson(editorOptions);
+      const e = await validJson(editorOptions);
+      if (e) {
+        showNotification('error', 'not a valid json', e.msg);
+        return;
+      }
     } catch (e) {
-      showNotification('error', 'not a valid json', e);
+      showNotification('error', 'call valid json error', e);
       return;
     }
     appStore
@@ -170,17 +174,17 @@ function ModifySettings({ handleClose }) {
               default
             </MenuItem>
             {allFonts
-              .filter((e) => {
+              .filter((f) => {
                 if (fontMatch) {
-                  return e.toLowerCase().includes(fontMatch.toLowerCase());
+                  return f.toLowerCase().includes(fontMatch.toLowerCase());
                 } else {
                   return true;
                 }
               })
-              .map((e) => {
+              .map((f) => {
                 return (
-                  <MenuItem style={{ fontFamily: e }} value={e}>
-                    {e}
+                  <MenuItem style={{ fontFamily: f }} value={f}>
+                    {f}
                   </MenuItem>
                 );
               })}
@@ -269,14 +273,14 @@ function EditorOptions(props: {
   const { editorOptions, setEditorOptions, handleClose } = props;
   const [value, setValue] = useState(editorOptions);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
-  const [jsonErr, setJsonErr] = useState<JsonError>(null);
+  const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
   useEffect(() => {
     validJson(value)
-      .then(() => {
-        setJsonErr(null);
+      .then((e) => {
+        setJsonErr(e);
       })
       .catch((e) => {
-        setJsonErr(e);
+        console.log('call valid json error', e);
       });
   }, [value]);
   return (

@@ -669,6 +669,9 @@ impl std::fmt::Debug for MysqlDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
+    fn list_sql_current_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::CURRENT_VALUES
+    }
     async fn create_index(
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
@@ -733,7 +736,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(crate::mysql_lang_server::TYPES)
+        anyhow::Ok(crate::mysql_lang_server::MYSQL_TYPES)
     }
 
     async fn modify_table_column(
@@ -1706,10 +1709,23 @@ impl QuerySql for MysqlDB {
     }
 }
 
+/// mysql有哪些值可以直接放在sql语句里面的想current timestamp给我完成的rust列表
+/// MySQL 里可以直接写在 SQL 语句中的 CURRENT_* 字面量
+pub const MYSQL_CURRENT_LITERALS: &[&str] = &[
+    "CURRENT_DATE",      //  2025-08-25
+    "CURRENT_TIME",      //  14:36:07
+    "CURRENT_TIMESTAMP", //  2025-08-25 14:36:07
+    "CURRENT_USER",      //  'user'@'host'
+];
+
 impl SqlBuilder for MysqlDB {
+    const CURRENT_VALUES: &'static [&'static str] = MYSQL_CURRENT_LITERALS;
     fn put_value_in_sql(
         &self, f: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
+        if self.hit_current_value(value) {
+            return anyhow::Result::Ok(value.unwrap().to_string());
+        }
         let default_str = value.map(|x| x.to_string()).unwrap_or("null".to_string());
         let single_quote_str = value
             .map(|x| format!("'{}'", escape_sql_str(x)))

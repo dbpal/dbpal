@@ -1,4 +1,4 @@
-use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind};
+use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc};
 use sqlparser::ast::CopyOption;
 use sqlparser::ast::{
     AlterIndexOperation, AlterRoleOperation, AssignmentTarget, CaseStatement,
@@ -1923,14 +1923,56 @@ impl<'a> CompletionStatement<'a> {
     }
 }
 
+use regex::Regex;
+
+/// 从错误字符串中提取 `Line: X, Column: Y`
+pub fn sqlparser_err_extract_line_col(error: impl Into<String>) -> (Option<u32>, Option<u32>) {
+    // 匹配两种常见格式：
+    // 1. Line: 2, Column: 14
+    // 2. line 2, column 14
+    let error = error.into();
+    let re = Regex::new(r"(?i)line\s*[:]?\s*(\d+).*column\s*[:]?\s*(\d+)").unwrap();
+    if let Some(caps) = re.captures(&error) {
+        let line = caps.get(1).map(|s| s.as_str().parse().ok()).flatten();
+        let col = caps.get(2).map(|s| s.as_str().parse().ok()).flatten();
+        (line, col)
+    } else {
+        (None, None)
+    }
+}
+
+impl From<sqlparser::parser::ParserError> for ErrAndLoc {
+    fn from(value: sqlparser::parser::ParserError) -> Self {
+        let msg = value.to_string();
+        let (line, column) = sqlparser_err_extract_line_col(&msg);
+        Self { line, column, msg }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_line_col() {
+        {
+            let err = "Expected: SELECT, VALUES, or a subquery in the query body, found: from at Line: 2, Column: 14";
+            let (line, col) = sqlparser_err_extract_line_col(err);
+            assert_eq!(line, Some(2));
+            assert_eq!(col, Some(14));
+        }
+        {
+            let err = "Expected: an SQL statement, found: 3.14 at Line: 3, Column: 22";
+            let (line, col) = sqlparser_err_extract_line_col(err);
+            assert_eq!(line, Some(3));
+            assert_eq!(col, Some(22));
+        }
+    }
     #[ignore = "this is just a test for me"]
     #[test]
     fn test_sql_statement() {
         let sql = r#"
-             from abc  
-             &!
+             3.14.159
         "#;
         let dialect = sqlparser::dialect::GenericDialect {};
         let p = sqlparser::parser::Parser::new(&dialect);

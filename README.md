@@ -33,4 +33,6 @@ PostgreSQL 外部表（Foreign Table） 是 “看起来像本地表，实际数
 拉oracle数据库要用美国的代理
 
 
-current_timestamp 这种值要怎么放入sql 要特殊处理呢
+openPath for open export file
+
+

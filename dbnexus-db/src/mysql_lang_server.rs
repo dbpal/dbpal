@@ -8,7 +8,7 @@ use crate::db::{
 };
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, LangServerCommon,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
     LanguageServer, LexerCompletionTrait, try_parser_and_lexer,
 };
 use crate::mysql::MysqlDB;
@@ -17,7 +17,7 @@ use crate::sqlparser_completion::TempTableColumn;
 use sqlx::{Column, Executor, Statement};
 #[async_trait::async_trait]
 impl LexerCompletionTrait for MysqlDB {
-    const TYPES: &'static [&'static str] = TYPES;
+    const TYPES: &'static [&'static str] = MYSQL_TYPES;
 
     async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
         self.build_fn_completion_items().await
@@ -57,6 +57,9 @@ impl LanguageServer for MysqlDB {
 
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
         anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
+    }
+    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        LangServerCommon::parse_error(self, sql)
     }
 }
 
@@ -523,25 +526,74 @@ mod tests {
     }
 }
 
-pub(crate) const TYPES: &[&str] = &[
-    "BOOLEAN",
-    "BOOL",
+// src/mysql_types.rs
+pub const MYSQL_TYPES: &[&str] = &[
+    /* ---------- 数值 ---------- */
     "TINYINT",
     "SMALLINT",
+    "MEDIUMINT",
     "INT",
+    "INTEGER",
     "BIGINT",
-    "TINYINT UNSIGNED",
-    "SMALLINT UNSIGNED",
-    "INT UNSIGNED",
-    "BIGINT UNSIGNED",
+    "DECIMAL",
+    "NUMERIC",
     "FLOAT",
     "DOUBLE",
-    "VARCHAR",
+    "REAL",
+    "BIT",
+    /* ---------- 日期/时间 ---------- */
+    "DATE",
+    "TIME",
+    "DATETIME",
+    "TIMESTAMP",
+    "YEAR",
+    /* ---------- 字符串 ---------- */
     "CHAR",
-    "TEXT",
-    "VARBINARY",
+    "VARCHAR",
     "BINARY",
+    "VARBINARY",
+    "TINYBLOB",
     "BLOB",
+    "MEDIUMBLOB",
+    "LONGBLOB",
+    "TINYTEXT",
+    "TEXT",
+    "MEDIUMTEXT",
+    "LONGTEXT",
+    /* ---------- JSON ---------- */
+    "JSON",
+    /* ---------- 空间/几何 (MySQL & MariaDB) ---------- */
+    "GEOMETRY",
+    "POINT",
+    "LINESTRING",
+    "POLYGON",
+    "MULTIPOINT",
+    "MULTILINESTRING",
+    "MULTIPOLYGON",
+    "GEOMETRYCOLLECTION",
+    /* ---------- 枚举/集合 ---------- */
+    "ENUM",
+    "SET",
+    /* ---------- MariaDB 独有扩展 ---------- */
+    "INET4", // MariaDB 10.10+
+    "INET6", // MariaDB 10.10+
+    /* ---------- 别名（官方文档列出，会出现在 DDL 中） ---------- */
+    "BOOL",
+    "BOOLEAN",
+    "SERIAL",
+    "FIXED",
+    "FLOAT4",
+    "FLOAT8",
+    "INT1",
+    "INT2",
+    "INT3",
+    "INT4",
+    "INT8",
+    "LONG",
+    "LONGLONG",
+    "MIDDLEINT",
+    "LONG VARBINARY",
+    "LONG VARCHAR",
 ];
 
 // I said this to AI haha.

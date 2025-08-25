@@ -37,6 +37,15 @@
     "core:window:allow-destroy",
     "core:window:allow-set-fullscreen",
     "core:webview:allow-set-webview-zoom",
+    "opener:allow-open-path",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "**/*"
+        }
+      ]
+    },
     {
       "identifier": "fs:scope",
       "allow": ["**/*"]

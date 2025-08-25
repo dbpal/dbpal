@@ -77,7 +77,7 @@ import {
   filterStyle,
   gridStyle,
   handleCopyToClipboard,
-  JsonError,
+  ErrAndLoc,
   resetMuiDataRespWidth,
   saveAndSetSize,
   SettingContext,
@@ -982,15 +982,15 @@ function JsonEditor(props: {
 }) {
   const { value, modifyOP, handleDetele, modifyOPName } = props;
   const [newValue, setNewValue] = useState(EJSON.stringify(value, null, 2));
-  const [jsonErr, setJsonErr] = useState<JsonError>(null);
+  const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
   const [loading, setLoading] = useState(false);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   useEffect(() => {
     (async () => {
       try {
-        await validJson(newValue);
-      } catch (e) {
-        setJsonErr(e);
+        let x = await validJson(newValue);
+        setJsonErr(x);
+      } catch (_) {
         return;
       }
       try {

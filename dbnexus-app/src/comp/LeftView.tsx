@@ -700,9 +700,6 @@ function ViewMenu(props: {
             <ExportTableOrView
               uuid={uuid}
               name={view}
-              handleClose={() => {
-                setShowExport(false);
-              }}
               kind={kind}
               supportKind={['csv', 'json', 'jsonline']}
             ></ExportTableOrView>

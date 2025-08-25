@@ -60,7 +60,7 @@ import {
   gridStyle,
   handleCopyToClipboard,
   isTypeLargeText,
-  JsonError,
+  ErrAndLoc,
   resetMuiDataRespWidth,
   saveAndSetSize,
   secondConfirm,
@@ -234,7 +234,7 @@ function EditInModal(props: { content: string; handleModify }) {
     color: string;
   }[];
 
-  const [jsonErr, setJsonErr] = useState<JsonError>(null);
+  const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   const [language, setLanguage] = useState(EditInModalLanguage);
   const [value, setValue] = useState(content);
@@ -244,11 +244,11 @@ function EditInModal(props: { content: string; handleModify }) {
       return;
     }
     validJson(value)
-      .then(() => {
-        setJsonErr(null);
+      .then((e) => {
+        setJsonErr(e);
       })
       .catch((e) => {
-        setJsonErr(e);
+        console.log('call valid json error', e);
       });
   }, [value, language]);
 

@@ -3,8 +3,8 @@ use std::vec;
 use crate::clickhouse::{ClickHouseDB, JsonRespMeta};
 use crate::db::DBTrait;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_parser_and_lexer,
+    AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc, LangServerCommon,
+    LanguageServer, LexerCompletionTrait, try_parser_and_lexer,
 };
 use crate::sqlparser_completion::TempTableColumn;
 
@@ -15,6 +15,9 @@ impl LanguageServer for ClickHouseDB {
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         try_parser_and_lexer(self, sql, line, col, use_lexer).await
+    }
+    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        LangServerCommon::parse_error(self, sql)
     }
 }
 
@@ -169,10 +172,10 @@ impl AstCompletionHelper for ClickHouseDB {
 #[async_trait::async_trait]
 impl LexerCompletionTrait for ClickHouseDB {
     const TEXTS: &'static [&'static str] = &["true", "false"];
-    const TYPES: &'static [&'static str] = TYPES;
+    const TYPES: &'static [&'static str] = CLICKHOUSE_TYPES;
 }
 
-const TYPES: &[&str] = &[
+const CLICKHOUSE_TYPES: &[&str] = &[
     "UInt8",
     "UInt16",
     "UInt32",

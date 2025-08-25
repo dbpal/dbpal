@@ -1,4 +1,4 @@
-import { editor, languages } from "monaco-editor";
+import { editor, languages, Position } from "monaco-editor";
 import types from "./ApiStruct";
 import { createContext, CSSProperties, ReactElement, ReactNode } from "react";
 import { ask } from '@tauri-apps/plugin-dialog';
@@ -469,17 +469,15 @@ const filterStyle = {
   } as CSSProperties,
 };
 
-interface JsonError {
-  line: number,
-  column: number,
+interface ErrAndLoc {
+  line?: number,
+  column?: number,
   msg: string,
 }
 
-function validJson(s: string): Promise<void> {
-  return invoke<void>("valid_json", { jsonStr: s })
+function validJson(s: string): Promise<ErrAndLoc | null> {
+  return invoke<ErrAndLoc | null>("valid_json", { jsonStr: s })
 }
-
-
 
 function resetMuiDataRespWidth(old: types.MuiDataGridData): types.MuiDataGridData {
   return {
@@ -616,6 +614,13 @@ class UserSettings {
 const SettingContext = createContext<UserSettings>(null);
 const windowFocusChangeEvent = "window-focus-change-event";
 const WindowFocusChangeContext = createContext(true);
+
+function editorSetPositonAndReveal(editor: editor.IStandaloneCodeEditor, pos: Position) {
+  editor.setPosition(pos);
+  editor.focus();
+  editor.revealLines(pos.lineNumber, pos.lineNumber);
+
+}
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -656,8 +661,9 @@ export {
   SetCloseConfirmTextContext,
   windowFocusChangeEvent,
   WindowFocusChangeContext,
-  gridStyle
+  gridStyle,
+  editorSetPositonAndReveal
 };
 
-export type { JsonError }
+export type { ErrAndLoc }
 

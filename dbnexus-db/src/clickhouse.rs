@@ -183,6 +183,9 @@ impl ClickHouseDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for ClickHouseDB {
+    fn list_sql_current_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::CURRENT_VALUES
+    }
     async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
         self.list_view_impl(self.config.db_str()).await
     }
@@ -1104,7 +1107,14 @@ fn parse_type(typ: &str) -> anyhow::Result<DataType> {
     anyhow::Ok(ret)
 }
 
+/// ClickHouse 里可直接写在 SQL 语句中的零参常量字面量
+pub const CH_CURRENT_LITERALS: &[&str] = &[
+    "CURRENT_TIMESTAMP", //  2025-08-25 14:36:07
+    "CURRENT_DATE",      //  2025-08-25
+];
+
 impl SqlBuilder for ClickHouseDB {
+    const CURRENT_VALUES: &'static [&'static str] = CH_CURRENT_LITERALS;
     fn update_sql(
         &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
         values: &HashMap<String, Option<String>>, wheres: &HashMap<String, Option<String>>,
@@ -1159,6 +1169,9 @@ impl SqlBuilder for ClickHouseDB {
     fn put_value_in_sql(
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
+        if self.hit_current_value(value) {
+            return anyhow::Result::Ok(value.unwrap().to_string());
+        }
         anyhow::Ok(put_value_in_sql(&parse_type(typ)?, value))
     }
 }

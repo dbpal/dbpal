@@ -4,7 +4,7 @@ use std::ops::DerefMut;
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::DBTrait;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, LangServerCommon,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
     LanguageServer, LexerCompletionTrait, try_parser_and_lexer,
 };
 use crate::mysql::MysqlDB;
@@ -18,6 +18,9 @@ impl LanguageServer for TiDB {
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         try_parser_and_lexer(self, sql, line, col, use_lexer).await
+    }
+    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        LanguageServer::parse_error(self.db.as_ref(), sql)
     }
 }
 

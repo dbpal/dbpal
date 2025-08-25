@@ -51,7 +51,7 @@ import {
   handleCopyToClipboard,
   hexToString,
   hexTryToString,
-  JsonError,
+  ErrAndLoc,
   saveAndSetSize,
   SettingContext,
   stringToHex,
@@ -571,7 +571,7 @@ function RedisValueEditor(props: {
     RedisEditorMode.Text
   );
 
-  const [jsonErr, setJsonErr] = useState<JsonError>(null);
+  const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   useEffect(() => {
     let value = hexTryToString(oldValue);
@@ -612,11 +612,11 @@ function RedisValueEditor(props: {
       return;
     }
     validJson(newValue)
-      .then(() => {
-        setJsonErr(null);
+      .then((e) => {
+        setJsonErr(e);
       })
       .catch((e) => {
-        setJsonErr(e);
+        console.log('call valid json error', e);
       });
   }, [newValue, editModel]);
 

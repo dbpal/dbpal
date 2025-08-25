@@ -561,6 +561,10 @@ impl FireBirdDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for FireBirdDB {
+    fn list_sql_current_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::CURRENT_VALUES
+    }
+
     async fn export_table_or_view(
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -928,10 +932,21 @@ impl SchemaTrait for FireBirdDB {
     }
 }
 
+/// Firebird 里可直接写在 SQL 语句中的 CURRENT_* 字面量
+pub const FB_CURRENT_LITERALS: &[&str] = &[
+    "CURRENT_DATE",      //  2025-08-25
+    "CURRENT_TIME",      //  14:36:07.1230
+    "CURRENT_TIMESTAMP", //  2025-08-25 14:36:07.1230
+];
+
 impl SqlBuilder for FireBirdDB {
+    const CURRENT_VALUES: &'static [&'static str] = FB_CURRENT_LITERALS;
     fn put_value_in_sql(
         &self, typ: &str, firebird_blob_sub_type: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
+        if self.hit_current_value(value) {
+            return anyhow::Result::Ok(value.unwrap().to_string());
+        }
         put_value_in_sql(typ, firebird_blob_sub_type, value)
     }
 }

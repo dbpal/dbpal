@@ -12,6 +12,7 @@ import {
   Stack,
   TextField,
   Tooltip,
+  Typography,
 } from '@mui/material';
 
 import CloseIcon from '@mui/icons-material/Close';
@@ -46,6 +47,8 @@ import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import {
   DataSourceKind,
+  editorSetPositonAndReveal,
+  ErrAndLoc,
   SaveSizesToStore,
   secondConfirm,
   SetCloseConfirmTextContext,
@@ -169,6 +172,7 @@ function SqlQuery(props: {
   favoriteName?: string;
   kind: DataSourceKind;
   buttons?: ReactNode;
+  getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
 }) {
   let {
     handelTextAndPositionChange,
@@ -179,10 +183,12 @@ function SqlQuery(props: {
     favoriteName: oldFavoriteName,
     kind,
     buttons,
+    getParseErr,
   } = props;
   const [resp, setResp] = useState([]);
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
   const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
+  const [parseErr, setParseErr] = useState<ErrAndLoc | null>(null);
 
   let editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position | null>(null);
@@ -194,18 +200,6 @@ function SqlQuery(props: {
     null
   );
   const [executeTimes, setExecuteTimes] = useState(0);
-  const supportExplain = [
-    DataSourceKind.Sqlite,
-    DataSourceKind.LibSql,
-    DataSourceKind.MariaDB,
-    DataSourceKind.TiDB,
-    DataSourceKind.Mysql,
-    DataSourceKind.Oracle,
-    DataSourceKind.MsSql,
-    DataSourceKind.Postgres,
-    DataSourceKind.ClickHouse,
-    DataSourceKind.FireBird,
-  ].includes(kind);
 
   const executeTimeRef = useRef(null);
   const timeExecuteClean = useRef<() => void>(null);
@@ -219,15 +213,20 @@ function SqlQuery(props: {
   const [file, setFile] = useState('');
   const [conn, setConn] = useState<IQueryConn | null>(null);
   const [showExport, setShowExport] = useState(false);
+
   const handleEditorDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor, _monaco) => {
       editor.current = ed;
-      if (handelTextAndPositionChange) {
-        ed.onDidChangeModelContent((_event) => {
-          let text = ed.getValue();
+      ed.onDidChangeModelContent((_event) => {
+        let text = ed.getValue();
+        if (handelTextAndPositionChange) {
           handelTextAndPositionChange(text, ed.getPosition());
+        }
+        getParseErr(text).then((e) => {
+          setParseErr(e);
         });
-      }
+      });
+
       ed.onDidChangeCursorPosition((_event) => {
         let p = ed.getPosition();
         setPos(p);
@@ -534,6 +533,20 @@ function SqlQuery(props: {
       document.removeEventListener('keydown', keyEscCancelQueryLog);
     };
   }, [keyEscCancelQueryLog]);
+
+  const supportExplain = [
+    DataSourceKind.Sqlite,
+    DataSourceKind.LibSql,
+    DataSourceKind.MariaDB,
+    DataSourceKind.TiDB,
+    DataSourceKind.Mysql,
+    DataSourceKind.Oracle,
+    DataSourceKind.MsSql,
+    DataSourceKind.Postgres,
+    DataSourceKind.ClickHouse,
+    DataSourceKind.FireBird,
+  ].includes(kind);
+
   return (
     //@ts-ignore
     <SplitPane
@@ -762,7 +775,45 @@ function SqlQuery(props: {
             theme={setting.editorTheme()}
           ></Editor>
         </div>
-        <EditorBar pos={pos}></EditorBar>
+        <EditorBar
+          left={
+            <Stack
+              style={{
+                flex: 1,
+              }}
+              direction="row"
+            >
+              {parseErr && (
+                <Tooltip title="possible error" arrow>
+                  <Typography
+                    style={{
+                      cursor: parseErr.line && parseErr.column && 'pointer',
+                      width: '100px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      flex: 1,
+                    }}
+                    onClick={() => {
+                      if (!parseErr) {
+                        return;
+                      }
+                      if (parseErr.line && parseErr.column) {
+                        editorSetPositonAndReveal(
+                          editor.current,
+                          new Position(parseErr.line, parseErr.column)
+                        );
+                      }
+                    }}
+                  >
+                    {parseErr.msg}
+                  </Typography>
+                </Tooltip>
+              )}
+            </Stack>
+          }
+          pos={pos}
+        ></EditorBar>
       </div>
 
       <div>
@@ -782,9 +833,6 @@ function SqlQuery(props: {
           >
             <Box sx={modalStyle} width="45%">
               <ExportView
-                handleClose={() => {
-                  setShowExport(false);
-                }}
                 supportKind={['csv', 'json', 'jsonline']}
                 exportOP={async (kind, file) => {
                   try {
@@ -795,7 +843,7 @@ function SqlQuery(props: {
                     showNotification('error', 'export failure', e);
                   }
                 }}
-                name="export"
+                name="export_query_result"
                 supportCsvHeader={true}
               ></ExportView>
             </Box>

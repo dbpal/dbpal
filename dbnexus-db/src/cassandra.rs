@@ -1239,15 +1239,29 @@ impl CassandraDB {
     }
 }
 
+/// Cassandra / CQL 里可直接写在语句中的 CURRENT_* 字面量
+pub const CQL_CURRENT_LITERALS: &[&str] = &[
+    "CURRENT_TIMESTAMP", // 微秒时间戳，如 1692962187000000
+    "CURRENT_TIME",      // 当前 64-bit 时间值（time）
+    "CURRENT_DATE",      // 当前日期（date）
+];
+
 impl SqlBuilder for CassandraDB {
+    const CURRENT_VALUES: &'static [&'static str] = CQL_CURRENT_LITERALS;
     fn put_value_in_sql(
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
+        if self.hit_current_value(value) {
+            return anyhow::Result::Ok(value.unwrap().to_string());
+        }
         put_value_in_sql(typ, value)
     }
 }
 #[async_trait::async_trait]
 impl SchemaTrait for CassandraDB {
+    fn list_sql_current_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::CURRENT_VALUES
+    }
     async fn drop_created_type(&self, typ: &str) -> anyhow::Result<()> {
         let sql = format!("DROP TYPE  {typ}");
         log::info!("sql:{}", sql);

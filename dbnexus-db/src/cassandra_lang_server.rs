@@ -13,7 +13,8 @@ use cql3_parser::select::SelectElement;
 use crate::cassandra::CassandraDB;
 use crate::db::DBTrait;
 use crate::language_server::{
-    CompletionItem, CompletionKind, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    CompletionItem, CompletionKind, ErrAndLoc, LangServerCommon, LanguageServer,
+    LexerCompletionTrait,
 };
 
 use crate::sqlparser_completion::TempTableColumn;
@@ -36,12 +37,16 @@ impl LanguageServer for CassandraDB {
         }
         return LexerCompletionTrait::do_auto_completion(self, sql).await;
     }
+    fn parse_error(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        // don't provide parse error for cassandra
+        anyhow::Ok(None)
+    }
 }
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for CassandraDB {
     const TEXTS: &'static [&'static str] = &["true", "false"];
-    const TYPES: &'static [&'static str] = TYPES;
+    const TYPES: &'static [&'static str] = CASSANDRA_TYPES;
 }
 
 #[async_trait::async_trait]
@@ -1498,7 +1503,8 @@ mod tests {
         .await;
     }
 }
-const TYPES: &[&str] = &[
+
+const CASSANDRA_TYPES: &[&str] = &[
     "CUSTOM",
     "ASCII",
     "BIGINT",

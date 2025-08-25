@@ -53,7 +53,7 @@ impl AstCompletionHelper for FireBirdDB {
 #[async_trait::async_trait]
 impl LexerCompletionTrait for FireBirdDB {
     const TEXTS: &'static [&'static str] = &["true", "false"];
-    const TYPES: &'static [&'static str] = TYPES;
+    const TYPES: &'static [&'static str] = FIEEBIRD_TYPES;
 }
 
 #[cfg(test)]
@@ -98,7 +98,7 @@ mod tests {
     }
 }
 
-const TYPES: &[&str] = &[
+const FIEEBIRD_TYPES: &[&str] = &[
     "INT64",
     "CHAR",
     "TIMESTAMP",

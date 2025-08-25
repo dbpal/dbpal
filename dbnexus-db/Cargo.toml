@@ -40,7 +40,7 @@ redis = { version = "*", features = [
 dashmap.workspace = true
 hex.workspace = true
 mac_address = "1.1.5"
-ipnetwork = "0.20"
+ipnetwork = "0.21"
 chrono = "0.4.34"
 bit-vec = "0.6.3"
 uuid.workspace = true
@@ -64,7 +64,7 @@ bb8-tiberius = "0.16"
 tokio.workspace = true
 tokio-util.workspace = true
 rust_decimal = "*"
-
+regex = "*"
 
 oracle = { version = "0.6.3", features = ["chrono"] }
 pg_interval = "*"

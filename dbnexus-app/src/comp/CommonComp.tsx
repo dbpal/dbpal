@@ -485,7 +485,6 @@ function ModalHeader(props: { title: string }) {
       <Typography
         variant="h6"
         style={{
-          textTransform: 'capitalize',
           paddingBottom: '0.3rem',
           fontWeight: 'bold',
         }}

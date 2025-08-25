@@ -6,7 +6,7 @@ import { Position } from 'monaco-editor';
 import { SqlQuery } from './SqlQuery.tsx';
 import { fetch } from '@tauri-apps/plugin-http';
 import { MakeIQueryConn } from './Common.tsx';
-import { DataSourceKind, SaveSizesToStore } from './helper.ts';
+import { DataSourceKind, ErrAndLoc, SaveSizesToStore } from './helper.ts';
 import { Chip } from '@mui/material';
 
 let showDocOld = true;
@@ -17,8 +17,16 @@ function RedisQuery(props: {
   saveFavoriteSql: (name, sql: string) => void;
   favoriteName?: string;
   value?: string;
+  getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
 }) {
-  const { language, makeConn, saveFavoriteSql, favoriteName, value } = props;
+  const {
+    language,
+    makeConn,
+    saveFavoriteSql,
+    favoriteName,
+    value,
+    getParseErr,
+  } = props;
   const [command, setCommand] = useState('get');
   const [isDragging, setIsDragging] = useState(false);
   const iframeRef = useRef(null);
@@ -133,6 +141,7 @@ function RedisQuery(props: {
           }
           tryUpdateCommand(text, pos);
         }}
+        getParseErr={getParseErr}
         language={language}
         makeConn={makeConn}
         favoriteName={favoriteName}

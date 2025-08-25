@@ -1819,6 +1819,7 @@ dependencies = [
  "r2d2",
  "rand 0.9.0",
  "redis",
+ "regex",
  "reqwest",
  "rsfbclient",
  "rsfbclient-rust",
@@ -3796,12 +3797,9 @@ checksum = "ddc24109865250148c2e0f3d25d4f0f479571723792d3802153c60922a4fb708"
 
 [[package]]
 name = "ipnetwork"
-version = "0.20.0"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf466541e9d546596ee94f9f69590f89473455f88372423e0008fc1a7daf100e"
-dependencies = [
- "serde",
-]
+checksum = "cf370abdafd54d13e54a620e8c3e1145f28e46cc9d704bc6d94414559df41763"
 
 [[package]]
 name = "is-docker"
@@ -7255,7 +7253,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#c825bd36b50b157e68fb1dac542eb4d9fe863850"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#c01f51330abc50dca6714bd73eff0313aa353b8c"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -7267,7 +7265,7 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#c825bd36b50b157e68fb1dac542eb4d9fe863850"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#c01f51330abc50dca6714bd73eff0313aa353b8c"
 dependencies = [
  "base64 0.22.1",
  "bigdecimal",
@@ -7307,7 +7305,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#c825bd36b50b157e68fb1dac542eb4d9fe863850"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#c01f51330abc50dca6714bd73eff0313aa353b8c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7319,7 +7317,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros-core"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#c825bd36b50b157e68fb1dac542eb4d9fe863850"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#c01f51330abc50dca6714bd73eff0313aa353b8c"
 dependencies = [
  "dotenvy",
  "either",
@@ -7342,7 +7340,7 @@ dependencies = [
 [[package]]
 name = "sqlx-mysql"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#c825bd36b50b157e68fb1dac542eb4d9fe863850"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#c01f51330abc50dca6714bd73eff0313aa353b8c"
 dependencies = [
  "atoi",
  "base64 0.22.1",
@@ -7385,7 +7383,7 @@ dependencies = [
 [[package]]
 name = "sqlx-postgres"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#c825bd36b50b157e68fb1dac542eb4d9fe863850"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#c01f51330abc50dca6714bd73eff0313aa353b8c"
 dependencies = [
  "atoi",
  "base64 0.22.1",
@@ -7427,7 +7425,7 @@ dependencies = [
 [[package]]
 name = "sqlx-sqlite"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#c825bd36b50b157e68fb1dac542eb4d9fe863850"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#c01f51330abc50dca6714bd73eff0313aa353b8c"
 dependencies = [
  "atoi",
  "chrono",

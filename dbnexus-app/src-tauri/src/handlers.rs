@@ -12,7 +12,7 @@ use dbnexus_db::db::{
     SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use dbnexus_db::firebird::FireBirdDB;
-use dbnexus_db::language_server::CompletionItem;
+use dbnexus_db::language_server::{CompletionItem, ErrAndLoc};
 use dbnexus_db::libsql::LibSqlDB;
 use dbnexus_db::meta_value::MetaValue;
 use dbnexus_db::mongo::MongoDB;
@@ -26,13 +26,6 @@ use dbnexus_db::sqlite::SqliteDB;
 use crate::app::{self, App, DBConnectionConfig, Open};
 
 pub const PASSWORD_KEY: &str = "site.dbpal.dev";
-
-#[derive(Clone, Debug, typescript_type_def ::TypeDef, serde::Serialize)]
-pub struct JsonError {
-    pub line: u32,
-    pub column: u32,
-    pub msg: String,
-}
 
 #[tauri::command]
 pub fn has_entered_password(
@@ -526,6 +519,22 @@ pub async fn list_data_types(
         .await
         .map_err(ErrorFrontend::from)?;
     let ret = schema.list_data_types().map_err(ErrorFrontend::from)?;
+
+    Ok(ret)
+}
+
+#[tauri::command]
+pub async fn list_sql_current_values(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<&'static [&'static str], ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+    let ret = schema.list_sql_current_values();
+
     Ok(ret)
 }
 
@@ -982,6 +991,22 @@ pub async fn auto_completion(
         Open::Catalog(x) => x.auto_completion(&sql, line, col, use_lexer).await,
         Open::DataBase(x) => x.auto_completion(&sql, line, col, use_lexer).await,
         Open::Schema(x) => x.auto_completion(&sql, line, col, use_lexer).await,
+    }
+    .map_err(ErrorFrontend::from)?;
+    Ok(ret)
+}
+
+#[tauri::command]
+pub async fn sql_parse_error(
+    name: String, sql: String, app: tauri::State<'_, App>,
+) -> Result<Option<ErrAndLoc>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app.get_opened(name.as_str()).await?;
+    let ret = match db {
+        Open::Catalog(x) => x.parse_error(&sql),
+        Open::DataBase(x) => x.parse_error(&sql),
+        Open::Schema(x) => x.parse_error(&sql),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(ret)
@@ -2536,15 +2561,15 @@ pub async fn command_panic() -> Result<(), ErrorFrontend> {
 }
 
 #[tauri::command]
-pub fn valid_json(json_str: String) -> Result<(), JsonError> {
+pub fn valid_json(json_str: String) -> Result<Option<ErrAndLoc>, ()> {
     use serde_json::Value;
     match serde_json::from_str::<Value>(&json_str) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(JsonError {
+        Ok(_) => Ok(None),
+        Err(e) => Ok(Some(ErrAndLoc {
             msg: format!("{}", e),
-            line: e.line() as u32,
-            column: e.column() as u32,
-        }),
+            line: Some(e.line() as u32),
+            column: Some(e.column() as u32),
+        })),
     }
 }
 

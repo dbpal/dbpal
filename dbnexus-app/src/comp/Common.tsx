@@ -81,6 +81,8 @@ import {
   AppStoreKey,
   backendCompletionItemToEditor,
   DataSourceKind,
+  editorSetPositonAndReveal,
+  ErrAndLoc,
   secondConfirm,
   SettingContext,
   TabsSetContext,
@@ -103,8 +105,9 @@ function EditorBar(props: { left?: any; pos: Position }) {
   let { left, pos } = props;
   return (
     <Stack justifyContent="space-between" direction="row" alignItems="center">
-      <div> {left}</div>
-      <Stack width="30%" direction="row" spacing={1}>
+      {left}
+
+      <Stack width="25%" direction="row" spacing={1}>
         <span>Ln {pos ? pos.lineNumber : ''}</span>
         <span>Col {pos ? pos.column : ''}</span>
       </Stack>
@@ -401,9 +404,7 @@ function SimpleFlexSizeEditor(props: {
   );
   useEffect(() => {
     if (editor.current && errPos) {
-      editor.current.setPosition(errPos);
-      editor.current.focus();
-      editor.current.revealLines(errPos.lineNumber, errPos.lineNumber);
+      editorSetPositonAndReveal(editor.current, errPos);
     }
   }, [errPos]);
 
@@ -937,6 +938,15 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
   }
 }
 
+function makeGetParserErrr(uuid) {
+  return (sql: string): Promise<ErrAndLoc | null> => {
+    return invoke<ErrAndLoc | null>('sql_parse_error', {
+      name: uuid,
+      sql,
+    });
+  };
+}
+
 interface IQueryConn {
   queryOP: (text: string) => Promise<any[]>;
   executeOP: (text: string) => Promise<any>;
@@ -961,6 +971,7 @@ class QueryConn implements IQueryConn {
   queryId: string;
   uuid: string;
   kind: DataSourceKind;
+
   constructor(uuid, queryId: string, kind: DataSourceKind) {
     this.queryId = queryId;
     this.uuid = uuid;
@@ -1182,6 +1193,7 @@ export {
   keyNotInTable,
   extractBaseName,
   makeAutoComplete,
+  makeGetParserErrr,
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent };

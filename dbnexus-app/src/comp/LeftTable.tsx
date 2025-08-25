@@ -1000,9 +1000,6 @@ function TableMenu(props: {
             <ExportTableOrView
               uuid={uuid}
               name={table}
-              handleClose={() => {
-                setShowExport(false);
-              }}
               supportKind={getExportKind()}
               kind={kind}
             ></ExportTableOrView>

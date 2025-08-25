@@ -1,17 +1,18 @@
 use crate::db::{AutoCompletionQueryUuid, FormatSqlOpts};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, LangServerCommon,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
     LanguageServer, LexerCompletionTrait, try_parser_and_lexer,
 };
-use crate::mysql_lang_server::TYPES;
+
 use crate::pg::PostGresDB;
+use crate::pg_lang_server_static::POSTGRES_TYPES;
 use crate::sqlparser_completion::TempTableColumn;
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 use std::ops::DerefMut;
 #[async_trait::async_trait]
 impl LexerCompletionTrait for PostGresDB {
-    const TYPES: &'static [&'static str] = TYPES;
+    const TYPES: &'static [&'static str] = POSTGRES_TYPES;
 }
 
 impl PostGresDB {
@@ -520,6 +521,9 @@ impl LanguageServer for PostGresDB {
 
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
         anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
+    }
+    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        LangServerCommon::parse_error(self, sql)
     }
 }
 
