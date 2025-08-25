@@ -669,7 +669,7 @@ function MongoTableListContextMenu(props: {
             }}
           >
             <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
+              <TbJson fontSize="1.5rem"></TbJson>
             </ListItemIcon>
             <ListItemText> View Json in Modal </ListItemText>
           </MenuItem>

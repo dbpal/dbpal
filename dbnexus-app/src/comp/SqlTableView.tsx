@@ -26,6 +26,8 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import { NotificationContext } from './Notification';
 import { IoIosAddCircle } from 'react-icons/io';
@@ -223,6 +225,32 @@ function WhereSort(props: {
 
 var EditInModalLanguage = 'text';
 
+function ViewInModal(props: { fields: types.Field[]; x: object }) {
+  const { fields, x } = props;
+  return (
+    <Stack spacing={1}>
+      {fields.map((f) => {
+        return (
+          <Stack>
+            <Typography>{f.field}</Typography>
+            <pre
+              style={{
+                border: '2px solid',
+                borderRadius: '10px',
+                padding: '8px',
+                overflow: 'auto',
+                opacity: 0.9,
+              }}
+            >
+              {x[f.field]}
+            </pre>
+          </Stack>
+        );
+      })}
+    </Stack>
+  );
+}
+
 function EditInModal(props: { content: string; handleModify }) {
   const { content, handleModify } = props;
   const languages = [
@@ -374,6 +402,7 @@ function SqlTableView_(props: {
   const [allowFiltering, setAllowFiltering] = useState(false);
   const [editInModal, setEditInModal] = useState<EditInModalCellData>(null);
   const [editInModalRow, setEditInModalRow] = useState<object>(null);
+  const [viewInModal, setViewInModal] = useState<object>(null);
   const executeTimeRef = useRef(null);
   const timeExecuteClean = useRef<() => void>(null);
   const tryExecuteTimeClean = () => {
@@ -590,6 +619,7 @@ function SqlTableView_(props: {
       setSort('');
       return;
     }
+
     setSort(
       `${quoteStyle}${sort.field}${quoteStyle} ${sort.sort.toUpperCase()}`
     );
@@ -672,6 +702,9 @@ function SqlTableView_(props: {
                     return resetMuiDataRespWidth(old);
                   });
                 }}
+                viewInModal={() => {
+                  setViewInModal(row);
+                }}
               ></Menu>
             ),
             style: calMenuStyle(e, 300),
@@ -701,6 +734,15 @@ function SqlTableView_(props: {
       };
     }
   }, [editRowInModalBox]);
+  const [viewInModalBox, setViewInModalBox] = useState(null);
+  useEffect(() => {
+    if (viewInModalBox) {
+      let x1 = saveAndSetSize(viewInModalBox, 'view-row-in-modal');
+      return () => {
+        x1();
+      };
+    }
+  }, [viewInModalBox]);
 
   return (
     <Stack spacing={1}>
@@ -864,6 +906,28 @@ function SqlTableView_(props: {
         </div>
       )}
 
+      {viewInModal && (
+        <Modal
+          open={!!viewInModal}
+          onClose={(e: EscDownEvent, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            e.preventDefault();
+            setViewInModal(null);
+          }}
+        >
+          <Box
+            sx={{ resize: 'both', ...modalStyle }}
+            ref={setViewInModalBox}
+            width="80%"
+            height="30vh"
+          >
+            <ModalHeader title="View Row"></ModalHeader>
+            <ViewInModal fields={resp.fields} x={viewInModal}></ViewInModal>
+          </Box>
+        </Modal>
+      )}
       {editInModal && (
         <Modal
           open={!!editInModal}
@@ -1110,6 +1174,7 @@ function Menu(props: {
   editRowInModal;
   resetColunmWidthCallBack;
   quoteStyle;
+  viewInModal;
 }) {
   const {
     field,
@@ -1128,6 +1193,8 @@ function Menu(props: {
     editRowInModal,
     resetColunmWidthCallBack,
     quoteStyle,
+    //@ts-ignore
+    viewInModal,
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showFilter, setShowFilter] = useState(false);
@@ -1197,6 +1264,13 @@ function Menu(props: {
             <ListItemText> Set As Null </ListItemText>
           </MenuItem>
         )}
+
+        <MenuItem onClick={viewInModal}>
+          <ListItemIcon>
+            <VisibilityIcon style={{ fontSize: '1.4rem' }}></VisibilityIcon>
+          </ListItemIcon>
+          <ListItemText> View in Modal </ListItemText>
+        </MenuItem>
 
         {content && (
           <MenuItem
