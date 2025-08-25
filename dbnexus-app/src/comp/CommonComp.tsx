@@ -558,7 +558,12 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
               padding: '8px',
             }}
           >
-            <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+            <Stack
+              direction="row"
+              spacing={1}
+              style={{ alignItems: 'center' }}
+              divider={<span>|</span>}
+            >
               <Typography variant="h6">{f.field}</Typography>
               {isTable && f.is_primary && (
                 <Typography variant="subtitle1"> primary </Typography>
