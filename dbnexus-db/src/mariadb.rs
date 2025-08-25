@@ -3,9 +3,9 @@ use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
     NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
-    UdfOrProcedureExtraParameter,
+    ServerMetas, ShowExtraArgs, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
 };
+
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
 use crate::query_log::QueryLogEvent;
@@ -370,14 +370,6 @@ impl SchemaTrait for MariaDB {
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
-    }
-}
-
-impl SqlBuilder for MariaDB {
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        self.db.put_value_in_sql(typ, None, value)
     }
 }
 

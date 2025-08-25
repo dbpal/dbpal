@@ -5,7 +5,7 @@ use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
     NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
+    ShowExtraArgs, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
 };
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
@@ -309,14 +309,6 @@ impl SchemaTrait for TiDB {
         &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
         self.db.drop_procedure(name, arg).await
-    }
-}
-
-impl SqlBuilder for TiDB {
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        self.db.put_value_in_sql(typ, None, value)
     }
 }
 

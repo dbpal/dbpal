@@ -58,8 +58,8 @@ listen('zoom_reset', async (_) => {
 });
 
 appStore.get<number>(AppStoreKey.Zoom).then(async (zoom) => {
-  const webview = WebviewWindow.getCurrent();
   if (zoom) {
+    const webview = WebviewWindow.getCurrent();
     await webview.setZoom(zoom);
   }
 });
