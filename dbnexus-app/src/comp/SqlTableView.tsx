@@ -229,9 +229,9 @@ var EditInModalLanguage = 'text';
 function EditInModal(props: { content: string; handleModify }) {
   const { content, handleModify } = props;
   const languages = [
-    { language: 'text', color: 'info' },
-    { language: 'html', color: 'primary' },
-    { language: 'json', color: 'secondary' },
+    { language: 'text' },
+    { language: 'html' },
+    { language: 'json' },
   ] as {
     language: string;
     color: string;
@@ -262,10 +262,8 @@ function EditInModal(props: { content: string; handleModify }) {
           <Chip
             key={e.language}
             label={e.language}
-            //@ts-ignore
-            color={e.color}
+            color={language == e.language ? 'primary' : 'default'}
             size="small"
-            disabled={language == e.language}
             onClick={() => {
               setLanguage(e.language);
               EditInModalLanguage = e.language;
@@ -375,7 +373,8 @@ function SqlTableView_(props: {
   const [lastLoadTime, setLastLoadTime] = useState(new Date());
   const visiable = useContext(VisiableContext);
   const [allowFiltering, setAllowFiltering] = useState(false);
-  const [editInModal, setEditInModal] = useState<EditInModalCellData>(null);
+  const [editCellInModal, setEditCellInModal] =
+    useState<EditInModalCellData>(null);
   const [editInModalRow, setEditInModalRow] = useState<object>(null);
   const [viewInModal, setViewInModal] = useState<object>(null);
   const executeTimeRef = useRef(null);
@@ -627,7 +626,7 @@ function SqlTableView_(props: {
             content: (
               <Menu
                 editCellInModal={() => {
-                  setEditInModal(
+                  setEditCellInModal(
                     new EditInModalCellData(row, field, row[field])
                   );
                 }}
@@ -907,15 +906,15 @@ function SqlTableView_(props: {
           </Box>
         </Modal>
       )}
-      {editInModal && (
+      {editCellInModal && (
         <Modal
-          open={!!editInModal}
+          open={!!editCellInModal}
           onClose={(e: EscDownEvent, reason) => {
             if (reason === 'backdropClick') {
               return;
             }
             e.preventDefault();
-            setEditInModal(null);
+            setEditCellInModal(null);
           }}
         >
           <Box
@@ -926,13 +925,13 @@ function SqlTableView_(props: {
           >
             <ModalHeader title="edit cell"></ModalHeader>
             <EditInModal
-              content={editInModal.content}
+              content={editCellInModal.content}
               handleModify={async (value) => {
-                let newRow = { ...editInModal.row };
-                newRow[editInModal.field] = value;
-                await handleProcessRowUpdate(newRow, editInModal.row);
+                let newRow = { ...editCellInModal.row };
+                newRow[editCellInModal.field] = value;
+                await handleProcessRowUpdate(newRow, editCellInModal.row);
                 handleReload(false);
-                setEditInModal(null);
+                setEditCellInModal(null);
               }}
             ></EditInModal>
           </Box>

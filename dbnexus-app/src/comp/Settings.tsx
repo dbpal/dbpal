@@ -370,7 +370,7 @@ function makeComponents(appFontWeight) {
     MuiMenuItem: {
       styleOverrides: {
         root: {
-          height: '1.6rem',
+          height: '1.7rem',
           fontSize: '1rem',
         },
       },

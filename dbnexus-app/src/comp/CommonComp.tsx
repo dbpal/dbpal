@@ -565,14 +565,13 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
               divider={<span>|</span>}
             >
               <Typography variant="h6">{f.field}</Typography>
-              {isTable && f.is_primary && (
-                <Typography variant="subtitle1"> primary </Typography>
-              )}
               <Typography variant="subtitle1">{f.typ}</Typography>
+              {isTable && f.is_primary && (
+                <Typography variant="subtitle1"> primary key </Typography>
+              )}
               {isTable && f.nullable && (
                 <Typography variant="subtitle1"> nullable </Typography>
               )}
-
               {isTable && f.is_auto_increment && (
                 <Typography variant="subtitle1"> auto increment </Typography>
               )}
