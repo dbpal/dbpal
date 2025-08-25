@@ -876,7 +876,7 @@ function TableMenu(props: {
           <ListItemText> Copy Name </ListItemText>
         </MenuItem>
 
-        <Divider></Divider>
+        <Divider />
 
         <MenuItem
           onClick={() => {
@@ -910,7 +910,7 @@ function TableMenu(props: {
           </ListItemIcon>
           <ListItemText> Rename </ListItemText>
         </MenuItem>
-        <Divider></Divider>
+        <Divider />
         <MenuItem
           sx={{ color: 'error.main' }}
           onClick={() => {

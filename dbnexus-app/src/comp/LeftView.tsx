@@ -655,7 +655,7 @@ function ViewMenu(props: {
           <ListItemText> Copy Name </ListItemText>
         </MenuItem>
 
-        <Divider></Divider>
+        <Divider />
         <MenuItem
           onClick={() => {
             setShowExport(true);
@@ -666,7 +666,7 @@ function ViewMenu(props: {
           </ListItemIcon>
           <ListItemText> Export </ListItemText>
         </MenuItem>
-        <Divider></Divider>
+        <Divider />
         <MenuItem
           sx={{ color: 'error.main' }}
           onClick={() => {

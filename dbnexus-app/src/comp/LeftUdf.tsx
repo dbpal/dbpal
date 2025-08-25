@@ -232,7 +232,7 @@ function UdfMenu(props: {
         </ListItemIcon>
         <ListItemText> Detail </ListItemText>
       </MenuItem>
-      <Divider></Divider>
+      <Divider />
       <MenuItem
         sx={{ color: 'error.main' }}
         onClick={() => {
@@ -332,7 +332,7 @@ function CassandraAggregateMenu(props: {
           <ListItemText> Detail </ListItemText>
         </MenuItem>
 
-        <Divider></Divider>
+        <Divider />
         <MenuItem
           sx={{ color: 'error.main' }}
           onClick={() => {

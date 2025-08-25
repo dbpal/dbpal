@@ -698,7 +698,7 @@ function MongoTableListContextMenu(props: {
           </ListItemIcon>
           <ListItemText> Copy Field </ListItemText>
         </MenuItem>
-        <Divider></Divider>
+        <Divider />
         <MenuItem
           onClick={() => {
             let doc = {};
@@ -723,7 +723,7 @@ function MongoTableListContextMenu(props: {
           </ListItemIcon>
           <ListItemText> {field} DESC </ListItemText>
         </MenuItem>
-        <Divider></Divider>
+        <Divider />
         <MenuItem
           onClick={() => {
             setShowFilter(true);

@@ -375,7 +375,7 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
           </ListItemIcon>
           <ListItemText> Copy </ListItemText>
         </MenuItem>
-        <Divider></Divider>
+        <Divider />
         <MenuItem
           onClick={() => {
             setSort([{ field, sort: 'asc' }] as GridSortModel);
@@ -545,8 +545,8 @@ function ResizeWrapper(props: {
   );
 }
 
-function ViewRowInModal(props: { fields: types.Field[]; x: object }) {
-  const { fields, x } = props;
+function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
+  const { fields, x, isTable } = props;
   return (
     <Stack spacing={1}>
       {fields.map((f) => {
@@ -558,7 +558,27 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object }) {
               padding: '8px',
             }}
           >
-            <Typography variant="h6">{f.field}</Typography>
+            <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+              <Typography variant="h6">{f.field}</Typography>
+              {isTable && f.is_primary && (
+                <Typography variant="subtitle1"> primary </Typography>
+              )}
+              <Typography variant="subtitle1">{f.typ}</Typography>
+              {isTable && f.nullable && (
+                <Typography variant="subtitle1"> nullable </Typography>
+              )}
+
+              {isTable && f.is_auto_increment && (
+                <Typography variant="subtitle1"> auto increment </Typography>
+              )}
+              {isTable && f.default_value && (
+                <Typography variant="subtitle1">
+                  default value({f.default_value})
+                </Typography>
+              )}
+            </Stack>
+
+            <Divider style={{ borderWidth: '2px' }} />
             <pre
               style={{
                 overflow: 'auto',

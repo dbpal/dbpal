@@ -940,7 +940,7 @@ function AddIndex(props: {
           ))}
       </Stack>
       {indexTypeJsx}
-      <Divider></Divider>
+      <Divider />
       <Stack direction="row">
         <Button onClick={handleAdd} variant="contained" color="primary">
           create
@@ -1075,7 +1075,7 @@ function TableAddColumn(props: {
         </FormControl>
       )}
 
-      <Divider></Divider>
+      <Divider />
       <Stack direction="row">
         <Button
           loading={loading}

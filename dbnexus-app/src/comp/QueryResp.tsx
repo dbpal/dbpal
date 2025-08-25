@@ -94,7 +94,7 @@ function RespContextMenu(props: {
         </ListItemIcon>
         <ListItemText> View in Modal </ListItemText>
       </MenuItem>
-      <Divider></Divider>
+      <Divider />
       <MenuItem
         onClick={() => {
           setSort([{ field, sort: 'asc' }] as GridSortModel);

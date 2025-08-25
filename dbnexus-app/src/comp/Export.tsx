@@ -184,7 +184,7 @@ function ExportView(props: {
 
       {kind == 'jsonline' && <></>}
 
-      <Divider></Divider>
+      <Divider />
       {file && (
         <Tooltip title="open file with default app,if applicable">
           <Button

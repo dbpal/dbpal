@@ -298,7 +298,7 @@ function EditInModal(props: { content: string; handleModify }) {
           ) : undefined
         }
       ></SimpleFlexSizeEditor>
-      <Divider></Divider>
+      <Divider />
       <Stack spacing={1} direction="row">
         <Button
           onClick={() => {
@@ -902,6 +902,7 @@ function SqlTableView_(props: {
             <ViewRowInModal
               fields={resp.fields}
               x={viewInModal}
+              isTable={!!addOP}
             ></ViewRowInModal>
           </Box>
         </Modal>
@@ -1114,7 +1115,7 @@ function SqlTableViewData(props: {
             </Stack>
           );
         })}
-      <Divider></Divider>
+      <Divider />
       <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
         <Button loading={loading} variant="contained" onClick={handleModify}>
           {buttonName}
@@ -1273,7 +1274,7 @@ function Menu(props: {
           </ListItemIcon>
           <ListItemText> Copy Field </ListItemText>
         </MenuItem>
-        <Divider></Divider>
+        <Divider />
         <MenuItem
           onClick={() => {
             setSort(`${quoteField} ASC`);
@@ -1307,7 +1308,7 @@ function Menu(props: {
             <ListItemText> Quick Filter </ListItemText>
           </MenuItem>
         )}
-        <Divider></Divider>
+        <Divider />
 
         {addOP && (
           <MenuItem onClick={handleClone}>
@@ -1436,7 +1437,7 @@ function FilterOnValue(props: {
         ))}
       </Stack>
 
-      <Divider></Divider>
+      <Divider />
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <Button
           variant="contained"

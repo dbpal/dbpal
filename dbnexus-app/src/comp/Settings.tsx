@@ -224,7 +224,7 @@ function ModifySettings({ handleClose }) {
         </Stack>
       </Stack>
 
-      <Divider></Divider>
+      <Divider />
       <Stack direction="row">
         <Button
           variant="contained"
@@ -322,7 +322,7 @@ function EditorOptions(props: {
           ) : null
         }
       ></SimpleFlexSizeEditor>
-      <Divider></Divider>
+      <Divider />
       <Stack direction="row" spacing={1}>
         <Button
           variant="contained"

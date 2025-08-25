@@ -495,7 +495,7 @@ function Left_() {
         matchPattern={matchPattern}
         setMatchPattern={setMatchPattern}
       ></LeftTop>
-      <Divider></Divider>
+      <Divider />
       <Stack spacing={0.3}>
         {configs.map((e) => {
           return (
@@ -1200,7 +1200,7 @@ function CatalogMenu(props: {
             handleClose={handleCloseConn}
           ></MenuCloseConn>
         )}
-        <Divider></Divider>
+        <Divider />
         <MenuDeleteConfig name={uuid}></MenuDeleteConfig>
       </MenuList>
       {showCreateDB && (

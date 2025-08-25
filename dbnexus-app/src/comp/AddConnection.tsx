@@ -1151,7 +1151,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           label="Read Only"
         />
       </Stack>
-      <Divider></Divider>
+      <Divider />
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <Button
           variant="contained"
