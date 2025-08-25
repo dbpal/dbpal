@@ -384,6 +384,9 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
     async fn list_role(&self) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
+    async fn list_user(&self) -> anyhow::Result<Vec<String>> {
+        not_support_feature(self.backend_name())
+    }
     async fn list_postgres_rule(
         &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {

@@ -105,7 +105,7 @@ function EditorBar(props: { left?: any; pos: Position }) {
   let { left, pos } = props;
   return (
     <Stack justifyContent="space-between" direction="row" alignItems="center">
-      {left}
+      {left ? left : <span></span>}
 
       <Stack width="25%" direction="row" spacing={1}>
         <span>Ln {pos ? pos.lineNumber : ''}</span>

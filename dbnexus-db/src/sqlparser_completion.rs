@@ -1,5 +1,4 @@
 use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc};
-use sqlparser::ast::CopyOption;
 use sqlparser::ast::{
     AlterIndexOperation, AlterRoleOperation, AssignmentTarget, CaseStatement,
     ConditionalStatementBlock, CopySource, CreateDomain, CreateFunctionBody, DataType, Declare,
@@ -10,6 +9,7 @@ use sqlparser::ast::{
     TableConstraint, TableFactor, TableObject, TriggerEvent, UpdateTableFromKind,
     UserDefinedTypeRepresentation, WhileStatement,
 };
+use sqlparser::ast::{CopyOption, Expr};
 use sqlparser::tokenizer::{Location, Span};
 use std::collections::HashMap;
 use std::ops::DerefMut;
@@ -205,6 +205,10 @@ impl TableEntered {
                 } else {
                     match table.0.last().unwrap() {
                         ObjectNamePart::Identifier(ident) => Some(ident),
+                        ObjectNamePart::Function(object_name_part_function) => {
+                            // get name
+                            Some(&object_name_part_function.name)
+                        }
                     }
                 }
             }
@@ -467,7 +471,6 @@ impl<'a> CompletionStatement<'a> {
                     TableObject::TableFunction(..) => {}
                 };
             }
-
             Statement::Install { extension_name } => {
                 self.c_on_duck_extension(extension_name, Some(false)).await;
             }
@@ -591,6 +594,10 @@ impl<'a> CompletionStatement<'a> {
                                     .iter()
                                     .map(|x| match x {
                                         ObjectNamePart::Identifier(ident) => ident.clone(),
+                                        ObjectNamePart::Function(object_name_part_function) => {
+                                            // TODO actual
+                                            object_name_part_function.name.clone()
+                                        }
                                     })
                                     .collect();
                                 self.c_on_expr_compund_identifier(&idents[..]).await;
@@ -602,6 +609,9 @@ impl<'a> CompletionStatement<'a> {
                                         .iter()
                                         .map(|x| match x {
                                             ObjectNamePart::Identifier(ident) => ident.clone(),
+                                            ObjectNamePart::Function(object_name_part_function) => {
+                                                object_name_part_function.name.clone()
+                                            }
                                         })
                                         .collect();
                                     self.c_on_expr_compund_identifier(&idents[..]).await;
@@ -746,18 +756,25 @@ impl<'a> CompletionStatement<'a> {
                                     return;
                                 }
                             }
-                            if columns.iter().any(|x| self.in_pos(&x.span)) {
+                            if columns.iter().any(|x| match &x.column.expr {
+                                Expr::Identifier(x) => self.in_pos(&x.span),
+                                _ => false,
+                            }) {
                                 // hit column
-                                self.result = Some(
-                                    columns
-                                        .iter()
-                                        .map(|x| CompletionItem {
-                                            item: x.value.clone().into(),
-                                            kind: CompletionKind::Column,
-                                            desc: None,
-                                        })
-                                        .collect(),
-                                );
+                                let mut r = vec![];
+                                for c in columns.iter() {
+                                    match &c.column.expr {
+                                        Expr::Identifier(x) => {
+                                            r.push(CompletionItem {
+                                                item: x.value.clone().into(),
+                                                kind: CompletionKind::Column,
+                                                desc: None,
+                                            });
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                self.result = Some(r);
                             }
                         }
                         TableConstraint::ForeignKey {
@@ -809,19 +826,25 @@ impl<'a> CompletionStatement<'a> {
                                     return;
                                 }
                             }
-
-                            if columns.iter().any(|x| self.in_pos(&x.span)) {
+                            if columns.iter().any(|x| match &x.column.expr {
+                                Expr::Identifier(x) => self.in_pos(&x.span),
+                                _ => false,
+                            }) {
                                 // hit column
-                                self.result = Some(
-                                    columns
-                                        .iter()
-                                        .map(|x| CompletionItem {
-                                            item: x.value.clone().into(),
-                                            kind: CompletionKind::Column,
-                                            desc: None,
-                                        })
-                                        .collect(),
-                                );
+                                let mut r = vec![];
+                                for c in columns.iter() {
+                                    match &c.column.expr {
+                                        Expr::Identifier(x) => {
+                                            r.push(CompletionItem {
+                                                item: x.value.clone().into(),
+                                                kind: CompletionKind::Column,
+                                                desc: None,
+                                            });
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                self.result = Some(r);
                             }
                         }
                         TableConstraint::FulltextOrSpatial {
@@ -835,18 +858,25 @@ impl<'a> CompletionStatement<'a> {
                                 }
                             }
 
-                            if columns.iter().any(|x| self.in_pos(&x.span)) {
+                            if columns.iter().any(|x| match &x.column.expr {
+                                Expr::Identifier(x) => self.in_pos(&x.span),
+                                _ => false,
+                            }) {
                                 // hit column
-                                self.result = Some(
-                                    columns
-                                        .iter()
-                                        .map(|x| CompletionItem {
-                                            item: x.value.clone().into(),
-                                            kind: CompletionKind::Column,
-                                            desc: None,
-                                        })
-                                        .collect(),
-                                );
+                                let mut r = vec![];
+                                for c in columns.iter() {
+                                    match &c.column.expr {
+                                        Expr::Identifier(x) => {
+                                            r.push(CompletionItem {
+                                                item: x.value.clone().into(),
+                                                kind: CompletionKind::Column,
+                                                desc: None,
+                                            });
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                self.result = Some(r);
                             }
                         }
                     }
@@ -1181,7 +1211,7 @@ impl<'a> CompletionStatement<'a> {
             }
             Statement::StartTransaction {
                 statements,
-                exception_statements,
+                exception,
                 ..
             } => {
                 for s in statements.iter() {
@@ -1190,11 +1220,13 @@ impl<'a> CompletionStatement<'a> {
                         return;
                     }
                 }
-                if let Some(s) = exception_statements.as_ref() {
-                    for s in s.iter() {
-                        Box::pin(self.completion_on_statement(s)).await;
-                        if self.finished() {
-                            return;
+                if let Some(exception) = exception.as_ref() {
+                    for s in exception.iter() {
+                        for stmt in s.statements.iter() {
+                            Box::pin(self.completion_on_statement(stmt)).await;
+                            if self.finished() {
+                                return;
+                            }
                         }
                     }
                 }
@@ -1372,6 +1404,9 @@ impl<'a> CompletionStatement<'a> {
                         table_name,
                         match &trigger_name.0[0] {
                             ObjectNamePart::Identifier(ident) => ident,
+                            ObjectNamePart::Function(object_name_part_function) => {
+                                &object_name_part_function.name
+                            }
                         },
                     )
                     .await;
@@ -1436,6 +1471,9 @@ impl<'a> CompletionStatement<'a> {
                                 if let Some(name) = object_name.0.first() {
                                     self.c_on_role(match name {
                                         ObjectNamePart::Identifier(ident) => ident,
+                                        ObjectNamePart::Function(object_name_part_function) => {
+                                            &object_name_part_function.name
+                                        }
                                     })
                                     .await;
                                     if self.finished() {
@@ -1652,7 +1690,6 @@ impl<'a> CompletionStatement<'a> {
             }
             Statement::UNLISTEN { .. } => {}
             Statement::NOTIFY { .. } => {}
-
             Statement::LoadData { table_name, .. } => {
                 self.c_on_table(table_name).await;
             }
@@ -1712,6 +1749,12 @@ impl<'a> CompletionStatement<'a> {
             Statement::Return(return_statement) => {
                 self.c_on_return_statement(return_statement).await
             }
+            Statement::CreateServer(create_server_statement) => {
+                if self.in_pos(&create_server_statement.name.span()) {
+                    self.set_on_def();
+                    return;
+                }
+            }
         }
     }
 }
@@ -1745,6 +1788,21 @@ impl<'a> CompletionStatement<'a> {
             GrantObjects::FailoverGroup(..) => {}
             GrantObjects::ReplicationGroup(..) => {}
             GrantObjects::ExternalVolumes(..) => {}
+            GrantObjects::AllViewsInSchema { .. } => {}
+            GrantObjects::AllMaterializedViewsInSchema { .. } => {}
+            GrantObjects::AllExternalTablesInSchema { .. } => {}
+            GrantObjects::FutureSchemasInDatabase { .. } => {}
+            GrantObjects::FutureTablesInSchema { .. } => {}
+            GrantObjects::FutureViewsInSchema { .. } => {}
+            GrantObjects::FutureExternalTablesInSchema { .. } => {}
+            GrantObjects::FutureMaterializedViewsInSchema { .. } => {}
+            GrantObjects::FutureSequencesInSchema { .. } => todo!(),
+            GrantObjects::Procedure { name, .. } => {
+                self.c_on_procedure(name).await;
+            }
+            GrantObjects::Function { name, .. } => {
+                self.c_on_function(name).await;
+            }
         }
     }
     async fn c_on_set(&mut self, ast: &Set) {
@@ -1757,6 +1815,7 @@ impl<'a> CompletionStatement<'a> {
                         ObjectNamePart::Identifier(ident) => {
                             self.c_on_variable(ident).await;
                         }
+                        ObjectNamePart::Function(..) => {}
                     }
                 }
                 for value in values.iter() {
@@ -1773,6 +1832,7 @@ impl<'a> CompletionStatement<'a> {
                             ObjectNamePart::Identifier(ident) => {
                                 self.c_on_variable(ident).await;
                             }
+                            ObjectNamePart::Function(..) => {}
                         }
                     }
                 }
@@ -1788,6 +1848,7 @@ impl<'a> CompletionStatement<'a> {
                     for name in ass.name.0.iter() {
                         match name {
                             ObjectNamePart::Identifier(ident) => self.c_on_variable(ident).await,
+                            ObjectNamePart::Function(..) => {}
                         }
                     }
 
@@ -1882,6 +1943,7 @@ impl<'a> CompletionStatement<'a> {
                     for name in object_name.0.iter() {
                         match name {
                             ObjectNamePart::Identifier(ident) => self.c_on_role(ident).await,
+                            ObjectNamePart::Function(..) => {}
                         }
                     }
                 }

@@ -23,6 +23,7 @@ impl From<ObjectType> for CompletionKind {
             ObjectType::Stage => CompletionKind::Stage,
             ObjectType::Type => CompletionKind::Type,
             ObjectType::MaterializedView => CompletionKind::View,
+            ObjectType::User => CompletionKind::Role,
         }
     }
 }
@@ -255,6 +256,10 @@ impl<'a> CompletionStatement<'a> {
                 1 => {
                     self.c_on_role(match name.0.first().unwrap() {
                         ObjectNamePart::Identifier(ident) => ident,
+                        ObjectNamePart::Function(object_name_part_function) => {
+                            // TODO
+                            &object_name_part_function.name
+                        }
                     })
                     .await
                 }
@@ -272,7 +277,33 @@ impl<'a> CompletionStatement<'a> {
             ObjectType::Type => {
                 // rule not support
             }
+            ObjectType::User => match name.0.last() {
+                Some(x) => match x {
+                    ObjectNamePart::Identifier(ident) => self.c_on_user(ident).await,
+                    ObjectNamePart::Function(..) => {}
+                },
+                None => {}
+            },
         }
+    }
+    pub(crate) async fn c_on_user(&mut self, user: &Ident) {
+        if self.in_pos(&user.span) {
+            return;
+        }
+        self.result = Some(
+            self.helper
+                .list_user()
+                .await
+                .map_err(|e| log::error!("list user failed,err:{}", e))
+                .unwrap_or_default()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::User,
+                    desc: None,
+                })
+                .collect(),
+        )
     }
 
     pub(crate) async fn c_on_privileges_action(&mut self, tables: &[ObjectName], a: &Action) {
@@ -337,6 +368,10 @@ impl<'a> CompletionStatement<'a> {
                         &ObjectName(table),
                         match name.0.last().unwrap() {
                             ObjectNamePart::Identifier(ident) => ident,
+                            ObjectNamePart::Function(object_name_part_function) => {
+                                // TODO snowflak not support
+                                &object_name_part_function.name
+                            }
                         },
                         false,
                     )
@@ -434,14 +469,20 @@ impl<'a> CompletionStatement<'a> {
             1 => {
                 table = match &item_name.0[0] {
                     ObjectNamePart::Identifier(ident) => ident.value.as_str(),
+                    ObjectNamePart::Function(..) => {
+                        // TODO support
+                        ""
+                    }
                 };
             }
             2 => {
                 schema = Some(match &item_name.0[0] {
                     ObjectNamePart::Identifier(ident) => ident.value.as_str(),
+                    ObjectNamePart::Function(..) => "",
                 });
                 table = match &item_name.0[1] {
                     ObjectNamePart::Identifier(ident) => ident.value.as_str(),
+                    ObjectNamePart::Function(..) => "",
                 };
             }
             _ => {
@@ -554,8 +595,8 @@ impl<'a> CompletionStatement<'a> {
         }
         for op in operations.iter() {
             match op {
-                AlterTableOperation::AddConstraint(table_constraint) => {
-                    match table_constraint {
+                AlterTableOperation::AddConstraint { constraint, .. } => {
+                    match constraint {
                         TableConstraint::Unique {
                             name,
                             index_name,
@@ -581,7 +622,7 @@ impl<'a> CompletionStatement<'a> {
                                 }
                             };
                             for c in columns.iter() {
-                                self.c_on_column(table_name, c, false).await;
+                                self.c_on_index_column(table_name, c).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -638,7 +679,7 @@ impl<'a> CompletionStatement<'a> {
                                 }
                             }
                             for c in columns.iter() {
-                                self.c_on_column(table_name, c, false).await;
+                                self.c_on_index_column(table_name, c).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -656,7 +697,7 @@ impl<'a> CompletionStatement<'a> {
                                 }
                             };
                             for c in columns.iter() {
-                                self.c_on_column(table_name, c, false).await;
+                                self.c_on_index_column(table_name, c).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -746,8 +787,13 @@ impl<'a> CompletionStatement<'a> {
                 AlterTableOperation::DropConstraint { name, .. } => {
                     self.c_on_constraint(table_name, name).await;
                 }
-                AlterTableOperation::DropColumn { column_name, .. } => {
-                    self.c_on_column(table_name, column_name, false).await;
+                AlterTableOperation::DropColumn { column_names, .. } => {
+                    for c in column_names.iter() {
+                        self.c_on_column(table_name, c, false).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
                 }
                 AlterTableOperation::AttachPartition { partition } => {
                     self.c_on_clickhouse_partition(table_name, partition).await;
@@ -923,6 +969,9 @@ impl<'a> CompletionStatement<'a> {
                 }
                 AlterTableOperation::ReplicaIdentity { .. } => {}
                 AlterTableOperation::Lock { .. } => {}
+                AlterTableOperation::ValidateConstraint { .. } => {
+                    // TODO select containts
+                }
             }
         }
     }
@@ -1227,8 +1276,8 @@ impl<'a> CompletionStatement<'a> {
                 if self.finished() {
                     return;
                 }
-                let mut s = Vec::new();
-                let _ = Box::pin(self.c_on_set_expr(subquery.as_ref(), &mut s))
+
+                let _ = Box::pin(self.c_on_query(subquery.as_ref()))
                     .await
                     .map(|e| log::error!("a error:{:?}", e))
                     .ok();
@@ -1529,15 +1578,23 @@ impl<'a> CompletionStatement<'a> {
                     match c.0.len() {
                         1 => match c.0.first().unwrap() {
                             ObjectNamePart::Identifier(ident) => self.c_on_expr_ident(ident).await,
+                            ObjectNamePart::Function(..) => {
+                                // TODO
+                            }
                         },
+
                         _ => {
                             let idents =
                                 c.0.iter()
                                     .filter(|x| match x {
                                         ObjectNamePart::Identifier(_) => true,
+                                        ObjectNamePart::Function(..) => false,
                                     })
                                     .map(|x| match x {
                                         ObjectNamePart::Identifier(ident) => ident.clone(),
+                                        ObjectNamePart::Function(object_name_part_function) => {
+                                            object_name_part_function.name.clone()
+                                        }
                                     })
                                     .collect::<Vec<_>>();
 
@@ -1602,6 +1659,10 @@ impl<'a> CompletionStatement<'a> {
             Expr::Prefixed { value, .. } => {
                 Box::pin(self.c_on_expr(value)).await;
             }
+            Expr::MemberOf(member_of) => {
+                Box::pin(self.c_on_expr(&member_of.array)).await;
+                Box::pin(self.c_on_expr(&member_of.value)).await;
+            }
         }
     }
 
@@ -1626,6 +1687,22 @@ impl<'a> CompletionStatement<'a> {
             if let Some(step) = full.step.as_ref() {
                 self.c_on_expr(step).await;
                 if self.finished() {}
+            }
+        }
+    }
+
+    pub(crate) async fn c_on_index_column(&mut self, table_name: &ObjectName, col: &IndexColumn) {
+        let _gurad = self.scopes.push(Scope::from_this_table(table_name.clone()));
+        self.c_on_expr(&col.column.expr).await;
+        if let Some(with_full) = col.column.with_fill.as_ref() {
+            if let Some(x) = with_full.from.as_ref() {
+                self.c_on_expr(x).await;
+            }
+            if let Some(x) = with_full.to.as_ref() {
+                self.c_on_expr(x).await;
+            }
+            if let Some(x) = with_full.step.as_ref() {
+                self.c_on_expr(x).await;
             }
         }
     }
