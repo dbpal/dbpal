@@ -551,13 +551,16 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object }) {
     <Stack spacing={1}>
       {fields.map((f) => {
         return (
-          <Stack>
-            <Typography>{f.field}</Typography>
+          <Stack
+            style={{
+              border: '2px solid',
+              borderRadius: '10px',
+              padding: '8px',
+            }}
+          >
+            <Typography variant="h6">{f.field}</Typography>
             <pre
               style={{
-                border: '2px solid',
-                borderRadius: '10px',
-                padding: '8px',
                 overflow: 'auto',
                 opacity: 0.9,
               }}
