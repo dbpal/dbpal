@@ -292,12 +292,11 @@ function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
       {options.map((e) => (
         <Chip
           label={e}
-          color="info"
           onClick={() => {
             handleChange(e);
           }}
           key={e}
-          disabled={e == pageSize}
+          color={e == pageSize ? 'primary' : 'default'}
         ></Chip>
       ))}
     </Stack>

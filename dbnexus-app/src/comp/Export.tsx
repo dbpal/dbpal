@@ -105,13 +105,12 @@ function ExportView(props: {
       <Stack direction="row" spacing={1}>
         {supportKind.map((e) => (
           <Chip
-            disabled={kind == e}
             onClick={() => {
               setKind(e);
             }}
             key={e}
             label={e}
-            color="info"
+            color={e == kind ? 'primary' : 'defaut'}
           ></Chip>
         ))}
       </Stack>
@@ -186,21 +185,19 @@ function ExportView(props: {
 
       <Divider />
       {file && (
-        <Tooltip title="open file with default app,if applicable">
-          <Button
-            onClick={() => {
-              openPath(file)
-                .then((e) => {
-                  console.log('open ok', e);
-                })
-                .catch((e) => {
-                  showNotification('error', 'open export file failed', e);
-                });
-            }}
-          >
-            open
-          </Button>
-        </Tooltip>
+        <Button
+          onClick={() => {
+            openPath(file)
+              .then((e) => {
+                console.log('open ok', e);
+              })
+              .catch((e) => {
+                showNotification('error', 'open export file failed', e);
+              });
+          }}
+        >
+          open with default app (if applicable)
+        </Button>
       )}
       <Stack>
         <Button
