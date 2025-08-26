@@ -27,6 +27,13 @@ impl AstCompletionHelper for MariaDB {
         AstCompletionHelper::get_query_columns(self.db.as_ref(), sql).await
     }
 
+    async fn list_user(&self) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::list_user(self.db.as_ref()).await
+    }
+
+    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::list_user(self.db.as_ref()).await
+    }
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         AstCompletionHelper::list_index(self.db.as_ref(), schema).await
     }

@@ -1,11 +1,4 @@
-use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
-use std::borrow::Cow;
-use std::ops::DerefMut;
-
-use crate::db::{
-    AutoCompletionQueryUuid, FormatSqlOpts, GetBackendKind, name_start_ascii_alphabetic,
-    not_support_feature,
-};
+use crate::db::{AutoCompletionQueryUuid, FormatSqlOpts, name_start_ascii_alphabetic};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
@@ -13,6 +6,9 @@ use crate::language_server::{
 };
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
+use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
+use std::borrow::Cow;
+use std::ops::DerefMut;
 
 use sqlx::{Column, Executor, Statement};
 #[async_trait::async_trait]
@@ -330,9 +326,21 @@ impl AstCompletionHelper for MysqlDB {
         anyhow::Ok(ret)
     }
 
-    // TODO sqlpaser支持解析mysql 的role语句吗
+    async fn list_user(&self) -> anyhow::Result<Vec<String>> {
+        let sql = "SELECT  DISTINCT  user FROM mysql.user";
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+
+        for r in rows {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+
     async fn list_role(&self) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
+        AstCompletionHelper::list_user(self).await
     }
 
     async fn list_constraint(

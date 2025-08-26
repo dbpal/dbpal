@@ -6,13 +6,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
-use dashmap::DashMap;
-use oracle::pool::Pool;
-use oracle::{Connection, Row};
-use tokio::sync::Mutex;
-use tokio::task::block_in_place;
-
-use crate::MemoryLimit;
 use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
@@ -22,8 +15,13 @@ use crate::db::{
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
     escape_sql_str, not_support_feature,
 };
+use dashmap::DashMap;
+use oracle::pool::Pool;
+use oracle::{Connection, Row};
+use tokio::sync::Mutex;
+use tokio::task::block_in_place;
 
-use crate::helper::{create_csv, is_dangerous_sql_by_parser, sql_cut_by_semicolon};
+use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
@@ -90,12 +88,6 @@ impl OracleDB {
             key_word_completion: Default::default(),
         })
     }
-}
-
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<String>> {
-    // TODO use oracle later when sqlparser supported
-    let dialect = sqlparser::dialect::GenericDialect {};
-    sql_cut_by_semicolon(sql, &dialect)
 }
 
 impl OracleDB {
@@ -239,12 +231,6 @@ impl QuerySql for OracleDB {
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut query_log = self.query_logs.get_guard(query_id, sql);
-        let ss = match get_sql_seq(sql) {
-            Ok(x) => x,
-            Err(_err) => {
-                vec![sql.to_string()]
-            }
-        };
 
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
@@ -254,22 +240,17 @@ impl QuerySql for OracleDB {
         let conn = lock.deref_mut();
 
         let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
-        let mut ml = MemoryLimit::new();
-        for sql in ss.iter() {
-            ml.exceed_error()?;
-            log::trace!("oracle query sql:{}", sql);
-            match block_in_place(|| conn.query(sql, &[])) {
-                Ok(rows) => {
-                    ml.exceed_error()?;
-                    let rows = rows.into_iter().collect::<Vec<_>>();
-                    let cols = infer_schema_by_result(&rows)?;
-                    let data = encode_rows(rows)?;
-                    ret.push(Ok(QueryResp::new(cols, 0, data, sql.to_owned())?));
-                }
-                Err(err) => {
-                    ret.push(Err(err.to_string()));
-                }
-            };
+
+        match block_in_place(|| conn.query(sql, &[])) {
+            Ok(rows) => {
+                let rows = rows.into_iter().collect::<Vec<_>>();
+                let cols = infer_schema_by_result(&rows)?;
+                let data = encode_rows(rows)?;
+                ret.push(Ok(QueryResp::new(cols, 0, data, sql.to_owned())?));
+            }
+            Err(err) => {
+                ret.push(Err(err.to_string()));
+            }
         }
 
         query_log.set_success(ret.iter().all(|x| x.is_ok()));

@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 
 use sqlparser::ast::Statement;
-use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
+use sqlparser::tokenizer::{Location, Token};
 use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
 
@@ -127,14 +127,29 @@ pub trait LexerCompletionTrait: LangServerCommon {
         anyhow::Ok(vec![])
     }
 
-    // async fn list_columns(&self, table_name: &str) -> anyhow::Result<Vec<TempTableColumn>>;
-
     async fn do_auto_completion(&self, sql: &str) -> anyhow::Result<Vec<CompletionItem>> {
         let tokens = sqlparser::tokenizer::Tokenizer::new(self.dialect().as_ref(), sql)
-            .tokenize_with_location()
+            .tokenize()
             .unwrap_or_default();
         let mut all_item = self.all_completion_items().await;
         all_item.extend(self.get_table_columns_if_possible(&tokens[..]).await);
+        // suggest lexer
+        {
+            for t in tokens.iter() {
+                match t {
+                    Token::Word(x) => {
+                        if x.keyword == sqlparser::keywords::Keyword::NoKeyword {
+                            all_item.push(CompletionItem {
+                                item: x.value.clone().into(),
+                                kind: CompletionKind::Text,
+                                desc: None,
+                            });
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
         return anyhow::Ok(all_item);
     }
 
@@ -240,8 +255,8 @@ pub trait LexerCompletionTrait: LangServerCommon {
         ret
     }
 
-    async fn get_table_columns_if_possible(&self, tokens: &[TokenWithSpan]) -> Vec<CompletionItem> {
-        let mut tables = self
+    async fn get_table_columns_if_possible(&self, tokens: &[Token]) -> Vec<CompletionItem> {
+        let mut tables: HashSet<String> = self
             .list_table(None)
             .await
             .map_err(|e| log::error!("list table or view failed,err:{}", e))
@@ -262,7 +277,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
 
         let mut table_hits = HashSet::new();
         for t in tokens.iter() {
-            if let Token::Word(x) = &t.token {
+            if let Token::Word(x) = t {
                 // lowcase match is ok for me
                 // we just need make sure this table is in the database(not exactly)
                 let name = x.value.to_lowercase();
@@ -304,6 +319,7 @@ pub trait LangServerCommon: GetBackendKind {
     }
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync>;
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
+    // list view or materialized view
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
 
     async fn list_function(

@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use r2d2::PooledConnection;
 use sqlparser::ast::{ArrayElemTypeDef, DataType};
+use sqlparser::tokenizer::Token;
 use tokio::task::block_in_place;
 
 use crate::MemoryLimit;
@@ -15,7 +16,7 @@ use crate::db::{
     NamedStaff, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, ty_is_float, ty_is_int,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser, sql_cut_by_semicolon};
+use crate::helper::{create_csv, is_dangerous_sql_by_parser, seperate_sql_by_sqlparser_tokenizer};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
@@ -32,7 +33,7 @@ impl ClickHouseDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let sql = format!(
-            r#"SELECT * from "{}"."{}""#,
+            r#"SELECT * from `{}`.`{}`"#,
             self.config.db_str(),
             table_name
         );
@@ -45,7 +46,7 @@ impl ClickHouseDB {
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let sql = format!(
-            r#"SELECT * from "{}"."{}""#,
+            r#"SELECT * from `{}`.`{}`"#,
             self.config.db_str(),
             table_name
         );
@@ -58,7 +59,7 @@ impl ClickHouseDB {
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let sql = format!(
-            r#"SELECT * from "{}"."{}""#,
+            r#"SELECT * from `{}`.`{}`"#,
             self.config.db_str(),
             table_name
         );
@@ -76,16 +77,13 @@ impl ClickHouseDB {
         }
 
         let sql = format!(
-            r#"select * from "{}"."{}""#,
+            r#"select * from `{}`.`{}`"#,
             self.config.db_str(),
             table_name
         );
         let result = self.query_as_json(&sql).await?;
-
         let fs = self.show_table_columns(table_name).await?;
-
         let datas = result.encode_json_result()?;
-
         for d in datas.into_iter() {
             let values = {
                 let mut m = HashMap::new();
@@ -109,7 +107,7 @@ fn gen_show_sql(
     schema: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
     page_size: usize,
 ) -> String {
-    let mut sql = format!("SELECT * from \"{schema}\".\"{table_name}\"");
+    let mut sql = format!("SELECT * from `{schema}`.`{table_name}`");
     if let Some(where_str) = where_str {
         sql.push_str(format!(" where {where_str} ").as_str());
     }
@@ -134,7 +132,6 @@ impl ClickHouseDB {
         );
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
-
         let ret: Vec<String> = conn.query(&sql).fetch_all().await?;
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
@@ -152,19 +149,16 @@ impl ClickHouseDB {
         );
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
-
         let ret: Vec<String> = conn.query(&sql).fetch_all().await?;
         anyhow::Ok(ret.into_iter().map(ListMaterializedView::from).collect())
     }
 
     pub(crate) async fn list_table_impl(&self, db: &str) -> anyhow::Result<Vec<ListTable>> {
-        let sql = format!("show tables from {}", db);
+        let sql = format!("show tables from `{}`", db);
         let conn = self.get_conn()?;
         let ret: Vec<String> = conn.query(&sql).fetch_all().await?;
         // delete materiazlied view
-
         let mut ret = ret.into_iter().collect::<HashSet<_>>();
-
         let m = self
             .list_materialized_view_impl(db)
             .await?
@@ -199,7 +193,7 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
-        let sql = format!(r#"DROP VIEW "{view_name}""#);
+        let sql = format!(r#"DROP VIEW `{view_name}`"#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         conn.query(&sql).execute().await?;
@@ -209,7 +203,7 @@ impl SchemaTrait for ClickHouseDB {
     async fn create_table_and_index_sql(
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        let sql = format!(r#"SHOW CREATE TABLE "{table_name}""#);
+        let sql = format!(r#"SHOW CREATE TABLE `{table_name}`"#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         let x: String = conn.query(&sql).fetch_one().await?;
@@ -262,7 +256,7 @@ impl SchemaTrait for ClickHouseDB {
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let sql = format!(r#"RENAME TABLE "{old}" TO "{new}""#);
+        let sql = format!(r#"RENAME TABLE `{old}` TO `{new}`"#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         conn.query(&sql).execute().await?;
@@ -271,7 +265,7 @@ impl SchemaTrait for ClickHouseDB {
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let sql = format!(r#"CREATE TABLE "{dup}" AS "{table}";"#);
+        let sql = format!(r#"CREATE TABLE `{dup}` AS `{table}`"#);
         log::info!("sql:{}", sql);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
@@ -315,7 +309,7 @@ impl SchemaTrait for ClickHouseDB {
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let sql = format!(r#"TRUNCATE TABLE "{table_name}""#);
+        let sql = format!(r#"TRUNCATE TABLE `{table_name}`"#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         conn.query(&sql).execute().await?;
@@ -494,13 +488,12 @@ impl SchemaTrait for ClickHouseDB {
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         conn.query(&sql).execute().await?;
-
         anyhow::Ok(SqlExecuteRet { sql, changes: None })
     }
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
-        let sql = format!(r#"DROP TABLE "{table}""#);
+        let sql = format!(r#"DROP TABLE `{table}`"#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         conn.query(&sql).execute().await?;
@@ -510,7 +503,7 @@ impl SchemaTrait for ClickHouseDB {
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
         let sql = format!(
             r#"
-       ALTER TABLE "{}" DROP COLUMN "{}";
+       ALTER TABLE "{}" DROP COLUMN `{}`;
         "#,
             table, col,
         );
@@ -526,8 +519,8 @@ impl SchemaTrait for ClickHouseDB {
         let conn = self.get_conn()?;
         if old_name != new_name {
             let sql = format!(
-                r#"ALTER TABLE "{}"
-                    RENAME COLUMN "{}" TO "{}""#,
+                r#"ALTER TABLE `{}`
+                    RENAME COLUMN `{}` TO `{}`"#,
                 table, old_name, new_name
             );
             log::info!("sql:{}", sql);
@@ -537,8 +530,8 @@ impl SchemaTrait for ClickHouseDB {
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
                 r#"
-                ALTER TABLE "{}"
-                MODIFY COLUMN "{}" {}
+                ALTER TABLE `{}`
+                MODIFY COLUMN `{}` {}
             "#,
                 table, new_name, &typ.typ
             );
@@ -564,8 +557,8 @@ impl SchemaTrait for ClickHouseDB {
         &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
         let mut sql = format!(
-            r#"ALTER TABLE "{table}"
-                ADD COLUMN "{name}" {} "#,
+            r#"ALTER TABLE `{table}`
+                ADD COLUMN `{name}` {} "#,
             col.typ
         );
         if let Some(dv) = col.default_value.as_ref() {
@@ -585,7 +578,7 @@ impl SchemaTrait for ClickHouseDB {
 
 impl ClickHouseDB {
     async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
-        let mut sql = format!(r#"SELECT count(1) FROM "{name}" "#);
+        let mut sql = format!(r#"SELECT count(1) FROM `{name}` "#);
         if let Some(where_str) = where_str {
             sql.push_str(format!(" where {where_str}").as_str());
         }
@@ -680,11 +673,6 @@ impl ServerMetas for ClickHouseDB {
     }
 }
 
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<String>> {
-    let dialect = sqlparser::dialect::ClickHouseDialect {};
-    sql_cut_by_semicolon(sql, &dialect)
-}
-
 impl ClickHouseDB {
     async fn export_query_result_as_csv(
         &self, sql: &str, include_header: bool, delimiter: char,
@@ -702,7 +690,6 @@ impl ClickHouseDB {
                 .send(Cow::Owned(create_csv(&vec![x], delimiter)))
                 .await?;
         }
-
         let datas = result.encode_json_result()?;
         sender
             .send(Cow::Owned(create_csv(&datas, delimiter)))
@@ -790,15 +777,15 @@ impl QuerySql for ClickHouseDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let sqls = get_sql_seq(sql).unwrap_or(vec![sql.to_string()]);
+        let dialect = sqlparser::dialect::ClickHouseDialect {};
+        let sqls = seperate_sql_by_sqlparser_tokenizer(sql, &dialect)?;
         let mut ret = Vec::new();
         let mut query_log = self.query_logs.get_guard(query_id, sql);
         let mut ml = MemoryLimit::new();
+
         for sql in sqls.iter() {
             ml.exceed_error()?;
-            log::info!("sql:{}", sql);
             let x = self.query_as_json(sql).await;
-            ml.exceed_error()?;
             match x {
                 Ok(x) => {
                     let fields = x.infer_fields();
@@ -806,17 +793,17 @@ impl QuerySql for ClickHouseDB {
                     ret.push(Ok(QueryResp {
                         fields,
                         data,
-                        sql: Some(sql.clone()),
+                        sql: Some(sql.to_string()),
                         total: 0,
                         cache_time: None,
                     }));
                 }
-
                 Err(err) => {
                     ret.push(Err(err.to_string()));
                 }
             }
         }
+
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
     }
@@ -1077,7 +1064,7 @@ impl ClickHouseDB {
         let uri = format!(
             "{}/?query={} format json{}",
             host,
-            query,
+            replace_new_line_to_whitespace(query)?,
             match &self.config.db {
                 Some(x) => format!("&database={}", x),
                 None => "".to_string(),
@@ -1192,13 +1179,50 @@ pub(crate) fn make_test_object() -> ClickHouseDB {
     .unwrap()
 }
 
+/// clickhouse 换行转成空格 不然用url查询会有问题
+/// 原因不详
+fn replace_new_line_to_whitespace(sql: &str) -> anyhow::Result<String> {
+    let dialect = sqlparser::dialect::ClickHouseDialect {};
+    let tokens = sqlparser::tokenizer::Tokenizer::new(&dialect, sql)
+        .tokenize()?
+        .iter()
+        .filter(|x| match x {
+            Token::Whitespace(_) => false,
+            _ => true,
+        })
+        .map(|x| x.to_string())
+        .collect::<Vec<_>>();
+
+    anyhow::Ok(tokens.join(" "))
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
-    use super::{get_sql_seq, make_test_object, parse_type};
+    use super::*;
+    use super::{make_test_object, parse_type};
     use crate::db::{ColumnType, DBTrait, ExportKind, QuerySql, SchemaTrait, ServerMetas};
     use crate::enable_test_log;
+
+    #[test]
+
+    fn test_replace_new_line_to_whitespace() {
+        {
+            let sql = r#"select *
+from test"#;
+            let x = replace_new_line_to_whitespace(sql).unwrap();
+            assert_eq!(x, "select * from test");
+        }
+        {
+            let sql = r#"select *
+from test
+;"#;
+            let x = replace_new_line_to_whitespace(sql).unwrap();
+            assert_eq!(x, "select * from test ;");
+        }
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_metas() {
         let db = make_test_object();
@@ -1214,10 +1238,9 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
 
         let query_id = db.open_connection().await.unwrap();
-        let _resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
                 CREATE TABLE test_column
                 (
                     id UInt32                       -- 主键，无符号32位整数
@@ -1225,9 +1248,10 @@ mod tests {
                 ENGINE = MergeTree()
                 ORDER BY id;       
                         "#,
-            )
-            .await
-            .unwrap();
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         db.add_table_column(
             table_name,
@@ -1279,10 +1303,9 @@ mod tests {
 
         let query_id = db.open_connection().await.unwrap();
 
-        let _resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
         
                 CREATE TABLE test_materialized_view_table (
                     id UInt32,
@@ -1293,15 +1316,14 @@ mod tests {
                 
 
 "#,
-            )
-            .await
-            .unwrap();
-        assert!(_resp.iter().all(|x| x.is_ok()));
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
-        let _resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE MATERIALIZED VIEW test_materialized_view
             ENGINE = SummingMergeTree()
             ORDER BY id AS
@@ -1312,16 +1334,14 @@ mod tests {
             FROM test_materialized_view_table
             GROUP BY id, name;
 "#,
-            )
-            .await
-            .unwrap();
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
-        assert!(_resp.iter().all(|x| x.is_ok()));
-
-        let _resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
     
              
             INSERT INTO test_materialized_view_table (id, name, value) VALUES
@@ -1332,10 +1352,10 @@ mod tests {
             (5, 'Test E', 50.1);
 
 "#,
-            )
-            .await
-            .unwrap();
-        assert!(_resp.iter().all(|x| x.is_ok()));
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let list = db.list_materialized_view().await.unwrap();
         println!("materialized view lists:{:?}", list);
@@ -1358,10 +1378,9 @@ mod tests {
 
         let query_id = db.open_connection().await.unwrap();
 
-        let _resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
         
                 CREATE TABLE test_view_table
                 (
@@ -1371,34 +1390,37 @@ mod tests {
                     created_at DateTime DEFAULT now()
                 )
                 ENGINE = MergeTree()
-                ORDER BY id;
+                ORDER BY id "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
+        db.execute_sql(
+            query_id,
+            r#"
                 INSERT INTO test_view_table (id, name, amount, created_at) VALUES
                 (1, 'Alice', 100, now()),
                 (2, 'Bob', 200, now()),
                 (3, 'Charlie', 150, now()),
                 (4, 'David', 300, now()),
-                (5, 'Eve', 50, now());
+                (5, 'Eve', 50, now()); "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
-"#,
-            )
-            .await
-            .unwrap();
-        assert!(_resp.iter().all(|x| x.is_ok()));
-
-        let _resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE VIEW test_view AS
             SELECT id, name, amount
             FROM test_view_table
 "#,
-            )
-            .await
-            .unwrap();
-
-        assert!(_resp.iter().all(|x| x.is_ok()));
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let list = db.list_view().await.unwrap();
         println!("view lists:{:?}", list);
@@ -1418,10 +1440,9 @@ mod tests {
         let _ = db.drop_table(name, false).await;
 
         let query_id = db.open_connection().await.unwrap();
-        let _resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TABLE test_rename (
                 id UInt32,
                 name String,
@@ -1429,10 +1450,11 @@ mod tests {
             ) ENGINE = MergeTree()
             ORDER BY id;
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(_resp.iter().all(|x| x.is_ok()));
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
         let name2 = format!("{}2", name);
         db.truncate_table(name).await.unwrap();
 
@@ -1450,10 +1472,9 @@ mod tests {
         let _ = db.drop_table(&name2, false).await;
 
         let query_id = db.open_connection().await.unwrap();
-        let _resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TABLE test_dup (
                 id UInt32,
                 name String,
@@ -1461,13 +1482,13 @@ mod tests {
             ) ENGINE = MergeTree()
             ORDER BY id;
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(_resp.iter().all(|x| x.is_ok()));
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let _resp = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
         INSERT INTO test_dup (id, name, created_at) VALUES
@@ -1481,7 +1502,6 @@ mod tests {
             )
             .await
             .unwrap();
-        assert!(_resp.iter().all(|x| x.is_ok()));
 
         db.duplicate_table(name, &name2).await.unwrap();
 
@@ -1614,10 +1634,9 @@ mod tests {
         let table_name = "test_types2";
         let _ = db.drop_table(table_name, false).await;
         let query_id = db.open_connection().await.unwrap();
-        let _resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TABLE test_types2
             (
                 id UInt64,                 
@@ -1629,11 +1648,11 @@ mod tests {
             ) ENGINE = MergeTree()
             ORDER BY id;
         "#,
-            )
-            .await
-            .unwrap();
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
-        assert!(_resp.iter().all(|x| x.is_ok()), "{:?}", _resp);
         {
             let mut values = HashMap::new();
             values.insert("value_int8".to_string(), Some(1.to_string()));
@@ -1690,31 +1709,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_get_sql_seq() {
-        let ss = get_sql_seq(
-            r#"CREATE TABLE test_types3
-            (
-                id UInt64,  
-                float32_field Float32,
-                float64_field Float64,
-                decimal32_field Decimal(10, 2), -- Decimal(精度, 小数点后位数)，这里使用 32 位存储
-                decimal64_field Decimal(18, 4), -- 64 位存储
-                decimal128_field Decimal(38, 8), -- 128 位存储
-                boolean_field UInt8 -- ClickHouse 中没有原生 Boolean 类型，通常用 UInt8 表示（0 表示 false，非 0 表示 true）
-            )
-            ENGINE = MergeTree()
-            ORDER BY id; -- 根据需要选择排序键
-        "#,
-        ) .unwrap();
-        if ss.len() != 1 {
-            for s in ss.iter() {
-                println!("{:?}", s);
-            }
-        }
-        assert!(ss.len() == 1);
-    }
-
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types3() {
         enable_test_log();
@@ -1722,8 +1716,8 @@ mod tests {
         let table_name = "test_types3";
         let _ = db.drop_table(table_name, false).await;
         let query_id = db.open_connection().await.unwrap();
-        let _resp = db
-            .query_sql(
+        db
+            .execute_sql (
                 query_id,
                 r#"
             CREATE TABLE test_types3
@@ -1741,9 +1735,8 @@ mod tests {
         "#,
             )
             .await
-            .unwrap();
+            .unwrap() .unwrap() ;
 
-        assert!(_resp.iter().all(|x| x.is_ok()), "{:?}", _resp);
         {
             let mut values = HashMap::new();
             values.insert("id".to_string(), Some(100.to_string()));
@@ -1809,10 +1802,9 @@ mod tests {
         let table_name = "test_types4";
         let _ = db.drop_table(table_name, false).await;
         let query_id = db.open_connection().await.unwrap();
-        let _resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TABLE test_types4
             (
                 string_field String,            -- 动态长度的字符串
@@ -1825,11 +1817,11 @@ mod tests {
             ENGINE = MergeTree()
             ORDER BY date_field; -- 根据日期字段排序
         "#,
-            )
-            .await
-            .unwrap();
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
-        assert!(_resp.iter().all(|x| x.is_ok()), "{:?}", _resp);
         {
             let mut values = HashMap::new();
 
@@ -1907,8 +1899,8 @@ mod tests {
         let table_name = "test_types5";
         let _ = db.drop_table(table_name, false).await;
         let query_id = db.open_connection().await.unwrap();
-        let _resp = db
-            .query_sql(
+        db
+            .execute_sql (
                 query_id,
                 r#"
             CREATE TABLE test_types5
@@ -1925,9 +1917,8 @@ mod tests {
         "#,
             )
             .await
-            .unwrap();
+            .unwrap() .unwrap() ;
 
-        assert!(_resp.iter().all(|x| x.is_ok()), "{:?}", _resp);
         {
             let mut values = HashMap::new();
 
@@ -2008,8 +1999,8 @@ mod tests {
         let table_name = "test_types6";
         let _ = db.drop_table(table_name, false).await;
         let query_id = db.open_connection().await.unwrap();
-        let _resp = db
-            .query_sql(
+        db
+            .execute_sql (
                 query_id,
                 r#"
             CREATE TABLE test_types6
@@ -2023,9 +2014,8 @@ mod tests {
         "#,
             )
             .await
-            .unwrap();
+            .unwrap(). unwrap();
 
-        assert!(_resp.iter().all(|x| x.is_ok()), "{:?}", _resp);
         {
             let mut values = HashMap::new();
 
@@ -2093,16 +2083,7 @@ mod tests {
             .unwrap();
         assert!(x.iter().any(|x| x.is_err()));
     }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_query_empty() {
-        let db = make_test_object();
-        let query_id = db.open_connection().await.unwrap();
-        let x = db
-            .query_sql(query_id, " --   this is comment.")
-            .await
-            .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()));
-    }
+
     #[test]
     fn test_parse_type() {
         let x = parse_type("Nullable(String) ").unwrap();

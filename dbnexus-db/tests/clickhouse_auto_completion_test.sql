@@ -12,3 +12,5 @@ CREATE VIEW employee_salaries AS SELECT employee_id ADD FROM employees;
 51 employee_id
 ALTER TABLE employees DROP PROJECTION employee_salary_projection;
 22 employees
+SELECT * FROM file('data.csv', 'CSV')
+18 file

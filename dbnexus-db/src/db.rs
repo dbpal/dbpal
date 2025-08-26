@@ -54,7 +54,11 @@ impl BackendKind {
     }
 
     pub(crate) fn quote_style(self) -> &'static str {
-        if self.mysql_like() { "`" } else { "\"" }
+        if self.mysql_like() || self == Self::ClickHouse {
+            "`"
+        } else {
+            "\""
+        }
     }
 }
 

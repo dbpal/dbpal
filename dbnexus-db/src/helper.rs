@@ -1,86 +1,8 @@
 use std::borrow::Cow;
 
-use line_index::{LineCol, TextSize};
 use sqlparser::ast::Statement;
 use sqlparser::dialect::Dialect;
-use sqlparser::tokenizer::{Location, Token};
-
-/// cut statement into smaller base on statement or semi_colon.
-pub fn sql_cut_by_semicolon(sql: &str, dialect: &dyn Dialect) -> anyhow::Result<Vec<String>> {
-    fn get_sql(
-        lineindex: &line_index::LineIndex, sql: &str, start: Location, end: Option<Location>,
-    ) -> String {
-        let start_offset = lineindex
-            .offset(LineCol {
-                line: (start.line - 1) as u32,
-                col: (start.column - 1) as u32,
-            })
-            .unwrap();
-        let start_offset = usize::from(start_offset);
-        let end_offset = end
-            .map(|x| {
-                {
-                    lineindex.offset(LineCol {
-                        line: (x.line - 1) as u32,
-                        col: (x.column - 1) as u32,
-                    })
-                }
-                .unwrap()
-            })
-            .unwrap_or(TextSize::from(sql.len() as u32));
-        let end_offset = usize::from(end_offset);
-
-        let s = sql[start_offset..end_offset].to_string();
-        s.trim().to_string()
-    }
-
-    // cut sql by semicolon
-    fn cut_sql_to_each_statement_semi_colon(
-        sql: &str, dialect: &dyn Dialect,
-    ) -> anyhow::Result<Vec<String>> {
-        let lines = line_index::LineIndex::new(sql);
-        let tokens = sqlparser::tokenizer::Tokenizer::new(dialect, sql).tokenize_with_location()?;
-        let tokens: Vec<_> = tokens
-            .into_iter()
-            .filter(|x| !matches!(x.token, Token::Whitespace(_)))
-            .collect();
-
-        if tokens.is_empty() {
-            anyhow::bail!("empty sql.");
-        }
-
-        log::trace!("tokens:{:?}", tokens);
-
-        let mut start = &tokens[0];
-
-        let mut ret = Vec::new();
-        for index in 1..tokens.len() {
-            let t = &tokens[index];
-
-            // last one or `;`
-            if t.token == Token::SemiColon || index == tokens.len() - 1 {
-                let sql = get_sql(
-                    &lines,
-                    sql,
-                    start.span.start,
-                    if t.token == Token::EOF {
-                        None
-                    } else {
-                        Some(t.span.start)
-                    },
-                );
-                if sql != ";" && !sql.is_empty() {
-                    ret.push(sql);
-                }
-                if index + 1 < tokens.len() {
-                    start = &tokens[index + 1];
-                }
-            }
-        }
-        anyhow::Ok(ret)
-    }
-    cut_sql_to_each_statement_semi_colon(sql, dialect)
-}
+use sqlparser::tokenizer::Token;
 
 /// create csv file list of string
 /// each line of line separator
@@ -101,6 +23,36 @@ pub(crate) fn create_csv(ds: &Vec<Vec<Option<String>>>, delimiter: char) -> Stri
         s.push('\n');
     }
     s
+}
+
+pub fn seperate_sql_by_sqlparser_tokenizer(
+    sql: &str, dialect: &dyn Dialect,
+) -> anyhow::Result<Vec<String>> {
+    let tokens: Vec<_> = sqlparser::tokenizer::Tokenizer::new(dialect, sql)
+        .tokenize()?
+        .into_iter()
+        .filter(|x| !matches!(x, Token::Whitespace(_)))
+        .collect();
+    let mut ret = vec![];
+    let mut cache = vec![];
+    for t in tokens.iter() {
+        match t {
+            Token::SemiColon => {
+                if cache.len() > 0 {
+                    ret.push(cache.join(" "));
+                    cache.clear();
+                }
+            }
+            _ => {
+                cache.push(t.to_string());
+            }
+        }
+    }
+    if cache.len() > 0 {
+        ret.push(cache.join(" "));
+    }
+
+    anyhow::Ok(ret)
 }
 
 fn escape_csv(s: &str, delimiter: char) -> Cow<'_, str> {
@@ -238,5 +190,46 @@ mod tests {
     fn test_current_timestamp() {
         let x = current_timestamp();
         println!("{}", x);
+    }
+
+    #[test]
+    fn test_sql_seprate() {
+        {
+            let d = sqlparser::dialect::ClickHouseDialect {};
+            let x = seperate_sql_by_sqlparser_tokenizer(
+                r#"
+        
+            sele1ct 1;
+            ;;;;;;
+
+
+            select 2;
+        "#,
+                &d,
+            )
+            .unwrap();
+            assert_eq!(x.len(), 2);
+            for s in x.iter() {
+                println!("{}", s);
+            }
+        }
+
+        {
+            let d = sqlparser::dialect::ClickHouseDialect {};
+            let x = seperate_sql_by_sqlparser_tokenizer(
+                r#"
+        
+            sele1ct 1;
+
+            select 2
+        "#,
+                &d,
+            )
+            .unwrap();
+            assert_eq!(x.len(), 2);
+            for s in x.iter() {
+                println!("{}", s);
+            }
+        }
     }
 }

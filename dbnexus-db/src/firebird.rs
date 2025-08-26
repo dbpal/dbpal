@@ -22,7 +22,7 @@ use crate::db::{
     ListTable, NamedStaff, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
     ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, not_support_feature,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser, sql_cut_by_semicolon};
+use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 pub struct PoolManager {
@@ -66,11 +66,6 @@ impl GetBackendKind for FireBirdDB {
     fn backend_name(&self) -> BackendKind {
         BackendKind::Firebird
     }
-}
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<String>> {
-    // TODO use oracle later when sqlparser supported
-    let dialect = sqlparser::dialect::GenericDialect {};
-    sql_cut_by_semicolon(sql, &dialect)
 }
 
 fn infer_fields(row: &Row) -> Vec<Field> {
@@ -363,13 +358,8 @@ impl QuerySql for FireBirdDB {
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut query_log = self.query_logs.get_guard(query_id, sql);
-        let sqls = match get_sql_seq(sql) {
-            Ok(x) => x,
-            Err(_err) => {
-                vec![sql.to_string()]
-            }
-        };
-        let mut ret = Vec::with_capacity(sqls.len());
+
+        let mut ret = vec![];
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -377,28 +367,24 @@ impl QuerySql for FireBirdDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let mut ml = MemoryLimit::new();
-        for sql in sqls.iter() {
-            ml.exceed_error()?;
-            let rows: Result<Vec<Row>, _> = block_in_place(|| conn.query(sql, ()));
-            match rows {
-                Ok(rows) => {
-                    ml.exceed_error()?;
+        let rows: Result<Vec<Row>, _> = block_in_place(|| conn.query(sql, ()));
+        match rows {
+            Ok(rows) => {
+                ml.exceed_error()?;
+                if !rows.is_empty() {
+                    let fields = infer_fields(rows.first().unwrap());
+                    let data = encode_rows(&rows, true, None)?;
+                    ret.push(Ok(QueryResp {
+                        fields,
+                        data,
+                        sql: Some(sql.to_owned()),
+                        total: 0,
 
-                    if !rows.is_empty() {
-                        let fields = infer_fields(rows.first().unwrap());
-                        let data = encode_rows(&rows, true, None)?;
-                        ret.push(Ok(QueryResp {
-                            fields,
-                            data,
-                            sql: Some(sql.to_owned()),
-                            total: 0,
-
-                            cache_time: None,
-                        }));
-                    }
+                        cache_time: None,
+                    }));
                 }
-                Err(err) => ret.push(Err(err.to_string())),
             }
+            Err(err) => ret.push(Err(err.to_string())),
         }
 
         query_log.set_success(ret.iter().all(|x| x.is_ok()));

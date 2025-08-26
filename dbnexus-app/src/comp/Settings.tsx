@@ -1,7 +1,6 @@
 import { useContext, useEffect, useState } from 'react';
 
 import {
-  Box,
   Button,
   Chip,
   Components,
@@ -10,9 +9,9 @@ import {
   CssVarsTheme,
   Divider,
   FormControl,
+  IconButton,
   InputLabel,
   MenuItem,
-  Modal,
   Select,
   Slider,
   Stack,
@@ -23,18 +22,13 @@ import {
   Typography,
 } from '@mui/material';
 import { NotificationContext } from './Notification';
-import {
-  appStore,
-  AppStoreKey,
-  EscDownEvent,
-  modalStyle,
-  SimpleFlexSizeEditor,
-} from './Common';
-import { ModalHeader, SelectPageSize } from './CommonComp';
+import { appStore, AppStoreKey, SimpleFlexSizeEditor } from './Common';
+import { SelectPageSize } from './CommonComp';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { ErrAndLoc, SettingContext, UserSettings, validJson } from './helper';
 import { Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
+import EditIcon from '@mui/icons-material/Edit';
 
 function ModifySettings({ handleClose }) {
   const { showNotification } = useContext(NotificationContext);
@@ -212,17 +206,26 @@ function ModifySettings({ handleClose }) {
               monaco editor options:
             </Typography>
           </Tooltip>
-          <Typography
-            color="info"
-            style={{ cursor: 'pointer' }}
+          <Typography color="info">{editorOptions}</Typography>
+          <IconButton
             onClick={() => {
-              setShowEditorOptions(true);
+              setShowEditorOptions((e) => !e);
             }}
+            color="primary"
           >
-            {editorOptions}
-          </Typography>
+            <EditIcon> </EditIcon>
+          </IconButton>
         </Stack>
       </Stack>
+      {showEditorOptions && (
+        <EditorOptions
+          handleClose={() => {
+            setShowEditorOptions(false);
+          }}
+          editorOptions={editorOptions}
+          setEditorOptions={setEditorOptions}
+        ></EditorOptions>
+      )}
 
       <Divider />
       <Stack direction="row">
@@ -235,31 +238,6 @@ function ModifySettings({ handleClose }) {
           save
         </Button>
       </Stack>
-
-      {showEditorOptions && (
-        <Modal
-          open={showEditorOptions}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
-            e.preventDefault();
-            setShowEditorOptions(false);
-          }}
-        >
-          <Box sx={modalStyle} width="75%" height="50vh">
-            <ModalHeader title="Editor Options"></ModalHeader>
-            <EditorOptions
-              handleClose={() => {
-                setShowEditorOptions(false);
-              }}
-              editorOptions={editorOptions}
-              setEditorOptions={setEditorOptions}
-            ></EditorOptions>
-          </Box>
-        </Modal>
-      )}
     </Stack>
   );
 }
@@ -284,7 +262,15 @@ function EditorOptions(props: {
       });
   }, [value]);
   return (
-    <Stack spacing={1} flex={1}>
+    <Stack
+      spacing={1}
+      style={{
+        height: '40vh',
+        border: '1px solid',
+        borderRadius: '8px',
+        padding: '8px',
+      }}
+    >
       <Stack direction="row" spacing={1}>
         <Chip
           color="info"

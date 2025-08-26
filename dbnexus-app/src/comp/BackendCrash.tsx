@@ -1,8 +1,8 @@
-import { Button, Paper, Stack } from '@mui/material';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { handleCopyToClipboard } from './helper';
-import { useContext } from 'react';
-import { NotificationContext } from './Notification';
+import { Button, Paper, Stack } from "@mui/material";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { handleCopyToClipboard } from "./helper";
+import { useContext } from "react";
+import { NotificationContext } from "./Notification";
 
 function BackendCrash(props: { msg: string }) {
   let { msg } = props;
@@ -13,7 +13,7 @@ function BackendCrash(props: { msg: string }) {
       <Stack direction="row" spacing={1}>
         <Button
           onClick={() => {
-            openUrl('https://github.com/dbpal/docs/issues');
+            openUrl("https://github.com/dbpal/docs/issues");
           }}
           color="info"
           variant="contained"
@@ -30,17 +30,17 @@ function BackendCrash(props: { msg: string }) {
         </Button>
       </Stack>
 
-      <div style={{ display: 'grid' }}>
+      <div style={{ display: "grid" }}>
         <Paper
           elevation={8}
           style={{
-            overflow: 'scroll',
-            maxWidth: '99%',
-            maxHeight: '80vh',
-            padding: '2px 8px',
+            overflow: "scroll",
+            maxWidth: "99%",
+            maxHeight: "80vh",
+            padding: "2px 8px",
           }}
         >
-          <pre style={{ color: 'red' }}>{msg}</pre>
+          <pre style={{ color: "red" }}>{msg}</pre>
         </Paper>
       </div>
     </Stack>

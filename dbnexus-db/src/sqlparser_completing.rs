@@ -237,6 +237,10 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_type_drop(&mut self, typ: ObjectType, name: &ObjectName) {
+        self.c_on_schema(name).await;
+        if self.finished() {
+            return;
+        }
         if !self.in_pos(&name.span()) {
             return;
         }
@@ -263,19 +267,18 @@ impl<'a> CompletionStatement<'a> {
                     })
                     .await
                 }
-
                 _ => {
                     log::error!("role name is too long:{:?}", name)
                 }
             },
             ObjectType::Sequence => {
-                // rule not support
+                // not support
             }
             ObjectType::Stage => {
-                // rule not support
+                // not support
             }
             ObjectType::Type => {
-                // rule not support
+                // not support
             }
             ObjectType::User => match name.0.last() {
                 Some(x) => match x {
@@ -381,9 +384,17 @@ impl<'a> CompletionStatement<'a> {
             CommentObject::Extension => {
                 // not support right now
             }
-            CommentObject::User => {
-                // not support right now
-            }
+            CommentObject::User => match name.0.len() {
+                1 => match name.0.last().unwrap() {
+                    ObjectNamePart::Identifier(ident) => {
+                        self.c_on_user(ident).await;
+                    }
+                    ObjectNamePart::Function(..) => {}
+                },
+                _ => {
+                    log::error!("name not right:{:?}", name)
+                }
+            },
         }
     }
 
@@ -1091,7 +1102,7 @@ impl<'a> CompletionStatement<'a> {
         }
         log::trace!("hit idenfier:{:?}", ident);
         let mut results = vec![];
-        let tables = self.scopes.tables();
+        let tables = self.scopes.tables_cloned();
         for t in tables.iter() {
             match t {
                 TableEntered::FromTable { table, .. } => {
@@ -1149,12 +1160,22 @@ impl<'a> CompletionStatement<'a> {
                 desc: None,
             })
             .collect();
+        // 也要关键字 比如 DISTINCT 之类的
+        let keywords = self
+            .helper
+            .get_key_words_fn()
+            .await
+            .map_err(|e| log::error!("list keywords error: {}", e))
+            .unwrap_or_default();
+        results.extend(keywords.into_iter());
         results.extend(schemas.into_iter());
         results = remove_dupliate(results);
         self.result = Some(results);
     }
 
-    pub(crate) async fn c_on_column_option_def(&mut self, def: &ColumnOptionDef) {
+    pub(crate) async fn c_on_column_option_def(
+        &mut self, def: &ColumnOptionDef, cols: Arc<Vec<TempTableColumn>>,
+    ) {
         if let Some(name) = &def.name {
             if self.in_pos(&name.span) {
                 self.set_on_def();
@@ -1192,19 +1213,112 @@ impl<'a> CompletionStatement<'a> {
             ColumnOption::Check(expr) => {
                 self.c_on_expr(expr).await;
             }
-            ColumnOption::DialectSpecific(_vec) => {}
-            ColumnOption::CharacterSet(_object_name) => {}
-            ColumnOption::Comment(_) => {}
+            ColumnOption::DialectSpecific(..) => {
+                // fallback to lexer
+            }
+            ColumnOption::CharacterSet(..) => {
+                // fallback to lexer
+            }
+            ColumnOption::Comment(_) => {
+                // no postiion
+            }
             ColumnOption::OnUpdate(expr) => {
                 self.c_on_expr(expr).await;
             }
-            ColumnOption::Generated { .. } => {}
-            ColumnOption::Options(_vec) => {}
-            ColumnOption::Identity(_identity_property_kind) => {}
-            ColumnOption::OnConflict(_keyword) => {}
-            ColumnOption::Policy(_column_policy) => {}
-            ColumnOption::Tags(_tags_column_option) => {}
-            ColumnOption::Collation(..) => {}
+            ColumnOption::Generated {
+                sequence_options,
+                generation_expr,
+                ..
+            } => {
+                if let Some(options) = sequence_options {
+                    for op in options.iter() {
+                        match op {
+                            SequenceOptions::IncrementBy(expr, _) => {
+                                self.c_on_expr(expr).await;
+                            }
+                            SequenceOptions::MinValue(expr) => {
+                                if let Some(expr) = expr {
+                                    self.c_on_expr(expr).await;
+                                }
+                            }
+                            SequenceOptions::MaxValue(expr) => {
+                                if let Some(expr) = expr {
+                                    self.c_on_expr(expr).await;
+                                }
+                            }
+                            SequenceOptions::StartWith(expr, _) => {
+                                self.c_on_expr(expr).await;
+                            }
+                            SequenceOptions::Cache(expr) => {
+                                self.c_on_expr(expr).await;
+                            }
+                            SequenceOptions::Cycle(..) => {}
+                        }
+                    }
+                }
+                if let Some(expr) = generation_expr {
+                    self.c_on_expr(expr).await;
+                }
+            }
+            ColumnOption::Options(options) => {
+                for op in options.iter() {
+                    match op {
+                        SqlOption::Clustered(..) => {}
+                        SqlOption::Ident(..) => {
+                            // fallback to lexer
+                        }
+                        SqlOption::KeyValue { value, .. } => {
+                            self.c_on_expr(value).await;
+                        }
+                        SqlOption::Partition {
+                            column_name,
+                            for_values,
+                            ..
+                        } => {
+                            if self.in_pos(&column_name.span) {
+                                self.result = Some(cols.iter().map(CompletionItem::from).collect());
+
+                                return;
+                            }
+                            for f in for_values.iter() {
+                                self.c_on_expr(f).await;
+                                if self.finished() {
+                                    return;
+                                }
+                            }
+                        }
+                        SqlOption::Comment(..) => {}
+                        SqlOption::TableSpace(..) => {}
+                        SqlOption::NamedParenthesizedList(..) => {}
+                    }
+                }
+            }
+            ColumnOption::Identity(..) => {
+                // fallback to lexer
+            }
+            ColumnOption::OnConflict(..) => {}
+            ColumnOption::Policy(column_policy) => {
+                let ast = match column_policy {
+                    ColumnPolicy::MaskingPolicy(column_policy_property) => column_policy_property,
+                    ColumnPolicy::ProjectionPolicy(column_policy_property) => {
+                        column_policy_property
+                    }
+                };
+                // TODO this is temporary table rigth now
+                // self.c_on_policy(table_name, name);
+                if let Some(xs) = ast.using_columns.as_ref() {
+                    if xs.iter().any(|col| self.in_pos(&col.span)) {
+                        self.result = Some(cols.iter().map(CompletionItem::from).collect());
+                        return;
+                    }
+                }
+            }
+            ColumnOption::Tags(..) => {
+                //fallback to lexer
+            }
+            ColumnOption::Collation(..) => {
+                // 我不知道这个是什么呢
+            }
             ColumnOption::Srid(expr) => {
                 self.c_on_expr(expr).await;
             }
@@ -1826,7 +1940,7 @@ impl<'a> CompletionStatement<'a> {
             return;
         }
         let mut items = vec![];
-        for x in self.scopes.tables() {
+        for x in self.scopes.tables_cloned() {
             if let Some(name) = x.get_name() {
                 items.push(name.value.to_string());
             }
@@ -1959,7 +2073,7 @@ impl<'a> CompletionStatement<'a> {
                 // TODO need handle this.
                 let in_pos = vec.iter().any(|x| self.in_pos(&x.span()));
                 if in_pos {
-                    let tables = self.scopes.tables();
+                    let tables = self.scopes.tables_cloned();
                     let mut cs = vec![];
                     for table in tables.iter() {
                         match table {
@@ -2540,7 +2654,46 @@ impl<'a> CompletionStatement<'a> {
     pub(crate) async fn c_on_function_call(&mut self, function: &Function) {
         self.c_on_function(&function.name).await;
         // handle args
-        match &function.args {
+        self.c_on_function_arguments(&function.args).await;
+        self.c_on_function_arguments(&function.parameters).await;
+        if let Some(expr) = function.filter.as_deref() {
+            self.c_on_expr(expr).await;
+        }
+        if let Some(over) = function.over.as_ref() {
+            self.c_on_window_specification(over).await;
+        }
+        for w in function.within_group.iter() {
+            self.c_on_order_by_expr(w).await;
+            if self.finished() {
+                return;
+            }
+        }
+    }
+
+    pub(crate) async fn c_on_window_specification(&mut self, ast: &WindowType) {
+        match ast {
+            WindowType::WindowSpec(window_spec) => {
+                if let Some(window_name) = window_spec.window_name.as_ref() {
+                    if self.in_pos(&window_name.span) {
+                        self.set_on_def();
+                        return;
+                    }
+                }
+                for o in window_spec.order_by.iter() {
+                    self.c_on_order_by_expr(o).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            WindowType::NamedWindow(..) => {
+                // fallback to lexer
+            }
+        }
+    }
+
+    pub(crate) async fn c_on_function_arguments(&mut self, args: &FunctionArguments) {
+        match args {
             FunctionArguments::None => {}
             FunctionArguments::Subquery(query) => {
                 let _ = self.c_on_query(query).await;

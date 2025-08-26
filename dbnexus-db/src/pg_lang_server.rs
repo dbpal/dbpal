@@ -90,6 +90,20 @@ impl AstCompletionHelper for PostGresDB {
         anyhow::Ok(ret)
     }
 
+    async fn list_user(&self) -> anyhow::Result<Vec<String>> {
+        let sql = "SELECT usename  from pg_user";
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows {
+            let name: Option<String> = row.try_get(0)?;
+            if let Some(name) = name {
+                ret.push(name);
+            }
+        }
+        anyhow::Ok(ret)
+    }
+
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let sql = if let Some(schema) = self.schema_merge_config(schema) {
             format!(

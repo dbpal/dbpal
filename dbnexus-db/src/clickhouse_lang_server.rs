@@ -79,6 +79,7 @@ impl LangServerCommon for ClickHouseDB {
     async fn list_function(
         &self, _schema: Option<&str>, _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        // 在 ClickHouse 中，使用以下查询可以查看所有函数，包括表函数（table functions）：
         let sql = "select name , description from system.functions";
         let conn = self.get_conn()?;
         let result: Vec<(String, String)> = conn.query(sql).fetch_all().await?;

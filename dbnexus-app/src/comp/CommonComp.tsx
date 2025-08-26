@@ -567,7 +567,7 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
               <Typography variant="h6">{f.field}</Typography>
               <Typography variant="subtitle1">{f.typ}</Typography>
               {isTable && f.is_primary && (
-                <Typography variant="subtitle1"> primary key </Typography>
+                <Typography variant="subtitle1"> Primary Key </Typography>
               )}
               {isTable && f.nullable && (
                 <Typography variant="subtitle1"> nullable </Typography>
@@ -576,9 +576,19 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
                 <Typography variant="subtitle1"> auto increment </Typography>
               )}
               {isTable && f.default_value && (
-                <Typography variant="subtitle1">
-                  default value({f.default_value})
-                </Typography>
+                <Tooltip title={f.default_value}>
+                  <Typography
+                    variant="subtitle1"
+                    style={{
+                      maxWidth: '7rem',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    default value({f.default_value})
+                  </Typography>
+                </Tooltip>
               )}
             </Stack>
 
@@ -597,6 +607,7 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
     </Stack>
   );
 }
+
 export {
   LogLevelSelection,
   MetaValuesView,

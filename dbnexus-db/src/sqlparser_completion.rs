@@ -5,9 +5,9 @@ use sqlparser::ast::{
     DeclareAssignment, DenyStatement, DropDomain, GrantObjects, Grantee, GranteeName, Ident,
     IfStatement, ObjectName, ObjectNamePart, OneOrManyWithParens, OpenStatement, PrintStatement,
     Privileges, RaiseStatement, RaiseStatementValue, ReturnStatement, ReturnStatementValue,
-    SchemaName, SelectItem, SequenceOptions, Set, SetSessionParamKind, Spanned, Statement,
-    TableConstraint, TableFactor, TableObject, TriggerEvent, UpdateTableFromKind,
-    UserDefinedTypeRepresentation, WhileStatement,
+    SchemaName, SequenceOptions, Set, SetSessionParamKind, Spanned, Statement, TableConstraint,
+    TableFactor, TableObject, TriggerEvent, UpdateTableFromKind, UserDefinedTypeRepresentation,
+    WhileStatement,
 };
 use sqlparser::ast::{CopyOption, Expr};
 use sqlparser::tokenizer::{Location, Span};
@@ -76,7 +76,7 @@ impl Scopes {
         f(self.ss.lock().unwrap().last_mut().unwrap())
     }
 
-    pub(crate) fn tables(&self) -> Vec<TableEntered> {
+    pub(crate) fn tables_cloned(&self) -> Vec<TableEntered> {
         let mut ret = vec![];
         let lock = self.ss.lock().unwrap();
         for s in lock.iter().rev() {
@@ -275,17 +275,6 @@ impl Scope {
         }
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn from_temp_table(this_table: TempTable) -> Self {
-        Self {
-            tables: vec![TableEntered::Temp {
-                table: this_table,
-                alias: None,
-            }],
-            ..Default::default()
-        }
-    }
-
     pub(crate) fn from_vars(vars: HashMap<String, Var>) -> Self {
         Self {
             vars,
@@ -349,6 +338,7 @@ impl<'a> CompletionStatement<'a> {
             Statement::Truncate {
                 table_names,
                 on_cluster,
+                partitions,
                 ..
             } => {
                 for t in table_names.iter() {
@@ -361,7 +351,19 @@ impl<'a> CompletionStatement<'a> {
                     self.c_on_cluster(on_cluster).await;
                     if self.finished() {}
                 }
-                // TODO how should I handle partitions
+                if let Some(partitions) = partitions.as_ref() {
+                    let mut scope = Scope::default();
+                    for t in table_names.iter() {
+                        scope.enter_table(None, t.name.clone());
+                    }
+                    let _gurad = self.scopes.push(scope);
+                    for p in partitions.iter() {
+                        self.c_on_expr(p).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
             }
             Statement::Msck { .. } => {
                 // hive not support rigth now
@@ -389,7 +391,9 @@ impl<'a> CompletionStatement<'a> {
                             }
                         }
                     }
-                    TableObject::TableFunction(..) => {}
+                    TableObject::TableFunction(f) => {
+                        self.c_on_function_call(f).await;
+                    }
                 }
 
                 //
@@ -408,64 +412,14 @@ impl<'a> CompletionStatement<'a> {
                 }
                 match &insert.table {
                     TableObject::TableName(object_name) => {
-                        // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE
-                        // 或 DELETE 语句后返回被操作的行的特定列。
-                        // 这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
-                        let _gurad = self
-                            .scopes
-                            .push(Scope::from_this_table(object_name.clone()));
                         if let Some(returning) = &insert.returning {
-                            for r in returning.iter() {
-                                match r {
-                                    SelectItem::UnnamedExpr(expr) => {
-                                        self.c_on_expr(expr).await;
-                                    }
-                                    SelectItem::ExprWithAlias { expr, alias } => {
-                                        if self.in_pos(&alias.span) {
-                                            self.set_on_def();
-                                            return;
-                                        }
-                                        self.c_on_expr(expr).await;
-                                    }
-                                    SelectItem::QualifiedWildcard(kind, add) => {
-                                        self.c_on_select_item_qualified_wildcardkind(kind).await;
-                                        self.c_on_wildcard_additional_options(add).await;
-                                    }
-
-                                    SelectItem::Wildcard(add) => {
-                                        self.c_on_wildcard_additional_options(add).await;
-                                    }
-                                }
-                            }
-                        }
-                        // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE
-                        // 或 DELETE 语句后返回被操作的行的特定列。
-                        // 这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
-                        let _gurad = self
-                            .scopes
-                            .push(Scope::from_this_table(object_name.clone()));
-                        if let Some(returning) = &insert.returning {
-                            for r in returning.iter() {
-                                match r {
-                                    SelectItem::UnnamedExpr(expr) => {
-                                        self.c_on_expr(expr).await;
-                                    }
-                                    SelectItem::ExprWithAlias { expr, alias } => {
-                                        if self.in_pos(&alias.span) {
-                                            self.set_on_def();
-                                            return;
-                                        }
-                                        self.c_on_expr(expr).await;
-                                    }
-                                    SelectItem::QualifiedWildcard(kind, add) => {
-                                        self.c_on_select_item_qualified_wildcardkind(kind).await;
-                                        self.c_on_wildcard_additional_options(add).await;
-                                    }
-                                    SelectItem::Wildcard(add) => {
-                                        self.c_on_wildcard_additional_options(add).await;
-                                    }
-                                }
-                            }
+                            // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE
+                            // 或 DELETE 语句后返回被操作的行的特定列。
+                            // 这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
+                            let _gurad = self
+                                .scopes
+                                .push(Scope::from_this_table(object_name.clone()));
+                            self.c_on_select_item(&returning[..]).await;
                         }
                     }
                     TableObject::TableFunction(..) => {}
@@ -546,7 +500,7 @@ impl<'a> CompletionStatement<'a> {
                 // snowflake not support at all
             }
             Statement::Close { .. } => {
-                //
+                // fallback to lexer
             }
             Statement::Update {
                 table,
@@ -691,7 +645,7 @@ impl<'a> CompletionStatement<'a> {
                             .collect(),
                     ),
                 };
-                scope.enter_temp_table(None, this_table);
+                scope.enter_temp_table(None, this_table.clone());
                 let _guard = self.scopes.push(scope);
                 for c in create_table.columns.iter() {
                     if self.in_pos(&c.name.span) {
@@ -699,7 +653,7 @@ impl<'a> CompletionStatement<'a> {
                         return;
                     }
                     for op in c.options.iter() {
-                        Box::pin(self.c_on_column_option_def(op)).await;
+                        Box::pin(self.c_on_column_option_def(op, this_table.columns.clone())).await;
                         if self.finished() {
                             return;
                         }
@@ -857,7 +811,6 @@ impl<'a> CompletionStatement<'a> {
                                     return;
                                 }
                             }
-
                             if columns.iter().any(|x| match &x.column.expr {
                                 Expr::Identifier(x) => self.in_pos(&x.span),
                                 _ => false,
@@ -888,6 +841,7 @@ impl<'a> CompletionStatement<'a> {
                 // 其他都可以fallback 到lexer的实现
             }
             Statement::CreateVirtualTable { name, .. } => {
+                // TODO create a new type a of table.
                 if self.in_pos(&name.span()) {
                     self.set_on_def();
                 }
@@ -929,6 +883,12 @@ impl<'a> CompletionStatement<'a> {
                     self.c_on_expr(expr).await;
                     if self.finished() {}
                 }
+                for w in create_index.with.iter() {
+                    self.c_on_expr(w).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
             }
             Statement::CreateRole {
                 names,
@@ -966,6 +926,7 @@ impl<'a> CompletionStatement<'a> {
                 name,
                 using,
                 with_check,
+                to,
                 ..
             } => {
                 if self.in_pos(&name.span) {
@@ -976,6 +937,40 @@ impl<'a> CompletionStatement<'a> {
                 if self.finished() {
                     return;
                 }
+                if let Some(to) = to.as_ref() {
+                    if to.iter().any(|x| match x {
+                        sqlparser::ast::Owner::Ident(ident) => self.in_pos(&ident.span),
+                        _ => false,
+                    }) {
+                        // hit the pistion
+                        let mut results: Vec<_> = self
+                            .helper
+                            .list_role()
+                            .await
+                            .map_err(|e| log::error!("list role error: {:?}", e))
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|x| CompletionItem {
+                                item: x.into(),
+                                kind: CompletionKind::Role,
+                                desc: None,
+                            })
+                            .collect();
+                        // https://www.postgresql.org/docs/current/sql-createpolicy.html
+                        results.extend(
+                            ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]
+                                .iter()
+                                .map(|x| CompletionItem {
+                                    item: (*x).into(),
+                                    kind: CompletionKind::Role,
+                                    desc: None,
+                                }),
+                        );
+                        self.result = Some(results);
+                        return;
+                    }
+                }
+
                 let _guard = self.scopes.push(Scope::from_this_table(table_name.clone()));
                 if let Some(x) = using {
                     self.c_on_expr(x).await;
@@ -1009,8 +1004,10 @@ impl<'a> CompletionStatement<'a> {
                 }
                 match operation {
                     AlterIndexOperation::RenameIndex { index_name } => {
+                        self.c_on_schema(index_name).await;
                         if self.in_pos(&index_name.span()) {
                             self.set_on_def();
+                            return;
                         }
                     }
                 }
@@ -1024,6 +1021,9 @@ impl<'a> CompletionStatement<'a> {
             }
             Statement::AlterRole { name, operation } => {
                 self.c_on_role(name).await;
+                if self.finished() {
+                    return;
+                }
                 match operation {
                     AlterRoleOperation::RenameRole { role_name } => {
                         if self.in_pos(&role_name.span) {
@@ -1068,13 +1068,19 @@ impl<'a> CompletionStatement<'a> {
                 // no support on this
             }
             Statement::Drop {
-                object_type, names, ..
+                object_type,
+                names,
+                table,
+                ..
             } => {
                 for name in names.iter() {
                     self.c_on_type_drop(*object_type, name).await;
                     if self.finished() {
                         return;
                     }
+                }
+                if let Some(table) = table {
+                    self.c_on_table(table).await;
                 }
             }
             Statement::DropFunction { func_desc, .. } => {
@@ -1138,11 +1144,36 @@ impl<'a> CompletionStatement<'a> {
                     self.scopes.enter_declare(Arc::new(d.clone()));
                 }
             }
-            Statement::CreateExtension { .. } => {
+            Statement::CreateExtension { name, schema, .. } => {
                 // fallback to lexer
+                if self.in_pos(&name.span) {
+                    self.set_on_def();
+                    return;
+                }
+                if let Some(schema) = schema {
+                    if self.in_pos(&schema.span) {
+                        self.result = Some(
+                            self.helper
+                                .list_schema()
+                                .await
+                                .map_err(|e| log::error!("list schema failed,err:{}", e))
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(|x| CompletionItem {
+                                    item: x.into(),
+                                    kind: CompletionKind::Schema,
+                                    desc: None,
+                                })
+                                .collect(),
+                        )
+                    }
+                }
             }
-            Statement::Fetch { .. } => {
+            Statement::Fetch { into, .. } => {
                 // fallback to lexer
+                if let Some(into) = into {
+                    self.c_on_table(into).await;
+                }
             }
             Statement::Flush { tables, .. } => {
                 for table in tables.iter() {
@@ -1207,7 +1238,7 @@ impl<'a> CompletionStatement<'a> {
             }
             Statement::Use(_x) => {
                 // TODO maybe can auto completion.
-                // wo perfer use don't use this statment.
+                // we perfer use don't use this statment.
             }
             Statement::StartTransaction {
                 statements,
@@ -1220,7 +1251,7 @@ impl<'a> CompletionStatement<'a> {
                         return;
                     }
                 }
-                if let Some(exception) = exception.as_ref() {
+                if let Some(exception) = exception {
                     for s in exception.iter() {
                         for stmt in s.statements.iter() {
                             Box::pin(self.completion_on_statement(stmt)).await;
@@ -2050,7 +2081,7 @@ mod tests {
     #[test]
     fn test_sql_lexer() {
         let sql = r#"
-            `abc`
+            select 1
         "#;
         let dialect = sqlparser::dialect::MySqlDialect {};
         let tokens = sqlparser::tokenizer::Tokenizer::new(&dialect, sql)
