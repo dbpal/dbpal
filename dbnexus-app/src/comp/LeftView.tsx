@@ -252,7 +252,7 @@ function ViewStructure(props: {
   const { uuid, view, viewKind, kind } = props;
 
   const [structure, setStructure] = useState('columns');
-  const structures = [{ name: 'columns', color: 'primary' }, ,];
+  const structures = [{ name: 'columns' }];
 
   const supportStatement = [
     DataSourceKind.LibSql,
@@ -264,7 +264,7 @@ function ViewStructure(props: {
   ].includes(kind);
 
   if (supportStatement) {
-    structures.push({ name: 'statement', color: 'secondary' });
+    structures.push({ name: 'statement' });
   }
 
   return (
@@ -275,10 +275,8 @@ function ViewStructure(props: {
             onClick={() => {
               setStructure(e.name);
             }}
-            disabled={structure == e.name}
+            color={structure == e.name ? 'primary' : 'default'}
             key={e.name}
-            //@ts-ignore
-            color={e.color}
             label={e.name}
           ></Chip>
         ))}
