@@ -445,7 +445,7 @@ impl<'a> CompletionStatement<'a> {
                         table_name,
                         columns,
                     } => {
-                        self.c_on_table(table_name).await;
+                        self.c_on_table_or_view(table_name).await;
                         if self.finished() {
                             return;
                         }
@@ -933,7 +933,7 @@ impl<'a> CompletionStatement<'a> {
                     self.set_on_def();
                     return;
                 }
-                self.c_on_table(table_name).await;
+                self.c_on_table_or_view(table_name).await;
                 if self.finished() {
                     return;
                 }
@@ -1051,7 +1051,7 @@ impl<'a> CompletionStatement<'a> {
             Statement::AlterPolicy {
                 table_name, name, ..
             } => {
-                self.c_on_table(table_name).await;
+                self.c_on_table_or_view(table_name).await;
                 if self.finished() {
                     return;
                 }

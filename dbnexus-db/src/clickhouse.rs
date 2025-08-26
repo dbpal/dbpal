@@ -1186,10 +1186,7 @@ fn replace_new_line_to_whitespace(sql: &str) -> anyhow::Result<String> {
     let tokens = sqlparser::tokenizer::Tokenizer::new(&dialect, sql)
         .tokenize()?
         .iter()
-        .filter(|x| match x {
-            Token::Whitespace(_) => false,
-            _ => true,
-        })
+        .filter(|x| !matches!(x, Token::Whitespace(_)))
         .map(|x| x.to_string())
         .collect::<Vec<_>>();
 

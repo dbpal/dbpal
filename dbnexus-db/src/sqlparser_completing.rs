@@ -1725,7 +1725,7 @@ impl<'a> CompletionStatement<'a> {
             }
             Expr::QualifiedWildcard(table, _) => {
                 // nothing here
-                self.c_on_table(table).await;
+                self.c_on_table_or_view(table).await;
             }
             Expr::OuterJoin(expr) => {
                 Box::pin(self.c_on_expr(expr)).await;
