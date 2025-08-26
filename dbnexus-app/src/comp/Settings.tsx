@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { CSSProperties, useContext, useEffect, useState } from 'react';
 
 import {
   Button,
@@ -35,7 +35,7 @@ function ModifySettings({ handleClose }) {
   const [pageSize, setPageSize] = useState(0);
   const [fontWeight, setFontWeight] = useState('normal');
   const [rootFontSize, setRootFontSize] = useState(16);
-  const [editorOptions, setEditorOptions] = useState('{\n}');
+  const [editorOptions, setEditorOptions] = useState('');
   const [showEditorOptions, setShowEditorOptions] = useState(false);
   const [fontFamily, setFontFamily] = useState<string>('');
   const [allFonts, setAllFonts] = useState<string[]>([]);
@@ -59,7 +59,11 @@ function ModifySettings({ handleClose }) {
       setRootFontSize(settings.fontSize);
       setFontFamily(settings.fontFamily);
 
-      const content = JSON.stringify(settings.editorOption, null, 2);
+      const content = JSON.stringify(
+        settings.editorOption ? settings.editorOption : {},
+        null,
+        2
+      );
       if (content) {
         setEditorOptions(content);
       }
@@ -206,7 +210,6 @@ function ModifySettings({ handleClose }) {
               monaco editor options:
             </Typography>
           </Tooltip>
-          <Typography color="info">{editorOptions}</Typography>
           <IconButton
             onClick={() => {
               setShowEditorOptions((e) => !e);
@@ -215,12 +218,21 @@ function ModifySettings({ handleClose }) {
           >
             <EditIcon> </EditIcon>
           </IconButton>
+          <Typography color="info">{editorOptions}</Typography>
         </Stack>
       </Stack>
-      {showEditorOptions && (
+
+      {editorOptions && (
         <EditorOptions
           handleClose={() => {
             setShowEditorOptions(false);
+          }}
+          style={{
+            height: '40vh',
+            border: '1px solid',
+            borderRadius: '8px',
+            padding: '8px',
+            display: showEditorOptions ? 'flex' : 'none',
           }}
           editorOptions={editorOptions}
           setEditorOptions={setEditorOptions}
@@ -246,9 +258,10 @@ function EditorOptions(props: {
   editorOptions;
   setEditorOptions;
   handleClose;
+  style: CSSProperties;
 }) {
   const { showNotification } = useContext(NotificationContext);
-  const { editorOptions, setEditorOptions, handleClose } = props;
+  const { editorOptions, setEditorOptions, handleClose, style } = props;
   const [value, setValue] = useState(editorOptions);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
@@ -262,15 +275,7 @@ function EditorOptions(props: {
       });
   }, [value]);
   return (
-    <Stack
-      spacing={1}
-      style={{
-        height: '40vh',
-        border: '1px solid',
-        borderRadius: '8px',
-        padding: '8px',
-      }}
-    >
+    <Stack spacing={1} style={style}>
       <Stack direction="row" spacing={1}>
         <Chip
           color="info"
@@ -323,7 +328,7 @@ function EditorOptions(props: {
             handleClose();
           }}
         >
-          modify
+          set
         </Button>
       </Stack>
     </Stack>
