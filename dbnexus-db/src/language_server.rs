@@ -317,14 +317,14 @@ pub trait LangServerCommon: GetBackendKind {
             .iter()
             .any(|x| x.eq_ignore_ascii_case(name))
     }
-    async fn hit_table(&self, name: &str) -> bool {
+    async fn hit_table(&self, schema: Option<&str>, name: &str) -> bool {
         let tables = self
-            .list_table(None)
+            .list_table(schema)
             .await
             .map_err(|e| log::error!("list table failed,err:{}", e))
             .unwrap_or_default();
         let views = self
-            .list_view(None)
+            .list_view(schema)
             .await
             .map_err(|e| log::error!("list view failed,err:{}", e))
             .unwrap_or_default();
@@ -449,16 +449,26 @@ pub trait LangServerCommon: GetBackendKind {
                 }
 
                 {
-                    if self.hit_table(&schema).await {
+                    let table = schema;
+                    let schema = if index >= 3 {
+                        match (tokens.get(index - 3), tokens.get(index - 2)) {
+                            (Some(schema), Some(dot)) => match (&schema.token, &dot.token) {
+                                (Token::Word(x), Token::Period) => Some(x.value.as_str()),
+                                _ => None,
+                            },
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    };
+
+                    if self.hit_table(schema, &table).await {
                         // try a TABLE.xxxx
                         // right now schama is table name
                         // we hope the use not use table alias
-                        log::trace!(
-                            "hit table or view '{}' trying to completion columns",
-                            schema
-                        );
+                        log::trace!("hit table or view '{}' trying to completion columns", table);
                         ret.extend(
-                            self.list_column(None, &schema, false)
+                            self.list_column(schema, &table, false)
                                 .await
                                 .map_err(|e| log::error!("list column failed: {}", e))
                                 .unwrap_or_default()
