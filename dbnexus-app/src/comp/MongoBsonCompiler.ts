@@ -814,7 +814,12 @@ class Parser {
 function quoteString(quote: string): string {
   const ok = (d: string): [string, boolean] => {
     let s = d + quote + d;
-    return [s, (tokenize(s) as Token[]).length == 1];
+    try {
+      return [s, (tokenize(s) as Token[]).length == 1];
+    } catch (_) {
+      return [s, false];
+    }
+
   };
   {
     const [s, _ok] = ok(`'`);
