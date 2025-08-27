@@ -8,9 +8,7 @@ import {
   CssBaseline,
   CssVarsTheme,
   Divider,
-  FormControl,
   IconButton,
-  InputLabel,
   MenuItem,
   Select,
   Slider,
@@ -34,13 +32,13 @@ function ModifySettings({ handleClose }) {
   const { showNotification } = useContext(NotificationContext);
   const [pageSize, setPageSize] = useState(0);
   const [fontWeight, setFontWeight] = useState('normal');
-  const [rootFontSize, setRootFontSize] = useState(16);
+  const [fontSize, setFontSize] = useState(16);
   const [editorOptions, setEditorOptions] = useState('');
   const [showEditorOptions, setShowEditorOptions] = useState(false);
   const [fontFamily, setFontFamily] = useState<string>('');
   const [allFonts, setAllFonts] = useState<string[]>([]);
   const [fontMatch, setFontMatch] = useState<string>('');
-
+  const [tabSize, setTabSize] = useState(2);
   useEffect(() => {
     invoke<string[]>('fonts_all_families', {})
       .then((fonts) => {
@@ -50,19 +48,19 @@ function ModifySettings({ handleClose }) {
         showNotification('error', 'list all fonts failed', e);
       });
   }, []);
-
+  const setting = useContext(SettingContext);
   const reload = async () => {
     try {
       let settings = await UserSettings.get();
       setPageSize(settings.pageSize);
       setFontWeight(settings.fontWeight);
-      setRootFontSize(settings.fontSize);
+      setFontSize(settings.fontSize);
       setFontFamily(settings.fontFamily);
-
+      setTabSize(settings.tabSize);
       const content = JSON.stringify(
         settings.editorOption ? settings.editorOption : {},
         null,
-        2
+        setting.tabSize
       );
       if (content) {
         setEditorOptions(content);
@@ -75,7 +73,6 @@ function ModifySettings({ handleClose }) {
   useEffect(() => {
     reload();
   }, []);
-  const s = useContext(SettingContext);
   const handleSave = async () => {
     try {
       const e = await validJson(editorOptions);
@@ -87,18 +84,14 @@ function ModifySettings({ handleClose }) {
       showNotification('error', 'call valid json error', e);
       return;
     }
-    appStore
-      .set(
-        AppStoreKey.UserSetttings,
-        UserSettings.merge({
-          theme: s.theme, // theme not depend on setting
-          fontWeight,
-          pageSize,
-          fontSize: rootFontSize,
-          fontFamily,
-          editorOption: JSON.parse(editorOptions),
-        } as UserSettings)
-      )
+    UserSettings.set({
+      fontWeight,
+      pageSize,
+      fontSize,
+      fontFamily,
+      tabSize,
+      editorOption: JSON.parse(editorOptions),
+    })
       .then(() => {
         handleClose();
         showNotification('success', 'Save Setting OK');
@@ -124,6 +117,22 @@ function ModifySettings({ handleClose }) {
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
+          font size:
+        </Typography>
+        <Chip label={fontSize} style={{ fontSize }} />
+        <Slider
+          style={{ width: '30%' }}
+          size="small"
+          value={fontSize}
+          onChange={(_, value) => {
+            setFontSize(value as number);
+          }}
+          min={12}
+          max={25}
+        ></Slider>
+      </Stack>
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right" style={{ fontWeight }}>
           font weight:
         </Typography>
         <TextField
@@ -135,22 +144,6 @@ function ModifySettings({ handleClose }) {
         ></TextField>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          font size:
-        </Typography>
-        <Chip label={rootFontSize} />
-        <Slider
-          style={{ width: '30%' }}
-          size="small"
-          value={rootFontSize}
-          onChange={(_, value) => {
-            setRootFontSize(value as number);
-          }}
-          min={12}
-          max={25}
-        ></Slider>
-      </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography
           width={headerSize}
           style={{ fontFamily: fontFamily }}
@@ -159,35 +152,31 @@ function ModifySettings({ handleClose }) {
           font family:
         </Typography>
 
-        <FormControl style={{ width: '40%' }}>
-          <InputLabel>font family</InputLabel>
-          <Select
-            size="small"
-            value={fontFamily}
-            label="font family"
-            onChange={(e) => setFontFamily(e.target.value as string)}
-            style={{ fontFamily: fontFamily }}
-          >
-            <MenuItem style={{ fontFamily: undefined }} value="">
-              default
-            </MenuItem>
-            {allFonts
-              .filter((f) => {
-                if (fontMatch) {
-                  return f.toLowerCase().includes(fontMatch.toLowerCase());
-                } else {
-                  return true;
-                }
-              })
-              .map((f) => {
-                return (
-                  <MenuItem style={{ fontFamily: f }} value={f}>
-                    {f}
-                  </MenuItem>
-                );
-              })}
-          </Select>
-        </FormControl>
+        <Select
+          size="small"
+          value={fontFamily}
+          onChange={(e) => setFontFamily(e.target.value as string)}
+          style={{ fontFamily: fontFamily, width: '200px' }}
+        >
+          <MenuItem style={{ fontFamily: undefined }} value="">
+            default
+          </MenuItem>
+          {allFonts
+            .filter((f) => {
+              if (fontMatch) {
+                return f.toLowerCase().includes(fontMatch.toLowerCase());
+              } else {
+                return true;
+              }
+            })
+            .map((f) => {
+              return (
+                <MenuItem style={{ fontFamily: f }} value={f}>
+                  {f}
+                </MenuItem>
+              );
+            })}
+        </Select>
         <TextField
           size="small"
           label="match font"
@@ -197,6 +186,22 @@ function ModifySettings({ handleClose }) {
             setFontMatch(e.target.value);
           }}
         ></TextField>
+      </Stack>
+
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
+          tab size:
+        </Typography>
+
+        {[2, 4, 8].map((e) => (
+          <Chip
+            label={e}
+            color={e == tabSize ? 'primary' : 'default'}
+            onClick={() => {
+              setTabSize(e);
+            }}
+          ></Chip>
+        ))}
       </Stack>
 
       <Stack spacing={1}>
@@ -484,11 +489,10 @@ function SettingComp(props: { children }) {
   const reload = async () => {
     UserSettings.get()
       .then((setting) => {
-        let x = UserSettings.merge(setting);
-        setSetting(x);
+        setSetting(setting);
         // why new a object because of js is a dynamic language
         // UserSettings maybe have no value on store
-        document.documentElement.style.fontSize = x.fontSize + 'px';
+        document.documentElement.style.fontSize = setting.fontSize + 'px';
       })
       .catch((e) => {
         alert(`list user settings failed ${e.toString()}`);

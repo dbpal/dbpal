@@ -4,7 +4,7 @@ use crate::clickhouse::{ClickHouseDB, JsonRespMeta};
 use crate::db::DBTrait;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc, LangServerCommon,
-    LanguageServer, LexerCompletionTrait, try_parser_and_lexer,
+    LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::sqlparser_completion::TempTableColumn;
 
@@ -14,7 +14,7 @@ impl LanguageServer for ClickHouseDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        try_parser_and_lexer(self, sql, line, col, use_lexer).await
+        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
     fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         LangServerCommon::parse_error(self, sql)

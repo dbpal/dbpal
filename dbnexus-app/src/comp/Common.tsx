@@ -416,6 +416,8 @@ function SimpleFlexSizeEditor(props: {
       fontWeight: setting.fontWeight,
       fontFamily: setting.fontFamily,
       readOnly,
+
+      tabSize: setting.tabSize,
       ...setting.editorOption,
     };
   }, [setting]);
@@ -621,6 +623,8 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
       throw e;
     }
   };
+
+  const singleLineReg = /(--[^\n]*|#[^\n]*)/g;
   function initLanguageXXX(
     uuid: string,
     Ilanguage: languages.IMonarchLanguage,
@@ -676,8 +680,8 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
               [mariadbKeyWords, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
-              [/\/\*[^]*?\*\//g, 'comment'], // not working why
-              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+
+              [singleLineReg, 'comment'],
             ],
           },
           brackets: [
@@ -699,7 +703,6 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
               [mysqlKeywords, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
-              [/\/\*[^]*?\*\//g, 'comment'], // not working why
               [/(--[^\n]*|#[^\n]*)/g, 'comment'],
             ],
           },
@@ -722,8 +725,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
               [clickhouseKeyWords, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
-              [/\/\*[^]*?\*\//g, 'comment'], // not working why
-              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+              [singleLineReg, 'comment'],
             ],
           },
           brackets: [
@@ -746,8 +748,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
               [tidbKeywords, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
-              [/\/\*[^]*?\*\//g, 'comment'], // not working why
-              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+              [singleLineReg, 'comment'],
             ],
           },
           brackets: [
@@ -770,8 +771,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
               [sqliteKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
-              [/\/\*[^]*?\*\//g, 'comment'], // not working why
-              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+              [singleLineReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
@@ -790,8 +790,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
               [firebirdKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
-              [/\/\*[^]*?\*\//g, 'comment'], // not working why
-              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+              [singleLineReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
@@ -808,11 +807,8 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
             root: [
               [duckdbKeyWords, 'keyword'],
               [/[_a-z\$][_a-z0-9\$]*/i, 'identifier'],
-              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
               [/\'(?:\\.|[^\\\'])*\'/, 'string'],
-              [/\`(?:\\.|[^\\\`])*\`/, 'string'],
-              [/\/\*[^]*?\*\//g, 'comment'], // not working why
-              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+              [singleLineReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
@@ -831,8 +827,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
               [postgresKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
-              [/\/\*[^]*?\*\//g, 'comment'], // not working why
-              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+              [singleLineReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
@@ -851,8 +846,8 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\"(?:\\.|[^\"\"])*\"/, 'string'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
-              [/\/\*[^]*?\*\//g, 'comment'], // not working why
-              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+
+              [singleLineReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
@@ -871,8 +866,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
               [/\"(?:\\.|[^\\\"])*\"/, 'string'],
-              [/\/\*[^]*?\*\//g, 'comment'], // not working why
-              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+              [singleLineReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
@@ -903,9 +897,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
               [oracleKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
-              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
-              [/\/\*[^]*?\*\//g, 'comment'], // not working why
-              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+              [singleLineReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
@@ -923,9 +915,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
               [cassandraKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
-              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
-              [/\/\*[^]*?\*\//g, 'comment'], // not working why
-              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
+              [singleLineReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,

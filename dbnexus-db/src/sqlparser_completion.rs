@@ -698,11 +698,9 @@ impl<'a> CompletionStatement<'a> {
                             columns,
                             ..
                         } => {
-                            if let Some(name) = name {
-                                if self.in_pos(&name.span) {
-                                    self.set_on_def();
-                                    return;
-                                }
+                            if let Some(..) = name {
+                                // TODO we are on create table
+                                // we can't have constraint name right now
                             }
                             if let Some(name) = index_name {
                                 if self.in_pos(&name.span) {
@@ -771,7 +769,6 @@ impl<'a> CompletionStatement<'a> {
                                     return;
                                 }
                             }
-
                             Box::pin(self.c_on_expr(expr)).await;
                         }
                         TableConstraint::Index { name, columns, .. } => {
@@ -780,25 +777,11 @@ impl<'a> CompletionStatement<'a> {
                                     return;
                                 }
                             }
-                            if columns.iter().any(|x| match &x.column.expr {
-                                Expr::Identifier(x) => self.in_pos(&x.span),
-                                _ => false,
-                            }) {
-                                // hit column
-                                let mut r = vec![];
-                                for c in columns.iter() {
-                                    match &c.column.expr {
-                                        Expr::Identifier(x) => {
-                                            r.push(CompletionItem {
-                                                item: x.value.clone().into(),
-                                                kind: CompletionKind::Column,
-                                                desc: None,
-                                            });
-                                        }
-                                        _ => {}
-                                    }
+                            for column in columns {
+                                self.c_on_order_by_expr(&column.column).await;
+                                if self.finished() {
+                                    return;
                                 }
-                                self.result = Some(r);
                             }
                         }
                         TableConstraint::FulltextOrSpatial {
@@ -811,31 +794,25 @@ impl<'a> CompletionStatement<'a> {
                                     return;
                                 }
                             }
-                            if columns.iter().any(|x| match &x.column.expr {
-                                Expr::Identifier(x) => self.in_pos(&x.span),
-                                _ => false,
-                            }) {
-                                // hit column
-                                let mut r = vec![];
-                                for c in columns.iter() {
-                                    match &c.column.expr {
-                                        Expr::Identifier(x) => {
-                                            r.push(CompletionItem {
-                                                item: x.value.clone().into(),
-                                                kind: CompletionKind::Column,
-                                                desc: None,
-                                            });
-                                        }
-                                        _ => {}
-                                    }
+                            for column in columns {
+                                self.c_on_order_by_expr(&column.column).await;
+                                if self.finished() {
+                                    return;
                                 }
-                                self.result = Some(r);
                             }
                         }
                     }
                 }
                 if let Some(query) = &create_table.query {
                     let _ = self.c_on_query(query).await;
+                }
+                if let Some(i) = create_table.inherits.as_ref() {
+                    for t in i.iter() {
+                        self.c_on_table(t).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
                 }
 
                 // 其他都可以fallback 到lexer的实现

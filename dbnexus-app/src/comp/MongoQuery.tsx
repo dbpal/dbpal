@@ -148,6 +148,7 @@ function MongoQuery(props: {
       fontSize: setting.fontSize,
       fontWeight: setting.fontWeight,
       fontFamily: setting.fontFamily,
+      tabSize: setting.tabSize,
       ...setting.editorOption,
     };
   }, [setting]);

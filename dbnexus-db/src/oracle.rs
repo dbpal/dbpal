@@ -84,7 +84,6 @@ impl OracleDB {
             query_connections: Default::default(),
             config,
             query_logs: Default::default(),
-
             key_word_completion: Default::default(),
         })
     }
@@ -993,7 +992,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
-        let sql = format!("DROP MATERIALIZED VIEW {name}");
+        let sql = format!(r#"DROP MATERIALIZED VIEW "{name}""#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
 
@@ -1028,7 +1027,7 @@ impl SchemaTrait for OracleDB {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        let sql = format!("CREATE TABLE {dup} AS SELECT * FROM {table}");
+        let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}""#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1037,7 +1036,7 @@ impl SchemaTrait for OracleDB {
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
         let conn = self.get_conn()?;
-        block_in_place(|| conn.execute(format!("RENAME {old} TO {new}").as_str(), &[]))?;
+        block_in_place(|| conn.execute(format!(r#"RENAME "{old}" TO "{new}""#).as_str(), &[]))?;
         anyhow::Ok(())
     }
 
@@ -1155,13 +1154,14 @@ impl SchemaTrait for OracleDB {
         &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
     ) -> anyhow::Result<()> {
         let sql = format!(
-            "CREATE {} INDEX {} ON {table}({})",
+            r#"CREATE {} INDEX "{}" ON "{}"({})"#,
             match kind {
                 IndexKind::Index => "",
                 IndexKind::Primary => anyhow::bail!("can't create primary index"),
                 IndexKind::Unique => "Unique",
             },
             name,
+            table,
             fields.join(",")
         );
         log::info!("sql:{}", sql);
@@ -1172,9 +1172,9 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn rename_index(
-        &self, _table_name: &str, oldname: &str, _newname: &str,
+        &self, _table_name: &str, oldname: &str, newname: &str,
     ) -> anyhow::Result<()> {
-        let sql = format!("ALTER INDEX {oldname} RENAME TO {_newname}");
+        let sql = format!(r#"ALTER INDEX "{oldname}" RENAME TO "{newname}""#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1191,7 +1191,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
-        let sql = format!("ALTER TABLE {table} DROP COLUMN {col}");
+        let sql = format!(r#"ALTER TABLE "{table}" DROP COLUMN "{col}""#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1207,22 +1207,22 @@ impl SchemaTrait for OracleDB {
     ) -> anyhow::Result<()> {
         let conn = self.get_conn()?;
         if old_name != new_name {
-            let sql = format!("ALTER TABLE {table} RENAME COLUMN {old_name} TO {new_name}");
+            let sql = format!(r#"ALTER TABLE "{table}" RENAME COLUMN "{old_name}" TO "v""#);
             log::info!("sql:{}", sql);
             block_in_place(|| conn.execute(&sql, &[]))?;
         }
         if let Some(typ) = typ {
-            let sql = format!("ALTER TABLE {table} MODIFY {new_name} {}", typ.typ);
+            let sql = format!(r#"ALTER TABLE {table} MODIFY "{new_name}" {}"#, typ.typ);
             block_in_place(|| conn.execute(&sql, &[]))?;
             log::info!("sql:{}", sql);
             if let Some(nullness) = typ.nullness.as_ref() {
-                let sql = format!("ALTER TABLE {table} MODIFY {new_name} {nullness}");
+                let sql = format!(r#"ALTER TABLE "{table}" MODIFY "{new_name}" {nullness}"#);
                 log::info!("sql:{}", sql);
                 block_in_place(|| conn.execute(&sql, &[]))?;
             }
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
-                    "ALTER TABLE {table} MODIFY {new_name} DEFAULT {}",
+                    r#"ALTER TABLE "{table}" MODIFY "{new_name}" DEFAULT {}"#,
                     self.put_value_in_sql(&typ.typ, None, Some(dv.as_str()))?
                 );
                 log::info!("sql:{}", sql);
@@ -1236,7 +1236,7 @@ impl SchemaTrait for OracleDB {
         &self, table: &str, name: &str, typ: ColumnType,
     ) -> anyhow::Result<()> {
         let sql = format!(
-            "ALTER TABLE {table} ADD {name}  {}  {} {}",
+            r#"ALTER TABLE "{table}" ADD "{name}"  {}  {} {}"#,
             typ.typ,
             if let Some(nullness) = typ.nullness {
                 nullness.clone()
@@ -1328,7 +1328,7 @@ impl SchemaTrait for OracleDB {
         conn.set_autocommit(true);
 
         let fs = self.show_table_columns(table_name).await?;
-        let sql = (self).insert_sql(None, table_name, &fs, &values)?;
+        let sql = self.insert_sql(None, table_name, &fs, &values)?;
         log::info!("insert sql:{}", sql);
 
         let stmt = block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1359,7 +1359,7 @@ impl SchemaTrait for OracleDB {
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let sql = format!("TRUNCATE TABLE  {table_name}");
+        let sql = format!(r#"TRUNCATE TABLE  "{table_name}""#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1388,7 +1388,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
-        let sql = format!("DROP VIEW {view_name}");
+        let sql = format!(r#"DROP VIEW "{view_name}""#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1397,9 +1397,9 @@ impl SchemaTrait for OracleDB {
 
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
         let sql = if cascade {
-            format!("DROP TABLE {table} CASCADE CONSTRAINTS")
+            format!(r#"DROP TABLE "{table}" CASCADE CONSTRAINTS"#)
         } else {
-            format!("DROP TABLE {table}")
+            format!(r#"DROP TABLE "{table}""#)
         };
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
@@ -1482,7 +1482,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
-        let sql = format!("DROP TRIGGER {name}");
+        let sql = format!(r#"DROP TRIGGER "{name}""#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
 
@@ -1491,7 +1491,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn disable_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
-        let sql = format!("ALTER TRIGGER {name} DISABLE");
+        let sql = format!(r#"ALTER TRIGGER "{name}" DISABLE"#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1499,7 +1499,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn enable_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
-        let sql = format!("ALTER TRIGGER {name} ENABLE");
+        let sql = format!(r#"ALTER TRIGGER "{name}" ENABLE"#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1541,7 +1541,7 @@ impl SchemaTrait for OracleDB {
     async fn drop_udf(
         &self, name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        let sql = format!("DROP FUNCTION {name}");
+        let sql = format!(r#"DROP FUNCTION "{name}""#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
@@ -1566,7 +1566,7 @@ impl SchemaTrait for OracleDB {
     async fn drop_procedure(
         &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        let sql = format!("DROP PROCEDURE {}", name);
+        let sql = format!(r#"DROP PROCEDURE "{name}""#);
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;

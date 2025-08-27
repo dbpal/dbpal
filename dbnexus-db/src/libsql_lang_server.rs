@@ -1,7 +1,7 @@
 use crate::db::{AutoCompletionQueryUuid, name_start_ascii_alphabetic};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc, LangServerCommon,
-    LanguageServer, try_parser_and_lexer,
+    LanguageServer, try_parser_dot_lexer,
 };
 use crate::libsql::LibSqlDB;
 use crate::sqlite::SqliteDB;
@@ -14,7 +14,7 @@ impl LanguageServer for LibSqlDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        try_parser_and_lexer(self, sql, line, col, use_lexer).await
+        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
     fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         LangServerCommon::parse_error(self, sql)
@@ -111,13 +111,14 @@ impl LangServerCommon for LibSqlDB {
         Box::new(sqlparser::dialect::SQLiteDialect {})
     }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let conn = self.query_connections.get(&AutoCompletionQueryUuid::get());
-        if conn.is_none() {
-            anyhow::bail!("query id should have connection")
-        }
-        let conn = conn.unwrap();
         let sql = "PRAGMA database_list";
-        let mut rows = conn.query(sql, params!()).await?;
+        let mut rows = match self.query_connections.get(&AutoCompletionQueryUuid::get()) {
+            Some(conn) => conn.query(sql, params!()).await?,
+            None => {
+                let conn = self.get_conn().await?;
+                conn.query(sql, params!()).await?
+            }
+        };
         let mut ret = vec![];
         while let Some(row) = rows.next().await? {
             let name: String = row.get(1)?;

@@ -731,13 +731,6 @@ fn format_decimal(x: &Decimal) -> String {
     )
 }
 
-#[cfg(test)]
-#[test]
-fn test_format_decimal() {
-    println!("{}", format_decimal(&Decimal::from(123)));
-    println!("{}", format_decimal(&Decimal::from(123.456)));
-}
-
 fn format_timestamp(x: i64) -> anyhow::Result<String> {
     let time = DateTime::from_timestamp_millis(x);
     match time {
@@ -2097,6 +2090,11 @@ mod tests {
         println!("list schema:{:?}", schemas)
     }
 
+    #[test]
+    fn test_format_decimal() {
+        println!("{}", format_decimal(&Decimal::from(123)));
+        println!("{}", format_decimal(&Decimal::from(123.456)));
+    }
     #[tokio::test]
     async fn test_aggregate() {
         let db = make_test_object(Some("test".to_string())).await;

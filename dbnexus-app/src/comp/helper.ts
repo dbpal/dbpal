@@ -272,6 +272,7 @@ function quoteStyle(x: DataSourceKind): string {
     case DataSourceKind.MariaDB:
     case DataSourceKind.TiDB:
     case DataSourceKind.Mysql:
+    case DataSourceKind.ClickHouse:
       return '`'
     default:
       return '"'
@@ -284,10 +285,7 @@ function connTypeToDataSourceKind(name: string): DataSourceKind {
 }
 function isTypeLargeText(s: string): boolean {
   const toUpper = s.toUpperCase();
-  if (toUpper.includes('TEXT')) {
-    return true;
-  }
-  return false;
+  return toUpper.includes('TEXT') || toUpper.includes("LONG") || toUpper.includes("CLOB")
 }
 const appStore = await load('store.json');
 
@@ -583,34 +581,37 @@ class UserSettings {
   fontSize: number = 15;
   fontWeight: string = 'normal';
   fontFamily: string = undefined;
+  tabSize: number = 4;
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
   editorTheme(): string {
     return this.theme === 'dark' ? 'vs-dark' : 'light';
   }
 
   datagridRowHeight() {
-    return Math.ceil(this.fontSize * 1.8)
+    return Math.ceil(this.fontSize * 1.9)
   }
-  static merge(x: object): UserSettings {
+  static async get(): Promise<UserSettings> {
+    let x = await appStore.get<object>(AppStoreKey.UserSetttings);
     if (!x) {
       x = {};
     }
-    let d = new UserSettings();
+    let r = new UserSettings();
     for (const key in x) {
       const v = x[key];
-      if (!v) {
-        continue;
+      if (v) {
+        r[key] = v;
       }
-      d[key] = x[key];
     }
-    return d;
+    return r;
   }
-  static async get(): Promise<UserSettings> {
-    let x = await appStore.get<UserSettings>(AppStoreKey.UserSetttings);
-    return UserSettings.merge(x)
-  }
+  static async set(x: object): Promise<void> {
+    let old = await UserSettings.get();
+    let s = { ...old, ...x };
 
+    return appStore.set(AppStoreKey.UserSetttings, s);
+  }
 }
+
 const SettingContext = createContext<UserSettings>(null);
 const windowFocusChangeEvent = "window-focus-change-event";
 const WindowFocusChangeContext = createContext(true);

@@ -5,7 +5,7 @@ use crate::db::{AutoCompletionQueryUuid, FormatSqlOpts, name_start_ascii_alphabe
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc, LangServerCommon,
-    LanguageServer, try_parser_and_lexer,
+    LanguageServer, try_parser_dot_lexer,
 };
 use crate::sqlite::SqliteDB;
 use crate::sqlite_lang_server_static::{SQLITE_KEY_WORDS, SQLITE_TYPES};
@@ -134,7 +134,7 @@ impl LanguageServer for SqliteDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        try_parser_and_lexer(self, sql, line, col, use_lexer).await
+        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
@@ -307,8 +307,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(
-            r#"select employees.id  from employees
- 19 name "#,
+            r#"employees.
+11 id"#,
             &db,
             false,
         )

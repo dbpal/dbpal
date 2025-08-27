@@ -471,14 +471,16 @@ function SqlQuery(props: {
     };
   }, [conn]);
   const setting = useContext(SettingContext);
-  const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
-    return {
-      fontSize: setting.fontSize,
-      fontWeight: setting.fontWeight,
-      fontFamily: setting.fontFamily,
-      ...setting.editorOption,
-    };
-  }, [setting]);
+  const eidtorOptions =
+    useMemo((): editor.IStandaloneEditorConstructionOptions => {
+      return {
+        fontSize: setting.fontSize,
+        fontWeight: setting.fontWeight,
+        fontFamily: setting.fontFamily,
+        tabSize: setting.tabSize,
+        ...setting.editorOption,
+      };
+    }, [setting]);
 
   const editorDivDom = useRef(null);
   useEffect(() => {
@@ -771,7 +773,7 @@ function SqlQuery(props: {
             width="99%"
             height="99%"
             value={value}
-            options={options}
+            options={eidtorOptions}
             theme={setting.editorTheme()}
           ></Editor>
         </div>

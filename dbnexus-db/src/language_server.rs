@@ -133,21 +133,18 @@ pub trait LexerCompletionTrait: LangServerCommon {
             .unwrap_or_default();
         let mut all_item = self.all_completion_items().await;
         all_item.extend(self.get_table_columns_if_possible(&tokens[..]).await);
-        // suggest lexer
-        {
-            for t in tokens.iter() {
-                match t {
-                    Token::Word(x) => {
-                        if x.keyword == sqlparser::keywords::Keyword::NoKeyword {
-                            all_item.push(CompletionItem {
-                                item: x.value.clone().into(),
-                                kind: CompletionKind::Text,
-                                desc: None,
-                            });
-                        }
+        for t in tokens.iter() {
+            match t {
+                Token::Word(x) => {
+                    if x.keyword == sqlparser::keywords::Keyword::NoKeyword {
+                        all_item.push(CompletionItem {
+                            item: x.value.clone().into(),
+                            kind: CompletionKind::Text,
+                            desc: None,
+                        });
                     }
-                    _ => {}
                 }
+                _ => {}
             }
         }
         return anyhow::Ok(all_item);
@@ -185,7 +182,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
         ret.extend(
             self.extra_completion_item()
                 .await
-                .map_err(|e| log::error!("extra_completion_item failed,err:{}", e))
+                .map_err(|e| log::error!("extra completion items failed,err:{}", e))
                 .unwrap_or_default()
                 .into_iter(),
         );
@@ -311,6 +308,33 @@ pub trait LangServerCommon: GetBackendKind {
             Err(x) => Some(ErrAndLoc::from(x)),
         })
     }
+
+    async fn hit_schema(&self, name: &str) -> bool {
+        self.list_schema()
+            .await
+            .map_err(|e| log::error!("list schema error: {}", e))
+            .unwrap_or_default()
+            .iter()
+            .any(|x| x.eq_ignore_ascii_case(name))
+    }
+    async fn hit_table(&self, name: &str) -> bool {
+        let tables = self
+            .list_table(None)
+            .await
+            .map_err(|e| log::error!("list table failed,err:{}", e))
+            .unwrap_or_default();
+        let views = self
+            .list_view(None)
+            .await
+            .map_err(|e| log::error!("list view failed,err:{}", e))
+            .unwrap_or_default();
+
+        tables
+            .iter()
+            .chain(views.iter())
+            .any(|x| x.eq_ignore_ascii_case(&name))
+    }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
@@ -334,6 +358,120 @@ pub trait LangServerCommon: GetBackendKind {
 
     // some backend can use a query to query this.
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>>;
+
+    // completion on ast struct like `SCHEMA.XXXX`  , 'TALBE.XXXX'
+    async fn try_completion_dot(
+        &self, sql: &str, line: u32, col: u32,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let loc = sqlparser::tokenizer::Location {
+            line: line as u64,
+            column: col as u64,
+        };
+        let tokens: Vec<_> = sqlparser::tokenizer::Tokenizer::new(self.dialect().as_ref(), sql)
+            .tokenize_with_location()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|x| !matches!(&x.token, Token::Whitespace(_)))
+            .collect();
+        for (index, t) in tokens.iter().enumerate() {
+            if index == 0 {
+                continue;
+            }
+            if let (Token::Period, Some(Token::Word(x))) =
+                (&t.token, tokens.get(index - 1).map(|x| &x.token))
+            {
+                if !in_pos(loc, t.span.start, 1u64) {
+                    continue;
+                }
+                // hit position
+                //matched a `aaa.`
+                let schema = &x.value;
+                let mut ret = vec![];
+
+                if self.hit_schema(&schema).await {
+                    // try completion on schema.xxx syntax
+                    ret.extend(
+                        self.list_table(Some(schema))
+                            .await
+                            .map_err(|e| log::error!("list table failed,err:{}", e))
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|x| CompletionItem {
+                                item: x.into(),
+                                kind: CompletionKind::Table,
+                                desc: None,
+                            }),
+                    );
+                    ret.extend(
+                        self.list_view(Some(schema))
+                            .await
+                            .map_err(|e| log::error!("list view failed,err:{}", e))
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|x| CompletionItem {
+                                item: x.into(),
+                                kind: CompletionKind::View,
+                                desc: None,
+                            }),
+                    );
+                    ret.extend(
+                        self.list_function(Some(schema), false)
+                            .await
+                            .map_err(|e| log::error!("list function failed,err:{}", e))
+                            .unwrap_or_default()
+                            .into_iter(),
+                    );
+                    ret.extend(
+                        self.list_procedure(Some(schema))
+                            .await
+                            .map_err(|e| log::error!("list procedure failed,err:{}", e))
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|x| CompletionItem {
+                                item: x.into(),
+                                kind: CompletionKind::Procedure,
+                                desc: None,
+                            }),
+                    );
+                    ret.extend(
+                        self.list_execute(Some(schema))
+                            .await
+                            .map_err(|e| log::error!("list procedure failed,err:{}", e))
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|x| CompletionItem {
+                                item: x.name.into(),
+                                kind: CompletionKind::Function,
+                                desc: x.statement.map(|x| x.into()),
+                            }),
+                    );
+                    return anyhow::Ok(ret);
+                }
+
+                {
+                    if self.hit_table(&schema).await {
+                        // try a TABLE.xxxx
+                        // right now schama is table name
+                        // we hope the use not use table alias
+                        log::trace!(
+                            "hit table or view '{}' trying to completion columns",
+                            schema
+                        );
+                        ret.extend(
+                            self.list_column(None, &schema, false)
+                                .await
+                                .map_err(|e| log::error!("list column failed: {}", e))
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(CompletionItem::from),
+                        );
+                    }
+                }
+                return anyhow::Ok(ret);
+            }
+        }
+        anyhow::bail!("can't find completion");
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -424,24 +562,38 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
     }
 }
 
-pub(crate) async fn try_parser_and_lexer<T: LexerCompletionTrait + AstCompletionHelper>(
-    t: &T, sql: &str, line: u32, col: u32, use_lexer: bool,
+/// first try parser first
+/// then a syntax like schema... table...
+/// then lexer   
+pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletionHelper>(
+    backend: &T, sql: &str, line: u32, col: u32, use_lexer: bool,
 ) -> anyhow::Result<Vec<CompletionItem>> {
-    let r = try_completion_on_syntax(sql, line, col, t).await;
+    let dot = backend.try_completion_dot(sql, line, col).await;
+    let r = try_parser_completion(sql, line, col, backend).await;
     match r {
-        Ok(xs) => return Ok(xs),
+        Ok(mut xs) => {
+            // xxx. 有可能和后面的元素结合产生不同寻常的结果
+            // 有时候是关键字也会结合 这点一般的解析程序不太一样呢
+            // 自动完成更多的给出可能性 但是有可能是错误的 问题不大
+            xs.extend(dot.unwrap_or_default());
+            return Ok(remove_dupliate(xs));
+        }
         Err(err) => {
             log::error!("completion on ast failed,err:{}", err);
         }
     };
+    // try dot
+    if let Ok(x) = dot {
+        return anyhow::Ok(x);
+    }
     if !use_lexer {
         log::warn!("disabled use lexer , we will return empty data.");
         return anyhow::Ok(vec![]);
     }
-    return LexerCompletionTrait::do_auto_completion(t, sql).await;
+    return LexerCompletionTrait::do_auto_completion(backend, sql).await;
 }
 
-pub(crate) async fn try_completion_on_syntax(
+pub(crate) async fn try_parser_completion(
     sql: &str, line: u32, col: u32, helper: &dyn AstCompletionHelper,
 ) -> anyhow::Result<Vec<CompletionItem>> {
     let loc = Location {
@@ -479,78 +631,6 @@ pub(crate) async fn try_completion_on_syntax(
         if c.finished() {
             let m = c.result.unwrap_or_default();
             return anyhow::Ok(m);
-        }
-    }
-    let tokens: Vec<_> = sqlparser::tokenizer::Tokenizer::new(helper.dialect().as_ref(), sql)
-        .tokenize_with_location()
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|x| match &x.token {
-            Token::Whitespace(_) => false,
-            _ => true,
-        })
-        .collect();
-    for (index, t) in tokens.iter().enumerate() {
-        if index == 0 {
-            continue;
-        }
-        if let (Token::Period, Some(Token::Word(x))) =
-            (&t.token, tokens.get(index - 1).map(|x| &x.token))
-        {
-            if in_pos(loc, t.span.start, 1u64) {
-                //matched a `aaa.`
-                let schema = &x.value;
-                let mut ret = vec![];
-                ret.extend(
-                    helper
-                        .list_table(Some(schema))
-                        .await
-                        .map_err(|e| log::error!("list table failed,err:{}", e))
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|x| CompletionItem {
-                            item: x.into(),
-                            kind: CompletionKind::Table,
-                            desc: None,
-                        }),
-                );
-                ret.extend(
-                    helper
-                        .list_view(Some(schema))
-                        .await
-                        .map_err(|e| log::error!("list view failed,err:{}", e))
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|x| CompletionItem {
-                            item: x.into(),
-                            kind: CompletionKind::View,
-                            desc: None,
-                        }),
-                );
-
-                ret.extend(
-                    helper
-                        .list_function(Some(schema), false)
-                        .await
-                        .map_err(|e| log::error!("list function failed,err:{}", e))
-                        .unwrap_or_default()
-                        .into_iter(),
-                );
-                ret.extend(
-                    helper
-                        .list_procedure(Some(schema))
-                        .await
-                        .map_err(|e| log::error!("list procedure failed,err:{}", e))
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|x| CompletionItem {
-                            item: x.into(),
-                            kind: CompletionKind::Procedure,
-                            desc: None,
-                        }),
-                );
-                return anyhow::Ok(ret);
-            }
         }
     }
 

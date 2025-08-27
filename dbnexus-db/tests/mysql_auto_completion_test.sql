@@ -64,3 +64,7 @@ SELECT * from test
 19 test
 EXPLAIN test
 13 test ; 13 SELECT
+test.
+6 employees
+employees.
+11 id

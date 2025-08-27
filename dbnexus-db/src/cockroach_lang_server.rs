@@ -2,7 +2,7 @@ use crate::cockroach::{COCKROACH_TYPES, CockRoachDB};
 use crate::db::FormatSqlOpts;
 use crate::language_server::{
     CompletionItem, DBExecutable, ErrAndLoc, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_completion_on_syntax,
+    LexerCompletionTrait, try_parser_completion,
 };
 use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
@@ -11,7 +11,7 @@ impl LanguageServer for CockRoachDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_completion_on_syntax(sql, line, col, self.pg.as_ref()).await;
+        let r = try_parser_completion(sql, line, col, self.pg.as_ref()).await;
         match r {
             Ok(xs) => return Ok(xs),
             Err(err) => {

@@ -2,7 +2,7 @@ use crate::db::{AutoCompletionQueryUuid, FormatSqlOpts, name_start_ascii_alphabe
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
-    LanguageServer, LexerCompletionTrait, try_parser_and_lexer,
+    LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -48,7 +48,7 @@ impl LanguageServer for MysqlDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        try_parser_and_lexer(self, sql, line, col, use_lexer).await
+        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
     fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
@@ -502,8 +502,8 @@ mod tests {
 
         let db = make_test_object(config).await;
         test_file_auto_completion(
-            r#"SELECT * from test
-19 test"#,
+            r#"SELECT    mysql. from test_view 
+17 func"#,
             &db,
             false,
         )

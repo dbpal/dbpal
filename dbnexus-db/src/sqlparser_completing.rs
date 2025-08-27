@@ -413,7 +413,6 @@ impl<'a> CompletionStatement<'a> {
         match p {
             Expr::Identifier(x) => {
                 let (schema, table) = self.extract_schema_and_item(table_name);
-
                 if self.in_pos(&x.span) {
                     self.result = Some(
                         self.helper
@@ -434,10 +433,12 @@ impl<'a> CompletionStatement<'a> {
                     );
                 }
             }
-            Expr::CompoundIdentifier(xs) => {
-                self.c_on_expr_compund_identifier(&xs[..]).await;
-            }
             _ => {
+                /*
+                在大多数主流数据库管理系统中，
+                ANALYZE 命令的 PARTITION 子句通常不支持使用表达式，
+                要求明确指定分区名称。然而，
+                某些数据库系统可能允许在不同上下文中使用表达式来选择分区。以下是一些示例：*/
                 log::error!("unhandled partation type:{:?}", p);
             }
         }
@@ -1027,14 +1028,7 @@ impl<'a> CompletionStatement<'a> {
                 let table = &idents[0];
 
                 // try match for schema
-                if self
-                    .helper
-                    .list_schema()
-                    .await
-                    .unwrap_or_default()
-                    .iter()
-                    .any(|x| x.eq_ignore_ascii_case(&table.value))
-                {
+                if self.helper.hit_schema(&table.value).await {
                     // matched  schema
                     // this is very likely a `select * from sys.xxx`   on mysql
                     // treat this expr as table
@@ -1075,7 +1069,7 @@ impl<'a> CompletionStatement<'a> {
                     .await;
                 }
             }
-            3 | 4 => {
+            3 => {
                 let table: ObjectName = ObjectName(
                     idents[0..idents.len() - 1]
                         .to_vec()
@@ -1083,7 +1077,6 @@ impl<'a> CompletionStatement<'a> {
                         .map(ObjectNamePart::Identifier)
                         .collect::<Vec<_>>(),
                 );
-
                 self.c_on_table(&table).await;
                 if self.finished() {
                     return;
@@ -1091,7 +1084,7 @@ impl<'a> CompletionStatement<'a> {
                 self.c_on_column(&table, &idents[2], false).await;
             }
             _ => {
-                log::error!("identifers too long:{:?}", idents)
+                log::error!("identifiers too long:{:?}", idents)
             }
         }
     }

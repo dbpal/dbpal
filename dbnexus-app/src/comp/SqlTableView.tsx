@@ -815,7 +815,7 @@ function SqlTableView_(props: {
             cursor: 'pointer',
             fontSize: '0.9rem',
             fontStyle: 'italic',
-            color: 'green',
+            color: 'success.main',
             width: '100px',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -1402,7 +1402,12 @@ function FilterOnValue(props: {
     if (compare == 'not null') {
       return `${quoteField} IS NOT NULL`;
     }
-
+    if (compare == 'starts') {
+      return `${quoteField} LIKE '${content}%'`;
+    }
+    if (compare == 'ends') {
+      return `${quoteField} LIKE '%${content}'`;
+    }
     return `${quoteField} ${compare} ${formatValue}`;
   };
   return (
@@ -1415,10 +1420,9 @@ function FilterOnValue(props: {
               setCompare(x);
             }}
             label={x}
-            color="primary"
+            color={compare == x ? 'primary' : 'default'}
             size="small"
             style={{ minWidth: '3rem' }}
-            disabled={compare == x}
           ></Chip>
         ))}
       </Stack>
@@ -1426,15 +1430,28 @@ function FilterOnValue(props: {
         {['null', 'not null'].map((e) => (
           <Chip
             label={e}
-            disabled={compare == e}
+            color={compare == e ? 'primary' : 'default'}
             onClick={() => {
               setCompare(e);
             }}
             size="small"
-            color="primary"
           />
         ))}
       </Stack>
+      {formatValue.endsWith("'") && (
+        <Stack direction="row" spacing={1}>
+          {['starts', 'ends'].map((e) => (
+            <Chip
+              label={e}
+              color={compare == e ? 'primary' : 'default'}
+              onClick={() => {
+                setCompare(e);
+              }}
+              size="small"
+            />
+          ))}
+        </Stack>
+      )}
 
       <Divider />
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
@@ -1447,7 +1464,14 @@ function FilterOnValue(props: {
         >
           set
         </Button>
-        <Typography color="success">
+        <Typography
+          color="success"
+          style={{
+            whiteSpace: 'nowrap',
+            textOverflow: 'ellipsis',
+            overflow: 'hidden',
+          }}
+        >
           <em> {where()} </em>
         </Typography>
       </Stack>

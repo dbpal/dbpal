@@ -14,7 +14,7 @@ use crate::cassandra::CassandraDB;
 use crate::db::DBTrait;
 use crate::language_server::{
     CompletionItem, CompletionKind, ErrAndLoc, LangServerCommon, LanguageServer,
-    LexerCompletionTrait,
+    LexerCompletionTrait, remove_dupliate,
 };
 
 use crate::sqlparser_completion::TempTableColumn;
@@ -25,12 +25,20 @@ impl LanguageServer for CassandraDB {
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         //
+        let dot = self.try_completion_dot(sql, line, col).await;
+
         let r = AstCompletion::completion(sql, line - 1, col - 1, Clone::clone(self)).await;
         match r {
-            Ok(x) => return anyhow::Ok(x),
+            Ok(mut x) => {
+                x.extend(dot.unwrap_or_default().into_iter());
+                return anyhow::Ok(remove_dupliate(x));
+            }
             Err(x) => {
                 log::error!("try completion on ast failed:{}", x)
             }
+        }
+        if let Ok(x) = dot {
+            return anyhow::Ok(x);
         }
         if !use_lexer {
             return anyhow::Ok(vec![]);
@@ -205,7 +213,10 @@ impl AstCompletion {
     }
 
     async fn completion(
-        sql: &str, line: u32, col: u32, db: CassandraDB,
+        sql: &str,
+        line: u32, // 0 based
+        col: u32,  // 1 based
+        db: CassandraDB,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let mut c: AstCompletion = AstCompletion {
             line: line as usize,
@@ -223,6 +234,7 @@ impl AstCompletion {
                 return anyhow::Ok(c.result());
             }
         }
+
         anyhow::bail!("no completion found on ast")
     }
 

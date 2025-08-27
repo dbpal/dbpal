@@ -295,6 +295,7 @@ function MongoBsonEditor(props: {
       fontSize: setting.fontSize,
       fontWeight: setting.fontWeight,
       fontFamily: setting.fontFamily,
+      tabSize: setting.tabSize,
       ...setting.editorOption,
     };
   }, [setting]);
@@ -1466,7 +1467,7 @@ function MongoTableObject(props: {
   );
 }
 
-let cacheViewModel = MongoDataViewModel.Object;
+let oldViewModel = MongoDataViewModel.Object;
 function MongoTable(props: {
   reloadOPTableList: (
     filter: BSON.Document,
@@ -1488,10 +1489,10 @@ function MongoTable(props: {
     props;
   const [filter, setFilter] = useState<BSON.Document>({});
   const [sort, setSort] = useState<BSON.Document>({});
-  const [viewModel, setViewModel] = useState(cacheViewModel);
+  const [viewModel, setViewModel] = useState(oldViewModel);
   const [nonse, setNonse] = useState(0);
   useEffect(() => {
-    cacheViewModel = viewModel;
+    oldViewModel = viewModel;
   }, [viewModel]);
   return (
     <Stack spacing={1}>
