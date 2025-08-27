@@ -625,7 +625,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
   };
 
   const singleLineCommnentReg = /(--[^\n]*|#[^\n]*)/g;
-  const stringReg = stringReg;
+  const stringReg = /\'(?:\\.|[^\\\'])*\'/;
   function initLanguageXXX(
     uuid: string,
     Ilanguage: languages.IMonarchLanguage,
