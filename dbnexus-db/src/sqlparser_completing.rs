@@ -1153,14 +1153,18 @@ impl<'a> CompletionStatement<'a> {
                 desc: None,
             })
             .collect();
-        // 也要关键字 比如 DISTINCT 之类的
-        let keywords = self
-            .helper
-            .get_key_words_fn()
-            .await
-            .map_err(|e| log::error!("list keywords error: {}", e))
-            .unwrap_or_default();
-        results.extend(keywords.into_iter());
+        /*
+           ai提示词 sql查询里面 有哪些关键字 可以放在select的列的前面 给我完成的列表
+        */
+        results.extend(
+            ["ALL", "DISTINCT", "CASE", "WHEN", "THEN", "ELSE"]
+                .iter()
+                .map(|x| CompletionItem {
+                    item: (*x).into(),
+                    kind: CompletionKind::KeyWord,
+                    desc: None,
+                }),
+        );
         results.extend(schemas.into_iter());
         results = remove_dupliate(results);
         self.result = Some(results);
