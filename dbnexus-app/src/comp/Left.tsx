@@ -421,10 +421,9 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
             reload
           </Button>
         )}
-
-        <Typography color="info">
-          double click a row to copy a connection.
-        </Typography>
+        <Tooltip title="double click a row to copy a connection.">
+          <Typography color="info">copy</Typography>
+        </Tooltip>
       </Stack>
 
       <div
@@ -768,7 +767,9 @@ function FavoriteSqlList(props: { handleClose }) {
           </Tooltip>
         )}
         {sqls.length > 0 && (
-          <Typography color="info"> double click a row to use sql. </Typography>
+          <Tooltip title="double click a row to use sql.">
+            <Typography color="info">use</Typography>
+          </Tooltip>
         )}
       </Stack>
       <div

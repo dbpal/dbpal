@@ -136,7 +136,7 @@ impl DBTrait for MongoDB {
 
 fn bson_value_to_string(b: &bson::Bson) -> anyhow::Result<Option<String>> {
     match b {
-        Bson::Null | Bson::Undefined => return anyhow::Ok(None),
+        Bson::Null | Bson::Undefined | Bson::MaxKey | Bson::MinKey => return anyhow::Ok(None),
         _ => {}
     }
     let x = serde_json::to_string_pretty(b)?;
