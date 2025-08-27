@@ -309,8 +309,8 @@ function ColumnsStructure(props: {
             onColumnResize={onColumnResize}
             showCellVerticalBorder
             showColumnVerticalBorder
-            rowHeight={setting.datagridRowHeight()}
-            columnHeaderHeight={setting.datagridRowHeight()}
+            rowHeight={setting.datagridRowHeightXXX()}
+            columnHeaderHeight={setting.datagridRowHeightXXX()}
             columns={cols}
             rows={fields}
             onRowDoubleClick={onRowDoubleClick}
@@ -632,8 +632,8 @@ function IndexesStructure(props: {
             onColumnResize={onColumnResize}
             showCellVerticalBorder
             showColumnVerticalBorder
-            rowHeight={setting.datagridRowHeight()}
-            columnHeaderHeight={setting.datagridRowHeight()}
+            rowHeight={setting.datagridRowHeightXXX()}
+            columnHeaderHeight={setting.datagridRowHeightXXX()}
             columns={cols}
             rows={indexes}
           ></DataGrid>
@@ -1602,8 +1602,8 @@ function TriggersStructure(props: {
             onColumnResize={onColumnResize}
             showCellVerticalBorder
             showColumnVerticalBorder
-            rowHeight={setting.datagridRowHeight()}
-            columnHeaderHeight={setting.datagridRowHeight()}
+            rowHeight={setting.datagridRowHeightXXX()}
+            columnHeaderHeight={setting.datagridRowHeightXXX()}
             columns={cols}
             rows={triggers}
             onRowDoubleClick={onRowDoubleClick}

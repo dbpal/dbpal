@@ -101,8 +101,8 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
             onRowDoubleClick={onRowDoubleClick}
             columns={columns}
             rows={logs}
-            rowHeight={setting.datagridRowHeight()}
-            columnHeaderHeight={setting.datagridRowHeight()}
+            rowHeight={setting.datagridRowHeightXXX()}
+            columnHeaderHeight={setting.datagridRowHeightXXX()}
             pageSizeOptions={pageSizeOptions}
             paginationModel={paginationModel}
             onPaginationModelChange={onPaginationModelChange}

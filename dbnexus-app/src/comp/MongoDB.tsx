@@ -1310,8 +1310,8 @@ function MongoTableList(props: {
                 showColumnVerticalBorder
                 slotProps={slotProps}
                 getRowId={getRowId}
-                rowHeight={setting.datagridRowHeight()}
-                columnHeaderHeight={setting.datagridRowHeight()}
+                rowHeight={setting.datagridRowHeightXXX()}
+                columnHeaderHeight={setting.datagridRowHeightXXX()}
                 rowCount={resp.total}
                 columns={resp.fields}
                 rows={resp.data}

@@ -490,6 +490,7 @@ function SettingComp(props: { children }) {
     UserSettings.get()
       .then((setting) => {
         setSetting(setting);
+        console.log('setting', setting);
         // why new a object because of js is a dynamic language
         // UserSettings maybe have no value on store
         document.documentElement.style.fontSize = setting.fontSize + 'px';

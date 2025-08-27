@@ -586,8 +586,8 @@ class UserSettings {
   editorTheme(): string {
     return this.theme === 'dark' ? 'vs-dark' : 'light';
   }
-
-  datagridRowHeight() {
+  // 可能和以前的设置冲突
+  datagridRowHeightXXX() {
     return Math.ceil(this.fontSize * 1.9)
   }
   static async get(): Promise<UserSettings> {

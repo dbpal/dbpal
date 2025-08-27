@@ -860,8 +860,8 @@ function SqlTableView_(props: {
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
-            rowHeight={setting.datagridRowHeight()}
-            columnHeaderHeight={setting.datagridRowHeight()}
+            rowHeight={setting.datagridRowHeightXXX()}
+            columnHeaderHeight={setting.datagridRowHeightXXX()}
             getRowId={getRowId}
             paginationModel={paginationModel}
             pageSizeOptions={pageSizeOptions}
