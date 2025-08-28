@@ -1598,6 +1598,15 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
         }
+        // all vars
+        for (name, var) in self.scopes.vars_cloned() {
+            results.push(CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Variable,
+                desc: Some(var.data_type.to_string().into()),
+            });
+        }
+
         // this line will rewrite the results.
         self.c_on_select_target(&ObjectName(vec![ObjectNamePart::Identifier(ident.clone())]))
             .await;

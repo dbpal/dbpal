@@ -86,6 +86,15 @@ impl Scopes {
         ret
     }
 
+    pub(crate) fn vars_cloned(&self) -> Vec<(String, Var)> {
+        let mut ret = vec![];
+        let lock = self.ss.lock().unwrap();
+        for s in lock.iter().rev() {
+            ret.extend(s.vars.iter().map(|(name, var)| (name.clone(), var.clone())));
+        }
+        ret
+    }
+
     pub(crate) fn enter(&self, scope: Scope) -> ScopesDropGuard {
         self.ss.lock().unwrap().push(scope);
         ScopesDropGuard {
@@ -231,8 +240,7 @@ impl TableEntered {
 
 #[derive(Clone, Debug)]
 pub struct Var {
-    #[allow(dead_code)]
-    datatype: DataType,
+    pub(crate) data_type: DataType,
 }
 
 impl Scope {
@@ -1315,7 +1323,7 @@ impl<'a> CompletionStatement<'a> {
                             vars.insert(
                                 name.value.clone(),
                                 Var {
-                                    datatype: a.data_type.clone(),
+                                    data_type: a.data_type.clone(),
                                 },
                             );
                         }
@@ -1489,7 +1497,7 @@ impl<'a> CompletionStatement<'a> {
                         m.insert(
                             p.name.value.clone(),
                             Var {
-                                datatype: p.data_type.clone(),
+                                data_type: p.data_type.clone(),
                             },
                         );
                     }
