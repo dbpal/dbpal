@@ -2386,6 +2386,16 @@ mod tests {
     #[tokio::test]
     async fn test_udf() {
         let pg = make_test_object().await;
+        let name = "test_udf";
+
+        let _ = pg
+            .drop_udf(
+                name,
+                Some(UdfOrProcedureExtraParameter::PostGres {
+                    parameters: "a integer, b integer".to_string(),
+                }),
+            )
+            .await;
         let query_id = pg.open_connection().await.unwrap();
         pg.query_sql(
             query_id,
@@ -2418,16 +2428,6 @@ mod tests {
                 .await
                 .unwrap();
             println!("name:{} , udf:{:?}", l.name, details);
-            if l.name == "test_udf" {
-                pg.drop_udf(
-                    &l.name,
-                    Some(UdfOrProcedureExtraParameter::PostGres {
-                        parameters: "a integer, b integer".to_string(),
-                    }),
-                )
-                .await
-                .unwrap();
-            }
         }
     }
 
