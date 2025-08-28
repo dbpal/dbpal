@@ -44,10 +44,11 @@ function UdfsTree() {
   const [udfs, setUdfs] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [exceed, setExceed] = useState(false);
-
+  const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
     setExceed(udfs.filter((e) => matchPattern(e.name)).length > maxTreeSize);
-  }, [udfs]);
+  }, [udfs, matchPattern]);
+
   const reload = () => {
     invoke<types.NamedStaff[]>('list_udf', { name: uuid })
       .then((ts) => {
@@ -62,7 +63,7 @@ function UdfsTree() {
   }, []);
 
   let { setUpMenu } = useContext(ContextMenuContext);
-  const matchPattern = useContext(MatchPatternContext);
+
   return (
     <TreeItem
       itemId={idPrefix}
@@ -366,9 +367,10 @@ function CassaandraAggregatesTree() {
       });
   };
   const [exceed, setExceed] = useState(false);
+  const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
     setExceed(aggs.filter((e) => matchPattern(e.name)).length > maxTreeSize);
-  }, [aggs]);
+  }, [aggs, matchPattern]);
   useEffect(() => {
     reload();
   }, []);
@@ -378,7 +380,7 @@ function CassaandraAggregatesTree() {
     );
   };
   let { setUpMenu } = useContext(ContextMenuContext);
-  const matchPattern = useContext(MatchPatternContext);
+
   return (
     <TreeItem
       itemId={idPrefix}

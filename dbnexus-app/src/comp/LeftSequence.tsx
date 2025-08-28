@@ -58,10 +58,10 @@ function SequenceTree() {
   };
 
   const [exceed, setExceed] = useState(false);
-
+  const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
     setExceed(seqs.filter((e) => matchPattern(e.name)).length > maxTreeSize);
-  }, [seqs]);
+  }, [seqs, matchPattern]);
   const getItemId = (x: types.SequenceDetail) => {
     switch (kind) {
       default:
@@ -73,7 +73,7 @@ function SequenceTree() {
   useEffect(() => {
     reload();
   }, []);
-  const matchPattern = useContext(MatchPatternContext);
+
   return (
     <TreeItem
       itemId={idPrefix}

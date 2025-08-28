@@ -49,10 +49,10 @@ function ProceduresTree() {
   };
 
   const [exceed, setExceed] = useState(false);
-
+  const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
     setExceed(ps.filter((e) => matchPattern(e.name)).length > maxTreeSize);
-  }, [ps]);
+  }, [ps, matchPattern]);
 
   const getItemId = (x: types.NamedStaff) => {
     return udfIdGenerate(kind, x, uuid, 'procedure');
@@ -61,7 +61,7 @@ function ProceduresTree() {
   useEffect(() => {
     reload();
   }, []);
-  const matchPattern = useContext(MatchPatternContext);
+
   const idForTrees = useRef(generateRandomString());
   return (
     <TreeItem

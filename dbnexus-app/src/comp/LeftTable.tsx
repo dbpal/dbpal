@@ -86,10 +86,10 @@ function TablesTree(props: { typ: TablesType }) {
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
   const [exceed, setExceed] = useState(false);
-
+  const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
     setExceed(tables.filter((e) => matchPattern(e.name)).length > maxTreeSize);
-  }, [tables]);
+  }, [tables, matchPattern]);
   const handleReload = () => {
     setLoading(true);
     let invokeName;
@@ -128,7 +128,7 @@ function TablesTree(props: { typ: TablesType }) {
       tablesText = 'time serial';
       break;
   }
-  const matchPattern = useContext(MatchPatternContext);
+
   return (
     <TreeItem
       itemId={uuid + '-tables-' + typ + '-'}

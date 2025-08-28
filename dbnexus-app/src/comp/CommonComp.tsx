@@ -614,11 +614,10 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
 
 function ExceedMaxTreeItem({ exceed }) {
   let id = useRef(generateRandomString());
-
   return (
     <TreeItem
       itemId={id.current}
-      style={{ display: exceed ? 'blcok' : 'none' }}
+      style={{ display: exceed ? 'block' : 'none' }}
       label=<Typography color="error">
         exceed max tree items,some item not showing
       </Typography>

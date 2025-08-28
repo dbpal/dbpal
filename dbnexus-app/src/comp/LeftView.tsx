@@ -94,10 +94,10 @@ function ViewsTree(props: { viewkind: ViewKind }) {
       break;
   }
   const [exceed, setExceed] = useState(false);
-
+  const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
     setExceed(views.filter((e) => matchPattern(e.name)).length > maxTreeSize);
-  }, [views]);
+  }, [views, matchPattern]);
   const handleReload = () => {
     setLoading(true);
     invoke<types.NamedStaff[] | types.ListTable[]>(invokeName, { name: uuid })
@@ -139,7 +139,7 @@ function ViewsTree(props: { viewkind: ViewKind }) {
       icon = <CalendarViewWeekIcon></CalendarViewWeekIcon>;
       break;
   }
-  const matchPattern = useContext(MatchPatternContext);
+
   return (
     <TreeItem
       itemId={itemId}
