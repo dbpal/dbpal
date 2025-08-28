@@ -2030,14 +2030,13 @@ impl SqlBuilder for PostGresDB {
 }
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use super::make_test_object;
     use crate::db::{
         CatalogTrait, CheckConn, ColumnType, DBTrait, ExportKind, ExportQueryResult, IndexKind,
         QuerySql, SchemaTrait, ServerMetas, UdfOrProcedureExtraParameter,
     };
     use crate::enable_test_log;
+    use std::collections::HashMap;
 
     // #[tokio::test]
     // async fn test_list_created_types() {
@@ -2064,11 +2063,18 @@ mod tests {
     async fn test_procedure() {
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
-        let _ = db.drop_procedure("test_procedure", None).await;
+        let _ = db
+            .drop_procedure(
+                "test_procedure",
+                Some(UdfOrProcedureExtraParameter::PostGres {
+                    parameters: "(a integer)".to_string(),
+                }),
+            )
+            .await;
         db.query_sql(
             query_id,
             r#"
-            CREATE PROCEDURE test_procedure()
+            CREATE PROCEDURE test_procedure(a integer)
             LANGUAGE plpgsql AS
             $$
             BEGIN

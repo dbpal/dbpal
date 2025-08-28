@@ -57,7 +57,6 @@ import {
   columnWidths,
   ContextMenuContext,
   DataSourceKind,
-  filterStyle,
   generateRandomString,
   gridStyle,
   handleCopyToClipboard,
@@ -745,7 +744,6 @@ function SqlTableView_(props: {
             }}
             color="primary"
             icon={<FilterAltIcon />}
-            style={{ ...filterStyle.style }}
           ></Chip>
         </Tooltip>
         {/* <Typography color="info"> order by </Typography> */}
@@ -757,7 +755,6 @@ function SqlTableView_(props: {
             }}
             color="secondary"
             icon={<FaArrowsAltV />}
-            style={{ ...filterStyle.style }}
           ></Chip>
         </Tooltip>
         {kind == DataSourceKind.Cassandra && (
@@ -779,7 +776,10 @@ function SqlTableView_(props: {
                     {new Date(resp.cache_time * 1000).toLocaleString()}
                   </Typography>
                 </Tooltip>
-                <Tooltip title="Cassandra does not support pagination with offset and limit, so the data is cached in the background, which returns data based on pagination.">
+                <Tooltip
+                  title="Cassandra does not support pagination with offset and limit, so the data is cached in the background,
+                then returns data based on pagination."
+                >
                   <Button
                     variant="contained"
                     onClick={() => {

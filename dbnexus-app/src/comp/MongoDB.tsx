@@ -74,7 +74,6 @@ import {
   columnWidths,
   ContextMenuContext,
   DocsAndCount,
-  filterStyle,
   gridStyle,
   handleCopyToClipboard,
   ErrAndLoc,
@@ -513,7 +512,6 @@ function MongoTableToolBar(props: {
           }}
           color="primary"
           icon={<FilterAltIcon />}
-          style={{ ...filterStyle.style }}
         ></Chip>
 
         <Chip
@@ -527,7 +525,6 @@ function MongoTableToolBar(props: {
           }}
           color="secondary"
           icon={<FaArrowsAltV />}
-          style={{ ...filterStyle.style }}
         ></Chip>
         {someNotice}
       </Stack>

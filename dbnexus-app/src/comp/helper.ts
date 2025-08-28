@@ -463,12 +463,6 @@ const ContextMenuContext = createContext<{
 }>(null);
 
 
-const filterStyle = {
-  style: {
-    fontSize: '1.1rem',
-  } as CSSProperties,
-};
-
 interface ErrAndLoc {
   line?: number,
   column?: number,
@@ -686,7 +680,6 @@ export {
   handleCopyToClipboard,
   validJson,
   uint8ArrayToUtf8,
-  filterStyle,
   VisiableContext,
   FavoriteSql,
   MatchPatternContext,
