@@ -165,97 +165,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            DataType::Character(..) => {}
-            DataType::Char(..) => {}
-            DataType::CharacterVarying(..) => {}
-            DataType::CharVarying(..) => {}
-            DataType::Varchar(..) => {}
-            DataType::Nvarchar(..) => {}
-            DataType::Uuid => {}
-            DataType::CharacterLargeObject(_) => {}
-            DataType::CharLargeObject(_) => {}
-            DataType::Clob(_) => {}
-            DataType::Binary(_) => {}
-            DataType::Varbinary(..) => {}
-            DataType::Blob(_) => {}
-            DataType::TinyBlob => {}
-            DataType::MediumBlob => {}
-            DataType::LongBlob => {}
-            DataType::Bytes(_) => {}
-            DataType::Numeric(..) => {}
-            DataType::Decimal(..) => {}
-            DataType::BigNumeric(..) => {}
-            DataType::BigDecimal(..) => {}
-            DataType::Dec(..) => {}
-            DataType::Float(_) => {}
-            DataType::TinyInt(_) => {}
-            DataType::TinyIntUnsigned(_) => {}
-            DataType::UTinyInt => {}
-            DataType::Int2(_) => {}
-            DataType::Int2Unsigned(_) => {}
-            DataType::SmallInt(_) => {}
-            DataType::SmallIntUnsigned(_) => {}
-            DataType::USmallInt => {}
-            DataType::MediumInt(_) => {}
-            DataType::MediumIntUnsigned(_) => {}
-            DataType::Int(_) => {}
-            DataType::Int4(_) => {}
-            DataType::Int8(_) => {}
-            DataType::Int16 => {}
-            DataType::Int32 => {}
-            DataType::Int64 => {}
-            DataType::Int128 => {}
-            DataType::Int256 => {}
-            DataType::Integer(_) => {}
-            DataType::IntUnsigned(_) => {}
-            DataType::Int4Unsigned(_) => {}
-            DataType::IntegerUnsigned(_) => {}
-            DataType::HugeInt => {}
-            DataType::UHugeInt => {}
-            DataType::UInt8 => {}
-            DataType::UInt16 => {}
-            DataType::UInt32 => {}
-            DataType::UInt64 => {}
-            DataType::UInt128 => {}
-            DataType::UInt256 => {}
-            DataType::BigInt(_) => {}
-            DataType::BigIntUnsigned(_) => {}
-            DataType::UBigInt => {}
-            DataType::Int8Unsigned(_) => {}
-            DataType::Signed => {}
-            DataType::SignedInteger => {}
-            DataType::Unsigned => {}
-            DataType::UnsignedInteger => {}
-            DataType::Float4 => {}
-            DataType::Float32 => {}
-            DataType::Float64 => {}
-            DataType::Real => {}
-            DataType::Float8 => {}
-            DataType::Double(..) => {}
-            DataType::DoublePrecision => {}
-            DataType::Bool => {}
-            DataType::Boolean => {}
-            DataType::Date => {}
-            DataType::Date32 => {}
-            DataType::Time(..) => {}
-            DataType::Datetime(_) => {}
-            DataType::Datetime64(_, _) => {}
-            DataType::Timestamp(..) => {}
-            DataType::TimestampNtz => {}
-            DataType::Interval => {}
-            DataType::JSON => {}
-            DataType::JSONB => {}
-            DataType::Regclass => {}
-            DataType::Text => {}
-            DataType::TinyText => {}
-            DataType::MediumText => {}
-            DataType::LongText => {}
-            DataType::String(_) => {}
-            DataType::FixedString(_) => {}
-            DataType::Bytea => {}
-            DataType::Bit(_) => {}
-            DataType::BitVarying(_) => {}
-            DataType::VarBit(_) => {}
+
             DataType::Custom(_object_name, ..) => {
                 // TODO list type???
             }
@@ -375,12 +285,7 @@ impl<'a> CompletionStatement<'a> {
             DataType::LowCardinality(data_type) => {
                 Box::pin(self.c_on_data_type(data_type.as_ref())).await;
             }
-            DataType::Unspecified => {}
-            DataType::Trigger => {}
-            DataType::AnyType => {}
-            DataType::GeometricType(..) => {}
-            DataType::TsVector => {}
-            DataType::TsQuery => {}
+            _ => {}
         }
     }
     pub(crate) async fn c_on_sqlite_module_name(&mut self, name: &Ident) {
@@ -708,15 +613,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            Action::AddSearchOptimization => {}
-            Action::Apply { .. } => {}
-            Action::ApplyBudget => {}
-            Action::AttachListing => {}
-            Action::AttachPolicy => {}
-            Action::Audit => {}
-            Action::BindServiceEndpoint => {}
-            Action::Connect => {}
-            Action::Create { .. } => {}
+
             Action::DatabaseRole { role } => match role.0.len() {
                 1 => match role.0.first().unwrap() {
                     ObjectNamePart::Identifier(ident) => self.c_on_role(ident).await,
@@ -726,33 +623,11 @@ impl<'a> CompletionStatement<'a> {
                     log::error!("not 1 length role name named {:?}", role)
                 }
             },
-            Action::Delete => {}
-            Action::EvolveSchema => {}
-            Action::Exec { .. } => {}
-            Action::Execute { .. } => {}
-            Action::Failover => {}
-            Action::ImportedPrivileges => {}
-            Action::ImportShare => {}
-            Action::Manage { .. } => {}
-            Action::ManageReleases => {}
-            Action::ManageVersions => {}
-            Action::Modify { .. } => {}
-            Action::Monitor { .. } => {}
-            Action::Operate => {}
-            Action::OverrideShareRestrictions => {}
-            Action::Ownership => {}
-            Action::PurchaseDataExchangeListing => {}
-            Action::Read => {}
-            Action::ReadSession => {}
-            Action::Replicate => {}
-            Action::ResolveAll => {}
+
             Action::Role { role } => {
                 self.c_on_role(role).await;
             }
-            Action::Temporary => {}
-            Action::Trigger => {}
-            Action::Truncate => {}
-            Action::Usage => {}
+            _ => {}
         }
     }
 
