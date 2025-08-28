@@ -560,6 +560,7 @@ class MongoTableHandler {
       }
     }
   }
+
   static loadOne(uuid: string, table) {
     return async (id): Promise<BSON.Document> => {
       try {
@@ -624,6 +625,42 @@ function editorSetPositonAndReveal(editor: editor.IStandaloneCodeEditor, pos: Po
   editor.revealLines(pos.lineNumber, pos.lineNumber);
 
 }
+const maxTreeSize = 50;
+
+function postgresLike(x: DataSourceKind) {
+  switch (x) {
+    case DataSourceKind.Postgres:
+    case DataSourceKind.Cockroach:
+      return true
+    default: return false;
+  }
+}
+const udfIdGenerate = (
+  kind: DataSourceKind,
+  named: types.NamedStaff,
+  uuid: string,
+  typ: string,
+) => {
+  let idPrefix = `${uuid} + ${typ} + ${named.name}-`;
+  switch (kind) {
+    case DataSourceKind.Postgres:
+    case DataSourceKind.Cockroach:
+      return (
+        idPrefix +
+        '-' +
+        named.name +
+        '-' +
+        (named.parameters ? named.parameters : '')
+      );
+    case DataSourceKind.Cassandra:
+      return (
+        idPrefix + '-' + named.name + '-' + named.cassandra_parameters.join('-')
+      );
+    default:
+      return idPrefix + '-' + named.name;
+  }
+};
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -665,7 +702,10 @@ export {
   windowFocusChangeEvent,
   WindowFocusChangeContext,
   gridStyle,
-  editorSetPositonAndReveal
+  editorSetPositonAndReveal,
+  maxTreeSize,
+  postgresLike,
+  udfIdGenerate
 };
 
 export type { ErrAndLoc }

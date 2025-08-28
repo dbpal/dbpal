@@ -5,6 +5,7 @@ import {
   MenuItem,
   MenuList,
   Stack,
+  Typography,
 } from '@mui/material';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { useContext, useEffect, useState } from 'react';
@@ -25,19 +26,28 @@ import {
   ContextMenuContext,
   DataSourceKind,
   MatchPatternContext,
+  maxTreeSize,
+  postgresLike,
   secondConfirm,
   TabsSetContext,
+  udfIdGenerate,
   UuidContext,
 } from './helper';
 
-import { MenuRefresh } from './CommonComp';
+import { ExceedMaxTreeItem, MenuRefresh } from './CommonComp';
 
 function UdfsTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
+
   const idPrefix = uuid + '-udf-';
   const [udfs, setUdfs] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useContext(NotificationContext);
+  const [exceed, setExceed] = useState(false);
+
+  useEffect(() => {
+    setExceed(udfs.filter((e) => matchPattern(e.name)).length > maxTreeSize);
+  }, [udfs]);
   const reload = () => {
     invoke<types.NamedStaff[]>('list_udf', { name: uuid })
       .then((ts) => {
@@ -50,29 +60,6 @@ function UdfsTree() {
   useEffect(() => {
     reload();
   }, []);
-  const getItemId = (named: types.NamedStaff) => {
-    switch (kind) {
-      case DataSourceKind.Postgres:
-      case DataSourceKind.Cockroach:
-        return (
-          idPrefix +
-          '-' +
-          named.name +
-          '-' +
-          (named.parameters ? named.parameters : 'null')
-        );
-      case DataSourceKind.Cassandra:
-        return (
-          idPrefix +
-          '-' +
-          named.name +
-          '-' +
-          named.cassandra_parameters.join('-')
-        );
-      default:
-        return idPrefix + '-' + named.name;
-    }
-  };
 
   let { setUpMenu } = useContext(ContextMenuContext);
   const matchPattern = useContext(MatchPatternContext);
@@ -100,76 +87,92 @@ function UdfsTree() {
     >
       {udfs
         .filter((e) => matchPattern(e.name))
-        .map((p) => (
-          <TreeItem
-            key={
-              p.name +
-              '-' +
-              p.parameters +
-              (p.cassandra_parameters ? p.cassandra_parameters.join('-') : '')
-            }
-            itemId={getItemId(p)}
-            label=<Stack
-              direction="row"
-              spacing={1}
-              sx={{ alignItems: 'center' }}
-              onContextMenu={(e) => {
-                setUpMenu({
-                  content: (
-                    <UdfMenu
-                      reload={reload}
-                      uuid={uuid}
-                      kind={kind}
-                      udf={p.name}
-                      parameters={p.parameters}
-                      cassandraParameters={p.cassandra_parameters}
-                    ></UdfMenu>
-                  ),
-                  style: calMenuStyle(e, 100),
-                });
-              }}
-            >
-              <TbMathFunction></TbMathFunction>
-              <span>{p.name}</span>
-              {kind == DataSourceKind.Postgres ||
-                (kind == DataSourceKind.Cockroach && (
-                  <em> ({p.parameters}) </em>
-                ))}
-              {kind == DataSourceKind.Cassandra && (
-                <em> ({p.cassandra_parameters.join(',')}) </em>
-              )}
-            </Stack>
-          ></TreeItem>
-        ))}
+        .map((udf, index) => {
+          if (index >= maxTreeSize) {
+            return;
+          }
+          return (
+            <TreeItem
+              key={udfIdGenerate(kind, udf, uuid, 'udf')}
+              itemId={udfIdGenerate(kind, udf, uuid, 'udf')}
+              label=<Stack
+                direction="row"
+                spacing={1}
+                sx={{ alignItems: 'center' }}
+                onContextMenu={(e) => {
+                  setUpMenu({
+                    content: (
+                      <UdfMenu
+                        reload={reload}
+                        uuid={uuid}
+                        kind={kind}
+                        udf={udf}
+                      ></UdfMenu>
+                    ),
+                    style: calMenuStyle(e, 100),
+                  });
+                }}
+              >
+                <TbMathFunction></TbMathFunction>
+                <span>{udf.name}</span>
+                {postgresLike(kind) && (
+                  <Typography
+                    color="info"
+                    style={{
+                      width: '100px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      flex: 1,
+                    }}
+                  >
+                    ({udf.parameters})
+                  </Typography>
+                )}
+                {kind == DataSourceKind.Cassandra && (
+                  <Typography
+                    style={{
+                      width: '100px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      flex: 1,
+                    }}
+                  >
+                    ({udf.cassandra_parameters.join(',')}){' '}
+                  </Typography>
+                )}
+              </Stack>
+            ></TreeItem>
+          );
+        })}
+      <ExceedMaxTreeItem exceed={exceed}></ExceedMaxTreeItem>
     </TreeItem>
   );
 }
 
 function UdfMenu(props: {
   uuid;
-  udf;
-  parameters?: string;
-  cassandraParameters: string[] | null;
+  udf: types.NamedStaff;
   reload;
   kind: DataSourceKind;
 }) {
-  const { uuid, udf, parameters, reload, kind, cassandraParameters } = props;
+  const { uuid, udf, reload, kind } = props;
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   let arg = null;
   switch (kind) {
     case DataSourceKind.Postgres:
     case DataSourceKind.Cockroach:
-      arg = { extra: 'postgres', parameters };
+      arg = { extra: 'postgres', parameters: udf.parameters };
       break;
     case DataSourceKind.Cassandra:
-      arg = { extra: 'cassandra', parameters: cassandraParameters };
+      arg = { extra: 'cassandra', parameters: udf.cassandra_parameters };
       break;
   }
   const { showNotification } = useContext(NotificationContext);
-
   const handleOpenDetails = () => {
     initMonacoLanague(uuid, kind);
-    const id = uuid + '-' + '-udf-' + udf;
+    const id = udfIdGenerate(kind, udf, uuid, 'udf');
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
       setSelectTab(index);
@@ -180,14 +183,14 @@ function UdfMenu(props: {
           ...e,
           new TabContent(
             id,
-            udf,
+            udf.name,
             (
               <DefAndMetasView
                 showReload
                 reloadOP={async () => {
                   return await invoke<types.DefAndMetas>('show_udf', {
                     name: uuid,
-                    udf,
+                    udf: udf.name,
                     arg,
                   });
                 }}
@@ -203,14 +206,13 @@ function UdfMenu(props: {
 
   const handleDrop = async () => {
     let confirm = await secondConfirm({
-      title: `Drop UDF '${udf}'`,
+      title: `Drop UDF '${udf.name}'`,
       confirmText: 'Drop',
     });
     if (!confirm) {
       return;
     }
-
-    invoke('drop_udf', { name: uuid, udf, arg })
+    invoke('drop_udf', { name: uuid, udf: udf.name, arg })
       .then(() => {
         showNotification('success', 'Drop udf OK');
         reload();
@@ -363,6 +365,10 @@ function CassaandraAggregatesTree() {
         showNotification('error', 'list aggregate failed', e);
       });
   };
+  const [exceed, setExceed] = useState(false);
+  useEffect(() => {
+    setExceed(aggs.filter((e) => matchPattern(e.name)).length > maxTreeSize);
+  }, [aggs]);
   useEffect(() => {
     reload();
   }, []);
@@ -397,39 +403,44 @@ function CassaandraAggregatesTree() {
     >
       {aggs
         .filter((e) => matchPattern(e.name))
-        .map((p) => (
-          <TreeItem
-            key={
-              p.name +
-              '-' +
-              p.parameters +
-              (p.cassandra_parameters ? p.cassandra_parameters.join('-') : '')
-            }
-            itemId={getItemId(p)}
-            label=<Stack
-              direction="row"
-              spacing={1}
-              sx={{ alignItems: 'center' }}
-              onContextMenu={(e) => {
-                setUpMenu({
-                  content: (
-                    <CassandraAggregateMenu
-                      reload={reload}
-                      uuid={uuid}
-                      agg={p.name}
-                      parameters={p.cassandra_parameters}
-                    ></CassandraAggregateMenu>
-                  ),
-                  style: calMenuStyle(e, 100),
-                });
-              }}
-            >
-              <MdFunctions></MdFunctions>
-              <span>{p.name}</span>
-              <em> ({p.cassandra_parameters.join(',')}) </em>
-            </Stack>
-          ></TreeItem>
-        ))}
+        .map((p, index) => {
+          if (index >= maxTreeSize) {
+            return;
+          }
+          return (
+            <TreeItem
+              key={
+                p.name +
+                '-' +
+                (p.cassandra_parameters ? p.cassandra_parameters.join('-') : '')
+              }
+              itemId={getItemId(p)}
+              label=<Stack
+                direction="row"
+                spacing={1}
+                sx={{ alignItems: 'center' }}
+                onContextMenu={(e) => {
+                  setUpMenu({
+                    content: (
+                      <CassandraAggregateMenu
+                        reload={reload}
+                        uuid={uuid}
+                        agg={p.name}
+                        parameters={p.cassandra_parameters}
+                      ></CassandraAggregateMenu>
+                    ),
+                    style: calMenuStyle(e, 100),
+                  });
+                }}
+              >
+                <MdFunctions></MdFunctions>
+                <span>{p.name}</span>
+                <em> ({p.cassandra_parameters.join(',')}) </em>
+              </Stack>
+            ></TreeItem>
+          );
+        })}
+      <ExceedMaxTreeItem exceed={exceed}></ExceedMaxTreeItem>
     </TreeItem>
   );
 }

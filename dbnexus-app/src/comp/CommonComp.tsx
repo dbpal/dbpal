@@ -48,6 +48,7 @@ import {
   DataSourceKind,
   errToString,
   FavoriteSql,
+  generateRandomString,
   gridStyle,
   handleCopyToClipboard,
   saveAndSetSize,
@@ -57,6 +58,7 @@ import {
 import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
 import { getNamedConfig } from './Common';
+import { TreeItem } from '@mui/x-tree-view/TreeItem';
 
 const LogLevelSelection = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];
@@ -610,6 +612,20 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
   );
 }
 
+function ExceedMaxTreeItem({ exceed }) {
+  let id = useRef(generateRandomString());
+
+  return (
+    <TreeItem
+      itemId={id.current}
+      style={{ display: exceed ? 'blcok' : 'none' }}
+      label=<Typography color="error">
+        exceed max tree items,some item not showing
+      </Typography>
+    ></TreeItem>
+  );
+}
+
 export {
   LogLevelSelection,
   MetaValuesView,
@@ -628,4 +644,5 @@ export {
   ModalHeader,
   ResizeWrapper,
   ViewRowInModal,
+  ExceedMaxTreeItem,
 };

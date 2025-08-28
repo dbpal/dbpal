@@ -33,18 +33,20 @@ import {
   ContextMenuContext,
   DataSourceKind,
   MatchPatternContext,
+  maxTreeSize,
   secondConfirm,
   TabsSetContext,
   UuidContext,
 } from './helper';
 
-import { MenuRefresh } from './CommonComp';
+import { ExceedMaxTreeItem, MenuRefresh } from './CommonComp';
 function SequenceTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
   const idPrefix = uuid + '-sequence-';
   const [seqs, setSeqs] = useState<types.SequenceDetail[]>([]);
   const { showNotification } = useContext(NotificationContext);
+
   const reload = () => {
     invoke<types.SequenceDetail[]>('list_sequences', { name: uuid })
       .then((ts) => {
@@ -55,6 +57,11 @@ function SequenceTree() {
       });
   };
 
+  const [exceed, setExceed] = useState(false);
+
+  useEffect(() => {
+    setExceed(seqs.filter((e) => matchPattern(e.name)).length > maxTreeSize);
+  }, [seqs]);
   const getItemId = (x: types.SequenceDetail) => {
     switch (kind) {
       default:
@@ -91,34 +98,40 @@ function SequenceTree() {
     >
       {seqs
         .filter((e) => matchPattern(e.name))
-        .map((seq) => (
-          <TreeItem
-            key={seq.name}
-            itemId={getItemId(seq)}
-            style={{ alignItems: 'center' }}
-            label=<Stack
-              spacing={1}
-              direction="row"
-              onContextMenu={(e) => {
-                setUpMenu({
-                  content: (
-                    <SequenceMenu
-                      reload={reload}
-                      uuid={uuid}
-                      kind={kind}
-                      seq={seq}
-                    ></SequenceMenu>
-                  ),
-                  style: calMenuStyle(e, 100),
-                });
-              }}
-              sx={{ alignItems: 'center' }}
-            >
-              <GiProgression></GiProgression>
-              <span>{seq.name}</span>
-            </Stack>
-          ></TreeItem>
-        ))}
+        .map((seq, index) => {
+          if (index >= maxTreeSize) {
+            return;
+          }
+          return (
+            <TreeItem
+              key={seq.name}
+              itemId={getItemId(seq)}
+              style={{ alignItems: 'center' }}
+              label=<Stack
+                spacing={1}
+                direction="row"
+                onContextMenu={(e) => {
+                  setUpMenu({
+                    content: (
+                      <SequenceMenu
+                        reload={reload}
+                        uuid={uuid}
+                        kind={kind}
+                        seq={seq}
+                      ></SequenceMenu>
+                    ),
+                    style: calMenuStyle(e, 100),
+                  });
+                }}
+                sx={{ alignItems: 'center' }}
+              >
+                <GiProgression></GiProgression>
+                <span>{seq.name}</span>
+              </Stack>
+            ></TreeItem>
+          );
+        })}
+      <ExceedMaxTreeItem exceed={exceed}></ExceedMaxTreeItem>
     </TreeItem>
   );
 }

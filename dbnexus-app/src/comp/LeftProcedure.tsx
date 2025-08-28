@@ -4,9 +4,10 @@ import {
   MenuItem,
   MenuList,
   Stack,
+  Typography,
 } from '@mui/material';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import InfoIcon from '@mui/icons-material/Info';
 import { initMonacoLanague, tabsHasId } from './Common';
@@ -22,16 +23,19 @@ import {
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
+  generateRandomString,
   MatchPatternContext,
+  maxTreeSize,
+  postgresLike,
   secondConfirm,
   TabsSetContext,
+  udfIdGenerate,
   UuidContext,
 } from './helper';
-import { MenuRefresh } from './CommonComp';
+import { ExceedMaxTreeItem, MenuRefresh } from './CommonComp';
 function ProceduresTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
-  const idPrefix = uuid + '-procudures-';
   const [ps, setPos] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const reload = () => {
@@ -44,24 +48,24 @@ function ProceduresTree() {
       });
   };
 
+  const [exceed, setExceed] = useState(false);
+
+  useEffect(() => {
+    setExceed(ps.filter((e) => matchPattern(e.name)).length > maxTreeSize);
+  }, [ps]);
+
   const getItemId = (x: types.NamedStaff) => {
-    switch (kind) {
-      case DataSourceKind.Postgres:
-      case DataSourceKind.Cockroach:
-        let p = x.parameters;
-        return idPrefix + '-' + x.name + '-' + p;
-      default:
-        return idPrefix + '-' + x.name;
-    }
+    return udfIdGenerate(kind, x, uuid, 'procedure');
   };
   let { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
     reload();
   }, []);
   const matchPattern = useContext(MatchPatternContext);
+  const idForTrees = useRef(generateRandomString());
   return (
     <TreeItem
-      itemId={idPrefix}
+      itemId={idForTrees.current}
       label=<Stack
         direction="row"
         spacing={1}
@@ -83,39 +87,54 @@ function ProceduresTree() {
     >
       {ps
         .filter((e) => matchPattern(e.name))
-        .map((p) => (
-          <TreeItem
-            key={p.name + '-' + p.parameters}
-            itemId={getItemId(p)}
-            style={{ alignItems: 'center' }}
-            label=<Stack
-              spacing={1}
-              direction="row"
-              onContextMenu={(e) => {
-                setUpMenu({
-                  content: (
-                    <ProcedureMenu
-                      reload={reload}
-                      uuid={uuid}
-                      kind={kind}
-                      procedure={p.name}
-                      parameters={p.parameters}
-                    ></ProcedureMenu>
-                  ),
-                  style: calMenuStyle(e, 100),
-                });
-              }}
-              sx={{ alignItems: 'center' }}
-            >
-              <SiProcessingfoundation></SiProcessingfoundation>
-              <span>{p.name}</span>
-              {kind == DataSourceKind.Postgres ||
-                (kind == DataSourceKind.Cockroach && (
-                  <em> ( {p.parameters} ) </em>
-                ))}
-            </Stack>
-          ></TreeItem>
-        ))}
+        .map((p, index) => {
+          if (index >= maxTreeSize) {
+            return;
+          }
+          return (
+            <TreeItem
+              key={p.name + '-' + p.parameters}
+              itemId={getItemId(p)}
+              style={{ alignItems: 'center' }}
+              label=<Stack
+                direction="row"
+                onContextMenu={(e) => {
+                  setUpMenu({
+                    content: (
+                      <ProcedureMenu
+                        reload={reload}
+                        uuid={uuid}
+                        kind={kind}
+                        procedure={p.name}
+                        parameters={p.parameters}
+                      ></ProcedureMenu>
+                    ),
+                    style: calMenuStyle(e, 100),
+                  });
+                }}
+                sx={{ alignItems: 'center' }}
+              >
+                <SiProcessingfoundation></SiProcessingfoundation>
+                <span>{p.name}</span>
+                {postgresLike(kind) && (
+                  <Typography
+                    color="info"
+                    style={{
+                      width: '100px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      flex: 1,
+                    }}
+                  >
+                    ({p.parameters})
+                  </Typography>
+                )}
+              </Stack>
+            ></TreeItem>
+          );
+        })}
+      <ExceedMaxTreeItem exceed={exceed}></ExceedMaxTreeItem>
     </TreeItem>
   );
 }
@@ -128,7 +147,6 @@ function ProcedureMenu(props: {
   kind: DataSourceKind;
 }) {
   const { uuid, procedure, parameters, reload, kind } = props;
-
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   let arg =
     kind == DataSourceKind.Cockroach || kind == DataSourceKind.Postgres

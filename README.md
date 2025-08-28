@@ -48,5 +48,3 @@ INSERT INTO documents (title, content) VALUES ('First Document', 'This is the co
 INSERT INTO documents (title, content) VALUES ('Second Document', 'This is the content of the second document.');
 ~~~
 
-
-c_on_expr ident find all var declared in function 

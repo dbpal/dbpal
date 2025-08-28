@@ -68,8 +68,9 @@ import {
   handleCopyToClipboard,
   quoteStyle,
   MongoTableHandler,
+  maxTreeSize,
 } from './helper';
-import { MenuRefresh, ModalHeader } from './CommonComp';
+import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from './CommonComp';
 import { TableStructure } from './TableStructure';
 
 enum TablesType {
@@ -84,7 +85,11 @@ function TablesTree(props: { typ: TablesType }) {
   const [tables, setTables] = useState<types.ListTable[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
+  const [exceed, setExceed] = useState(false);
 
+  useEffect(() => {
+    setExceed(tables.filter((e) => matchPattern(e.name)).length > maxTreeSize);
+  }, [tables]);
   const handleReload = () => {
     setLoading(true);
     let invokeName;
@@ -151,7 +156,10 @@ function TablesTree(props: { typ: TablesType }) {
     >
       {tables
         .filter((e) => matchPattern(e.name))
-        .map((e) => {
+        .map((e, index) => {
+          if (index >= maxTreeSize) {
+            return;
+          }
           return (
             <TableTree
               key={e.name}
@@ -161,6 +169,7 @@ function TablesTree(props: { typ: TablesType }) {
             ></TableTree>
           );
         })}
+      <ExceedMaxTreeItem exceed={exceed}></ExceedMaxTreeItem>
     </TreeItem>
   );
 }

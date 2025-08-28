@@ -53,6 +53,7 @@ import {
   gridStyle,
   handleCopyToClipboard,
   MatchPatternContext,
+  maxTreeSize,
   MongoTableHandler,
   quoteStyle,
   saveAndSetSize,
@@ -62,7 +63,7 @@ import {
   UuidContext,
   VisiableContext,
 } from './helper';
-import { MenuRefresh } from './CommonComp';
+import { ExceedMaxTreeItem, MenuRefresh } from './CommonComp';
 import { MongoTable } from './MongoDB';
 
 enum ViewKind {
@@ -92,7 +93,11 @@ function ViewsTree(props: { viewkind: ViewKind }) {
       invokeName = 'list_materialized_view';
       break;
   }
+  const [exceed, setExceed] = useState(false);
 
+  useEffect(() => {
+    setExceed(views.filter((e) => matchPattern(e.name)).length > maxTreeSize);
+  }, [views]);
   const handleReload = () => {
     setLoading(true);
     invoke<types.NamedStaff[] | types.ListTable[]>(invokeName, { name: uuid })
@@ -161,16 +166,22 @@ function ViewsTree(props: { viewkind: ViewKind }) {
     >
       {views
         .filter((e) => matchPattern(e.name))
-        .map((e) => (
-          <ViewTree
-            viewkind={viewkind}
-            key={e.name}
-            view={e.name}
-            reload={handleReload}
-            //@ts-ignore
-            size={e.size}
-          ></ViewTree>
-        ))}
+        .map((e, index) => {
+          if (index >= maxTreeSize) {
+            return;
+          }
+          return (
+            <ViewTree
+              viewkind={viewkind}
+              key={e.name}
+              view={e.name}
+              reload={handleReload}
+              //@ts-ignore
+              size={e.size}
+            ></ViewTree>
+          );
+        })}
+      <ExceedMaxTreeItem exceed={exceed}></ExceedMaxTreeItem>
     </TreeItem>
   );
 }
