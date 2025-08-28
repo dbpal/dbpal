@@ -59,7 +59,7 @@ impl AstCompletionHelper for OracleDB {
                 .iter()
                 .map(|x| TempTableColumn {
                     name: x.name().to_string(),
-                    typ: Some(x.oracle_type().to_string()),
+                    data_type: Some(x.oracle_type().to_string()),
                 })
                 .collect(),
         )

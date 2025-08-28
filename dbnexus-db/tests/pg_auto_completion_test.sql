@@ -94,3 +94,5 @@ copy (select * from employees) to 'file.csv' WITH csv Header
 30 employees
 CREATE POLICY departments_policy ON departments FOR ALL USING (dept = current_setting('my.dept', true))  WITH CHECK (dept = current_setting('my.dept', true));
 45 departments
+CREATE EXTENSION hstore;
+24 hstore

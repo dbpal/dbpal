@@ -385,7 +385,7 @@ impl SchemaTrait for ClickHouseDB {
             let nullable = matches!(ty, DataType::Nullable(_));
             ret.push(Field {
                 field: column_name,
-                typ: column_type.clone(),
+                data_type: column_type.clone(),
                 nullable,
                 default_value: if default_value.is_empty() {
                     None
@@ -1135,7 +1135,7 @@ impl SqlBuilder for ClickHouseDB {
                         "{} = {}",
                         self.quote(k),
                         self.put_value_in_sql(
-                            &f.unwrap().typ,
+                            &f.unwrap().data_type,
                             f.unwrap().firebird_binary_sub_type,
                             v.as_ref().map(|x| x.as_str())
                         )?

@@ -1599,7 +1599,7 @@ fn get_rows_types(rows: &Vec<PgRow>) -> Vec<Field> {
     for c in rows[0].columns().iter() {
         ret.push(Field {
             field: c.name().to_string(),
-            typ: c.type_info().to_string(),
+            data_type: c.type_info().to_string(),
             nullable: true,
             default_value: None,
             is_primary: false,

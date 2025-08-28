@@ -199,7 +199,7 @@ export namespace types {
     export type I64 = number;
     export type Field = {
         "field": string;
-        "typ": string;
+        "data_type": string;
         "nullable": boolean;
 
         /**
@@ -290,7 +290,7 @@ export namespace types {
         "kind": CompletionKind;
         "desc"?: (string | null);
     };
-    export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma" | "Policy" | "Variable" | "Rule" | "Cluster" | "ClickHouseTableProjection" | "Prepare");
+    export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma" | "Policy" | "Variable" | "Rule" | "Cluster" | "ClickHouseTableProjection" | "Prepare" | "Module");
     export type DefAndMetas = {
         "def": string;
         "metas": (types.MetaValue)[];

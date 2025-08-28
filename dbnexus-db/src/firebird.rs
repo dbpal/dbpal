@@ -107,7 +107,7 @@ fn encode_rows(
     let get_type = |name: &String| {
         types
             .as_ref()
-            .and_then(|x| x.get(name).map(|x| &x.typ))
+            .and_then(|x| x.get(name).map(|x| &x.data_type))
             .map(|x| x.to_uppercase())
     };
     let mut ret = Vec::with_capacity(rows.len());
@@ -660,11 +660,11 @@ impl SchemaTrait for FireBirdDB {
         let mut ret = Vec::new();
         for (name, typ, sub_type, nullable, default_value) in rows {
             let name = name.trim().to_owned();
-            let typ = typ.trim().to_owned();
+            let data_type = typ.trim().to_owned();
             let is_primary = pri_keys.contains(&name);
             ret.push(Field {
                 field: name,
-                typ,
+                data_type,
                 nullable: nullable == "YES",
                 default_value,
                 is_primary,

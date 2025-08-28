@@ -34,6 +34,10 @@ impl LanguageServer for CockRoachDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for CockRoachDB {
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_database(self.pg.as_ref()).await
+    }
+
     async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
         self.pg.get_key_words_fn().await
     }

@@ -167,6 +167,8 @@ function backendCompletionItemToEditor(
         return languages.CompletionItemKind.Property;
       case 'Prepare':
         return languages.CompletionItemKind.Reference;
+      case 'Module':
+        return languages.CompletionItemKind.Module;
 
     }
   }

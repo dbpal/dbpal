@@ -158,7 +158,7 @@ impl AstCompletionHelper for ClickHouseDB {
                     let JsonRespMeta { name, r#type } = x;
                     TempTableColumn {
                         name,
-                        typ: Some(r#type),
+                        data_type: Some(r#type),
                     }
                 })
                 .collect(),

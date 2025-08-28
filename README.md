@@ -36,3 +36,17 @@ PostgreSQL 外部表（Foreign Table） 是 “看起来像本地表，实际数
 openPath for open export file
 
 
+
+
+sqlite virtual table
+use blew code to test
+~~~
+CREATE VIRTUAL TABLE documents USING fts5(title, content); 
+
+
+INSERT INTO documents (title, content) VALUES ('First Document', 'This is the content of the first document.');
+INSERT INTO documents (title, content) VALUES ('Second Document', 'This is the content of the second document.');
+~~~
+
+
+c_on_expr ident find all var declared in function 

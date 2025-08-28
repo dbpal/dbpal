@@ -260,7 +260,7 @@ impl AstCompletionHelper for MysqlDB {
             .iter()
             .map(|x| TempTableColumn {
                 name: x.name().to_string(),
-                typ: Some(x.type_info().to_string()),
+                data_type: Some(x.type_info().to_string()),
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)

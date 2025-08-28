@@ -8,6 +8,7 @@ import {
   Stack,
   Divider,
   Chip,
+  useTheme,
 } from '@mui/material';
 import {
   CSSProperties,
@@ -486,6 +487,7 @@ function ModalHeader(props: { title: string }) {
         style={{
           paddingBottom: '0.3rem',
           fontWeight: 'bold',
+          textTransform: 'capitalize',
         }}
       >
         {title}
@@ -546,6 +548,7 @@ function ResizeWrapper(props: {
 
 function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
   const { fields, x, isTable } = props;
+  const theme = useTheme();
   return (
     <Stack spacing={1}>
       {fields.map((f) => {
@@ -564,7 +567,7 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
               divider={<span>|</span>}
             >
               <Typography variant="h6">{f.field}</Typography>
-              <Typography variant="subtitle1">{f.typ}</Typography>
+              <Typography variant="subtitle1">{f.data_type}</Typography>
               {isTable && f.is_primary && (
                 <Typography variant="subtitle1"> Primary Key </Typography>
               )}
@@ -575,19 +578,18 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
                 <Typography variant="subtitle1"> auto increment </Typography>
               )}
               {isTable && f.default_value && (
-                <Tooltip title={f.default_value}>
-                  <Typography
-                    variant="subtitle1"
-                    style={{
-                      maxWidth: '7rem',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    default value({f.default_value})
-                  </Typography>
-                </Tooltip>
+                <Typography
+                  variant="subtitle1"
+                  style={{
+                    width: '100px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    flex: 1,
+                  }}
+                >
+                  default value({f.default_value})
+                </Typography>
               )}
             </Stack>
 
@@ -596,6 +598,7 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
               style={{
                 overflow: 'auto',
                 opacity: 0.9,
+                color: theme.palette.success.main,
               }}
             >
               {x[f.field]}

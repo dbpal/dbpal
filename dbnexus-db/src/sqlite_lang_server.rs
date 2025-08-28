@@ -99,17 +99,22 @@ impl LangServerCommon for SqliteDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let sql = "PRAGMA database_list";
         log::info!("sql:{}", sql);
-        let conn = self.query_connection.get(&AutoCompletionQueryUuid::get());
-        if conn.is_none() {
-            log::error!("should able to get connection");
-            return anyhow::Ok(vec![]);
-        }
-        let conn = conn.unwrap();
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch_all(conn.deref_mut())
-            .await?;
+
+        let rows = match self.query_connection.get(&AutoCompletionQueryUuid::get()) {
+            Some(conn) => {
+                let mut conn = conn.lock().await;
+                let conn = conn.deref_mut();
+                sqlx::raw_sql(AssertSqlSafe(sql))
+                    .fetch_all(conn.deref_mut())
+                    .await?
+            }
+            None => {
+                let mut conn = self.get_conn().await?;
+                sqlx::raw_sql(AssertSqlSafe(sql))
+                    .fetch_all(conn.deref_mut())
+                    .await?
+            }
+        };
         let mut ret = vec![];
         for row in rows.iter() {
             let name: String = row.try_get(1)?;
@@ -125,7 +130,14 @@ impl crate::language_server::LexerCompletionTrait for SqliteDB {
     const TYPES: &'static [&'static str] = SQLITE_TYPES;
 
     async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::sqlite_pragma(self).await
+        let mut x = AstCompletionHelper::sqlite_pragma(self).await?;
+        let y = AstCompletionHelper::sqlite_module_name(self).await?;
+        x.extend(y.into_iter().map(|x| CompletionItem {
+            item: x.into(),
+            kind: CompletionKind::Module,
+            desc: None,
+        }));
+        anyhow::Ok(x)
     }
 }
 
@@ -190,6 +202,21 @@ impl SqliteDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for SqliteDB {
+    // issue https://github.com/launchbadge/sqlx/issues/4010
+    async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
+        let sql = "SELECT name  FROM pragma_module_list";
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = vec![];
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let s = match self.query_connection.get(&AutoCompletionQueryUuid::get()) {
             Some(conn) => {
@@ -212,7 +239,7 @@ impl AstCompletionHelper for SqliteDB {
             .iter()
             .map(|x| TempTableColumn {
                 name: x.name().to_string(),
-                typ: Some(x.type_info().to_string()),
+                data_type: Some(x.type_info().to_string()),
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
@@ -307,8 +334,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(
-            r#"employees.
-11 id"#,
+            r#"main.
+6 employees"#,
             &db,
             false,
         )

@@ -61,6 +61,7 @@ pub enum CompletionKind {
     Cluster,
     ClickHouseTableProjection,
     Prepare,
+    Module,
 }
 
 impl From<CompletionKind> for u32 {
@@ -297,9 +298,47 @@ pub trait LexerCompletionTrait: LangServerCommon {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct ListType {
+    pub(crate) name: String,
+    pub(crate) statement: Option<String>,
+}
+
+impl From<ListType> for CompletionItem {
+    fn from(value: ListType) -> Self {
+        let ListType { name, statement } = value;
+        Self {
+            item: name.into(),
+            kind: CompletionKind::Type,
+            desc: statement.map(|x| x.into()),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PostGresExtension {
+    pub(crate) name: String,
+    pub(crate) comment: Option<String>,
+}
+
+impl From<PostGresExtension> for CompletionItem {
+    fn from(value: PostGresExtension) -> Self {
+        let PostGresExtension { name, comment } = value;
+        Self {
+            item: name.into(),
+            kind: CompletionKind::Extension,
+            desc: comment.map(|x| x.into()),
+        }
+    }
+}
+
 #[async_trait::async_trait]
 
 pub trait LangServerCommon: GetBackendKind {
+    async fn list_type(&self, _schema: Option<&str>) -> anyhow::Result<Vec<ListType>> {
+        anyhow::Ok(vec![])
+    }
+
     fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         let dialect = self.dialect();
         let x = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql);
@@ -336,6 +375,9 @@ pub trait LangServerCommon: GetBackendKind {
     }
 
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
     async fn list_execute(&self, _schema: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
@@ -505,6 +547,14 @@ impl From<DBExecutable> for CompletionItem {
 pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServerCommon {
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
 
+    async fn postgres_list_extension(
+        &self, _installed: bool,
+    ) -> anyhow::Result<Vec<PostGresExtension>> {
+        anyhow::Ok(vec![])
+    }
+    async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
+        not_support_feature(self.backend_name())
+    }
     async fn get_query_columns(&self, _sql: &str) -> anyhow::Result<Vec<TempTableColumn>>;
 
     async fn duckdb_extensions(
@@ -539,7 +589,7 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
     ) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
-    async fn postgres_table_policy(
+    async fn table_policy(
         &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
@@ -618,6 +668,9 @@ pub(crate) async fn try_parser_completion(
         while parser.peek_token().token != Token::EOF {
             while parser.peek_token().token == Token::SemiColon {
                 parser.next_token();
+            }
+            if parser.peek_token().token == Token::EOF {
+                break;
             }
             match parser.parse_statement() {
                 Ok(s) => {

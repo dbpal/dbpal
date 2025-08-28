@@ -1,13 +1,14 @@
+use crate::db::BackendKind;
 use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc};
 use sqlparser::ast::{
-    AlterIndexOperation, AlterRoleOperation, AssignmentTarget, CaseStatement,
+    AlterIndexOperation, AlterRoleOperation, AlterTypeOperation, AssignmentTarget, CaseStatement,
     ConditionalStatementBlock, CopySource, CreateDomain, CreateFunctionBody, DataType, Declare,
     DeclareAssignment, DenyStatement, DropDomain, GrantObjects, Grantee, GranteeName, Ident,
-    IfStatement, ObjectName, ObjectNamePart, OneOrManyWithParens, OpenStatement, PrintStatement,
-    Privileges, RaiseStatement, RaiseStatementValue, ReturnStatement, ReturnStatementValue,
-    SchemaName, SequenceOptions, Set, SetSessionParamKind, Spanned, Statement, TableConstraint,
-    TableFactor, TableObject, TriggerEvent, UpdateTableFromKind, UserDefinedTypeRepresentation,
-    WhileStatement,
+    IfStatement, ObjectName, ObjectNamePart, OneOrManyWithParens, OpenStatement, Owner,
+    PrintStatement, Privileges, RaiseStatement, RaiseStatementValue, ReturnStatement,
+    ReturnStatementValue, SchemaName, SequenceOptions, Set, SetSessionParamKind, Spanned,
+    Statement, TableConstraint, TableFactor, TableObject, TriggerEvent, UpdateTableFromKind,
+    UserDefinedTypeRepresentation, WhileStatement,
 };
 use sqlparser::ast::{CopyOption, Expr};
 use sqlparser::tokenizer::{Location, Span};
@@ -85,7 +86,7 @@ impl Scopes {
         ret
     }
 
-    pub(crate) fn push(&self, scope: Scope) -> ScopesDropGuard {
+    pub(crate) fn enter(&self, scope: Scope) -> ScopesDropGuard {
         self.ss.lock().unwrap().push(scope);
         ScopesDropGuard {
             ss: self.ss.clone(),
@@ -93,7 +94,7 @@ impl Scopes {
         }
     }
 
-    pub(crate) fn push_scopes(&self, scopes: Vec<Scope>) -> ScopesDropGuard {
+    pub(crate) fn enter_scopes(&self, scopes: Vec<Scope>) -> ScopesDropGuard {
         let length = scopes.len();
 
         self.ss.lock().unwrap().extend(scopes);
@@ -103,7 +104,7 @@ impl Scopes {
         }
     }
 
-    pub(crate) fn push_without_guard(&self, s: Scope) {
+    pub(crate) fn enter_without_guard(&self, s: Scope) {
         self.ss.lock().unwrap().push(s);
     }
 
@@ -132,7 +133,7 @@ impl Scopes {
 #[derive(Clone, Debug)]
 pub struct TempTableColumn {
     pub(crate) name: String,
-    pub(crate) typ: Option<String>,
+    pub(crate) data_type: Option<String>,
 }
 
 impl From<TempTableColumn> for CompletionItem {
@@ -145,7 +146,7 @@ impl From<&TempTableColumn> for CompletionItem {
         Self {
             item: value.name.to_string().into(),
             kind: CompletionKind::Column,
-            desc: value.typ.as_ref().map(|x| x.clone().into()),
+            desc: value.data_type.as_ref().map(|x| x.clone().into()),
         }
     }
 }
@@ -155,7 +156,7 @@ impl From<&CompletionItem> for TempTableColumn {
         debug_assert!(value.kind == CompletionKind::Column);
         Self {
             name: value.item.to_string(),
-            typ: value.desc.as_ref().map(|x| x.to_string()),
+            data_type: value.desc.as_ref().map(|x| x.to_string()),
         }
     }
 }
@@ -356,7 +357,7 @@ impl<'a> CompletionStatement<'a> {
                     for t in table_names.iter() {
                         scope.enter_table(None, t.name.clone());
                     }
-                    let _gurad = self.scopes.push(scope);
+                    let _gurad = self.scopes.enter(scope);
                     for p in partitions.iter() {
                         self.c_on_expr(p).await;
                         if self.finished() {
@@ -418,7 +419,7 @@ impl<'a> CompletionStatement<'a> {
                             // 这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
                             let _gurad = self
                                 .scopes
-                                .push(Scope::from_this_table(object_name.clone()));
+                                .enter(Scope::from_this_table(object_name.clone()));
                             self.c_on_select_item(&returning[..]).await;
                         }
                     }
@@ -450,6 +451,7 @@ impl<'a> CompletionStatement<'a> {
                             return;
                         }
                         for c in columns.iter() {
+                            dbg!(c);
                             self.c_on_column(table_name, c, false).await;
                             if self.finished() {
                                 return;
@@ -471,7 +473,6 @@ impl<'a> CompletionStatement<'a> {
                             }
                         }
                     }
-
                     CopySource::Query(query) => {
                         let columns = self.c_on_query(query).await.ok().unwrap_or_default();
                         for op in options.iter() {
@@ -540,7 +541,7 @@ impl<'a> CompletionStatement<'a> {
                         return;
                     }
                     if let Some(table) = &table {
-                        let _gurad = self.scopes.push(Scope::from_this_table(table.clone()));
+                        let _gurad = self.scopes.enter(Scope::from_this_table(table.clone()));
                         match &ass.target {
                             AssignmentTarget::ColumnName(column) => {
                                 let idents: Vec<_> = column
@@ -640,20 +641,25 @@ impl<'a> CompletionStatement<'a> {
                             .iter()
                             .map(|c| TempTableColumn {
                                 name: c.name.value.clone(),
-                                typ: Some(c.data_type.to_string()),
+                                data_type: Some(c.data_type.to_string()),
                             })
                             .collect(),
                     ),
                 };
                 scope.enter_temp_table(None, this_table.clone());
-                let _guard = self.scopes.push(scope);
+                let _guard = self.scopes.enter(scope);
                 for c in create_table.columns.iter() {
                     if self.in_pos(&c.name.span) {
                         self.set_on_def();
                         return;
                     }
+                    self.c_on_data_type(&c.data_type).await;
+                    if self.finished() {
+                        return;
+                    }
                     for op in c.options.iter() {
-                        Box::pin(self.c_on_column_option_def(op, this_table.columns.clone())).await;
+                        Box::pin(self.c_on_column_option_def(op, this_table.columns.clone(), None))
+                            .await;
                         if self.finished() {
                             return;
                         }
@@ -814,14 +820,32 @@ impl<'a> CompletionStatement<'a> {
                         }
                     }
                 }
+                if let Some(like) = create_table.like.as_ref() {
+                    self.c_on_table(like).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                if let Some(clone) = create_table.clone.as_ref() {
+                    self.c_on_table(clone).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
 
                 // 其他都可以fallback 到lexer的实现
             }
-            Statement::CreateVirtualTable { name, .. } => {
-                // TODO create a new type a of table.
+            Statement::CreateVirtualTable {
+                name, module_name, ..
+            } => {
+                self.c_on_schema(name).await;
+                if self.finished() {
+                    return;
+                }
                 if self.in_pos(&name.span()) {
                     self.set_on_def();
                 }
+                self.c_on_sqlite_module_name(module_name).await;
             }
             Statement::CreateIndex(create_index) => {
                 if let Some(name) = &create_index.name {
@@ -836,7 +860,7 @@ impl<'a> CompletionStatement<'a> {
                 }
                 let _guard = self
                     .scopes
-                    .push(Scope::from_this_table(create_index.table_name.clone()));
+                    .enter(Scope::from_this_table(create_index.table_name.clone()));
                 // using 在 PostgreSQL 中，USING 关键字用于指定索引的类型，例如
                 // B-tree、HASH、GIN 等。示例如下： using 用lexer的自动完成即可
 
@@ -858,7 +882,9 @@ impl<'a> CompletionStatement<'a> {
                 }
                 if let Some(expr) = &create_index.predicate {
                     self.c_on_expr(expr).await;
-                    if self.finished() {}
+                    if self.finished() {
+                        return;
+                    }
                 }
                 for w in create_index.with.iter() {
                     self.c_on_expr(w).await;
@@ -910,16 +936,19 @@ impl<'a> CompletionStatement<'a> {
                     self.set_on_def();
                     return;
                 }
+                // CREATE POLICY 是 PostgreSQL 中用于定义行级安全策略的命令，
+                // 主要适用于表（tables）和视图（views）。通过行级安全，您可以控制用户在表或视图中可访问的行。
                 self.c_on_table_or_view(table_name).await;
                 if self.finished() {
                     return;
                 }
                 if let Some(to) = to.as_ref() {
                     if to.iter().any(|x| match x {
-                        sqlparser::ast::Owner::Ident(ident) => self.in_pos(&ident.span),
+                        Owner::Ident(ident) => self.in_pos(&ident.span),
                         _ => false,
                     }) {
                         // hit the pistion
+                        // 是的，CREATE POLICY 语句中的 TO 子句用于指定角色（role）。这允许您定义特定角色对表或视图的访问权限。
                         let mut results: Vec<_> = self
                             .helper
                             .list_role()
@@ -948,7 +977,9 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
 
-                let _guard = self.scopes.push(Scope::from_this_table(table_name.clone()));
+                let _guard = self
+                    .scopes
+                    .enter(Scope::from_this_table(table_name.clone()));
                 if let Some(x) = using {
                     self.c_on_expr(x).await;
                     if self.finished() {
@@ -1032,7 +1063,7 @@ impl<'a> CompletionStatement<'a> {
                 if self.finished() {
                     return;
                 }
-                self.c_on_policy(table_name, name).await;
+                self.c_on_table_policy(table_name, name).await;
             }
             Statement::AttachDatabase { .. } => {
                 // fallback to lexer
@@ -1086,7 +1117,7 @@ impl<'a> CompletionStatement<'a> {
                 if self.finished() {
                     return;
                 }
-                self.c_on_policy(table_name, name).await;
+                self.c_on_table_policy(table_name, name).await;
             }
             Statement::Declare { stmts } => {
                 for d in stmts.iter() {
@@ -1121,36 +1152,12 @@ impl<'a> CompletionStatement<'a> {
                     self.scopes.enter_declare(Arc::new(d.clone()));
                 }
             }
-            Statement::CreateExtension { name, schema, .. } => {
-                // fallback to lexer
-                if self.in_pos(&name.span) {
-                    self.set_on_def();
-                    return;
-                }
-                if let Some(schema) = schema {
-                    if self.in_pos(&schema.span) {
-                        self.result = Some(
-                            self.helper
-                                .list_schema()
-                                .await
-                                .map_err(|e| log::error!("list schema failed,err:{}", e))
-                                .unwrap_or_default()
-                                .into_iter()
-                                .map(|x| CompletionItem {
-                                    item: x.into(),
-                                    kind: CompletionKind::Schema,
-                                    desc: None,
-                                })
-                                .collect(),
-                        )
-                    }
-                }
-            }
+
             Statement::Fetch { into, .. } => {
-                // fallback to lexer
                 if let Some(into) = into {
                     self.c_on_table(into).await;
                 }
+                // other fallback to lexer
             }
             Statement::Flush { tables, .. } => {
                 for table in tables.iter() {
@@ -1216,6 +1223,7 @@ impl<'a> CompletionStatement<'a> {
             Statement::Use(_x) => {
                 // TODO maybe can auto completion.
                 // we perfer use don't use this statment.
+                // we dont't want user change database like this.
             }
             Statement::StartTransaction {
                 statements,
@@ -1228,8 +1236,15 @@ impl<'a> CompletionStatement<'a> {
                         return;
                     }
                 }
+
                 if let Some(exception) = exception {
                     for s in exception.iter() {
+                        if s.idents.iter().any(|s| self.in_pos(&s.span)) {
+                            // those a expection names suppose to be defintion
+                            self.set_on_def();
+                            return;
+                        }
+
                         for stmt in s.statements.iter() {
                             Box::pin(self.completion_on_statement(stmt)).await;
                             if self.finished() {
@@ -1250,6 +1265,7 @@ impl<'a> CompletionStatement<'a> {
             }
             Statement::Commit { .. } => {
                 // fallback to lexer
+                // nothing here
             }
             Statement::Rollback { .. } => {
                 // fallback to lexer
@@ -1260,19 +1276,22 @@ impl<'a> CompletionStatement<'a> {
                     SchemaName::Simple(object_name) => {
                         if self.in_pos(&object_name.span()) {
                             self.set_on_def();
+                            return;
                         }
                     }
                     SchemaName::UnnamedAuthorization(ident) => {
                         if self.in_pos(&ident.span) {
                             self.set_on_def();
+                            return;
                         }
                     }
                     SchemaName::NamedAuthorization(_object_name, ident) => {
                         if self.in_pos(&ident.span) {
                             self.set_on_def();
+                            return;
                         }
                     }
-                }
+                } // have expr I think they are literal 
             }
             Statement::CreateDatabase { db_name, .. } => {
                 //
@@ -1300,7 +1319,10 @@ impl<'a> CompletionStatement<'a> {
                                 },
                             );
                         }
-
+                        self.c_on_data_type(&a.data_type).await;
+                        if self.finished() {
+                            return;
+                        }
                         if let Some(expr) = &a.default_expr {
                             self.c_on_expr(expr).await;
                             if self.finished() {
@@ -1309,7 +1331,21 @@ impl<'a> CompletionStatement<'a> {
                         }
                     }
                 }
-                let _gurad = self.scopes.push(Scope::from_vars(vars));
+                if let Some(r) = create_f.return_type.as_ref() {
+                    self.c_on_data_type(r).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                let _gurad = self.scopes.enter(Scope::from_vars(vars));
+                if let Some(x) = create_f.options.as_ref() {
+                    for op in x.iter() {
+                        self.c_on_sql_option(op, Arc::new(vec![])).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
                 // due to this https://github.com/apache/datafusion-sqlparser-rs/issues/1356
                 if let Some(x) = &create_f.function_body {
                     match x {
@@ -1348,9 +1384,9 @@ impl<'a> CompletionStatement<'a> {
                 referencing,
                 condition,
                 exec_body,
+                statements,
                 ..
             } => {
-                // fallback to lexer
                 if self.in_pos(&name.span()) {
                     self.set_on_def();
                     return;
@@ -1380,11 +1416,18 @@ impl<'a> CompletionStatement<'a> {
                     self.c_on_table(&r.transition_relation_name).await;
                 }
                 let mut scope = Scope::default();
-                // TODO `NEW` and `OLD` is suitable for all database we
-                // support right now????
-                scope.enter_table(Some(Ident::new("NEW")), table_name.clone());
-                scope.enter_table(Some(Ident::new("OLD")), table_name.clone());
-                let _gurad = self.scopes.push(scope);
+                /*
+                    AI提示词 没有 NEW/OLD，而是使用 inserted.col 和 deleted.col 两张“伪表”
+                */
+                if self.helper.backend_name() == BackendKind::SqlServer {
+                    // 	没有 NEW/OLD，而是使用 inserted.col 和 deleted.col 两张“伪表”
+                    scope.enter_table(Some(Ident::new("inserted")), table_name.clone());
+                    scope.enter_table(Some(Ident::new("deleted")), table_name.clone());
+                } else {
+                    scope.enter_table(Some(Ident::new("NEW")), table_name.clone());
+                    scope.enter_table(Some(Ident::new("OLD")), table_name.clone());
+                }
+                let _gurad = self.scopes.enter(scope);
                 if let Some(c) = condition {
                     self.c_on_expr(c).await;
                     if self.finished() {
@@ -1394,7 +1437,16 @@ impl<'a> CompletionStatement<'a> {
                 if let Some(exec_body) = exec_body {
                     self.c_on_trigger_exec_body(exec_body).await;
                 }
+                if let Some(ss) = statements.as_ref() {
+                    for s in ss.statements() {
+                        Box::pin(self.completion_on_statement(s)).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
             }
+
             Statement::DropTrigger {
                 trigger_name,
                 table_name,
@@ -1427,14 +1479,26 @@ impl<'a> CompletionStatement<'a> {
                     self.set_on_def();
                     return;
                 }
-                if let Some(params) = params {
+                let _gurad = if let Some(params) = params {
+                    let mut m = HashMap::new();
                     for p in params.iter() {
                         if self.in_pos(&p.name.span) {
                             self.set_on_def();
                             return;
                         }
+                        m.insert(
+                            p.name.value.clone(),
+                            Var {
+                                datatype: p.data_type.clone(),
+                            },
+                        );
                     }
-                }
+                    let s = Scope::from_vars(m);
+                    self.scopes.enter(s)
+                } else {
+                    // means to drop nothing
+                    self.scopes.drop_n(0)
+                };
 
                 for s in body.statements() {
                     Box::pin(self.completion_on_statement(s)).await;
@@ -1477,13 +1541,12 @@ impl<'a> CompletionStatement<'a> {
                         match g {
                             GranteeName::ObjectName(object_name) => {
                                 if let Some(name) = object_name.0.first() {
-                                    self.c_on_role(match name {
-                                        ObjectNamePart::Identifier(ident) => ident,
-                                        ObjectNamePart::Function(object_name_part_function) => {
-                                            &object_name_part_function.name
+                                    match name {
+                                        ObjectNamePart::Identifier(ident) => {
+                                            self.c_on_role(ident).await
                                         }
-                                    })
-                                    .await;
+                                        ObjectNamePart::Function(..) => {}
+                                    }
                                     if self.finished() {
                                         return;
                                     }
@@ -1504,19 +1567,18 @@ impl<'a> CompletionStatement<'a> {
                         return;
                     }
                 }
-                let mut tables = None as Option<Vec<ObjectName>>;
+                let mut tables_or_views = None as Option<Vec<ObjectName>>;
                 if let Some(objects) = objects {
-                    self.c_on_grant_objects(objects, &mut tables).await;
+                    self.c_on_grant_objects(objects, &mut tables_or_views).await;
                 }
-
-                if let Some(tables) = tables {
+                if let Some(tables_or_views) = tables_or_views {
                     match privileges {
                         Privileges::All { .. } => {
                             // nothing here
                         }
                         Privileges::Actions(vec) => {
                             for a in vec.iter() {
-                                self.c_on_privileges_action(&tables[..], a).await;
+                                self.c_on_privileges_action(&tables_or_views[..], a).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -1545,7 +1607,14 @@ impl<'a> CompletionStatement<'a> {
                     if self.finished() {
                         return;
                     }
+                    if let Some(name) = u.alias.as_ref() {
+                        if self.in_pos(&name.span) {
+                            self.set_on_def();
+                            return;
+                        }
+                    }
                 }
+
                 if let Some(name) = name.as_ref() {
                     self.c_on_execute(name).await;
                 }
@@ -1579,8 +1648,12 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            Statement::Explain { statement, .. } => {
+            Statement::Explain {
+                statement, options, ..
+            } => {
                 Box::pin(self.completion_on_statement(statement)).await;
+                // options are all literal
+                let _options = options;
             }
             Statement::Savepoint { name } => {
                 if self.in_pos(&name.span) {
@@ -1649,15 +1722,14 @@ impl<'a> CompletionStatement<'a> {
                                 self.set_on_def();
                                 return;
                             }
-                        }
-                    }
-                    UserDefinedTypeRepresentation::Enum { labels } => {
-                        for a in labels.iter() {
-                            if self.in_pos(&a.span) {
-                                self.set_on_def();
+                            self.c_on_data_type(&a.data_type).await;
+                            if self.finished() {
                                 return;
                             }
                         }
+                    }
+                    UserDefinedTypeRepresentation::Enum { .. } => {
+                        // fallback to lexer
                     }
                 }
             }
@@ -1704,13 +1776,66 @@ impl<'a> CompletionStatement<'a> {
             Statement::CreateConnector(..) => {
                 // hive not support
             }
-            Statement::AlterType(..) => {
-                // TODO list type for this.
+            Statement::AlterType(at) => {
+                self.c_on_type(&at.name).await;
+                match &at.operation {
+                    AlterTypeOperation::Rename(alter_type_rename) => {
+                        if self.in_pos(&alter_type_rename.new_name.span) {
+                            self.set_on_def();
+                            return;
+                        }
+                    }
+                    AlterTypeOperation::AddValue(..) => {
+                        // fallback to lexer
+                    }
+                    AlterTypeOperation::RenameValue(..) => {
+                        // fallback to lexer
+                    }
+                }
             }
-            Statement::AlterConnector { .. } => {}
-            Statement::AlterSession { .. } => {}
-            Statement::DropConnector { .. } => {}
-            Statement::DropExtension { .. } => {}
+            Statement::AlterConnector { .. } => {
+                // hive not support
+            }
+            Statement::AlterSession { .. } => {
+                // snowflake not support
+            }
+            Statement::DropConnector { .. } => {
+                // hive not support
+            }
+
+            Statement::CreateExtension { name, schema, .. } => {
+                self.c_on_postgres_extension(name, false).await;
+                if self.finished() {
+                    return;
+                }
+                if let Some(schema) = schema {
+                    if self.in_pos(&schema.span) {
+                        self.result = Some(
+                            self.helper
+                                .list_schema()
+                                .await
+                                .map_err(|e| log::error!("list schema failed,err:{}", e))
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(|x| CompletionItem {
+                                    item: x.into(),
+                                    kind: CompletionKind::Schema,
+                                    desc: None,
+                                })
+                                .collect(),
+                        )
+                    }
+                }
+            }
+
+            Statement::DropExtension { names, .. } => {
+                for name in names.iter() {
+                    self.c_on_postgres_extension(name, true).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
             Statement::ShowObjects(..) => {
                 // Snowflake  not support
             }
@@ -1769,13 +1894,40 @@ impl<'a> CompletionStatement<'a> {
 
 impl<'a> CompletionStatement<'a> {
     async fn c_on_grant_objects(
-        &mut self, objects: &GrantObjects, tables: &mut Option<Vec<ObjectName>>,
+        &mut self, objects: &GrantObjects, tables_or_views: &mut Option<Vec<ObjectName>>,
     ) {
         match objects {
-            GrantObjects::AllSequencesInSchema { schemas: _schemas } => {}
-            GrantObjects::AllTablesInSchema { schemas: _schemas } => {}
-            GrantObjects::Schemas(_vec) => {}
-            GrantObjects::Sequences(_vec) => {}
+            GrantObjects::FutureExternalTablesInSchema { schemas }
+            | GrantObjects::FutureMaterializedViewsInSchema { schemas }
+            | GrantObjects::FutureSequencesInSchema { schemas }
+            | GrantObjects::AllViewsInSchema { schemas }
+            | GrantObjects::FutureTablesInSchema { schemas }
+            | GrantObjects::FutureViewsInSchema { schemas }
+            | GrantObjects::AllMaterializedViewsInSchema { schemas }
+            | GrantObjects::AllExternalTablesInSchema { schemas }
+            | GrantObjects::AllSequencesInSchema { schemas }
+            | GrantObjects::AllTablesInSchema { schemas }
+            | GrantObjects::Schemas(schemas) => {
+                if schemas.iter().any(|x| self.in_pos(&x.span())) {
+                    self.result = Some(
+                        self.helper
+                            .list_schema()
+                            .await
+                            .map_err(|e| log::error!("list schema failed,err:{}", e))
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|name| CompletionItem {
+                                item: name.into(),
+                                kind: CompletionKind::Schema,
+                                desc: None,
+                            })
+                            .collect(),
+                    )
+                }
+            }
+            GrantObjects::Sequences(_vec) => {
+                // TOOD
+            }
             GrantObjects::Tables(vec) => {
                 for table in vec.iter() {
                     self.c_on_table(table).await;
@@ -1783,28 +1935,79 @@ impl<'a> CompletionStatement<'a> {
                         return;
                     }
                 }
-                *tables = Some(vec.clone());
+                *tables_or_views = Some(vec.clone());
             }
-            GrantObjects::Databases(..) => {}
-            GrantObjects::Views(..) => {}
-            GrantObjects::Warehouses(..) => {}
-            GrantObjects::Integrations(..) => {}
-            GrantObjects::ResourceMonitors(..) => {}
-            GrantObjects::Users(..) => {}
-            GrantObjects::ComputePools(..) => {}
-            GrantObjects::Connections(..) => {}
-            GrantObjects::FailoverGroup(..) => {}
-            GrantObjects::ReplicationGroup(..) => {}
-            GrantObjects::ExternalVolumes(..) => {}
-            GrantObjects::AllViewsInSchema { .. } => {}
-            GrantObjects::AllMaterializedViewsInSchema { .. } => {}
-            GrantObjects::AllExternalTablesInSchema { .. } => {}
-            GrantObjects::FutureSchemasInDatabase { .. } => {}
-            GrantObjects::FutureTablesInSchema { .. } => {}
-            GrantObjects::FutureViewsInSchema { .. } => {}
-            GrantObjects::FutureExternalTablesInSchema { .. } => {}
-            GrantObjects::FutureMaterializedViewsInSchema { .. } => {}
-            GrantObjects::FutureSequencesInSchema { .. } => todo!(),
+            GrantObjects::Databases(databases)
+            | GrantObjects::FutureSchemasInDatabase { databases } => {
+                if databases.iter().any(|x| self.in_pos(&x.span())) {
+                    self.result = Some(
+                        self.helper
+                            .list_database()
+                            .await
+                            .map_err(|e| log::error!("list database failed,err:{}", e))
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|name| CompletionItem {
+                                item: name.into(),
+                                kind: CompletionKind::Schema,
+                                desc: None,
+                            })
+                            .collect(),
+                    )
+                }
+            }
+            GrantObjects::Views(views) => {
+                for view in views.iter() {
+                    self.c_on_view(view).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                *tables_or_views = Some(views.clone());
+            }
+
+            GrantObjects::Warehouses(..) => {
+                // TODO
+            }
+            GrantObjects::Integrations(..) => {
+                // I don't know what is it
+            }
+            GrantObjects::ResourceMonitors(..) => {
+                // I don't know what is it
+            }
+            GrantObjects::Users(users) => {
+                if users.iter().any(|x| self.in_pos(&x.span())) {
+                    self.result = Some(
+                        self.helper
+                            .list_user()
+                            .await
+                            .map_err(|e| log::error!("list user failed,err:{}", e))
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|name| CompletionItem {
+                                item: name.into(),
+                                kind: CompletionKind::Schema,
+                                desc: None,
+                            })
+                            .collect(),
+                    )
+                }
+            }
+            GrantObjects::ComputePools(..) => {
+                // I don't know what is it
+            }
+            GrantObjects::Connections(..) => {
+                // I don't know what is it
+            }
+            GrantObjects::FailoverGroup(..) => {
+                // I don't know what is it
+            }
+            GrantObjects::ReplicationGroup(..) => {
+                // I don't know what is it
+            }
+            GrantObjects::ExternalVolumes(..) => {
+                // I don't know what is it
+            }
             GrantObjects::Procedure { name, .. } => {
                 self.c_on_procedure(name).await;
             }

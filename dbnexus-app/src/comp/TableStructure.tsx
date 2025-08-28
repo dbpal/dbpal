@@ -374,7 +374,7 @@ function ColumnsStructure(props: {
                   setRow(null);
                 }}
                 col={row.field}
-                typ={row.typ}
+                typ={row.data_type}
                 reload={handleReload}
                 kind={kind}
               ></ModifyTableColumn>

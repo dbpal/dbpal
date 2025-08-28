@@ -1,8 +1,8 @@
-use crate::db::{AutoCompletionQueryUuid, FormatSqlOpts};
+use crate::db::{AutoCompletionQueryUuid, CatalogTrait, FormatSqlOpts};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
-    LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    LanguageServer, LexerCompletionTrait, PostGresExtension, try_parser_dot_lexer,
 };
 
 use crate::pg::PostGresDB;
@@ -73,6 +73,34 @@ impl PostGresDB {
 #[async_trait::async_trait]
 
 impl AstCompletionHelper for PostGresDB {
+    async fn postgres_list_extension(
+        &self, installed: bool,
+    ) -> anyhow::Result<Vec<PostGresExtension>> {
+        let mut conn = self.get_conn().await?;
+        if !installed {
+            let sql = "SELECT name,comment  FROM pg_available_extensions";
+            let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+            let mut ret = Vec::with_capacity(rows.len());
+            for row in rows.iter() {
+                let name: String = row.try_get(0)?;
+                let comment: Option<String> = row.try_get(1)?;
+                ret.push(PostGresExtension { name, comment });
+            }
+            return anyhow::Ok(ret);
+        }
+        let sql = "SELECT name  FROM pg_extension";
+        let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            ret.push(PostGresExtension {
+                name,
+                comment: None,
+            });
+        }
+        anyhow::Ok(ret)
+    }
+
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let mut conn = self.get_conn().await?;
         let s = conn
@@ -84,7 +112,7 @@ impl AstCompletionHelper for PostGresDB {
             .iter()
             .map(|x| TempTableColumn {
                 name: x.name().to_string(),
-                typ: Some(x.type_info().to_string()),
+                data_type: Some(x.type_info().to_string()),
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
@@ -148,9 +176,7 @@ impl AstCompletionHelper for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn postgres_table_policy(
-        &self, schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<String>> {
+    async fn table_policy(&self, schema: Option<&str>, table: &str) -> anyhow::Result<Vec<String>> {
         let sql = if let Some(schema) = self.schema_merge_config(schema) {
             format!(
                 r#"SELECT policyname
@@ -298,6 +324,10 @@ impl AstCompletionHelper for PostGresDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for PostGresDB {
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        CatalogTrait::list_database(self).await
+    }
+
     async fn list_column(
         &self, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
@@ -626,8 +656,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(
-            r#"select word from pg_get_keywords() where word 
-46 word"#,
+            r#"COPY employees(id) FROM '/path/to/myfile.csv' WITH (FORMAT csv);
+15 employees ; 18 id"#,
             &db,
             false,
         )

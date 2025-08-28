@@ -28,7 +28,14 @@ impl crate::language_server::LexerCompletionTrait for LibSqlDB {
     const TYPES: &'static [&'static str] = SQLITE_TYPES;
 
     async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::sqlite_pragma(self).await
+        let mut x = AstCompletionHelper::sqlite_pragma(self).await?;
+        let y = AstCompletionHelper::sqlite_module_name(self).await?;
+        x.extend(y.into_iter().map(|x| CompletionItem {
+            item: x.into(),
+            kind: CompletionKind::Module,
+            desc: None,
+        }));
+        anyhow::Ok(x)
     }
 }
 
@@ -136,6 +143,17 @@ impl LibSqlDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for LibSqlDB {
+    async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
+        let sql = "SELECT name  FROM pragma_module_list";
+        let conn = self.get_conn().await?;
+        let mut rows = conn.query(sql, params!()).await?;
+        let mut ret = vec![];
+        while let Some(row) = rows.next().await? {
+            let name: String = row.get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let conn = self.get_conn().await?;
         log::info!("sql:{}", sql);
@@ -145,7 +163,7 @@ impl AstCompletionHelper for LibSqlDB {
             .iter()
             .map(|x| TempTableColumn {
                 name: x.name().to_string(),
-                typ: Some(x.decl_type().unwrap_or_default().to_string()),
+                data_type: Some(x.decl_type().unwrap_or_default().to_string()),
             })
             .collect::<Vec<_>>();
         // check if prepare return the reuslt.
@@ -158,7 +176,7 @@ impl AstCompletionHelper for LibSqlDB {
             (0..row.column_count())
                 .map(|index| TempTableColumn {
                     name: row.column_name(index).unwrap_or_default().to_owned(),
-                    typ: row.column_type(index).ok().map(|x| format!("{:?}", x)),
+                    data_type: row.column_type(index).ok().map(|x| format!("{:?}", x)),
                 })
                 .collect(),
         )

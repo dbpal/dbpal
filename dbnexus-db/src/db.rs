@@ -401,7 +401,7 @@ pub trait SqlBuilder: GetBackendKind {
             let f = f.unwrap();
             // some type can't compare
             // so they can't appear in where condition
-            if !self.type_support_compare(f.typ.as_str()) {
+            if !self.type_support_compare(f.data_type.as_str()) {
                 continue;
             }
             if contains_pri && !f.is_primary {
@@ -413,7 +413,7 @@ pub trait SqlBuilder: GetBackendKind {
                     if !first { " AND " } else { "" },
                     self.quote(k),
                     self.put_value_in_sql(
-                        &f.typ,
+                        &f.data_type,
                         f.firebird_binary_sub_type,
                         v.as_ref().map(|x| x.as_str())
                     )?
@@ -482,7 +482,7 @@ pub trait SqlBuilder: GetBackendKind {
                         "{} = {}",
                         self.quote(k),
                         self.put_value_in_sql(
-                            &f.unwrap().typ,
+                            &f.unwrap().data_type,
                             f.unwrap().firebird_binary_sub_type,
                             v.as_ref().map(|x| x.as_str())
                         )?
@@ -553,7 +553,7 @@ pub trait SqlBuilder: GetBackendKind {
                 }
                 let value = values.get(&f.field).cloned().flatten();
                 sql.push_str(&self.put_value_in_sql(
-                    &f.typ,
+                    &f.data_type,
                     f.firebird_binary_sub_type,
                     value.as_deref(),
                 )?);
@@ -1012,7 +1012,7 @@ impl QueryResp {
             data: vec![vec![Some(affected.to_string())]],
             fields: vec![Field {
                 field: "row affected".to_string(),
-                typ: "int".to_string(),
+                data_type: "int".to_string(),
                 nullable: false,
                 default_value: None,
                 is_primary: false,
@@ -1030,7 +1030,7 @@ impl QueryResp {
             data: vec![vec![Some("OK".to_string())]],
             fields: vec![Field {
                 field: "execute".to_string(),
-                typ: "".to_string(),
+                data_type: "".to_string(),
                 nullable: false,
                 default_value: None,
                 is_primary: false,
@@ -1112,7 +1112,7 @@ impl QueryResp {
             data: vec![result],
             fields: vec![Field {
                 field: col_name,
-                typ: "".to_string(),
+                data_type: "".to_string(),
                 nullable: false,
                 default_value: None,
                 is_primary: false,
@@ -1127,7 +1127,7 @@ impl QueryResp {
 #[derive(Debug, Clone, serde::Serialize, TypeDef, PartialEq, Eq)]
 pub struct Field {
     pub field: String,
-    pub typ: String,
+    pub data_type: String,
     pub nullable: bool,
     /// default value of this field
     pub default_value: Option<String>,
@@ -1147,7 +1147,7 @@ impl Field {
 
         Self {
             field: name,
-            typ,
+            data_type: typ,
             nullable: true,
             default_value: None,
             is_auto_increment: false,
@@ -1171,7 +1171,7 @@ impl Field {
         let typ = typ.into();
         Self {
             field: name,
-            typ,
+            data_type: typ,
             nullable,
             default_value,
             is_primary,

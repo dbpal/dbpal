@@ -87,11 +87,11 @@ impl LangServerCommon for CassandraDB {
         let mut result: Vec<TempTableColumn> = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: Option<String> = r.get_by_index(0)?;
-            let typ: Option<String> = r.get_by_index(1)?;
+            let data_type: Option<String> = r.get_by_index(1)?;
             if let Some(name) = name {
                 result.push(TempTableColumn {
                     name,
-                    typ, // Cassandra does not provide data type in this query
+                    data_type, // Cassandra does not provide data type in this query
                 });
             }
         }

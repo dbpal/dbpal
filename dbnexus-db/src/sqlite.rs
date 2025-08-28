@@ -1181,7 +1181,11 @@ pub(crate) fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<Str
                 }
             }
         }
-        _ => anyhow::bail!("should be a create table statement"),
+        Statement::CreateVirtualTable { .. } => return anyhow::Ok(None),
+        _ => {
+            log::error!("should be a create table statement,but got {}", sql);
+            return anyhow::Ok(None);
+        }
     };
     anyhow::Ok(None)
 }
@@ -1991,6 +1995,17 @@ mod tests {
         let event = db.get_query_log(query_id).unwrap();
         println!("{:?}", event);
         assert_eq!(event.len(), 1);
+    }
+    #[tokio::test]
+    async fn test_show_documents() {
+        let db = make_test_object().await;
+
+        let r = db
+            .show_table("documents", None, None, 1, 100, None)
+            .await
+            .unwrap();
+
+        dbg!(r);
     }
 
     #[tokio::test]

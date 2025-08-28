@@ -46,7 +46,7 @@ fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
         let column = c;
         ret.push(Field {
             field: column.name().to_string(),
-            typ: column.type_info().to_string(),
+            data_type: column.type_info().to_string(),
             nullable: true,
             default_value: None,
             is_primary: false,

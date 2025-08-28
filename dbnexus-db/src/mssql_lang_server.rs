@@ -1,6 +1,6 @@
 use std::ops::DerefMut;
 
-use crate::db::FormatSqlOpts;
+use crate::db::{CatalogTrait, FormatSqlOpts};
 use crate::helper::sqlformat_format_sql;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
@@ -35,6 +35,10 @@ impl LanguageServer for MsSqlServerDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for MsSqlServerDB {
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        CatalogTrait::list_database(self).await
+    }
+
     async fn list_column(
         &self, schema: Option<&str>, name: &str, _is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
@@ -209,7 +213,7 @@ impl AstCompletionHelper for MsSqlServerDB {
                             .iter()
                             .map(|x| TempTableColumn {
                                 name: x.name().to_string(),
-                                typ: Some(format!("{:?}", x.column_type())),
+                                data_type: Some(format!("{:?}", x.column_type())),
                             })
                             .collect(),
                     );

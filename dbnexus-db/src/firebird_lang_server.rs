@@ -28,7 +28,7 @@ impl AstCompletionHelper for FireBirdDB {
                 .iter()
                 .map(|x| TempTableColumn {
                     name: x.name.clone(),
-                    typ: None,
+                    data_type: None,
                 })
                 .collect();
             anyhow::Ok(ret)
@@ -122,7 +122,7 @@ impl LangServerCommon for FireBirdDB {
             x.into_iter()
                 .map(|x| TempTableColumn {
                     name: x.field.clone(),
-                    typ: Some(x.typ.clone()),
+                    data_type: Some(x.data_type.clone()),
                 })
                 .collect()
         })

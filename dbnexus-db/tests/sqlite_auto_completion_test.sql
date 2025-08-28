@@ -42,3 +42,5 @@ main.
 6 employees
 employees.
 11 id
+CREATE VIRTUAL TABLE documents USING fts5(title, content); 
+42 fts5

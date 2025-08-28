@@ -1472,15 +1472,15 @@ impl SchemaTrait for CassandraDB {
         for row in rows.iter() {
             let name: Option<String> = row.get_by_index(0)?;
             let name = name.unwrap();
-            let typ: Option<String> = row.get_by_index(1)?;
-            let typ = typ.unwrap();
+            let data_type: Option<String> = row.get_by_index(1)?;
+            let data_type = data_type.unwrap();
             let kind: Option<String> = row.get_by_index(2)?;
             let kind = kind.unwrap();
             let is_primary = kind == "partition_key" || kind == "clustering";
 
             ret.push(Field {
                 field: name,
-                typ,
+                data_type,
                 nullable: !is_primary,
                 default_value: None,
                 is_primary,

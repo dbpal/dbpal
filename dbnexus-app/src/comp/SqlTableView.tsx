@@ -158,8 +158,8 @@ function WhereSort(props: {
           kind: languages.CompletionItemKind.Field,
           insertText: e.field,
           range: undefined,
-          detail: e.typ,
-          documentation: e.typ,
+          detail: e.data_type,
+          documentation: e.data_type,
         });
       });
       return list;
@@ -397,7 +397,7 @@ function SqlTableView_(props: {
         const makeTitle = (): string => {
           let f = def as types.Field;
           let ret = f.field + ' ';
-          ret += f.typ;
+          ret += f.data_type;
           if (f.nullable) {
             ret += ' null';
           } else {
@@ -647,7 +647,7 @@ function SqlTableView_(props: {
                 setWhere={setWhere}
                 put_value_in_sql={(value) => {
                   return put_value_in_sql(
-                    resp.fields.find((e) => e.field == field).typ,
+                    resp.fields.find((e) => e.field == field).data_type,
                     value
                   );
                 }}
@@ -1091,7 +1091,7 @@ function SqlTableViewData(props: {
                 size="small"
                 value={args[f.field]}
                 helperText={
-                  f.typ +
+                  f.data_type +
                   ' ' +
                   (f.nullable ? 'null' : 'not null') +
                   ' ' +
@@ -1101,7 +1101,7 @@ function SqlTableViewData(props: {
                 }
                 required={!f.nullable}
                 label={f.field}
-                multiline={isTypeLargeText(f.typ)}
+                multiline={isTypeLargeText(f.data_type)}
                 rows={4}
                 fullWidth
                 onChange={(e) => {
@@ -1408,6 +1408,9 @@ function FilterOnValue(props: {
     if (compare == 'ends') {
       return `${quoteField} LIKE '%${content}'`;
     }
+    if (compare == 'contains') {
+      return `${quoteField} LIKE '%${content}%'`;
+    }
     return `${quoteField} ${compare} ${formatValue}`;
   };
   return (
@@ -1440,7 +1443,7 @@ function FilterOnValue(props: {
       </Stack>
       {formatValue.endsWith("'") && (
         <Stack direction="row" spacing={1}>
-          {['starts', 'ends'].map((e) => (
+          {['starts', 'ends', 'contains'].map((e) => (
             <Chip
               label={e}
               color={compare == e ? 'primary' : 'default'}
