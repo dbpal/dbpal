@@ -4,7 +4,6 @@ import {
   MenuItem,
   MenuList,
   Stack,
-  Typography,
 } from '@mui/material';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { useContext, useEffect, useRef, useState } from 'react';
@@ -26,13 +25,16 @@ import {
   generateRandomString,
   MatchPatternContext,
   maxTreeSize,
-  postgresLike,
   secondConfirm,
   TabsSetContext,
   udfIdGenerate,
   UuidContext,
 } from './helper';
-import { ExceedMaxTreeItem, MenuRefresh } from './CommonComp';
+import {
+  ExceedMaxTreeItem,
+  MenuRefresh,
+  UdfNameAndParameters,
+} from './CommonComp';
 function ProceduresTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -48,10 +50,10 @@ function ProceduresTree() {
       });
   };
 
-  const [exceed, setExceed] = useState(false);
+  const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(ps.filter((e) => matchPattern(e.name)).length > maxTreeSize);
+    setExceed(ps.filter((e) => matchPattern(e.name)).length);
   }, [ps, matchPattern]);
 
   const getItemId = (x: types.NamedStaff) => {
@@ -113,23 +115,13 @@ function ProceduresTree() {
                   });
                 }}
                 sx={{ alignItems: 'center' }}
+                spacing={0.3}
               >
                 <SiProcessingfoundation></SiProcessingfoundation>
-                <span>{p.name}</span>
-                {postgresLike(kind) && (
-                  <Typography
-                    color="info"
-                    style={{
-                      width: '100px',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      flex: 1,
-                    }}
-                  >
-                    ({p.parameters})
-                  </Typography>
-                )}
+                <UdfNameAndParameters
+                  udf={p}
+                  kind={kind}
+                ></UdfNameAndParameters>
               </Stack>
             ></TreeItem>
           );

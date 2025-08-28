@@ -51,6 +51,8 @@ import {
   generateRandomString,
   gridStyle,
   handleCopyToClipboard,
+  maxTreeSize,
+  postgresLike,
   saveAndSetSize,
   secondConfirm,
   SettingContext,
@@ -612,16 +614,47 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
   );
 }
 
-function ExceedMaxTreeItem({ exceed }) {
+function ExceedMaxTreeItem(props: { exceed: number }) {
+  const { exceed } = props;
   let id = useRef(generateRandomString());
   return (
     <TreeItem
       itemId={id.current}
-      style={{ display: exceed ? 'block' : 'none' }}
-      label=<Typography color="error">
-        exceed max tree items,some item not showing
+      style={{ display: exceed > maxTreeSize ? 'block' : 'none' }}
+      label=<Typography color="error" style={{ fontSize: '0.8rem' }}>
+        ({exceed}) exceed max tree items({maxTreeSize}),some item not showing
       </Typography>
     ></TreeItem>
+  );
+}
+
+function UdfNameAndParameters(props: {
+  udf: types.NamedStaff;
+  kind: DataSourceKind;
+}) {
+  const { udf, kind } = props;
+  return (
+    <>
+      <Typography>{udf.name}</Typography>
+      <Typography
+        color="success"
+        style={{
+          width: '100px',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          flex: 1,
+          fontStyle: 'italic',
+          fontSize: '0.8rem',
+        }}
+      >
+        (
+        {postgresLike(kind)
+          ? udf.parameters
+          : udf.cassandra_parameters.join(',')}
+        )
+      </Typography>
+    </>
   );
 }
 
@@ -644,4 +677,5 @@ export {
   ResizeWrapper,
   ViewRowInModal,
   ExceedMaxTreeItem,
+  UdfNameAndParameters,
 };

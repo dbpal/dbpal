@@ -93,10 +93,10 @@ function ViewsTree(props: { viewkind: ViewKind }) {
       invokeName = 'list_materialized_view';
       break;
   }
-  const [exceed, setExceed] = useState(false);
+  const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(views.filter((e) => matchPattern(e.name)).length > maxTreeSize);
+    setExceed(views.filter((e) => matchPattern(e.name)).length);
   }, [views, matchPattern]);
   const handleReload = () => {
     setLoading(true);

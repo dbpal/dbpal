@@ -57,10 +57,10 @@ function SequenceTree() {
       });
   };
 
-  const [exceed, setExceed] = useState(false);
+  const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(seqs.filter((e) => matchPattern(e.name)).length > maxTreeSize);
+    setExceed(seqs.filter((e) => matchPattern(e.name)).length);
   }, [seqs, matchPattern]);
   const getItemId = (x: types.SequenceDetail) => {
     switch (kind) {

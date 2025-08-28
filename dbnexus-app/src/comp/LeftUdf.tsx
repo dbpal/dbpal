@@ -5,7 +5,6 @@ import {
   MenuItem,
   MenuList,
   Stack,
-  Typography,
 } from '@mui/material';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { useContext, useEffect, useState } from 'react';
@@ -27,14 +26,17 @@ import {
   DataSourceKind,
   MatchPatternContext,
   maxTreeSize,
-  postgresLike,
   secondConfirm,
   TabsSetContext,
   udfIdGenerate,
   UuidContext,
 } from './helper';
 
-import { ExceedMaxTreeItem, MenuRefresh } from './CommonComp';
+import {
+  ExceedMaxTreeItem,
+  MenuRefresh,
+  UdfNameAndParameters,
+} from './CommonComp';
 
 function UdfsTree() {
   const { uuid } = useContext(UuidContext);
@@ -43,10 +45,10 @@ function UdfsTree() {
   const idPrefix = uuid + '-udf-';
   const [udfs, setUdfs] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const [exceed, setExceed] = useState(false);
+  const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(udfs.filter((e) => matchPattern(e.name)).length > maxTreeSize);
+    setExceed(udfs.filter((e) => matchPattern(e.name)).length);
   }, [udfs, matchPattern]);
 
   const reload = () => {
@@ -98,7 +100,7 @@ function UdfsTree() {
               itemId={udfIdGenerate(kind, udf, uuid, 'udf')}
               label=<Stack
                 direction="row"
-                spacing={1}
+                spacing={0.3}
                 sx={{ alignItems: 'center' }}
                 onContextMenu={(e) => {
                   setUpMenu({
@@ -115,34 +117,10 @@ function UdfsTree() {
                 }}
               >
                 <TbMathFunction></TbMathFunction>
-                <span>{udf.name}</span>
-                {postgresLike(kind) && (
-                  <Typography
-                    color="info"
-                    style={{
-                      width: '100px',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      flex: 1,
-                    }}
-                  >
-                    ({udf.parameters})
-                  </Typography>
-                )}
-                {kind == DataSourceKind.Cassandra && (
-                  <Typography
-                    style={{
-                      width: '100px',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      flex: 1,
-                    }}
-                  >
-                    ({udf.cassandra_parameters.join(',')}){' '}
-                  </Typography>
-                )}
+                <UdfNameAndParameters
+                  udf={udf}
+                  kind={kind}
+                ></UdfNameAndParameters>
               </Stack>
             ></TreeItem>
           );
@@ -366,10 +344,10 @@ function CassaandraAggregatesTree() {
         showNotification('error', 'list aggregate failed', e);
       });
   };
-  const [exceed, setExceed] = useState(false);
+  const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(aggs.filter((e) => matchPattern(e.name)).length > maxTreeSize);
+    setExceed(aggs.filter((e) => matchPattern(e.name)).length);
   }, [aggs, matchPattern]);
   useEffect(() => {
     reload();
@@ -405,21 +383,23 @@ function CassaandraAggregatesTree() {
     >
       {aggs
         .filter((e) => matchPattern(e.name))
-        .map((p, index) => {
+        .map((agg, index) => {
           if (index >= maxTreeSize) {
             return;
           }
           return (
             <TreeItem
               key={
-                p.name +
+                agg.name +
                 '-' +
-                (p.cassandra_parameters ? p.cassandra_parameters.join('-') : '')
+                (agg.cassandra_parameters
+                  ? agg.cassandra_parameters.join('-')
+                  : '')
               }
-              itemId={getItemId(p)}
+              itemId={getItemId(agg)}
               label=<Stack
                 direction="row"
-                spacing={1}
+                spacing={0.3}
                 sx={{ alignItems: 'center' }}
                 onContextMenu={(e) => {
                   setUpMenu({
@@ -427,8 +407,8 @@ function CassaandraAggregatesTree() {
                       <CassandraAggregateMenu
                         reload={reload}
                         uuid={uuid}
-                        agg={p.name}
-                        parameters={p.cassandra_parameters}
+                        agg={agg.name}
+                        parameters={agg.cassandra_parameters}
                       ></CassandraAggregateMenu>
                     ),
                     style: calMenuStyle(e, 100),
@@ -436,8 +416,10 @@ function CassaandraAggregatesTree() {
                 }}
               >
                 <MdFunctions></MdFunctions>
-                <span>{p.name}</span>
-                <em> ({p.cassandra_parameters.join(',')}) </em>
+                <UdfNameAndParameters
+                  udf={agg}
+                  kind={DataSourceKind.Cassandra}
+                ></UdfNameAndParameters>
               </Stack>
             ></TreeItem>
           );

@@ -85,10 +85,10 @@ function TablesTree(props: { typ: TablesType }) {
   const [tables, setTables] = useState<types.ListTable[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
-  const [exceed, setExceed] = useState(false);
+  const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(tables.filter((e) => matchPattern(e.name)).length > maxTreeSize);
+    setExceed(tables.filter((e) => matchPattern(e.name)).length);
   }, [tables, matchPattern]);
   const handleReload = () => {
     setLoading(true);
