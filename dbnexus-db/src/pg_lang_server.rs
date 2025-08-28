@@ -88,7 +88,7 @@ impl AstCompletionHelper for PostGresDB {
             }
             return anyhow::Ok(ret);
         }
-        let sql = "SELECT name  FROM pg_extension";
+        let sql = "SELECT extname  FROM pg_extension";
         let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
         let mut ret = Vec::with_capacity(rows.len());
         for row in rows.iter() {
@@ -656,8 +656,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(
-            r#"COPY employees(id) FROM '/path/to/myfile.csv' WITH (FORMAT csv);
-15 employees ; 18 id"#,
+            r#"DROP EXTENSION plpgsql;
+23 plpgsql"#,
             &db,
             false,
         )

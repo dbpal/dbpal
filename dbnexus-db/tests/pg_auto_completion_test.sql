@@ -96,3 +96,5 @@ CREATE POLICY departments_policy ON departments FOR ALL USING (dept = current_se
 45 departments
 CREATE EXTENSION hstore;
 24 hstore
+DROP EXTENSION plpgsql;
+23 plpgsql
