@@ -39,7 +39,6 @@ import {
   initMonacoLanague,
   QueryConn,
   EscDownEvent,
-  makeGetParserErrr,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -68,6 +67,7 @@ import {
   generateRandomString,
   gridStyle,
   handleCopyToClipboard,
+  makeGetParserErrr,
   MatchPatternContext,
   secondConfirm,
   SettingContext,

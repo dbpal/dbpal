@@ -15,9 +15,8 @@ mod tests {
             MongoDBConfig, MysqlDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
         };
         use dbnexus_db::db::{
-            DefAndMetas, ExportKind, Field, FormatSqlOpts, FormatSqlOptsIndent, Index, ListTable,
-            NamedStaff, ProcedureDetail, SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent,
-            TriggerTiming,
+            DefAndMetas, ExportKind, Field, Index, ListTable, NamedStaff, ProcedureDetail,
+            SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
         };
         use dbnexus_db::language_server::{CompletionItem, CompletionKind};
         use dbnexus_db::query_log::QueryLogEvent;
@@ -54,8 +53,6 @@ mod tests {
                 &CompletionKind::INFO,
                 &DefAndMetas::INFO,
                 &ProcedureDetail::INFO,
-                &FormatSqlOpts::INFO,
-                &FormatSqlOptsIndent::INFO,
                 &RedisDBConfig::INFO,
                 &MysqlDBConfig::INFO,
                 &MongoDBConfig::INFO,

@@ -14,18 +14,14 @@ impl LexerCompletionTrait for OracleDB {
 }
 
 impl OracleDB {
-    fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
-    where
-        'b: 'a,
-    {
+    fn schema_merge_config(&self, schema: Option<&str>) -> Option<String> {
         if schema.is_some() {
-            return schema;
+            return schema.map(|x| x.to_string());
         }
-        self.config.schema.as_deref()
+        self.config.schema.as_ref().map(|x| x.to_string())
     }
-
-    fn not_allow_empty_schema(schema: Option<&str>) -> anyhow::Result<&str> {
-        match schema {
+    fn not_allow_empty_schema(&self, schema: Option<&str>) -> anyhow::Result<String> {
+        match self.schema_merge_config(schema) {
             Some(x) => anyhow::Ok(x),
             None => anyhow::bail!("empty schema"),
         }
@@ -66,7 +62,7 @@ impl AstCompletionHelper for OracleDB {
     }
 
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let schema = self.not_allow_empty_schema(schema)?;
         let sql = format!(
             "SELECT INDEX_NAME FROM ALL_INDEXES WHERE OWNER='{}'",
             schema
@@ -190,8 +186,8 @@ impl LangServerCommon for OracleDB {
     }
 
     async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
-        self.list_procedure_impl(schema)
+        let schema = self.not_allow_empty_schema(schema)?;
+        self.list_procedure_impl(&schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
@@ -203,16 +199,16 @@ impl LangServerCommon for OracleDB {
         DBTrait::list_schema(self).await
     }
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let schema = self.not_allow_empty_schema(schema)?;
 
-        self.list_table_impl(schema)
+        self.list_table_impl(&schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::not_allow_empty_schema(self.schema_merge_config(schema))?;
+        let schema = self.not_allow_empty_schema(schema)?;
 
-        self.list_view_impl(schema)
+        self.list_view_impl(&schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }

@@ -24,6 +24,7 @@ import {
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
+  makeExecuteSql,
   MatchPatternContext,
   maxTreeSize,
   secondConfirm,
@@ -100,7 +101,7 @@ function UdfsTree() {
               itemId={udfIdGenerate(kind, udf, uuid, 'udf')}
               label=<Stack
                 direction="row"
-                spacing={0.3}
+                spacing={0.5}
                 sx={{ alignItems: 'center' }}
                 onContextMenu={(e) => {
                   setUpMenu({
@@ -173,6 +174,7 @@ function UdfMenu(props: {
                     arg,
                   });
                 }}
+                executeOP={makeExecuteSql(uuid)}
                 language={uuid}
               ></DefAndMetasView>
             ),
@@ -266,6 +268,7 @@ function CassandraAggregateMenu(props: {
                     }
                   );
                 }}
+                executeOP={makeExecuteSql(uuid)}
                 language={uuid}
               ></DefAndMetasView>
             ),
@@ -399,7 +402,7 @@ function CassaandraAggregatesTree() {
               itemId={getItemId(agg)}
               label=<Stack
                 direction="row"
-                spacing={0.3}
+                spacing={0.5}
                 sx={{ alignItems: 'center' }}
                 onContextMenu={(e) => {
                   setUpMenu({

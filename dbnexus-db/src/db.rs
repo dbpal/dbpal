@@ -676,37 +676,6 @@ impl From<String> for NamedStaff {
         }
     }
 }
-
-/// almost copied from https://docs.rs/sqlformat/0.2.4/sqlformat/struct.FormatOptions.html
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, TypeDef)]
-pub struct FormatSqlOpts {
-    pub indent: FormatSqlOptsIndent,
-    pub uppercase: Option<bool>,
-    pub lines_between_queries: u8,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, TypeDef)]
-#[serde(tag = "ident", rename_all = "lowercase")]
-pub enum FormatSqlOptsIndent {
-    Spaces(u8),
-    Tabs,
-}
-
-impl From<FormatSqlOpts> for sqlformat::FormatOptions<'static> {
-    fn from(val: FormatSqlOpts) -> Self {
-        sqlformat::FormatOptions {
-            indent: match val.indent {
-                FormatSqlOptsIndent::Spaces(x) => sqlformat::Indent::Spaces(x),
-                FormatSqlOptsIndent::Tabs => sqlformat::Indent::Tabs,
-            },
-            uppercase: val.uppercase,
-            lines_between_queries: val.lines_between_queries,
-            ignore_case_convert: None,
-        }
-    }
-}
-
 #[async_trait::async_trait]
 pub trait CheckConn {
     /// Duration is basic `select 1` execution time.
@@ -847,6 +816,9 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
 
     async fn execute_sql(
         &self, query_id: uuid::Uuid, _sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>>;
+    async fn execute_sql_no_open_conn(
+        &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>>;
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid>;
@@ -1322,43 +1294,6 @@ mod tests {
         });
         let s = serde_json::to_string_pretty(&x).unwrap();
         println!("{:?}", s);
-    }
-
-    #[test]
-    fn test_sql_parse() {
-        let s = r#"
-        CREATE OR REPLACE FUNCTION test.factorial(n integer)
-            RETURNS integer
-            LANGUAGE plpgsql
-            AS $function$
-            DECLARE
-                result INT := 1;
-            BEGIN
-                IF n < 0 THEN
-                    RETURN NULL;  -- 负数的阶乘未定义
-                ELSIF n = 0 THEN
-                    RETURN 1;  -- 0 的阶乘为 1
-                ELSE
-                    FOR i IN 1..n LOOP
-                        result := result * i;
-                    END LOOP;
-                    RETURN result;
-                END IF;
-            END;
-            $function$
-"#;
-
-        let r = sqlformat::format(
-            s,
-            &sqlformat::QueryParams::None,
-            &sqlformat::FormatOptions {
-                indent: sqlformat::Indent::Tabs,
-                uppercase: None,
-                lines_between_queries: 1,
-                ignore_case_convert: None,
-            },
-        );
-        println!("{}", r)
     }
 }
 

@@ -8,10 +8,10 @@ import {
 } from 'react';
 import types from './ApiStruct';
 import {
+  DefAndMetas,
   EscDownEvent,
   initMonacoLanague,
   modalStyle,
-  SimpleFlexSizeEditor,
 } from './Common';
 import {
   calMenuStyle,
@@ -20,6 +20,7 @@ import {
   DataSourceKind,
   gridStyle,
   handleCopyToClipboard,
+  makeExecuteSql,
   saveAndSetSize,
   secondConfirm,
   SettingContext,
@@ -57,6 +58,7 @@ import {
   Select,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -68,6 +70,7 @@ import { MongoValueEditor } from './MongoDB';
 import { TriggerDetail } from './TriggerDetail';
 import { ModalHeader, TrueOrFalse } from './CommonComp';
 import ClearIcon from '@mui/icons-material/Clear';
+import { DefAndMetasView } from './UdfAndMetaView';
 function ColumnsStructure(props: {
   uuid: string;
   kind: DataSourceKind;
@@ -293,7 +296,9 @@ function ColumnsStructure(props: {
           </Button>
         )}
         {supportModifyColumn && (
-          <Typography color="info"> double click a row to modify. </Typography>
+          <Tooltip title="double click a row to modify.">
+            <Typography color="info">modify </Typography>
+          </Tooltip>
         )}
       </Stack>
       {vis && (
@@ -1585,7 +1590,9 @@ function TriggersStructure(props: {
           reload
         </Button>
         {triggers.length > 0 && (
-          <Typography color="info">double click a row to see detail</Typography>
+          <Tooltip title="double click a row to see detail">
+            <Typography color="info">detail?</Typography>
+          </Tooltip>
         )}
       </Stack>
 
@@ -1629,6 +1636,7 @@ function TriggersStructure(props: {
                 return Promise.resolve(row);
               }}
               uuid={uuid}
+              executeOP={makeExecuteSql(uuid)}
             ></TriggerDetail>
           </Box>
         </Modal>
@@ -1744,30 +1752,7 @@ function StatementStructure(props: {
   table: string;
 }) {
   const { uuid, kind, table } = props;
-  const [sql, setSql] = useState<types.CreateTableAndIndexSql>(null);
-  const [loading, setLoading] = useState(false);
-  const { showNotification } = useContext(NotificationContext);
-  const handleReload = () => {
-    setLoading(true);
-    invoke<types.CreateTableAndIndexSql>('create_table_and_index_sql', {
-      name: uuid,
-      tableName: table,
-    })
-      .then((e) => {
-        setSql(e);
-      })
-      .catch((e) => {
-        showNotification('error', 'fetch create sql failed', e);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  };
-  useEffect(() => {
-    handleReload();
-  }, []);
-
-  const getValue = () => {
+  const getValue = (sql: types.CreateTableAndIndexSql) => {
     function newLine(ret: string): string {
       if (!ret.endsWith(';')) {
         ret += ';\n';
@@ -1784,42 +1769,24 @@ function StatementStructure(props: {
     return ret;
   };
   initMonacoLanague(uuid, kind);
-  const [dom, setDom] = useState(null);
-  useEffect(() => {
-    if (dom) {
-      let c = saveAndSetSize(dom, 'table-create-sql', 'height');
-      return c;
-    }
-  }, [dom]);
+
   return (
-    <Stack
-      spacing={1}
-      style={{
-        height: '60vh',
-        minHeight: '20vh',
-        resize: 'vertical',
-        overflow: 'auto',
-      }}
-      ref={setDom}
-    >
-      <Stack direction="row">
-        <Button
-          loading={loading}
-          variant="contained"
-          onClick={() => {
-            handleReload();
-          }}
-        >
-          reload
-        </Button>
-      </Stack>
-      {sql && (
-        <SimpleFlexSizeEditor
-          language={uuid}
-          value={getValue()}
-          readOnly={true}
-        ></SimpleFlexSizeEditor>
-      )}
+    <Stack>
+      <DefAndMetasView
+        reloadOP={async () => {
+          return invoke<types.CreateTableAndIndexSql>(
+            'create_table_and_index_sql',
+            {
+              name: uuid,
+              tableName: table,
+            }
+          ).then((e) => {
+            return { def: getValue(e), metas: [] } as DefAndMetas;
+          });
+        }}
+        executeOP={makeExecuteSql(uuid)}
+        language={uuid}
+      ></DefAndMetasView>
     </Stack>
   );
 }

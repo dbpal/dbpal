@@ -49,6 +49,7 @@ import {
   DataSourceKind,
   editorSetPositonAndReveal,
   ErrAndLoc,
+  getEditorText,
   SaveSizesToStore,
   secondConfirm,
   SetCloseConfirmTextContext,
@@ -319,22 +320,6 @@ function SqlQuery(props: {
     }
   };
 
-  const getText = () => {
-    const range = editor.current.getSelection();
-    let text: string;
-    if (range) {
-      text = editor.current.getModel().getValueInRange(range);
-    }
-    if (!text) {
-      text = editor.current.getValue();
-    }
-    text = text.trim();
-    if (!text) {
-      showNotification('error', 'empty statement');
-      return undefined;
-    }
-    return text;
-  };
   const timeExecute = () => {
     tryExecuteTimeClean();
     const now = new Date();
@@ -364,7 +349,7 @@ function SqlQuery(props: {
   };
 
   const handleExecute = async () => {
-    const text = getText();
+    const text = getEditorText(editor.current, showNotification);
     if (!text) {
       return;
     }
@@ -402,7 +387,7 @@ function SqlQuery(props: {
       });
   };
   const handleQuery = async (append: boolean, explain: boolean = false) => {
-    let text = getText();
+    let text = getEditorText(editor.current, showNotification);
     if (!text) {
       return;
     }
@@ -695,7 +680,7 @@ function SqlQuery(props: {
               loading={loading}
               disabled={loading || conn == null}
               onClick={() => {
-                const value = getText();
+                const value = getEditorText(editor.current, showNotification);
                 if (!value) {
                   return;
                 }
@@ -838,7 +823,7 @@ function SqlQuery(props: {
                 supportKind={['csv', 'json', 'jsonline']}
                 exportOP={async (kind, file) => {
                   try {
-                    const sql = getText();
+                    const sql = getEditorText(editor.current, showNotification);
                     await conn.exportQueryResult(sql, kind, file);
                     showNotification('success', 'export OK');
                   } catch (e) {

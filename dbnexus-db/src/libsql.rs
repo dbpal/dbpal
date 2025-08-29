@@ -139,6 +139,16 @@ impl QuerySql for LibSqlDB {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::SQLiteDialect {})
     }
 
+    async fn execute_sql_no_open_conn(
+        &self, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let conn = self.get_conn().await?;
+        let ret: Result<QueryResp, String> = match conn.execute(sql, params!()).await {
+            Ok(x) => Ok(QueryResp::row_affected(x, sql.to_owned())),
+            Err(err) => Err(err.to_string()),
+        };
+        anyhow::Ok(ret)
+    }
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -154,7 +164,7 @@ impl QuerySql for LibSqlDB {
                 None => anyhow::bail!("collection closed????"),
             },
         };
-        let ret = match conn.execute(sql, params!()).await {
+        let ret: Result<QueryResp, String> = match conn.execute(sql, params!()).await {
             Ok(x) => Ok(QueryResp::row_affected(x, sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };

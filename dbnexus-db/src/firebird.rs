@@ -390,7 +390,15 @@ impl QuerySql for FireBirdDB {
         query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
     }
-
+    async fn execute_sql_no_open_conn(
+        &self, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let mut conn = self.get_conn()?;
+        let resp = block_in_place(|| conn.execute(sql, ()))
+            .map(|x| QueryResp::row_affected(x as u64, sql.to_owned()))
+            .map_err(|e| e.to_string());
+        anyhow::Ok(resp)
+    }
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {

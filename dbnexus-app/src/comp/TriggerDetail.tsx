@@ -31,9 +31,10 @@ function triggerDetailsToMetas(x: types.TriggerDetail): types.MetaValue[] {
 
 function TriggerDetail(props: {
   reloadOP: () => Promise<types.TriggerDetail>;
+  executeOP: (sql: string) => Promise<any>;
   uuid: string;
 }) {
-  const { reloadOP, uuid: language } = props;
+  const { reloadOP, uuid: language, executeOP } = props;
 
   return (
     <DefAndMetasView
@@ -48,6 +49,7 @@ function TriggerDetail(props: {
           };
         });
       }}
+      executeOP={executeOP}
     ></DefAndMetasView>
   );
 }

@@ -52,7 +52,6 @@ import {
   gridStyle,
   handleCopyToClipboard,
   maxTreeSize,
-  postgresLike,
   saveAndSetSize,
   secondConfirm,
   SettingContext,
@@ -633,27 +632,36 @@ function UdfNameAndParameters(props: {
   kind: DataSourceKind;
 }) {
   const { udf, kind } = props;
+  let paramater = '';
+  switch (kind) {
+    case DataSourceKind.Postgres:
+    case DataSourceKind.Cockroach:
+      paramater = udf.parameters;
+      break;
+    case DataSourceKind.Cassandra:
+      paramater = udf.cassandra_parameters.join(',');
+      break;
+  }
+
   return (
     <>
       <Typography>{udf.name}</Typography>
-      <Typography
-        color="success"
-        style={{
-          width: '100px',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          flex: 1,
-          fontStyle: 'italic',
-          fontSize: '0.8rem',
-        }}
-      >
-        (
-        {postgresLike(kind)
-          ? udf.parameters
-          : udf.cassandra_parameters.join(',')}
-        )
-      </Typography>
+      {paramater && (
+        <Typography
+          color="success"
+          style={{
+            width: '100px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            flex: 1,
+            fontStyle: 'italic',
+            fontSize: '0.8rem',
+          }}
+        >
+          ({paramater})
+        </Typography>
+      )}
     </>
   );
 }

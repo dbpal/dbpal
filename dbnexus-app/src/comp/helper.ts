@@ -655,6 +655,43 @@ const udfIdGenerate = (
   }
 };
 
+function getEditorText(
+  editor: editor.IStandaloneCodeEditor,
+  showNotification
+) {
+  const range = editor.getSelection();
+  let text: string;
+  if (range) {
+    text = editor.getModel().getValueInRange(range);
+  }
+  if (!text) {
+    text = editor.getValue();
+  }
+  text = text.trim();
+  if (!text) {
+    showNotification('error', 'empty statement');
+    return undefined;
+  }
+  return text;
+};
+
+function makeGetParserErrr(uuid) {
+  return (sql: string): Promise<ErrAndLoc | null> => {
+    return invoke<ErrAndLoc | null>('sql_parse_error', {
+      name: uuid,
+      sql,
+    });
+  };
+}
+function makeExecuteSql(uuid) {
+  return (sql: string): Promise<any> => {
+    return invoke<ErrAndLoc | null>('execute_sql_no_open_conn', {
+      name: uuid,
+      sql,
+    });
+  };
+}
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -698,7 +735,10 @@ export {
   editorSetPositonAndReveal,
   maxTreeSize,
   postgresLike,
-  udfIdGenerate
+  udfIdGenerate,
+  getEditorText,
+  makeGetParserErrr,
+  makeExecuteSql
 };
 
 export type { ErrAndLoc }

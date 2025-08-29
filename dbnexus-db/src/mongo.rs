@@ -801,7 +801,11 @@ impl QuerySql for MongoDB {
     ) -> anyhow::Result<Result<QueryResp, String>> {
         not_support_feature(self.backend_name())
     }
-
+    async fn execute_sql_no_open_conn(
+        &self, _sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        not_support_feature(self.backend_name())
+    }
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         not_support_feature(self.backend_name())
     }

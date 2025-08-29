@@ -1799,6 +1799,16 @@ impl QuerySql for PostGresDB {
 
         anyhow::Ok(())
     }
+    async fn execute_sql_no_open_conn(
+        &self, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let mut conn = self.get_conn().await?;
+        let ret = match conn.execute(sqlx::raw_sql(AssertSqlSafe(sql))).await {
+            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
+            Err(err) => Err(err.to_string()),
+        };
+        anyhow::Ok(ret)
+    }
 
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,

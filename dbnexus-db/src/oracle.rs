@@ -206,7 +206,16 @@ impl QuerySql for OracleDB {
         }
         anyhow::Ok(())
     }
-
+    async fn execute_sql_no_open_conn(
+        &self, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let conn = self.get_conn()?;
+        let ret = match block_in_place(|| conn.execute(sql, &[])) {
+            Ok(_) => Ok(QueryResp::execute_ok(sql.to_owned())),
+            Err(err) => Err(err.to_string()),
+        };
+        anyhow::Ok(ret)
+    }
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {

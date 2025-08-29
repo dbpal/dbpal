@@ -7,8 +7,8 @@ use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::cockroach::CockRoachDB;
 use dbnexus_db::db::{
     AutoCompletionQueryUuid, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    CreateTableAndIndexSql, CreatedType, DefAndMetas, ExportKind, Field, FormatSqlOpts, Index,
-    IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, SequenceDetail, ShowExtraArgs,
+    CreateTableAndIndexSql, CreatedType, DefAndMetas, ExportKind, Field, Index, IndexKind,
+    ListTable, NamedStaff, ProcedureDetail, QueryResp, SequenceDetail, ShowExtraArgs,
     SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use dbnexus_db::firebird::FireBirdDB;
@@ -743,6 +743,23 @@ pub async fn query_sql(
 }
 
 #[tauri::command]
+pub async fn execute_sql_no_open_conn(
+    name: String, sql: String, app: tauri::State<'_, App>,
+) -> Result<Result<MuiDataGridData, String>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+
+    let db = app.open(name.as_str()).await.map_err(ErrorFrontend::from)?;
+
+    let result = match db {
+        Open::DataBase(x) => x.execute_sql_no_open_conn(&sql).await,
+        Open::Schema(x) => x.execute_sql_no_open_conn(&sql).await,
+        Open::Catalog(x) => x.execute_sql_no_open_conn(&sql).await,
+    }
+    .map_err(ErrorFrontend::from)?;
+    Ok(result.map(MuiDataGridData::from))
+}
+#[tauri::command]
 pub async fn execute_sql(
     name: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
 ) -> Result<Result<MuiDataGridData, String>, ErrorFrontend> {
@@ -835,23 +852,6 @@ pub async fn export_table_or_view(
     db.export_table_to_file(table_or_view.as_str(), filepath.as_str(), kind)
         .await
         .map_err(ErrorFrontend::from)
-}
-#[tauri::command]
-pub async fn format_sql(
-    name: String, sql: String, opts: Option<FormatSqlOpts>, app: tauri::State<'_, App>,
-) -> Result<String, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let db = app
-        .get_opened(name.as_str())
-        .await
-        .map_err(|e| e.to_string())?;
-    let ret = match db {
-        Open::DataBase(x) => x.format_sql(sql.as_str(), opts),
-        Open::Schema(x) => x.format_sql(sql.as_str(), opts),
-        Open::Catalog(x) => x.format_sql(sql.as_str(), opts),
-    };
-    ret.map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]

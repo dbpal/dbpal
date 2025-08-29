@@ -1,7 +1,4 @@
-use std::ops::DerefMut;
-
-use crate::db::{CatalogTrait, FormatSqlOpts};
-use crate::helper::sqlformat_format_sql;
+use crate::db::CatalogTrait;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
     LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
@@ -9,6 +6,7 @@ use crate::language_server::{
 use crate::mssql::MsSqlServerDB;
 use crate::sqlparser_completion::TempTableColumn;
 use futures_util::StreamExt;
+use std::ops::DerefMut;
 
 use tiberius::QueryItem;
 
@@ -25,9 +23,6 @@ impl LanguageServer for MsSqlServerDB {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
-    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
-        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
-    }
     fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         LangServerCommon::parse_error(self, sql)
     }

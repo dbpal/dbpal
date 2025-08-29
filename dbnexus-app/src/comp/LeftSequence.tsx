@@ -32,6 +32,7 @@ import {
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
+  makeExecuteSql,
   MatchPatternContext,
   maxTreeSize,
   secondConfirm,
@@ -183,6 +184,7 @@ function SequenceMenu(props: {
                 reloadOP={async () => {
                   return Promise.resolve(details2DefMetas(seq));
                 }}
+                executeOP={makeExecuteSql(uuid)}
                 language={uuid}
               ></DefAndMetasView>
             ),

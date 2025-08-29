@@ -68,7 +68,6 @@ regex = "*"
 oracle = { version = "0.6.3", features = ["chrono"] }
 pg_interval = "*"
 typescript-type-def = "*"
-sqlformat = "=0.3.3"
 bson.workspace = true
 humantime = "*"
 humansize = "*"

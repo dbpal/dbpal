@@ -156,11 +156,6 @@ impl TimeSome {
     }
 }
 
-/// format sql routine for crate `sqlformat`.
-pub(crate) fn sqlformat_format_sql(sql: &str, op: Option<sqlformat::FormatOptions>) -> String {
-    sqlformat::format(sql, &sqlformat::QueryParams::None, &op.unwrap_or_default())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -174,11 +169,6 @@ mod tests {
             OffsetLimitIter::new(9, 4).collect::<Vec<_>>(),
             vec![0, 4, 8]
         );
-    }
-
-    #[test]
-    fn test_sqlformat_format_sql() {
-        assert_eq!(sqlformat_format_sql("select 1", None), "select\n  1");
     }
 
     #[test]

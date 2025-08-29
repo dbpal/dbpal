@@ -22,18 +22,15 @@ impl LanguageServer for ClickHouseDB {
 }
 
 impl ClickHouseDB {
-    fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
-    where
-        'b: 'a,
-    {
+    fn schema_merge_config(&self, schema: Option<&str>) -> Option<String> {
         if schema.is_some() {
-            return schema;
+            return schema.map(|x| x.to_string());
         }
-        self.config.db.as_deref()
+        self.config.db.as_ref().map(|x| x.clone())
     }
 
-    fn not_allow_none_schema(schema: Option<&str>) -> anyhow::Result<&str> {
-        match schema {
+    fn not_allow_none_schema(&self, schema: Option<&str>) -> anyhow::Result<String> {
+        match self.schema_merge_config(schema) {
             Some(x) => anyhow::Ok(x),
             None => anyhow::bail!("empty schema"),
         }
@@ -100,17 +97,17 @@ impl LangServerCommon for ClickHouseDB {
         Box::new(sqlparser::dialect::ClickHouseDialect {})
     }
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_none_schema(self.schema_merge_config(schema))?;
-        let v = self.list_table_impl(db).await?;
+        let db = self.not_allow_none_schema(schema)?;
+        let v = self.list_table_impl(&db).await?;
         anyhow::Ok(v.into_iter().map(|x| x.name).collect())
     }
 
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_none_schema(self.schema_merge_config(schema))?;
+        let db = self.not_allow_none_schema(schema)?;
         let mut ret = Vec::new();
-        ret.extend(self.list_view_impl(db).await?.into_iter().map(|x| x.name));
+        ret.extend(self.list_view_impl(&db).await?.into_iter().map(|x| x.name));
         ret.extend(
-            self.list_materialized_view_impl(db)
+            self.list_materialized_view_impl(&db)
                 .await?
                 .into_iter()
                 .map(|x| x.name),
@@ -137,7 +134,7 @@ impl AstCompletionHelper for ClickHouseDB {
         &self, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn()?;
-        let db = Self::not_allow_none_schema(self.schema_merge_config(schema))?;
+        let db = self.not_allow_none_schema(schema)?;
         let sql = format!(
             r#"
             SELECT name 

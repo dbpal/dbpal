@@ -1,8 +1,7 @@
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 use std::ops::DerefMut;
 
-use crate::db::{AutoCompletionQueryUuid, FormatSqlOpts, name_start_ascii_alphabetic};
-use crate::helper::sqlformat_format_sql;
+use crate::db::{AutoCompletionQueryUuid, name_start_ascii_alphabetic};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc, LangServerCommon,
     LanguageServer, try_parser_dot_lexer,
@@ -149,9 +148,6 @@ impl LanguageServer for SqliteDB {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
-    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
-        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
-    }
     fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         LangServerCommon::parse_error(self, sql)
     }

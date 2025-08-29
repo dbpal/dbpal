@@ -101,7 +101,11 @@ impl QuerySql for CockRoachDB {
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         self.pg.query_sql(query_id, sql).await
     }
-
+    async fn execute_sql_no_open_conn(
+        &self, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        self.pg.execute_sql_no_open_conn(sql).await
+    }
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {

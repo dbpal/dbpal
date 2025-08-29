@@ -6,7 +6,7 @@ use sqlparser::tokenizer::{Location, Token};
 use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
 
-use crate::db::{FormatSqlOpts, GetBackendKind, not_support_feature};
+use crate::db::{GetBackendKind, not_support_feature};
 use crate::sqlparser_completion::{CompletionStatement, TempTableColumn};
 
 #[async_trait::async_trait]
@@ -15,9 +15,6 @@ pub trait LanguageServer: GetBackendKind {
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
 
-    fn format_sql(&self, _sql: &str, _ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
-        not_support_feature(self.backend_name())
-    }
     fn parse_error(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         anyhow::Ok(None)
     }

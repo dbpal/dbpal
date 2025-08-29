@@ -799,6 +799,15 @@ impl QuerySql for CassandraDB {
         anyhow::Ok(self.query_logs.get(&id))
     }
 
+    async fn execute_sql_no_open_conn(
+        &self, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let ret = match self.session.query(sql).await {
+            Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
+            Err(err) => Err(err.to_string()),
+        };
+        anyhow::Ok(ret)
+    }
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {

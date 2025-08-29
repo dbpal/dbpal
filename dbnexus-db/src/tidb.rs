@@ -83,6 +83,11 @@ impl QuerySql for TiDB {
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         self.db.get_query_log(id)
     }
+    async fn execute_sql_no_open_conn(
+        &self, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        self.db.execute_sql_no_open_conn(sql).await
+    }
 
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,

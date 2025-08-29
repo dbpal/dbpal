@@ -760,6 +760,16 @@ impl QuerySql for ClickHouseDB {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::ClickHouseDialect {})
     }
 
+    async fn execute_sql_no_open_conn(
+        &self, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        let conn = self.get_conn()?;
+        let ret = match conn.query(sql).execute().await {
+            Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
+            Err(err) => Err(err.to_string()),
+        };
+        anyhow::Ok(ret)
+    }
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {

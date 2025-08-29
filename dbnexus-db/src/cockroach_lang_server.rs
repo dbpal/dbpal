@@ -1,5 +1,5 @@
 use crate::cockroach::{COCKROACH_TYPES, CockRoachDB};
-use crate::db::FormatSqlOpts;
+
 use crate::language_server::{
     CompletionItem, DBExecutable, ErrAndLoc, LangServerCommon, LanguageServer,
     LexerCompletionTrait, try_parser_completion,
@@ -26,9 +26,6 @@ impl LanguageServer for CockRoachDB {
     }
     fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         LanguageServer::parse_error(self.pg.as_ref(), sql)
-    }
-    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
-        self.pg.format_sql(sql, ops)
     }
 }
 

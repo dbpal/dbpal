@@ -1,5 +1,4 @@
-use crate::db::{AutoCompletionQueryUuid, CatalogTrait, FormatSqlOpts};
-use crate::helper::sqlformat_format_sql;
+use crate::db::{AutoCompletionQueryUuid, CatalogTrait};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
     LanguageServer, LexerCompletionTrait, PostGresExtension, try_parser_dot_lexer,
@@ -16,25 +15,19 @@ impl LexerCompletionTrait for PostGresDB {
 }
 
 impl PostGresDB {
-    fn db_merge_config<'a, 'b>(&'a self, db: Option<&'b str>) -> Option<&'a str>
-    where
-        'b: 'a,
-    {
-        if db.is_some() {
-            return db;
-        }
-        self.config.db.as_deref()
-    }
-
-    fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
-    where
-        'b: 'a,
-    {
+    fn schema_merge_config(&self, schema: Option<&str>) -> Option<String> {
         if schema.is_some() {
-            return schema;
+            return schema.map(|x| x.to_string());
         }
-        self.config.schema.as_deref()
+        self.config.schema.as_ref().map(|x| x.to_string())
     }
+    const SCHEMA_CATALOG: &str = "pg_catalog";
+}
+
+fn is_pg_catalog(schema: Option<&String>) -> bool {
+    schema
+        .map(|x| x == PostGresDB::SCHEMA_CATALOG)
+        .unwrap_or(false)
 }
 
 impl PostGresDB {
@@ -227,9 +220,7 @@ impl AstCompletionHelper for PostGresDB {
     async fn list_postgres_rule(
         &self, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        // 这里schemaname实际上是db的名字 我观察出来的
-        // 对吗？？？
-        let sql = if let Some(schema) = self.db_merge_config(schema) {
+        let sql = if let Some(schema) = self.schema_merge_config(schema) {
             format!(
                 r#"select rulename from pg_rules where tablename='{}' and schemaname='{}'"#,
                 table, schema
@@ -464,11 +455,10 @@ impl LangServerCommon for PostGresDB {
                 .to_string()
                 .as_str(),
         );
-
-        if let Some(schema) = self.schema_merge_config(schema) {
+        let schema = self.schema_merge_config(schema);
+        if let Some(schema) = &schema {
             sql.push_str(format!(" WHERE schemaname='{}'", schema).as_str());
         }
-
         let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
@@ -477,6 +467,14 @@ impl LangServerCommon for PostGresDB {
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
             ret.push(name);
+        }
+
+        if !is_pg_catalog(schema.as_ref()) {
+            ret.extend(
+                LangServerCommon::list_view(self, Some(PostGresDB::SCHEMA_CATALOG))
+                    .await?
+                    .into_iter(),
+            );
         }
 
         anyhow::Ok(ret)
@@ -488,7 +486,8 @@ impl LangServerCommon for PostGresDB {
             r#"select table_name FROM information_schema.tables  WHERE table_type = 'BASE TABLE' "#
                 .to_string();
         sql.push_str(format!(" AND table_catalog = '{}'", db).as_str());
-        if let Some(schema) = self.schema_merge_config(schema) {
+        let schema = self.schema_merge_config(schema);
+        if let Some(schema) = &schema {
             sql.push_str(format!(" AND table_schema = '{}'", schema).as_str());
         }
         let mut conn = self.get_conn().await?;
@@ -499,6 +498,14 @@ impl LangServerCommon for PostGresDB {
         for r in rows.iter() {
             let name: String = r.try_get(0)?;
             ret.push(name);
+        }
+
+        if !is_pg_catalog(schema.as_ref()) {
+            ret.extend(
+                LangServerCommon::list_table(self, Some(PostGresDB::SCHEMA_CATALOG))
+                    .await?
+                    .into_iter(),
+            );
         }
         anyhow::Ok(ret)
     }
@@ -563,9 +570,6 @@ impl LanguageServer for PostGresDB {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
-    fn format_sql(&self, sql: &str, ops: Option<FormatSqlOpts>) -> anyhow::Result<String> {
-        anyhow::Ok(sqlformat_format_sql(sql, ops.map(|x| x.into())))
-    }
     fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         LangServerCommon::parse_error(self, sql)
     }

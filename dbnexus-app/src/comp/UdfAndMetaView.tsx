@@ -1,26 +1,31 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 
 import { NotificationContext } from './Notification';
-import { Button, Stack, Typography } from '@mui/material';
+import { Button, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import { DefAndMetas, SimpleFlexSizeEditor } from './Common';
 import { MetaValuesView } from './CommonComp';
-import { saveAndSetSize } from './helper';
-``;
+import { getEditorText, saveAndSetSize } from './helper';
+import { FaExclamation } from 'react-icons/fa';
+import { MultiQueryResp } from './QueryResp';
+import { editor } from 'monaco-editor';
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
+  executeOP: (sql: string) => Promise<any>;
   language: string;
   showReload?: boolean;
   heightName?: string;
 }) {
-  let { reloadOP, language, showReload, heightName } = props;
+  let { reloadOP, language, showReload, heightName, executeOP } = props;
   const titleVariant = 'h6';
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas>({
     def: '',
     metas: [],
   });
+  const editor = useRef<editor.IStandaloneCodeEditor>(null);
+  const [queryResp, setQueryResp] = useState<any[]>([]);
   const { showNotification } = useContext(NotificationContext);
-
+  const [executeLoading, setExecuteLoading] = useState(false);
   const handleReload = (showok) => {
     setLoading(true);
     reloadOP()
@@ -35,6 +40,20 @@ function DefAndMetasView(props: {
       })
       .finally(() => {
         setLoading(false);
+      });
+  };
+  const handleExecute = () => {
+    let sql = getEditorText(editor.current, showNotification);
+    setExecuteLoading(true);
+    executeOP(sql)
+      .then((e) => {
+        setQueryResp([e]);
+      })
+      .catch((e) => {
+        showNotification('error', 'execute failed', e);
+      })
+      .finally(() => {
+        setExecuteLoading(false);
       });
   };
 
@@ -68,8 +87,16 @@ function DefAndMetasView(props: {
             reload
           </Button>
         )}
+        <Tooltip title="execute sql">
+          <IconButton loading={executeLoading}>
+            <FaExclamation
+              onClick={() => {
+                handleExecute();
+              }}
+            ></FaExclamation>
+          </IconButton>
+        </Tooltip>
       </Stack>
-      <Typography variant={titleVariant}> Statement </Typography>
       <div
         ref={setDom}
         style={{
@@ -84,7 +111,7 @@ function DefAndMetasView(props: {
         <SimpleFlexSizeEditor
           language={language}
           value={detail.def}
-          readOnly={true}
+          editorRef={editor}
         ></SimpleFlexSizeEditor>
       </div>
       {detail.metas.length > 0 && (
@@ -93,6 +120,7 @@ function DefAndMetasView(props: {
           <MetaValuesView values={detail.metas}></MetaValuesView>
         </>
       )}
+      <MultiQueryResp data={queryResp} />
     </Stack>
   );
 }

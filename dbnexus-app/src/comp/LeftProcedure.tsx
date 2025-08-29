@@ -23,6 +23,7 @@ import {
   ContextMenuContext,
   DataSourceKind,
   generateRandomString,
+  makeExecuteSql,
   MatchPatternContext,
   maxTreeSize,
   secondConfirm,
@@ -115,7 +116,7 @@ function ProceduresTree() {
                   });
                 }}
                 sx={{ alignItems: 'center' }}
-                spacing={0.3}
+                spacing={0.5}
               >
                 <SiProcessingfoundation></SiProcessingfoundation>
                 <UdfNameAndParameters
@@ -170,6 +171,7 @@ function ProcedureMenu(props: {
                     arg,
                   });
                 }}
+                executeOP={makeExecuteSql(uuid)}
                 language={uuid}
               ></DefAndMetasView>
             ),

@@ -17,10 +17,12 @@ import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
 import { languages, editor, Position, CancellationToken } from 'monaco-editor';
 import { types } from './ApiStruct';
+import { format as formatSql, SqlLanguage } from 'sql-formatter';
 
 import {
   createContext,
   ReactNode,
+  RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -82,7 +84,6 @@ import {
   backendCompletionItemToEditor,
   DataSourceKind,
   editorSetPositonAndReveal,
-  ErrAndLoc,
   secondConfirm,
   SettingContext,
   TabsSetContext,
@@ -382,15 +383,27 @@ function SimpleFlexSizeEditor(props: {
   wordWrap?: string;
   readOnly?: boolean;
   errPos?: Position;
+  editorRef?: RefObject<editor.IStandaloneCodeEditor>;
 }) {
-  let { language, value, handleValue, barLeft, wordWrap, readOnly, errPos } =
-    props;
+  let {
+    language,
+    value,
+    handleValue,
+    barLeft,
+    wordWrap,
+    readOnly,
+    errPos,
+    editorRef,
+  } = props;
   const [pos, setPos] = useState<Position>(null);
   const setting = useContext(SettingContext);
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const handleDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
       editor.current = ed;
+      if (editorRef) {
+        editorRef.current = ed;
+      }
       ed.onDidChangeCursorPosition(() => {
         setPos(ed.getPosition());
       });
@@ -611,13 +624,39 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
   }
   registeredLanguage.add(uuid);
   const autoCompletion = makeAutoComplete(uuid);
-  const format = async (sql: string, _opts: languages.FormattingOptions) => {
+  const formatxxx = async (sql: string, opts: languages.FormattingOptions) => {
     try {
-      let text = await invoke<string>('format_sql', {
-        name: uuid,
-        sql,
+      // https://github.com/sql-formatter-org/sql-formatter/blob/master/docs/language.md
+      let language: SqlLanguage = 'sql';
+      switch (kind) {
+        case DataSourceKind.DuckDB:
+          language = 'duckdb';
+          break;
+        case DataSourceKind.Mysql:
+          language = 'mysql';
+          break;
+        case DataSourceKind.MariaDB:
+          language = 'mariadb';
+          break;
+        case DataSourceKind.TiDB:
+          language = 'tidb';
+          break;
+        case DataSourceKind.Oracle:
+          language = 'plsql';
+          break;
+        case DataSourceKind.Postgres:
+          language = 'postgresql';
+          break;
+        case DataSourceKind.LibSql:
+        case DataSourceKind.Sqlite:
+          language = 'sqlite';
+          break;
+      }
+      return formatSql(sql, {
+        language,
+        tabWidth: opts.tabSize,
+        useTabs: !opts.insertSpaces,
       });
-      return text;
     } catch (e) {
       console.log('completion server error:', e);
       throw e;
@@ -691,7 +730,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           ],
         } as languages.IMonarchLanguage,
         autoCompletion,
-        format
+        formatxxx
       );
       break;
     case DataSourceKind.Mysql:
@@ -713,7 +752,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           ],
         } as languages.IMonarchLanguage,
         autoCompletion,
-        format
+        formatxxx
       );
       break;
     case DataSourceKind.ClickHouse:
@@ -735,7 +774,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           ],
         } as languages.IMonarchLanguage,
         autoCompletion,
-        format
+        formatxxx
       );
       break;
 
@@ -758,7 +797,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           ],
         } as languages.IMonarchLanguage,
         autoCompletion,
-        format
+        formatxxx
       );
       break;
     case DataSourceKind.Sqlite:
@@ -777,7 +816,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        format
+        formatxxx
       );
       break;
     case DataSourceKind.FireBird:
@@ -796,7 +835,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        format
+        formatxxx
       );
       break;
     case DataSourceKind.DuckDB:
@@ -814,7 +853,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        format
+        formatxxx
       );
       break;
 
@@ -833,7 +872,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        format
+        formatxxx
       );
       break;
     case DataSourceKind.Cockroach:
@@ -853,7 +892,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        format
+        formatxxx
       );
       break;
     case DataSourceKind.MsSql:
@@ -872,7 +911,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        format
+        formatxxx
       );
       break;
     case DataSourceKind.Redis:
@@ -903,7 +942,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        format
+        formatxxx
       );
       break;
     case DataSourceKind.Cassandra:
@@ -921,21 +960,12 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        format
+        formatxxx
       );
       break;
     default:
       throw `impl this ${kind}`;
   }
-}
-
-function makeGetParserErrr(uuid) {
-  return (sql: string): Promise<ErrAndLoc | null> => {
-    return invoke<ErrAndLoc | null>('sql_parse_error', {
-      name: uuid,
-      sql,
-    });
-  };
 }
 
 interface IQueryConn {
@@ -1184,7 +1214,6 @@ export {
   keyNotInTable,
   extractBaseName,
   makeAutoComplete,
-  makeGetParserErrr,
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent };
