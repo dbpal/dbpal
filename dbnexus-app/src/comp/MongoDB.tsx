@@ -980,24 +980,19 @@ function JsonEditor(props: {
 }) {
   const { value, modifyOP, handleDetele, modifyOPName } = props;
   const [newValue, setNewValue] = useState(EJSON.stringify(value, null, 2));
-  const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
+  const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
   const [loading, setLoading] = useState(false);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
+  const { showNotification } = useContext(NotificationContext);
   useEffect(() => {
     (async () => {
       try {
         let x = await validJson(newValue);
         setJsonErr(x);
-      } catch (_) {
-        return;
-      }
-      try {
-        EJSON.parse(newValue);
       } catch (e) {
-        setJsonErr(e.toString());
+        showNotification('error', 'call valid json failed', e);
         return;
       }
-      setJsonErr(null);
     })();
   }, [newValue]);
 
