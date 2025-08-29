@@ -97,23 +97,26 @@ function DefAndMetasView(props: {
           </IconButton>
         </Tooltip>
       </Stack>
-      <div
-        ref={setDom}
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'auto',
-          minHeight: '15vh',
-          resize: 'vertical',
-          height: '18vh',
-        }}
-      >
-        <SimpleFlexSizeEditor
-          language={language}
-          value={detail.def}
-          editorRef={editor}
-        ></SimpleFlexSizeEditor>
-      </div>
+      {detail.def && (
+        <div
+          ref={setDom}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'auto',
+            minHeight: '15vh',
+            resize: 'vertical',
+            height: '18vh',
+          }}
+        >
+          <SimpleFlexSizeEditor
+            language={language}
+            value={detail.def}
+            editorRef={editor}
+          ></SimpleFlexSizeEditor>
+        </div>
+      )}
+
       {detail.metas.length > 0 && (
         <>
           <Typography variant={titleVariant}> Some Metas </Typography>
