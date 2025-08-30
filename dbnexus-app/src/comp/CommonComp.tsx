@@ -569,20 +569,20 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
               style={{ alignItems: 'center' }}
               divider={<span>|</span>}
             >
-              <Typography variant="h6">{f.field}</Typography>
-              <Typography variant="subtitle1">{f.data_type}</Typography>
+              <Typography variant="subtitle1">{f.field}</Typography>
+              <Typography variant="body1">{f.data_type}</Typography>
               {isTable && f.is_primary && (
-                <Typography variant="subtitle1"> Primary Key </Typography>
+                <Typography variant="body1"> Primary Key </Typography>
               )}
               {isTable && f.nullable && (
-                <Typography variant="subtitle1"> nullable </Typography>
+                <Typography variant="body1"> nullable </Typography>
               )}
               {isTable && f.is_auto_increment && (
-                <Typography variant="subtitle1"> auto increment </Typography>
+                <Typography variant="body1"> auto increment </Typography>
               )}
               {isTable && f.default_value && (
                 <Typography
-                  variant="subtitle1"
+                  variant="body1"
                   style={{
                     width: '100px',
                     whiteSpace: 'nowrap',
