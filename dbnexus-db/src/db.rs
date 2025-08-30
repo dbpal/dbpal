@@ -994,6 +994,7 @@ impl QueryResp {
             }],
             sql: sql.into(),
             total: 0,
+            has_more: false,
         }
     }
 
@@ -1013,6 +1014,7 @@ impl QueryResp {
             sql: sql.into(),
             total: 0,
             cache_time: None,
+            has_more: false,
         }
     }
 }
@@ -1026,6 +1028,8 @@ pub struct QueryResp {
     pub sql: Option<String>,
     // some backend like `cassandra` use cache on the for pagination
     pub cache_time: Option<u64>,
+    // some backend like redis not return all results
+    pub has_more: bool,
 }
 
 /// we don't want to check `sql` somehow can be different
@@ -1065,6 +1069,7 @@ impl QueryResp {
             sql,
             cache_time: None,
             data,
+            has_more: false,
         };
         ret.check()?;
         anyhow::Ok(ret)
@@ -1092,6 +1097,7 @@ impl QueryResp {
                 sortable: true,
                 firebird_binary_sub_type: None,
             }],
+            has_more: false,
         }
     }
 }

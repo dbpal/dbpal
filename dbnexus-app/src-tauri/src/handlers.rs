@@ -2729,6 +2729,7 @@ pub struct MuiDataGridData {
     sql: Option<String>,
     total: usize,
     cache_time: Option<u64>,
+    has_more: bool,
 }
 
 impl From<QueryResp> for MuiDataGridData {
@@ -2739,6 +2740,7 @@ impl From<QueryResp> for MuiDataGridData {
             total,
             sql,
             cache_time,
+            has_more,
         } = value;
         #[derive(Default)]
         struct NameIndex {
@@ -2792,6 +2794,7 @@ impl From<QueryResp> for MuiDataGridData {
             sql,
             total,
             cache_time,
+            has_more,
         }
     }
 }
@@ -2824,6 +2827,7 @@ mod tests {
                 sql: None,
                 total: 0,
                 cache_time: None,
+                has_more: false,
             }),
         ];
 

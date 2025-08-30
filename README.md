@@ -48,3 +48,7 @@ INSERT INTO documents (title, content) VALUES ('First Document', 'This is the co
 INSERT INTO documents (title, content) VALUES ('Second Document', 'This is the content of the second document.');
 ~~~
 
+
+
+redis分页实现要好好研究下
+oracle add table column有问题

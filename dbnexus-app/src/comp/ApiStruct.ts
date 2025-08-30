@@ -299,21 +299,6 @@ export namespace types {
         "def": string;
         "metas": (types.MetaValue)[];
     };
-    export type U8 = number;
-    export type FormatSqlOptsIndent = (({
-        "ident": "spaces";
-    } & types.U8) | {
-        "ident": "tabs";
-    });
-
-    /**
-     * almost copied from https://docs.rs/sqlformat/0.2.4/sqlformat/struct.FormatOptions.html
-     */
-    export type FormatSqlOpts = {
-        "indent": types.FormatSqlOptsIndent;
-        "uppercase": (boolean | null);
-        "lines_between_queries": types.U8;
-    };
     export type Usize = number;
     export type MuiDataGridData = {
         "fields": (types.Field)[];
@@ -321,6 +306,7 @@ export namespace types {
         "sql": (string | null);
         "total": types.Usize;
         "cache_time": (types.U64 | null);
+        "has_more": boolean;
     };
     export type QueryLogEvent = {
         "time": types.U64;
@@ -352,6 +338,7 @@ export namespace types {
         "data": (((string | null))[])[];
         "sql": (string | null);
         "cache_time": (types.U64 | null);
+        "has_more": boolean;
     };
     export type SequenceDetail = {
         "start_value": string;

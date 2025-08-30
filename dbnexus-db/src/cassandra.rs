@@ -112,6 +112,7 @@ impl PageCache {
                 sql: Some(self.sql.clone()),
                 total: 0,
                 cache_time,
+                has_more: false,
             };
         }
         let end = page * page_size;
@@ -124,6 +125,7 @@ impl PageCache {
             sql: Some(self.sql.clone()),
             total: 0,
             cache_time,
+            has_more: false,
         }
     }
 }
@@ -847,6 +849,7 @@ impl QuerySql for CassandraDB {
                             sql: Some(sql.to_owned()),
                             total: 0,
                             cache_time: None,
+                            has_more: false,
                         }));
                     }
                 }
@@ -1046,6 +1049,7 @@ impl CassandraDB {
                 sql: Some(sql.clone()),
                 total: 0,
                 cache_time: None,
+                has_more: false,
             });
         }
         let meta = meta.unwrap();
@@ -1061,6 +1065,7 @@ impl CassandraDB {
                 sql: Some(sql.clone()),
                 total: 0,
                 cache_time: None,
+                has_more: false,
             },
             condition,
             sql,
@@ -1518,6 +1523,7 @@ impl SchemaTrait for CassandraDB {
                 total: 0,
                 sql: None,
                 cache_time: ret.cache_time,
+                has_more: ret.has_more,
             });
         }
         let mut m = HashMap::new();
@@ -1545,6 +1551,7 @@ impl SchemaTrait for CassandraDB {
             data,
             sql: self.page_caching_sql(table_name),
             cache_time,
+            has_more: false,
         })
     }
 

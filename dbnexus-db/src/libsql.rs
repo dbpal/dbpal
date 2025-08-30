@@ -207,6 +207,7 @@ impl QuerySql for LibSqlDB {
                     sql: None,
                     cache_time: None,
                     total: 0,
+                    has_more: false,
                 }));
             }
         }
