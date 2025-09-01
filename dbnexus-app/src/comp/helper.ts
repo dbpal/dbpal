@@ -490,7 +490,7 @@ type UISize = {
   width?: number;
   height?: number;
 };
-const gridStyle = { height: 'auto', maxHeight: '80vh', minHeight: "20vh" } as CSSProperties;
+const gridStyle = { height: 'auto', maxHeight: '80vh' } as CSSProperties;
 
 function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "both" = "both") {
   let e = new ResizeObserver((en) => {

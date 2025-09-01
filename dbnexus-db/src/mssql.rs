@@ -48,7 +48,7 @@ impl std::fmt::Debug for MsSqlServerDB {
 impl MsSqlServerDB {
     pub(crate) const DBO_SCHEMA: &str = "dbo";
     pub(crate) const SYS_SCHEMA: &str = "sys";
-    pub(crate) const INFORMATION_SCHEMA: &str = "INFORMATION_SCHEMA";
+    pub(crate) const INFORMATION_SCHEMA_SCHEMA: &str = "INFORMATION_SCHEMA";
 }
 #[async_trait::async_trait]
 impl ServerMetas for MsSqlServerDB {
@@ -372,7 +372,7 @@ impl MsSqlServerDB {
                     .collect(),
             );
         }
-        if schema.eq_ignore_ascii_case(Self::INFORMATION_SCHEMA) {
+        if schema.eq_ignore_ascii_case(Self::INFORMATION_SCHEMA_SCHEMA) {
             return anyhow::Ok(
                 INFORMATION_SCHEMA_VIEWS
                     .iter()
@@ -1877,7 +1877,11 @@ impl crate::db::DBTrait for MsSqlServerDB {
     }
 
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec!["dbo".to_string()])
+        anyhow::Ok(vec![
+            Self::DBO_SCHEMA.to_string(),
+            Self::INFORMATION_SCHEMA_SCHEMA.to_string(),
+            Self::SYS_SCHEMA.to_string(),
+        ])
     }
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
