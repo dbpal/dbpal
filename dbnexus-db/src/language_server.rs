@@ -6,7 +6,7 @@ use sqlparser::tokenizer::{Location, Token};
 use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
 
-use crate::db::{CreatedTypeDef, GetBackendKind, not_support_feature};
+use crate::db::{BackendKind, CreatedTypeDef, GetBackendKind, not_support_feature};
 use crate::sqlparser_completion::{CompletionStatement, TempTableColumn};
 
 #[async_trait::async_trait]
@@ -239,14 +239,18 @@ pub trait LexerCompletionTrait: LangServerCommon {
                     desc: None,
                 }),
         );
-        ret.extend(
-            self.list_execute(None)
-                .await
-                .map_err(|err| log::error!("list execute failed,err:{}", err))
-                .unwrap_or_default()
-                .into_iter()
-                .map(CompletionItem::from),
-        );
+        // here mssql list_procedure and list_execute will have the same result.
+        // will make duplicate object.
+        if self.backend_name() != BackendKind::SqlServer {
+            ret.extend(
+                self.list_execute(None)
+                    .await
+                    .map_err(|err| log::error!("list execute failed,err:{}", err))
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(CompletionItem::from),
+            );
+        }
         ret
     }
 
@@ -466,18 +470,22 @@ pub trait LangServerCommon: GetBackendKind {
                                 desc: None,
                             }),
                     );
-                    ret.extend(
-                        self.list_execute(Some(schema))
-                            .await
-                            .map_err(|e| log::error!("list procedure failed,err:{}", e))
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|x| CompletionItem {
-                                item: x.name.into(),
-                                kind: CompletionKind::Function,
-                                desc: x.statement.map(|x| x.into()),
-                            }),
-                    );
+                    // sql server will have the same result
+                    if self.backend_name() != BackendKind::SqlServer {
+                        ret.extend(
+                            self.list_execute(Some(schema))
+                                .await
+                                .map_err(|e| log::error!("list procedure failed,err:{}", e))
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(|x| CompletionItem {
+                                    item: x.name.into(),
+                                    kind: CompletionKind::Function,
+                                    desc: x.statement.map(|x| x.into()),
+                                }),
+                        );
+                    }
+
                     return anyhow::Ok(ret);
                 }
 

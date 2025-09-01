@@ -48,6 +48,7 @@ impl std::fmt::Debug for MsSqlServerDB {
 impl MsSqlServerDB {
     pub(crate) const DBO_SCHEMA: &str = "dbo";
     pub(crate) const SYS_SCHEMA: &str = "sys";
+    pub(crate) const INFORMATION_SCHEMA: &str = "INFORMATION_SCHEMA";
 }
 #[async_trait::async_trait]
 impl ServerMetas for MsSqlServerDB {
@@ -371,7 +372,14 @@ impl MsSqlServerDB {
                     .collect(),
             );
         }
-
+        if schema.eq_ignore_ascii_case(Self::INFORMATION_SCHEMA) {
+            return anyhow::Ok(
+                INFORMATION_SCHEMA_VIEWS
+                    .iter()
+                    .map(|x| ListTable::from(x.to_string()))
+                    .collect(),
+            );
+        }
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let mut stream: tiberius::QueryStream<'_> = conn
@@ -3164,4 +3172,27 @@ pub const SYS_OBJECTS: &[&str] = &[
     "xml_schema_types",
     "xml_schema_wildcards",
     "xml_schema_wildcard_namespaces",
+];
+/// SQL Server INFORMATION_SCHEMA 全部系统视图
+pub const INFORMATION_SCHEMA_VIEWS: &[&str] = &[
+    "CHECK_CONSTRAINTS",
+    "COLUMN_DOMAIN_USAGE",
+    "COLUMN_PRIVILEGES",
+    "COLUMNS",
+    "CONSTRAINT_COLUMN_USAGE",
+    "CONSTRAINT_TABLE_USAGE",
+    "DOMAIN_CONSTRAINTS",
+    "DOMAINS",
+    "KEY_COLUMN_USAGE",
+    "PARAMETERS",
+    "REFERENTIAL_CONSTRAINTS",
+    "ROUTINES",
+    "ROUTINE_COLUMNS",
+    "SCHEMATA",
+    "TABLE_CONSTRAINTS",
+    "TABLE_PRIVILEGES",
+    "TABLES",
+    "VIEW_COLUMN_USAGE",
+    "VIEW_TABLE_USAGE",
+    "VIEWS",
 ];

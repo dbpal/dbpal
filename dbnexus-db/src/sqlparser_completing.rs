@@ -438,16 +438,32 @@ impl<'a> CompletionStatement<'a> {
             return;
         }
         let (schema, _) = self.extract_schema_and_item(name);
-        self.result = Some(
-            self.helper
-                .list_execute(schema)
-                .await
-                .map_err(|e| log::error!("list prepare failed,err:{}", e))
-                .unwrap_or_default()
-                .into_iter()
-                .map(CompletionItem::from)
-                .collect(),
-        );
+        let mut results: Vec<CompletionItem> = self
+            .helper
+            .list_execute(schema)
+            .await
+            .map_err(|e| log::error!("list prepare failed,err:{}", e))
+            .unwrap_or_default()
+            .into_iter()
+            .map(CompletionItem::from)
+            .collect();
+        if name.0.len() == 1 {
+            // 也许在完成schema
+            results.extend(
+                self.helper
+                    .list_schema()
+                    .await
+                    .map_err(|e| log::error!("list schema failed,err:{}", e))
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|name| CompletionItem {
+                        item: name.into(),
+                        kind: CompletionKind::Schema,
+                        desc: None,
+                    }),
+            );
+        }
+        self.result = Some(results);
     }
 
     pub(crate) async fn c_on_prepare_ident(&mut self, ident: &Ident) {

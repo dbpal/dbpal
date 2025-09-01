@@ -11,9 +11,7 @@ use crate::mssql::MsSqlServerDB;
 use crate::sqlparser_completion::TempTableColumn;
 use futures_util::StreamExt;
 use std::ops::DerefMut;
-
 use tiberius::QueryItem;
-
 #[async_trait::async_trait]
 impl LexerCompletionTrait for MsSqlServerDB {
     const TYPES: &'static [&'static str] = SQLSERVER_TYPES;
@@ -32,10 +30,25 @@ impl LanguageServer for MsSqlServerDB {
     }
 }
 
+impl MsSqlServerDB {
+    fn schema_merge_config(&self, schema: Option<&str>) -> Option<String> {
+        if schema.is_some() {
+            return schema.map(|x| x.to_string());
+        }
+        self.config.schema.as_ref().map(|x| x.to_string())
+    }
+    fn not_allow_empty_schema(&self, schema: Option<&str>) -> anyhow::Result<String> {
+        match self.schema_merge_config(schema) {
+            Some(x) => anyhow::Ok(x),
+            None => anyhow::bail!("not allow empty schema"),
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl LangServerCommon for MsSqlServerDB {
     async fn list_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
-        let schema = schema.unwrap_or(Self::DBO_SCHEMA);
+        let schema = self.not_allow_empty_schema(schema)?;
         let sql = format!(
             r#"
             SELECT
@@ -108,20 +121,21 @@ impl LangServerCommon for MsSqlServerDB {
     async fn list_function(
         &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        // 在 SQL Server 中，sys 模式下并没有直接的用户定义函数 (UDF)，而是包含了一系列的系统视图和存储过程。不过，你可以使用一些系统函数来获取数据库元数据。以下是一些常用的系统函数，这些可以帮助你查询数据库的信息：
-        let schema = schema.unwrap_or(Self::DBO_SCHEMA);
-        let mut ret = self
-            .list_udf_impl(schema)
-            .await
-            .map(|x| {
-                x.into_iter().map(|x| CompletionItem {
-                    item: x.name.into(),
-                    desc: None,
-                    kind: CompletionKind::Function,
-                })
-            })?
-            .collect::<Vec<_>>();
-
+        let schema = self.schema_merge_config(schema);
+        let mut ret = if let Some(schema) = &schema {
+            self.list_udf_impl(&schema)
+                .await
+                .map(|x| {
+                    x.into_iter().map(|x| CompletionItem {
+                        item: x.name.into(),
+                        desc: None,
+                        kind: CompletionKind::Function,
+                    })
+                })?
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
         if include_build_in {
             ret.extend(SQLSERVER_FUNCTIONS.iter().map(|x| CompletionItem {
                 item: (*x).into(),
@@ -137,40 +151,53 @@ impl LangServerCommon for MsSqlServerDB {
 
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let db = self.config.db_str();
-        let schema = schema.unwrap_or(Self::DBO_SCHEMA);
-        self.list_table_impl(db, schema)
+        let schema = self.not_allow_empty_schema(schema)?;
+        self.list_table_impl(db, &schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![
-            MsSqlServerDB::DBO_SCHEMA.to_string(),
-            MsSqlServerDB::SYS_SCHEMA.to_string(),
-        ])
+        let sql = r#"
+            SELECT 
+                s.name AS SchemaName
+            FROM 
+                sys.schemas s
+            ORDER BY 
+                s.name;
+       "#;
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut stream = conn.simple_query(sql).await?;
+        let mut ret = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                QueryItem::Row(row) => {
+                    let name: Option<&str> = row.try_get(0)?;
+                    if let Some(name) = name {
+                        ret.push(name.to_string());
+                    }
+                }
+                QueryItem::Metadata(..) => {}
+            }
+        }
+        anyhow::Ok(ret)
     }
 
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = schema.unwrap_or(Self::DBO_SCHEMA);
-        self.list_view_impl(schema)
+        let schema = self.not_allow_empty_schema(schema)?;
+        self.list_view_impl(&schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
     async fn list_execute(&self, schema: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
-        let mut ret: Vec<crate::db::NamedStaff> =
-            self.list_procedure_impl(Self::DBO_SCHEMA).await?;
-        let sys_procedures = self.list_procedure_impl(Self::SYS_SCHEMA).await?;
-        match schema {
-            Some(schema) => match schema {
-                Self::SYS_SCHEMA => ret = sys_procedures,
-                _ => {
-                    ret.extend(sys_procedures.into_iter());
-                }
-            },
-            None => {
-                ret.extend(sys_procedures.into_iter());
-            }
-        };
+        let call_schema = schema;
+        let schema = self.not_allow_empty_schema(schema)?;
+        let mut ret: Vec<crate::db::NamedStaff> = self.list_procedure_impl(&schema).await?;
+        if call_schema.is_none() && schema != Self::SYS_SCHEMA {
+            ret.extend(self.list_procedure_impl(Self::SYS_SCHEMA).await?);
+        }
         anyhow::Ok(
             ret.into_iter()
                 .map(|x| DBExecutable {
