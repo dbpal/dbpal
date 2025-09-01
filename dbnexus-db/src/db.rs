@@ -752,13 +752,13 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         &self, sql: &str, kind: ExportKind,
     ) -> anyhow::Result<String> {
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
-        let h1 = {
+        let j1 = {
             let x = ExportQueryResult::clone(self);
             let sql = sql.to_string();
             let h1 = tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await });
             h1
         };
-        let h2 = {
+        let j2 = {
             tokio::spawn(async move {
                 let mut ret = String::new();
                 while let Some(r) = receiver.recv().await {
@@ -767,8 +767,8 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
                 anyhow::Ok(ret)
             })
         };
-        h1.await??;
-        h2.await?
+        j1.await??;
+        j2.await?
     }
     async fn export_query_result_to_file(
         &self, sql: &str, kind: ExportKind, file: &str,

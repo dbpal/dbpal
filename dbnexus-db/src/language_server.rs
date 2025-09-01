@@ -808,7 +808,7 @@ select xxxx
         let items = parse_auto_completion_test_file(&content);
         for item in items.iter() {
             for i in item.tests.iter() {
-                log::trace!("on pos:{}", i.0);
+                log::trace!("on pos:{}:{}", item.line, i.0);
                 let items = db
                     .auto_completion(&item.sql, 1, i.0 as u32, use_lexer)
                     .await

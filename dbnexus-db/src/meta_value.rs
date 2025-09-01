@@ -43,7 +43,9 @@ impl serde::Serialize for MetaValue {
     {
         let mut s = serializer.serialize_struct("MetaValue", 3)?;
         s.serialize_field("name", &self.name)?;
-        if let Some(value) = &self.value { s.serialize_field("value", &value.to_string())? }
+        if let Some(value) = &self.value {
+            s.serialize_field("value", &value.to_string())?
+        }
         if let Some(x) = &self.desc {
             s.serialize_field("desc", x)?;
         }

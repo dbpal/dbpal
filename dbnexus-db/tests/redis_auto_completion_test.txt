@@ -1,5 +1,5 @@
 append str
-7 append ; 11 string_value ; 8 string_value
+7 append ; 11 value_string ; 8 value_string
 ASKING
 1 ASKING
 aut
@@ -9,13 +9,13 @@ BGREWRITEAOF
 BGSAVE
 1 BGSAVE
 BITCOUNT str
-1 BITCOUNT ; 13 string_value
+1 BITCOUNT ; 13 value_string
 BITFIELD str
-1 BITFIELD ; 13 string_value
+1 BITFIELD ; 13 value_string
 BITOP and str str str 
-1 BITOP ; 10 and ; 14 string_value ; 18 string_value ; 22 string_value
+1 BITOP ; 10 and ; 14 value_string ; 18 value_string ; 22 value_string
 BITPOS str 
-1 BITPOS ; 11 string_value
+1 BITPOS ; 11 value_string
 BLPOP list
 1 BLPOP ; 10 list_value
 BRPOP list 
@@ -33,15 +33,15 @@ DBSIZE
 DEBUG ob
 1 DEBUG ; 9 object
 DECR str
-1 DECR ; 9 string_value
+1 DECR ; 9 value_string
 DECRBY str
-1 DECRBY; 11 string_value
+1 DECRBY; 11 value_string
 DEL str str
-1 DEL; 8 string_value ; 12 string_value
+1 DEL; 8 value_string ; 12 value_string
 DISCARD
 1 DISCARD
 DUMP str
-1 DUMP ; 9 string_value
+1 DUMP ; 9 value_string
 ECH
 1 ECHO
 EVAL
@@ -51,87 +51,87 @@ EVALSHA
 EXEC
 1 EXEC
 EXISTS str list
-1 EXISTS ; 11 string_value ; 16 list_value
+1 EXISTS ; 11 value_string ; 16 list_value
 EXPIRE str 
-1 EXPIRE ; 11 string_value
+1 EXPIRE ; 11 value_string
 EXPIREAT str
-1 EXPIREAT ; 13 string_value
+1 EXPIREAT ; 13 value_string
 FLUSHALL
 1 FLUSHALL
 FLUSHDB
 1 FLUSHDB
 GEOADD zset
-1 GEOADD ; 12 zset_value
-GEODIST zset
-1 GEODIST ; 13 zset_value
+1 GEOADD ; 12 value_zset
+GEODIST value_zset alice
+1 GEODIST ; 19 value_zset ; 25 alice
 GEOHASH zset
-1 GEOHASH ; 13 zset_value
+1 GEOHASH ; 13 value_zset
 GEOPOS zset 
-1 GEOPOS ; 12 zset_value
+1 GEOPOS ; 12 value_zset
 GEORADIUS zset
-1 GEORADIUS ; 15 zset_value
+1 GEORADIUS ; 15 value_zset
 GEORADIUSBYMEMBER zset
-1 GEORADIUSBYMEMBER ;  23 zset_value
+1 GEORADIUSBYMEMBER ;  23 value_zset
 GET str
-1 GET ; 7 string_value
+1 GET ; 7 value_string
 GETBIT str 
-1 GETBIT ; 11 string_value
+1 GETBIT ; 11 value_string
 GETRANGE str
-1 GETRANGE ; 13 string_value
+1 GETRANGE ; 13 value_string
 GETSET str
-1 GETSET ; 11 string_value
-HDEL hash_value key
-1 HDEL ; 16 hash_value ; 20 key11111
-HEXISTS hash_value key 
-1 HEXISTS ; 19 hash_value ; 23 key11111
-HGET hash_value key
-1 HGET ; 16 hash_value ; 20 key11111 
+1 GETSET ; 11 value_string
+HDEL value_hash key key
+1 HDEL ; 16 value_hash ; 20 key11111 ; 24 key11111
+HEXISTS value_hash key 
+1 HEXISTS ; 19 value_hash ; 23 key11111
+HGET value_hash key
+1 HGET ; 16 value_hash ; 20 key11111 
 HDEL hash
-1 HDEL ; 10 hash_value
+1 HDEL ; 10 value_hash
 HGETALL hash 
-1 HGETALL ; 13 hash_value
+1 HGETALL ; 13 value_hash
 HINCRBY hash
-1 HINCRBY ; 13 hash_value
-HINCRBY hash_value key
-1 HINCRBY ; 19 hash_value ; 23 key11111
+1 HINCRBY ; 13 value_hash
+HINCRBY value_hash key
+1 HINCRBY ; 19 value_hash ; 23 key11111
 HINCRBYFLOAT hash
-1 HINCRBYFLOAT ; 18 hash_value
-HINCRBYFLOAT hash_value key 
-1 HINCRBYFLOAT ; 24 hash_value ; 28 key11111
+1 HINCRBYFLOAT ; 18 value_hash
+HINCRBYFLOAT value_hash key 
+1 HINCRBYFLOAT ; 24 value_hash ; 28 key11111
 HKEYS hash
-1 HKEYS ; 11 hash_value
+1 HKEYS ; 11 value_hash
 HLEN hash
-1 HLEN ; 10 hash_value
+1 HLEN ; 10 value_hash
 HMGET hash
-1 HMGET ; 11 hash_value
-HMGET hash_value key key 
-21 key11111 ; 25 key11111
+1 HMGET ; 11 value_hash
+HMGET value_hash key key
+17 value_hash ; 21 key11111 ; 25 key11111
 HMSET hash 
-1 HMSET ; 11 hash_value
-HMSET hash_value key 
-17 hash_value ; 21 key11111
+1 HMSET ; 11 value_hash
+HMSET value_hash key 
+17 value_hash ; 21 key11111
 HSCAN hash 
-1 HSCAN ; 11 hash_value
+1 HSCAN ; 11 value_hash
 HSET hash 
-1 HSET ; 10 hash_value
-HSET hash_value key11111 
+1 HSET ; 10 value_hash
+HSET value_hash key11111 
 25  key11111
-HSETNX hash
-1 HSETNX ; 12 hash_value
-HSETNX hash_value key
+HSETNX value_hash key
+1 HSETNX ; 12 value_hash ; 22 key11111
+HSETNX value_hash key
 22 key11111
-HSTRLEN hash
-1 HSTRLEN ; 13 hash_value
-HSTRLEN hash_value key
+HSTRLEN value_hash key
+1 HSTRLEN ; 13 value_hash ; 23  key11111
+HSTRLEN value_hash key
 23 key11111
 HVALS hash
-1 HVALS ; 11 hash_value
+1 HVALS ; 11 value_hash
 INCR str 
-1 INCR ; 9 string_value
+1 INCR ; 9 value_string
 INCRBY str
-1 INCRBY ; 11 string_value
+1 INCRBY ; 11 value_string
 INCRBYFLOAT str
-1 INCRBYFLOAT ; 16 string_value 
+1 INCRBYFLOAT ; 16 value_string 
 INFO mem
 1 INFO ; 9 memory
 KEYS 
@@ -159,37 +159,37 @@ LSET list
 LTRIM list
 1 LTRIM ; 11 list_value
 MGET str str
-1 MGET ; 9 string_value ; 13 string_value 
+1 MGET ; 9 value_string ; 13 value_string 
 MIGRATE
 1 MIGRATE
 MOVE str
-1 MOVE ; 9 string_value
+1 MOVE ; 9 value_string
 MSET str v str  v
-1 MSET  ; 9 string_value ; 15 string_value
+1 MSET  ; 9 value_string ; 15 value_string
 MSETNX str v str v 
 1 MSETNX
 MULTI
 1 MULTI
-OBJECT EN
-1 OBJECT ; 10 ENCODING
+OBJECT ENCODING value_string
+1 OBJECT ; 10 ENCODING ; 29 value_string
 PERSIST str
-1 PERSIST ; 12 string_value 
+1 PERSIST ; 12 value_string 
 PEXPIRE str
-1 PEXPIRE ; 12 string_value
+1 PEXPIRE ; 12 value_string
 PEXPIREAT str 
-1 PEXPIREAT ; 14 string_value 
+1 PEXPIREAT ; 14 value_string 
 PFADD str 
-1 PFADD ; 10 string_value
+1 PFADD ; 10 value_string
 PFCOUNT str
-1 PFCOUNT ; 12 string_value
+1 PFCOUNT ; 12 value_string
 PFMERGE str str str
-1 PFMERGE ; 12 string_value ; 16 string_value ; 20 string_value  
+1 PFMERGE ; 12 value_string ; 16 value_string ; 20 value_string  
 PING
 1 PING
 PSETEX str 
-1 PSETEX ; 11 string_value
+1 PSETEX ; 11 value_string
 PTTL str
-1 PTTL ; 9 string_value
+1 PTTL ; 9 value_string
 PUBLISH
 1 PUBLISH
 RANDOMKEY
@@ -199,13 +199,11 @@ READONLY
 READWRITE
 1 READWRITE
 RENAME str
-1 RENAME ; 11 string_value
+1 RENAME ; 11 value_string
 RENAMENX str
-1 RENAMENX ; 13 string_value
+1 RENAMENX ; 13 value_string
 RESTORE
 1 RESTORE
-RESTORE_ASKING
-1 RESTORE_ASKING
 ROLE
 1 ROLE
 RPOP list
@@ -217,112 +215,114 @@ RPUSH list
 RPUSHX list 
 1 RPUSHX; 12 list_value
 SADD set
-1 SADD ; 9 set_value
+1 SADD ; 9 value_set
 SAVE
 1 SAVE
 SCAN
 1 SCAN
 SCARD set
-1 SCARD ; 10 set_value
+1 SCARD ; 10 value_set
 SCRIPT lo
 1 SCRIPT ; 10 load
 SDIFF set set set
-1 SDIFF ; 10 set_value ; 14 set_value ; 18 set_value
+1 SDIFF ; 10 value_set ; 14 value_set ; 18 value_set
 SDIFFSTORE set set set
-1 SDIFFSTORE ;15 set_value ; 19 set_value ;23 set_value
+1 SDIFFSTORE ;15 value_set ; 19 value_set ;23 value_set
 SET str
-1 SET ; 8 string_value
+1 SET ; 8 value_string
 SETBIT str
-1 SETBIT ; 11 string_value
+1 SETBIT ; 11 value_string
 SETEX str
-1 SETEX ; 10 string_value
+1 SETEX ; 10 value_string
 SETNX
 1 SETNX
 SETRANGE str
-1 SETRANGE ; 13 string_value
+1 SETRANGE ; 13 value_string
 SHUTDOWN
 1 SHUTDOWN
 SINTER set set set
-1 SINTER ; 11 set_value  ; 15 set_value ; 19 set_value
+1 SINTER ; 11 value_set  ; 15 value_set ; 19 value_set
 SINTERSTORE set set set 
-1 SINTERSTORE ; 16 set_value ; 20 set_value  ;24 set_value
-SISMEMBER set
-1 SISMEMBER ; 14 set_value
+1 SINTERSTORE ; 16 value_set ; 20 value_set  ;24 value_set
+SISMEMBER value_set member123
+1 SISMEMBER ; 20 value_set ; 22 member123
 SLAVEOF
 1 SLAVEOF
 SLOWLOG ge
 1 SLOWLOG ; 11 get
 SMEMBERS set
-1 SMEMBERS ; 13 set_value
-SMOVE set set 
-1 SMOVE ; 10 set_value ; 14 set_value
+1 SMEMBERS ; 13 value_set
+SMOVE value_set value_set  member123
+1 SMOVE ; 16 value_set ; 26 value_set ; 37 member123
 SORT list
 1 SORT ; 10 list_value
 SPOP set
-1 SPOP; 9 set_value 
+1 SPOP; 9 value_set 
 SRANDMEMBER set
-1 SRANDMEMBER; 16 set_value 
-SREM set
-1 SREM ; 9 set_value
+1 SRANDMEMBER; 16 value_set 
+SREM value_set member123
+1 SREM ; 15 value_set ; 25 member123
 SSCAN set
-1 SSCAN ; 10 set_value
+1 SSCAN ; 10 value_set
 STRLEN str
-1 STRLEN ; 11 string_value
+1 STRLEN ; 11 value_string
 SUNION set set set
-1 SUNION ; 11 set_value ; 15 set_value ; 19 set_value
+1 SUNION ; 11 value_set ; 15 value_set ; 19 value_set
 SUNIONSTORE set set set 
-1 SUNIONSTORE ;16 set_value ; 20 set_value ; 24 set_value
+1 SUNIONSTORE ;16 value_set ; 20 value_set ; 24 value_set
 SYNC 
 1 SYNC
 TIME 
 1 TIME
 TOUCH set str
-1 TOUCH ; 10 set_value ; 14 string_value
+1 TOUCH ; 10 value_set ; 14 value_string
 TTL str
-1 TTL ; 8 string_value
+1 TTL ; 8 value_string
 TYPE str
-1 TYPE ; 9 string_value
+1 TYPE ; 9 value_string
 UNLINK str str
-1 UNLINK ; 11 string_value ; 15 string_value
+1 UNLINK ; 11 value_string ; 15 value_string
 ZADD zset 
-1 ZADD  ; 10 zset_value
+1 ZADD  ; 10 value_zset
 ZCARD zset
-1 ZCARD  ; 11 zset_value
+1 ZCARD  ; 11 value_zset
 ZCOUNT zset
-1 ZCOUNT ; 12 zset_value
-ZINCRBY zset
-1 ZINCRBY ; 13 zset_value
-ZINTERSTORE
-1 ZINTERSTORE
+1 ZCOUNT ; 12 value_zset
+ZINCRBY value_zset  10 alice
+1 ZINCRBY ; 13 value_zset ; 29 alice
+ZREM value_zset  alice
+16 value_zset ; 23 alice
+ZINTERSTORE value_zset value_zset
+1 ZINTERSTORE ; 23 value_zset ; 34 value_zset
 ZLEXCOUNT zset
 1 ZLEXCOUNT ; 15 
 ZRANGE zset
-1 ZRANGE ; 12 zset_value
+1 ZRANGE ; 12 value_zset
 ZRANGEBYLEX zset
-1 ZRANGEBYLEX; 17 zset_value
+1 ZRANGEBYLEX; 17 value_zset
 ZRANGEBYSCORE zset
-1 ZRANGEBYSCORE ; 19 zset_value
+1 ZRANGEBYSCORE ; 19 value_zset
 ZRANK zset
-1 ZRANK ; 11 zset_value
+1 ZRANK ; 11 value_zset
 ZREM zset
-1 ZREM ; 10 zset_value
+1 ZREM ; 10 value_zset
 ZREMRANGEBYLEX zset
-1 ZREMRANGEBYLEX ; 20 zset_value
+1 ZREMRANGEBYLEX ; 20 value_zset
 ZREMRANGEBYRANK zset
-1 ZREMRANGEBYRANK ; 21 zset_value
+1 ZREMRANGEBYRANK ; 21 value_zset
 ZREMRANGEBYSCORE zset
-1 ZREMRANGEBYSCORE ; 22 zset_value
+1 ZREMRANGEBYSCORE ; 22 value_zset
 ZREVRANGE zset
-1 ZREVRANGE ; 15 zset_value
+1 ZREVRANGE ; 15 value_zset
 ZREVRANGEBYLEX zset
-1 ZREVRANGEBYLEX ; 20 zset_value
+1 ZREVRANGEBYLEX ; 20 value_zset
 ZREVRANGEBYSCORE zset
-1 ZREVRANGEBYSCORE ; 22 zset_value
+1 ZREVRANGEBYSCORE ; 22 value_zset
 ZREVRANK zset
-1 ZREVRANK ; 14 zset_value
+1 ZREVRANK ; 14 value_zset
 ZSCAN zset
-1 ZSCAN ; 11 zset_value
+1 ZSCAN ; 11 value_zset
 ZSCORE zset
-1 ZSCORE ; 12 zset_value
-ZUNIONSTORE
-1 ZUNIONSTORE
+1 ZSCORE ; 12 value_zset
+ZUNIONSTORE value_zset  value_zset 
+1 ZUNIONSTORE  ; 23  value_zset ; 35 value_zset

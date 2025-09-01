@@ -114,8 +114,7 @@ impl MongoDB {
         &self, col: &str, index: &str,
     ) -> anyhow::Result<()> {
         let db = self.get_db().await?;
-        db
-            .collection::<Document>(col)
+        db.collection::<Document>(col)
             .drop_search_index(index)
             .await?;
         anyhow::Ok(())

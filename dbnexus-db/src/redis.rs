@@ -63,7 +63,7 @@ impl RedisDB {
         let mut ret: AsyncIter<(Vec<u8>, f64)> =
             conn.zscan_match(key, where_str.unwrap_or("*")).await?;
         let mut key_values = Vec::new();
-
+        let mut has_more = false;
         while let Some(value) = ret.next().await {
             // try match
             if let Some(min) = min {
@@ -76,22 +76,28 @@ impl RedisDB {
                     continue;
                 }
             }
+            if key_values.len() >= Self::MAX_RETURNING {
+                has_more = true;
+                break;
+            }
             key_values.push((value.1, value.0));
         }
-        anyhow::Ok(QueryResp::new(
-            vec![
+        anyhow::Ok(QueryResp {
+            fields: vec![
                 Field::from_name_type("score", "f64"),
                 Field::from_name_type("key", "string"),
             ],
             total,
-            key_values
+            data: key_values
                 .into_iter()
                 .map(|(score, key)| {
                     vec![Some(score.to_string()), Some(hex::encode(key.as_slice()))]
                 })
                 .collect(),
-            None,
-        )?)
+            sql: None,
+            cache_time: None,
+            has_more,
+        })
     }
 }
 
@@ -660,6 +666,10 @@ impl ExportQueryResult for RedisDB {
     }
 }
 
+impl RedisDB {
+    pub const MAX_RETURNING: usize = 2000;
+}
+
 #[async_trait::async_trait]
 impl SchemaTrait for RedisDB {
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -810,7 +820,6 @@ impl SchemaTrait for RedisDB {
 
             RedisType::List => {
                 let r: Vec<Vec<u8>> = conn.lrange(key, 0, -1).await?;
-
                 anyhow::Ok(QueryResp::new(
                     vec![
                         Field::from_name_type("seq", "int"),
@@ -832,18 +841,25 @@ impl SchemaTrait for RedisDB {
                 let mut ret: AsyncIter<Vec<u8>> =
                     conn.sscan_match(key, where_str.unwrap_or("*")).await?;
                 let mut set_values = Vec::new();
+                let mut has_more = false;
                 while let Some(value) = ret.next().await {
+                    if set_values.len() >= Self::MAX_RETURNING {
+                        has_more = true;
+                        break;
+                    }
                     set_values.push(value);
                 }
-                anyhow::Ok(QueryResp::new(
-                    vec![Field::from_name_type("value", "string")],
+                anyhow::Ok(QueryResp {
+                    fields: vec![Field::from_name_type("value", "string")],
                     total,
-                    set_values
+                    data: set_values
                         .into_iter()
                         .map(|x| vec![Some(hex::encode(x.as_slice()))])
                         .collect(),
-                    format!("SSCAN {} 0 {}", key, where_str.unwrap_or("*")),
-                )?)
+                    sql: None,
+                    cache_time: None,
+                    has_more,
+                })
             }
             RedisType::Hash => {
                 let total: usize = conn.hlen(key).await?;
@@ -852,7 +868,12 @@ impl SchemaTrait for RedisDB {
                 let mut index = 0;
                 let mut key_values = Vec::new();
                 let mut value_values = Vec::new();
+                let mut has_more = false;
                 while let Some(value) = ret.next().await {
+                    if index >= Self::MAX_RETURNING << 1 {
+                        has_more = true;
+                        break;
+                    }
                     if index % 2 == 0 {
                         key_values.push(value.clone());
                     } else {
@@ -860,13 +881,13 @@ impl SchemaTrait for RedisDB {
                     }
                     index += 1;
                 }
-                anyhow::Ok(QueryResp::new(
-                    vec![
+                anyhow::Ok(QueryResp {
+                    fields: vec![
                         Field::from_name_type("key", "string"),
                         Field::from_name_type("value", "string"),
                     ],
                     total,
-                    key_values
+                    data: key_values
                         .into_iter()
                         .zip(value_values.into_iter())
                         .map(|(k, v)| {
@@ -876,8 +897,10 @@ impl SchemaTrait for RedisDB {
                             ]
                         })
                         .collect(),
-                    format!("HSCAN {} 0 {}", key, where_str.unwrap_or("*")),
-                )?)
+                    sql: None,
+                    cache_time: None,
+                    has_more,
+                })
             }
 
             RedisType::Zset => {

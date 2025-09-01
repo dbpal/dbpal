@@ -1,8 +1,8 @@
 use crate::cockroach::{COCKROACH_TYPES, CockRoachDB};
 
 use crate::language_server::{
-    CompletionItem, DBExecutable, ErrAndLoc, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_parser_completion,
+    AstCompletionHelper, CompletionItem, DBExecutable, ErrAndLoc, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, PostGresExtension, try_parser_dot_lexer,
 };
 use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
@@ -11,21 +11,58 @@ impl LanguageServer for CockRoachDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = try_parser_completion(sql, line, col, self.pg.as_ref()).await;
-        match r {
-            Ok(xs) => return Ok(xs),
-            Err(err) => {
-                log::error!("completion on ast failed,err:{}", err);
-            }
-        };
-        if !use_lexer {
-            log::warn!("disabled use lexer , we will return empty data.");
-            return anyhow::Ok(vec![]);
-        }
-        LexerCompletionTrait::do_auto_completion(self, sql).await
+        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
+
     fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         LanguageServer::parse_error(self.pg.as_ref(), sql)
+    }
+}
+
+#[async_trait::async_trait]
+impl AstCompletionHelper for CockRoachDB {
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::list_index(self.pg.as_ref(), schema).await
+    }
+
+    async fn postgres_list_extension(
+        &self, installed: bool,
+    ) -> anyhow::Result<Vec<PostGresExtension>> {
+        AstCompletionHelper::postgres_list_extension(self.pg.as_ref(), installed).await
+    }
+
+    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        AstCompletionHelper::get_query_columns(self.pg.as_ref(), sql).await
+    }
+
+    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::list_variable(self.pg.as_ref()).await
+    }
+
+    async fn table_policy(&self, schema: Option<&str>, table: &str) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::table_policy(self.pg.as_ref(), schema, table).await
+    }
+
+    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::list_role(self.pg.as_ref()).await
+    }
+    async fn list_user(&self) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::list_user(self.pg.as_ref()).await
+    }
+    async fn list_postgres_rule(
+        &self, schema: Option<&str>, table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::list_postgres_rule(self.pg.as_ref(), schema, table).await
+    }
+    async fn list_constraint(
+        &self, schema: Option<&str>, table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::list_constraint(self.pg.as_ref(), schema, table_name).await
+    }
+    async fn list_table_trigger(
+        &self, schema: Option<&str>, table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        AstCompletionHelper::list_table_trigger(self.pg.as_ref(), schema, table).await
     }
 }
 
