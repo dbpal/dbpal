@@ -24,6 +24,7 @@ import {
   DataSourceKind,
   generateRandomString,
   makeExecuteSql,
+  makeGetParserErrr,
   MatchPatternContext,
   maxTreeSize,
   secondConfirm,
@@ -173,6 +174,7 @@ function ProcedureMenu(props: {
                 }}
                 executeOP={makeExecuteSql(uuid)}
                 language={uuid}
+                getParseErr={makeGetParserErrr(uuid)}
               ></DefAndMetasView>
             ),
             <SiProcessingfoundation></SiProcessingfoundation>

@@ -14,11 +14,11 @@ use tokio::sync::Mutex;
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
     BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    CreateTableAndIndexSql, CreatedType, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
+    CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
     Field, GetBackendKind, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff,
     POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
     SequenceDetail, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, not_support_feature,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
@@ -543,16 +543,13 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
-        // TODO
-        not_support_feature(self.backend_name())
+    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
+        self.list_created_types_impl(self.config.schema_str()).await
     }
-
-    async fn drop_created_type(&self, typ: &str) -> anyhow::Result<()> {
-        let sql = format!(r#"DROP TYPE  "{}"."{typ}" "#, self.config.schema_str());
+    async fn drop_created_type(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!(r#"DROP TYPE  "{}"."{name}" "#, self.config.schema_str());
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
             .await?;
@@ -1514,6 +1511,90 @@ impl SchemaTrait for PostGresDB {
 }
 
 impl PostGresDB {
+    pub(crate) async fn list_created_types_impl(
+        &self, schema: &str,
+    ) -> anyhow::Result<Vec<CreatedTypeDef>> {
+        let sql = format!(
+            r#"
+        SELECT
+        t.typname AS type_name,
+        CASE
+            WHEN t.typtype = 'e' THEN
+                'CREATE TYPE ' || quote_ident(n.nspname) || '.' || quote_ident(t.typname) ||
+                ' AS ENUM (' ||
+                string_agg(quote_literal(e.enumlabel), ', ' ORDER BY e.enumsortorder) ||
+                ');'
+
+            WHEN t.typtype = 'c' THEN
+                'CREATE TYPE ' || quote_ident(n.nspname) || '.' || quote_ident(t.typname) ||
+                ' AS (' ||
+                string_agg(
+                    quote_ident(a.attname) || ' ' ||
+                    pg_catalog.format_type(a.atttypid, a.atttypmod) ||
+                    CASE WHEN a.attnotnull THEN ' NOT NULL' ELSE '' END,
+                    ', ' ORDER BY a.attnum
+                ) ||
+                ');'
+
+            WHEN t.typtype = 'd' THEN
+                'CREATE DOMAIN ' || quote_ident(n.nspname) || '.' || quote_ident(t.typname) ||
+                ' AS ' ||
+                pg_catalog.format_type(t.typbasetype, -1) ||
+                CASE WHEN t.typnotnull THEN ' NOT NULL' ELSE '' END ||
+                COALESCE(
+                    (SELECT ' CHECK (' || pg_get_constraintdef(con.oid) || ')'
+                    FROM pg_constraint con
+                    WHERE con.contypid = t.oid),
+                    ''
+                ) || ';'
+
+            WHEN t.typtype = 'r' THEN
+                'CREATE TYPE ' || quote_ident(n.nspname) || '.' || quote_ident(t.typname) ||
+                ' AS RANGE (subtype = ' ||
+                (SELECT pg_catalog.format_type(rngsubtype, -1)
+                FROM pg_range WHERE rngtypid = t.oid) ||
+                (SELECT COALESCE(' collation = ' || quote_ident(collname), '')
+                FROM pg_range
+                LEFT JOIN pg_collation c ON c.oid = rngcollation
+                WHERE rngtypid = t.oid) ||
+                (SELECT CASE WHEN rngcanonical::text <> '-' THEN ' canonical = ' || rngcanonical::text ELSE '' END
+                FROM pg_range WHERE rngtypid = t.oid) ||
+                (SELECT CASE WHEN rngsubdiff::text   <> '-' THEN ' subtype_diff = ' || rngsubdiff::text   ELSE '' END
+                FROM pg_range WHERE rngtypid = t.oid) ||
+                ');'
+
+            ELSE
+                '-- unsupported type --'
+                END AS create_sql
+            FROM pg_catalog.pg_type t
+            JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+            LEFT JOIN pg_catalog.pg_enum e ON t.oid = e.enumtypid
+            LEFT JOIN pg_catalog.pg_class c ON c.oid = t.typrelid AND c.relkind = 'c'
+            LEFT JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+            WHERE t.typtype IN ('c', 'd', 'e', 'r')
+            AND n.nspname = 'xxx'   -- 把 {} 换成目标 schema，如 'public'
+            AND t.typisdefined
+            GROUP BY n.nspname, t.typname, t.oid, t.typowner, t.typtype
+            ORDER BY type_name;
+        "#,
+            schema
+        );
+
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            let def: Option<String> = row.try_get(1)?;
+            ret.push(CreatedTypeDef { name, sql: def });
+        }
+        anyhow::Ok(ret)
+    }
+}
+impl PostGresDB {
     pub(crate) async fn query_count(
         &self, name: &str, where_str: Option<&str>,
     ) -> anyhow::Result<usize> {
@@ -2048,26 +2129,26 @@ mod tests {
     use crate::enable_test_log;
     use std::collections::HashMap;
 
-    // #[tokio::test]
-    // async fn test_list_created_types() {
-    //     let db = make_test_object().await;
-    //     let _ = db.drop_created_type("test_type").await;
-    //     let query_id = db.open_connection().await.unwrap();
+    #[tokio::test]
+    async fn test_list_created_types() {
+        let db = make_test_object().await;
+        let _ = db.drop_created_type("test_type").await;
+        let query_id = db.open_connection().await.unwrap();
 
-    //     let _resp = db
-    //         .query_sql(
-    //             query_id,
-    //             r#"
-    //     CREATE TYPE test_type AS ENUM ('value1', 'value2', 'value3');"#,
-    //         )
-    //         .await
-    //         .unwrap();
-    //     assert!(_resp.iter().all(|x| x.is_ok()), "resp:{:?}", _resp);
-    //     let list = db.list_created_types().await.unwrap();
-    //     for l in list.iter() {
-    //         println!("create type:{:?}", l);
-    //     }x
-    // }
+        let _resp = db
+            .query_sql(
+                query_id,
+                r#"
+            CREATE TYPE test_type AS ENUM ('value1', 'value2', 'value3');"#,
+            )
+            .await
+            .unwrap();
+        assert!(_resp.iter().all(|x| x.is_ok()), "resp:{:?}", _resp);
+        let list = db.list_created_types().await.unwrap();
+        for l in list.iter() {
+            println!("create type:{:?}", l);
+        }
+    }
 
     #[tokio::test]
     async fn test_procedure() {

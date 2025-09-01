@@ -1,4 +1,4 @@
-use crate::db::{AutoCompletionQueryUuid, CatalogTrait};
+use crate::db::{AutoCompletionQueryUuid, CatalogTrait, CreatedTypeDef};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
     LanguageServer, LexerCompletionTrait, PostGresExtension, try_parser_dot_lexer,
@@ -20,6 +20,12 @@ impl PostGresDB {
             return schema.map(|x| x.to_string());
         }
         self.config.schema.as_ref().map(|x| x.to_string())
+    }
+    fn not_allow_empty_schema(&self, schema: Option<&str>) -> anyhow::Result<String> {
+        match self.schema_merge_config(schema) {
+            Some(x) => anyhow::Ok(x),
+            None => anyhow::bail!("not allow empty schema"),
+        }
     }
     const SCHEMA_CATALOG: &str = "pg_catalog";
 }
@@ -315,6 +321,10 @@ impl AstCompletionHelper for PostGresDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for PostGresDB {
+    async fn list_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
+        let schema = self.not_allow_empty_schema(schema)?;
+        self.list_created_types_impl(&schema).await
+    }
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         CatalogTrait::list_database(self).await
     }

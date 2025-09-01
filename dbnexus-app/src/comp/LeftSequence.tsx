@@ -33,6 +33,7 @@ import {
   ContextMenuContext,
   DataSourceKind,
   makeExecuteSql,
+  makeGetParserErrr,
   MatchPatternContext,
   maxTreeSize,
   secondConfirm,
@@ -186,6 +187,7 @@ function SequenceMenu(props: {
                 }}
                 executeOP={makeExecuteSql(uuid)}
                 language={uuid}
+                getParseErr={makeGetParserErrr(uuid)}
               ></DefAndMetasView>
             ),
             <GiProgression></GiProgression>

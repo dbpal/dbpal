@@ -7,7 +7,7 @@ use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::cockroach::CockRoachDB;
 use dbnexus_db::db::{
     AutoCompletionQueryUuid, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    CreateTableAndIndexSql, CreatedType, DefAndMetas, ExportKind, Field, Index, IndexKind,
+    CreateTableAndIndexSql, CreatedTypeDef, DefAndMetas, ExportKind, Field, Index, IndexKind,
     ListTable, NamedStaff, ProcedureDetail, QueryResp, SequenceDetail, ShowExtraArgs,
     SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
 };
@@ -654,7 +654,7 @@ pub async fn show_view_columns(
 #[tauri::command]
 pub async fn list_created_types(
     name: String, app: tauri::State<'_, App>,
-) -> Result<Vec<CreatedType>, ErrorFrontend> {
+) -> Result<Vec<CreatedTypeDef>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;

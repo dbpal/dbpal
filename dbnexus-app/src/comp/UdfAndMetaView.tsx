@@ -1,21 +1,23 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 
 import { NotificationContext } from './Notification';
-import { Button, IconButton, Stack, Tooltip, Typography } from '@mui/material';
+import { Button, Stack, Tooltip, Typography } from '@mui/material';
 import { DefAndMetas, SimpleFlexSizeEditor } from './Common';
-import { MetaValuesView } from './CommonComp';
-import { getEditorText, saveAndSetSize } from './helper';
-import { FaExclamation } from 'react-icons/fa';
+import { MetaValuesView, PossibleParseError } from './CommonComp';
+import { ErrAndLoc, getEditorText, saveAndSetSize } from './helper';
 import { MultiQueryResp } from './QueryResp';
 import { editor } from 'monaco-editor';
+
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
   executeOP: (sql: string) => Promise<any>;
+  getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
   language: string;
   showReload?: boolean;
   heightName?: string;
 }) {
-  let { reloadOP, language, showReload, heightName, executeOP } = props;
+  let { reloadOP, language, showReload, heightName, executeOP, getParseErr } =
+    props;
   const titleVariant = 'h6';
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas>({
@@ -26,6 +28,7 @@ function DefAndMetasView(props: {
   const [queryResp, setQueryResp] = useState<any[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [executeLoading, setExecuteLoading] = useState(false);
+  const [parseErr, setParseErr] = useState<ErrAndLoc>(null);
   const handleReload = (showok) => {
     setLoading(true);
     reloadOP()
@@ -87,14 +90,20 @@ function DefAndMetasView(props: {
             reload
           </Button>
         )}
-        <Tooltip title="execute sql">
-          <IconButton loading={executeLoading}>
-            <FaExclamation
-              onClick={() => {
-                handleExecute();
-              }}
-            ></FaExclamation>
-          </IconButton>
+        <Tooltip title="execute the sql">
+          <Button
+            loading={executeLoading}
+            color="error"
+            style={{
+              minWidth: '3rem',
+            }}
+            onClick={() => {
+              handleExecute();
+            }}
+            variant="contained"
+          >
+            execute
+          </Button>
         </Tooltip>
       </Stack>
       {detail.def && (
@@ -113,6 +122,19 @@ function DefAndMetasView(props: {
             language={language}
             value={detail.def}
             editorRef={editor}
+            handleValue={(sql) => {
+              getParseErr(sql).then((e) => {
+                setParseErr(e);
+              });
+            }}
+            barLeft=<Stack direction="row" flex={1}>
+              {parseErr && (
+                <PossibleParseError
+                  parseErr={parseErr}
+                  editor={editor.current}
+                ></PossibleParseError>
+              )}
+            </Stack>
           ></SimpleFlexSizeEditor>
         </div>
       )}

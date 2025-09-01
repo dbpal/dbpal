@@ -29,7 +29,7 @@
 use crate::MemoryLimit;
 use crate::datasource_config::CassandraDBConfig;
 use crate::db::{
-    BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedType,
+    BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef,
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
     ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
     ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter,
@@ -1269,14 +1269,15 @@ impl SchemaTrait for CassandraDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
-    async fn drop_created_type(&self, typ: &str) -> anyhow::Result<()> {
-        let sql = format!("DROP TYPE  {typ}");
+
+    async fn drop_created_type(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!("DROP TYPE  {name}");
         log::info!("sql:{}", sql);
         self.session.query(sql).await?;
         anyhow::Ok(())
     }
 
-    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
+    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
         let sql = format!(
             "SELECT type_name FROM system_schema.types where  keyspace_name = '{}'",
             self.config.key_space_str()
@@ -1309,9 +1310,9 @@ impl SchemaTrait for CassandraDB {
                 anyhow::bail!("describe type should return one result.")
             }
             let create_statement: Option<String> = deccribe_rows[0].get_by_index(3)?;
-            ret.push(CreatedType {
+            ret.push(CreatedTypeDef {
                 name,
-                sql: create_statement.unwrap_or_default(),
+                sql: create_statement,
             });
         }
         anyhow::Ok(ret)

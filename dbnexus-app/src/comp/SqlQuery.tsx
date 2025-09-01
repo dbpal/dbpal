@@ -12,7 +12,6 @@ import {
   Stack,
   TextField,
   Tooltip,
-  Typography,
 } from '@mui/material';
 
 import CloseIcon from '@mui/icons-material/Close';
@@ -47,7 +46,6 @@ import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import {
   DataSourceKind,
-  editorSetPositonAndReveal,
   ErrAndLoc,
   getEditorText,
   SaveSizesToStore,
@@ -60,6 +58,7 @@ import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRound
 import { ExportView } from './Export.tsx';
 import { CiTimer } from 'react-icons/ci';
 import { invoke } from '@tauri-apps/api/core';
+import { PossibleParseError } from './CommonComp.tsx';
 
 const fileFilter = {
   filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
@@ -771,31 +770,10 @@ function SqlQuery(props: {
               direction="row"
             >
               {parseErr && (
-                <Tooltip title="possible error" arrow>
-                  <Typography
-                    style={{
-                      cursor: parseErr.line && parseErr.column && 'pointer',
-                      width: '100px',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      flex: 1,
-                    }}
-                    onClick={() => {
-                      if (!parseErr) {
-                        return;
-                      }
-                      if (parseErr.line && parseErr.column) {
-                        editorSetPositonAndReveal(
-                          editor.current,
-                          new Position(parseErr.line, parseErr.column)
-                        );
-                      }
-                    }}
-                  >
-                    {parseErr.msg}
-                  </Typography>
-                </Tooltip>
+                <PossibleParseError
+                  parseErr={parseErr}
+                  editor={editor.current}
+                ></PossibleParseError>
               )}
             </Stack>
           }

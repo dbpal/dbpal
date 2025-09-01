@@ -1,4 +1,5 @@
 import { types } from './ApiStruct.ts';
+import { ErrAndLoc } from './helper.ts';
 import { DefAndMetasView } from './UdfAndMetaView.tsx';
 
 function triggerDetailsToMetas(x: types.TriggerDetail): types.MetaValue[] {
@@ -33,8 +34,9 @@ function TriggerDetail(props: {
   reloadOP: () => Promise<types.TriggerDetail>;
   executeOP: (sql: string) => Promise<any>;
   uuid: string;
+  getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
 }) {
-  const { reloadOP, uuid: language, executeOP } = props;
+  const { reloadOP, uuid: language, executeOP, getParseErr } = props;
 
   return (
     <DefAndMetasView
@@ -49,6 +51,7 @@ function TriggerDetail(props: {
           };
         });
       }}
+      getParseErr={getParseErr}
       executeOP={executeOP}
     ></DefAndMetasView>
   );

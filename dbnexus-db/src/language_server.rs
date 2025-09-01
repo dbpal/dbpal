@@ -6,7 +6,7 @@ use sqlparser::tokenizer::{Location, Token};
 use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
 
-use crate::db::{GetBackendKind, not_support_feature};
+use crate::db::{CreatedTypeDef, GetBackendKind, not_support_feature};
 use crate::sqlparser_completion::{CompletionStatement, TempTableColumn};
 
 #[async_trait::async_trait]
@@ -295,19 +295,13 @@ pub trait LexerCompletionTrait: LangServerCommon {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct ListType {
-    pub(crate) name: String,
-    pub(crate) statement: Option<String>,
-}
-
-impl From<ListType> for CompletionItem {
-    fn from(value: ListType) -> Self {
-        let ListType { name, statement } = value;
+impl From<CreatedTypeDef> for CompletionItem {
+    fn from(value: CreatedTypeDef) -> Self {
+        let CreatedTypeDef { name, sql } = value;
         Self {
             item: name.into(),
             kind: CompletionKind::Type,
-            desc: statement.map(|x| x.into()),
+            desc: sql.map(|x| x.into()),
         }
     }
 }
@@ -332,7 +326,7 @@ impl From<PostGresExtension> for CompletionItem {
 #[async_trait::async_trait]
 
 pub trait LangServerCommon: GetBackendKind {
-    async fn list_type(&self, _schema: Option<&str>) -> anyhow::Result<Vec<ListType>> {
+    async fn list_type(&self, _schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
         anyhow::Ok(vec![])
     }
 

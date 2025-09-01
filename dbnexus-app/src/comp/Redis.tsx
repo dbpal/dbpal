@@ -949,6 +949,7 @@ function RedisSetTable(props: {
           reload
         </Button>
         <DoubleClickToModify></DoubleClickToModify>
+        {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
       </Stack>
 
       {resp && vis && (
@@ -969,6 +970,7 @@ function RedisSetTable(props: {
             checkboxSelection={false}
             onRowDoubleClick={onRowDoubleClick}
             columns={resp.fields}
+            paginationMode="client"
             disableColumnFilter
           ></DataGrid>
         </div>
@@ -1501,7 +1503,7 @@ function RedisZsetTable(props: {
           onChange={(event) => {
             setKeyMatch(event.target.value);
           }}
-          style={{ width: '35%' }}
+          style={{ flex: 1 }}
         />
         <TextField
           size="small"
@@ -1517,6 +1519,7 @@ function RedisZsetTable(props: {
             }
             setMin(event.target.value);
           }}
+          style={{ flex: 1 }}
         />
         <TextField
           size="small"
@@ -1532,6 +1535,7 @@ function RedisZsetTable(props: {
             }
             setMax(event.target.value);
           }}
+          style={{ flex: 1 }}
         />
         <Button
           variant="contained"
@@ -1544,6 +1548,7 @@ function RedisZsetTable(props: {
           reload
         </Button>
         <DoubleClickToModify></DoubleClickToModify>
+        {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
       </Stack>
 
       {resp && vis && (
@@ -1567,6 +1572,7 @@ function RedisZsetTable(props: {
             onRowDoubleClick={onRowDoubleClick}
             columns={resp.fields}
             disableColumnFilter
+            paginationMode="client"
           ></DataGrid>
         </div>
       )}
@@ -1645,6 +1651,17 @@ function RedisHashTableContextMenu(props: { delOP: () => void; content }) {
         </MenuItem>
       </MenuList>
     </div>
+  );
+}
+
+function NotReturnAllErr(props: { has_more: boolean }) {
+  const { has_more } = props;
+  return (
+    has_more && (
+      <Tooltip title="exceed max retrun value size,some result not retruned">
+        <Typography color="error"> some key not found? </Typography>
+      </Tooltip>
+    )
   );
 }
 
@@ -1764,7 +1781,7 @@ function RedisHashTable(props: {
         <TextField
           size="small"
           label="key match could be *key,key*,*key*"
-          variant="outlined" // 可以是 'outlined', 'filled', or 'standard'
+          variant="outlined"
           value={keyMatch}
           onChange={(event) => {
             setKeyMatch(event.target.value);
@@ -1772,8 +1789,8 @@ function RedisHashTable(props: {
           style={{ width: '35%' }}
         />
         <Button
-          variant="contained" // 可以是 'text', 'outlined', 或 'contained'
-          color="primary" // 主题颜色
+          variant="contained"
+          color="primary"
           onClick={() => {
             handleReload(true);
           }} // 点击事件处理
@@ -1782,6 +1799,7 @@ function RedisHashTable(props: {
           reload
         </Button>
         <DoubleClickToModify></DoubleClickToModify>
+        {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
       </Stack>
 
       {resp && vis && (
@@ -1804,6 +1822,7 @@ function RedisHashTable(props: {
             editMode="row"
             onRowDoubleClick={onRowDoubleClick}
             columns={resp.fields}
+            paginationMode="client"
             disableColumnFilter
           ></DataGrid>
         </div>

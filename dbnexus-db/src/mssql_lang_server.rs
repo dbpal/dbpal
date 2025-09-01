@@ -1,4 +1,8 @@
-use crate::db::CatalogTrait;
+/*
+    在 SQL Server 里，只有 dbo 这个默认 schema 下的对象可以“省略 schema 前缀”直接访问；其余自定义 schema 都必须显式写  schema.object 。
+*/
+
+use crate::db::{CatalogTrait, CreatedTypeDef};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
     LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
@@ -30,6 +34,43 @@ impl LanguageServer for MsSqlServerDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for MsSqlServerDB {
+    async fn list_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
+        let schema = schema.unwrap_or(Self::DBO_SCHEMA);
+        let sql = format!(
+            r#"
+            SELECT
+                s.name AS schema_name,
+                t.name AS type_name
+            FROM sys.types AS t
+            JOIN sys.schemas AS s ON t.schema_id = s.schema_id
+            WHERE t.is_user_defined = 1
+            AND s.name = '{}';   -- 把 dbo 换成目标 schema
+
+        "#,
+            schema
+        );
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut stream = conn.simple_query(&sql).await?;
+
+        let mut ret = vec![];
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                QueryItem::Row(row) => {
+                    let name: Option<&str> = row.try_get(0)?;
+                    if let Some(name) = name {
+                        ret.push(CreatedTypeDef {
+                            name: name.to_string(),
+                            sql: None,
+                        });
+                    }
+                }
+                QueryItem::Metadata(..) => {}
+            }
+        }
+        anyhow::Ok(ret)
+    }
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         CatalogTrait::list_database(self).await
     }
@@ -80,6 +121,7 @@ impl LangServerCommon for MsSqlServerDB {
                 })
             })?
             .collect::<Vec<_>>();
+
         if include_build_in {
             ret.extend(SQLSERVER_FUNCTIONS.iter().map(|x| CompletionItem {
                 item: (*x).into(),
@@ -115,21 +157,22 @@ impl LangServerCommon for MsSqlServerDB {
     }
 
     async fn list_execute(&self, schema: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
-        let mut x = self.list_procedure_impl(Self::DBO_SCHEMA).await?;
-        let b = self.list_procedure_impl(Self::SYS_SCHEMA).await?;
+        let mut ret: Vec<crate::db::NamedStaff> =
+            self.list_procedure_impl(Self::DBO_SCHEMA).await?;
+        let sys_procedures = self.list_procedure_impl(Self::SYS_SCHEMA).await?;
         match schema {
             Some(schema) => match schema {
-                Self::SYS_SCHEMA => x = b,
+                Self::SYS_SCHEMA => ret = sys_procedures,
                 _ => {
-                    x.extend(b.into_iter());
+                    ret.extend(sys_procedures.into_iter());
                 }
             },
             None => {
-                x.extend(b.into_iter());
+                ret.extend(sys_procedures.into_iter());
             }
         };
         anyhow::Ok(
-            x.into_iter()
+            ret.into_iter()
                 .map(|x| DBExecutable {
                     name: x.name,
                     statement: None,

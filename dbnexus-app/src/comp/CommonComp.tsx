@@ -46,6 +46,8 @@ import {
   columnWidths,
   ContextMenuContext,
   DataSourceKind,
+  editorSetPositonAndReveal,
+  ErrAndLoc,
   errToString,
   FavoriteSql,
   generateRandomString,
@@ -60,6 +62,7 @@ import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
 import { getNamedConfig } from './Common';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
+import { editor, Position } from 'monaco-editor';
 
 const LogLevelSelection = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];
@@ -665,6 +668,40 @@ function UdfNameAndParameters(props: {
     </>
   );
 }
+function PossibleParseError(props: {
+  parseErr: ErrAndLoc;
+  editor: editor.IStandaloneCodeEditor;
+}) {
+  const { parseErr, editor } = props;
+
+  return (
+    <Tooltip title="possible error" arrow>
+      <Typography
+        style={{
+          cursor: parseErr.line && parseErr.column && 'pointer',
+          width: '100px',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          flex: 1,
+        }}
+        onClick={() => {
+          if (!parseErr) {
+            return;
+          }
+          if (parseErr.line && parseErr.column) {
+            editorSetPositonAndReveal(
+              editor,
+              new Position(parseErr.line, parseErr.column)
+            );
+          }
+        }}
+      >
+        {parseErr.msg}
+      </Typography>
+    </Tooltip>
+  );
+}
 
 export {
   LogLevelSelection,
@@ -686,4 +723,5 @@ export {
   ViewRowInModal,
   ExceedMaxTreeItem,
   UdfNameAndParameters,
+  PossibleParseError,
 };

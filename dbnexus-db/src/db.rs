@@ -297,10 +297,11 @@ pub trait SchemaTrait:
             .any(|x| x.name.eq_ignore_ascii_case(table));
         anyhow::Ok(e)
     }
-    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedType>> {
+    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
         not_support_feature(self.backend_name())
     }
-    async fn drop_created_type(&self, _typ: &str) -> anyhow::Result<()> {
+
+    async fn drop_created_type(&self, _name: &str) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
 
@@ -566,9 +567,9 @@ pub trait SqlBuilder: GetBackendKind {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct CreatedType {
+pub struct CreatedTypeDef {
     pub name: String,
-    pub sql: String,
+    pub sql: Option<String>,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]

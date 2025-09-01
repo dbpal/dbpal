@@ -1597,24 +1597,22 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
         db.drop_schema("db11").await.unwrap();
     }
-
     #[ignore = "run me by hand"]
     #[tokio::test]
     async fn test_check_alot_of_key() {
         let db = make_test_object().await;
         crate::db::CheckConn::check_conn(&db).await.unwrap();
-        // let query_id = db.open_connection().await.unwrap();
+        let query_id = db.open_connection().await.unwrap();
+        for i in 0..100000 {
+            db.query_sql(
+                query_id,
+                format!("set test_alot_of_key{} {}", i, i).as_str(),
+            )
+            .await
+            .unwrap();
 
-        // for i in 0..100000 {
-        //     db.query_sql(
-        //         query_id,
-        //         format!("set test_alot_of_key{} {}", i, i).as_str(),
-        //     )
-        //     .await
-        //     .unwrap();
-
-        //     println!("{}", i);
-        // }
+            println!("{}", i);
+        }
         let now = std::time::Instant::now();
         let x = db.redis_list_table(None, 100).await.unwrap();
         println!("used{:?} key_len:{}", now.elapsed(), x.string_tables.len());
@@ -1627,10 +1625,52 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let key_name = "large_list";
             let _ = db.drop_table(key_name, false).await;
             let query_id = db.open_connection().await.unwrap();
-            for i in 0..1550 {
+            for i in 0..3000 {
                 db.query_sql(
                     query_id,
                     format!(r#"RPUSH {} data{}"#, key_name, i).as_str(),
+                )
+                .await
+                .unwrap();
+            }
+        }
+        {
+            // large set
+            let db = make_test_object().await;
+            let key_name = "large_set";
+            let _ = db.drop_table(key_name, false).await;
+            let query_id = db.open_connection().await.unwrap();
+            for i in 0..3000 {
+                db.query_sql(query_id, format!(r#"sadd {} data{}"#, key_name, i).as_str())
+                    .await
+                    .unwrap();
+            }
+        }
+        {
+            // large zset
+            let db = make_test_object().await;
+            let key_name = "large_zset";
+            let _ = db.drop_table(key_name, false).await;
+            let query_id = db.open_connection().await.unwrap();
+            for i in 0..3000 {
+                db.query_sql(
+                    query_id,
+                    format!(r#"ZADD {} {} data{}"#, key_name, i, i).as_str(),
+                )
+                .await
+                .unwrap();
+            }
+        }
+        {
+            // large hash
+            let db = make_test_object().await;
+            let key_name = "large_hash";
+            let _ = db.drop_table(key_name, false).await;
+            let query_id = db.open_connection().await.unwrap();
+            for i in 0..3000 {
+                db.query_sql(
+                    query_id,
+                    format!(r#"HMSET {} key{} value{}"#, key_name, i, i).as_str(),
                 )
                 .await
                 .unwrap();

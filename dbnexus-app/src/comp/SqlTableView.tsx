@@ -367,6 +367,7 @@ function SqlTableView_(props: {
     data: [],
     total: 0,
     cache_time: null,
+    has_more: false,
   });
   const { showNotification } = useContext(NotificationContext);
   const [lastLoadTime, setLastLoadTime] = useState(new Date());

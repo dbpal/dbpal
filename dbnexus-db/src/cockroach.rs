@@ -10,9 +10,9 @@ use sqlx::{AssertSqlSafe, Postgres, Row};
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
     BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
-    ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind,
+    Index, IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp,
+    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     UdfOrProcedureExtraParameter,
 };
 use crate::helper::is_dangerous_sql_by_parser;
@@ -230,6 +230,12 @@ pub(crate) const COCKROACH_TYPES: &[&str] = &[
 #[async_trait::async_trait]
 
 impl SchemaTrait for CockRoachDB {
+    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
+        self.pg.list_created_types().await
+    }
+    async fn drop_created_type(&self, name: &str) -> anyhow::Result<()> {
+        self.pg.drop_created_type(name).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         self.pg.list_sql_current_values()
     }

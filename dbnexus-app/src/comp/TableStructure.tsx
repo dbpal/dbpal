@@ -21,12 +21,12 @@ import {
   gridStyle,
   handleCopyToClipboard,
   makeExecuteSql,
+  makeGetParserErrr,
   saveAndSetSize,
   secondConfirm,
   SettingContext,
   VisiableContext,
 } from './helper';
-import CloseIcon from '@mui/icons-material/Close';
 import CancelIcon from '@mui/icons-material/Cancel';
 import { NotificationContext } from './Notification';
 import { invoke } from '@tauri-apps/api/core';
@@ -1030,6 +1030,7 @@ function TableAddColumn(props: {
         handleChange={(e) => {
           setTyp(e);
         }}
+        type={typ}
       ></TableTypes>
       {/*   TODO some mariadb require a length parameter    */}
       <Stack direction="row" spacing={1}>
@@ -1114,51 +1115,48 @@ function SqlDefaultValue(props: {
   }, []);
 
   return (
-    <Stack spacing={1}>
-      <Stack direction="row">
-        <TextField
-          label="default value"
-          value={defaultValue}
-          onChange={(e) => {
-            setDefautlValue(e.target.value);
-          }}
-          fullWidth
+    <Stack direction="row" spacing={1}>
+      <TextField
+        label="default value"
+        value={defaultValue}
+        onChange={(e) => {
+          setDefautlValue(e.target.value);
+        }}
+        style={{ flex: 1 }}
+        size="small"
+        slotProps={{
+          input: {
+            endAdornment: defaultValue && (
+              <InputAdornment position="end">
+                <IconButton
+                  aria-label="clear"
+                  onClick={() => {
+                    setDefautlValue('');
+                  }}
+                  edge="end"
+                  size="small"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+      ></TextField>
+      <FormControl style={{ flex: 1 }}>
+        <InputLabel>current values </InputLabel>
+        <Select
           size="small"
-          slotProps={{
-            input: {
-              endAdornment: defaultValue && (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="clear"
-                    onClick={() => {
-                      setDefautlValue('');
-                    }}
-                    edge="end"
-                    size="small"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
-        ></TextField>
-
-        <FormControl style={{ width: '400px' }}>
-          <InputLabel>current values </InputLabel>
-          <Select
-            size="small"
-            value={defaultValue}
-            label="font family"
-            onChange={(e) => setDefautlValue(e.target.value as string)}
-          >
-            <MenuItem value="">empty </MenuItem>
-            {currentValue.map((e) => {
-              return <MenuItem value={e}>{e}</MenuItem>;
-            })}
-          </Select>
-        </FormControl>
-      </Stack>
+          value={defaultValue}
+          label="font family"
+          onChange={(e) => setDefautlValue(e.target.value as string)}
+        >
+          <MenuItem value="">empty </MenuItem>
+          {currentValue.map((e) => {
+            return <MenuItem value={e}>{e}</MenuItem>;
+          })}
+        </Select>
+      </FormControl>
     </Stack>
   );
 }
@@ -1248,6 +1246,7 @@ function ModifyTableColumn(props: {
             handleChange={(e) => {
               setNewTyp(e);
             }}
+            type={typ}
           ></TableTypes>
 
           <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
@@ -1284,10 +1283,10 @@ function ModifyTableColumn(props: {
   );
 }
 
-function TableTypes(props: { handleChange; uuid }) {
-  let { handleChange, uuid } = props;
+function TableTypes(props: { handleChange; uuid; type }) {
+  let { handleChange, uuid, type } = props;
   const [types, setTypes] = useState<string[]>([]);
-  const [show, setShow] = useState(false);
+
   const [match, setMatch] = useState('');
   useEffect(() => {
     invoke<string[]>('list_data_types', { name: uuid })
@@ -1298,51 +1297,45 @@ function TableTypes(props: { handleChange; uuid }) {
         console.log('should not return a error', e);
       });
   }, []);
-  const toggleShow = () => {
-    setShow((e) => !e);
-  };
   return (
     <Stack
       direction="row"
       spacing={1}
       style={{ flexWrap: 'wrap', alignItems: 'center' }}
     >
-      <Button onClick={toggleShow}>
-        {show && <CloseIcon></CloseIcon>} all types
-      </Button>
-      {show && (
-        <TextField
-          size="small"
-          style={{ width: '14rem' }}
-          label="type match"
-          value={match}
+      <TextField
+        size="small"
+        style={{ width: '16rem' }}
+        label="type match"
+        value={match}
+        onChange={(e) => {
+          setMatch(e.target.value);
+        }}
+      ></TextField>
+      <FormControl style={{ flex: 1 }}>
+        <InputLabel>select type</InputLabel>
+        <Select
+          value={type}
           onChange={(e) => {
-            setMatch(e.target.value);
+            handleChange(e.target.value as string);
           }}
-        ></TextField>
-      )}
-
-      {show &&
-        types
-          .filter((type) => {
-            if (match) {
-              return type.toLowerCase().includes(match.toLowerCase());
-            } else {
-              return true;
-            }
-          })
-          .map((type) => (
-            <Chip
-              color="info"
-              key={type}
-              style={{ margin: '1px' }}
-              size="small"
-              onClick={() => {
-                handleChange(type);
-              }}
-              label={type}
-            ></Chip>
-          ))}
+          size="small"
+        >
+          {types
+            .filter((type) => {
+              if (match) {
+                return type.toLowerCase().includes(match.toLowerCase());
+              } else {
+                return true;
+              }
+            })
+            .map((type) => (
+              <MenuItem key={type} value={type}>
+                {type}
+              </MenuItem>
+            ))}
+        </Select>
+      </FormControl>
     </Stack>
   );
 }
@@ -1636,6 +1629,7 @@ function TriggersStructure(props: {
                 return Promise.resolve(row);
               }}
               uuid={uuid}
+              getParseErr={makeGetParserErrr(uuid)}
               executeOP={makeExecuteSql(uuid)}
             ></TriggerDetail>
           </Box>
@@ -1786,6 +1780,7 @@ function StatementStructure(props: {
         }}
         executeOP={makeExecuteSql(uuid)}
         language={uuid}
+        getParseErr={makeGetParserErrr(uuid)}
       ></DefAndMetasView>
     </Stack>
   );

@@ -25,6 +25,7 @@ import {
   ContextMenuContext,
   DataSourceKind,
   makeExecuteSql,
+  makeGetParserErrr,
   MatchPatternContext,
   maxTreeSize,
   secondConfirm,
@@ -176,6 +177,7 @@ function UdfMenu(props: {
                 }}
                 executeOP={makeExecuteSql(uuid)}
                 language={uuid}
+                getParseErr={makeGetParserErrr(uuid)}
               ></DefAndMetasView>
             ),
             <TbMathFunction></TbMathFunction>
@@ -270,6 +272,7 @@ function CassandraAggregateMenu(props: {
                 }}
                 executeOP={makeExecuteSql(uuid)}
                 language={uuid}
+                getParseErr={makeGetParserErrr(uuid)}
               ></DefAndMetasView>
             ),
             <MdFunctions></MdFunctions>
