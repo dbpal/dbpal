@@ -27,6 +27,7 @@
     "@tauri-apps/plugin-os": "~2.3",
     "@tauri-apps/plugin-process": "~2.3.0",
     "@tauri-apps/plugin-shell": "^2.2.0",
+    "@tauri-apps/plugin-sql": "~2.3.0",
     "@tauri-apps/plugin-store": "~2.4",
     "@types/vscode": "^1.96.0",
     "bson": "^6.10.1",

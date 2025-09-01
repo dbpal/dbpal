@@ -6,8 +6,13 @@ import { load } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
 import { BSON, EJSON } from "bson";
+import Database from '@tauri-apps/plugin-sql';
 
+const db = await Database.load('sqlite:dbpal.sqlite.db');
 
+db.select("select 1").then(e => {
+  console.log("sqlite setup ok", e);
+})
 interface ConfirmOptions {
   title: string;
   content?: string;

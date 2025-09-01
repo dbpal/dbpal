@@ -52,6 +52,8 @@
     },
     "opener:default",
     "os:default",
-    "process:default"
+    "process:default",
+    "sql:default",
+    "sql:allow-execute"
   ]
 }
