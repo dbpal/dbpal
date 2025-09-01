@@ -231,6 +231,7 @@ function EditInModal(props: { content: string; handleModify }) {
     { language: 'text' },
     { language: 'html' },
     { language: 'json' },
+    { language: 'xml' },
   ] as {
     language: string;
     color: string;

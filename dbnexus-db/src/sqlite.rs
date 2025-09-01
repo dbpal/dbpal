@@ -894,8 +894,19 @@ impl SqlBuilder for SqliteDB {
         let typ = typ.to_uppercase();
 
         let v = match typ.as_str() {
-            // TODO NULL type can be integer or float
-            "" | "TEXT" | "DATE" | "TIME" | "DATETIME" | "NULL" => match value {
+            "" | "NULL" => match value {
+                Some(x) => {
+                    if let Ok(_) = x.parse::<f64>() {
+                        x.to_string()
+                    } else if let Ok(_) = x.parse::<i64>() {
+                        x.to_string()
+                    } else {
+                        format!("'{}'", escape_sql_str(x))
+                    }
+                }
+                None => "null".to_string(),
+            },
+            "TEXT" | "DATE" | "TIME" | "DATETIME" => match value {
                 Some(x) => format!("'{}'", escape_sql_str(x)),
                 None => "null".to_string(),
             },
