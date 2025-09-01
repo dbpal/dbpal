@@ -17,11 +17,11 @@ BITOP and str str str
 BITPOS str 
 1 BITPOS ; 11 value_string
 BLPOP list
-1 BLPOP ; 10 list_value
+1 BLPOP ; 10 value_list
 BRPOP list 
-1 BRPOP ; 10 list_value
+1 BRPOP ; 10 value_list
 BRPOPLPUSH list list 
-1 BRPOPLPUSH ; 16 list_value ; 21 list_value
+1 BRPOPLPUSH ; 16 value_list ; 21 value_list
 CLIENT li
 1 CLIENT ; 10 list
 CLUSTER info 
@@ -51,7 +51,7 @@ EVALSHA
 EXEC
 1 EXEC
 EXISTS str list
-1 EXISTS ; 11 value_string ; 16 list_value
+1 EXISTS ; 11 value_string ; 16 value_list
 EXPIRE str 
 1 EXPIRE ; 11 value_string
 EXPIREAT str
@@ -139,25 +139,25 @@ KEYS
 LASTSAVE
 1 LASTSAVE
 LINDEX list
-1 LINDEX; 12 list_value
+1 LINDEX; 12 value_list
 LINSERT list
-1 LINSERT ; 13 list_value
+1 LINSERT ; 13 value_list
 LLEN list
-1 LLEN ; 10 list_value
+1 LLEN ; 10 value_list
 LPOP list
-1 LPOP ; 10 list_value
+1 LPOP ; 10 value_list
 LPUSH list
-1 LPUSH ; 11 list_value
+1 LPUSH ; 11 value_list
 LPUSHX list
-1 LPUSHX; 12 list_value
+1 LPUSHX; 12 value_list
 LRANGE list
-1 LRANGE ; 12 list_value
+1 LRANGE ; 12 value_list
 LREM list
-1 LREM ; 10 list_value
+1 LREM ; 10 value_list
 LSET list
-1 LSET ; 10 list_value
+1 LSET ; 10 value_list
 LTRIM list
-1 LTRIM ; 11 list_value
+1 LTRIM ; 11 value_list
 MGET str str
 1 MGET ; 9 value_string ; 13 value_string 
 MIGRATE
@@ -207,13 +207,13 @@ RESTORE
 ROLE
 1 ROLE
 RPOP list
-1 RPOP ; 10 list_value
+1 RPOP ; 10 value_list
 RPOPLPUSH list list
-1 RPOPLPUSH ; 15 list_value ; 20 list_value
+1 RPOPLPUSH ; 15 value_list ; 20 value_list
 RPUSH list 
-1 RPUSH ; 11 list_value
+1 RPUSH ; 11 value_list
 RPUSHX list 
-1 RPUSHX; 12 list_value
+1 RPUSHX; 12 value_list
 SADD set
 1 SADD ; 9 value_set
 SAVE
@@ -255,7 +255,7 @@ SMEMBERS set
 SMOVE value_set value_set  member123
 1 SMOVE ; 16 value_set ; 26 value_set ; 37 member123
 SORT list
-1 SORT ; 10 list_value
+1 SORT ; 10 value_list
 SPOP set
 1 SPOP; 9 value_set 
 SRANDMEMBER set

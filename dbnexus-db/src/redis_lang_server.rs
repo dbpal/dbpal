@@ -1524,6 +1524,7 @@ mod tests {
         let _ = db.drop_table("value_hash", false).await;
         let _ = db.drop_table("value_set", false).await;
         let _ = db.drop_table("value_zset", false).await;
+        let _ = db.drop_table("value_list", false).await;
 
         db.execute_sql(query_id, "set value_string xxxxx")
             .await
@@ -1538,6 +1539,10 @@ mod tests {
             .unwrap()
             .unwrap();
         db.execute_sql(query_id, "ZADD value_zset 100 alice")
+            .await
+            .unwrap()
+            .unwrap();
+        db.execute_sql(query_id, "lpush value_list 100")
             .await
             .unwrap()
             .unwrap();
