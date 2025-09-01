@@ -1386,15 +1386,7 @@ impl LanguageServer for RedisDB {
             }
         }
         // lexer command
-        let ret = REDIS_COMMANDS
-            .iter()
-            .chain(REDIS_SPECIAL_ARGS.iter())
-            .map(|x| CompletionItem {
-                item: (*x).into(),
-                kind: CompletionKind::Command,
-                desc: None,
-            })
-            .collect::<Vec<_>>();
+        let ret = static_redis_command_completion_items();
 
         anyhow::Ok(ret)
     }
@@ -1608,6 +1600,7 @@ fn static_redis_command_completion_items() -> Vec<CompletionItem> {
         .get_or_init(|| {
             REDIS_COMMANDS
                 .iter()
+                .chain(REDIS_SPECIAL_ARGS.iter())
                 .map(|x| CompletionItem {
                     item: (*x).into(),
                     kind: CompletionKind::Command,
