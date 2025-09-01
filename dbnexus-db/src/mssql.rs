@@ -790,7 +790,9 @@ impl SchemaTrait for MsSqlServerDB {
     ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        let total = MsSqlServerDB::query_count(conn, view_name, where_str).await?;
+        let total =
+            MsSqlServerDB::query_count(conn, self.config.schema_str(), view_name, where_str)
+                .await?;
         let sql = gen_select_sql(
             self.config.schema_str().as_str(),
             view_name,
@@ -909,7 +911,9 @@ impl SchemaTrait for MsSqlServerDB {
     ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        let total = MsSqlServerDB::query_count(conn, table_name, where_str).await?;
+        let total =
+            MsSqlServerDB::query_count(conn, self.config.schema_str(), table_name, where_str)
+                .await?;
         let sql = gen_select_sql(
             self.config.schema_str().as_str(),
             table_name,
@@ -1254,10 +1258,10 @@ impl SqlBuilder for MsSqlServerDB {
 
 impl MsSqlServerDB {
     async fn query_count(
-        conn: &mut Connection, name: &str, where_str: Option<&str>,
+        conn: &mut Connection, schema: &str, name: &str, where_str: Option<&str>,
     ) -> anyhow::Result<i32> {
         let sql = format!(
-            r#"SELECT count(*) from "{name}" {}"#,
+            r#"SELECT count(*) from "{schema}"."{name}" {}"#,
             match where_str {
                 Some(x) => format!("  where {} ", x),
                 None => "".to_string(),
@@ -1879,8 +1883,8 @@ impl crate::db::DBTrait for MsSqlServerDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![
             Self::DBO_SCHEMA.to_string(),
-            Self::INFORMATION_SCHEMA_SCHEMA.to_string(),
-            Self::SYS_SCHEMA.to_string(),
+            // Self::INFORMATION_SCHEMA_SCHEMA.to_string(),
+            // Self::SYS_SCHEMA.to_string(),
         ])
     }
 

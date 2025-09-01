@@ -40,7 +40,7 @@ impl MsSqlServerDB {
     fn not_allow_empty_schema(&self, schema: Option<&str>) -> anyhow::Result<String> {
         match self.schema_merge_config(schema) {
             Some(x) => anyhow::Ok(x),
-            None => anyhow::bail!("not allow empty schema"),
+            None => anyhow::Ok(Self::DBO_SCHEMA.to_string()),
         }
     }
 }
