@@ -1547,7 +1547,7 @@ function RedisZsetTable(props: {
             }
             setMin(event.target.value);
           }}
-          style={{ flex: 1 }}
+          style={{ flex: 0.5 }}
         />
         <TextField
           size="small"
@@ -1563,7 +1563,7 @@ function RedisZsetTable(props: {
             }
             setMax(event.target.value);
           }}
-          style={{ flex: 1 }}
+          style={{ flex: 0.5 }}
         />
         <Button
           variant="contained"

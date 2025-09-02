@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  ReactNode,
-  createContext,
-  use,
-  useEffect,
-} from 'react';
+import React, { useState, ReactNode, createContext, useEffect } from 'react';
 import {
   Snackbar,
   Alert,
@@ -85,7 +79,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
           onClose={handleClose}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
           sx={{ mb: 8 }} // 调整位置稍微高一些
-          slots={{ transition }}
+          slots={{ transition: copied ? undefined : transition }}
         >
           <Alert
             severity={notification.severity}

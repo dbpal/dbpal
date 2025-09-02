@@ -766,7 +766,7 @@ function ExecuteTime(props: { loading: boolean; disableTime?: boolean }) {
           color="default"
           size="small"
           label={<span ref={executeTimeRef}> </span>}
-          style={{ minWidth: '9rem' }}
+          style={{ minWidth: '6rem' }}
           icon={<CiTimer />}
         ></Chip>
       </Tooltip>
