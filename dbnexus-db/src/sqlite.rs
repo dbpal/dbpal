@@ -966,8 +966,15 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
                 v.map(serde_json::Value::from).unwrap_or(null_value.clone())
             }
             _ if integer_like(&typ) => {
-                let v: Option<i64> = r.try_get(c)?;
-                v.map(serde_json::Value::from).unwrap_or(null_value.clone())
+                let v: Result<Option<f64>, _> = r.try_get(c);
+                match v {
+                    // sometimes can save a float in here
+                    Ok(x) => x.map(serde_json::Value::from).unwrap_or(null_value.clone()),
+                    Err(_) => {
+                        let v: Option<i64> = r.try_get(c)?;
+                        v.map(serde_json::Value::from).unwrap_or(null_value.clone())
+                    }
+                }
             }
             "BLOB" => {
                 let v: Option<Vec<u8>> = r.try_get(c)?;
@@ -1082,8 +1089,15 @@ fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>
                 }
 
                 _ if integer_like(ty) => {
-                    let v: Option<i64> = r.try_get(c)?;
-                    v.map(|x| format!("{}", x))
+                    let v: Result<Option<f64>, _> = r.try_get(c);
+                    match v {
+                        // sometimes can save a float in here
+                        Ok(x) => x.map(|x| x.to_string()),
+                        Err(_) => {
+                            let v: Option<i64> = r.try_get(c)?;
+                            v.map(|x| format!("{}", x))
+                        }
+                    }
                 }
                 _ if numreic_like(ty) => {
                     let v: Option<f64> = r.try_get(c)?;
