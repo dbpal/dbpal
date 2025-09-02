@@ -38,7 +38,6 @@ use crate::db::{
 use crate::helper::{create_csv, current_timestamp};
 use crate::language_server::LexerCompletionTrait;
 use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLogEvent, QueryLogMap};
 use cdrs_tokio::authenticators::StaticPasswordAuthenticatorProvider;
 use cdrs_tokio::cluster::NodeTcpConfigBuilder;
 use cdrs_tokio::cluster::session::{SessionBuilder, TcpSessionBuilder};
@@ -78,7 +77,6 @@ pub struct CassandraDB {
     >,
     pub(crate) config: CassandraDBConfig,
     paging_cache: Arc<DashMap<String, Arc<PageCache>>>,
-    query_logs: QueryLogMap,
 }
 
 #[derive(Clone, Debug)]
@@ -167,7 +165,6 @@ impl CassandraDB {
             session: Arc::new(session),
             config,
             paging_cache: Default::default(),
-            query_logs: Default::default(),
         })
     }
 }
@@ -797,10 +794,6 @@ impl ExportQueryResult for CassandraDB {
 }
 #[async_trait::async_trait]
 impl QuerySql for CassandraDB {
-    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        anyhow::Ok(self.query_logs.get(&id))
-    }
-
     async fn execute_sql_no_open_conn(
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -811,24 +804,22 @@ impl QuerySql for CassandraDB {
         anyhow::Ok(ret)
     }
     async fn execute_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, _query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.invalid_table_or_view_caching(None);
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
 
         let ret = match self.session.query(sql).await {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
         };
-        query_log.set_success(ret.is_ok());
         anyhow::Ok(ret)
     }
 
     async fn query_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, _query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         self.invalid_table_or_view_caching(None);
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
+
         let mut ret = vec![];
         let mut ml = MemoryLimit::new();
 
@@ -858,7 +849,7 @@ impl QuerySql for CassandraDB {
                 }
             }
         }
-        query_log.set_success(ret.iter().all(|x| x.is_ok()));
+
         anyhow::Ok(ret)
     }
 
@@ -1084,12 +1075,11 @@ impl CassandraDB {
         let resp = self.session.query(sql).await?.response_body()?;
         let meta = resp.as_rows_metadata().cloned();
         if meta.is_none() {
-            anyhow::bail!("no as_rows_metadata")
+            anyhow::bail!("no matadata")
         }
         let meta = meta.unwrap();
         let rows = resp.into_rows().unwrap_or_default();
         let array = encode_rows_as_json(&meta, &rows)?;
-
         let json = serde_json::Value::Array(array);
         let json_str = if pretty {
             serde_json::to_string_pretty(&json)
@@ -1107,7 +1097,7 @@ impl CassandraDB {
         let resp = self.session.query(sql).await?.response_body()?;
         let meta = resp.as_rows_metadata().cloned();
         if meta.is_none() {
-            anyhow::bail!("no as_rows_metadata")
+            anyhow::bail!("no metadata")
         }
         let meta = meta.unwrap();
         let rows = resp.into_rows().unwrap_or_default();
@@ -1226,7 +1216,7 @@ impl CassandraDB {
         &self, key_space: &str,
     ) -> anyhow::Result<Vec<ListMaterializedView>> {
         let sql =
-            format!("select view_name from system_schema.views where keyspace_name='{key_space}'",);
+            format!("select view_name from system_schema.views where keyspace_name='{key_space}'");
         log::info!("sql:{}", sql);
         let rows = self
             .session
@@ -1264,23 +1254,14 @@ impl SqlBuilder for CassandraDB {
         put_value_in_sql(typ, value)
     }
 }
-#[async_trait::async_trait]
-impl SchemaTrait for CassandraDB {
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::CURRENT_VALUES
-    }
 
-    async fn drop_created_type(&self, name: &str) -> anyhow::Result<()> {
-        let sql = format!("DROP TYPE  {name}");
-        log::info!("sql:{}", sql);
-        self.session.query(sql).await?;
-        anyhow::Ok(())
-    }
-
-    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
+impl CassandraDB {
+    pub(crate) async fn list_created_types_impl(
+        &self, schema: &str,
+    ) -> anyhow::Result<Vec<CreatedTypeDef>> {
         let sql = format!(
             "SELECT type_name FROM system_schema.types where  keyspace_name = '{}'",
-            self.config.key_space_str()
+            schema
         );
         log::info!("sql:{}", sql);
         let rows = self
@@ -1317,9 +1298,27 @@ impl SchemaTrait for CassandraDB {
         }
         anyhow::Ok(ret)
     }
+}
+#[async_trait::async_trait]
+impl SchemaTrait for CassandraDB {
+    fn list_sql_current_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::CURRENT_VALUES
+    }
+
+    async fn drop_created_type(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!(r#"DROP TYPE  "{name}""#);
+        log::info!("sql:{}", sql);
+        self.session.query(sql).await?;
+        anyhow::Ok(())
+    }
+
+    async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
+        self.list_created_types_impl(self.config.key_space_str())
+            .await
+    }
 
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
-        let sql = format!("DROP MATERIALIZED VIEW {name};");
+        let sql = format!(r#"DROP MATERIALIZED VIEW "{name}";"#);
         log::info!("sql:{}", sql);
         self.session.query(sql).await?;
         self.invalid_table_or_view_caching(Some(name));
@@ -1366,11 +1365,12 @@ impl SchemaTrait for CassandraDB {
         );
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
+        self.invalid_table_or_view_caching(Some(table));
         anyhow::Ok(())
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
-        let sql = format!("DROP INDEX IF EXISTS {index};");
+        let sql = format!(r#"DROP INDEX IF EXISTS "{index}";"#);
         log::info!("sql:{}", sql);
         self.session.query(sql).await?;
         anyhow::Ok(())
@@ -1616,6 +1616,7 @@ impl SchemaTrait for CassandraDB {
         self.can_write()?;
         let sql = format!(r#"TRUNCATE "{table_name}""#);
         log::info!("sql:{}", sql);
+        self.invalid_table_or_view_caching(Some(table_name));
         self.session.query(&sql).await?;
         anyhow::Ok(())
     }
@@ -1757,7 +1758,7 @@ impl SchemaTrait for CassandraDB {
 
         let p = format!("({})", parameters.join(","));
 
-        let sql = format!("DROP FUNCTION {name}{p} ");
+        let sql = format!(r#"DROP FUNCTION "{name}"{p} "#);
 
         log::info!("sql:{}", sql);
         self.session.query(sql).await?;
@@ -1801,7 +1802,7 @@ fn extract_parameter_for_aggregate(sql: &str) -> anyhow::Result<DataType> {
     match &s.statement {
         CassandraStatement::CreateAggregate(x) => anyhow::Ok(x.data_type.clone()),
         _ => {
-            anyhow::bail!("this should be create function statement.")
+            anyhow::bail!("this should be aggregate function statement.")
         }
     }
 }

@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
+use crate::app::{self, App, DBConnectionConfig, Open};
 use bson::{Document, doc};
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
@@ -19,14 +20,9 @@ use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mssql::MsSqlServerDB;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
-use dbnexus_db::query_log::QueryLogEvent;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 use dbnexus_db::sqlite::SqliteDB;
-
-use crate::app::{self, App, DBConnectionConfig, Open};
-
 pub const PASSWORD_KEY: &str = "site.dbpal.dev";
-
 #[tauri::command]
 pub fn has_entered_password(
     app: tauri::State<'_, App>, name: String,
@@ -778,22 +774,6 @@ pub async fn execute_sql(
 }
 
 #[tauri::command]
-pub async fn query_logs(
-    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
-) -> Result<Vec<QueryLogEvent>, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let db = app.open(name.as_str()).await.map_err(ErrorFrontend::from)?;
-
-    match db {
-        Open::DataBase(x) => x.get_query_log(query_id),
-        Open::Schema(x) => x.get_query_log(query_id),
-        Open::Catalog(x) => x.get_query_log(query_id),
-    }
-    .map_err(ErrorFrontend::from)
-}
-
-#[tauri::command]
 pub async fn query_sql_open_connection(
     name: String, app: tauri::State<'_, App>,
 ) -> Result<uuid::Uuid, ErrorFrontend> {
@@ -987,11 +967,16 @@ pub async fn auto_completion(
     random_error()?;
     let use_lexer = true;
     let db = app.get_opened(name.as_str()).await?;
-    let ret = match db {
-        Open::Catalog(x) => x.auto_completion(&sql, line, col, use_lexer).await,
-        Open::DataBase(x) => x.auto_completion(&sql, line, col, use_lexer).await,
-        Open::Schema(x) => x.auto_completion(&sql, line, col, use_lexer).await,
-    }
+
+    let ret = tokio::time::timeout(std::time::Duration::from_secs(4), async {
+        match db {
+            Open::Catalog(x) => x.auto_completion(&sql, line, col, use_lexer).await,
+            Open::DataBase(x) => x.auto_completion(&sql, line, col, use_lexer).await,
+            Open::Schema(x) => x.auto_completion(&sql, line, col, use_lexer).await,
+        }
+    })
+    .await
+    .map_err(|_| ErrorFrontend::from("auto completion timeout"))?
     .map_err(ErrorFrontend::from)?;
     Ok(ret)
 }
@@ -2556,6 +2541,22 @@ pub async fn cassandra_drop_aggregate(
 }
 
 #[tauri::command]
+pub async fn drop_created_type(
+    name: String, type_name: String, app: tauri::State<'_, App>,
+) -> Result<(), ErrorFrontend> {
+    let schema = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    schema
+        .drop_created_type(&type_name)
+        .await
+        .map_err(ErrorFrontend::from)?;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn command_panic() -> Result<(), ErrorFrontend> {
     todo!("this is a panic.")
 }
@@ -2694,8 +2695,8 @@ async fn random_sleep() {
     {
         let duration = {
             use rand::Rng;
-            let mut rng = rand::thread_rng();
-            let millis = rng.gen_range(500..1700);
+            let mut rng = rand::rng();
+            let millis = rng.random_range(500..1700);
             let duration = std::time::Duration::from_millis(millis);
             duration
         };

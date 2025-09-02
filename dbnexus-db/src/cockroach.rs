@@ -19,8 +19,6 @@ use crate::helper::is_dangerous_sql_by_parser;
 use crate::meta_value::MetaValue;
 use crate::pg::PostGresDB;
 use crate::pg_format::encode_rows;
-use crate::query_log::QueryLogEvent;
-
 impl GetBackendKind for CockRoachDB {
     fn backend_name(&self) -> BackendKind {
         BackendKind::CockRoach
@@ -76,10 +74,6 @@ impl ReadOnlyTrait for CockRoachDB {
 #[async_trait::async_trait]
 
 impl QuerySql for CockRoachDB {
-    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        self.pg.get_query_log(id)
-    }
-
     async fn get_auto_commit(&self, _query_id: uuid::Uuid) -> anyhow::Result<bool> {
         self.pg.get_auto_commit(_query_id).await
     }

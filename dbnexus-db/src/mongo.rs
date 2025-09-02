@@ -21,7 +21,6 @@ use crate::db::{
 };
 use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
-use crate::query_log::QueryLogEvent;
 
 #[derive(Clone)]
 pub struct MongoDB {
@@ -786,10 +785,6 @@ impl SchemaTrait for MongoDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MongoDB {
-    fn get_query_log(&self, _id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        not_support_feature(self.backend_name())
-    }
-
     async fn query_sql(
         &self, _id: uuid::Uuid, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {

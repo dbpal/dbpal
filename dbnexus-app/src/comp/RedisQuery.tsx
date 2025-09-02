@@ -142,7 +142,7 @@ function RedisQuery(props: {
           tryUpdateCommand(text, pos);
         }}
         getParseErr={getParseErr}
-        language={language}
+        uuid={language}
         makeConn={makeConn}
         favoriteName={favoriteName}
         saveFavoriteSql={saveFavoriteSql}

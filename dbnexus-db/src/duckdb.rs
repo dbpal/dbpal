@@ -501,7 +501,7 @@ impl QuerySql for DuckDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        self.query_logs.remove(&id);
+        
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }

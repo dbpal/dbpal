@@ -19,7 +19,6 @@ use crate::db::{
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, seperate_sql_by_sqlparser_tokenizer};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 impl GetBackendKind for ClickHouseDB {
     fn backend_name(&self) -> BackendKind {
@@ -753,10 +752,6 @@ impl ExportQueryResult for ClickHouseDB {
 
 #[async_trait::async_trait]
 impl QuerySql for ClickHouseDB {
-    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        anyhow::Ok(self.query_logs.get(&id))
-    }
-
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::ClickHouseDialect {})
     }
@@ -772,26 +767,24 @@ impl QuerySql for ClickHouseDB {
         anyhow::Ok(ret)
     }
     async fn execute_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, _query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = self.get_conn()?;
         let ret = match conn.query(sql).execute().await {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
         };
-        query_log.set_success(ret.is_ok());
 
         anyhow::Ok(ret)
     }
 
     async fn query_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, _query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let dialect = sqlparser::dialect::ClickHouseDialect {};
         let sqls = seperate_sql_by_sqlparser_tokenizer(sql, &dialect)?;
         let mut ret = Vec::new();
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
+
         let mut ml = MemoryLimit::new();
 
         for sql in sqls.iter() {
@@ -816,7 +809,6 @@ impl QuerySql for ClickHouseDB {
             }
         }
 
-        query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
     }
 
@@ -848,7 +840,6 @@ pub struct ClickHouseDB {
     pub(crate) config: ClickHouseConfig,
     pool: r2d2::Pool<PoolManager>,
     client: reqwest::Client,
-    query_logs: QueryLogMap,
     pub(crate) key_word_completion: Arc<tokio::sync::Mutex<Vec<CompletionItem>>>,
 }
 
@@ -887,7 +878,6 @@ impl ClickHouseDB {
             config,
             pool,
             client,
-            query_logs: Default::default(),
             key_word_completion: Default::default(),
         })
     }

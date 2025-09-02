@@ -52,7 +52,7 @@ impl LangServerCommon for ClickHouseDB {
         );
         self.get_query_columns(&sql).await
     }
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut lock = self.key_word_completion.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
@@ -288,7 +288,7 @@ mod tests {
     async fn print_key_words() {
         let db = make_test_object();
 
-        let keywords = <ClickHouseDB as LangServerCommon>::get_key_words_fn(&db)
+        let keywords = <ClickHouseDB as LangServerCommon>::key_words(&db)
             .await
             .unwrap()
             .into_iter()

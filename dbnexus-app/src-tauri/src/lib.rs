@@ -4,7 +4,9 @@ pub mod handlers;
 #[cfg(test)]
 mod tests {
     use dbnexus_db::datasource_config::{CassandraDBConfig, EnableSsl, LibSqlDBConfigSouce};
-    use dbnexus_db::db::{ColumnType, CreateTableAndIndexSql, QueryResp, SequenceDetail};
+    use dbnexus_db::db::{
+        ColumnType, CreateTableAndIndexSql, CreatedTypeDef, QueryResp, SequenceDetail,
+    };
 
     #[test]
     fn generate_ts_def() {
@@ -19,7 +21,6 @@ mod tests {
             SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
         };
         use dbnexus_db::language_server::{CompletionItem, CompletionKind};
-        use dbnexus_db::query_log::QueryLogEvent;
         use dbnexus_db::redis::RedisListTable;
         use typescript_type_def::{
             DefinitionFileOptions, TypeDef, write_definition_file_from_type_infos,
@@ -57,7 +58,6 @@ mod tests {
                 &MysqlDBConfig::INFO,
                 &MongoDBConfig::INFO,
                 &MuiDataGridData::INFO,
-                &QueryLogEvent::INFO,
                 &CassandraDBConfig::INFO,
                 &LibSqlDBConfigSouce::INFO,
                 &CreateTableAndIndexSql::INFO,
@@ -65,6 +65,7 @@ mod tests {
                 &ColumnType::INFO,
                 &QueryResp::INFO,
                 &SequenceDetail::INFO,
+                &CreatedTypeDef::INFO,
             ];
 
             let mut buf = Vec::new();

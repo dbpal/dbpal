@@ -1645,7 +1645,7 @@ impl<'a> CompletionStatement<'a> {
                         let mut r = self.result.take().unwrap_or_default();
                         let words = self
                             .helper
-                            .get_key_words_fn()
+                            .key_words()
                             .await
                             .map_err(|e| log::error!("get keywords failed,e:{}", e))
                             .unwrap_or_default();

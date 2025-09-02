@@ -51,7 +51,7 @@ impl LangServerCommon for LibSqlDB {
         self.get_query_columns(&sql).await
     }
     // some backend can use a query to query this.
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut lock = self.keywords_completion.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());

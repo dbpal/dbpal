@@ -108,6 +108,7 @@ import { AddConnection } from './AddConnection.tsx';
 import { FaBookmark } from 'react-icons/fa';
 import { SequenceTree } from './LeftSequence.tsx';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { TypesTree } from './LeftTypes.tsx';
 
 function LeftTop(props: { matchPattern: string; setMatchPattern }) {
   const { matchPattern, setMatchPattern } = props;
@@ -535,15 +536,8 @@ function FavoriteSqlList(props: { handleClose }) {
   ]);
   const handleReload = async (showOK) => {
     try {
-      let obj = await appStore.get<object>(FavoriteSql.key);
-      if (!obj) {
-        obj = {};
-      }
-      let sqls = [];
-      Object.values(obj).forEach((e) => {
-        sqls.push(e);
-      });
-      setSqls(sqls);
+      const x = await FavoriteSql.getAll();
+      setSqls(x);
     } catch (e) {
       showNotification('error', 'list all favorite sql failed', e);
       return;
@@ -606,7 +600,7 @@ function FavoriteSqlList(props: { handleClose }) {
             content = (
               <SqlQuery
                 getParseErr={makeGetParserErrr(row.uuid)}
-                language={row.uuid}
+                uuid={row.uuid}
                 makeConn={async () => {
                   return makeConn(row.uuid, row.kind);
                 }}
@@ -646,7 +640,7 @@ function FavoriteSqlList(props: { handleClose }) {
     handleReload(false);
   }, []);
   const { setUpMenu } = useContext(ContextMenuContext);
-  function Menu(props: { content: string; id: string }) {
+  function Menu(props: { content: string; id: number }) {
     const { content, id } = props;
     return (
       <MenuList>
@@ -688,8 +682,9 @@ function FavoriteSqlList(props: { handleClose }) {
             return;
           }
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+
           setUpMenu({
-            content: <Menu content={content} id={id}></Menu>,
+            content: <Menu content={content} id={parseInt(id)}></Menu>,
             style: calMenuStyle(e, 200),
           });
         },
@@ -719,10 +714,6 @@ function FavoriteSqlList(props: { handleClose }) {
       }
     });
     return cols;
-  }, []);
-
-  const getRowId = useCallback((row) => {
-    return FavoriteSql.formatKey(row['uuid'], row['name']);
   }, []);
   const onColumnResize = useCallback(({ colDef, width }) => {
     columnWidths.saveColumnWidths(colDef.field, width);
@@ -779,7 +770,6 @@ function FavoriteSqlList(props: { handleClose }) {
       >
         <DataGrid
           style={gridStyle}
-          getRowId={getRowId}
           sortModel={sortModel}
           onSortModelChange={onSortModelChange}
           showCellVerticalBorder
@@ -881,8 +871,8 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
     DataSourceKind.Cockroach,
   ]);
 
-  let support_procedure = SUPPORTED_PROCEDURE_KINDS.has(kind);
-  let support_udf = new Set([
+  let supportProcedure = SUPPORTED_PROCEDURE_KINDS.has(kind);
+  let supportUdf = new Set([
     DataSourceKind.MariaDB,
     DataSourceKind.Mysql,
     DataSourceKind.Postgres,
@@ -891,10 +881,18 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
     DataSourceKind.Cassandra,
     DataSourceKind.Cockroach,
   ]).has(kind);
-  let support_sequence = [
+  let supportSequence = [
     DataSourceKind.MariaDB,
     DataSourceKind.Postgres,
+    DataSourceKind.Cockroach,
   ].includes(kind);
+
+  let supportType = [
+    DataSourceKind.Postgres,
+    DataSourceKind.Cockroach,
+    DataSourceKind.Cassandra,
+  ].includes(kind);
+
   let { setUpMenu } = useContext(ContextMenuContext);
   const [loading, setLoading] = useState(false);
   return (
@@ -1017,11 +1015,11 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
       )}
       {opened && (
         <>
-          {support_procedure && <ProceduresTree />}
-          {support_udf && <UdfsTree></UdfsTree>}
+          {supportProcedure && <ProceduresTree />}
+          {supportUdf && <UdfsTree></UdfsTree>}
         </>
       )}
-      {opened && <>{support_sequence && <SequenceTree />}</>}
+      {opened && <>{supportSequence && <SequenceTree />}</>}
 
       {opened && kind == DataSourceKind.Cassandra && (
         <CassaandraAggregatesTree />
@@ -1029,6 +1027,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
       {opened && kind == DataSourceKind.Redis && (
         <RedisTables schema={schema} />
       )}
+      {opened && supportType && <TypesTree />}
     </TreeItem>
   );
 }
@@ -1260,7 +1259,7 @@ function openNewQuery(
     case DataSourceKind.Cockroach:
       content = (
         <SqlQuery
-          language={uuid}
+          uuid={uuid}
           makeConn={async () => {
             return makeConn(uuid, kind);
           }}

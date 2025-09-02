@@ -6,19 +6,122 @@ import { load } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
 import { BSON, EJSON } from "bson";
-import Database from '@tauri-apps/plugin-sql';
+import Database, { QueryResult } from '@tauri-apps/plugin-sql';
 
-const db = await Database.load('sqlite:dbpal.sqlite.db');
+const appDatabase = await Database.load('sqlite:dbpal.sqlite.db');
 
-db.select("select 1").then(e => {
+
+appDatabase.select("select 1").then(e => {
   console.log("sqlite setup ok", e);
 })
+
+
+function setUpDatabase() {
+  appDatabase.execute(`
+  CREATE TABLE if not EXISTS query_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    uuid TEXT NOT NULL,
+    sql text NOT NULL,
+    create_at DATETIME NOT NULL DEFAULT current_timestamp,
+    success integer NOT NULL
+  );
+  CREATE INDEX index_query_logs_uuid ON query_log (uuid);
+  
+  `).then(() => {
+    console.log("create table query logs ok");
+  }).catch(e => {
+    console.log("create table query logs error", e);
+  });
+
+  appDatabase.execute(`
+  CREATE TABLE if not EXISTS element_size ( 
+    name TEXT PRIMARY KEY not NULL,
+    width INTEGER NOT NULL,
+    height INTEGER not NULL
+  )
+    `).then(() => {
+    console.log("set up element_size ok");
+  }).catch(e => {
+    console.log("set up element_size error", e);
+  });
+
+  appDatabase.execute(`
+  CREATE TABLE if not EXISTS column_width ( 
+    name TEXT PRIMARY KEY not NULL,
+    width INTEGER NOT NULL
+  )
+    `).then(() => {
+    console.log("set up column_width ok");
+  }).catch(e => {
+    console.log("set up column_width error", e);
+  });
+
+  appDatabase.execute(`
+  CREATE table if NOT EXISTS favorite_sql (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    uuid TEXT not NULL,
+    kind text not NULL,
+    sql text not NULL,
+    name text not NULL,
+    last_modified datetime not NULL DEFAULT current_timestamp
+  )
+    `).then(() => {
+    console.log("set up favorite sql ok");
+  }).catch(e => {
+    console.log("set up favorite sql error", e);
+  });
+
+}
+
+
+
+class QueryEvent {
+  //@ts-ignore
+  constructor(public uuid: string, sql: string, success: number, create_at?: Date) { }
+}
+
+
+class QueryLogHandler {
+  uuid: string
+  constructor(uuid: string) {
+    this.uuid = uuid;
+
+
+  }
+  async save(sql: string, success: boolean, showNotification): Promise<void> {
+    return appDatabase.execute("insert into query_log (uuid,sql,success) values (?,?,?)", [this.uuid, sql, success ? 1 : 0]).then(() => { }).catch(e => {
+      showNotification("error", "save query log fauked", e);
+    });
+  }
+
+  query(matchSql: string, page: number, pageSize: number, orde_by: string): Promise<QueryEvent[]> {
+    let sql = `
+    select * from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""} order by ${orde_by ? orde_by : 'create_at desc'} limit ${pageSize} offset ${pageSize * (page - 1)}`;
+    console.log("query log sql:", sql);
+    return appDatabase.select(sql, [this.uuid])
+  }
+  queryCount(matchSql: string): Promise<number> {
+    let sql = `select count(*) as total from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""}`;
+    return appDatabase.select(sql, [this.uuid]).then(e => e ? e[0].total : 0);
+  }
+  delete(): Promise<QueryResult> {
+    return appDatabase.execute("delete from query_log where uuid=?", [this.uuid]);
+  }
+
+  drop_conn_delete(): Promise<void> {
+    return appDatabase.execute(`delete from query_log where uuid like '${this.uuid}%'`).then();
+  }
+}
+
+setUpDatabase();
+
 interface ConfirmOptions {
   title: string;
   content?: string;
   confirmText?: string;
   cancelText?: string;
 }
+
 
 async function secondConfirm({
   title,
@@ -299,58 +402,41 @@ const appStore = await load('store.json');
 enum AppStoreKey {
   UserSetttings = 'user_settings',
   ConnectionConfig = 'connection_config',
-  ColumnWidths = 'column_widths',
-  FavoriteSql = "favorite_sql",
-  Sizes = "sizes",
   Zoom = "zoom"
 }
 
 
 class SaveSizesToStore {
   static async saveSize(key: string, size: UISize) {
-    let sizes = await appStore.get<object>(AppStoreKey.Sizes);
-    if (!sizes) {
-      sizes = {};
-    }
-    sizes[key] = size;
-    await appStore.set(AppStoreKey.Sizes, sizes);
+    return appDatabase.execute("replace into element_size(name, width, height) values(?,?,?)", [key, size.width, size.height]);
   }
   static async getSize(key: string): Promise<undefined | UISize> {
-    return appStore.get(AppStoreKey.Sizes).then(s => s && s[key])
+    return appDatabase.select("select width, height from element_size where name = ?", [key]).then((xs) => {
+      if (xs instanceof Array) { return xs[0] }
+      return xs
+    })
   }
 }
 
 
 class FavoriteSql {
-  constructor(public uuid: string, public name: string, public kind: DataSourceKind, public sql: string, public lastModified: Date = new Date()) { }
-  static key = AppStoreKey.FavoriteSql;
+  constructor(public uuid: string, public name: string, public kind: DataSourceKind, public sql: string, public last_modified: Date = new Date(), public id?: number) { }
   static async save(x: FavoriteSql, showNotification) {
     try {
-
-      let logs = await appStore.get<object>(FavoriteSql.key);
-      if (!logs) {
-        logs = {};
-      }
-      logs[FavoriteSql.formatKey(x.uuid, x.name)] = x;
-      await appStore.set(FavoriteSql.key, logs)
+      await appDatabase.execute("insert into favorite_sql(uuid,name,kind,sql,last_modified) values(?,?,?,?,?)", [x.uuid, x.name, x.kind, x.sql, x.last_modified]);
     } catch (e) {
       showNotification('error', "save favorite sql failed", e);
       return
     }
     showNotification('success', "save sql Ok")
   }
-  static formatKey(uuid: string, name: string) {
-    return uuid + '-' + name
-  }
 
-  static async delete(key: string, showNotification) {
+  static getAll(): Promise<FavoriteSql[]> {
+    return appDatabase.select("select * from favorite_sql");
+  }
+  static async delete(id: number, showNotification) {
     try {
-      let logs = await appStore.get<object>(FavoriteSql.key);
-      if (!logs) {
-        logs = {};
-      }
-      delete logs[key];
-      await appStore.set(FavoriteSql.key, logs)
+      await appDatabase.execute("delete from favorite_sql where id=?", [id]);
     } catch (e) {
       showNotification('error', "save favorite sql failed", e);
       return
@@ -360,19 +446,7 @@ class FavoriteSql {
 
   static async deleteByUuid(uuid: string) {
     try {
-
-      let logs = await appStore.get<object>(FavoriteSql.key);
-      if (logs) {
-        logs = {};
-      }
-
-      for (var key in logs) {
-        const log = logs[key] as FavoriteSql;
-        if (log.uuid == uuid) {
-          delete logs[key]
-        }
-      }
-      await appStore.set(FavoriteSql.key, logs)
+      appDatabase.execute(`delete from favorite_sql where uuid like '${uuid}%'`);
     } catch (e) {
       console.log("delete all logs belong to a key failed", e);
       return
@@ -380,9 +454,9 @@ class FavoriteSql {
   }
   static async clear(showNotification) {
     try {
-      await appStore.set(FavoriteSql.key, {});
+      appDatabase.execute(`delete from favorite_sql`);
     } catch (e) {
-      showNotification('error', "save favorite sql failed", e);
+      showNotification('error', "clear favorite sql failed", e);
       return
     }
     showNotification('success', "clean OK");
@@ -390,32 +464,27 @@ class FavoriteSql {
 }
 
 class ColumnWidths {
-  widths = {};
+  width = {};
   constructor() {
-    appStore.get(AppStoreKey.ColumnWidths).then(e => {
-      if (e) {
-        this.widths = e;
-      }
+    appDatabase.select("select * from column_width").then((xs) => {
+      (xs as { name: string, width: number }[]).forEach(e => {
+        this.width[e.name] = e.width
+      })
     })
-
   }
-
   saveColumnWidths(name: string, width: number) {
-    this.widths[name] = width;
-    this.save();
+    this.width[name] = width;
+    appDatabase.execute("replace into column_width(name,width) values(?,?)", [name, width])
+  }
 
+  getWidth(key): number {
+    return this.width[key];
   }
-  save() {
-    appStore.set(AppStoreKey.ColumnWidths, this.widths).catch(e => {
-      console.log('save column width failed', e);
-    });
-  }
-  getWidth(key) {
-    return this.widths[key]
-  }
-  reset() {
-    this.widths = {};
-    this.save();
+  reset(): Promise<void> {
+    this.width = {};
+    return appDatabase.execute("delete from column_width").then((x) => {
+      console.log("delete of", x.rowsAffected, "rows");
+    })
 
   }
 }
@@ -744,7 +813,9 @@ export {
   udfIdGenerate,
   getEditorText,
   makeGetParserErrr,
-  makeExecuteSql
+  makeExecuteSql,
+  QueryLogHandler,
+  QueryEvent,
 };
 
 export type { ErrAndLoc }

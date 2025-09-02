@@ -25,14 +25,12 @@ use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
-use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 #[derive(Clone)]
 pub struct OracleDB {
     pool: Pool,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
     pub(crate) config: OracleDBConfig,
-    query_logs: QueryLogMap,
     pub(crate) key_word_completion: Arc<Mutex<Vec<CompletionItem>>>,
 }
 
@@ -83,7 +81,6 @@ impl OracleDB {
             pool,
             query_connections: Default::default(),
             config,
-            query_logs: Default::default(),
             key_word_completion: Default::default(),
         })
     }
@@ -170,10 +167,6 @@ impl QuerySql for OracleDB {
         anyhow::Ok(())
     }
 
-    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        anyhow::Ok(self.query_logs.get(&id))
-    }
-
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
@@ -200,7 +193,7 @@ impl QuerySql for OracleDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        self.query_logs.remove(&id);
+        
         if let Some((_, x)) = self.query_connections.remove(&id) {
             tokio::spawn(async move { x.lock().await.close() });
         }
@@ -219,8 +212,6 @@ impl QuerySql for OracleDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
-
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -231,15 +222,12 @@ impl QuerySql for OracleDB {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
-        query_log.set_success(ret.is_ok());
         anyhow::Ok(ret)
     }
 
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
-
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -261,7 +249,6 @@ impl QuerySql for OracleDB {
             }
         }
 
-        query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
     }
 }

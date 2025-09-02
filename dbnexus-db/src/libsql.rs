@@ -20,7 +20,6 @@ use crate::db::{
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLogEvent, QueryLogMap};
 use crate::sqlite::{
     SqliteDB, encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql,
     gen_show_sql, integer_like, numreic_like, real_like, text_like,
@@ -32,7 +31,7 @@ pub struct LibSqlDB {
     pool: bb8::Pool<PoolManager>,
     pub(crate) query_connections: Arc<DashMap<uuid::Uuid, Connection>>,
     query_connections_transaction: Arc<DashMap<uuid::Uuid, libsql::Transaction>>,
-    query_logs: QueryLogMap,
+
     pub(crate) build_in_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
@@ -131,10 +130,6 @@ impl QuerySql for LibSqlDB {
         }
     }
 
-    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        anyhow::Ok(self.query_logs.get(&id))
-    }
-
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::SQLiteDialect {})
     }
@@ -152,8 +147,6 @@ impl QuerySql for LibSqlDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
-
         let tr = self.query_connections_transaction.get(&query_id);
         let conn = self.query_connections.get(&query_id);
         let conn = conn.as_deref();
@@ -168,15 +161,12 @@ impl QuerySql for LibSqlDB {
             Ok(x) => Ok(QueryResp::row_affected(x, sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
-        query_log.set_success(ret.is_ok());
         anyhow::Ok(ret)
     }
 
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
-
         let tr = self.query_connections_transaction.get(&query_id);
         let conn = self.query_connections.get(&query_id);
         let conn = conn.as_deref();
@@ -211,7 +201,6 @@ impl QuerySql for LibSqlDB {
                 }));
             }
         }
-        query_log.set_success(ret.iter().all(|x| x.is_ok()));
 
         anyhow::Ok(ret)
     }
@@ -232,7 +221,6 @@ impl QuerySql for LibSqlDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        self.query_logs.remove(&id);
         self.query_connections_transaction.remove(&id);
         self.query_connections.remove(&id);
         anyhow::Ok(())
@@ -341,7 +329,6 @@ impl LibSqlDB {
             pool,
             query_connections: Default::default(),
             query_connections_transaction: Default::default(),
-            query_logs: Default::default(),
             build_in_fn_cache: Default::default(),
             keywords_completion: Default::default(),
             pragma_completion: Default::default(),
@@ -1545,16 +1532,6 @@ mod tests {
                 .unwrap();
             println!("json_line:{}", s);
         }
-    }
-
-    #[tokio::test]
-    async fn test_querylog() {
-        let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
-        db.query_sql(query_id, "select 1").await.unwrap();
-        let event = db.get_query_log(query_id).unwrap();
-        println!("{:?}", event);
-        assert_eq!(event.len(), 1);
     }
 
     #[tokio::test]

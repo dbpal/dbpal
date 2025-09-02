@@ -38,7 +38,6 @@ pub mod pg;
 pub mod pg_format;
 pub mod pg_lang_server;
 pub mod pg_lang_server_static;
-pub mod query_log;
 pub mod redis;
 pub mod redis_lang_server;
 pub mod sqlite;

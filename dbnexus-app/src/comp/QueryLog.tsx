@@ -1,37 +1,98 @@
-import { Box, Modal, Stack } from '@mui/material';
-import { types } from './ApiStruct.ts';
-import { DataGrid, GridColDef, GridPaginationModel } from '@mui/x-data-grid';
-
-import { v4 as uuidv4 } from 'uuid';
-import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  Box,
+  Button,
+  IconButton,
+  Modal,
+  Paper,
+  Stack,
+  TextField,
+  Tooltip,
+  Typography,
+} from '@mui/material';
+import {
+  DataGrid,
+  GridColDef,
+  GridPaginationModel,
+  GridSortModel,
+} from '@mui/x-data-grid';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { EscDownEvent, modalStyle, SimpleFlexSizeEditor } from './Common.tsx';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import {
   columnWidths,
   gridStyle,
+  QueryLogHandler,
   saveAndSetSize,
+  secondConfirm,
   SettingContext,
   VisiableContext,
 } from './helper.ts';
 import { ModalHeader } from './CommonComp.tsx';
+import { BsFillLightbulbFill } from 'react-icons/bs';
+import { NotificationContext } from './Notification.tsx';
 const pageSizeOptions = [10, 15];
 
 const initialState: object = {
-  sorting: { sortModel: [{ field: 'time', sort: 'desc' }] },
+  sorting: { sortModel: [{ field: 'create_at', sort: 'desc' }] },
 };
 
-function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
-  let { logs, uuid: language } = props;
-  let columns = [
+function QueryLog(props: {
+  uuid: string;
+  showQueryLog;
+  setShowQueryLog;
+  executeTimes;
+}) {
+  let { uuid, showQueryLog, setShowQueryLog, executeTimes } = props;
+  const [selectSql, setSelectSql] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPagesize] = useState(10);
+  const [logs, setLogs] = useState([]);
+  const [matchSql, setMatchSql] = useState('');
+  const [orderBy, setOrderBy] = useState('');
+  const [total, setTotal] = useState(0);
+  const onRowDoubleClick = useCallback((e) => {
+    setSelectSql(e.row.sql);
+  }, []);
+  const handler = useRef(new QueryLogHandler(uuid));
+  const paginationModel = useMemo(() => {
+    return { page: page, pageSize: pageSize };
+  }, [page, pageSize]);
+  const onPaginationModelChange = useCallback((e: GridPaginationModel) => {
+    setPage(e.page);
+    setPagesize(e.pageSize);
+  }, []);
+  const { showNotification } = useContext(NotificationContext);
+  const handleReload = async () => {
+    try {
+      let total = await handler.current.queryCount(matchSql);
+      setTotal(total);
+      let x = await handler.current.query(
+        matchSql,
+        page + 1,
+        pageSize,
+        orderBy
+      );
+      setLogs(x);
+    } catch (e) {
+      showNotification('error', 'get query log error', e);
+      return;
+    }
+  };
+  const columns = [
     {
-      field: 'time',
-      width: columnWidths.getWidth('time'),
-      renderCell: (p) => {
-        let t = p.row.time;
-        return new Date(t * 1000).toLocaleString();
+      field: 'create_at',
+      width: columnWidths.getWidth('create_at'),
+      renderHeader: () => {
+        return 'time';
       },
-      filterable: false,
     },
     {
       width: columnWidths.getWidth('success'),
@@ -49,29 +110,25 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
     { field: 'sql', flex: 1 },
   ] as GridColDef[];
 
-  logs.forEach((e) => {
-    if (!('id' in e)) {
-      //@ts-ignore
-      e.id = uuidv4();
+  useEffect(() => {
+    if (showQueryLog) {
+      handleReload();
     }
-  });
+  }, [page, pageSize, matchSql, orderBy, executeTimes, showQueryLog]);
 
-  const [selectSql, setSelectSql] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPagesize] = useState(10);
-  const onRowDoubleClick = useCallback((e) => {
-    setSelectSql(e.row.sql);
-  }, []);
-  const paginationModel = useMemo(() => {
-    return { page: page, pageSize: pageSize };
-  }, [page, pageSize]);
-  const onPaginationModelChange = useCallback((e: GridPaginationModel) => {
-    setPage(e.page);
-    setPagesize(e.pageSize);
-  }, []);
   let vis = useContext(VisiableContext);
   const setting = useContext(SettingContext);
-
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    let field = colDef.field;
+    if (field == 'create_at' || field == 'success') {
+      columnWidths.saveColumnWidths(field, width);
+    }
+  }, []);
+  const onSortModelChange = useCallback((modal: GridSortModel) => {
+    modal = modal.filter((x) => x.sort);
+    const orderBy = modal.map((e) => `${e.field} ${e.sort}`).join(' ');
+    setOrderBy(orderBy);
+  }, []);
   const [modalBox, setModalBox] = useState(null);
   useEffect(() => {
     if (modalBox) {
@@ -79,65 +136,127 @@ function QueryLog(props: { logs: types.QueryLogEvent[]; uuid: string }) {
       return c;
     }
   }, [modalBox]);
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    let field = colDef.field;
-    if (field == 'time' || field == 'success') {
-      columnWidths.saveColumnWidths(field, width);
-    }
-  }, []);
 
   return (
-    <Stack>
-      {vis && (
-        <div
-          style={{
-            display: 'grid',
+    <Paper
+      style={{
+        position: 'absolute',
+        right: 0,
+        top: 0,
+        zIndex: 13,
+        width: '75%',
+        display: showQueryLog ? 'block' : 'none',
+      }}
+      elevation={16}
+    >
+      <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+        <IconButton
+          onClick={() => {
+            setShowQueryLog(false);
           }}
         >
-          <DataGrid
-            style={gridStyle}
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            onRowDoubleClick={onRowDoubleClick}
-            columns={columns}
-            rows={logs}
-            rowHeight={setting.datagridRowHeightXXX()}
-            columnHeaderHeight={setting.datagridRowHeightXXX()}
-            pageSizeOptions={pageSizeOptions}
-            paginationModel={paginationModel}
-            onPaginationModelChange={onPaginationModelChange}
-            initialState={initialState}
-            onColumnResize={onColumnResize}
-          ></DataGrid>
-        </div>
-      )}
-
-      {selectSql && (
-        <Modal
-          open={!!selectSql}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-            e.preventDefault();
-            setSelectSql('');
+          <CloseIcon></CloseIcon>
+        </IconButton>
+        <Tooltip title="double click to open code editor" arrow>
+          <BsFillLightbulbFill />
+        </Tooltip>
+        <Tooltip title="esc can close query log too" arrow>
+          <span>esc</span>
+        </Tooltip>
+        <div style={{ width: '20%' }}></div>
+        <Typography color="info">match sql: </Typography>
+        <TextField
+          size="small"
+          value={matchSql}
+          onChange={(e) => {
+            setMatchSql(e.target.value);
           }}
-        >
-          <Box
-            sx={{ resize: 'both', ...modalStyle }}
-            ref={setModalBox}
-            width="60%"
-            height="40vh"
+          style={{ flex: 1 }}
+        ></TextField>
+        {total > 0 && (
+          <Button
+            onClick={async () => {
+              try {
+                const confirm = await secondConfirm({
+                  confirmText: 'delete',
+                  title: 'delete all qyery log?',
+                });
+                if (!confirm) {
+                  return;
+                }
+                const r = await handler.current.delete();
+                showNotification(
+                  'success',
+                  `deleted ${r.rowsAffected} query log failed`
+                );
+                setShowQueryLog(false);
+              } catch (e) {
+                showNotification('error', 'delete failed', e);
+                return;
+              }
+            }}
+            size="small"
+            variant="contained"
           >
-            <ModalHeader title="View SQL"></ModalHeader>
-            <SimpleFlexSizeEditor
-              language={language}
-              value={selectSql}
-            ></SimpleFlexSizeEditor>
-          </Box>
-        </Modal>
-      )}
-    </Stack>
+            delete
+          </Button>
+        )}
+      </Stack>
+      <Stack>
+        {vis && (
+          <div
+            style={{
+              display: 'grid',
+            }}
+          >
+            <DataGrid
+              style={gridStyle}
+              showCellVerticalBorder
+              showColumnVerticalBorder
+              onRowDoubleClick={onRowDoubleClick}
+              columns={columns}
+              rows={logs}
+              rowHeight={setting.datagridRowHeightXXX()}
+              columnHeaderHeight={setting.datagridRowHeightXXX()}
+              pageSizeOptions={pageSizeOptions}
+              paginationModel={paginationModel}
+              onPaginationModelChange={onPaginationModelChange}
+              initialState={initialState}
+              onColumnResize={onColumnResize}
+              onSortModelChange={onSortModelChange}
+              rowCount={total}
+              paginationMode="server"
+            ></DataGrid>
+          </div>
+        )}
+
+        {selectSql && (
+          <Modal
+            open={!!selectSql}
+            onClose={(e: EscDownEvent, reason) => {
+              if (reason === 'backdropClick') {
+                return;
+              }
+              e.preventDefault();
+              setSelectSql('');
+            }}
+          >
+            <Box
+              sx={{ resize: 'both', ...modalStyle }}
+              ref={setModalBox}
+              width="60%"
+              height="40vh"
+            >
+              <ModalHeader title="View SQL"></ModalHeader>
+              <SimpleFlexSizeEditor
+                language={uuid}
+                value={selectSql}
+              ></SimpleFlexSizeEditor>
+            </Box>
+          </Modal>
+        )}
+      </Stack>
+    </Paper>
   );
 }
 

@@ -127,7 +127,7 @@ impl LangServerCommon for FireBirdDB {
                 .collect()
         })
     }
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
         anyhow::Ok(
             KEY_WORDS
                 .iter()

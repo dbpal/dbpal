@@ -12,7 +12,6 @@ use typescript_type_def::TypeDef;
 
 use crate::language_server::LanguageServer;
 use crate::meta_value::MetaValue;
-use crate::query_log::QueryLogEvent;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BackendKind {
@@ -566,7 +565,7 @@ pub trait SqlBuilder: GetBackendKind {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef)]
 pub struct CreatedTypeDef {
     pub name: String,
     pub sql: Option<String>,
@@ -827,8 +826,6 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()>;
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()>;
-
-    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>>;
 
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
         not_support_feature(self.backend_name())

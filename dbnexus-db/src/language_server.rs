@@ -151,7 +151,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
     async fn all_completion_items(&self) -> Vec<CompletionItem> {
         let mut ret = Vec::new();
         ret.extend(
-            self.get_key_words_fn()
+            self.key_words()
                 .await
                 .map_err(|e| log::error!("get keywords failed ,err:{}", e))
                 .unwrap_or_default()
@@ -394,7 +394,7 @@ pub trait LangServerCommon: GetBackendKind {
     ) -> anyhow::Result<Vec<TempTableColumn>>;
 
     // some backend can use a query to query this.
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>>;
+    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>>;
 
     // completion on ast struct like `SCHEMA.XXXX`  , 'TALBE.XXXX'
     async fn try_completion_dot(

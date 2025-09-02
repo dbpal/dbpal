@@ -59,7 +59,12 @@ import {
   VisiableContext,
 } from './helper.ts';
 
-import { ModalHeader, pageSizeOptions, ResizeWrapper } from './CommonComp.tsx';
+import {
+  ExecuteTime,
+  ModalHeader,
+  pageSizeOptions,
+  ResizeWrapper,
+} from './CommonComp.tsx';
 import { Position } from 'monaco-editor';
 
 class RedisZsetHashModifyReq {
@@ -302,21 +307,24 @@ function RedisAddHash(props: {
       minHeight="50vh"
     >
       <Stack spacing={1} flex={1}>
-        <RedisValueEditor
-          oldValue={key.current}
-          handleValue={(e) => {
-            key.current = e;
-          }}
-          header="key"
-        ></RedisValueEditor>
-
-        <RedisValueEditor
-          oldValue={value.current}
-          handleValue={(e) => {
-            value.current = e;
-          }}
-          header="value"
-        ></RedisValueEditor>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <RedisValueEditor
+            oldValue={key.current}
+            handleValue={(e) => {
+              key.current = e;
+            }}
+            header="key"
+          ></RedisValueEditor>
+        </div>
+        <div style={{ flex: 1.5, display: 'flex', flexDirection: 'column' }}>
+          <RedisValueEditor
+            oldValue={value.current}
+            handleValue={(e) => {
+              value.current = e;
+            }}
+            header="value"
+          ></RedisValueEditor>
+        </div>
 
         <Stack direction="row" spacing={1}>
           <Button
@@ -927,28 +935,38 @@ function RedisSetTable(props: {
 
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
-        <TextField
-          size="small"
-          label="key match could be *key,key*,*key*"
-          variant="outlined"
-          value={keyMatch}
-          onChange={(event) => {
-            setKeyMatch(event.target.value);
-          }}
-          style={{ width: '35%' }}
-        />
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={() => {
-            handleReload(true);
-          }}
-          loading={loading}
-        >
-          reload
-        </Button>
-        <DoubleClickToModify></DoubleClickToModify>
+      <Stack
+        direction="row"
+        spacing={1}
+        style={{ alignItems: 'center', justifyContent: 'space-between' }}
+      >
+        <Stack spacing={1} direction="row" style={{ alignItems: 'center' }}>
+          <TextField
+            size="small"
+            label="key match could be *key,key*,*key*"
+            variant="outlined"
+            value={keyMatch}
+            onChange={(event) => {
+              setKeyMatch(event.target.value);
+            }}
+            style={{ width: '35%' }}
+          />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => {
+              handleReload(true);
+            }}
+            loading={loading}
+          >
+            reload
+          </Button>
+          <DoubleClickToModify></DoubleClickToModify>
+        </Stack>
+
+        <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+          <ExecuteTime loading={loading} />
+        </Stack>
         {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
       </Stack>
 
@@ -1247,19 +1265,29 @@ function RedisListTable(props: {
   }, []);
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={() => {
-            handleReload(true);
-          }}
-          loading={loading}
-        >
-          reload
-        </Button>
-        <DoubleClickToModify></DoubleClickToModify>
+      <Stack
+        direction="row"
+        style={{ justifyContent: 'space-between', alignItems: 'center' }}
+      >
+        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => {
+              handleReload(true);
+            }}
+            loading={loading}
+          >
+            reload
+          </Button>
+          <DoubleClickToModify></DoubleClickToModify>
+        </Stack>
+
+        <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+          <ExecuteTime loading={loading} />
+        </Stack>
       </Stack>
+
       {resp && vis && (
         <div
           style={{
@@ -1549,6 +1577,8 @@ function RedisZsetTable(props: {
         </Button>
         <DoubleClickToModify></DoubleClickToModify>
         {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
+
+        <ExecuteTime loading={loading} />
       </Stack>
 
       {resp && vis && (
@@ -1786,7 +1816,7 @@ function RedisHashTable(props: {
           onChange={(event) => {
             setKeyMatch(event.target.value);
           }}
-          style={{ width: '35%' }}
+          style={{ flex: 1 }}
         />
         <Button
           variant="contained"
@@ -1800,6 +1830,9 @@ function RedisHashTable(props: {
         </Button>
         <DoubleClickToModify></DoubleClickToModify>
         {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
+        <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+          <ExecuteTime loading={loading} />
+        </Stack>
       </Stack>
 
       {resp && vis && (

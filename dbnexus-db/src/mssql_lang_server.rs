@@ -101,7 +101,7 @@ impl LangServerCommon for MsSqlServerDB {
         );
         self.get_query_columns(&sql).await
     }
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
         anyhow::Ok(
             SQLSERVER_KEYWORDS
                 .iter()

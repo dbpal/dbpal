@@ -139,7 +139,7 @@ function DefAndMetasView(props: {
         </div>
       )}
       <MultiQueryResp data={queryResp} />
-      {detail.metas.length > 0 && (
+      {detail.metas && detail.metas.length > 0 && (
         <>
           <Typography variant={titleVariant}> Some Metas </Typography>
           <MetaValuesView values={detail.metas}></MetaValuesView>

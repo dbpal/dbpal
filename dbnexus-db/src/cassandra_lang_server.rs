@@ -11,7 +11,7 @@ use cql3_parser::insert::InsertValues;
 use cql3_parser::select::SelectElement;
 
 use crate::cassandra::CassandraDB;
-use crate::db::DBTrait;
+use crate::db::{CreatedTypeDef, DBTrait};
 use crate::language_server::{
     CompletionItem, CompletionKind, ErrAndLoc, LangServerCommon, LanguageServer,
     LexerCompletionTrait, remove_dupliate,
@@ -59,6 +59,13 @@ impl LexerCompletionTrait for CassandraDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for CassandraDB {
+    async fn list_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
+        match self.merge_schema(schema) {
+            Some(s) => self.list_created_types_impl(&s).await,
+            None => anyhow::Ok(vec![]),
+        }
+    }
+
     async fn list_column(
         &self, schema: Option<&str>, table_name: &str, _is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
@@ -97,7 +104,7 @@ impl LangServerCommon for CassandraDB {
         }
         anyhow::Ok(result)
     }
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let r = CASSANDRA_KEYWORDS
             .iter()
             .map(|x| CompletionItem {

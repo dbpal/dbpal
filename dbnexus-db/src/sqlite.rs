@@ -25,7 +25,6 @@ use crate::db::{
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 #[derive(Clone)]
 pub struct SqliteDB {
@@ -33,8 +32,7 @@ pub struct SqliteDB {
     read_only: bool,
     path: String,
     pub(crate) query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
-    query_logs: QueryLogMap,
-    pub(crate) build_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) build_in_fn_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
 }
@@ -1141,9 +1139,7 @@ impl SqliteDB {
             read_only,
             query_connection: Default::default(),
             path: conn.path.clone(),
-            query_logs: Default::default(),
-
-            build_fn_cache: Default::default(),
+            build_in_fn_completion: Default::default(),
             keywords_completion: Default::default(),
             pragma_completion: Default::default(),
         })
@@ -1293,9 +1289,6 @@ impl QuerySql for SqliteDB {
         anyhow::Ok(())
     }
 
-    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        anyhow::Ok(self.query_logs.get(&id))
-    }
     async fn execute_sql_no_open_conn(
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -1311,8 +1304,6 @@ impl QuerySql for SqliteDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
-
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
             Some(x) => x.clone(),
@@ -1327,15 +1318,12 @@ impl QuerySql for SqliteDB {
             Err(err) => Err(err.to_string()),
         };
 
-        query_log.set_success(ret.is_ok());
         anyhow::Ok(ret)
     }
 
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
-
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
             Some(x) => x.clone(),
@@ -1379,7 +1367,7 @@ impl QuerySql for SqliteDB {
             }
         }
         drop(stream);
-        query_log.set_success(ret.iter().all(|x| x.is_ok()));
+
         if ret.is_empty() {
             use sqlx::Statement;
             let fields = conn
@@ -1419,7 +1407,6 @@ impl QuerySql for SqliteDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        self.query_logs.remove(&id);
         if let Some((_, _x)) = self.query_connection.remove(&id) {}
         anyhow::Ok(())
     }
@@ -2010,15 +1997,7 @@ mod tests {
             println!("json_line:{}", s);
         }
     }
-    #[tokio::test]
-    async fn test_querylog() {
-        let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
-        db.query_sql(query_id, "select 1").await.unwrap();
-        let event = db.get_query_log(query_id).unwrap();
-        println!("{:?}", event);
-        assert_eq!(event.len(), 1);
-    }
+
     #[tokio::test]
     async fn test_show_documents() {
         let db = make_test_object().await;

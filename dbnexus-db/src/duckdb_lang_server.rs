@@ -188,7 +188,7 @@ impl LexerCompletionTrait for DuckDB {
     }
 
     // some backend can use a query to query this.
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let sql = "select  keyword_name from duckdb_keywords() ";
         let conn = self.get_conn()?;
         let mut stmt = block_in_place(|| conn.prepare(sql))?;
@@ -325,7 +325,7 @@ mod tests {
         use std::borrow::Borrow;
         let db = make_test_object(None);
 
-        let fs = LexerCompletionTrait::get_key_words_fn(&db).await.unwrap();
+        let fs = LexerCompletionTrait::key_words(&db).await.unwrap();
 
         let fs: Vec<&str> = fs.iter().map(|x| x.item.borrow()).collect();
 

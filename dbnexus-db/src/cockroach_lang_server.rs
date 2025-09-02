@@ -72,8 +72,8 @@ impl LangServerCommon for CockRoachDB {
         LangServerCommon::list_database(self.pg.as_ref()).await
     }
 
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        self.pg.get_key_words_fn().await
+    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        self.pg.key_words().await
     }
     async fn list_column(
         &self, schema: Option<&str>, name: &str, is_call: bool,
@@ -123,7 +123,7 @@ mod tests {
     async fn print_key_words() {
         let db = make_test_object().await;
 
-        let keywords = <CockRoachDB as LangServerCommon>::get_key_words_fn(&db)
+        let keywords = <CockRoachDB as LangServerCommon>::key_words(&db)
             .await
             .unwrap()
             .into_iter()

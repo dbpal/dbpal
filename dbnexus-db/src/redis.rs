@@ -21,7 +21,6 @@ use crate::db::{
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLogEvent, QueryLogMap};
 use crate::redis_lang_server::RedisDialet;
 
 /// https://stackoverflow.com/questions/30611215/redis-how-to-limit-the-return-number-of-keys-command
@@ -32,7 +31,6 @@ pub struct RedisDB {
     conn_manager: ConnectionManager,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<MultiplexedConnection>>>>,
     created_database: Arc<DashSet<String>>,
-    query_logs: QueryLogMap,
 }
 
 impl RedisDB {
@@ -48,7 +46,6 @@ impl RedisDB {
             conn_manager: m,
             query_connections: Default::default(),
             created_database: Default::default(),
-            query_logs: Default::default(),
         })
     }
 }
@@ -1070,10 +1067,6 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl QuerySql for RedisDB {
-    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        anyhow::Ok(self.query_logs.get(&id))
-    }
-
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         anyhow::Ok(get_command_from_sql(sql)?.iter().any(|x| {
             x.first()
@@ -1113,7 +1106,6 @@ impl QuerySql for RedisDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        self.query_logs.remove(&id);
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }
@@ -1141,7 +1133,6 @@ impl QuerySql for RedisDB {
     async fn query_sql(
         &self, id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = self.query_logs.get_guard(id, sql);
         let conn = match self.query_connections.get(&id) {
             Some(x) => x.clone(),
             None => {
@@ -1149,12 +1140,7 @@ impl QuerySql for RedisDB {
             }
         };
         let mut lock = conn.lock().await;
-
         let ret = query_sql(&mut lock, sql).await;
-        query_log.set_success(match &ret {
-            Ok(x) => x.iter().all(|x| x.is_ok()),
-            Err(_) => false,
-        });
         ret
     }
 }

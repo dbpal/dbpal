@@ -474,7 +474,7 @@ function tabsHasId(tabs: TabContent[], id: string): number | null {
 
 interface DefAndMetas {
   def: string;
-  metas: types.MetaValue[];
+  metas?: types.MetaValue[];
 }
 const progressBarSize = '1.8rem';
 const progressBarSizeSmall = '1.2rem';
@@ -971,7 +971,6 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
 interface IQueryConn {
   queryOP: (text: string) => Promise<any[]>;
   executeOP: (text: string) => Promise<any>;
-  loadQueryLog: () => Promise<types.QueryLogEvent[]>;
   reconnect: () => Promise<void>;
   exportQueryResult: (
     sql: string,
@@ -1068,9 +1067,7 @@ class QueryConn implements IQueryConn {
     });
     return x;
   }
-  loadQueryLog(): Promise<types.QueryLogEvent[]> {
-    return invoke('query_logs', { name: this.uuid, queryId: this.queryId });
-  }
+
   reconnect(): Promise<void> {
     return invoke('query_sql_re_connection', {
       name: this.uuid,

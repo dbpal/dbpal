@@ -208,7 +208,22 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
     <Stack>
       {data && (
         <Stack spacing={1}>
-          {data.sql && <Typography color="info">sql: {data.sql} </Typography>}
+          <Stack direction="row">
+            {data.sql && (
+              <Typography
+                color="info"
+                style={{
+                  whiteSpace: 'nowrap',
+                  textOverflow: 'ellipsis',
+                  overflow: 'hidden',
+                  width: '100px',
+                  flex: 1,
+                }}
+              >
+                sql: {data.sql}
+              </Typography>
+            )}
+          </Stack>
           {vis && (
             <div
               style={{

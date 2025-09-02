@@ -308,11 +308,6 @@ export namespace types {
         "cache_time": (types.U64 | null);
         "has_more": boolean;
     };
-    export type QueryLogEvent = {
-        "time": types.U64;
-        "sql": string;
-        "success": boolean;
-    };
 
     /**
      * create table and all index sql.
@@ -349,5 +344,9 @@ export namespace types {
         "name": string;
         "sql": string;
         "data_type": string;
+    };
+    export type CreatedTypeDef = {
+        "name": string;
+        "sql": (string | null);
     };
 }

@@ -73,8 +73,8 @@ impl LangServerCommon for MariaDB {
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         LangServerCommon::list_column(self.db.as_ref(), schema, name, is_call).await
     }
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        self.db.get_key_words_fn().await
+    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        self.db.key_words().await
     }
     async fn list_function(
         &self, schema: Option<&str>, include_build_in: bool,

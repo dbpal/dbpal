@@ -74,7 +74,7 @@ impl LangServerCommon for TiDB {
         LangServerCommon::list_column(self.db.as_ref(), schema, name, is_call).await
     }
     // some backend can use a query to query this.
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
         /*
             原因一句话：TiDB v7.5.1 还没有 information_schema.keywords 这张表，所以你查不到。
 
@@ -83,7 +83,7 @@ impl LangServerCommon for TiDB {
         。
         你当前的 8.0.11-TiDB-v7.5.1 恰好是 7.5.1，版本号里前面只是伪装成 MySQL 8.0 的“兼容前缀”，实际内核仍是 7.5.1，因此 表不存在。
          */
-        let r = self.db.get_key_words_fn().await.ok().unwrap_or_default();
+        let r = self.db.key_words().await.ok().unwrap_or_default();
         if !r.is_empty() {
             return anyhow::Ok(r);
         }

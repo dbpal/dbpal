@@ -24,7 +24,6 @@ use crate::db::{
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLogEvent, QueryLogMap};
 pub struct PoolManager {
     config: FireBirdConfig,
 }
@@ -350,15 +349,9 @@ impl QuerySql for FireBirdDB {
         anyhow::Ok(())
     }
 
-    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        anyhow::Ok(self.query_logs.get(&id))
-    }
-
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
-
         let mut ret = vec![];
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
@@ -387,7 +380,6 @@ impl QuerySql for FireBirdDB {
             Err(err) => ret.push(Err(err.to_string())),
         }
 
-        query_log.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
     }
     async fn execute_sql_no_open_conn(
@@ -402,8 +394,6 @@ impl QuerySql for FireBirdDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut _guard = self.query_logs.get_guard(query_id, sql);
-
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -415,8 +405,6 @@ impl QuerySql for FireBirdDB {
         let resp = block_in_place(|| conn.execute(sql, ()))
             .map(|x| QueryResp::row_affected(x as u64, sql.to_owned()))
             .map_err(|e| e.to_string());
-
-        _guard.set_success(resp.is_ok());
 
         anyhow::Ok(resp)
     }
@@ -439,7 +427,6 @@ impl QuerySql for FireBirdDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        self.query_logs.remove(&id);
         self.query_connections.remove(&id);
 
         anyhow::Ok(())
@@ -456,7 +443,6 @@ pub struct FireBirdDB {
     pool: r2d2::Pool<PoolManager>,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<PooledConnection<PoolManager>>>>>,
     query_connections_tx: DashSet<uuid::Uuid>,
-    query_logs: QueryLogMap,
 }
 
 impl std::fmt::Debug for FireBirdDB {
@@ -1025,7 +1011,6 @@ impl FireBirdDB {
             config,
             pool,
             query_connections: Default::default(),
-            query_logs: Default::default(),
             query_connections_tx: Default::default(),
         })
     }

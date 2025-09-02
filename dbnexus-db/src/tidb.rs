@@ -10,7 +10,6 @@ use crate::db::{
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
-use crate::query_log::QueryLogEvent;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -80,9 +79,6 @@ impl QuerySql for TiDB {
         self.db.rollback(query_id).await
     }
 
-    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        self.db.get_query_log(id)
-    }
     async fn execute_sql_no_open_conn(
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {

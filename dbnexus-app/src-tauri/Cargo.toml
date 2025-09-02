@@ -39,7 +39,6 @@ humantime = "*"
 tauri-plugin-store = "2.3"
 tauri-plugin-http = "2.5"
 
-
 tauri-plugin-clipboard-manager = "2"
 keyring = { version = "3", features = [
     "apple-native",
@@ -59,8 +58,3 @@ custom-protocol = ["tauri/custom-protocol"]
 random-sleep = []
 random-error = []
 duckdb = ["dbnexus-db/duckdb"]
-
-
-[lib]
-name = "dbnexus_app_lib"
-crate-type = ["lib", "cdylib", "staticlib"]

@@ -323,7 +323,7 @@ impl AstCompletionHelper for PostGresDB {
 impl LangServerCommon for PostGresDB {
     async fn list_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
         let schema = self.not_allow_empty_schema(schema)?;
-        self.list_created_types_impl(&schema).await
+        self.list_created_types_impl(&schema, false).await
     }
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         CatalogTrait::list_database(self).await
@@ -344,7 +344,7 @@ impl LangServerCommon for PostGresDB {
         log::info!("sql:{}", sql);
         self.get_query_columns(&sql).await
     }
-    async fn get_key_words_fn(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let mut lock = self.key_word_completion.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
@@ -653,7 +653,7 @@ mod tests {
     #[tokio::test]
     async fn print_key_words() {
         let db = make_test_object().await;
-        let keywords = <PostGresDB as LangServerCommon>::get_key_words_fn(&db)
+        let keywords = <PostGresDB as LangServerCommon>::key_words(&db)
             .await
             .unwrap()
             .into_iter()

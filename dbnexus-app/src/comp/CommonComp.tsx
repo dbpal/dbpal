@@ -39,6 +39,7 @@ import { invoke } from '@tauri-apps/api/core';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import { CiTimer } from 'react-icons/ci';
 import {
   appStore,
   AppStoreKey,
@@ -54,6 +55,7 @@ import {
   gridStyle,
   handleCopyToClipboard,
   maxTreeSize,
+  QueryLogHandler,
   saveAndSetSize,
   secondConfirm,
   SettingContext,
@@ -333,6 +335,7 @@ function MenuDeleteConfig({ name }) {
       await appStore.set(AppStoreKey.ConnectionConfig, newdata);
       await invoke('close_conn', { name });
       await FavoriteSql.deleteByUuid(name);
+      await new QueryLogHandler(name).drop_conn_delete();
     } catch (e) {
       showNotification('error', 'drop connection failed', e);
     }
@@ -668,12 +671,12 @@ function UdfNameAndParameters(props: {
     </>
   );
 }
+
 function PossibleParseError(props: {
   parseErr: ErrAndLoc;
   editor: editor.IStandaloneCodeEditor;
 }) {
   const { parseErr, editor } = props;
-
   return (
     <Tooltip title="possible error" arrow>
       <Typography
@@ -703,6 +706,77 @@ function PossibleParseError(props: {
   );
 }
 
+function ExecuteTime(props: { loading: boolean; disableTime?: boolean }) {
+  const { loading, disableTime } = props;
+  const executeTimeRef = useRef(null);
+  const timeExecuteClean = useRef<() => void>(null);
+  const [lastLoadTime, setLastLoadTime] = useState(new Date());
+  const tryExecuteTimeClean = () => {
+    if (timeExecuteClean.current) {
+      timeExecuteClean.current();
+      timeExecuteClean.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      tryExecuteTimeClean();
+    };
+  }, []);
+  const timeExecute = () => {
+    const now = new Date();
+    const setUp = () => {
+      //@ts-ignore
+      const ms = new Date() - now;
+      function getTime() {
+        let s = Math.floor(ms / 1000);
+        if (s == 0) {
+          return `${ms}ms`;
+        }
+        let r = ms % 1000;
+        if (r == 0) {
+          return `${s}s`;
+        }
+        return `${s}s ${r}ms`;
+      }
+      (executeTimeRef.current as HTMLDivElement).innerHTML = `${getTime()}`;
+    };
+    const int = setInterval(() => {
+      setUp();
+    }, 100);
+    timeExecuteClean.current = () => {
+      clearInterval(int);
+      setUp();
+    };
+  };
+
+  useEffect(() => {
+    tryExecuteTimeClean();
+    if (!loading) {
+      setLastLoadTime(new Date());
+    } else {
+      timeExecute();
+    }
+  }, [loading]);
+
+  return (
+    <>
+      <Tooltip title="execute time" arrow>
+        <Chip
+          color="default"
+          size="small"
+          label={<span ref={executeTimeRef}> </span>}
+          style={{ minWidth: '9rem' }}
+          icon={<CiTimer />}
+        ></Chip>
+      </Tooltip>
+      {!disableTime && (
+        <Typography>loaded at:{lastLoadTime.toLocaleString()}</Typography>
+      )}
+    </>
+  );
+}
+
 export {
   LogLevelSelection,
   MetaValuesView,
@@ -724,4 +798,5 @@ export {
   ExceedMaxTreeItem,
   UdfNameAndParameters,
   PossibleParseError,
+  ExecuteTime,
 };

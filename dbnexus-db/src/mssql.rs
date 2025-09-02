@@ -29,13 +29,11 @@ use crate::db::{
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 
 use crate::meta_value::MetaValue;
-use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 #[derive(Clone)]
 pub struct MsSqlServerDB {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     pub(crate) config: SqlServerDBConfig,
-    query_logs: QueryLogMap,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
 }
 
@@ -178,7 +176,6 @@ impl MsSqlServerDB {
             config: c,
             pool,
             query_connections: Default::default(),
-            query_logs: Default::default(),
         })
     }
 }
@@ -1720,10 +1717,6 @@ impl QuerySql for MsSqlServerDB {
         anyhow::Ok(())
     }
 
-    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        anyhow::Ok(self.query_logs.get(&id))
-    }
-
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
@@ -1746,7 +1739,6 @@ impl QuerySql for MsSqlServerDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        self.query_logs.remove(&id);
         self.query_connections.remove(&id);
 
         anyhow::Ok(())
@@ -1765,7 +1757,6 @@ impl QuerySql for MsSqlServerDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
@@ -1777,14 +1768,12 @@ impl QuerySql for MsSqlServerDB {
             Ok(x) => Ok(QueryResp::row_affected(x.total(), sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
-        query_log.set_success(ret.is_ok());
         anyhow::Ok(ret)
     }
 
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
@@ -1834,7 +1823,7 @@ impl QuerySql for MsSqlServerDB {
             )?;
             ret.push(Ok(table_list));
         }
-        query_log.set_success(ret.iter().all(|x| x.is_ok()));
+
         anyhow::Ok(ret)
     }
 }

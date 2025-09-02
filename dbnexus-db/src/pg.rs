@@ -25,7 +25,6 @@ use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::pg_format::*;
 use crate::pg_lang_server_static::POSTGRES_TYPES;
-use crate::query_log::{QueryLogEvent, QueryLogMap};
 
 /// postgres version of pg.
 #[derive(Clone)]
@@ -34,7 +33,6 @@ pub struct PostGresDB {
     pub(crate) config: PGDBConfig,
     pub(crate) query_connection:
         Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
-    query_logs: QueryLogMap,
     pub(crate) key_word_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) build_in_fn: Arc<Mutex<Vec<CompletionItem>>>,
 }
@@ -544,7 +542,8 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
-        self.list_created_types_impl(self.config.schema_str()).await
+        self.list_created_types_impl(self.config.schema_str(), true)
+            .await
     }
     async fn drop_created_type(&self, name: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP TYPE  "{}"."{name}" "#, self.config.schema_str());
@@ -1512,8 +1511,16 @@ impl SchemaTrait for PostGresDB {
 
 impl PostGresDB {
     pub(crate) async fn list_created_types_impl(
-        &self, schema: &str,
+        &self, schema: &str, skip_null_create_sql: bool,
     ) -> anyhow::Result<Vec<CreatedTypeDef>> {
+        /*在
+        pg_type.typtype  里：
+        c = composite（复合类型 / 行类型）
+        d = domain（域类型，基于已有类型的约束包装）
+        e = enum（枚举类型）
+        r = range（范围类型，如 int4range、daterange）
+
+        */
         let sql = format!(
             r#"
         SELECT
@@ -1572,10 +1579,10 @@ impl PostGresDB {
             LEFT JOIN pg_catalog.pg_class c ON c.oid = t.typrelid AND c.relkind = 'c'
             LEFT JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
             WHERE t.typtype IN ('c', 'd', 'e', 'r')
-            AND n.nspname = 'xxx'   -- 把 {} 换成目标 schema，如 'public'
+            AND n.nspname = '{}'  
             AND t.typisdefined
             GROUP BY n.nspname, t.typname, t.oid, t.typowner, t.typtype
-            ORDER BY type_name;
+            ORDER BY type_name
         "#,
             schema
         );
@@ -1589,6 +1596,9 @@ impl PostGresDB {
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
             let def: Option<String> = row.try_get(1)?;
+            if skip_null_create_sql && (def.is_none() || def.as_ref().unwrap().trim().is_empty()) {
+                continue;
+            }
             ret.push(CreatedTypeDef { name, sql: def });
         }
         anyhow::Ok(ret)
@@ -1655,7 +1665,6 @@ impl PostGresDB {
             pool,
             config,
             query_connection: Default::default(),
-            query_logs: Default::default(),
             key_word_completion: Default::default(),
             build_in_fn: Default::default(),
         })
@@ -1851,10 +1860,6 @@ impl QuerySql for PostGresDB {
         anyhow::Ok(())
     }
 
-    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        anyhow::Ok(self.query_logs.get(&id))
-    }
-
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         is_dangerous_sql_by_parser(sql, &sqlparser::dialect::PostgreSqlDialect {})
     }
@@ -1875,7 +1880,6 @@ impl QuerySql for PostGresDB {
     }
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        self.query_logs.remove(&id);
         self.query_connection.remove(&id);
 
         anyhow::Ok(())
@@ -1894,7 +1898,6 @@ impl QuerySql for PostGresDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
             Some(x) => x.clone(),
@@ -1907,14 +1910,12 @@ impl QuerySql for PostGresDB {
             Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
-        query_log.set_success(ret.is_ok());
         anyhow::Ok(ret)
     }
 
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut query_log = self.query_logs.get_guard(query_id, sql);
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
             Some(x) => x.clone(),
@@ -1953,7 +1954,7 @@ impl QuerySql for PostGresDB {
             }
         }
         drop(stream);
-        query_log.set_success(ret.iter().all(|x| x.is_ok()));
+
         if ret.is_empty() {
             use sqlx::Statement;
             let fields = conn

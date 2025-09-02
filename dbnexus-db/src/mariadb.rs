@@ -8,7 +8,6 @@ use crate::db::{
 
 use crate::meta_value::MetaValue;
 use crate::mysql::MysqlDB;
-use crate::query_log::QueryLogEvent;
 use sqlx::types::BigDecimal;
 use sqlx::{AssertSqlSafe, Row};
 use std::borrow::Cow;
@@ -78,9 +77,6 @@ impl QuerySql for MariaDB {
         self.db.rollback(query_id).await
     }
 
-    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        self.db.get_query_log(id)
-    }
     async fn execute_sql_no_open_conn(
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -502,7 +498,7 @@ mod tests {
     async fn print_key_words() {
         let db = make_test_object_mariadb(make_config()).await;
 
-        let keywords = <MariaDB as LangServerCommon>::get_key_words_fn(&db)
+        let keywords = <MariaDB as LangServerCommon>::key_words(&db)
             .await
             .unwrap()
             .into_iter()

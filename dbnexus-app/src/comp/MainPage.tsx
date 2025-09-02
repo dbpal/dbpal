@@ -263,7 +263,6 @@ export default function MainPage() {
           <NotificationProvider>
             <WindowFocusChangeContext value={windowFocus}>
               <div> {mainContent} </div>
-
               <div id="menu-div" style={menu && menu.style}>
                 <Paper elevation={24}>{menu && menu.content}</Paper>
               </div>

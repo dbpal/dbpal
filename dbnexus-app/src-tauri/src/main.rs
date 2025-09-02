@@ -1,10 +1,10 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::backtrace::Backtrace;
-use std::panic;
 mod app;
 mod handlers;
+use std::backtrace::Backtrace;
+use std::panic;
 
 use app::{App, DBConnectionConfig};
 use handlers::{
@@ -12,37 +12,37 @@ use handlers::{
     cassandra_invalid_table_or_view_caching, cassandra_list_aggregate, cassandra_show_aggregate,
     check_conn, close_conn, command_panic, config_list_database_or_schema, conn_opend,
     create_database, create_index, create_schema, create_table_and_index_sql, create_view_sql,
-    delete_password, disable_trigger, drop_database, drop_index, drop_materialized_view,
-    drop_procedure, drop_schema, drop_sequence, drop_table, drop_table_column, drop_trigger,
-    drop_udf, drop_view, duplicate_table, enable_trigger, execute_sql, execute_sql_no_open_conn,
-    export_query_result_to_file, export_table_or_view, fonts_all_families, has_entered_password,
-    is_dangerous_sql, list_created_types, list_data_types, list_database, list_materialized_view,
-    list_procedure, list_schema, list_sequences, list_sql_current_values, list_table, list_udf,
-    list_view, modify_table_column, mongo_create_index, mongo_delete_ids,
-    mongo_get_one_document_by_id, mongo_insert, mongo_list_time_serial_collection,
-    mongo_query_collection_count_docs, mongo_query_collection_create_index,
-    mongo_query_collection_create_search_index, mongo_query_collection_delete_many,
-    mongo_query_collection_delete_one, mongo_query_collection_distinct,
-    mongo_query_collection_drop, mongo_query_collection_drop_index,
-    mongo_query_collection_drop_indexes, mongo_query_collection_drop_search_index,
-    mongo_query_collection_find, mongo_query_collection_find_one,
-    mongo_query_collection_find_one_and_delete, mongo_query_collection_find_one_and_replace,
-    mongo_query_collection_insert_many, mongo_query_collection_insert_one,
-    mongo_query_collection_list_index_names, mongo_query_collection_list_indexes,
-    mongo_query_collection_list_search_indexes, mongo_query_collection_replace_one,
-    mongo_query_collection_update_many, mongo_query_collection_update_one, mongo_query_db_drop,
-    mongo_query_db_list_collection_names, mongo_query_db_run_command, mongo_show_collection_docs,
-    mongo_show_collection_table_list, mongo_update_one, open_conn, page_init_callback,
-    put_value_in_sql, query_commit, query_get_commit, query_logs, query_rollback,
-    query_set_autocommit, query_sql, query_sql_close_connection, query_sql_open_connection,
-    query_sql_re_connection, redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_lpush,
-    redis_list_remove, redis_list_rpush, redis_list_set, redis_list_table, redis_set_add,
-    redis_set_del, redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del,
-    redis_zset_replace, redis_zset_show_table, rename_index, rename_sequnce, rename_table,
-    save_entered_password, save_password, server_metas, set_auto_completion_query_id, show_indexes,
-    show_procedure, show_table, show_table_columns, show_trigger, show_udf, show_view,
-    show_view_columns, sql_parse_error, table_delete, table_insert, table_update, test_connection,
-    truncate_table, valid_json,
+    delete_password, disable_trigger, drop_created_type, drop_database, drop_index,
+    drop_materialized_view, drop_procedure, drop_schema, drop_sequence, drop_table,
+    drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
+    execute_sql, execute_sql_no_open_conn, export_query_result_to_file, export_table_or_view,
+    fonts_all_families, has_entered_password, is_dangerous_sql, list_created_types,
+    list_data_types, list_database, list_materialized_view, list_procedure, list_schema,
+    list_sequences, list_sql_current_values, list_table, list_udf, list_view, modify_table_column,
+    mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id, mongo_insert,
+    mongo_list_time_serial_collection, mongo_query_collection_count_docs,
+    mongo_query_collection_create_index, mongo_query_collection_create_search_index,
+    mongo_query_collection_delete_many, mongo_query_collection_delete_one,
+    mongo_query_collection_distinct, mongo_query_collection_drop,
+    mongo_query_collection_drop_index, mongo_query_collection_drop_indexes,
+    mongo_query_collection_drop_search_index, mongo_query_collection_find,
+    mongo_query_collection_find_one, mongo_query_collection_find_one_and_delete,
+    mongo_query_collection_find_one_and_replace, mongo_query_collection_insert_many,
+    mongo_query_collection_insert_one, mongo_query_collection_list_index_names,
+    mongo_query_collection_list_indexes, mongo_query_collection_list_search_indexes,
+    mongo_query_collection_replace_one, mongo_query_collection_update_many,
+    mongo_query_collection_update_one, mongo_query_db_drop, mongo_query_db_list_collection_names,
+    mongo_query_db_run_command, mongo_show_collection_docs, mongo_show_collection_table_list,
+    mongo_update_one, open_conn, page_init_callback, put_value_in_sql, query_commit,
+    query_get_commit, query_rollback, query_set_autocommit, query_sql, query_sql_close_connection,
+    query_sql_open_connection, query_sql_re_connection, redis_hash_add, redis_hash_del,
+    redis_hash_replace, redis_list_lpush, redis_list_remove, redis_list_rpush, redis_list_set,
+    redis_list_table, redis_set_add, redis_set_del, redis_set_replace, redis_string_set,
+    redis_zset_add, redis_zset_del, redis_zset_replace, redis_zset_show_table, rename_index,
+    rename_sequnce, rename_table, save_entered_password, save_password, server_metas,
+    set_auto_completion_query_id, show_indexes, show_procedure, show_table, show_table_columns,
+    show_trigger, show_udf, show_view, show_view_columns, sql_parse_error, table_delete,
+    table_insert, table_update, test_connection, truncate_table, valid_json,
 };
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
@@ -378,7 +378,6 @@ fn main_() {
             drop_materialized_view,
             server_metas,
             auto_completion,
-            query_logs,
             is_dangerous_sql,
             export_query_result_to_file,
             redis_zset_show_table,
@@ -437,7 +436,8 @@ fn main_() {
             fonts_all_families,
             list_sql_current_values,
             sql_parse_error,
-            execute_sql_no_open_conn
+            execute_sql_no_open_conn,
+            drop_created_type,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

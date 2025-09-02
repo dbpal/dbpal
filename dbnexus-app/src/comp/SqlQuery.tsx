@@ -8,13 +8,11 @@ import {
   Chip,
   IconButton,
   Modal,
-  Paper,
   Stack,
   TextField,
   Tooltip,
 } from '@mui/material';
 
-import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { FaExclamation } from 'react-icons/fa';
 import {
@@ -48,6 +46,7 @@ import {
   DataSourceKind,
   ErrAndLoc,
   getEditorText,
+  QueryLogHandler,
   SaveSizesToStore,
   secondConfirm,
   SetCloseConfirmTextContext,
@@ -56,9 +55,8 @@ import {
 } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
-import { CiTimer } from 'react-icons/ci';
 import { invoke } from '@tauri-apps/api/core';
-import { PossibleParseError } from './CommonComp.tsx';
+import { ExecuteTime, PossibleParseError } from './CommonComp.tsx';
 
 const fileFilter = {
   filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
@@ -164,7 +162,7 @@ function SqlTransaction(props: { conn: IQueryConn; nonce; executeTimes }) {
 }
 
 function SqlQuery(props: {
-  language: string;
+  uuid: string;
   handelTextAndPositionChange?: (text: string, pos: Position) => void;
   makeConn: MakeIQueryConn;
   value?: string;
@@ -176,7 +174,7 @@ function SqlQuery(props: {
 }) {
   let {
     handelTextAndPositionChange,
-    language,
+    uuid,
     makeConn,
     value,
     saveFavoriteSql,
@@ -189,26 +187,17 @@ function SqlQuery(props: {
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
   const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
   const [parseErr, setParseErr] = useState<ErrAndLoc | null>(null);
-
   let editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position | null>(null);
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [showQueryLog, setShowQueryLog] = useState(false);
-  const [queryLogs, setQueryLogs] = useState([]);
   const [showSuggestReconn, setShowSuggestReconn] = useState<number | null>(
     null
   );
+  const queryLogHandler = useRef(new QueryLogHandler(uuid));
   const [executeTimes, setExecuteTimes] = useState(0);
 
-  const executeTimeRef = useRef(null);
-  const timeExecuteClean = useRef<() => void>(null);
-  const tryExecuteTimeClean = () => {
-    if (timeExecuteClean.current) {
-      timeExecuteClean.current();
-      timeExecuteClean.current = null;
-    }
-  };
   const [commitNonce, setCommitNonce] = useState(0);
   const [file, setFile] = useState('');
   const [conn, setConn] = useState<IQueryConn | null>(null);
@@ -238,21 +227,6 @@ function SqlQuery(props: {
     []
   );
 
-  const handleLoadQueryLog = () => {
-    conn
-      .loadQueryLog()
-      .then((logs) => {
-        setQueryLogs(logs);
-      })
-      .catch((e) => {
-        showNotification('error', 'fetch query logs failed', e);
-      });
-  };
-  useEffect(() => {
-    if (showQueryLog) {
-      handleLoadQueryLog();
-    }
-  }, [showQueryLog]);
   const handleReconnect = async () => {
     setLoading(false);
     if (conn) {
@@ -277,7 +251,6 @@ function SqlQuery(props: {
         .finally(() => {
           setLoading(false);
           setCommitNonce((e) => e + 1);
-          tryExecuteTimeClean();
         });
     } else {
       makeConn()
@@ -291,7 +264,6 @@ function SqlQuery(props: {
         .finally(() => {
           setLoading(false);
           setCommitNonce((e) => e + 1);
-          tryExecuteTimeClean();
         });
     }
   };
@@ -319,34 +291,6 @@ function SqlQuery(props: {
     }
   };
 
-  const timeExecute = () => {
-    tryExecuteTimeClean();
-    const now = new Date();
-    const setUp = () => {
-      //@ts-ignore
-      const ms = new Date() - now;
-      function getTime() {
-        let s = Math.floor(ms / 1000);
-        if (s == 0) {
-          return `${ms}ms`;
-        }
-        let r = ms % 1000;
-        if (r == 0) {
-          return `${s}s`;
-        }
-        return `${s}s ${r}ms`;
-      }
-      (executeTimeRef.current as HTMLDivElement).innerHTML = `${getTime()}`;
-    };
-    const int = setInterval(() => {
-      setUp();
-    }, 50);
-    timeExecuteClean.current = () => {
-      clearInterval(int);
-      setUp();
-    };
-  };
-
   const handleExecute = async () => {
     const text = getEditorText(editor.current, showNotification);
     if (!text) {
@@ -364,15 +308,12 @@ function SqlQuery(props: {
     }
     let now = new Date();
     setLoading(true);
-    timeExecute();
     setExecuteTimes((e) => e + 1);
     conn
       .executeOP(text)
       .then((e) => {
+        queryLogHandler.current.save(text, rustResultOk(e), showNotification);
         setResp([e]);
-        if (showQueryLog) {
-          handleLoadQueryLog();
-        }
         suggestReconnect(now);
       })
       .catch((e) => {
@@ -382,7 +323,6 @@ function SqlQuery(props: {
       .finally(() => {
         setLoading(false);
         setCommitNonce((e) => e + 1);
-        tryExecuteTimeClean();
       });
   };
   const handleQuery = async (append: boolean, explain: boolean = false) => {
@@ -406,18 +346,19 @@ function SqlQuery(props: {
     }
     let now = new Date();
     setLoading(true);
-    timeExecute();
     setExecuteTimes((e) => e + 1);
     conn
       .queryOP(text)
       .then((resp) => {
+        queryLogHandler.current.save(
+          text,
+          rustResultOk(resp),
+          showNotification
+        );
         if (append) {
           setResp((p) => [...p, ...resp]);
         } else {
           setResp(resp);
-        }
-        if (showQueryLog) {
-          handleLoadQueryLog();
         }
         suggestReconnect(now);
         showNotification('success', 'Execute OK');
@@ -429,7 +370,6 @@ function SqlQuery(props: {
       .finally(() => {
         setLoading(false);
         setCommitNonce((e) => e + 1);
-        tryExecuteTimeClean();
       });
   };
 
@@ -492,7 +432,6 @@ function SqlQuery(props: {
   }, []);
   const vis = useContext(VisiableContext);
   useEffect(() => {
-    // console.log('SqlQuery vis changed', vis);
     if (vis && conn) {
       console.log('SqlQuery setQueryId', conn.queryId);
       invoke('set_auto_completion_query_id', { queryId: conn.queryId })
@@ -552,37 +491,12 @@ function SqlQuery(props: {
           width: '100%',
         }}
       >
-        {/* // here is query log use absolute position to locate. */}
-        {showQueryLog && (
-          <Paper
-            style={{
-              position: 'absolute',
-              right: 0,
-              top: 0,
-              display: showQueryLog ? 'block' : 'none',
-              zIndex: 13,
-              width: '75%',
-            }}
-            elevation={16}
-          >
-            <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
-              <IconButton
-                onClick={() => {
-                  setShowQueryLog(false);
-                }}
-              >
-                <CloseIcon></CloseIcon>
-              </IconButton>
-              <Tooltip title="double click to open code editor" arrow>
-                <BsFillLightbulbFill />
-              </Tooltip>
-              <Tooltip title="esc can close query log too" arrow>
-                <span>esc</span>
-              </Tooltip>
-            </Stack>
-            <QueryLog uuid={language} logs={queryLogs}></QueryLog>
-          </Paper>
-        )}
+        <QueryLog
+          showQueryLog={showQueryLog}
+          setShowQueryLog={setShowQueryLog}
+          uuid={uuid}
+          executeTimes={executeTimes}
+        ></QueryLog>
 
         <Stack
           direction="row"
@@ -639,15 +553,6 @@ function SqlQuery(props: {
               </IconButton>
             </Tooltip>
           )}
-
-          <Tooltip title="sql execute time" arrow>
-            <Chip
-              color="default"
-              size="small"
-              label={<span ref={executeTimeRef}> </span>}
-              icon={<CiTimer />}
-            ></Chip>
-          </Tooltip>
 
           {conn && conn.supportTransaction() && (
             <SqlTransaction
@@ -741,6 +646,8 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
           {buttons}
+
+          <ExecuteTime loading={loading} disableTime></ExecuteTime>
         </Stack>
         <div
           style={{
@@ -752,7 +659,7 @@ function SqlQuery(props: {
           ref={editorDivDom}
         >
           <Editor
-            language={language}
+            language={uuid}
             onMount={handleEditorDidMount}
             width="99%"
             height="99%"
@@ -862,4 +769,15 @@ function SqlQuery(props: {
   );
 }
 
+function rustResultOk(x: any): boolean {
+  if (x instanceof Array) {
+    for (let i = 0; i < x.length; i++) {
+      if (!rustResultOk(x[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return !!x['Ok'];
+}
 export { SqlQuery };
