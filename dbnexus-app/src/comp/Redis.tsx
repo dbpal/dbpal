@@ -1811,29 +1811,41 @@ function RedisHashTable(props: {
   }, []);
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1} alignItems="center">
-        <TextField
-          size="small"
-          label="key match could be *key,key*,*key*"
-          variant="outlined"
-          value={keyMatch}
-          onChange={(event) => {
-            setKeyMatch(event.target.value);
-          }}
-          style={{ flex: 1 }}
-        />
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={() => {
-            handleReload(true);
-          }} // 点击事件处理
-          loading={loading}
+      <Stack
+        direction="row"
+        spacing={1}
+        alignItems="center"
+        style={{ justifyContent: 'space-between' }}
+      >
+        <Stack
+          direction="row"
+          spacing={1}
+          style={{ width: '55%', alignItems: 'center' }}
         >
-          reload
-        </Button>
-        <DoubleClickToModify></DoubleClickToModify>
-        {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
+          <TextField
+            size="small"
+            label="key match could be *key,key*,*key*"
+            variant="outlined"
+            value={keyMatch}
+            onChange={(event) => {
+              setKeyMatch(event.target.value);
+            }}
+            style={{ flex: 1 }}
+          />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => {
+              handleReload(true);
+            }} // 点击事件处理
+            loading={loading}
+          >
+            reload
+          </Button>
+          <DoubleClickToModify></DoubleClickToModify>
+          {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
+        </Stack>
+
         <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
           <ExecutingTime loading={loading} />
         </Stack>

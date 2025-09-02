@@ -2,7 +2,7 @@
 name = "dbpal"
 version = "0.0.0"
 description = "A database management system"
-authors = ["yuyangxxxmail@gmailc.om"]
+authors = ["yuyangxxxmail@gmail.com"]
 edition = "2021"
 default-run = "dbpal"
 

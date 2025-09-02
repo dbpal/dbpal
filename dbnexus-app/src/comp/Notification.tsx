@@ -83,7 +83,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         >
           <Alert
             severity={notification.severity}
-            sx={{ maxWidth: '70vw', minWidth: '15vw' }}
+            sx={{ maxWidth: '60vw', minWidth: '15vw' }}
           >
             {/* 设置更宽的宽度 */}
             {notification.title && (

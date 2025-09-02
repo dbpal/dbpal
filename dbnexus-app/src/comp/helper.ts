@@ -7,10 +7,8 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
 import { BSON, EJSON } from "bson";
 import Database, { QueryResult } from '@tauri-apps/plugin-sql';
-import { ok } from "assert";
 
 const appDatabase = await Database.load('sqlite:dbpal.sqlite.db');
-
 
 appDatabase.select("select 1").then(e => {
   console.log("sqlite setup ok", e);

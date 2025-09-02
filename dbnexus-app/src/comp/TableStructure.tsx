@@ -148,7 +148,7 @@ function ColumnsStructure(props: {
     return [
       { field: 'field' },
       {
-        field: 'typ',
+        field: 'data_type',
         renderHeader: () => {
           return 'type';
         },

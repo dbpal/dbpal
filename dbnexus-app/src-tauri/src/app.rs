@@ -345,24 +345,15 @@ impl From<Arc<dyn dbnexus_db::db::SchemaTrait>> for Open {
 }
 
 /// all the databases
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct App {
     pub opens: Arc<Mutex<HashMap<String, Open>>>,
     pub saved_password: Arc<DashMap<String, String>>,
 }
 
-impl Default for App {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl App {
     pub fn new() -> Self {
-        Self {
-            opens: Default::default(),
-            saved_password: Default::default(),
-        }
+        Default::default()
     }
 }
 type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;

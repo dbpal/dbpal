@@ -52,7 +52,7 @@ function QueryLog(props: {
 }) {
   let { uuid, showQueryLog, setShowQueryLog, executeTimes } = props;
   const [selectSql, setSelectSql] = useState('');
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(0); // datagrid start with 0
   const [pageSize, setPagesize] = useState(10);
   const [logs, setLogs] = useState([]);
   const [matchSql, setMatchSql] = useState('');
