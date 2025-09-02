@@ -7,6 +7,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
 import { BSON, EJSON } from "bson";
 import Database, { QueryResult } from '@tauri-apps/plugin-sql';
+import { ok } from "assert";
 
 const appDatabase = await Database.load('sqlite:dbpal.sqlite.db');
 
@@ -490,13 +491,16 @@ class ColumnWidths {
 }
 var columnWidths = new ColumnWidths();
 const VisiableContext = createContext(true);
-const handleCopyToClipboard = (text, showNotification) => {
+const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
   writeText(text)
     .then(() => {
-      showNotification('success', 'success copy to clipboard.');
+      if (showNotification) { showNotification('success', 'success copy to clipboard.'); }
+      if (okCallBack) { okCallBack() }
     })
     .catch((e) => {
-      showNotification('error', 'copy to clipboard failed', e);
+      if (showNotification) {
+        showNotification('error', 'copy to clipboard failed', e);
+      }
     });
 };
 

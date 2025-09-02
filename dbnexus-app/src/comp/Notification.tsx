@@ -1,7 +1,22 @@
-import React, { useState, ReactNode, createContext } from 'react';
-import { Snackbar, Alert, AlertTitle, Slide } from '@mui/material';
+import React, {
+  useState,
+  ReactNode,
+  createContext,
+  use,
+  useEffect,
+} from 'react';
+import {
+  Snackbar,
+  Alert,
+  AlertTitle,
+  Slide,
+  Stack,
+  Button,
+  Typography,
+} from '@mui/material';
 import { AlertColor } from '@mui/material/Alert';
 import { msgTimeout } from './Common';
+import { handleCopyToClipboard } from './helper';
 
 interface NotificationContextProps {
   showNotification: (
@@ -56,7 +71,10 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const transition = (props: any) => {
     return <Slide {...props} direction="left" />;
   };
-
+  const [copied, setCopeid] = useState(false);
+  useEffect(() => {
+    setCopeid(false);
+  }, [notification]);
   return (
     <NotificationContext.Provider value={{ showNotification }}>
       {children}
@@ -66,15 +84,45 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
           autoHideDuration={msgTimeout}
           onClose={handleClose}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-          TransitionComponent={transition}
           sx={{ mb: 8 }} // 调整位置稍微高一些
+          slots={{ transition }}
         >
-          <Alert severity={notification.severity} sx={{ width: '400px' }}>
+          <Alert
+            severity={notification.severity}
+            sx={{ maxWidth: '70vw', minWidth: '15vw' }}
+          >
             {/* 设置更宽的宽度 */}
             {notification.title && (
-              <AlertTitle>{notification.title}</AlertTitle>
+              <AlertTitle color={notification.severity}>
+                {notification.title}
+              </AlertTitle>
             )}
-            {notification.message}
+            <Stack
+              direction="row"
+              spacing={1}
+              style={{ alignItems: 'flex-start' }}
+            >
+              <Typography color={notification.severity}>
+                {notification.message}
+              </Typography>
+
+              {notification.message && (
+                <Button
+                  onClick={() => {
+                    handleCopyToClipboard(
+                      notification.message,
+                      undefined,
+                      () => {
+                        setCopeid(true);
+                      }
+                    );
+                  }}
+                  color={copied ? 'success' : 'primary'}
+                >
+                  {copied ? 'copied' : 'copy'}
+                </Button>
+              )}
+            </Stack>
           </Alert>
         </Snackbar>
       )}
