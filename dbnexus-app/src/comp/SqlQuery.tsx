@@ -56,7 +56,7 @@ import {
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
 import { invoke } from '@tauri-apps/api/core';
-import { ExecuteTime, PossibleParseError } from './CommonComp.tsx';
+import { ExecutingTime, PossibleParseError } from './CommonComp.tsx';
 
 const fileFilter = {
   filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
@@ -647,7 +647,7 @@ function SqlQuery(props: {
           </Tooltip>
           {buttons}
 
-          <ExecuteTime loading={loading} disableTime></ExecuteTime>
+          <ExecutingTime loading={loading} disableTime></ExecutingTime>
         </Stack>
         <div
           style={{

@@ -706,7 +706,7 @@ function PossibleParseError(props: {
   );
 }
 
-function ExecuteTime(props: { loading: boolean; disableTime?: boolean }) {
+function ExecutingTime(props: { loading: boolean; disableTime?: boolean }) {
   const { loading, disableTime } = props;
   const executeTimeRef = useRef(null);
   const timeExecuteClean = useRef<() => void>(null);
@@ -763,7 +763,7 @@ function ExecuteTime(props: { loading: boolean; disableTime?: boolean }) {
     <>
       <Tooltip title="execute time" arrow>
         <Chip
-          color="default"
+          color="success"
           size="small"
           label={<span ref={executeTimeRef}> </span>}
           style={{ minWidth: '6rem' }}
@@ -798,5 +798,5 @@ export {
   ExceedMaxTreeItem,
   UdfNameAndParameters,
   PossibleParseError,
-  ExecuteTime,
+  ExecutingTime,
 };

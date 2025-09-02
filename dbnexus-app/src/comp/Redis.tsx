@@ -60,7 +60,7 @@ import {
 } from './helper.ts';
 
 import {
-  ExecuteTime,
+  ExecutingTime,
   ModalHeader,
   pageSizeOptions,
   ResizeWrapper,
@@ -940,7 +940,11 @@ function RedisSetTable(props: {
         spacing={1}
         style={{ alignItems: 'center', justifyContent: 'space-between' }}
       >
-        <Stack spacing={1} direction="row" style={{ alignItems: 'center' }}>
+        <Stack
+          spacing={1}
+          direction="row"
+          style={{ alignItems: 'center', width: '50%' }}
+        >
           <TextField
             size="small"
             label="key match could be *key,key*,*key*"
@@ -949,7 +953,7 @@ function RedisSetTable(props: {
             onChange={(event) => {
               setKeyMatch(event.target.value);
             }}
-            style={{ width: '35%' }}
+            style={{ flex: 1 }}
           />
           <Button
             variant="contained"
@@ -965,7 +969,7 @@ function RedisSetTable(props: {
         </Stack>
 
         <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
-          <ExecuteTime loading={loading} />
+          <ExecutingTime loading={loading} />
         </Stack>
         {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
       </Stack>
@@ -1284,7 +1288,7 @@ function RedisListTable(props: {
         </Stack>
 
         <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
-          <ExecuteTime loading={loading} />
+          <ExecutingTime loading={loading} />
         </Stack>
       </Stack>
 
@@ -1578,7 +1582,7 @@ function RedisZsetTable(props: {
         <DoubleClickToModify></DoubleClickToModify>
         {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
 
-        <ExecuteTime loading={loading} />
+        <ExecutingTime loading={loading} />
       </Stack>
 
       {resp && vis && (
@@ -1831,7 +1835,7 @@ function RedisHashTable(props: {
         <DoubleClickToModify></DoubleClickToModify>
         {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
         <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
-          <ExecuteTime loading={loading} />
+          <ExecutingTime loading={loading} />
         </Stack>
       </Stack>
 

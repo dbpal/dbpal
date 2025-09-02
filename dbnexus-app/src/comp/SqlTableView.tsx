@@ -74,7 +74,7 @@ import {
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
 import {
-  ExecuteTime,
+  ExecutingTime,
   MenuResetColumnWidths,
   ModalHeader,
   pageSizeOptions,
@@ -799,7 +799,7 @@ function SqlTableView_(props: {
             alignItems: 'center',
           }}
         >
-          <ExecuteTime loading={loading}></ExecuteTime>
+          <ExecutingTime loading={loading}></ExecutingTime>
         </Stack>
       </Stack>
       {visiable && (
