@@ -63,6 +63,7 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { BsFillLightbulbFill } from 'react-icons/bs';
 import DataObjectIcon from '@mui/icons-material/DataObject';
 import {
+  ExecutingTime,
   MenuResetColumnWidths,
   ModalHeader,
   pageSizeOptions,
@@ -448,6 +449,7 @@ function MongoTableToolBar(props: {
   addOP: (doc: BSON.Document) => Promise<void>;
   someNotice?: ReactNode;
   nonse;
+  loading;
 }) {
   const {
     handleReload,
@@ -458,17 +460,10 @@ function MongoTableToolBar(props: {
     viewModel,
     handleViewModel,
     someNotice,
+    loading,
   } = props;
-
   const [showModifyFilter, setShowModifyFilter] = useState(false);
   const [showModifySort, setShowModifySort] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const doReload = () => {
-    setLoading(true);
-    handleReload().finally(() => {
-      setLoading(false);
-    });
-  };
   useEffect(() => {
     handleViewModel(viewModel);
   }, [viewModel]);
@@ -496,7 +491,7 @@ function MongoTableToolBar(props: {
           loading={loading}
           variant="contained"
           color="primary"
-          onClick={doReload}
+          onClick={handleReload}
         >
           reload
         </Button>
@@ -528,7 +523,7 @@ function MongoTableToolBar(props: {
         ></Chip>
         {someNotice}
       </Stack>
-      <Stack direction="row">
+      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <ButtonGroup sx={{ gap: 0.5 }}>
           <IconButton
             disabled={viewModel == MongoDataViewModel.Object}
@@ -879,13 +874,16 @@ function MongoTableJson(props: {
   modifyOP?: (doc: BSON.Document) => Promise<void>;
   deleteOP?: (ids: any[] | any) => Promise<void>;
   nonse;
+  setLoading;
 }) {
-  const { filter, sort, realodOPDocs, modifyOP, deleteOP, nonse } = props;
+  const { filter, sort, realodOPDocs, modifyOP, deleteOP, nonse, setLoading } =
+    props;
   const [jsons, setJsons] = useState<DocsAndCount>({ docs: [], count: 0 });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const { showNotification } = useContext(NotificationContext);
   const handleReload = async (showOK) => {
+    setLoading(true);
     realodOPDocs(filter, sort, page, pageSize)
       .then((resp) => {
         setJsons(resp);
@@ -895,6 +893,9 @@ function MongoTableJson(props: {
       })
       .catch((e) => {
         showNotification('error', 'fetch data failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
   const handleDetele = async (ids: any[]) => {
@@ -1105,6 +1106,8 @@ function MongoTableList(props: {
   modifyOP?: (doc: BSON.Document) => Promise<void>;
   deleteOP?: (ids: any[] | any) => Promise<void>;
   nonse;
+  loading;
+  setLoading;
 }) {
   const {
     filter,
@@ -1116,6 +1119,8 @@ function MongoTableList(props: {
     deleteOP,
     nonse,
     setFilter,
+    loading,
+    setLoading,
   } = props;
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(useContext(SettingContext).pageSize);
@@ -1124,7 +1129,6 @@ function MongoTableList(props: {
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
     null
   );
-  const [loading, setLoading] = useState(false);
 
   const handleReload = async (showOK) => {
     setLoading(true);
@@ -1375,13 +1379,17 @@ function MongoTableObject(props: {
   modifyOP?: (doc: BSON.Document) => Promise<void>;
   deleteOP?: (ids: any[] | any) => Promise<void>;
   nonse;
+
+  setLoading;
 }) {
-  const { filter, sort, realodOPDocs, modifyOP, deleteOP, nonse } = props;
+  const { filter, sort, realodOPDocs, modifyOP, deleteOP, nonse, setLoading } =
+    props;
   const [docs, setDocs] = useState<DocsAndCount>({ docs: [], count: 0 });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const { showNotification } = useContext(NotificationContext);
   const handleReload = async (showOK) => {
+    setLoading(true);
     realodOPDocs(filter, sort, page, pageSize)
       .then((resp) => {
         setDocs(resp);
@@ -1391,6 +1399,9 @@ function MongoTableObject(props: {
       })
       .catch((e) => {
         showNotification('error', 'fetch data failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
   const handleDetele = async (ids: any[]) => {
@@ -1483,6 +1494,7 @@ function MongoTable(props: {
   const [sort, setSort] = useState<BSON.Document>({});
   const [viewModel, setViewModel] = useState(oldViewModel);
   const [nonse, setNonse] = useState(0);
+  const [loading, setLoading] = useState(false);
   useEffect(() => {
     oldViewModel = viewModel;
   }, [viewModel]);
@@ -1511,7 +1523,15 @@ function MongoTable(props: {
             <DoubleClickToModify></DoubleClickToModify>
           ) : null
         }
+        loading={loading}
       ></MongoTableToolBar>
+
+      <Stack
+        direction="row"
+        style={{ justifyContent: 'flex-end', alignItems: 'center' }}
+      >
+        <ExecutingTime loading={loading} />
+      </Stack>
 
       {viewModel == MongoDataViewModel.List && (
         <MongoTableList
@@ -1526,6 +1546,8 @@ function MongoTable(props: {
           }}
           deleteOP={deleteOP}
           nonse={nonse}
+          loading={loading}
+          setLoading={setLoading}
         ></MongoTableList>
       )}
 
@@ -1537,6 +1559,7 @@ function MongoTable(props: {
           modifyOP={modifyOP}
           deleteOP={deleteOP}
           nonse={nonse}
+          setLoading={setLoading}
         ></MongoTableObject>
       )}
       {viewModel == MongoDataViewModel.Json && (
@@ -1547,6 +1570,7 @@ function MongoTable(props: {
           modifyOP={modifyOP}
           deleteOP={deleteOP}
           nonse={nonse}
+          setLoading={setLoading}
         ></MongoTableJson>
       )}
     </Stack>

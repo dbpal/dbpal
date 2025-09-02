@@ -39,7 +39,7 @@ import { invoke } from '@tauri-apps/api/core';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { CiTimer } from 'react-icons/ci';
+import { IoTimerOutline } from 'react-icons/io5';
 import {
   appStore,
   AppStoreKey,
@@ -65,7 +65,6 @@ import LinkIcon from '@mui/icons-material/Link';
 import { getNamedConfig } from './Common';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { editor, Position } from 'monaco-editor';
-
 const LogLevelSelection = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];
 
@@ -767,7 +766,7 @@ function ExecutingTime(props: { loading: boolean; disableTime?: boolean }) {
           size="small"
           label={<span ref={executeTimeRef}> </span>}
           style={{ minWidth: '6rem' }}
-          icon={<CiTimer />}
+          icon={<IoTimerOutline fontSize="1.2rem" />}
         ></Chip>
       </Tooltip>
       {!disableTime && (
