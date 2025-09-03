@@ -2,17 +2,16 @@ use crate::db::BackendKind;
 use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc};
 use sqlparser::ast::{
     AlterIndexOperation, AlterRoleOperation, AlterTypeOperation, AssignmentTarget, CaseStatement,
-    ConditionalStatementBlock, CopySource, CreateDomain, CreateFunctionBody, DataType, Declare,
+    ConditionalStatementBlock, CopySource, CreateDomain, CreateFunctionBody, DataType,
     DeclareAssignment, DenyStatement, DropDomain, GrantObjects, Grantee, GranteeName, Ident,
     IfStatement, ObjectName, ObjectNamePart, OneOrManyWithParens, OpenStatement, Owner,
     PrintStatement, Privileges, RaiseStatement, RaiseStatementValue, ReturnStatement,
     ReturnStatementValue, SchemaName, SequenceOptions, Set, SetSessionParamKind, Spanned,
-    Statement, TableConstraint, TableFactor, TableObject, TriggerEvent, UpdateTableFromKind,
+    Statement, TableConstraint, TableObject, TriggerEvent, UpdateTableFromKind,
     UserDefinedTypeRepresentation, WhileStatement,
 };
 use sqlparser::ast::{CopyOption, Expr};
 use sqlparser::tokenizer::{Location, Span};
-use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
@@ -26,22 +25,12 @@ pub struct CompletionStatement<'a> {
 
 #[derive(Clone)]
 pub struct Scopes {
-    ss: Arc<Mutex<Vec<Scope>>>,
+    pub(crate) ss: Arc<Mutex<Vec<Scope>>>,
 }
 
 pub(crate) struct ScopesDropGuard {
     ss: Arc<Mutex<Vec<Scope>>>,
     n: usize,
-}
-
-impl ScopesDropGuard {
-    pub(crate) fn copy(&self, s: &mut Vec<Scope>) {
-        let lock = self.ss.lock().unwrap();
-        let length = lock.len();
-        for index in (length - self.n)..length {
-            s.push(lock.get(index).unwrap().clone());
-        }
-    }
 }
 
 impl Drop for ScopesDropGuard {
@@ -69,10 +58,6 @@ impl Scopes {
         }
     }
 
-    pub(crate) fn enter_declare(&self, d: Arc<Declare>) {
-        self.current_scope(|x| x.enter_declare(d));
-    }
-
     pub(crate) fn current_scope<R>(&self, f: impl FnOnce(&mut Scope) -> R) -> R {
         f(self.ss.lock().unwrap().last_mut().unwrap())
     }
@@ -86,11 +71,11 @@ impl Scopes {
         ret
     }
 
-    pub(crate) fn vars_cloned(&self) -> Vec<(String, Var)> {
+    pub(crate) fn vars_cloned(&self) -> Vec<Var> {
         let mut ret = vec![];
         let lock = self.ss.lock().unwrap();
         for s in lock.iter().rev() {
-            ret.extend(s.vars.iter().map(|(name, var)| (name.clone(), var.clone())));
+            ret.extend(s.vars.iter().map(|x| x.clone()));
         }
         ret
     }
@@ -102,19 +87,10 @@ impl Scopes {
             n: 1,
         }
     }
-
-    pub(crate) fn enter_scopes(&self, scopes: Vec<Scope>) -> ScopesDropGuard {
-        let length = scopes.len();
-
-        self.ss.lock().unwrap().extend(scopes);
-        ScopesDropGuard {
-            ss: self.ss.clone(),
-            n: length,
-        }
-    }
-
-    pub(crate) fn enter_without_guard(&self, s: Scope) {
-        self.ss.lock().unwrap().push(s);
+    pub(crate) fn enter_var(&self, var: Var) {
+        self.current_scope(|s| {
+            s.enter_var(var);
+        });
     }
 
     pub(crate) fn inner_first<R>(&self, mut f: impl FnMut(&Scope) -> Option<R>) -> Option<R> {
@@ -147,31 +123,21 @@ pub struct TempTableColumn {
 
 impl From<TempTableColumn> for CompletionItem {
     fn from(value: TempTableColumn) -> Self {
-        Self::from(&value)
+        let TempTableColumn { name, data_type } = value;
+        Self {
+            item: name.into(),
+            kind: CompletionKind::Column,
+            desc: data_type.map(|x| x.into()),
+        }
     }
 }
 impl From<&TempTableColumn> for CompletionItem {
     fn from(value: &TempTableColumn) -> Self {
         Self {
-            item: value.name.to_string().into(),
+            item: value.name.clone().into(),
             kind: CompletionKind::Column,
             desc: value.data_type.as_ref().map(|x| x.clone().into()),
         }
-    }
-}
-
-impl From<&CompletionItem> for TempTableColumn {
-    fn from(value: &CompletionItem) -> Self {
-        debug_assert!(value.kind == CompletionKind::Column);
-        Self {
-            name: value.item.to_string(),
-            data_type: value.desc.as_ref().map(|x| x.to_string()),
-        }
-    }
-}
-impl From<CompletionItem> for TempTableColumn {
-    fn from(value: CompletionItem) -> Self {
-        Self::from(&value)
     }
 }
 
@@ -183,15 +149,7 @@ pub struct TempTable {
 #[derive(Clone, Default, Debug)]
 pub struct Scope {
     tables: Vec<TableEntered>,
-    // https://www.postgresql.org/docs/current/plpgsql-declarations.html
-
-    // right sqlparse have problem to parse function or precedure body
-    // `declares` and `vars` not used.
-    #[allow(unused)]
-    declares: HashMap<String, Arc<Declare>>,
-    //
-    #[allow(unused)]
-    vars: HashMap<String, Var>,
+    vars: Vec<Var>,
 }
 
 #[derive(Clone, Debug)]
@@ -240,11 +198,13 @@ impl TableEntered {
 
 #[derive(Clone, Debug)]
 pub struct Var {
-    pub(crate) data_type: DataType,
+    pub(crate) data_type: Option<DataType>,
+    pub(crate) name: Ident,
 }
 
 impl Scope {
     pub(crate) fn enter_table(&mut self, alias: Option<Ident>, table_name: ObjectName) {
+        log::info!("enter table {:?} {:?}", alias, table_name);
         self.tables.push(TableEntered::FromTable {
             table: table_name,
             alias,
@@ -252,27 +212,15 @@ impl Scope {
     }
 
     pub(crate) fn enter_temp_table(&mut self, alias: Option<Ident>, temp: TempTable) {
+        log::info!("enter temp table {:?} {:?}", alias, temp);
         self.tables.push(TableEntered::Temp { table: temp, alias });
     }
 
-    pub(crate) fn enter_declare(&mut self, d: Arc<Declare>) {
-        for name in d.names.iter() {
-            self.declares.insert(name.value.clone(), d.clone());
-        }
+    pub(crate) fn enter_var(&mut self, var: Var) {
+        log::info!("enter var:{:?}", var);
+        self.vars.push(var);
     }
-    pub(crate) fn from_temp_tables(temp_tables: HashMap<Ident, TempTable>) -> Self {
-        let mut tables = vec![];
-        for (name, temp) in temp_tables {
-            tables.push(TableEntered::Temp {
-                table: temp,
-                alias: Some(name),
-            });
-        }
-        Self {
-            tables,
-            ..Default::default()
-        }
-    }
+
     // we know we are dealing with this table.
     pub(crate) fn from_this_table(this_table: ObjectName) -> Self {
         Self {
@@ -284,7 +232,7 @@ impl Scope {
         }
     }
 
-    pub(crate) fn from_vars(vars: HashMap<String, Var>) -> Self {
+    pub(crate) fn from_vars(vars: Vec<Var>) -> Self {
         Self {
             vars,
             ..Default::default()
@@ -387,19 +335,14 @@ impl<'a> CompletionStatement<'a> {
                         if self.finished() {
                             return;
                         }
-                        for c in insert.columns.iter() {
-                            self.c_on_column(object_name, c, false).await;
-                            if self.finished() {
-                                return;
-                            }
-                        }
-                        for c in insert.after_columns.iter() {
+                        for c in insert.columns.iter().chain(insert.after_columns.iter()) {
                             self.c_on_column(object_name, c, false).await;
                             if self.finished() {
                                 return;
                             }
                         }
                     }
+                    // table function in include in function.
                     TableObject::TableFunction(f) => {
                         self.c_on_function_call(f).await;
                     }
@@ -419,6 +362,7 @@ impl<'a> CompletionStatement<'a> {
                         return;
                     }
                 }
+
                 match &insert.table {
                     TableObject::TableName(object_name) => {
                         if let Some(returning) = &insert.returning {
@@ -429,6 +373,30 @@ impl<'a> CompletionStatement<'a> {
                                 .scopes
                                 .enter(Scope::from_this_table(object_name.clone()));
                             self.c_on_select_item(&returning[..]).await;
+                            if self.finished() {
+                                return;
+                            }
+                            for ass in insert.assignments.iter() {
+                                self.c_on_expr(&ass.value).await;
+                                if self.finished() {
+                                    return;
+                                }
+                                match &ass.target {
+                                    AssignmentTarget::ColumnName(object_name) => {
+                                        let idents = self.objectname_to_idents(object_name).await;
+                                        self.c_on_expr_compund_identifier(&idents[..]).await;
+                                    }
+                                    AssignmentTarget::Tuple(object_names) => {
+                                        for name in object_names.iter() {
+                                            let idents = self.objectname_to_idents(name).await;
+                                            self.c_on_expr_compund_identifier(&idents[..]).await;
+                                            if self.finished() {
+                                                return;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     TableObject::TableFunction(..) => {}
@@ -517,8 +485,9 @@ impl<'a> CompletionStatement<'a> {
                 from,
                 selection,
                 returning,
-                ..
+                or: _,
             } => {
+                let _gurad = self.scopes.enter(Scope::default());
                 let mut joins = vec![table.clone()];
                 if let Some(x) = from.as_ref() {
                     joins.extend(
@@ -529,14 +498,8 @@ impl<'a> CompletionStatement<'a> {
                         .into_iter(),
                     );
                 }
-                let _guard = self.c_on_table_with_joins(&joins[..]).await;
-                let table = match &table.relation {
-                    TableFactor::Table { name, .. } => Some(name.clone()),
-                    _ => {
-                        log::error!("update from table is not a Table but:{}", table);
-                        None
-                    }
-                };
+                self.c_on_table_with_joins(&joins[..]).await;
+                self.c_on_table_factor(&table.relation).await;
                 if let Some(selection) = selection {
                     Box::pin(self.c_on_expr(selection)).await;
                     if self.finished() {
@@ -544,46 +507,9 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
                 for ass in assignments.iter() {
-                    self.c_on_expr(&ass.value).await;
+                    self.c_on_assigement(ass).await;
                     if self.finished() {
                         return;
-                    }
-                    if let Some(table) = &table {
-                        let _gurad = self.scopes.enter(Scope::from_this_table(table.clone()));
-                        match &ass.target {
-                            AssignmentTarget::ColumnName(column) => {
-                                let idents: Vec<_> = column
-                                    .0
-                                    .iter()
-                                    .map(|x| match x {
-                                        ObjectNamePart::Identifier(ident) => ident.clone(),
-                                        ObjectNamePart::Function(object_name_part_function) => {
-                                            // TODO actual
-                                            object_name_part_function.name.clone()
-                                        }
-                                    })
-                                    .collect();
-                                self.c_on_expr_compund_identifier(&idents[..]).await;
-                            }
-                            AssignmentTarget::Tuple(vec) => {
-                                for column in vec.iter() {
-                                    let idents: Vec<_> = column
-                                        .0
-                                        .iter()
-                                        .map(|x| match x {
-                                            ObjectNamePart::Identifier(ident) => ident.clone(),
-                                            ObjectNamePart::Function(object_name_part_function) => {
-                                                object_name_part_function.name.clone()
-                                            }
-                                        })
-                                        .collect();
-                                    self.c_on_expr_compund_identifier(&idents[..]).await;
-                                    if self.finished() {
-                                        return;
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
                 if let Some(p) = returning {
@@ -591,21 +517,17 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::Delete(delete) => {
-                let _guard = self.c_from_table(&delete.from).await;
+                let _gurad = self.scopes.enter(Scope::default());
+                self.c_from_table(&delete.from).await;
                 if self.finished() {
                     return;
                 }
-                let _guard = if let Some(other) = &delete.using {
+                if let Some(other) = &delete.using {
                     let _guard = self.c_on_table_with_joins(other).await;
                     if self.finished() {
                         return;
                     }
-                    _guard
-                } else {
-                    // 0 means drop nothing.
-                    self.scopes.drop_n(0)
-                };
-
+                }
                 for t in delete.tables.iter() {
                     self.c_on_table(t).await;
                     if self.finished() {
@@ -1134,6 +1056,16 @@ impl<'a> CompletionStatement<'a> {
                             self.set_on_def();
                             return;
                         }
+                        self.scopes.enter_var(Var {
+                            name: name.clone(),
+                            data_type: d.data_type.clone(),
+                        });
+                    }
+                    if let Some(d) = d.data_type.as_ref() {
+                        self.c_on_data_type(d).await;
+                        if self.finished() {
+                            return;
+                        }
                     }
                     if let Some(expr) = &d.assignment {
                         match expr {
@@ -1157,7 +1089,6 @@ impl<'a> CompletionStatement<'a> {
                     if let Some(for_query) = &d.for_query {
                         let _ = self.c_on_query(for_query).await;
                     }
-                    self.scopes.enter_declare(Arc::new(d.clone()));
                 }
             }
 
@@ -1308,11 +1239,13 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::CreateFunction(create_f) => {
+                let _gurad = self.scopes.enter(Scope::default());
+
                 if self.in_pos(&create_f.name.span()) {
                     self.set_on_def();
                     return;
                 }
-                let mut vars = HashMap::new();
+                let mut vars = vec![];
                 if let Some(args) = &create_f.args {
                     for a in args.iter() {
                         if let Some(name) = &a.name {
@@ -1320,12 +1253,10 @@ impl<'a> CompletionStatement<'a> {
                                 self.set_on_def();
                                 return;
                             }
-                            vars.insert(
-                                name.value.clone(),
-                                Var {
-                                    data_type: a.data_type.clone(),
-                                },
-                            );
+                            vars.push(Var {
+                                name: name.clone(),
+                                data_type: a.data_type.clone().into(),
+                            });
                         }
                         self.c_on_data_type(&a.data_type).await;
                         if self.finished() {
@@ -1378,8 +1309,7 @@ impl<'a> CompletionStatement<'a> {
                             self.c_on_expr(expr).await;
                         }
                         CreateFunctionBody::AsReturnSelect(select) => {
-                            let mut s = Vec::new();
-                            let _ = self.c_on_select(select, &mut s).await;
+                            let _ = self.c_on_select(select).await;
                         }
                     }
                 }
@@ -1395,6 +1325,7 @@ impl<'a> CompletionStatement<'a> {
                 statements,
                 ..
             } => {
+                let _gurad = self.scopes.enter(Scope::default());
                 if self.in_pos(&name.span()) {
                     self.set_on_def();
                     return;
@@ -1488,18 +1419,16 @@ impl<'a> CompletionStatement<'a> {
                     return;
                 }
                 let _gurad = if let Some(params) = params {
-                    let mut m = HashMap::new();
+                    let mut m = vec![];
                     for p in params.iter() {
                         if self.in_pos(&p.name.span) {
                             self.set_on_def();
                             return;
                         }
-                        m.insert(
-                            p.name.value.clone(),
-                            Var {
-                                data_type: p.data_type.clone(),
-                            },
-                        );
+                        m.push(Var {
+                            name: p.name.clone(),
+                            data_type: p.data_type.clone().into(),
+                        });
                     }
                     let s = Scope::from_vars(m);
                     self.scopes.enter(s)
@@ -2256,6 +2185,39 @@ mod tests {
              3.14.159
         "#;
         let dialect = sqlparser::dialect::GenericDialect {};
+        let p = sqlparser::parser::Parser::new(&dialect);
+        let mut p = p.try_with_sql(sql).unwrap();
+        let statement = p.parse_statement().unwrap();
+
+        let s = serde_json::to_string(&statement).unwrap();
+
+        println!("{}", s);
+    }
+
+    #[ignore = "this is just a test for me"]
+    #[test]
+    fn test_sql_statementxxxx() {
+        let sql = r#"
+             
+SELECT *
+FROM XMLTABLE(
+        '/users/user'
+        PASSING XMLPARSE(
+            DOCUMENT $$
+            <users>
+                <user id="1" name="Alice" age="30"/>
+                <user id="2" name="Bob"   age="25"/>
+            </users>
+            $$
+        )
+        COLUMNS
+            id   int         PATH '@id',
+            name text        PATH '@name',
+            age  int         PATH '@age'
+     ) AS t WHERE t.id > 0 ;
+
+        "#;
+        let dialect = sqlparser::dialect::PostgreSqlDialect {};
         let p = sqlparser::parser::Parser::new(&dialect);
         let mut p = p.try_with_sql(sql).unwrap();
         let statement = p.parse_statement().unwrap();

@@ -330,8 +330,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(
-            r#"main.
-6 employees"#,
+            r#"select employees.id  from employees
+36 departments"#,
             &db,
             false,
         )

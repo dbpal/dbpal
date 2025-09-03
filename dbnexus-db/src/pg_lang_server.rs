@@ -321,7 +321,7 @@ impl AstCompletionHelper for PostGresDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for PostGresDB {
-    async fn list_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
+    async fn list_created_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
         let schema = self.not_allow_empty_schema(schema)?;
         self.list_created_types_impl(&schema, false).await
     }

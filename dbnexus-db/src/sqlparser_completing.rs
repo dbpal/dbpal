@@ -1,13 +1,11 @@
 use crate::language_server::{CompletionItem, CompletionKind, remove_dupliate};
 use crate::sqlparser_completion::{
-    CompletionStatement, Scope, ScopesDropGuard, TableEntered, TempTable, TempTableColumn,
+    CompletionStatement, Scope, TableEntered, TempTable, TempTableColumn,
 };
-use core::str;
+
 use sqlparser::ast::{ColumnOption, *};
-use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
-
 impl From<ObjectType> for CompletionKind {
     fn from(val: ObjectType) -> Self {
         match val {
@@ -83,7 +81,7 @@ impl<'a> CompletionStatement<'a> {
 
         self.result = Some(
             self.helper
-                .list_type(schema)
+                .list_created_type(schema)
                 .await
                 .map_err(|e| log::error!("list type failed,err:{}", e))
                 .unwrap_or_default()
@@ -744,7 +742,7 @@ impl<'a> CompletionStatement<'a> {
                 ANALYZE 命令的 PARTITION 子句通常不支持使用表达式，
                 要求明确指定分区名称。然而，
                 某些数据库系统可能允许在不同上下文中使用表达式来选择分区。以下是一些示例：*/
-                log::error!("unhandled partation type:{:?}", p);
+                log::error!("unhandled partition type:{:?}", p);
             }
         }
     }
@@ -1383,8 +1381,24 @@ impl<'a> CompletionStatement<'a> {
         );
     }
 
+    pub(crate) async fn objectname_to_idents(&self, name: &ObjectName) -> Vec<Ident> {
+        name.0
+            .iter()
+            .map(|x| match x {
+                ObjectNamePart::Identifier(ident) => ident.clone(),
+                ObjectNamePart::Function(object_name_part_function) => {
+                    // TODO
+                    object_name_part_function.name.clone()
+                }
+            })
+            .collect()
+    }
+
     pub(crate) async fn c_on_expr_compund_identifier(&mut self, idents: &[Ident]) {
-        // we must access table's column???
+        if !idents.iter().any(|x| self.in_pos(&x.span)) {
+            return;
+        }
+        log::info!("hit compund identifier:{:?}", idents);
         match idents.len() {
             1 => {
                 // maybe never execute to here???
@@ -1392,9 +1406,10 @@ impl<'a> CompletionStatement<'a> {
             }
             2 => {
                 let table = &idents[0];
-
                 // try match for schema
-                if self.helper.hit_schema(&table.value).await {
+                if self.helper.hit_schema(&table.value).await
+                    && self.in_pos(&idents.last().unwrap().span)
+                {
                     // matched  schema
                     // this is very likely a `select * from sys.xxx`   on mysql
                     // treat this expr as table
@@ -1459,7 +1474,7 @@ impl<'a> CompletionStatement<'a> {
         if !self.in_pos(&ident.span) {
             return;
         }
-        log::trace!("hit idenfier:{:?}", ident);
+        log::info!("hit idenfier:{:?}", ident);
         let mut results = vec![];
         let tables = self.scopes.tables_cloned();
         for t in tables.iter() {
@@ -1490,11 +1505,11 @@ impl<'a> CompletionStatement<'a> {
             }
         }
         // all vars
-        for (name, var) in self.scopes.vars_cloned() {
+        for var in self.scopes.vars_cloned() {
             results.push(CompletionItem {
-                item: name.into(),
+                item: var.name.value.into(),
                 kind: CompletionKind::Variable,
-                desc: Some(var.data_type.to_string().into()),
+                desc: var.data_type.map(|s| s.to_string().into()),
             });
         }
 
@@ -2315,6 +2330,7 @@ impl<'a> CompletionStatement<'a> {
         if !self.last_name_in_pos(name) {
             return;
         }
+
         self.c_on_view(name).await;
         let mut items = self.result.take().unwrap_or_default();
         self.c_on_table(name).await;
@@ -2323,6 +2339,10 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_select_target(&mut self, name: &ObjectName) {
+        if !self.last_name_in_pos(name) {
+            return;
+        }
+        log::info!("hit select target:{:?}", name);
         self.c_on_table_or_view(name).await;
         let (schema, _) = self.extract_schema_and_item(name);
         let mut items = self.result.take().unwrap_or_default();
@@ -2345,6 +2365,7 @@ impl<'a> CompletionStatement<'a> {
         if !self.last_name_in_pos(table_name) {
             return;
         }
+        log::info!("hit table:{:?}", table_name);
         let mut items = vec![];
         for x in self.scopes.tables_cloned() {
             if let Some(name) = x.get_name() {
@@ -2380,7 +2401,7 @@ impl<'a> CompletionStatement<'a> {
         self.result = Some(items);
     }
 
-    pub(crate) async fn c_from_table(&mut self, from_table: &FromTable) -> ScopesDropGuard {
+    pub(crate) async fn c_from_table(&mut self, from_table: &FromTable) {
         let tables = match from_table {
             FromTable::WithFromKeyword(vec) => vec,
             FromTable::WithoutKeyword(vec) => vec,
@@ -2388,86 +2409,76 @@ impl<'a> CompletionStatement<'a> {
         self.c_on_table_with_joins(&tables[..]).await
     }
 
-    pub(crate) async fn c_on_table_with_joins(
-        &mut self, joins: &[TableWithJoins],
-    ) -> ScopesDropGuard {
-        for (index, join_tables) in joins.iter().enumerate() {
-            let scope = self.c_on_table_with_join(join_tables).await;
+    pub(crate) async fn c_on_table_with_joins(&mut self, joins: &[TableWithJoins]) {
+        for join_tables in joins.iter() {
+            self.c_on_table_with_join(join_tables).await;
             if self.finished() {
-                return self.scopes.drop_n(index);
+                return;
             }
-            self.scopes.enter_without_guard(scope);
         }
-
-        self.scopes.drop_n(joins.len())
     }
-
-    pub(crate) async fn c_on_table_with_join(&mut self, t: &TableWithJoins) -> Scope {
-        let mut scope = Scope::default();
-        self.c_on_table_factor(&t.relation, &mut scope).await;
-        if self.finished() {
-            return scope;
+    pub(crate) async fn c_on_join_operator(&mut self, ast: &JoinOperator) {
+        match ast {
+            JoinOperator::Inner(join_constraint) => {
+                self.c_on_join_constraint(join_constraint).await
+            }
+            JoinOperator::LeftOuter(join_constraint) => {
+                self.c_on_join_constraint(join_constraint).await
+            }
+            JoinOperator::RightOuter(join_constraint) => {
+                self.c_on_join_constraint(join_constraint).await
+            }
+            JoinOperator::FullOuter(join_constraint) => {
+                self.c_on_join_constraint(join_constraint).await
+            }
+            JoinOperator::Semi(join_constraint) => self.c_on_join_constraint(join_constraint).await,
+            JoinOperator::LeftSemi(join_constraint) => {
+                self.c_on_join_constraint(join_constraint).await
+            }
+            JoinOperator::RightSemi(join_constraint) => {
+                self.c_on_join_constraint(join_constraint).await
+            }
+            JoinOperator::Anti(join_constraint) => self.c_on_join_constraint(join_constraint).await,
+            JoinOperator::LeftAnti(join_constraint) => {
+                self.c_on_join_constraint(join_constraint).await
+            }
+            JoinOperator::RightAnti(join_constraint) => {
+                self.c_on_join_constraint(join_constraint).await
+            }
+            JoinOperator::CrossApply => {}
+            JoinOperator::OuterApply => {}
+            JoinOperator::AsOf {
+                match_condition,
+                constraint,
+            } => {
+                self.c_on_join_constraint(constraint).await;
+                if self.finished() {
+                    return;
+                }
+                self.c_on_expr(match_condition).await;
+            }
+            JoinOperator::CrossJoin => {}
+            JoinOperator::Join(join_constraint) => self.c_on_join_constraint(join_constraint).await,
+            JoinOperator::Left(join_constraint) => self.c_on_join_constraint(join_constraint).await,
+            JoinOperator::Right(join_constraint) => {
+                self.c_on_join_constraint(join_constraint).await
+            }
+            JoinOperator::StraightJoin(join_constraint) => {
+                self.c_on_join_constraint(join_constraint).await
+            }
         }
+    }
+    pub(crate) async fn c_on_table_with_join(&mut self, t: &TableWithJoins) {
+        self.c_on_table_factor(&t.relation).await;
         for join in t.joins.iter() {
-            self.c_on_table_factor(&join.relation, &mut scope).await;
+            self.c_on_table_factor(&join.relation).await;
             if self.finished() {
-                return scope;
+                return;
             }
         }
-        let _guard = self.scopes.enter(scope.clone());
         for j in t.joins.iter() {
-            match &j.join_operator {
-                JoinOperator::Inner(join_constraint) => {
-                    self.c_on_join_constraint(join_constraint).await
-                }
-                JoinOperator::LeftOuter(join_constraint) => {
-                    self.c_on_join_constraint(join_constraint).await
-                }
-                JoinOperator::RightOuter(join_constraint) => {
-                    self.c_on_join_constraint(join_constraint).await
-                }
-                JoinOperator::FullOuter(join_constraint) => {
-                    self.c_on_join_constraint(join_constraint).await
-                }
-                JoinOperator::Semi(join_constraint) => {
-                    self.c_on_join_constraint(join_constraint).await
-                }
-                JoinOperator::LeftSemi(join_constraint) => {
-                    self.c_on_join_constraint(join_constraint).await
-                }
-                JoinOperator::RightSemi(join_constraint) => {
-                    self.c_on_join_constraint(join_constraint).await
-                }
-                JoinOperator::Anti(join_constraint) => {
-                    self.c_on_join_constraint(join_constraint).await
-                }
-                JoinOperator::LeftAnti(join_constraint) => {
-                    self.c_on_join_constraint(join_constraint).await
-                }
-                JoinOperator::RightAnti(join_constraint) => {
-                    self.c_on_join_constraint(join_constraint).await
-                }
-                JoinOperator::CrossApply => {}
-                JoinOperator::OuterApply => {}
-                JoinOperator::AsOf { .. } => {
-                    // snowflake
-                }
-                JoinOperator::CrossJoin => {}
-                JoinOperator::Join(join_constraint) => {
-                    self.c_on_join_constraint(join_constraint).await
-                }
-                JoinOperator::Left(join_constraint) => {
-                    self.c_on_join_constraint(join_constraint).await
-                }
-                JoinOperator::Right(join_constraint) => {
-                    self.c_on_join_constraint(join_constraint).await
-                }
-                JoinOperator::StraightJoin(join_constraint) => {
-                    self.c_on_join_constraint(join_constraint).await
-                }
-            }
+            self.c_on_join_operator(&j.join_operator).await;
         }
-        scope
     }
 
     pub(crate) async fn c_on_join_constraint(&mut self, c: &JoinConstraint) {
@@ -2512,14 +2523,10 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_select(
-        &mut self, selection: &Select, s: &mut Vec<Scope>,
+        &mut self, selection: &Select,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let _gurad = self.c_on_table_with_joins(&selection.from[..]).await;
-        // 这个复制一下scope可以在上层的结构中使用
-        _gurad.copy(s);
-        if self.finished() {
-            return anyhow::Ok(vec![]);
-        }
+        self.c_on_table_with_joins(&selection.from).await;
+
         if let Some(d) = &selection.distinct {
             match d {
                 Distinct::Distinct => {}
@@ -2686,24 +2693,21 @@ impl<'a> CompletionStatement<'a> {
     pub(crate) async fn c_on_query(
         &mut self, query: &Query,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let mut with_temp_tables = HashMap::new();
+        let _gurad = self.scopes.enter(Scope::default());
         if let Some(with) = query.with.as_ref() {
             for c in with.cte_tables.iter() {
                 let cols = Box::pin(self.c_on_query(&c.query)).await?;
-                with_temp_tables.insert(
-                    c.alias.name.clone(),
-                    TempTable {
-                        columns: Arc::new(cols),
-                    },
-                );
+                self.scopes.current_scope(|s| {
+                    s.enter_temp_table(
+                        Some(c.alias.name.clone()),
+                        TempTable {
+                            columns: Arc::new(cols),
+                        },
+                    )
+                })
             }
         }
-        let s = Scope::from_temp_tables(with_temp_tables);
-        let _with_temp_table_guard = self.scopes.enter(s);
-        let mut s_on_set_expr: Vec<Scope> = vec![];
-        let _ = Box::pin(self.c_on_set_expr(&query.body, &mut s_on_set_expr)).await?;
-        let _gurad = self.scopes.enter_scopes(s_on_set_expr);
-
+        let _ = Box::pin(self.c_on_set_expr(&query.body)).await?;
         if let Some(orderby) = query.order_by.as_ref() {
             match &orderby.kind {
                 OrderByKind::All(..) => {}
@@ -2749,22 +2753,206 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
         }
+        if let Some(f) = query.fetch.as_ref() {
+            if let Some(q) = f.quantity.as_ref() {
+                self.c_on_expr(q).await;
+            }
+        }
+        if let Some(ss) = query.settings.as_ref() {
+            for x in ss.iter() {
+                self.c_on_expr(&x.value).await;
+            }
+        }
+        for op in query.pipe_operators.iter() {
+            self.c_on_pipline_oprateo(op).await;
+        }
         return self.helper.get_query_columns(&query.to_string()).await;
     }
+    pub(crate) async fn c_on_assigement(&mut self, ass: &Assignment) {
+        self.c_on_expr(&ass.value).await;
+        if self.finished() {
+            return;
+        }
+        match &ass.target {
+            AssignmentTarget::ColumnName(object_name) => {
+                let idents = self.objectname_to_idents(object_name).await;
+                self.c_on_expr_compund_identifier(&idents[..]).await;
+            }
+            AssignmentTarget::Tuple(object_names) => {
+                for name in object_names.iter() {
+                    let idents = self.objectname_to_idents(name).await;
+                    self.c_on_expr_compund_identifier(&idents[..]).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+        }
+    }
 
+    pub(crate) async fn c_on_expr_with_alias_and_order_by(
+        &mut self, ast: &ExprWithAliasAndOrderBy,
+    ) {
+        if let Some(alias) = ast.expr.alias.as_ref() {
+            if self.in_pos(&alias.span) {
+                self.set_on_def();
+                return;
+            }
+        }
+        self.c_on_expr(&ast.expr.expr).await;
+    }
+    pub(crate) async fn c_on_pipline_oprateo(&mut self, ast: &PipeOperator) {
+        match ast {
+            PipeOperator::Limit { expr, offset } => {
+                self.c_on_expr(expr).await;
+                if self.finished() {
+                    return;
+                }
+                if let Some(offset) = offset {
+                    self.c_on_expr(offset).await;
+                }
+            }
+            PipeOperator::Where { expr } => {
+                self.c_on_expr(expr).await;
+            }
+            PipeOperator::OrderBy { exprs } => {
+                for expr in exprs.iter() {
+                    self.c_on_order_by_expr(expr).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            PipeOperator::Select { exprs } => {
+                self.c_on_select_item(&exprs[..]).await;
+            }
+            PipeOperator::Extend { exprs } => {
+                self.c_on_select_item(&exprs[..]).await;
+            }
+            PipeOperator::Set { assignments } => {
+                for ass in assignments.iter() {
+                    self.c_on_assigement(ass).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            PipeOperator::Drop { columns } => {
+                for col in columns.iter() {
+                    self.c_on_expr_compund_identifier(&[col.clone()]).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+
+            PipeOperator::As { alias } => {
+                if self.in_pos(&alias.span) {
+                    self.set_on_def();
+                    return;
+                }
+            }
+            PipeOperator::Aggregate {
+                full_table_exprs,
+                group_by_expr,
+            } => {
+                for x in full_table_exprs.iter().chain(group_by_expr.iter()) {
+                    self.c_on_expr_with_alias_and_order_by(x).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+
+            PipeOperator::TableSample { sample } => {
+                if let Some(q) = sample.quantity.as_ref() {
+                    self.c_on_expr(&q.value).await;
+                }
+                if let Some(bucket) = sample.bucket.as_ref() {
+                    if let Some(on) = bucket.on.as_ref() {
+                        self.c_on_expr(on).await;
+                    }
+                }
+
+                if let Some(offset) = sample.offset.as_ref() {
+                    self.c_on_expr(offset).await;
+                }
+            }
+            PipeOperator::Rename { mappings } => {
+                for map in mappings.iter() {
+                    if self.in_pos(&map.alias.span) {
+                        self.set_on_def();
+                        return;
+                    }
+                    self.c_on_expr_compund_identifier(&[map.ident.clone()])
+                        .await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            PipeOperator::Union { queries, .. } => {
+                for q in queries.iter() {
+                    let _ = Box::pin(self.c_on_query(q)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            PipeOperator::Intersect { queries, .. } => {
+                for q in queries.iter() {
+                    let _ = Box::pin(self.c_on_query(q)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            PipeOperator::Except { queries, .. } => {
+                for q in queries.iter() {
+                    let _ = Box::pin(self.c_on_query(q)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            PipeOperator::Call { function, alias } => {
+                if let Some(alias) = alias {
+                    if self.in_pos(&alias.span) {
+                        self.set_on_def();
+                        return;
+                    }
+                }
+                Box::pin(self.c_on_function_call(function)).await;
+            }
+
+            PipeOperator::Pivot { .. } => {
+                // bigquery not support
+            }
+            PipeOperator::Unpivot { .. } => {
+                // big query not support
+            }
+            PipeOperator::Join(join) => {
+                self.c_on_join(join).await;
+            }
+        }
+    }
+    pub(crate) async fn c_on_join(&mut self, join: &Join) {
+        self.c_on_table_factor(&join.relation).await;
+        self.c_on_join_operator(&join.join_operator).await;
+    }
     pub(crate) async fn c_on_set_expr(
-        &mut self, set: &SetExpr, s: &mut Vec<Scope>,
+        &mut self, set: &SetExpr,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         match set {
             SetExpr::Select(select) => {
-                return self.c_on_select(select, s).await;
+                return self.c_on_select(select).await;
             }
             SetExpr::Query(query) => {
                 return Box::pin(self.c_on_query(query)).await;
             }
             SetExpr::SetOperation { left, right, .. } => {
-                let _ = Box::pin(self.c_on_set_expr(left, s)).await?;
-                return Box::pin(self.c_on_set_expr(right, s)).await;
+                let _ = Box::pin(self.c_on_set_expr(left)).await?;
+                return Box::pin(self.c_on_set_expr(right)).await;
             }
             SetExpr::Values(values) => {
                 for v in values.rows.iter() {
@@ -2816,13 +3004,117 @@ impl<'a> CompletionStatement<'a> {
             FunctionArgExpr::Expr(expr) => {
                 self.c_on_expr(expr).await;
             }
-            FunctionArgExpr::QualifiedWildcard(_object_name) => {}
+            FunctionArgExpr::QualifiedWildcard(object_name) => {
+                let idents = self.objectname_to_idents(object_name).await;
+                self.c_on_expr_compund_identifier(&idents[..]).await;
+            }
             FunctionArgExpr::Wildcard => {}
         }
     }
 
-    pub(crate) async fn c_on_table_factor(&mut self, f: &TableFactor, s: &mut Scope) {
-        match f {
+    pub(crate) async fn c_on_function_arg(&mut self, ast: &FunctionArg) {
+        match ast {
+            FunctionArg::Named {
+                name,
+                arg,
+                operator: _,
+            } => {
+                if self.in_pos(&name.span) {
+                    self.set_on_def();
+                    return;
+                }
+                self.c_on_function_arg_expr(arg).await;
+            }
+            FunctionArg::ExprNamed {
+                name,
+                arg,
+                operator: _,
+            } => {
+                self.c_on_expr(name).await;
+                self.c_on_function_arg_expr(arg).await;
+            }
+            FunctionArg::Unnamed(function_arg_expr) => {
+                self.c_on_function_arg_expr(function_arg_expr).await;
+            }
+        }
+    }
+
+    pub(crate) fn get_table_alias_columns(
+        &self, t: &Option<TableAlias>,
+    ) -> Option<Vec<TempTableColumn>> {
+        match t {
+            // function_call [WITH ORDINALITY] [[AS] table_alias [(column_alias [, ... ])]]
+            // ROWS FROM( function_call [, ... ] ) [WITH ORDINALITY] [[AS] table_alias [(column_alias [, ... ])]]这里面的column_alias是列的定义吗
+            // 编辑
+            // 复制
+            // 是的，column_alias 就是给 列起的别名，也就是 列的定义。
+            // 你在问题中提到的这段语法：
+            Some(alias) if alias.columns.len() > 0 => Some(
+                alias
+                    .columns
+                    .iter()
+                    .map(|x| TempTableColumn {
+                        name: x.name.value.clone(),
+                        data_type: x.data_type.as_ref().map(|x| x.to_string()),
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            _ => None,
+        }
+    }
+
+    pub(crate) async fn c_on_table_alias(&mut self, alias: &TableAlias) {
+        if self.in_pos(&alias.name.span) {
+            self.set_on_def();
+            return;
+        }
+        for col in alias.columns.iter() {
+            if self.in_pos(&col.name.span) {
+                self.set_on_def();
+                return;
+            }
+            if let Some(data_type) = col.data_type.as_ref() {
+                self.c_on_data_type(data_type).await;
+                if self.finished() {
+                    return;
+                }
+            }
+        }
+    }
+    pub(crate) async fn c_on_json_table_column(&mut self, ast: &JsonTableColumn) {
+        match ast {
+            JsonTableColumn::Named(json_table_named_column) => {
+                if self.in_pos(&json_table_named_column.name.span) {
+                    self.set_on_def();
+                    return;
+                }
+                self.c_on_data_type(&json_table_named_column.r#type).await;
+            }
+            JsonTableColumn::ForOrdinality(name) => {
+                if self.in_pos(&name.span) {
+                    self.set_on_def();
+                }
+            }
+            JsonTableColumn::Nested(json_table_nested_column) => {
+                for col in json_table_nested_column.columns.iter() {
+                    Box::pin(self.c_on_json_table_column(col)).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+    pub(crate) async fn c_on_openjson_table_column(&mut self, ast: &OpenJsonTableColumn) {
+        if self.in_pos(&ast.name.span) {
+            self.set_on_def();
+            return;
+        }
+        self.c_on_data_type(&ast.r#type).await;
+    }
+
+    pub(crate) async fn c_on_table_factor(&mut self, ast: &TableFactor) {
+        match ast {
             TableFactor::Table {
                 name,
                 alias,
@@ -2831,76 +3123,43 @@ impl<'a> CompletionStatement<'a> {
                 partitions,
                 ..
             } => {
-                self.c_on_schema(name).await;
-                if self.finished() {
-                    return;
-                }
-                if self.last_name_in_pos(name) {
-                    self.c_on_select_target(name).await;
+                log::trace!("table name:{:?} alias:{:?} args:{:?}", name, alias, args);
+                if let Some(alias) = alias {
+                    self.c_on_table_alias(alias).await;
                     if self.finished() {
                         return;
                     }
                 }
-                s.enter_table(None, name.clone());
-                let columns = match args {
-                    Some(_) => {
-                        // this maybe a function get is a try
-                        let (schema, name) = self.extract_schema_and_item(name);
-
-                        // TODO how to handle this case
-                        let columns = self
-                            .helper
-                            .list_column(schema, name, true)
-                            .await
-                            .map_err(|e| log::error!("list column failed,e:{}", e))
-                            .ok()
-                            .unwrap_or_default()
-                            .into_iter()
-                            .collect::<Vec<_>>();
-
-                        if !columns.is_empty() {
-                            Some(columns)
-                        } else {
-                            None
-                        }
-                    }
-                    None => None,
-                };
-
-                match columns {
-                    Some(columns) => {
-                        if let Some(alias) = alias {
-                            s.enter_temp_table(
-                                Some(alias.name.clone()),
-                                TempTable {
-                                    columns: Arc::new(columns),
-                                },
-                            );
-                        } else {
-                            s.enter_temp_table(
-                                None,
-                                TempTable {
-                                    columns: Arc::new(columns),
-                                },
-                            );
-                        }
-                    }
-                    None => {
-                        if let Some(alias) = alias {
-                            // this is a alias but we often end in situation like this
-                            // `select * from test ...`
-                            // here we need completion on where order etc lexer elements
-                            // if self.in_pos(&alias.name.span) {
-                            //     self.set_on_def();
-                            //     return;
-                            // }
-                            // TODO alias have column definition.
-                            s.enter_table(Some(alias.name.clone()), name.clone());
-                        } else {
-                            s.enter_table(None, name.clone());
-                        }
-                    }
+                self.c_on_schema(name).await;
+                if self.finished() {
+                    return;
                 }
+                log::info!("table name:{:?} {}", name, self.last_name_in_pos(name));
+                if self.last_name_in_pos(name) {
+                    self.c_on_select_target(name).await;
+                    return;
+                }
+                let (schema, table_name) = self.extract_schema_and_item(name);
+                let columns = if let Some(cols) = self.get_table_alias_columns(alias) {
+                    cols
+                } else {
+                    self.helper
+                        .list_column(schema, table_name, args.is_some())
+                        .await
+                        .map_err(|e| log::error!("list column error: {:?}", e))
+                        .unwrap_or_default()
+                };
+                self.scopes.current_scope(|s| {
+                    if let Some(alias) = alias {
+                        s.enter_temp_table(
+                            Some(alias.name.clone()),
+                            TempTable {
+                                columns: Arc::new(columns),
+                            },
+                        );
+                    }
+                    s.enter_table(None, name.clone());
+                });
 
                 for p in partitions.iter() {
                     self.c_on_partition_expr(name, &Expr::Identifier(p.clone()))
@@ -2911,21 +3170,9 @@ impl<'a> CompletionStatement<'a> {
                 }
                 if let Some(args) = args {
                     for a in args.args.iter() {
-                        match a {
-                            FunctionArg::Named { name, arg, .. } => {
-                                if self.in_pos(&name.span) {
-                                    self.set_on_def();
-                                    return;
-                                }
-                                self.c_on_function_arg_expr(arg).await;
-                            }
-                            FunctionArg::ExprNamed { arg, .. } => {
-                                // TODO how to handle name expr.
-                                self.c_on_function_arg_expr(arg).await;
-                            }
-                            FunctionArg::Unnamed(function_arg_expr) => {
-                                self.c_on_function_arg_expr(function_arg_expr).await;
-                            }
+                        self.c_on_function_arg(a).await;
+                        if self.finished() {
+                            return;
                         }
                     }
                 }
@@ -2936,82 +3183,367 @@ impl<'a> CompletionStatement<'a> {
             TableFactor::Derived {
                 subquery, alias, ..
             } => {
-                let cols = self
-                    .c_on_query(subquery)
-                    .await
-                    .map_err(|e| log::error!("self.c_on_query failed,err:{:?}", e))
-                    .unwrap_or_default();
-
                 if let Some(alias) = alias {
-                    s.enter_temp_table(
-                        Some(alias.name.clone()),
-                        TempTable {
-                            columns: Arc::new(cols.clone()),
-                        },
-                    );
-                    s.enter_temp_table(
-                        None,
-                        TempTable {
-                            columns: Arc::new(cols),
-                        },
-                    );
-                } else {
-                    s.enter_temp_table(
-                        None,
-                        TempTable {
-                            columns: Arc::new(cols),
-                        },
-                    );
+                    self.c_on_table_alias(alias).await;
+                    if self.finished() {
+                        return;
+                    }
                 }
+                let query_cols = Box::pin(self.c_on_query(subquery))
+                    .await
+                    .unwrap_or_default();
+                let cols = if let Some(cols) = self.get_table_alias_columns(alias) {
+                    cols
+                } else {
+                    query_cols
+                };
+
+                self.scopes.current_scope(|s| {
+                    s.enter_temp_table(
+                        alias.as_ref().map(|x| x.name.clone()),
+                        TempTable {
+                            columns: Arc::new(cols),
+                        },
+                    )
+                });
             }
             TableFactor::TableFunction { expr, alias } => {
+                if let Some(alias) = alias {
+                    self.c_on_table_alias(alias).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
                 self.c_on_expr(expr).await;
                 if let Some(alias) = alias.as_ref() {
-                    s.enter_temp_table(
-                        Some(alias.name.clone()),
-                        TempTable {
-                            // TODO get columns.
-                            columns: Arc::new(vec![]),
-                        },
-                    );
+                    self.scopes.current_scope(|s| {
+                        s.enter_temp_table(
+                            Some(alias.name.clone()),
+                            TempTable {
+                                // TODO get columns.
+                                columns: Arc::new(vec![]),
+                            },
+                        )
+                    });
                 }
             }
-            TableFactor::Function { alias, name, .. } => {
-                let (schema, name) = self.extract_schema_and_item(name);
-                // TODO how to handle this case
-                let columns = self
-                    .helper
-                    .list_column(schema, name, true)
-                    .await
-                    .map_err(|e| log::error!("list column failed,e:{}", e))
-                    .ok()
-                    .unwrap_or_default();
-                let columns: Vec<_> = columns.into_iter().collect();
 
+            TableFactor::Function { alias, name, .. } => {
                 if let Some(alias) = alias {
-                    s.enter_temp_table(
-                        Some(alias.name.clone()),
-                        TempTable {
-                            columns: Arc::new(columns),
-                        },
-                    );
+                    self.c_on_table_alias(alias).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                self.c_on_schema(name).await;
+                if self.finished() {
+                    return;
+                }
+                let (schema, name) = self.extract_schema_and_item(name);
+
+                let columns = if let Some(cols) = self.get_table_alias_columns(alias) {
+                    cols
                 } else {
+                    self.helper
+                        .list_column(schema, name, true)
+                        .await
+                        .map_err(|e| log::error!("list column failed,e:{}", e))
+                        .ok()
+                        .unwrap_or_default()
+                };
+                self.scopes.current_scope(|s| {
                     s.enter_temp_table(
-                        None,
+                        alias.as_ref().map(|x| x.name.clone()),
                         TempTable {
                             columns: Arc::new(columns),
                         },
+                    )
+                });
+            }
+            TableFactor::UNNEST {
+                alias, array_exprs, ..
+            } => {
+                if let Some(alias) = alias {
+                    self.c_on_table_alias(alias).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                for expr in array_exprs.iter() {
+                    self.c_on_expr(expr).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                let query_cols = self
+                    .helper
+                    .get_query_columns(&format!("select * from {}", ast.to_string()))
+                    .await
+                    .map_err(|e| log::error!("get query columns error: {}", e))
+                    .unwrap_or_default();
+                let cols = if let Some(cols) = self.get_table_alias_columns(alias) {
+                    cols
+                } else {
+                    query_cols
+                };
+                self.scopes.current_scope(|s| {
+                    s.enter_temp_table(
+                        alias.as_ref().map(|x| x.name.clone()),
+                        TempTable {
+                            columns: Arc::new(cols),
+                        },
+                    )
+                });
+            }
+            TableFactor::JsonTable {
+                alias,
+                json_expr,
+                columns,
+                ..
+            } => {
+                for col in columns.iter() {
+                    self.c_on_json_table_column(col).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                if let Some(alias) = alias {
+                    self.c_on_table_alias(alias).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                self.c_on_expr(json_expr).await;
+                if self.finished() {
+                    return;
+                }
+                let query_cols = self
+                    .helper
+                    .get_query_columns(&format!("select * from {}", ast.to_string()))
+                    .await
+                    .map_err(|e| log::error!("get query columns error: {}", e))
+                    .unwrap_or_default();
+
+                let cols = if let Some(cols) = self.get_table_alias_columns(alias) {
+                    cols
+                } else if columns.len() > 0 {
+                    fn collect_json_columns(ret: &mut Vec<TempTableColumn>, ast: &JsonTableColumn) {
+                        match ast {
+                            JsonTableColumn::Named(json_table_named_column) => {
+                                ret.push(TempTableColumn {
+                                    name: json_table_named_column.name.value.clone(),
+                                    data_type: Some(json_table_named_column.r#type.to_string()),
+                                });
+                            }
+                            JsonTableColumn::ForOrdinality(ident) => {
+                                ret.push(TempTableColumn {
+                                    name: ident.value.clone(),
+                                    data_type: None,
+                                });
+                            }
+                            JsonTableColumn::Nested(json_table_nested_column) => {
+                                for col in json_table_nested_column.columns.iter() {
+                                    collect_json_columns(ret, col)
+                                }
+                            }
+                        }
+                    }
+                    let mut ret = vec![];
+                    columns
+                        .iter()
+                        .for_each(|x| collect_json_columns(&mut ret, x));
+                    ret
+                } else {
+                    query_cols
+                };
+                self.scopes.current_scope(|s| {
+                    s.enter_temp_table(
+                        alias.as_ref().map(|x| x.name.clone()),
+                        TempTable {
+                            columns: Arc::new(cols),
+                        },
                     );
+                });
+            }
+            TableFactor::OpenJsonTable {
+                alias,
+                json_expr,
+                columns,
+                ..
+            } => {
+                for col in columns.iter() {
+                    self.c_on_openjson_table_column(col).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                if let Some(alias) = alias {
+                    self.c_on_table_alias(alias).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                self.c_on_expr(json_expr).await;
+                if self.finished() {
+                    return;
+                }
+                let query_cols = self
+                    .helper
+                    .get_query_columns(&format!("select * from {}", ast.to_string()))
+                    .await
+                    .map_err(|e| log::error!("get query columns error: {}", e))
+                    .unwrap_or_default();
+
+                let cols = if let Some(cols) = self.get_table_alias_columns(alias) {
+                    cols
+                } else if columns.len() > 0 {
+                    columns
+                        .iter()
+                        .map(|c| TempTableColumn {
+                            name: c.name.value.clone(),
+                            data_type: Some(c.r#type.to_string()),
+                        })
+                        .collect()
+                } else {
+                    query_cols
+                };
+                self.scopes.current_scope(|s| {
+                    s.enter_temp_table(
+                        alias.as_ref().map(|x| x.name.clone()),
+                        TempTable {
+                            columns: Arc::new(cols),
+                        },
+                    );
+                });
+            }
+            TableFactor::NestedJoin {
+                alias,
+                table_with_joins,
+            } => {
+                if let Some(alias2) = alias {
+                    self.c_on_table_alias(alias2).await;
+                    if self.finished() {
+                        return;
+                    }
+                    self.scopes.current_scope(|s| {
+                        s.enter_temp_table(
+                            Some(alias2.name.clone()),
+                            TempTable {
+                                columns: Arc::new(
+                                    self.get_table_alias_columns(alias).unwrap_or_default(),
+                                ),
+                            },
+                        )
+                    });
+                }
+                Box::pin(self.c_on_table_with_join(table_with_joins)).await;
+            }
+            TableFactor::Pivot { .. } => {
+                // bigquery Snowflake not support
+            }
+            TableFactor::Unpivot { .. } => {
+                // snowflake not support
+            }
+            TableFactor::MatchRecognize { .. } => {
+                // snowflake not support
+            }
+            TableFactor::XmlTable {
+                alias,
+                namespaces,
+                passing,
+                columns,
+                row_expression,
+            } => {
+                for c in columns.iter() {
+                    self.c_on_xml_table_column(c).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                self.c_on_expr(row_expression).await;
+                if self.finished() {
+                    return;
+                }
+                if let Some(alias) = alias {
+                    self.c_on_table_alias(alias).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                for p in passing.arguments.iter() {
+                    self.c_on_expr(&p.expr).await;
+                    if self.finished() {
+                        return;
+                    }
+                    if let Some(name) = p.alias.as_ref() {
+                        if self.in_pos(&name.span) {
+                            self.set_on_def();
+                            return;
+                        }
+                    }
+                }
+                for def in namespaces.iter() {
+                    if self.in_pos(&def.name.span) {
+                        self.set_on_def();
+                        return;
+                    }
+                    self.c_on_expr(&def.uri).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                let cols = if let Some(cols) = self.get_table_alias_columns(alias) {
+                    cols
+                } else {
+                    columns
+                        .iter()
+                        .map(|c| TempTableColumn {
+                            name: c.name.value.clone(),
+                            data_type: None,
+                        })
+                        .collect()
+                };
+                self.scopes.current_scope(|s| {
+                    s.enter_temp_table(
+                        alias.as_ref().map(|x| x.name.clone()),
+                        TempTable {
+                            columns: Arc::new(cols),
+                        },
+                    )
+                });
+            }
+        }
+    }
+    pub(crate) async fn c_on_xml_table_column(&mut self, col: &XmlTableColumn) {
+        if self.in_pos(&col.name.span) {
+            self.set_on_def();
+            return;
+        }
+        match &col.option {
+            XmlTableColumnOption::NamedInfo {
+                r#type,
+                path,
+                default,
+                nullable: _,
+            } => {
+                self.c_on_data_type(r#type).await;
+                if self.finished() {
+                    return;
+                }
+                if let Some(path) = path {
+                    self.c_on_expr(path).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                if let Some(d) = default {
+                    self.c_on_expr(d).await;
+                    if self.finished() {
+                        return;
+                    }
                 }
             }
-            TableFactor::UNNEST { .. } => {}
-            TableFactor::JsonTable { .. } => {}
-            TableFactor::OpenJsonTable { .. } => {}
-            TableFactor::NestedJoin { .. } => {}
-            TableFactor::Pivot { .. } => {}
-            TableFactor::Unpivot { .. } => {}
-            TableFactor::MatchRecognize { .. } => {}
-            TableFactor::XmlTable { .. } => {}
+            XmlTableColumnOption::ForOrdinality => {}
         }
     }
 
@@ -3087,6 +3619,8 @@ impl<'a> CompletionStatement<'a> {
     pub(crate) async fn c_on_window_specification(&mut self, ast: &WindowType) {
         match ast {
             WindowType::WindowSpec(window_spec) => {
+                // window_name  是 PostgreSQL 在  WINDOW  子句里给窗口定义起的“名字”。
+                // 作用：当一条查询里多个窗口函数都要用 同一套分区、排序、范围 时，先给这段窗口定义一个名字，后面所有  OVER  子句直接引用这个名字即可，避免重复书写，也更容易维护。
                 if let Some(window_name) = window_spec.window_name.as_ref() {
                     if self.in_pos(&window_name.span) {
                         self.set_on_def();
@@ -3099,9 +3633,29 @@ impl<'a> CompletionStatement<'a> {
                         return;
                     }
                 }
+                // here hard to get the table name
+                // for p in window_spec.partition_by.iter() {
+                //     self.c_on_partition_expr(table_name, p)
+                // }
+                if let Some(wf) = window_spec.window_frame.as_ref() {
+                    self.c_on_window_frame_bound(&wf.start_bound).await;
+                    if let Some(end) = wf.end_bound.as_ref() {
+                        self.c_on_window_frame_bound(end).await;
+                    }
+                }
             }
             WindowType::NamedWindow(..) => {
                 // fallback to lexer
+            }
+        }
+    }
+    pub(crate) async fn c_on_window_frame_bound(&mut self, ast: &WindowFrameBound) {
+        match ast {
+            WindowFrameBound::CurrentRow => {}
+            WindowFrameBound::Preceding(expr) | WindowFrameBound::Following(expr) => {
+                if let Some(expr) = expr.as_ref() {
+                    self.c_on_expr(&expr).await;
+                }
             }
         }
     }
@@ -3115,27 +3669,33 @@ impl<'a> CompletionStatement<'a> {
             FunctionArguments::List(function_argument_list) => {
                 for arg in function_argument_list.args.iter() {
                     match arg {
-                        FunctionArg::Named { name, arg, .. } => {
+                        FunctionArg::Named {
+                            name,
+                            arg,
+                            operator: _,
+                        } => {
                             if self.in_pos(&name.span) {
+                                self.set_on_def();
                                 return;
                             }
                             if let FunctionArgExpr::Expr(expr) = arg {
                                 self.c_on_expr(expr).await;
                             };
                         }
-                        FunctionArg::ExprNamed { name, arg, .. } => {
+                        FunctionArg::ExprNamed {
+                            name,
+                            arg,
+                            operator: _,
+                        } => {
                             if self.in_pos(&name.span()) {
                                 // make suggest nothing.
+                                self.set_on_def();
                                 return;
                             }
-                            if let FunctionArgExpr::Expr(expr) = arg {
-                                self.c_on_expr(expr).await;
-                            };
+                            self.c_on_function_arg_expr(arg).await;
                         }
                         FunctionArg::Unnamed(function_arg_expr) => {
-                            if let FunctionArgExpr::Expr(expr) = function_arg_expr {
-                                self.c_on_expr(expr).await;
-                            }
+                            self.c_on_function_arg_expr(function_arg_expr).await;
                         }
                     }
                 }

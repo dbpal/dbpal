@@ -47,7 +47,7 @@ impl MsSqlServerDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for MsSqlServerDB {
-    async fn list_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
+    async fn list_created_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
         let schema = self.not_allow_empty_schema(schema)?;
         let sql = format!(
             r#"

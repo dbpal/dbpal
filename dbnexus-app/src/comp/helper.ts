@@ -407,7 +407,7 @@ enum AppStoreKey {
 
 class SaveSizesToStore {
   static async saveSize(key: string, size: UISize) {
-    return appDatabase.execute("replace into element_size(name, width, height) values(?,?,?)", [key, size.width, size.height]);
+    return appDatabase.execute("replace into element_size(name, width, height) values(?,?,?)", [key, Math.ceil(size.width), Math.ceil(size.height)]);
   }
   static async getSize(key: string): Promise<undefined | UISize> {
     return appDatabase.select("select width, height from element_size where name = ?", [key]).then((xs) => {
@@ -473,7 +473,7 @@ class ColumnWidths {
   }
   saveColumnWidths(name: string, width: number) {
     this.width[name] = width;
-    appDatabase.execute("replace into column_width(name,width) values(?,?)", [name, width])
+    appDatabase.execute("replace into column_width(name,width) values(?,?)", [name, Math.ceil(width)])
   }
 
   getWidth(key): number {

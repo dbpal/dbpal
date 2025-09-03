@@ -98,3 +98,5 @@ CREATE EXTENSION hstore;
 24 hstore
 DROP EXTENSION plpgsql;
 23 plpgsql
+SELECT * FROM unnest(ARRAY[10,20,30]) AS numbers WHERE numbers > 0 ;
+63 numbers

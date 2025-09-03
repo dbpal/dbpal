@@ -7,7 +7,6 @@ use crate::language_server::{
     LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::sqlparser_completion::TempTableColumn;
-
 #[async_trait::async_trait]
 
 impl LanguageServer for ClickHouseDB {

@@ -27,6 +27,7 @@ import { ErrAndLoc, SettingContext, UserSettings, validJson } from './helper';
 import { Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
 import EditIcon from '@mui/icons-material/Edit';
+import { debugBuild } from './debug';
 
 function ModifySettings({ handleClose }) {
   const { showNotification } = useContext(NotificationContext);
@@ -39,6 +40,7 @@ function ModifySettings({ handleClose }) {
   const [allFonts, setAllFonts] = useState<string[]>([]);
   const [fontMatch, setFontMatch] = useState<string>('');
   const [tabSize, setTabSize] = useState(2);
+  const [theme, setTheme] = useState('');
   useEffect(() => {
     invoke<string[]>('fonts_all_families', {})
       .then((fonts) => {
@@ -57,6 +59,7 @@ function ModifySettings({ handleClose }) {
       setFontSize(settings.fontSize);
       setFontFamily(settings.fontFamily);
       setTabSize(settings.tabSize);
+      setTheme(setting.theme);
       const content = JSON.stringify(
         settings.editorOption ? settings.editorOption : {},
         null,
@@ -90,6 +93,7 @@ function ModifySettings({ handleClose }) {
       fontSize,
       fontFamily,
       tabSize,
+      theme,
       editorOption: JSON.parse(editorOptions),
     })
       .then(() => {
@@ -115,6 +119,22 @@ function ModifySettings({ handleClose }) {
           }}
         ></SelectPageSize>
       </Stack>
+      {debugBuild && (
+        <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+          <Typography width={headerSize} textAlign="right">
+            theme:
+          </Typography>
+          {['ligth', 'dark'].map((e) => (
+            <Chip
+              label={e}
+              color={theme == e ? 'primary' : 'default'}
+              onClick={() => {
+                setTheme(e);
+              }}
+            ></Chip>
+          ))}
+        </Stack>
+      )}
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           font size:

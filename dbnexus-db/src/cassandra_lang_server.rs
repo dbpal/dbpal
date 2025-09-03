@@ -59,7 +59,7 @@ impl LexerCompletionTrait for CassandraDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for CassandraDB {
-    async fn list_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
+    async fn list_created_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
         match self.merge_schema(schema) {
             Some(s) => self.list_created_types_impl(&s).await,
             None => anyhow::Ok(vec![]),

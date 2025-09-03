@@ -6,8 +6,8 @@ select id from (select id from employees) as xxx
 10 id
 SELECT e.id AS EmployeeID,  e.name AS EmployeeName,  d.name AS DepartmentName FROM employees AS e JOIN departments AS d ON e.department_id = d.id;
 9 e ; 9 employees ; 12 name ; 54 d ; 54 departments ; 60 name ; 93 departments ; 125 e ; 125 departments ; 139 department_id ; 143 d ; 146 id
-select * from test.dbo.employees
-19 test ; 23 dbo ; 31 employees
+select * from dbo.employees
+18 dbo ; 27 employees
 select count(*) from employees
 11 count ; 11 abs ; 11 sin
 insert into employees (id) select id from employees
@@ -46,3 +46,5 @@ DROP view employees_view;
 25 test_view
 explain  select * from employees
 33 employees
+SELECT * FROM OPENJSON( N'[{"id":1,"name":"Alice","age":30},{"id":2,"name":"Bob","age":25}]' ) WITH (id   int         '$.id', name nvarchar(50) '$.name',age  int         '$.age')AS t WHERE t.id > 0 ;
+191 t 

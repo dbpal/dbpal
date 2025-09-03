@@ -330,7 +330,13 @@ impl From<PostGresExtension> for CompletionItem {
 #[async_trait::async_trait]
 
 pub trait LangServerCommon: GetBackendKind {
-    async fn list_type(&self, _schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
+    // some backend can use a query to query this.
+    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>>;
+
+    // list user created types.
+    async fn list_created_type(
+        &self, _schema: Option<&str>,
+    ) -> anyhow::Result<Vec<CreatedTypeDef>> {
         anyhow::Ok(vec![])
     }
 
@@ -392,9 +398,6 @@ pub trait LangServerCommon: GetBackendKind {
     async fn list_column(
         &self, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>>;
-
-    // some backend can use a query to query this.
-    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>>;
 
     // completion on ast struct like `SCHEMA.XXXX`  , 'TALBE.XXXX'
     async fn try_completion_dot(
