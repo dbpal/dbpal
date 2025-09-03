@@ -62,8 +62,8 @@ const fileFilter = {
   filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
 };
 
-function SqlTransaction(props: { conn: IQueryConn; nonce; executeTimes }) {
-  const { conn, nonce, executeTimes } = props;
+function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
+  const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
   const { showNotification } = useContext(NotificationContext);
   const [txCount, setTxCount] = useState(0);
@@ -93,13 +93,9 @@ function SqlTransaction(props: { conn: IQueryConn; nonce; executeTimes }) {
 
   useEffect(() => {
     handleQueryCommit();
-  }, []);
+  }, [executeTimes]);
 
-  useEffect(() => {
-    handleQueryCommit();
-  }, [nonce]);
-
-  const handleCommit = async () => {
+  const commitTx = async () => {
     try {
       await conn.commit();
       showNotification('success', 'commit ok');
@@ -109,7 +105,7 @@ function SqlTransaction(props: { conn: IQueryConn; nonce; executeTimes }) {
     }
   };
 
-  const handleRollback = async () => {
+  const rollbackTx = async () => {
     try {
       await conn.rollback();
       showNotification('success', 'rollback ok');
@@ -118,11 +114,11 @@ function SqlTransaction(props: { conn: IQueryConn; nonce; executeTimes }) {
       showNotification('error', 'rollback failed', e);
     }
   };
-  const handleReverse = async () => {
+  const reverseCommitMode = async () => {
     try {
       await conn.setAutoCommit(!commit);
       setCommit((e) => !e);
-      showNotification('success', 'set auto commit ok');
+      showNotification('success', 'set commit mode ok');
     } catch (e) {
       showNotification('error', 'set commit failed', e);
     }
@@ -132,7 +128,7 @@ function SqlTransaction(props: { conn: IQueryConn; nonce; executeTimes }) {
     <>
       <Tooltip title="reverse commit mode" arrow>
         <Chip
-          onClick={handleReverse}
+          onClick={reverseCommitMode}
           label={`${commit ? 'auto' : 'manual'}-commit`}
           size="small"
           color={commit ? 'info' : 'success'}
@@ -146,12 +142,12 @@ function SqlTransaction(props: { conn: IQueryConn; nonce; executeTimes }) {
           </Tooltip>
 
           <Tooltip title="commit" arrow>
-            <IconButton onClick={handleCommit} color="primary">
+            <IconButton onClick={commitTx} color="primary">
               <FaUpload fontSize="1.1rem"></FaUpload>
             </IconButton>
           </Tooltip>
           <Tooltip title="rollback" arrow>
-            <IconButton onClick={handleRollback} color="primary">
+            <IconButton onClick={rollbackTx} color="primary">
               <MdOutlineReply fontSize="1.7rem"></MdOutlineReply>
             </IconButton>
           </Tooltip>
@@ -197,8 +193,6 @@ function SqlQuery(props: {
   );
   const queryLogHandler = useRef(new QueryLogHandler(uuid));
   const [executeTimes, setExecuteTimes] = useState(0);
-
-  const [commitNonce, setCommitNonce] = useState(0);
   const [file, setFile] = useState('');
   const [conn, setConn] = useState<IQueryConn | null>(null);
   const [showExport, setShowExport] = useState(false);
@@ -250,7 +244,6 @@ function SqlQuery(props: {
         })
         .finally(() => {
           setLoading(false);
-          setCommitNonce((e) => e + 1);
         });
     } else {
       makeConn()
@@ -263,7 +256,6 @@ function SqlQuery(props: {
         })
         .finally(() => {
           setLoading(false);
-          setCommitNonce((e) => e + 1);
         });
     }
   };
@@ -308,7 +300,6 @@ function SqlQuery(props: {
     }
     let now = new Date();
     setLoading(true);
-    setExecuteTimes((e) => e + 1);
     conn
       .executeOP(text)
       .then((e) => {
@@ -321,8 +312,8 @@ function SqlQuery(props: {
         showNotification('error', 'query failed', e);
       })
       .finally(() => {
+        setExecuteTimes((e) => e + 1);
         setLoading(false);
-        setCommitNonce((e) => e + 1);
       });
   };
   const handleQuery = async (append: boolean, explain: boolean = false) => {
@@ -346,7 +337,6 @@ function SqlQuery(props: {
     }
     let now = new Date();
     setLoading(true);
-    setExecuteTimes((e) => e + 1);
     conn
       .queryOP(text)
       .then((resp) => {
@@ -368,8 +358,8 @@ function SqlQuery(props: {
         showNotification('error', 'query failed', e);
       })
       .finally(() => {
+        setExecuteTimes((e) => e + 1);
         setLoading(false);
-        setCommitNonce((e) => e + 1);
       });
   };
 
@@ -555,11 +545,7 @@ function SqlQuery(props: {
           )}
 
           {conn && conn.supportTransaction() && (
-            <SqlTransaction
-              nonce={commitNonce}
-              executeTimes={executeTimes}
-              conn={conn}
-            />
+            <SqlTransaction executeTimes={executeTimes} conn={conn} />
           )}
           <Tooltip
             title={
