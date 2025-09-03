@@ -641,7 +641,7 @@ function SqlTableView_(props: {
                 }}
               ></Menu>
             ),
-            style: calMenuStyle(e, 300),
+            style: calMenuStyle(e),
           });
         },
 

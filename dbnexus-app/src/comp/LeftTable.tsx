@@ -143,7 +143,7 @@ function TablesTree(props: { typ: TablesType }) {
                 <MenuRefresh reload={handleReload}></MenuRefresh>
               </MenuList>
             ),
-            style: calMenuStyle(e, 70),
+            style: calMenuStyle(e),
           });
         }}
       >
@@ -202,7 +202,7 @@ function TableTree(props: {
                   uuid={uuid}
                 />
               ),
-              style: calMenuStyle(e, 200),
+              style: calMenuStyle(e),
             });
           }}
         >
@@ -1246,7 +1246,7 @@ function RedisTables(prpos: { schema?: string }) {
                   <MenuRefresh reload={handleReload}></MenuRefresh>
                 </MenuList>
               ),
-              style: calMenuStyle(e, 70),
+              style: calMenuStyle(e),
             });
           }}
         >
@@ -1270,7 +1270,7 @@ function RedisTables(prpos: { schema?: string }) {
                       redisTableType={typ}
                     />
                   ),
-                  style: calMenuStyle(e, 200),
+                  style: calMenuStyle(e),
                 });
               }}
             >

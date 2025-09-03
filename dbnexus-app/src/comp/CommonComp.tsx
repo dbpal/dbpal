@@ -9,7 +9,6 @@ import {
   Divider,
   Chip,
   useTheme,
-  Button,
 } from '@mui/material';
 import {
   CSSProperties,
@@ -428,7 +427,7 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
                 setSort={setSortModel}
               ></Menu>
             ),
-            style: calMenuStyle(e, 200),
+            style: calMenuStyle(e),
           });
         },
         style: { cursor: 'context-menu' },
@@ -558,7 +557,6 @@ function ResizeWrapper(props: {
 function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
   const { fields, x, isTable } = props;
   const theme = useTheme();
-  const { showNotification } = useContext(NotificationContext);
   return (
     <Stack spacing={1}>
       {fields.map((f) => {

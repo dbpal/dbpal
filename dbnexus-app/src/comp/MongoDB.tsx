@@ -1269,7 +1269,7 @@ function MongoTableList(props: {
                 }}
               ></MongoTableListContextMenu>
             ),
-            style: calMenuStyle(e, 200),
+            style: calMenuStyle(e),
           });
         },
         style: { cursor: 'context-menu' },

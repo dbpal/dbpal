@@ -352,7 +352,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
           }
           setUpMenu({
             content: <Menu content={content}></Menu>,
-            style: calMenuStyle(e, 200),
+            style: calMenuStyle(e),
           });
         },
         style: { cursor: 'context-menu' },
@@ -685,7 +685,7 @@ function FavoriteSqlList(props: { handleClose }) {
 
           setUpMenu({
             content: <Menu content={content} id={parseInt(id)}></Menu>,
-            style: calMenuStyle(e, 200),
+            style: calMenuStyle(e),
           });
         },
         style: { cursor: 'context-menu' },
@@ -920,7 +920,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
               ></SchemaMenu>
             ),
 
-            style: calMenuStyle(e, 70),
+            style: calMenuStyle(e),
           });
         }}
         sx={{
@@ -1451,7 +1451,7 @@ function CatalogTree(_props: {}) {
                 kind={kind}
               ></CatalogMenu>
             ),
-            style: calMenuStyle(e, 70),
+            style: calMenuStyle(e),
           });
         }}
       >
@@ -1536,7 +1536,7 @@ function DatabaseTree(props: {
                 schemas={schemas}
               ></DatabaseMenu>
             ),
-            style: calMenuStyle(e, 70),
+            style: calMenuStyle(e),
           });
         }}
         sx={{ alignItems: 'center' }}

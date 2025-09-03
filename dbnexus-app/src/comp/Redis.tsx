@@ -916,7 +916,7 @@ function RedisSetTable(props: {
                 }}
               ></RedisSetTableContextMenu>
             ),
-            style: calMenuStyle(e, 200),
+            style: calMenuStyle(e),
           });
         },
         style: { cursor: 'context-menu' },
@@ -1246,7 +1246,7 @@ function RedisListTable(props: {
                 content={content}
               ></RedisListTableContextMenu>
             ),
-            style: calMenuStyle(e, 200),
+            style: calMenuStyle(e),
           });
         },
         style: { cursor: 'context-menu' },
@@ -1503,7 +1503,7 @@ function RedisZsetTable(props: {
                 }}
               ></RedisZSetTableContextMenu>
             ),
-            style: calMenuStyle(e, 200),
+            style: calMenuStyle(e),
           });
         },
         style: { cursor: 'context-menu' },
@@ -1788,7 +1788,7 @@ function RedisHashTable(props: {
                 }}
               ></RedisHashTableContextMenu>
             ),
-            style: calMenuStyle(e, 200),
+            style: calMenuStyle(e),
           });
         },
         style: { cursor: 'context-menu' },

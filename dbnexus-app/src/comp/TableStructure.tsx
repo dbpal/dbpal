@@ -247,7 +247,7 @@ function ColumnsStructure(props: {
           const col = (currentTarget as HTMLDivElement).getAttribute('data-id');
           setUpMenu({
             content: <Menu col={col} content={content}></Menu>,
-            style: calMenuStyle(e, 100),
+            style: calMenuStyle(e),
           });
         },
         style: { cursor: 'context-menu' },
@@ -584,7 +584,7 @@ function IndexesStructure(props: {
           );
           setUpMenu({
             content: <Menu indexName={indexName} content={content}></Menu>,
-            style: calMenuStyle(e, 100),
+            style: calMenuStyle(e),
           });
         },
         style: { cursor: 'context-menu' },
@@ -1561,7 +1561,7 @@ function TriggersStructure(props: {
           let detail = triggers.find((e) => e.name == name);
           setUpMenu({
             content: <Menu detail={detail} content={content}></Menu>,
-            style: calMenuStyle(e, 100),
+            style: calMenuStyle(e),
           });
         },
         style: { cursor: 'context-menu' },

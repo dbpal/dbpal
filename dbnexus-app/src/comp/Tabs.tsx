@@ -156,7 +156,7 @@ function TabsWithContent_(props: {
                             selectIndex={selectIndex}
                           ></TabsMenu>
                         ),
-                        style: calMenuStyle(e, 100),
+                        style: calMenuStyle(e),
                       });
                     }}
                   ></Chip>

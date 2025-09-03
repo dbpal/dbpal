@@ -153,7 +153,7 @@ function ViewsTree(props: { viewkind: ViewKind }) {
                 <MenuRefresh reload={handleReload}></MenuRefresh>
               </MenuList>
             ),
-            style: calMenuStyle(e, 70),
+            style: calMenuStyle(e),
           });
         }}
       >
@@ -385,7 +385,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
           let content = (target as HTMLDivElement).innerHTML;
           setUpMenu({
             content: <Menu content={content}></Menu>,
-            style: calMenuStyle(e, 100),
+            style: calMenuStyle(e),
           });
         },
         style: { cursor: 'context-menu' },
@@ -467,7 +467,7 @@ function ViewTree(props: {
                   viewkind={viewkind}
                 />
               ),
-              style: calMenuStyle(e, 100),
+              style: calMenuStyle(e),
             });
           }}
         >

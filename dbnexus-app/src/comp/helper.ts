@@ -1,6 +1,6 @@
 import { editor, languages, Position } from "monaco-editor";
 import types from "./ApiStruct";
-import { createContext, CSSProperties, ReactElement, ReactNode } from "react";
+import { createContext, CSSProperties, MouseEvent, ReactElement, ReactNode } from "react";
 import { ask } from '@tauri-apps/plugin-dialog';
 import { load } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -307,7 +307,7 @@ function getViewportSize() {
   return { width, height }; // 返回一个对象，包含宽度和高度
 }
 
-function calMenuStyle(e, eheigth: number): CSSProperties {
+function calMenuStyle(e: MouseEvent): CSSProperties {
   e.preventDefault();
   const x = e.clientX;
   const y = e.clientY;
@@ -329,7 +329,7 @@ function calMenuStyle(e, eheigth: number): CSSProperties {
     ret.right = width - x - 10 + 'px';
   }
 
-  if (height - y > (eheigth)) {
+  if ((height - y) > 400) {
     // 这个是点击的位置下面有很大的空间
     ret.top = y - 10 + 'px';
   } else {

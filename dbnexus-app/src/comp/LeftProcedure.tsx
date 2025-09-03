@@ -81,7 +81,7 @@ function ProceduresTree() {
                 <MenuRefresh reload={reload}></MenuRefresh>
               </MenuList>
             ),
-            style: calMenuStyle(e, 70),
+            style: calMenuStyle(e),
           });
         }}
       >
@@ -113,7 +113,7 @@ function ProceduresTree() {
                         parameters={p.parameters}
                       ></ProcedureMenu>
                     ),
-                    style: calMenuStyle(e, 100),
+                    style: calMenuStyle(e),
                   });
                 }}
                 sx={{ alignItems: 'center' }}

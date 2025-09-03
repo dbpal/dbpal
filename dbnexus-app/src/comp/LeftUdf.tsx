@@ -82,7 +82,7 @@ function UdfsTree() {
                 <MenuRefresh reload={reload}></MenuRefresh>
               </MenuList>
             ),
-            style: calMenuStyle(e, 70),
+            style: calMenuStyle(e),
           });
         }}
       >
@@ -114,7 +114,7 @@ function UdfsTree() {
                         udf={udf}
                       ></UdfMenu>
                     ),
-                    style: calMenuStyle(e, 100),
+                    style: calMenuStyle(e),
                   });
                 }}
               >
@@ -379,7 +379,7 @@ function CassaandraAggregatesTree() {
                 <MenuRefresh reload={reload}></MenuRefresh>
               </MenuList>
             ),
-            style: calMenuStyle(e, 70),
+            style: calMenuStyle(e),
           });
         }}
       >
@@ -417,7 +417,7 @@ function CassaandraAggregatesTree() {
                         parameters={agg.cassandra_parameters}
                       ></CassandraAggregateMenu>
                     ),
-                    style: calMenuStyle(e, 100),
+                    style: calMenuStyle(e),
                   });
                 }}
               >

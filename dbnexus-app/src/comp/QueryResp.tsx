@@ -183,7 +183,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
                 }}
               ></RespContextMenu>
             ),
-            style: calMenuStyle(e, 200),
+            style: calMenuStyle(e),
           });
         },
         style: { cursor: 'context-menu' },

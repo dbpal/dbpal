@@ -176,9 +176,8 @@ export default function MainPage() {
     style: CSSProperties;
   }>();
   useEffect(() => {
-    // cancel the menu
-    const customMenu = document.getElementById('menu-div');
     window.addEventListener('click', () => {
+      const customMenu = document.getElementById('menu-div');
       customMenu.style.display = 'none';
     });
   });
@@ -263,7 +262,15 @@ export default function MainPage() {
           <NotificationProvider>
             <WindowFocusChangeContext value={windowFocus}>
               <div> {mainContent} </div>
-              <div id="menu-div" style={menu && menu.style}>
+              <div
+                id="menu-div"
+                style={{
+                  position: 'fixed',
+                  zIndex: 10000,
+                  height: 'auto',
+                  ...(menu && menu.style),
+                }}
+              >
                 <Paper elevation={24}>{menu && menu.content}</Paper>
               </div>
 
