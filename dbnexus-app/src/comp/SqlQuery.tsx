@@ -68,9 +68,6 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   const { showNotification } = useContext(NotificationContext);
   const [txCount, setTxCount] = useState(0);
 
-  useEffect(() => {
-    setTxCount((e) => e + 1);
-  }, [executeTimes]);
   const setCloseConfirm = useContext(SetCloseConfirmTextContext);
   const handleQueryCommit = async () => {
     try {
@@ -92,6 +89,7 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   }, [commit]);
 
   useEffect(() => {
+    setTxCount((e) => e + 1);
     handleQueryCommit();
   }, [executeTimes]);
 
