@@ -22,6 +22,8 @@ import {
   FormControlLabel,
   Chip,
   Tooltip,
+  InputAdornment,
+  IconButton,
 } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -32,7 +34,7 @@ import {
   SimpleFlexSizeEditor,
   EscDownEvent,
 } from './Common.tsx';
-
+import ClearIcon from '@mui/icons-material/Clear';
 import { types } from './ApiStruct.ts';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { NotificationContext } from './Notification';
@@ -384,6 +386,23 @@ function RedisAddZset(props: {
             setScore(event.target.value);
             setScoreErr(isNaN(parseFloat(event.target.value)));
           }}
+          slotProps={{
+            input: {
+              endAdornment: score && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setScore('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
         ></TextField>
 
         <RedisValueEditor
@@ -519,6 +538,23 @@ function RedisEditZset(props: {
           } else {
             setNewValueErr(false);
           }
+        }}
+        slotProps={{
+          input: {
+            endAdornment: newValue && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setNewValue('');
+                  }}
+                  edge="end"
+                  size="small"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
         }}
       ></TextField>
       <RedisValueEditor
@@ -954,6 +990,23 @@ function RedisSetTable(props: {
               setKeyMatch(event.target.value);
             }}
             style={{ flex: 1 }}
+            slotProps={{
+              input: {
+                endAdornment: keyMatch && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => {
+                        setKeyMatch('');
+                      }}
+                      edge="end"
+                      size="small"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
           />
           <Button
             variant="contained"
@@ -1535,6 +1588,23 @@ function RedisZsetTable(props: {
           onChange={(event) => {
             setKeyMatch(event.target.value);
           }}
+          slotProps={{
+            input: {
+              endAdornment: keyMatch && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setKeyMatch('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
           style={{ flex: 1 }}
         />
         <TextField
@@ -1551,6 +1621,23 @@ function RedisZsetTable(props: {
             }
             setMin(event.target.value);
           }}
+          slotProps={{
+            input: {
+              endAdornment: min && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setMin('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
           style={{ flex: 0.5 }}
         />
         <TextField
@@ -1566,6 +1653,23 @@ function RedisZsetTable(props: {
               setMaxErr(false);
             }
             setMax(event.target.value);
+          }}
+          slotProps={{
+            input: {
+              endAdornment: max && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setMax('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
           }}
           style={{ flex: 0.5 }}
         />
@@ -1830,6 +1934,23 @@ function RedisHashTable(props: {
             onChange={(event) => {
               setKeyMatch(event.target.value);
             }}
+            slotProps={{
+              input: {
+                endAdornment: keyMatch && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => {
+                        setKeyMatch('');
+                      }}
+                      edge="end"
+                      size="small"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
             style={{ flex: 1 }}
           />
           <Button
@@ -1955,6 +2076,23 @@ function RedisModifyKeyName(props: {
         value={newName}
         onChange={(e) => {
           setNewName(e.target.value);
+        }}
+        slotProps={{
+          input: {
+            endAdornment: newName && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setNewName('');
+                  }}
+                  edge="end"
+                  size="small"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
         }}
         label="name"
       ></TextField>

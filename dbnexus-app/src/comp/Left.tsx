@@ -4,6 +4,7 @@ import {
   CircularProgress,
   Divider,
   IconButton,
+  InputAdornment,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -14,7 +15,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-
+import ClearIcon from '@mui/icons-material/Clear';
 import {
   memo,
   useCallback,
@@ -201,6 +202,23 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
           label="match pattern for table view udf procedure ..."
           onChange={(e) => {
             setMatchPattern(e.target.value.trim());
+          }}
+          slotProps={{
+            input: {
+              endAdornment: matchPattern && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setMatchPattern('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
           }}
           helperText="name etc"
         ></TextField>

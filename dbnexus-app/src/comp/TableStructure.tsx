@@ -904,6 +904,23 @@ function AddIndex(props: {
         label="index name"
         size="small"
         required
+        slotProps={{
+          input: {
+            endAdornment: indexName && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setIndexName('');
+                  }}
+                  edge="end"
+                  size="small"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
       ></TextField>
       <Stack
         direction="row"
@@ -1023,6 +1040,23 @@ function TableAddColumn(props: {
         onChange={(e) => {
           setName(e.target.value.trim());
         }}
+        slotProps={{
+          input: {
+            endAdornment: name && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setName('');
+                  }}
+                  edge="end"
+                  size="small"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
         label="column name"
       ></TextField>
       <TableTypes
@@ -1041,6 +1075,23 @@ function TableAddColumn(props: {
           onChange={(e) => setTyp(e.target.value)}
           label="type"
           helperText={typeHint}
+          slotProps={{
+            input: {
+              endAdornment: typ && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setTyp('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
         ></TextField>
       </Stack>
       {supportNull && (
@@ -1221,6 +1272,23 @@ function ModifyTableColumn(props: {
           setNewName(e.target.value);
         }}
         required
+        slotProps={{
+          input: {
+            endAdornment: newName && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setNewName('');
+                  }}
+                  edge="end"
+                  size="small"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
         error={!newName}
       ></TextField>
       {supoortModifyType && !modifyType && (
@@ -1258,6 +1326,23 @@ function ModifyTableColumn(props: {
               }}
               fullWidth
               helperText={typeHint}
+              slotProps={{
+                input: {
+                  endAdornment: newTyp && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => {
+                          setNewTyp('');
+                        }}
+                        edge="end"
+                        size="small"
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
             ></TextField>
           </Stack>
           {kindSupportNull(kind) && (
@@ -1309,6 +1394,23 @@ function TableTypes(props: { handleChange; uuid; type }) {
         value={match}
         onChange={(e) => {
           setMatch(e.target.value);
+        }}
+        slotProps={{
+          input: {
+            endAdornment: match && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setMatch('');
+                  }}
+                  edge="end"
+                  size="small"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
         }}
       ></TextField>
       <FormControl style={{ flex: 1 }}>

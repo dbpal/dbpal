@@ -192,6 +192,23 @@ function ModifySettings() {
             setFontWeight(e.target.value);
           }}
           size="small"
+          slotProps={{
+            input: {
+              endAdornment: fontWeight && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setFontWeight('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
         ></TextField>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
@@ -235,6 +252,23 @@ function ModifySettings() {
           style={{ fontFamily: fontFamily }}
           onChange={(e) => {
             setFontMatch(e.target.value);
+          }}
+          slotProps={{
+            input: {
+              endAdornment: fontMatch && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setFontMatch('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
           }}
         ></TextField>
       </Stack>

@@ -15,6 +15,8 @@ import {
   Chip,
   Divider,
   FormControlLabel,
+  IconButton,
+  InputAdornment,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -36,7 +38,7 @@ import {
   GridSlotsComponentsProps,
   GridSortModel,
 } from '@mui/x-data-grid';
-
+import ClearIcon from '@mui/icons-material/Clear';
 import { v4 as uuidv4 } from 'uuid';
 import {
   EscDownEvent,
@@ -1083,6 +1085,23 @@ function SqlTableViewData(props: {
           label="filter"
           fullWidth
           helperText="can match field name and content"
+          slotProps={{
+            input: {
+              endAdornment: filter && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setFilter('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
         ></TextField>
       </Stack>
     </Stack>

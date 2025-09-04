@@ -20,6 +20,7 @@ import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { IoConstructOutline } from 'react-icons/io5';
 import { HiOutlineDuplicate } from 'react-icons/hi';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
+
 import {
   Box,
   Button,
@@ -27,6 +28,8 @@ import {
   CircularProgress,
   Divider,
   FormControlLabel,
+  IconButton,
+  InputAdornment,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -37,6 +40,7 @@ import {
   TextField,
   Tooltip,
 } from '@mui/material';
+import ClearIcon from '@mui/icons-material/Clear';
 
 import { TabContent } from './Tabs';
 import { SqlTableView, SqlTableViewData } from './SqlTableView';
@@ -1354,6 +1358,23 @@ function RedisTables(prpos: { schema?: string }) {
               helperText="key filter , can be '*key' or 'key*' etc..."
               onChange={(e) => {
                 setFilter(e.target.value);
+              }}
+              slotProps={{
+                input: {
+                  endAdornment: filter && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => {
+                          setFilter('');
+                        }}
+                        edge="end"
+                        size="small"
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
               }}
             ></TextField>
           </Box>

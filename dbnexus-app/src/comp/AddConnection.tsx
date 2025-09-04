@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-
+import ClearIcon from '@mui/icons-material/Clear';
 import {
   TextField,
   Button,
@@ -17,7 +17,10 @@ import {
   Checkbox,
   Chip,
   Tooltip,
+  InputAdornment,
+  IconButton,
 } from '@mui/material';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -45,6 +48,23 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
         onBlur={onBlur}
         sx={{ mr: 1 }}
         onChange={(e) => setHost(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: host && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setHost('');
+                  }}
+                  edge="end"
+                  size="small"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
       />
       <TextField
         size="small"
@@ -94,7 +114,7 @@ function UserAndPassword(props: {
     savePassword,
     setSavePassword,
   } = props;
-
+  const [passwordVisible, setPasswordVisible] = useState(false);
   return (
     <Stack direction="row">
       <TextField
@@ -105,15 +125,49 @@ function UserAndPassword(props: {
         sx={{ mr: 1 }}
         onBlur={onBlur}
         onChange={(e) => setUser(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: user && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setUser('');
+                  }}
+                  edge="end"
+                  size="small"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
       />
       <TextField
         size="small"
         fullWidth
         label="Password"
         onBlur={onBlur}
-        type="password"
+        type={passwordVisible ? 'text' : 'password'}
         value={password}
         onChange={(e) => setPassword(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: !passwordVisible && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setPasswordVisible(true);
+                  }}
+                  edge="end"
+                  size="small"
+                >
+                  <VisibilityIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
       />
 
       <Stack
@@ -316,6 +370,23 @@ function Database(props: {
           value={database}
           onBlur={onBlur}
           onChange={(e) => setDatabase(e.target.value)}
+          slotProps={{
+            input: {
+              endAdornment: database && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setDatabase('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
         />
       </Stack>
     </Stack>
@@ -347,6 +418,23 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
           label="schema"
           value={schema}
           onChange={(e) => setSchema(e.target.value)}
+          slotProps={{
+            input: {
+              endAdornment: schema && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setSchema('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
         />
       </Stack>
     </Stack>
@@ -1138,6 +1226,23 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           inputRef={connectionNameDom}
           required
           onChange={(e) => setConnectionName(e.target.value)}
+          slotProps={{
+            input: {
+              endAdornment: connectionName && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setConnectionName('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
         />
         <FormControlLabel
           style={{ width: '180px' }}
@@ -1229,6 +1334,23 @@ function LibSql(props: {
               }}
               fullWidth
               size="small"
+              slotProps={{
+                input: {
+                  endAdornment: url && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => {
+                          setUrl('');
+                        }}
+                        edge="end"
+                        size="small"
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
             ></TextField>
             <TextField
               fullWidth
@@ -1237,6 +1359,23 @@ function LibSql(props: {
               label="auth token "
               onChange={(e) => {
                 setAuthToken(e.target.value);
+              }}
+              slotProps={{
+                input: {
+                  endAdornment: authToken && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => {
+                          setAuthToken('');
+                        }}
+                        edge="end"
+                        size="small"
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
               }}
             ></TextField>
           </Stack>
