@@ -1528,6 +1528,7 @@ function MongoTable(props: {
 
       <Stack
         direction="row"
+        spacing={1}
         style={{ justifyContent: 'flex-end', alignItems: 'center' }}
       >
         <ExecutingTime loading={loading} />

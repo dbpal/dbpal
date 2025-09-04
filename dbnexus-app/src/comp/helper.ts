@@ -319,7 +319,7 @@ function calMenuStyle(e: MouseEvent): CSSProperties {
   ret.bottom = 'auto';
   ret.left = 'auto';
   ret.right = 'auto';
-  if (width - x > 250) {
+  if (width - x > 400) {
     // this is click have a lot of space on the right
     ret.left =
       x -
@@ -329,7 +329,7 @@ function calMenuStyle(e: MouseEvent): CSSProperties {
     ret.right = width - x - 10 + 'px';
   }
 
-  if ((height - y) > 400) {
+  if ((height - y) > 450) {
     // 这个是点击的位置下面有很大的空间
     ret.top = y - 10 + 'px';
   } else {
@@ -399,7 +399,7 @@ function isTypeLargeText(s: string): boolean {
 const appStore = await load('store.json');
 
 enum AppStoreKey {
-  UserSetttings = 'user_settings',
+  UserSettings = 'user_settings',
   ConnectionConfig = 'connection_config',
   Zoom = "zoom"
 }
@@ -656,16 +656,22 @@ class UserSettings {
   fontWeight: string = 'normal';
   fontFamily: string = undefined;
   tabSize: number = 4;
+  lightBgColor: string = undefined;
+  darkBgColor: string = undefined;
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
   editorTheme(): string {
-    return this.theme === 'dark' ? 'vs-dark' : 'light';
+    return this.isDark() ? 'vs-dark' : 'light';
+  }
+
+  isDark(): boolean {
+    return this.theme === 'dark'
   }
   // 可能和以前的设置冲突
   datagridRowHeightXXX() {
     return Math.ceil(this.fontSize * 1.9)
   }
   static async get(): Promise<UserSettings> {
-    let x = await appStore.get<object>(AppStoreKey.UserSetttings);
+    let x = await appStore.get<object>(AppStoreKey.UserSettings);
     if (!x) {
       x = {};
     }
@@ -682,7 +688,7 @@ class UserSettings {
     let old = await UserSettings.get();
     let s = { ...old, ...x };
 
-    return appStore.set(AppStoreKey.UserSetttings, s);
+    return appStore.set(AppStoreKey.UserSettings, s);
   }
 }
 
@@ -768,6 +774,34 @@ function makeExecuteSql(uuid) {
     });
   };
 }
+function hexToRgb(hex) {
+  hex = hex.replace('#', '');
+  if (hex.length === 3) hex = [...hex].map(c => c + c).join('');
+  const num = parseInt(hex, 16);
+  return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+}
+
+function isLightHex(hex) {
+  const [r, g, b] = hexToRgb(hex);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.5;
+}
+const isColor = str => {
+  const o = new Option().style;
+  o.color = str;
+  return o.color !== '';
+};
+
+function getSupportExportKind(kind: DataSourceKind) {
+  switch (kind) {
+    case DataSourceKind.Mongo:
+      return ['json', 'jsonline'];
+    case DataSourceKind.Redis:
+      return ['csv', 'sql', 'json', 'jsonline'];
+    default:
+      return ['csv', 'sql', 'json', 'jsonline'];
+  }
+}
 
 export {
   TabsSetContext,
@@ -818,6 +852,9 @@ export {
   makeExecuteSql,
   QueryLogHandler,
   QueryEvent,
+  isLightHex,
+  isColor,
+  getSupportExportKind,
 };
 
 export type { ErrAndLoc }

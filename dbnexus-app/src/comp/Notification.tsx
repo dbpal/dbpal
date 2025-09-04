@@ -41,7 +41,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const showNotification = (
     severity: AlertColor,
     title: string,
-    message: string | Error | { reason: string }
+    message: string | Error | { reason: string } | undefined
   ) => {
     if (typeof message == 'object' && 'reason' in message) {
       // TODO show message

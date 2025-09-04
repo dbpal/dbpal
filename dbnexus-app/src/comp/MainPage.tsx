@@ -9,10 +9,10 @@ import {
   useEffect,
   useState,
 } from 'react';
-
+import { IoMdSettings } from 'react-icons/io';
 import { MdError } from 'react-icons/md';
 import { TabContent, TabsWithContent } from './Tabs';
-import { EscDownEvent, modalStyle } from './Common.tsx';
+import { EscDownEvent, modalStyle, tabsHasId } from './Common.tsx';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
 import { event } from '@tauri-apps/api';
@@ -27,10 +27,12 @@ const shortCuts = {
       }
       if (e.metaKey && e.key == ',') {
         shortCuts.showSetting();
+        e.preventDefault();
       }
-      // 这个和macos的 quit windows冲突了 要解决
+
       if (e.metaKey && e.key == 'w') {
         shortCuts.closeCurrentTab(e);
+        e.preventDefault();
       }
     }
     if (['windows', 'linux'].includes(platform())) {
@@ -46,6 +48,7 @@ const shortCuts = {
 
       if (e.ctrlKey && e.key == ',') {
         shortCuts.showSetting();
+        e.preventDefault();
       }
     }
   },
@@ -72,11 +75,11 @@ import { Box, Modal, Paper } from '@mui/material';
 import { BackendCrash } from './BackendCrash.tsx';
 import { EditConfigFile } from './EditConfigFile.tsx';
 import { ModalHeader } from './CommonComp.tsx';
-
+const showSettingID = generateRandomString();
 export default function MainPage() {
   let [tabs, setTabs] = useState<TabContent[]>([]);
   const [tab, setTab] = useState(0);
-  const [showSetting, setShowSetting] = useState(false);
+
   const closeTab = useCallback(
     (index: number) => {
       (async () => {
@@ -98,6 +101,28 @@ export default function MainPage() {
     },
     [tabs]
   );
+  const showSetting = useCallback(() => {
+    setTabs((tabs) => {
+      let hasId = tabsHasId(tabs, showSettingID);
+      if (typeof hasId === 'number') {
+        setTab(hasId);
+        return tabs;
+      } else {
+        setTimeout(() => {
+          setTab(tabs.length);
+        }, 100);
+        return [
+          ...tabs,
+          new TabContent(
+            showSettingID,
+            'setting',
+            <ModifySettings />,
+            <IoMdSettings> </IoMdSettings>
+          ),
+        ];
+      }
+    });
+  }, []);
 
   shortCuts.prev = () => {
     setTab((e) => (e > 0 ? e - 1 : e));
@@ -110,11 +135,13 @@ export default function MainPage() {
   };
 
   shortCuts.showSetting = () => {
-    setShowSetting(true);
+    showSetting();
   };
   shortCuts.closeCurrentTab = (e) => {
-    closeTab(tab);
-    e.preventDefault();
+    if (tabs.length > 0) {
+      closeTab(tab);
+      e.preventDefault();
+    }
   };
 
   // shortcut
@@ -150,7 +177,7 @@ export default function MainPage() {
 
   useEffect(() => {
     let unlisten = listen('show_settings', () => {
-      setShowSetting(true);
+      showSetting();
     });
     return () => {
       unlisten.then((e) => {
@@ -296,27 +323,6 @@ export default function MainPage() {
                         setShowEditConfig(false);
                       }}
                     />
-                  </Box>
-                </Modal>
-              )}
-              {showSetting && (
-                <Modal
-                  open={showSetting}
-                  onClose={(e: EscDownEvent, reason) => {
-                    if (reason === 'backdropClick') {
-                      return;
-                    }
-                    e.preventDefault();
-                    setShowSetting(false);
-                  }}
-                >
-                  <Box sx={modalStyle} width="70%">
-                    <ModalHeader title="Modify Settings"></ModalHeader>
-                    <ModifySettings
-                      handleClose={() => {
-                        setShowSetting(false);
-                      }}
-                    ></ModifySettings>
                   </Box>
                 </Modal>
               )}

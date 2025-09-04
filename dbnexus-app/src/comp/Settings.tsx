@@ -1,4 +1,4 @@
-import { CSSProperties, useContext, useEffect, useState } from 'react';
+import { CSSProperties, useContext, useEffect, useRef, useState } from 'react';
 
 import {
   Button,
@@ -9,6 +9,7 @@ import {
   CssVarsTheme,
   Divider,
   IconButton,
+  InputAdornment,
   MenuItem,
   Select,
   Slider,
@@ -19,28 +20,39 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { HexColorPicker } from 'react-colorful';
 import { NotificationContext } from './Notification';
 import { appStore, AppStoreKey, SimpleFlexSizeEditor } from './Common';
 import { SelectPageSize } from './CommonComp';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { ErrAndLoc, SettingContext, UserSettings, validJson } from './helper';
+import {
+  ErrAndLoc,
+  isColor,
+  isLightHex,
+  SettingContext,
+  UserSettings,
+  validJson,
+} from './helper';
 import { Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
 import EditIcon from '@mui/icons-material/Edit';
-import { debugBuild } from './debug';
-
-function ModifySettings({ handleClose }) {
+import ClearIcon from '@mui/icons-material/Clear';
+function ModifySettings() {
   const { showNotification } = useContext(NotificationContext);
+
   const [pageSize, setPageSize] = useState(0);
   const [fontWeight, setFontWeight] = useState('normal');
   const [fontSize, setFontSize] = useState(16);
   const [editorOptions, setEditorOptions] = useState('');
   const [showEditorOptions, setShowEditorOptions] = useState(false);
+  const [showEditBgColor, setShowEditBgColor] = useState(false);
   const [fontFamily, setFontFamily] = useState<string>('');
   const [allFonts, setAllFonts] = useState<string[]>([]);
   const [fontMatch, setFontMatch] = useState<string>('');
   const [tabSize, setTabSize] = useState(2);
-  const [theme, setTheme] = useState('');
+  const [bgColor, setBgColor] = useState('');
+  const [bgColorErr, setBgColorErr] = useState('');
+  const bgColorTextField = useRef<HTMLInputElement>(null);
   useEffect(() => {
     invoke<string[]>('fonts_all_families', {})
       .then((fonts) => {
@@ -50,21 +62,26 @@ function ModifySettings({ handleClose }) {
         showNotification('error', 'list all fonts failed', e);
       });
   }, []);
-  const setting = useContext(SettingContext);
+
   const reload = async () => {
     try {
-      let settings = await UserSettings.get();
-      setPageSize(settings.pageSize);
-      setFontWeight(settings.fontWeight);
-      setFontSize(settings.fontSize);
-      setFontFamily(settings.fontFamily);
-      setTabSize(settings.tabSize);
-      setTheme(setting.theme);
+      const setting = await UserSettings.get();
+      setPageSize(setting.pageSize);
+      setFontWeight(setting.fontWeight);
+      setFontSize(setting.fontSize);
+      setFontFamily(setting.fontFamily);
+      setTabSize(setting.tabSize);
+      if (setting.isDark()) {
+        setBgColor(setting.darkBgColor);
+      } else {
+        setBgColor(setting.lightBgColor);
+      }
       const content = JSON.stringify(
-        settings.editorOption ? settings.editorOption : {},
+        setting.editorOption ? setting.editorOption : {},
         null,
         setting.tabSize
       );
+
       if (content) {
         setEditorOptions(content);
       }
@@ -76,7 +93,12 @@ function ModifySettings({ handleClose }) {
   useEffect(() => {
     reload();
   }, []);
+  let theme = useContext(SettingContext).theme;
   const handleSave = async () => {
+    if (bgColorErr) {
+      bgColorTextField.current.focus();
+      return;
+    }
     try {
       const e = await validJson(editorOptions);
       if (e) {
@@ -87,17 +109,21 @@ function ModifySettings({ handleClose }) {
       showNotification('error', 'call valid json error', e);
       return;
     }
-    UserSettings.set({
+    let s = {
       fontWeight,
       pageSize,
       fontSize,
       fontFamily,
       tabSize,
-      theme,
       editorOption: JSON.parse(editorOptions),
-    })
+    } as UserSettings;
+    if (theme == 'dark') {
+      s.darkBgColor = bgColor;
+    } else {
+      s.lightBgColor = bgColor;
+    }
+    UserSettings.set(s)
       .then(() => {
-        handleClose();
         showNotification('success', 'Save Setting OK');
       })
       .catch((e) => {
@@ -105,9 +131,30 @@ function ModifySettings({ handleClose }) {
       });
   };
   const headerSize = '30%';
+  useEffect(() => {
+    if (!bgColor) {
+      setBgColorErr('');
+      return;
+    }
+    if (!isColor(bgColor)) {
+      setBgColorErr('not a valid color');
+      return;
+    }
+    if (
+      (theme == 'dark' && isLightHex(bgColor)) ||
+      (theme == 'light' && !isLightHex(bgColor))
+    ) {
+      setBgColorErr(`please set a ${theme} background color`);
+      return;
+    }
+    setBgColorErr('');
+  }, [bgColor]);
 
   return (
-    <Stack spacing={1}>
+    <Stack
+      spacing={1}
+      style={{ backgroundColor: bgColorErr ? undefined : bgColor }}
+    >
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           default page size:
@@ -119,22 +166,6 @@ function ModifySettings({ handleClose }) {
           }}
         ></SelectPageSize>
       </Stack>
-      {debugBuild && (
-        <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-          <Typography width={headerSize} textAlign="right">
-            theme:
-          </Typography>
-          {['ligth', 'dark'].map((e) => (
-            <Chip
-              label={e}
-              color={theme == e ? 'primary' : 'default'}
-              onClick={() => {
-                setTheme(e);
-              }}
-            ></Chip>
-          ))}
-        </Stack>
-      )}
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           font size:
@@ -235,6 +266,7 @@ function ModifySettings({ handleClose }) {
               monaco editor options:
             </Typography>
           </Tooltip>
+
           <IconButton
             onClick={() => {
               setShowEditorOptions((e) => !e);
@@ -243,26 +275,82 @@ function ModifySettings({ handleClose }) {
           >
             <EditIcon> </EditIcon>
           </IconButton>
+
           <Typography color="info">{editorOptions}</Typography>
         </Stack>
+
+        {editorOptions && (
+          <EditorOptions
+            handleClose={() => {
+              setShowEditorOptions(false);
+            }}
+            style={{
+              height: '40vh',
+              border: '1px solid',
+              borderRadius: '8px',
+              padding: '8px',
+              display: showEditorOptions ? 'flex' : 'none',
+            }}
+            editorOptions={editorOptions}
+            setEditorOptions={setEditorOptions}
+          ></EditorOptions>
+        )}
       </Stack>
 
-      {editorOptions && (
-        <EditorOptions
-          handleClose={() => {
-            setShowEditorOptions(false);
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
+          background color:
+        </Typography>
+        <div style={{ position: 'relative' }}>
+          <IconButton
+            color="primary"
+            onClick={() => {
+              setShowEditBgColor((e) => !e);
+            }}
+          >
+            <EditIcon> </EditIcon>
+          </IconButton>
+          {showEditBgColor && (
+            <HexColorPicker
+              color={bgColor}
+              onChange={(newValue) => {
+                setBgColor(newValue);
+              }}
+              style={{ position: 'absolute', zIndex: 10, top: '3rem' }}
+            />
+          )}
+        </div>
+
+        <TextField
+          value={bgColor}
+          onChange={(e) => {
+            setBgColor(e.target.value);
           }}
-          style={{
-            height: '40vh',
-            border: '1px solid',
-            borderRadius: '8px',
-            padding: '8px',
-            display: showEditorOptions ? 'flex' : 'none',
+          inputRef={bgColorTextField}
+          style={{ width: '10rem' }}
+          size="small"
+          error={!!bgColorErr}
+          slotProps={{
+            input: {
+              endAdornment: bgColor && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setBgColor('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
           }}
-          editorOptions={editorOptions}
-          setEditorOptions={setEditorOptions}
-        ></EditorOptions>
-      )}
+        ></TextField>
+        <div style={{ position: 'relative' }}></div>
+        {bgColorErr && <Typography color="error"> {bgColorErr} </Typography>}
+      </Stack>
 
       <Divider />
       <Stack direction="row">
@@ -465,7 +553,9 @@ function makeComponents(appFontWeight) {
   return components;
 }
 
-const lightTheme = (appFontWeight, fontFamily) => {
+const lightTheme = (appFontWeight, fontFamily, bgColor) => {
+  const color = bgColor ? bgColor : '#fff';
+
   return createTheme({
     typography: {
       allVariants: {
@@ -476,15 +566,17 @@ const lightTheme = (appFontWeight, fontFamily) => {
     palette: {
       mode: 'light',
       background: {
-        default: '#d6d6d6',
-        paper: '#d6d6d6',
+        default: color,
+        paper: color,
       },
     },
     components: makeComponents(appFontWeight),
   });
 };
 
-const darkTheme = (appFontWeight, fontFamily) => {
+const darkTheme = (appFontWeight, fontFamily, bgColor) => {
+  const color = bgColor ? bgColor : '#000';
+
   return createTheme({
     typography: {
       allVariants: {
@@ -495,8 +587,8 @@ const darkTheme = (appFontWeight, fontFamily) => {
     palette: {
       mode: 'dark',
       background: {
-        default: '#292929',
-        paper: '#292929',
+        default: color,
+        paper: color,
       },
     },
     components: makeComponents(appFontWeight),
@@ -505,14 +597,11 @@ const darkTheme = (appFontWeight, fontFamily) => {
 
 function SettingComp(props: { children }) {
   const { children } = props;
-  const [setting, setSetting] = useState<UserSettings>(null);
+  const [setting, setSetting] = useState<UserSettings>(new UserSettings());
   const reload = async () => {
     UserSettings.get()
       .then((setting) => {
         setSetting(setting);
-        console.log('setting', setting);
-        // why new a object because of js is a dynamic language
-        // UserSettings maybe have no value on store
         document.documentElement.style.fontSize = setting.fontSize + 'px';
       })
       .catch((e) => {
@@ -520,28 +609,28 @@ function SettingComp(props: { children }) {
         console.log('list user setting failed', e);
       });
   };
-  const isDark = setting && setting.theme == 'dark';
-
   appStore.onChange((key) => {
-    if (key == AppStoreKey.UserSetttings) {
+    if (key == AppStoreKey.UserSettings) {
       reload();
     }
   });
-
   useEffect(() => {
     reload();
   }, []);
+  useEffect(() => {}, [setting]);
   return (
     <ThemeProvider
       theme={
-        !isDark
-          ? lightTheme(
-              setting && setting.fontWeight,
-              setting && setting.fontFamily
+        setting.isDark()
+          ? darkTheme(
+              setting.fontWeight,
+              setting.fontFamily,
+              setting.darkBgColor
             )
-          : darkTheme(
-              setting && setting.fontWeight,
-              setting && setting.fontFamily
+          : lightTheme(
+              setting.fontWeight,
+              setting.fontFamily,
+              setting.lightBgColor
             )
       }
     >

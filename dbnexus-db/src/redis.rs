@@ -1248,7 +1248,6 @@ async fn query_sql(
     conn: &mut redis::aio::MultiplexedConnection, sql: &str,
 ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
     let commands = get_command_from_sql(sql)?;
-    log::trace!("cmd is:{:?}", commands);
     let mut ret = Vec::new();
     for c in commands.iter() {
         let args = &c[1..];

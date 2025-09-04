@@ -43,6 +43,55 @@ impl CheckConn for MariaDB {
     }
 }
 
+impl MariaDB {
+    pub(crate) async fn list_sequences_impl(
+        &self, schema: &str,
+    ) -> anyhow::Result<Vec<SequenceDetail>> {
+        let sql = format!(
+            "
+            select SEQUENCE_NAME , DATA_TYPE,
+            START_VALUE, MINIMUM_VALUE ,
+            MAXIMUM_VALUE  , INCREMENT
+            from information_schema.SEQUENCES where SEQUENCE_SCHEMA = '{}'
+         ",
+            schema
+        );
+        let mut conn = self.db.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            let data_type: String = row.try_get(1)?;
+            let start_value: BigDecimal = row.try_get(2)?;
+            let min_value: BigDecimal = row.try_get(3)?;
+            let max_value: BigDecimal = row.try_get(4)?;
+            let increment: i64 = row.try_get(5)?;
+            let create_sql = {
+                let sql = format!("SHOW CREATE SEQUENCE {name}");
+                let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                    .fetch_one(conn.deref_mut())
+                    .await?;
+                let create_sql: String = row.try_get(1)?;
+                create_sql
+            };
+
+            ret.push(SequenceDetail {
+                name,
+                data_type,
+                start_value: start_value.to_string(),
+                min_value: min_value.to_string(),
+                max_value: max_value.to_string(),
+                increment_by: increment.to_string(),
+                last_value: None, // TODO get last value
+                sql: create_sql,
+            });
+        }
+        anyhow::Ok(ret)
+    }
+}
 impl std::fmt::Debug for MariaDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "mariadb@{:?}", self.db.config)
@@ -309,49 +358,7 @@ impl SchemaTrait for MariaDB {
     }
 
     async fn list_sequences(&self) -> anyhow::Result<Vec<SequenceDetail>> {
-        let sql = format!(
-            "
-            select SEQUENCE_NAME , DATA_TYPE,
-            START_VALUE, MINIMUM_VALUE ,
-            MAXIMUM_VALUE  , INCREMENT
-            from information_schema.SEQUENCES where SEQUENCE_SCHEMA = '{}'
-         ",
-            self.db.config.db_str()
-        );
-        let mut conn = self.db.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-
-        for row in rows.iter() {
-            let name: String = row.try_get(0)?;
-            let data_type: String = row.try_get(1)?;
-            let start_value: BigDecimal = row.try_get(2)?;
-            let min_value: BigDecimal = row.try_get(3)?;
-            let max_value: BigDecimal = row.try_get(4)?;
-            let increment: i64 = row.try_get(5)?;
-            let create_sql = {
-                let sql = format!("SHOW CREATE SEQUENCE {name}");
-                let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-                    .fetch_one(conn.deref_mut())
-                    .await?;
-                let create_sql: String = row.try_get(1)?;
-                create_sql
-            };
-
-            ret.push(SequenceDetail {
-                name,
-                data_type,
-                start_value: start_value.to_string(),
-                min_value: min_value.to_string(),
-                max_value: max_value.to_string(),
-                increment_by: increment.to_string(),
-                last_value: None, // TODO get last value
-                sql: create_sql,
-            });
-        }
-        anyhow::Ok(ret)
+        self.list_sequences_impl(self.db.config.db_str()).await
     }
 
     async fn rename_sequnce(&self, old: &str, new: &str) -> anyhow::Result<()> {
@@ -483,7 +490,7 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        let seqs = db.list_sequences().await.unwrap();
+        let seqs = SchemaTrait::list_sequences(&db).await.unwrap();
         for seq in seqs.iter() {
             if seq.name.eq(name) {
                 println!("{:?}", seq)

@@ -69,6 +69,7 @@ import {
   quoteStyle,
   MongoTableHandler,
   maxTreeSize,
+  getSupportExportKind,
 } from './helper';
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from './CommonComp';
 import { TableStructure } from './TableStructure';
@@ -817,15 +818,6 @@ function TableMenu(props: {
     }
   };
 
-  const getExportKind = () => {
-    switch (kind) {
-      case DataSourceKind.Redis:
-        return ['csv', 'sql', 'json', 'jsonline'];
-      default:
-        return ['csv', 'sql', 'json', 'jsonline'];
-    }
-  };
-
   return (
     <div>
       <MenuList>
@@ -1009,7 +1001,7 @@ function TableMenu(props: {
             <ExportTableOrView
               uuid={uuid}
               name={table}
-              supportKind={getExportKind()}
+              supportKind={getSupportExportKind(kind)}
               kind={kind}
             ></ExportTableOrView>
           </Box>

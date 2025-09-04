@@ -6,7 +6,7 @@ use sqlparser::tokenizer::{Location, Token};
 use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
 
-use crate::db::{BackendKind, CreatedTypeDef, GetBackendKind, not_support_feature};
+use crate::db::{BackendKind, CreatedTypeDef, GetBackendKind, SequenceDetail, not_support_feature};
 use crate::sqlparser_completion::{CompletionStatement, TempTableColumn};
 
 #[async_trait::async_trait]
@@ -59,6 +59,7 @@ pub enum CompletionKind {
     ClickHouseTableProjection,
     Prepare,
     Module,
+    Domain,
 }
 
 impl From<CompletionKind> for u32 {
@@ -330,6 +331,22 @@ impl From<PostGresExtension> for CompletionItem {
 #[async_trait::async_trait]
 
 pub trait LangServerCommon: GetBackendKind {
+    /*
+    -- 标准 SQL（PostgreSQL、Oracle、DB2 支持；MySQL 没有）
+    CREATE DOMAIN us_postal_code AS CHAR(5)
+        CHECK (
+            VALUE ~ '^[0-9]{5}$'          -- 必须是 5 位数字
+        );
+
+    -- 以后任何表都能直接用
+    CREATE TABLE addr (
+        zip us_postal_code              -- 复用约束
+    );
+     */
+    async fn list_domain(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
+
     // some backend can use a query to query this.
     async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>>;
 
@@ -337,6 +354,9 @@ pub trait LangServerCommon: GetBackendKind {
     async fn list_created_type(
         &self, _schema: Option<&str>,
     ) -> anyhow::Result<Vec<CreatedTypeDef>> {
+        anyhow::Ok(vec![])
+    }
+    async fn list_sequences(&self, _schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
         anyhow::Ok(vec![])
     }
 

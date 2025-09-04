@@ -1,4 +1,4 @@
-use crate::db::{AutoCompletionQueryUuid, CatalogTrait, CreatedTypeDef};
+use crate::db::{AutoCompletionQueryUuid, CatalogTrait, CreatedTypeDef, SequenceDetail};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
     LanguageServer, LexerCompletionTrait, PostGresExtension, try_parser_dot_lexer,
@@ -321,6 +321,37 @@ impl AstCompletionHelper for PostGresDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for PostGresDB {
+    async fn list_domain(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = self.not_allow_empty_schema(schema)?;
+        let sql = format!(
+            r#"
+                SELECT domain_name
+                FROM information_schema.domains
+                WHERE domain_schema = '{}'   -- 换成实际 schema 名
+                ORDER BY domain_name;
+            "#,
+            schema,
+        );
+
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows {
+            let name: Option<String> = row.try_get(0)?;
+            if let Some(name) = name {
+                ret.push(name);
+            }
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_sequences(&self, schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
+        let schema = self.not_allow_empty_schema(schema)?;
+        self.list_sequences_impl(&schema).await
+    }
+
     async fn list_created_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
         let schema = self.not_allow_empty_schema(schema)?;
         self.list_created_types_impl(&schema, false).await

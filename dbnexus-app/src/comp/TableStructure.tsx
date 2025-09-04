@@ -1129,7 +1129,6 @@ function SqlDefaultValue(props: {
             endAdornment: defaultValue && (
               <InputAdornment position="end">
                 <IconButton
-                  aria-label="clear"
                   onClick={() => {
                     setDefautlValue('');
                   }}

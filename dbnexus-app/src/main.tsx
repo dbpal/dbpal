@@ -100,14 +100,14 @@ if (!debugBuild) {
     }
     let set = await UserSettings.get();
     set.theme = theme;
-    appStore.set(AppStoreKey.UserSetttings, set);
+    appStore.set(AppStoreKey.UserSettings, set);
   });
 }
 
 appWindow.onThemeChanged(async (msg) => {
   let set = await UserSettings.get();
   set.theme = msg.payload;
-  appStore.set(AppStoreKey.UserSetttings, set);
+  appStore.set(AppStoreKey.UserSettings, set);
 });
 
 if (!debugBuild) {

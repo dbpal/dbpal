@@ -36,8 +36,8 @@ drop index employees_name
 26 employees_name
 PRAGMA user_version;
 12 user_version
-select employees.id  from employees order by id
-48 id
+select employees.id  from employees order by id limit id offset 100
+48 id ; 57 id 
 main.
 6 employees
 employees.

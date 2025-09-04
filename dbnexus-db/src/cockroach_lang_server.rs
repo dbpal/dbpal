@@ -68,6 +68,9 @@ impl AstCompletionHelper for CockRoachDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for CockRoachDB {
+    async fn list_domain(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_domain(self.pg.as_ref(), schema).await
+    }
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         LangServerCommon::list_database(self.pg.as_ref()).await
     }

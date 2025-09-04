@@ -50,6 +50,7 @@ import {
   ContextMenuContext,
   DataSourceKind,
   generateRandomString,
+  getSupportExportKind,
   gridStyle,
   handleCopyToClipboard,
   MatchPatternContext,
@@ -710,7 +711,7 @@ function ViewMenu(props: {
               uuid={uuid}
               name={view}
               kind={kind}
-              supportKind={['csv', 'json', 'jsonline']}
+              supportKind={getSupportExportKind(kind)}
             ></ExportTableOrView>
           </Box>
         </Modal>

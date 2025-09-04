@@ -1,4 +1,4 @@
-use crate::db::DBTrait;
+use crate::db::{DBTrait, SequenceDetail};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
     LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
@@ -68,6 +68,10 @@ impl AstCompletionHelper for MariaDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for MariaDB {
+    async fn list_sequences(&self, schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
+        let schema = self.db.not_allow_empty_schema(schema)?;
+        self.list_sequences_impl(&schema).await
+    }
     async fn list_column(
         &self, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {

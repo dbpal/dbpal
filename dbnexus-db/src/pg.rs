@@ -427,12 +427,10 @@ impl ServerMetas for PostGresDB {
     }
 }
 
-#[async_trait::async_trait]
-impl SchemaTrait for PostGresDB {
-    fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::CURRENT_VALUES
-    }
-    async fn list_sequences(&self) -> anyhow::Result<Vec<SequenceDetail>> {
+impl PostGresDB {
+    pub(crate) async fn list_sequences_impl(
+        &self, schema: &str,
+    ) -> anyhow::Result<Vec<SequenceDetail>> {
         let sql = format!(
             r#"
             SELECT  
@@ -440,7 +438,7 @@ impl SchemaTrait for PostGresDB {
             where sequence_catalog = '{}' and sequence_schema ='{}' 
         "#,
             self.config.db_str(),
-            self.config.schema_str(),
+            schema
         );
         let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -517,6 +515,15 @@ impl SchemaTrait for PostGresDB {
             });
         }
         anyhow::Ok(ret)
+    }
+}
+#[async_trait::async_trait]
+impl SchemaTrait for PostGresDB {
+    fn list_sql_current_values(&self) -> &'static [&'static str] {
+        <Self as SqlBuilder>::CURRENT_VALUES
+    }
+    async fn list_sequences(&self) -> anyhow::Result<Vec<SequenceDetail>> {
+        self.list_sequences_impl(self.config.schema_str()).await
     }
 
     async fn rename_sequnce(&self, old: &str, new: &str) -> anyhow::Result<()> {
