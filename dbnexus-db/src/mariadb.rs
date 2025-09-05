@@ -424,7 +424,7 @@ impl ServerMetas for MariaDB {
 #[cfg(test)]
 pub(crate) fn make_config() -> MysqlDBConfig {
     MysqlDBConfig {
-        connection_timeout: None,
+        conn_timeout: None,
         host: crate::TEST_HOST.to_string(),
         username: "root".to_string(),
         password: Some("root".to_string()),

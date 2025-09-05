@@ -168,10 +168,15 @@ impl ServerMetas for MsSqlServerDB {
 impl MsSqlServerDB {
     pub async fn new(c: SqlServerDBConfig) -> anyhow::Result<Self> {
         let manager = bb8_tiberius::ConnectionManager::new(make_config(&c));
-        let pool = bb8::Pool::builder()
+        let mut builder = bb8::Pool::builder();
+        if let Some(x) = c.conn_timeout {
+            builder = builder.connection_timeout(Duration::from_millis(x as u64));
+        }
+        let pool = builder
             .max_size(POOL_MAX_CONNECTIONS)
             .build(manager)
             .await?;
+
         anyhow::Ok(Self {
             config: c,
             pool,
@@ -1954,7 +1959,7 @@ impl CatalogTrait for MsSqlServerDB {
 pub(crate) async fn make_test_object() -> MsSqlServerDB {
     let ss = MsSqlServerDB::new(SqlServerDBConfig {
         host: TEST_HOST.to_string(),
-        connection_timeout: None,
+        conn_timeout: None,
         port: 1433,
         username: Some("sa".to_string()),
         password: Some("sfdewRE123".to_string()),

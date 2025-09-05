@@ -16,46 +16,27 @@ appDatabase.select("select 1").then(e => {
 
 
 function setUpDatabase() {
-  appDatabase.execute(`
+  const sqls = [`
   CREATE TABLE if not EXISTS query_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     uuid TEXT NOT NULL,
     sql text NOT NULL,
     create_at DATETIME NOT NULL DEFAULT current_timestamp,
     success integer NOT NULL
-  );
-  CREATE INDEX index_query_logs_uuid ON query_log (uuid);
-  
-  `).then(() => {
-    console.log("create table query logs ok");
-  }).catch(e => {
-    console.log("create table query logs error", e);
-  });
-
-  appDatabase.execute(`
+  );` ,
+    `CREATE INDEX if not EXISTS index_query_log_uuid ON query_log (uuid);`,
+    `
   CREATE TABLE if not EXISTS element_size ( 
     name TEXT PRIMARY KEY not NULL,
     width INTEGER NOT NULL,
     height INTEGER not NULL
   )
-    `).then(() => {
-    console.log("set up element_size ok");
-  }).catch(e => {
-    console.log("set up element_size error", e);
-  });
-
-  appDatabase.execute(`
+    `  , `
   CREATE TABLE if not EXISTS column_width ( 
     name TEXT PRIMARY KEY not NULL,
     width INTEGER NOT NULL
   )
-    `).then(() => {
-    console.log("set up column_width ok");
-  }).catch(e => {
-    console.log("set up column_width error", e);
-  });
-
-  appDatabase.execute(`
+    `  , `
   CREATE table if NOT EXISTS favorite_sql (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     uuid TEXT not NULL,
@@ -64,14 +45,17 @@ function setUpDatabase() {
     name text not NULL,
     last_modified datetime not NULL DEFAULT current_timestamp
   )
-    `).then(() => {
-    console.log("set up favorite sql ok");
-  }).catch(e => {
-    console.log("set up favorite sql error", e);
-  });
-
+    ` , `
+      CREATE INDEX if not EXISTS index_favorite_sql_uuid ON favorite_sql (uuid);
+    ` ];
+  sqls.forEach(sql => {
+    appDatabase.execute(sql).then().catch(e => {
+      console.log("apply database sql failed , this maybe a error", e);
+    });
+  })
 }
 
+setUpDatabase();
 
 
 class QueryEvent {
@@ -112,7 +96,6 @@ class QueryLogHandler {
   }
 }
 
-setUpDatabase();
 
 interface ConfirmOptions {
   title: string;
@@ -276,6 +259,8 @@ function backendCompletionItemToEditor(
         return languages.CompletionItemKind.Reference;
       case 'Module':
         return languages.CompletionItemKind.Module;
+      case 'Domain':
+        return languages.CompletionItemKind.Operator;
 
     }
   }

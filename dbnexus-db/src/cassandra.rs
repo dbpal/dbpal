@@ -40,6 +40,7 @@ use crate::language_server::LexerCompletionTrait;
 use crate::meta_value::MetaValue;
 use cdrs_tokio::authenticators::StaticPasswordAuthenticatorProvider;
 use cdrs_tokio::cluster::NodeTcpConfigBuilder;
+use cdrs_tokio::cluster::connection_pool::ConnectionPoolConfigBuilder;
 use cdrs_tokio::cluster::session::{SessionBuilder, TcpSessionBuilder};
 use cdrs_tokio::frame::message_result::{ColType, RowsMetadata};
 use cdrs_tokio::load_balancing::RoundRobinLoadBalancingStrategy;
@@ -148,6 +149,11 @@ impl CassandraDB {
         let mut session_builder =
             TcpSessionBuilder::new(RoundRobinLoadBalancingStrategy::new(), cluster_config);
 
+        if let Some(conn_timeout) = config.conn_timeout {
+            let mut b = ConnectionPoolConfigBuilder::new();
+            b = b.with_connect_timeout(Some(Duration::from_millis(conn_timeout as u64)));
+            session_builder = session_builder.with_connection_pool_config(b.build());
+        }
         if let Some(keyspace) = config.db.as_deref() {
             session_builder = session_builder.with_keyspace(keyspace.to_owned());
         }
@@ -1981,6 +1987,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         password: Some("cassandra".to_string()),
         read_only: false,
         db,
+        conn_timeout: None,
         save_password: true,
     })
     .await

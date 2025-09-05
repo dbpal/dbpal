@@ -1663,7 +1663,7 @@ impl PostGresDB {
             }
         }
         let mut pool_opts = PoolOptions::new();
-        if let Some(x) = config.connection_timeout {
+        if let Some(x) = config.conn_timeout {
             pool_opts = pool_opts.acquire_timeout(Duration::from_millis(x as u64));
         }
         pool_opts = pool_opts.max_connections(POOL_MAX_CONNECTIONS);
@@ -2096,7 +2096,7 @@ pub(crate) async fn make_test_object() -> PostGresDB {
         read_only: false,
         save_password: true,
         ssl: Default::default(),
-        connection_timeout: None,
+        conn_timeout: None,
     })
     .await
     .unwrap();

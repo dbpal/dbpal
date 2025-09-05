@@ -401,7 +401,7 @@ mod tests {
     }
     fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {
-            connection_timeout: None,
+            conn_timeout: None,
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
             password: Some("root".to_string()),

@@ -29,8 +29,8 @@ impl OracleDB {
 }
 
 impl OracleDB {
-    fn extact_names(&self, sql: &str) -> anyhow::Result<Vec<String>> {
-        let conn = self.get_conn()?;
+    async fn extact_names(&self, sql: &str) -> anyhow::Result<Vec<String>> {
+        let conn = self.get_conn().await?;
         let rows = conn.query(sql, &[])?;
         let mut ret = Vec::new();
         for row in rows {
@@ -46,7 +46,7 @@ impl OracleDB {
 #[async_trait::async_trait]
 impl AstCompletionHelper for OracleDB {
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        let conn = self.get_conn()?;
+        let conn = self.get_conn().await?;
 
         let row = conn.query_row(sql, &[])?;
 
@@ -68,7 +68,7 @@ impl AstCompletionHelper for OracleDB {
             schema
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
+        let conn = self.get_conn().await?;
         let rows = conn.query(&sql, &[])?;
         let mut ret = Vec::new();
         for row in rows {
@@ -103,7 +103,7 @@ impl LangServerCommon for OracleDB {
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
-        let conn = self.get_conn()?;
+        let conn = self.get_conn().await?;
         let sql = r#"
              SELECT  keyword 
                 FROM V$RESERVED_WORDS
@@ -138,8 +138,9 @@ impl LangServerCommon for OracleDB {
     async fn list_function(
         &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let ret = self.extact_names(
-            r#"
+        let ret = self
+            .extact_names(
+                r#"
             SELECT
                 object_name
             FROM
@@ -147,7 +148,8 @@ impl LangServerCommon for OracleDB {
             WHERE
                 object_type = 'FUNCTION'
         "#,
-        )?;
+            )
+            .await?;
 
         if let Some(schema) = self.schema_merge_config(schema) {
             self.extact_names(
@@ -164,7 +166,8 @@ impl LangServerCommon for OracleDB {
                     schema
                 )
                 .as_str(),
-            )?;
+            )
+            .await?;
         }
         let mut ret: Vec<_> = ret
             .into_iter()

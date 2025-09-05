@@ -44,7 +44,7 @@ impl MongoDB {
             host: ds.host.to_string(),
             port: Some(ds.port),
         }];
-        opts.connect_timeout = ds.connection_timeout.map(Duration::from_millis);
+        opts.connect_timeout = ds.conn_timeout.map(Duration::from_millis);
         if let Some(user) = &ds.username {
             let b = mongodb::options::Credential::builder();
             let b = b.username(Some(user.to_owned()));
@@ -829,7 +829,7 @@ impl MongoDB {
 #[allow(unused)]
 pub(crate) fn make_test_object() -> MongoDB {
     let x = MongoDB::new(MongoDBConfig {
-        connection_timeout: None,
+        conn_timeout: None,
         host: TEST_HOST.to_string(),
         port: 27017,
         username: None,

@@ -1395,4 +1395,4 @@ impl AutoCompletionQueryUuid {
     }
 }
 
-pub(crate) const POOL_MAX_CONNECTIONS: u32 = 100;
+pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;

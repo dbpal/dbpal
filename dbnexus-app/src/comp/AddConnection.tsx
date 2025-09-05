@@ -485,6 +485,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   const toggleTriggerReload = () => {
     setTriggerReload((e) => !e);
   };
+  const [connTimeout, setConnTimeout] = useState<string>(
+    getConfig('conn_timeout')
+  );
+
   const [libSqlModel, setlibSqlModal] = useState<'remote' | 'local'>(
     //@ts-ignore
     getConfig('source', 'local') // backend has name this to source
@@ -500,11 +504,12 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   ].includes(connectionType);
 
   const makeConfig = (): types.DBConnectionConfig | null => {
-    let portInt = parseInt(port);
-    let user_null = user ? user : null;
-    let pass_null = password ? password : null;
-    let db_null = database ? database : null;
-    let schema_null = schema ? schema : null;
+    const portInt = parseInt(port);
+    const user_null = user ? user : null;
+    const pass_null = password ? password : null;
+    const db_null = database ? database : null;
+    const schema_null = schema ? schema : null;
+    const connTimeout_null = connTimeout ? parseInt(connTimeout) : null;
     switch (connectionType) {
       case DataSourceKind.FireBird:
         return {
@@ -517,6 +522,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           read_only: readOnly,
           name: connectionName,
           save_password: savePassword,
+          conn_timeout: connTimeout_null,
         };
       case DataSourceKind.LibSql:
         return {
@@ -528,6 +534,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           auth_token: authToken,
           read_only: readOnly,
           name: connectionName,
+          conn_timeout: connTimeout_null,
         };
 
       case DataSourceKind.ClickHouse:
@@ -542,6 +549,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           name: connectionName,
           https: https,
           save_password: savePassword,
+          conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Mysql:
         return {
@@ -558,6 +566,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           ssl_ca: sslCa,
           ssl_cert: sslCert,
           ssl_key: sslKey,
+          conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Cassandra:
         return {
@@ -570,6 +579,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           read_only: readOnly,
           name: connectionName,
           save_password: savePassword,
+          conn_timeout: connTimeout_null,
         };
       case DataSourceKind.MariaDB:
         return {
@@ -582,6 +592,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           read_only: readOnly,
           name: connectionName,
           save_password: savePassword,
+          conn_timeout: connTimeout_null,
         };
       case DataSourceKind.TiDB:
         return {
@@ -594,6 +605,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           read_only: readOnly,
           name: connectionName,
           save_password: savePassword,
+          conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Postgres:
         return {
@@ -611,6 +623,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           ssl_ca: sslCa,
           ssl_cert: sslCert,
           ssl_key: sslKey,
+          conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Cockroach:
         return {
@@ -628,6 +641,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           ssl_ca: sslCa,
           ssl_cert: sslCert,
           ssl_key: sslKey,
+          conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Sqlite:
         return {
@@ -635,6 +649,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           path: path,
           read_only: readOnly,
           name: connectionName,
+          conn_timeout: connTimeout_null,
         };
       case DataSourceKind.DuckDB:
         return {
@@ -644,6 +659,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           schema: schema_null,
           read_only: readOnly,
           name: connectionName,
+          conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Redis:
         return {
@@ -656,6 +672,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           username: user_null,
           password: pass_null,
           save_password: savePassword,
+          conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Mongo:
         return {
@@ -667,8 +684,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           db: db_null,
           username: user_null,
           password: pass_null,
-          connection_timeout: null,
           save_password: savePassword,
+          conn_timeout: connTimeout_null,
         };
       case DataSourceKind.MsSql:
         return {
@@ -683,6 +700,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           trust_cert: trustCert,
           schema: null,
           save_password: savePassword,
+          conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Oracle:
         return {
@@ -695,8 +713,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           db: database,
           read_only: readOnly,
           schema: schema ? schema : null,
-          connection_timeout: null,
           save_password: savePassword,
+          conn_timeout: connTimeout_null,
         };
     }
   };
@@ -1217,12 +1235,11 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         </>
       )}
 
-      <Stack direction="row" style={{ alignItems: 'center' }} spacing={2}>
+      <Stack direction="row" style={{ alignItems: 'flex-start' }} spacing={2}>
         <TextField
           size="small"
           label="Connection Name"
           value={connectionName}
-          fullWidth
           inputRef={connectionNameDom}
           required
           onChange={(e) => setConnectionName(e.target.value)}
@@ -1243,6 +1260,33 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
               ),
             },
           }}
+        />
+
+        <TextField
+          size="small"
+          label="connection timeout"
+          value={connTimeout}
+          style={{ flex: 1 }}
+          onChange={(e) => setConnTimeout(e.target.value)}
+          slotProps={{
+            input: {
+              endAdornment: connTimeout && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setConnTimeout('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+          error={connTimeout ? isNaN(parseInt(connTimeout)) : false}
+          helperText="milliseconds to wait for connect"
         />
         <FormControlLabel
           style={{ width: '180px' }}

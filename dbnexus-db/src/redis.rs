@@ -7,7 +7,7 @@ use std::vec;
 
 use dashmap::{DashMap, DashSet};
 use futures_util::StreamExt;
-use redis::aio::{ConnectionManager, MultiplexedConnection};
+use redis::aio::{ConnectionManager, ConnectionManagerConfig, MultiplexedConnection};
 use redis::{AsyncCommands, AsyncIter, Value};
 use sqlparser::tokenizer::Token;
 use tokio::sync::Mutex;
@@ -39,8 +39,11 @@ impl RedisDB {
         log::info!("connect to redis var:{:?}", conn_str);
 
         let client = redis::Client::open(conn_str.as_str())?;
-
-        let m = redis::aio::ConnectionManager::new(client).await?;
+        let mut conn_config = ConnectionManagerConfig::default();
+        if let Some(x) = config.conn_timeout {
+            conn_config = conn_config.set_connection_timeout(Duration::from_millis(x as u64));
+        }
+        let m = redis::aio::ConnectionManager::new_with_config(client, conn_config).await?;
         anyhow::Ok(Self {
             config,
             conn_manager: m,
@@ -1458,6 +1461,7 @@ pub(crate) async fn make_test_object() -> RedisDB {
         password: None,
         db: Some("db0".to_string()),
         read_only: false,
+        conn_timeout: None,
         save_password: true,
     })
     .await
