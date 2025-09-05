@@ -458,7 +458,7 @@ class ColumnWidths {
   }
 }
 var columnWidths = new ColumnWidths();
-const VisiableContext = createContext(true);
+const TabActiveContext = createContext(true);
 const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
   writeText(text)
     .then(() => {
@@ -821,7 +821,7 @@ export {
   handleCopyToClipboard,
   validJson,
   uint8ArrayToUtf8,
-  VisiableContext,
+  TabActiveContext,
   FavoriteSql,
   MatchPatternContext,
   resetMuiDataRespWidth,

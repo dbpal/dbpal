@@ -71,7 +71,6 @@ import {
   TabContent,
   TabsSetContext,
   validJson,
-  VisiableContext,
   savePageSize,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
@@ -375,7 +374,7 @@ function SqlTableView_(props: {
     has_more: false,
   });
   const { showNotification } = useContext(NotificationContext);
-  const visiable = useContext(VisiableContext);
+
   const [allowFiltering, setAllowFiltering] = useState(false);
   const [editCellInModal, setEditCellInModal] =
     useState<EditInModalCellData>(null);
@@ -754,14 +753,14 @@ function SqlTableView_(props: {
                         .then(() => {
                           showNotification(
                             'success',
-                            'invalid cassandra table and view cache OK'
+                            'invalid cassandra table or view cache OK'
                           );
                           handleReload(false);
                         })
                         .catch((e) => {
                           showNotification(
                             'error',
-                            'invalid cassandra table and view cache failed',
+                            'invalid cassandra cache failed',
                             e
                           );
                         });
@@ -808,37 +807,36 @@ function SqlTableView_(props: {
           <ExecutingTime loading={loading}></ExecutingTime>
         </Stack>
       </Stack>
-      {visiable && (
-        <div
-          style={{
-            display: 'grid',
-          }}
-        >
-          <DataGrid
-            style={gridStyle}
-            loading={loading}
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            slotProps={slotProps}
-            rowHeight={setting.datagridRowHeightXXX()}
-            columnHeaderHeight={setting.datagridRowHeightXXX()}
-            getRowId={getRowId}
-            paginationModel={paginationModel}
-            pageSizeOptions={pageSizeOptions}
-            paginationMode="server"
-            onPaginationModelChange={onPaginationModelChange}
-            checkboxSelection={false}
-            rowCount={resp.total}
-            sortingMode="server"
-            onSortModelChange={onSortModelChange}
-            columns={resp.fields}
-            rows={resp.data}
-            onColumnResize={onColumnResize}
-            processRowUpdate={handleProcessRowUpdate}
-            onProcessRowUpdateError={onProcessRowUpdateError}
-          ></DataGrid>
-        </div>
-      )}
+
+      <div
+        style={{
+          display: 'grid',
+        }}
+      >
+        <DataGrid
+          style={gridStyle}
+          loading={loading}
+          showCellVerticalBorder
+          showColumnVerticalBorder
+          slotProps={slotProps}
+          rowHeight={setting.datagridRowHeightXXX()}
+          columnHeaderHeight={setting.datagridRowHeightXXX()}
+          getRowId={getRowId}
+          paginationModel={paginationModel}
+          pageSizeOptions={pageSizeOptions}
+          paginationMode="server"
+          onPaginationModelChange={onPaginationModelChange}
+          checkboxSelection={false}
+          rowCount={resp.total}
+          sortingMode="server"
+          onSortModelChange={onSortModelChange}
+          columns={resp.fields}
+          rows={resp.data}
+          onColumnResize={onColumnResize}
+          processRowUpdate={handleProcessRowUpdate}
+          onProcessRowUpdateError={onProcessRowUpdateError}
+        ></DataGrid>
+      </div>
 
       {viewInModal && (
         <Modal

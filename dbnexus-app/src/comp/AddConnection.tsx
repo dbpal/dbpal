@@ -153,7 +153,7 @@ function UserAndPassword(props: {
         onChange={(e) => setPassword(e.target.value)}
         slotProps={{
           input: {
-            endAdornment: !passwordVisible && (
+            endAdornment: !passwordVisible && password != '' && (
               <InputAdornment position="end">
                 <IconButton
                   onClick={() => {

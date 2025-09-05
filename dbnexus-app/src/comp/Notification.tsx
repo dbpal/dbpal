@@ -50,13 +50,13 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     message: string | Error | { reason: string } | ReactElement
   ) => {
     if (typeof message == 'object' && 'reason' in message) {
-      // TODO show message
-      //@ts-ignore
-      console.log('detail:', message.detail);
+      console.log('detail:', message);
+      // this a error from the backend
+      // we only show `reason` the short message
       message = message['reason'];
     }
     if (typeof message == 'object' && message instanceof Error) {
-      // TODO show message
+      // error  to string
       message = message.toString();
     }
     setNotification({ severity, title, message });

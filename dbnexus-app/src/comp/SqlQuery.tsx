@@ -51,7 +51,7 @@ import {
   secondConfirm,
   SetCloseConfirmTextContext,
   SettingContext,
-  VisiableContext,
+  TabActiveContext,
 } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
@@ -412,7 +412,7 @@ function SqlQuery(props: {
       }
     });
   }, []);
-  const vis = useContext(VisiableContext);
+  const vis = useContext(TabActiveContext);
   useEffect(() => {
     if (vis && conn) {
       console.log('SqlQuery setQueryId', conn.queryId);

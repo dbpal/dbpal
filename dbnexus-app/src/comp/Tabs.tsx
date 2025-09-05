@@ -15,7 +15,7 @@ import {
   secondConfirm,
   SetCloseConfirmTextContext,
   TabContent,
-  VisiableContext,
+  TabActiveContext,
   WindowFocusChangeContext,
 } from './helper';
 
@@ -172,7 +172,7 @@ function TabsWithContent_(props: {
         }}
       >
         {tabs.map((tab, index) => (
-          <VisiableContext.Provider key={tab.id} value={selectIndex == index}>
+          <TabActiveContext.Provider key={tab.id} value={selectIndex == index}>
             <SetCloseConfirmTextContext
               value={(e) => {
                 tabs[index].closeConfirmText = e;
@@ -180,7 +180,7 @@ function TabsWithContent_(props: {
             >
               <div hidden={selectIndex !== index}>{tab.content}</div>
             </SetCloseConfirmTextContext>
-          </VisiableContext.Provider>
+          </TabActiveContext.Provider>
         ))}
       </div>
 

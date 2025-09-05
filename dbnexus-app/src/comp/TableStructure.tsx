@@ -25,7 +25,6 @@ import {
   saveAndSetSize,
   secondConfirm,
   SettingContext,
-  VisiableContext,
 } from './helper';
 import CancelIcon from '@mui/icons-material/Cancel';
 import { NotificationContext } from './Notification';
@@ -197,7 +196,6 @@ function ColumnsStructure(props: {
       e.width = width;
     }
   });
-  const vis = useContext(VisiableContext);
   const { setUpMenu } = useContext(ContextMenuContext);
 
   function Menu(props: { col: string; content: string }) {
@@ -301,27 +299,27 @@ function ColumnsStructure(props: {
           </Tooltip>
         )}
       </Stack>
-      {vis && (
-        <div
-          style={{
-            display: 'grid',
-          }}
-        >
-          <DataGrid
-            style={gridStyle}
-            getRowId={getRowId}
-            slotProps={slotProps}
-            onColumnResize={onColumnResize}
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            rowHeight={setting.datagridRowHeightXXX()}
-            columnHeaderHeight={setting.datagridRowHeightXXX()}
-            columns={cols}
-            rows={fields}
-            onRowDoubleClick={onRowDoubleClick}
-          ></DataGrid>
-        </div>
-      )}
+
+      <div
+        style={{
+          display: 'grid',
+        }}
+      >
+        <DataGrid
+          style={gridStyle}
+          getRowId={getRowId}
+          slotProps={slotProps}
+          onColumnResize={onColumnResize}
+          showCellVerticalBorder
+          showColumnVerticalBorder
+          rowHeight={setting.datagridRowHeightXXX()}
+          columnHeaderHeight={setting.datagridRowHeightXXX()}
+          columns={cols}
+          rows={fields}
+          onRowDoubleClick={onRowDoubleClick}
+        ></DataGrid>
+      </div>
+
       {showAdd && (
         <Modal
           open={showAdd}
@@ -523,7 +521,7 @@ function IndexesStructure(props: {
       e.width = width;
     }
   });
-  const vis = useContext(VisiableContext);
+
   const { setUpMenu } = useContext(ContextMenuContext);
 
   function Menu(props: { content: string; indexName: string }) {
@@ -624,26 +622,24 @@ function IndexesStructure(props: {
         </Button>
       </Stack>
 
-      {vis && (
-        <div
-          style={{
-            display: 'grid',
-          }}
-        >
-          <DataGrid
-            style={gridStyle}
-            getRowId={getRowId}
-            slotProps={slotProps}
-            onColumnResize={onColumnResize}
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            rowHeight={setting.datagridRowHeightXXX()}
-            columnHeaderHeight={setting.datagridRowHeightXXX()}
-            columns={cols}
-            rows={indexes}
-          ></DataGrid>
-        </div>
-      )}
+      <div
+        style={{
+          display: 'grid',
+        }}
+      >
+        <DataGrid
+          style={gridStyle}
+          getRowId={getRowId}
+          slotProps={slotProps}
+          onColumnResize={onColumnResize}
+          showCellVerticalBorder
+          showColumnVerticalBorder
+          rowHeight={setting.datagridRowHeightXXX()}
+          columnHeaderHeight={setting.datagridRowHeightXXX()}
+          columns={cols}
+          rows={indexes}
+        ></DataGrid>
+      </div>
 
       {showAdd && kind == DataSourceKind.Mongo && (
         <Modal
@@ -1581,7 +1577,6 @@ function TriggersStructure(props: {
       e.width = width;
     }
   });
-  const vis = useContext(VisiableContext);
   const { setUpMenu } = useContext(ContextMenuContext);
 
   function Menu(props: { content: string; detail: types.TriggerDetail }) {
@@ -1690,27 +1685,25 @@ function TriggersStructure(props: {
         )}
       </Stack>
 
-      {vis && (
-        <div
-          style={{
-            display: 'grid',
-          }}
-        >
-          <DataGrid
-            style={gridStyle}
-            getRowId={getRowId}
-            slotProps={slotProps}
-            onColumnResize={onColumnResize}
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            rowHeight={setting.datagridRowHeightXXX()}
-            columnHeaderHeight={setting.datagridRowHeightXXX()}
-            columns={cols}
-            rows={triggers}
-            onRowDoubleClick={onRowDoubleClick}
-          ></DataGrid>
-        </div>
-      )}
+      <div
+        style={{
+          display: 'grid',
+        }}
+      >
+        <DataGrid
+          style={gridStyle}
+          getRowId={getRowId}
+          slotProps={slotProps}
+          onColumnResize={onColumnResize}
+          showCellVerticalBorder
+          showColumnVerticalBorder
+          rowHeight={setting.datagridRowHeightXXX()}
+          columnHeaderHeight={setting.datagridRowHeightXXX()}
+          columns={cols}
+          rows={triggers}
+          onRowDoubleClick={onRowDoubleClick}
+        ></DataGrid>
+      </div>
 
       {row && (
         <Modal

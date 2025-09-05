@@ -33,7 +33,6 @@ import {
   saveAndSetSize,
   secondConfirm,
   SettingContext,
-  VisiableContext,
 } from './helper.ts';
 import { ModalHeader } from './CommonComp.tsx';
 import { BsFillLightbulbFill } from 'react-icons/bs';
@@ -116,7 +115,6 @@ function QueryLog(props: {
     }
   }, [page, pageSize, matchSql, orderBy, executeTimes, showQueryLog]);
 
-  let vis = useContext(VisiableContext);
   const setting = useContext(SettingContext);
   const onColumnResize = useCallback(({ colDef, width }) => {
     let field = colDef.field;
@@ -203,32 +201,30 @@ function QueryLog(props: {
         )}
       </Stack>
       <Stack>
-        {vis && (
-          <div
-            style={{
-              display: 'grid',
-            }}
-          >
-            <DataGrid
-              style={gridStyle}
-              showCellVerticalBorder
-              showColumnVerticalBorder
-              onRowDoubleClick={onRowDoubleClick}
-              columns={columns}
-              rows={logs}
-              rowHeight={setting.datagridRowHeightXXX()}
-              columnHeaderHeight={setting.datagridRowHeightXXX()}
-              pageSizeOptions={pageSizeOptions}
-              paginationModel={paginationModel}
-              onPaginationModelChange={onPaginationModelChange}
-              initialState={initialState}
-              onColumnResize={onColumnResize}
-              onSortModelChange={onSortModelChange}
-              rowCount={total}
-              paginationMode="server"
-            ></DataGrid>
-          </div>
-        )}
+        <div
+          style={{
+            display: 'grid',
+          }}
+        >
+          <DataGrid
+            style={gridStyle}
+            showCellVerticalBorder
+            showColumnVerticalBorder
+            onRowDoubleClick={onRowDoubleClick}
+            columns={columns}
+            rows={logs}
+            rowHeight={setting.datagridRowHeightXXX()}
+            columnHeaderHeight={setting.datagridRowHeightXXX()}
+            pageSizeOptions={pageSizeOptions}
+            paginationModel={paginationModel}
+            onPaginationModelChange={onPaginationModelChange}
+            initialState={initialState}
+            onColumnResize={onColumnResize}
+            onSortModelChange={onSortModelChange}
+            rowCount={total}
+            paginationMode="server"
+          ></DataGrid>
+        </div>
 
         {selectSql && (
           <Modal

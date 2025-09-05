@@ -62,7 +62,7 @@ import {
   SettingContext,
   TabsSetContext,
   UuidContext,
-  VisiableContext,
+  TabActiveContext,
 } from './helper';
 import { ExceedMaxTreeItem, MenuRefresh } from './CommonComp';
 import { MongoTable } from './MongoDB';
@@ -348,7 +348,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
       e.width = width;
     }
   });
-  const vis = useContext(VisiableContext);
+  const vis = useContext(TabActiveContext);
   const { setUpMenu } = useContext(ContextMenuContext);
 
   function Menu(props: { content: string }) {

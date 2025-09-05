@@ -82,7 +82,7 @@ import {
   saveAndSetSize,
   SettingContext,
   validJson,
-  VisiableContext,
+  TabActiveContext,
   savePageSize,
 } from './helper';
 
@@ -1233,7 +1233,7 @@ function MongoTableList(props: {
         }
       }
     : undefined;
-  const vis = useContext(VisiableContext);
+  const vis = useContext(TabActiveContext);
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
     return {

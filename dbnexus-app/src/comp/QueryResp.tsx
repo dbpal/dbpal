@@ -20,7 +20,7 @@ import {
   handleCopyToClipboard,
   columnWidths,
   ContextMenuContext,
-  VisiableContext,
+  TabActiveContext,
   resetMuiDataRespWidth,
   SettingContext,
   gridStyle,
@@ -147,7 +147,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
   const onColumnResize = useCallback(({ colDef, width }) => {
     columnWidths.saveColumnWidths(colDef.field, width);
   }, []);
-  const vis = useContext(VisiableContext);
+
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
@@ -220,29 +220,28 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
               </Typography>
             )}
           </Stack>
-          {vis && (
-            <div
-              style={{
-                display: 'grid',
-              }}
-            >
-              <DataGrid
-                getRowId={getRowId}
-                style={gridStyle}
-                sortModel={sortModel}
-                onSortModelChange={onSortModelChange}
-                showCellVerticalBorder
-                showColumnVerticalBorder
-                slotProps={slotProps}
-                rowHeight={setting.datagridRowHeightXXX()}
-                columnHeaderHeight={setting.datagridRowHeightXXX()}
-                columns={data.fields}
-                rows={data.data}
-                filterMode="client" // 使用客户端过滤
-                onColumnResize={onColumnResize}
-              ></DataGrid>
-            </div>
-          )}
+
+          <div
+            style={{
+              display: 'grid',
+            }}
+          >
+            <DataGrid
+              getRowId={getRowId}
+              style={gridStyle}
+              sortModel={sortModel}
+              onSortModelChange={onSortModelChange}
+              showCellVerticalBorder
+              showColumnVerticalBorder
+              slotProps={slotProps}
+              rowHeight={setting.datagridRowHeightXXX()}
+              columnHeaderHeight={setting.datagridRowHeightXXX()}
+              columns={data.fields}
+              rows={data.data}
+              filterMode="client" // 使用客户端过滤
+              onColumnResize={onColumnResize}
+            ></DataGrid>
+          </div>
         </Stack>
       )}
 
@@ -330,7 +329,7 @@ function MultiQueryResp_(props: { data: any[] }) {
     setValue(newValue);
   };
 
-  const vis = useContext(VisiableContext);
+  const vis = useContext(TabActiveContext);
   return (
     <div style={{ top, opacity, left: top, ...styleForTrans }}>
       <div style={{ display: 'grid' }}>
@@ -348,7 +347,7 @@ function MultiQueryResp_(props: { data: any[] }) {
 
       {data.map((e, index) => {
         return (
-          <VisiableContext.Provider value={vis && index == value} key={index}>
+          <TabActiveContext.Provider value={vis && index == value} key={index}>
             <div hidden={value != index}>
               {e.Err ? (
                 <Alert severity="error">{e.Err}</Alert>
@@ -356,7 +355,7 @@ function MultiQueryResp_(props: { data: any[] }) {
                 <QueryResp data={e.Ok}></QueryResp>
               )}
             </div>
-          </VisiableContext.Provider>
+          </TabActiveContext.Provider>
         );
       })}
     </div>

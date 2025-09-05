@@ -58,7 +58,6 @@ import {
   SettingContext,
   stringToHex,
   validJson,
-  VisiableContext,
   savePageSize,
 } from './helper.ts';
 
@@ -931,7 +930,6 @@ function RedisSetTable(props: {
     setSelectRow(e.row);
   }, []);
 
-  const vis = useContext(VisiableContext);
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
     return {
@@ -1028,7 +1026,7 @@ function RedisSetTable(props: {
         {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
       </Stack>
 
-      {resp && vis && (
+      {resp && (
         <div
           style={{
             display: 'grid',
@@ -1279,7 +1277,7 @@ function RedisListTable(props: {
     },
     [respOrigin]
   );
-  const vis = useContext(VisiableContext);
+
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
     return {
@@ -1347,7 +1345,7 @@ function RedisListTable(props: {
         </Stack>
       </Stack>
 
-      {resp && vis && (
+      {resp && (
         <div
           style={{
             display: 'grid',
@@ -1536,7 +1534,6 @@ function RedisZsetTable(props: {
     setSelectRow(e.row);
   }, []);
 
-  const vis = useContext(VisiableContext);
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
     return {
@@ -1691,7 +1688,7 @@ function RedisZsetTable(props: {
         <ExecutingTime loading={loading} />
       </Stack>
 
-      {resp && vis && (
+      {resp && (
         <div
           style={{
             display: 'grid',
@@ -1872,7 +1869,6 @@ function RedisHashTable(props: {
     setSelectRow(e.row);
   }, []);
 
-  const vis = useContext(VisiableContext);
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
     return {
@@ -1974,7 +1970,7 @@ function RedisHashTable(props: {
         </Stack>
       </Stack>
 
-      {resp && vis && (
+      {resp && (
         <div
           style={{
             display: 'grid',
