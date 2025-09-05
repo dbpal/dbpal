@@ -9,17 +9,12 @@ import { BSON, EJSON } from "bson";
 import Database, { QueryResult } from '@tauri-apps/plugin-sql';
 
 const appDatabase = await Database.load('sqlite:dbpal.sqlite.db');
-
-appDatabase.select("select 1").then(e => {
-  console.log("sqlite setup ok", e);
-})
-
-
 function setUpDatabase() {
   const sqls = [`
   CREATE TABLE if not EXISTS query_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    uuid TEXT NOT NULL,
+    uuid TEXT NOT NULL, -- uuid like mysql/xxx
+    name text not null,  -- name like mysql
     sql text NOT NULL,
     create_at DATETIME NOT NULL DEFAULT current_timestamp,
     success integer NOT NULL
@@ -43,36 +38,36 @@ function setUpDatabase() {
     kind text not NULL,
     sql text not NULL,
     name text not NULL,
+    connection_name text not NULL,
     last_modified datetime not NULL DEFAULT current_timestamp
   )
     ` , `
       CREATE INDEX if not EXISTS index_favorite_sql_uuid ON favorite_sql (uuid);
     ` ];
-  sqls.forEach(sql => {
-    appDatabase.execute(sql).then().catch(e => {
-      console.log("apply database sql failed , this maybe a error", e);
-    });
+  sqls.forEach(async (sql) => {
+    try { await appDatabase.execute(sql) } catch (e) {
+      console.log("apply sql failed,this maybe a error", e)
+    }
   })
 }
 
 setUpDatabase();
 
-
 class QueryEvent {
-  //@ts-ignore
+  //@ts-ignore 
   constructor(public uuid: string, sql: string, success: number, create_at?: Date) { }
 }
 
 
 class QueryLogHandler {
   uuid: string
+  name: string
   constructor(uuid: string) {
     this.uuid = uuid;
-
-
+    this.name = extractConfigNameFromUuid(uuid);
   }
   async save(sql: string, success: boolean, showNotification): Promise<void> {
-    return appDatabase.execute("insert into query_log (uuid,sql,success) values (?,?,?)", [this.uuid, sql, success ? 1 : 0]).then(() => { }).catch(e => {
+    return appDatabase.execute("insert into query_log (uuid,name,sql,success) values (?,?,?,?)", [this.uuid, this.name, sql, success ? 1 : 0]).then(() => { }).catch(e => {
       showNotification("error", "save query log fauked", e);
     });
   }
@@ -90,9 +85,8 @@ class QueryLogHandler {
   delete(): Promise<QueryResult> {
     return appDatabase.execute("delete from query_log where uuid=?", [this.uuid]);
   }
-
-  drop_conn_delete(): Promise<void> {
-    return appDatabase.execute(`delete from query_log where uuid like '${this.uuid}%'`).then();
+  static deleteByConnectionname(name): Promise<QueryResult> {
+    return appDatabase.execute("delete from query_log where name=?", [name]);
   }
 }
 
@@ -158,13 +152,9 @@ function hexTryToString(hex): string | Uint8Array {
   return utf8String;
 }
 function uint8ArrayToUtf8(uint8Array): string {
-
   const decoder = new TextDecoder('utf-8');
   const str = decoder.decode(uint8Array);
-
   return str
-
-
 }
 
 function hexToString(hex: string): string {
@@ -195,7 +185,6 @@ function arrayToHex(uint8Array: Uint8Array | number[]) {
 function stringToHex(str): string {
   return arrayToHex(stringToHexArray(str));
 }
-
 
 function backendCompletionItemToEditor(
   xs: types.CompletionItem[]
@@ -261,7 +250,8 @@ function backendCompletionItemToEditor(
         return languages.CompletionItemKind.Module;
       case 'Domain':
         return languages.CompletionItemKind.Operator;
-
+      default:
+        return languages.CompletionItemKind.Text;
     }
   }
   return {
@@ -304,7 +294,7 @@ function calMenuStyle(e: MouseEvent): CSSProperties {
   ret.bottom = 'auto';
   ret.left = 'auto';
   ret.right = 'auto';
-  if (width - x > 400) {
+  if (width - x > 300) {
     // this is click have a lot of space on the right
     ret.left =
       x -
@@ -314,21 +304,13 @@ function calMenuStyle(e: MouseEvent): CSSProperties {
     ret.right = width - x - 10 + 'px';
   }
 
-  if ((height - y) > 450) {
+  if ((height - y) > 350) {
     // 这个是点击的位置下面有很大的空间
     ret.top = y - 10 + 'px';
   } else {
     ret.bottom = height - y - 10 + 'px';
   }
   return ret;
-}
-
-function chunkArray(array: any[], chunkSize: number): any[][] {
-  const result = [];
-  for (let i = 0; i < array.length; i += chunkSize) {
-    result.push(array.slice(i, i + chunkSize));
-  }
-  return result;
 }
 
 function errToString(message) {
@@ -373,7 +355,6 @@ function quoteStyle(x: DataSourceKind): string {
   }
 }
 
-
 function connTypeToDataSourceKind(name: string): DataSourceKind {
   return name as DataSourceKind
 }
@@ -384,13 +365,14 @@ function isTypeLargeText(s: string): boolean {
 const appStore = await load('store.json');
 
 enum AppStoreKey {
-  UserSettings = 'user_settings',
-  ConnectionConfig = 'connection_config',
-  Zoom = "zoom"
+  UserSettings = 'user-settings',
+  ConnectionConfig = 'connection-config',
+  Zoom = "zoom",
+  RedisShowDoc = "redis-show-doc",
+  PageSize = "page-size",
 }
 
-
-class SaveSizesToStore {
+class SaveDomSizes {
   static async saveSize(key: string, size: UISize) {
     return appDatabase.execute("replace into element_size(name, width, height) values(?,?,?)", [key, Math.ceil(size.width), Math.ceil(size.height)]);
   }
@@ -404,17 +386,20 @@ class SaveSizesToStore {
 
 
 class FavoriteSql {
-  constructor(public uuid: string, public name: string, public kind: DataSourceKind, public sql: string, public last_modified: Date = new Date(), public id?: number) { }
+  constructor(public uuid: string, public name: string, public kind: DataSourceKind, public sql: string, public last_modified: Date = new Date(), public id?: number, public connection_name?: string) {
+    this.connection_name = extractConfigNameFromUuid(uuid);
+  }
   static async save(x: FavoriteSql, showNotification) {
     try {
-      await appDatabase.execute("insert into favorite_sql(uuid,name,kind,sql,last_modified) values(?,?,?,?,?)", [x.uuid, x.name, x.kind, x.sql, x.last_modified]);
+      await appDatabase.execute("insert into favorite_sql(uuid,connection_name,name,kind,sql,last_modified) values(?,?,?,?,?,?)", [x.uuid, x.connection_name, x.name, x.kind, x.sql, x.last_modified]);
+      showNotification('success', "save sql Ok");
     } catch (e) {
       showNotification('error', "save favorite sql failed", e);
       return
     }
-    showNotification('success', "save sql Ok")
   }
 
+  // todo performace issue????
   static getAll(): Promise<FavoriteSql[]> {
     return appDatabase.select("select * from favorite_sql");
   }
@@ -428,9 +413,9 @@ class FavoriteSql {
     showNotification('success', "delete sql Ok")
   }
 
-  static async deleteByUuid(uuid: string) {
+  static async deleteByConnectionName(name: string) {
     try {
-      appDatabase.execute(`delete from favorite_sql where uuid like '${uuid}%'`);
+      appDatabase.execute(`delete from favorite_sql where connection_name=?`, [name]);
     } catch (e) {
       console.log("delete all logs belong to a key failed", e);
       return
@@ -557,9 +542,9 @@ function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "bo
   let e = new ResizeObserver((en) => {
     const height = en[0].target.clientHeight;
     const width = en[0].target.clientWidth;
-    SaveSizesToStore.saveSize(key, { width, height });
+    SaveDomSizes.saveSize(key, { width, height });
   });
-  SaveSizesToStore.getSize(key).then(size => {
+  SaveDomSizes.getSize(key).then(size => {
     if (size) {
       let div = (dom as HTMLDivElement);
       if (set == "height" || set == "both") {
@@ -636,7 +621,6 @@ class MongoTableHandler {
 
 class UserSettings {
   theme: string = 'light';
-  pageSize: number = 100;
   fontSize: number = 15;
   fontWeight: string = 'normal';
   fontFamily: string = undefined;
@@ -759,32 +743,56 @@ function makeExecuteSql(uuid) {
     });
   };
 }
-function hexToRgb(hex) {
-  hex = hex.replace('#', '');
-  if (hex.length === 3) hex = [...hex].map(c => c + c).join('');
-  const num = parseInt(hex, 16);
-  return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+
+
+class ColorFn {
+
+  static hexToRgb(hex) {
+    hex = hex.replace('#', '');
+    if (hex.length === 3) hex = [...hex].map(c => c + c).join('');
+    const num = parseInt(hex, 16);
+    return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+  }
+  static isLightHex(hex) {
+    const [r, g, b] = ColorFn.hexToRgb(hex);
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.5;
+  }
+  static isColor = str => {
+    const o = new Option().style;
+    o.color = str;
+    return o.color !== '';
+  };
 }
 
-function isLightHex(hex) {
-  const [r, g, b] = hexToRgb(hex);
-  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return lum > 0.5;
-}
-const isColor = str => {
-  const o = new Option().style;
-  o.color = str;
-  return o.color !== '';
-};
 
-function getSupportExportKind(kind: DataSourceKind) {
+class SavePageSize {
+  sizes = {}
+
+  constructor() {
+    appStore.get(AppStoreKey.PageSize).then((sizes) => {
+      if (sizes) {
+        this.sizes = sizes;
+      }
+    })
+  }
+  save(size: number, key = "default") {
+    this.sizes[key] = size;
+    appStore.set(AppStoreKey.PageSize, this.sizes);
+  }
+  get(key = "default", defaultSize = 100) {
+    return this.sizes[key] || defaultSize;
+  }
+}
+
+const savePageSize = new SavePageSize();
+
+function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
   switch (kind) {
     case DataSourceKind.Mongo:
       return ['json', 'jsonline'];
-    case DataSourceKind.Redis:
-      return ['csv', 'sql', 'json', 'jsonline'];
     default:
-      return ['csv', 'sql', 'json', 'jsonline'];
+      return isTable ? ['csv', 'sql', 'json', 'jsonline'] : ['csv', 'json', 'jsonline'];
   }
 }
 
@@ -800,7 +808,7 @@ export {
   stringToHex,
   backendCompletionItemToEditor,
   extractConfigNameFromUuid,
-  calMenuStyle, chunkArray,
+  calMenuStyle,
   errToString,
   getViewportSize,
   isTypeLargeText,
@@ -819,7 +827,7 @@ export {
   resetMuiDataRespWidth,
   quoteStyle,
   saveAndSetSize,
-  SaveSizesToStore,
+  SaveDomSizes,
   DocsAndCount,
   MongoTableHandler,
   UserSettings,
@@ -837,10 +845,11 @@ export {
   makeExecuteSql,
   QueryLogHandler,
   QueryEvent,
-  isLightHex,
-  isColor,
+  ColorFn,
   getSupportExportKind,
+  savePageSize
 };
+
 
 export type { ErrAndLoc }
 

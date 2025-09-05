@@ -200,8 +200,10 @@ pub trait SchemaTrait:
             .await
             .map(|x| x.fields)
     }
+    /// export as sql only support table so the frontend should only not pass this kind
+    /// when this is view
 
-    async fn export_table_to_file(
+    async fn export_table_or_view_to_file(
         &self, table_name: &str, filepath: &str, kind: ExportKind,
     ) -> anyhow::Result<()> {
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);

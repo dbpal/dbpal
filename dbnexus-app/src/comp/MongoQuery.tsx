@@ -18,7 +18,12 @@ import {
   MongoDBQuery,
   BsonExtraDataType,
 } from './MongoQueryBackend';
-import { generateRandomString, saveAndSetSize, SettingContext } from './helper';
+import {
+  DataSourceKind,
+  generateRandomString,
+  saveAndSetSize,
+  SettingContext,
+} from './helper';
 import {
   EditorBar,
   EscDownEvent,
@@ -51,8 +56,6 @@ function makeLog(level, ...msg: any[]): string {
   let str = msg2.map((e) => encode(e)).join(' ');
   return `${new Date().toLocaleString()}-${level} ${str}\n`;
 }
-
-const fileFilter = { filters: [{ name: 'js', extensions: ['js'] }] };
 
 function MongoQuery(props: {
   uuid: string;
@@ -103,8 +106,6 @@ function MongoQuery(props: {
       setLoggerPos(editor.getPosition());
     });
   };
-  const [file, setFile] = useState('');
-
   const { showNotification } = useContext(NotificationContext);
   const jsCodeMount = (ed: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
     editor.current = ed;
@@ -166,7 +167,7 @@ function MongoQuery(props: {
   return (
     <Stack spacing={1}>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Tooltip title="execute" arrow>
+        <Tooltip title="execute">
           <IconButton
             onClick={() => {
               handleExecute();
@@ -177,7 +178,7 @@ function MongoQuery(props: {
           </IconButton>
         </Tooltip>
 
-        <Tooltip title="logger level" arrow>
+        <Tooltip title="logger level">
           <Chip
             label={loggerlevel}
             color="primary"
@@ -189,7 +190,6 @@ function MongoQuery(props: {
         </Tooltip>
 
         <Tooltip
-          arrow
           title={
             !favoriteName
               ? 'save sql to favorite.'
@@ -216,14 +216,11 @@ function MongoQuery(props: {
         </Tooltip>
 
         <LoadStoreFileForQuery
-          openOpt={{ ...fileFilter }}
-          saveOpt={{ canCreateDirectories: true, ...fileFilter }}
           getQuery={() => {
             return editor.current.getValue();
           }}
-          file={file}
-          handleChange={(f, text) => {
-            setFile(f);
+          kind={DataSourceKind.Mongo}
+          handleChange={(text) => {
             editor.current.setValue(text);
           }}
         ></LoadStoreFileForQuery>

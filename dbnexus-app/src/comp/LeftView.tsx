@@ -11,7 +11,7 @@ import {
   tabsHasId,
   modalStyle,
   initMonacoLanague,
-  SimpleFlexSizeEditor,
+  SimpleFlexEditor,
   makeAutoComplete,
   EscDownEvent,
 } from './Common';
@@ -245,11 +245,11 @@ function StatementStructure(props: {
         </Button>
       </Stack>
       {sql && (
-        <SimpleFlexSizeEditor
+        <SimpleFlexEditor
           readOnly={true}
           language={uuid}
           value={sql}
-        ></SimpleFlexSizeEditor>
+        ></SimpleFlexEditor>
       )}
     </Stack>
   );
@@ -710,8 +710,7 @@ function ViewMenu(props: {
             <ExportTableOrView
               uuid={uuid}
               name={view}
-              kind={kind}
-              supportKind={getSupportExportKind(kind)}
+              supportKind={getSupportExportKind(kind, false)}
             ></ExportTableOrView>
           </Box>
         </Modal>

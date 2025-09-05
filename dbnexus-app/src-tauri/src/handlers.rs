@@ -60,7 +60,11 @@ pub fn set_auto_completion_query_id(query_id: uuid::Uuid) {
 }
 
 #[tauri::command]
-pub async fn delete_password(name: String) -> Result<(), ErrorFrontend> {
+pub async fn delete_password(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<(), ErrorFrontend> {
+    app.saved_password.remove(&name);
+
     let entry = keyring::Entry::new(PASSWORD_KEY, &name)?;
     entry.delete_credential()?;
     Ok(())
@@ -829,7 +833,7 @@ pub async fn export_table_or_view(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    db.export_table_to_file(table_or_view.as_str(), filepath.as_str(), kind)
+    db.export_table_or_view_to_file(table_or_view.as_str(), filepath.as_str(), kind)
         .await
         .map_err(ErrorFrontend::from)
 }

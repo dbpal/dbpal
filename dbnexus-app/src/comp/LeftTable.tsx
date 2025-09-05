@@ -1005,8 +1005,7 @@ function TableMenu(props: {
             <ExportTableOrView
               uuid={uuid}
               name={table}
-              supportKind={getSupportExportKind(kind)}
-              kind={kind}
+              supportKind={getSupportExportKind(kind, true)}
             ></ExportTableOrView>
           </Box>
         </Modal>
@@ -1291,10 +1290,7 @@ function RedisTables(prpos: { schema?: string }) {
           }}
         >
           {tables && tables.has_more ? (
-            <Tooltip
-              title={`result exceed ${max},some result are omited`}
-              arrow
-            >
+            <Tooltip title={`result exceed ${max},some result are omited`}>
               <Chip
                 size="small"
                 color="error"

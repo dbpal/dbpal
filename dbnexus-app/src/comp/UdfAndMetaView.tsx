@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 
 import { NotificationContext } from './Notification';
 import { Button, Stack, Tooltip, Typography } from '@mui/material';
-import { DefAndMetas, SimpleFlexSizeEditor } from './Common';
+import { DefAndMetas, SimpleFlexEditor } from './Common';
 import { MetaValuesView, PossibleParseError } from './CommonComp';
 import { ErrAndLoc, getEditorText, saveAndSetSize } from './helper';
 import { MultiQueryResp } from './QueryResp';
@@ -118,7 +118,7 @@ function DefAndMetasView(props: {
             height: '18vh',
           }}
         >
-          <SimpleFlexSizeEditor
+          <SimpleFlexEditor
             language={language}
             value={detail.def}
             editorRef={editor}
@@ -135,7 +135,7 @@ function DefAndMetasView(props: {
                 ></PossibleParseError>
               )}
             </Stack>
-          ></SimpleFlexSizeEditor>
+          ></SimpleFlexEditor>
         </div>
       )}
       <MultiQueryResp data={queryResp} />

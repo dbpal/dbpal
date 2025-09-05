@@ -31,7 +31,7 @@ import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import {
   modalStyle,
   reloadOK,
-  SimpleFlexSizeEditor,
+  SimpleFlexEditor,
   EscDownEvent,
 } from './Common.tsx';
 import ClearIcon from '@mui/icons-material/Clear';
@@ -59,6 +59,7 @@ import {
   stringToHex,
   validJson,
   VisiableContext,
+  savePageSize,
 } from './helper.ts';
 
 import {
@@ -707,7 +708,7 @@ function RedisValueEditor(props: {
         )}
       </Stack>
 
-      <SimpleFlexSizeEditor
+      <SimpleFlexEditor
         language={editModel == RedisEditorMode.Json ? 'json' : 'text'}
         // in some times newvalue is not change as a string
         value={typeof newValue == 'object' ? '' : newValue}
@@ -733,7 +734,7 @@ function RedisValueEditor(props: {
             </Typography>
           ) : undefined
         }
-      ></SimpleFlexSizeEditor>
+      ></SimpleFlexEditor>
     </Stack>
   );
 }
@@ -1193,7 +1194,7 @@ function RedisListTable(props: {
   );
   const [selectRow, setSelectRow] = useState<any>(null);
   const { showNotification } = useContext(NotificationContext);
-  const [pageSize, setPageSize] = useState(useContext(SettingContext).pageSize);
+  const [pageSize, setPageSize] = useState(savePageSize.get());
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
 
@@ -1249,6 +1250,7 @@ function RedisListTable(props: {
   const onPaginationModelChange = useCallback((x: GridPaginationModel) => {
     setPage(x.page);
     setPageSize(x.pageSize);
+    savePageSize.save(x.pageSize);
   }, []);
   const paginationModel = useMemo(() => {
     return { page, pageSize };
@@ -2113,7 +2115,7 @@ function RedisModifyKeyName(props: {
 
 function DoubleClickToModify() {
   return (
-    <Tooltip title="double click a row to modify." arrow>
+    <Tooltip title="double click a row to modify.">
       <BsFillLightbulbFill />
     </Tooltip>
   );

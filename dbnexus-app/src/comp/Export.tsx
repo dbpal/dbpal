@@ -14,7 +14,6 @@ import { NotificationContext } from './Notification';
 import { save } from '@tauri-apps/plugin-dialog';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { invoke } from '@tauri-apps/api/core';
-import { DataSourceKind } from './helper';
 import { ModalHeader } from './CommonComp';
 import { openPath } from '@tauri-apps/plugin-opener';
 
@@ -39,10 +38,8 @@ function ExportView(props: {
   name: string;
   exportOP: (kind: types.ExportKind, file: string) => Promise<void>;
   supportKind: string[];
-
-  supportCsvHeader: boolean;
 }) {
-  const { exportOP, supportKind, supportCsvHeader, name } = props;
+  const { exportOP, supportKind, name } = props;
   const [kind, setKind] = useState(supportKind[0]);
   const [includeCsvHeader, setIncluCsvdeHeader] = useState(false);
   const [delimiter, setDelimiter] = useState(',');
@@ -116,21 +113,19 @@ function ExportView(props: {
       </Stack>
       {kind == 'csv' && (
         <Stack spacing={1}>
-          {supportCsvHeader && (
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={includeCsvHeader}
-                  onChange={(e) => {
-                    setIncluCsvdeHeader(e.target.checked);
-                  }}
-                  name="myCheckbox"
-                  color="primary"
-                />
-              }
-              label="Include Header"
-            />
-          )}
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={includeCsvHeader}
+                onChange={(e) => {
+                  setIncluCsvdeHeader(e.target.checked);
+                }}
+                name="myCheckbox"
+                color="primary"
+              />
+            }
+            label="Include Header(if applicable)"
+          />
           <Stack direction="row">
             <TextField
               size="small"
@@ -206,7 +201,7 @@ function ExportView(props: {
           }}
           loading={loading}
         >
-          <Tooltip title="export" arrow>
+          <Tooltip title="export">
             <ArrowCircleDownIcon> </ArrowCircleDownIcon>
           </Tooltip>
         </Button>
@@ -219,23 +214,8 @@ function ExportTableOrView(props: {
   uuid: string;
   name: string;
   supportKind: string[];
-  kind: DataSourceKind;
 }) {
-  let { uuid, name, supportKind, kind } = props;
-  const supportCsvSet = new Set([
-    DataSourceKind.LibSql,
-    DataSourceKind.Sqlite,
-    DataSourceKind.Postgres,
-    DataSourceKind.Cockroach,
-    DataSourceKind.Mysql,
-    DataSourceKind.MariaDB,
-    DataSourceKind.TiDB,
-    DataSourceKind.MsSql,
-    DataSourceKind.Cassandra,
-    DataSourceKind.FireBird,
-    DataSourceKind.ClickHouse,
-    DataSourceKind.Oracle,
-  ]);
+  let { uuid, name, supportKind } = props;
   return (
     <ExportView
       exportOP={async (kind, filepath) => {
@@ -247,7 +227,6 @@ function ExportTableOrView(props: {
         });
       }}
       supportKind={supportKind}
-      supportCsvHeader={supportCsvSet.has(kind)}
       name={name}
     ></ExportView>
   );

@@ -23,7 +23,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { EscDownEvent, modalStyle, SimpleFlexSizeEditor } from './Common.tsx';
+import { EscDownEvent, modalStyle, SimpleFlexEditor } from './Common.tsx';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import {
@@ -157,10 +157,10 @@ function QueryLog(props: {
         >
           <CloseIcon></CloseIcon>
         </IconButton>
-        <Tooltip title="double click to open code editor" arrow>
+        <Tooltip title="double click to open code editor">
           <BsFillLightbulbFill />
         </Tooltip>
-        <Tooltip title="esc can close query log too" arrow>
+        <Tooltip title="esc can close query log too">
           <span>esc</span>
         </Tooltip>
         <div style={{ width: '20%' }}></div>
@@ -187,7 +187,7 @@ function QueryLog(props: {
                 const r = await handler.current.delete();
                 showNotification(
                   'success',
-                  `deleted ${r.rowsAffected} query log failed`
+                  `deleted ${r.rowsAffected} query log`
                 );
                 setShowQueryLog(false);
               } catch (e) {
@@ -248,10 +248,10 @@ function QueryLog(props: {
               height="40vh"
             >
               <ModalHeader title="View SQL"></ModalHeader>
-              <SimpleFlexSizeEditor
+              <SimpleFlexEditor
                 language={uuid}
                 value={selectSql}
-              ></SimpleFlexSizeEditor>
+              ></SimpleFlexEditor>
             </Box>
           </Modal>
         )}

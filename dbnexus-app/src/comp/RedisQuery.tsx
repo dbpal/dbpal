@@ -6,10 +6,34 @@ import { Position } from 'monaco-editor';
 import { SqlQuery } from './SqlQuery.tsx';
 import { fetch } from '@tauri-apps/plugin-http';
 import { MakeIQueryConn } from './Common.tsx';
-import { DataSourceKind, ErrAndLoc, SaveSizesToStore } from './helper.ts';
+import {
+  appStore,
+  AppStoreKey,
+  DataSourceKind,
+  ErrAndLoc,
+  SaveDomSizes,
+} from './helper.ts';
 import { Chip } from '@mui/material';
 
-let showDocOld = true;
+class SaveShowdoc {
+  showDocOld = true;
+  save(x: boolean) {
+    this.showDocOld = x;
+    appStore.set(AppStoreKey.RedisShowDoc, x);
+  }
+
+  constructor() {
+    appStore.get<boolean>(AppStoreKey.RedisShowDoc).then((x) => {
+      if (typeof x === 'boolean') {
+        this.showDocOld = x;
+      }
+    });
+  }
+  get(): boolean {
+    return this.showDocOld;
+  }
+  static instance = new SaveShowdoc();
+}
 
 function RedisQuery(props: {
   makeConn: MakeIQueryConn;
@@ -94,10 +118,10 @@ function RedisQuery(props: {
       });
   };
   const [size, setSize] = useState<string | number>('40vw');
-  const [showDoc, setShowDoc] = useState(showDocOld);
+  const [showDoc, setShowDoc] = useState(SaveShowdoc.instance.get());
   const sizeKey = 'reids-query-size';
   useEffect(() => {
-    SaveSizesToStore.getSize(sizeKey).then((e) => {
+    SaveDomSizes.getSize(sizeKey).then((e) => {
       if (e && e.width && showDoc) {
         setSize(e.width + 'px');
       }
@@ -109,7 +133,7 @@ function RedisQuery(props: {
     } else {
       setSize('100%');
     }
-    showDocOld = showDoc;
+    SaveShowdoc.instance.save(showDoc);
   }, [showDoc]);
 
   return (
@@ -127,7 +151,7 @@ function RedisQuery(props: {
         setIsDragging(false);
       }} // 拖动结束
       onChange={(newsize) => {
-        SaveSizesToStore.saveSize(sizeKey, { width: newsize });
+        SaveDomSizes.saveSize(sizeKey, { width: newsize });
       }}
       style={{ width: '99%' }}
     >

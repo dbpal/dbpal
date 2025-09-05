@@ -103,7 +103,7 @@ fn main_() {
         *unsafe { App::get_config_ref() } = Some(Box::new(move |name| {
             let configs: Vec<DBConnectionConfig> = serde_json::from_value(
                 store
-                    .get("connection_config")
+                    .get("connection-config")
                     .unwrap_or(serde_json::Value::Array(vec![])),
             )?;
 

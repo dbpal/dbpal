@@ -71,12 +71,7 @@ import {
   sqliteKeywords,
   tidbKeywords,
 } from './keywords';
-import {
-  open,
-  OpenDialogOptions,
-  save,
-  SaveDialogOptions,
-} from '@tauri-apps/plugin-dialog';
+import { open, save, SaveDialogOptions } from '@tauri-apps/plugin-dialog';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import {
   appStore,
@@ -120,7 +115,6 @@ function CreateDatabase({ uuid, handleClose }) {
   const { showNotification } = useContext(NotificationContext);
   const [database, setDatabase] = useState('');
   const databaseDom = useRef(null);
-
   const handleCreate = () => {
     if (!database) {
       databaseDom.current.focus();
@@ -339,7 +333,7 @@ async function dropDatabase(props: {
   const { uuid, database, showNotification, okCallback } = props;
 
   const confirm = await secondConfirm({
-    title: `drop database ${database}`,
+    title: `drop database '${database}'`,
     confirmText: 'Drop',
   });
   if (!confirm) {
@@ -359,7 +353,7 @@ async function dropDatabase(props: {
 
 async function dropSchema({ uuid, schema, showNotification, okCallback }) {
   const confirm = await secondConfirm({
-    title: `drop ${schema}`,
+    title: `drop '${schema}'`,
     confirmText: 'Drop',
   });
   if (!confirm) {
@@ -375,7 +369,7 @@ async function dropSchema({ uuid, schema, showNotification, okCallback }) {
     });
 }
 
-function SimpleFlexSizeEditor(props: {
+function SimpleFlexEditor(props: {
   language: string;
   value?: string;
   handleValue?: (x: string) => void;
@@ -489,7 +483,9 @@ function MenuConnectionInfo({ uuid }) {
       setSelectTab(index);
     } else {
       setTabs((e) => {
-        setSelectTab(tabs.length);
+        setTimeout(() => {
+          setSelectTab(tabs.length);
+        }, 100);
         return [
           ...e,
           new TabContent(
@@ -518,7 +514,7 @@ function ConnConfigInfo(props: { uuid }) {
   let { uuid } = props;
   const { showNotification } = useContext(NotificationContext);
   const [metas, setMetas] = useState<types.MetaValue[]>([]);
-  const handleInfo = async () => {
+  const handleInfo = async (showOK: boolean) => {
     try {
       let metas = await invoke<types.MetaValue[]>('server_metas', {
         name: uuid,
@@ -563,20 +559,28 @@ function ConnConfigInfo(props: { uuid }) {
           break;
       }
       setMetas([...configMetas, ...metas]);
+      if (showOK) {
+        reloadOK(showNotification);
+      }
     } catch (e) {
-      showNotification('error', 'call server_metas failed', e);
+      showNotification('error', 'call server metas failed', e);
       console.log(e);
     }
   };
-
   useEffect(() => {
-    handleInfo();
+    handleInfo(false);
   }, []);
 
   return (
     <Stack spacing={1}>
       <Stack direction="row">
-        <Button variant="contained" color="primary" onClick={handleInfo}>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => {
+            handleInfo(true);
+          }}
+        >
           reload
         </Button>
       </Stack>
@@ -624,7 +628,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
   }
   registeredLanguage.add(uuid);
   const autoCompletion = makeAutoComplete(uuid);
-  const formatxxx = async (sql: string, opts: languages.FormattingOptions) => {
+  const formatFn = async (sql: string, opts: languages.FormattingOptions) => {
     try {
       // https://github.com/sql-formatter-org/sql-formatter/blob/master/docs/language.md
       let language: SqlLanguage = 'sql';
@@ -730,7 +734,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           ],
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatxxx
+        formatFn
       );
       break;
     case DataSourceKind.Mysql:
@@ -752,7 +756,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           ],
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatxxx
+        formatFn
       );
       break;
     case DataSourceKind.ClickHouse:
@@ -774,7 +778,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           ],
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatxxx
+        formatFn
       );
       break;
 
@@ -797,7 +801,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           ],
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatxxx
+        formatFn
       );
       break;
     case DataSourceKind.Sqlite:
@@ -816,11 +820,10 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatxxx
+        formatFn
       );
       break;
     case DataSourceKind.FireBird:
-      // TODO keywords
       initLanguageXXX(
         uuid,
         {
@@ -835,7 +838,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatxxx
+        formatFn
       );
       break;
     case DataSourceKind.DuckDB:
@@ -853,7 +856,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatxxx
+        formatFn
       );
       break;
 
@@ -872,7 +875,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatxxx
+        formatFn
       );
       break;
     case DataSourceKind.Cockroach:
@@ -892,7 +895,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatxxx
+        formatFn
       );
       break;
     case DataSourceKind.MsSql:
@@ -911,7 +914,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatxxx
+        formatFn
       );
       break;
     case DataSourceKind.Redis:
@@ -942,7 +945,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatxxx
+        formatFn
       );
       break;
     case DataSourceKind.Cassandra:
@@ -960,7 +963,7 @@ function initMonacoLanague(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatxxx
+        formatFn
       );
       break;
     default:
@@ -1096,26 +1099,65 @@ function extractBaseName(file) {
 }
 
 function LoadStoreFileForQuery(props: {
-  file;
   getQuery: () => string;
-  handleChange: (file, content) => void;
-  openOpt?: OpenDialogOptions;
-  saveOpt?: SaveDialogOptions;
+  handleChange: (content) => void;
+  kind: DataSourceKind;
 }) {
-  const { file, getQuery, handleChange, openOpt, saveOpt } = props;
+  const { getQuery, handleChange, kind } = props;
+  const [file, setFile] = useState('');
   const { showNotification } = useContext(NotificationContext);
   const loadFile = async () => {
     // ok to load
     try {
-      let file = await open(openOpt);
+      let file = await open();
       if (file) {
-        const c = new TextDecoder().decode(await readFile(file));
-        handleChange(file, c);
+        const content = new TextDecoder().decode(await readFile(file));
+        handleChange(content);
+        setFile(file);
       }
     } catch (e) {
       showNotification('error', 'error to open file', e);
     }
   };
+  const saveOpt = useMemo(() => {
+    let filters;
+    switch (kind) {
+      case DataSourceKind.Mongo:
+        filters = [
+          {
+            name: 'js',
+            extensions: ['js'],
+          },
+        ];
+        break;
+      case DataSourceKind.Redis:
+        filters = [
+          {
+            name: 'redis',
+            extensions: ['redis'],
+          },
+        ];
+        break;
+      case DataSourceKind.Cassandra:
+        filters = [
+          {
+            name: 'cql',
+            extensions: ['cql'],
+          },
+        ];
+        break;
+      default:
+        filters = [
+          {
+            name: 'SQL',
+            extensions: ['sql'],
+          },
+        ];
+    }
+
+    return { title: 'save query', filters } as SaveDialogOptions;
+  }, [kind]);
+
   const handleSave = async () => {
     let content = getQuery();
     if (!content) {
@@ -1123,12 +1165,13 @@ function LoadStoreFileForQuery(props: {
       return;
     }
     try {
-      let ofile = file ? file : await save({ ...saveOpt });
+      let ofile = file ? file : await save(saveOpt);
       if (ofile) {
         await writeFile(ofile, new TextEncoder().encode(content), {
           create: true,
         });
-        handleChange(ofile, content);
+        setFile(ofile);
+        handleChange(content);
         showNotification('success', 'save file OK');
       }
     } catch (e) {
@@ -1148,7 +1191,8 @@ function LoadStoreFileForQuery(props: {
           return;
         }
       }
-      handleChange(null, '');
+      setFile('');
+      handleChange('');
     } catch (e) {
       showNotification('error', 'close file failed', e);
     }
@@ -1168,12 +1212,12 @@ function LoadStoreFileForQuery(props: {
           </Tooltip>
         </Stack>
       )}
-      <Tooltip title="attach file" arrow>
+      <Tooltip title="attach file">
         <IconButton onClick={loadFile} color="primary">
           <AttachFileIcon />
         </IconButton>
       </Tooltip>
-      <Tooltip title="save query to file" arrow>
+      <Tooltip title="save query to file">
         <IconButton onClick={handleSave} color="primary">
           <SaveIcon />
         </IconButton>
@@ -1189,7 +1233,7 @@ type EscDownEvent = { preventDefault: () => void };
 export {
   modalStyle,
   EditorBar,
-  SimpleFlexSizeEditor,
+  SimpleFlexEditor,
   tabsHasId,
   msgTimeout,
   progressBarSize,

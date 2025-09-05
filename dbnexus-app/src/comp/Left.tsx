@@ -152,7 +152,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
           direction="row"
           style={{ justifyContent: 'center', flexWrap: 'wrap' }}
         >
-          <Tooltip title="DBPal site" arrow>
+          <Tooltip title="DBPal site">
             <img
               src={logoImg}
               style={{ width: '3.3rem', cursor: 'pointer' }}
@@ -163,7 +163,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             ></img>
           </Tooltip>
 
-          <Tooltip title="make a connection" arrow>
+          <Tooltip title="make a connection">
             <IconButton
               onClick={() => {
                 setShowAddConnection(true);
@@ -173,7 +173,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="Favorite sql statement" arrow>
+          <Tooltip title="Favorite sql statement">
             <IconButton
               onClick={() => {
                 setShowFavoriteSql(true);
@@ -183,7 +183,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="copy a connection" arrow>
+          <Tooltip title="copy a connection">
             <IconButton
               onClick={() => {
                 setShowCopyConn(true);
@@ -1082,7 +1082,7 @@ function DatabaseMenu(props: {
       <MenuList>
         {opened && kind != DataSourceKind.Mongo && (
           <MenuNewQuery
-            handle={() => {
+            handleNew={() => {
               openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification);
             }}
           ></MenuNewQuery>
@@ -1375,7 +1375,7 @@ function SchemaMenu(props: {
 
       {opened && (
         <MenuNewQuery
-          handle={() => {
+          handleNew={() => {
             openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification);
           }}
         ></MenuNewQuery>

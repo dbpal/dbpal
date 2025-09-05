@@ -64,7 +64,7 @@ import { ModifySettings, SettingComp } from './Settings.tsx';
 import {
   ContextMenuContext,
   generateRandomString,
-  SaveSizesToStore,
+  SaveDomSizes,
   secondConfirm,
   TabsSetContext,
   WindowFocusChangeContext,
@@ -222,7 +222,7 @@ export default function MainPage() {
   const [leftSize, setLeftSize] = useState(300);
   useEffect(() => {
     let a = async () => {
-      SaveSizesToStore.getSize(leftSizeKey).then((size) => {
+      SaveDomSizes.getSize(leftSizeKey).then((size) => {
         if (size && size.width) {
           setLeftSize(size.width);
         }
@@ -243,7 +243,7 @@ export default function MainPage() {
       }}
       maxSize={800}
       onChange={(newsize) => {
-        SaveSizesToStore.saveSize(leftSizeKey, { width: newsize });
+        SaveDomSizes.saveSize(leftSizeKey, { width: newsize });
       }}
     >
       <div

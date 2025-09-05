@@ -24,6 +24,7 @@ import { types } from './ApiStruct';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import {
   DataGrid,
+  GridColDef,
   GridSlotsComponentsProps,
   GridSortModel,
 } from '@mui/x-data-grid';
@@ -67,7 +68,6 @@ import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { editor, Position } from 'monaco-editor';
 const LogLevelSelection = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];
-
   const getColor = (level: string) => {
     switch (level) {
       case 'trace':
@@ -103,11 +103,11 @@ const LogLevelSelection = ({ handleChange, level }) => {
   );
 };
 
-function MenuNewQuery({ handle }) {
+function MenuNewQuery({ handleNew }) {
   return (
     <MenuItem
       onClick={() => {
-        handle();
+        handleNew();
       }}
     >
       <ListItemIcon>
@@ -156,7 +156,7 @@ function MenuCloseConn({ handleClose, name }) {
             handleClose();
           })
           .catch((e) => {
-            showNotification('error', 'open connection failed', e);
+            showNotification('error', 'close connection failed', e);
           });
       }}
     >
@@ -196,11 +196,11 @@ function ConnPingTime({ uuid }) {
   return (
     (status || err) &&
     (status ? (
-      <Tooltip title="ping time" arrow>
+      <Tooltip title="ping time">
         <Typography color="green"> {status} </Typography>
       </Tooltip>
     ) : (
-      <Tooltip title={err} arrow>
+      <Tooltip title={err}>
         <Typography color="error"> err </Typography>
       </Tooltip>
     ))
@@ -250,9 +250,9 @@ function MenuOpenConn({ handleOpend, name, setLoading }) {
     const has = await invoke('has_entered_password', { name: name });
     if (!has) {
       let key = 'save_password';
-
       if (false === config[key]) {
         let pass = window.prompt(`enter password for '${name}'`);
+        // macos will return null directly
         if (pass == null) {
           return;
         }
@@ -324,17 +324,21 @@ function MenuDeleteConfig({ name }) {
     try {
       await invoke('delete_password', { name });
     } catch (e) {
-      console.log('delete password err:', e);
+      console.log(
+        'delete password err:',
+        e,
+        "this should be fine maybe this connection don't have password"
+      );
     }
     try {
       let old = await appStore.get<types.DBConnectionConfig[]>(
         AppStoreKey.ConnectionConfig
       );
       let newdata = old.filter((e) => e.name != name);
-      await appStore.set(AppStoreKey.ConnectionConfig, newdata);
       await invoke('close_conn', { name });
-      await FavoriteSql.deleteByUuid(name);
-      await new QueryLogHandler(name).drop_conn_delete();
+      await FavoriteSql.deleteByConnectionName(name);
+      await QueryLogHandler.deleteByConnectionname(name);
+      await appStore.set(AppStoreKey.ConnectionConfig, newdata);
     } catch (e) {
       showNotification('error', 'drop connection failed', e);
     }
@@ -353,12 +357,13 @@ function MenuDeleteConfig({ name }) {
     </MenuItem>
   );
 }
-function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
+function MetaValuesView({ values = [] as types.MetaValue[] }) {
   let columns = [
-    { field: 'name', flex },
-    { field: 'value', flex },
-    { field: 'desc', flex },
-  ];
+    { field: 'name', width: columnWidths.getWidth('name') },
+    { field: 'value', width: columnWidths.getWidth('value') },
+    { field: 'desc', flex: 1 },
+  ] as GridColDef[];
+
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   values.forEach((e) => {
     if (!('id' in e)) {
@@ -440,6 +445,12 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
     setSortModel(e);
   }, []);
 
+  const onColumnResize = useCallback(({ colDef, width }) => {
+    let f = colDef.field;
+    if (f == 'name' || f == 'value') {
+      columnWidths.saveColumnWidths(f, width);
+    }
+  }, []);
   return (
     <div
       style={{
@@ -457,6 +468,7 @@ function MetaValuesView({ values = [] as types.MetaValue[], flex = 1 }) {
         columnHeaderHeight={setting.datagridRowHeightXXX()}
         columns={columns}
         rows={values}
+        onColumnResize={onColumnResize}
       ></DataGrid>
     </div>
   );
@@ -677,7 +689,7 @@ function PossibleParseError(props: {
 }) {
   const { parseErr, editor } = props;
   return (
-    <Tooltip title="possible error" arrow>
+    <Tooltip title="possible error">
       <Typography
         style={{
           cursor: parseErr.line && parseErr.column && 'pointer',
@@ -760,7 +772,7 @@ function ExecutingTime(props: { loading: boolean; disableTime?: boolean }) {
 
   return (
     <>
-      <Tooltip title="execute time" arrow>
+      <Tooltip title="execute time">
         <Chip
           color="success"
           size="small"

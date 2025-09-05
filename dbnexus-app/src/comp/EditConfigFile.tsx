@@ -3,7 +3,7 @@ import { useContext, useEffect, useState } from 'react';
 
 import { appStore, ErrAndLoc, validJson } from './helper';
 import { NotificationContext } from './Notification';
-import { SimpleFlexSizeEditor } from './Common';
+import { SimpleFlexEditor } from './Common';
 
 function EditConfigFile(props: { handleClose }) {
   const { handleClose } = props;
@@ -51,7 +51,7 @@ function EditConfigFile(props: { handleClose }) {
   };
   return (
     <Stack spacing={1} flex={1}>
-      <SimpleFlexSizeEditor
+      <SimpleFlexEditor
         value={config}
         handleValue={(e) => {
           setConfig(e);
@@ -62,7 +62,7 @@ function EditConfigFile(props: { handleClose }) {
             <Typography color="error"> {jsonError.msg}</Typography>
           ) : undefined
         }
-      ></SimpleFlexSizeEditor>
+      ></SimpleFlexEditor>
       <Stack direction="row">
         <Button variant="contained" onClick={handleSave}>
           save

@@ -1630,6 +1630,7 @@ impl PostGresDB {
         anyhow::Ok(count as usize)
     }
 }
+
 impl std::fmt::Debug for PostGresDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "postgres on:{:?}", self.config)

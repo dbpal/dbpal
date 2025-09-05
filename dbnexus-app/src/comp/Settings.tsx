@@ -22,13 +22,11 @@ import {
 } from '@mui/material';
 import { HexColorPicker } from 'react-colorful';
 import { NotificationContext } from './Notification';
-import { appStore, AppStoreKey, SimpleFlexSizeEditor } from './Common';
-import { SelectPageSize } from './CommonComp';
+import { appStore, AppStoreKey, SimpleFlexEditor } from './Common';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import {
   ErrAndLoc,
-  isColor,
-  isLightHex,
+  ColorFn,
   SettingContext,
   UserSettings,
   validJson,
@@ -39,8 +37,6 @@ import EditIcon from '@mui/icons-material/Edit';
 import ClearIcon from '@mui/icons-material/Clear';
 function ModifySettings() {
   const { showNotification } = useContext(NotificationContext);
-
-  const [pageSize, setPageSize] = useState(0);
   const [fontWeight, setFontWeight] = useState('normal');
   const [fontSize, setFontSize] = useState(16);
   const [editorOptions, setEditorOptions] = useState('');
@@ -66,7 +62,6 @@ function ModifySettings() {
   const reload = async () => {
     try {
       const setting = await UserSettings.get();
-      setPageSize(setting.pageSize);
       setFontWeight(setting.fontWeight);
       setFontSize(setting.fontSize);
       setFontFamily(setting.fontFamily);
@@ -111,7 +106,6 @@ function ModifySettings() {
     }
     let s = {
       fontWeight,
-      pageSize,
       fontSize,
       fontFamily,
       tabSize,
@@ -136,13 +130,13 @@ function ModifySettings() {
       setBgColorErr('');
       return;
     }
-    if (!isColor(bgColor)) {
+    if (!ColorFn.isColor(bgColor)) {
       setBgColorErr('not a valid color');
       return;
     }
     if (
-      (theme == 'dark' && isLightHex(bgColor)) ||
-      (theme == 'light' && !isLightHex(bgColor))
+      (theme == 'dark' && ColorFn.isLightHex(bgColor)) ||
+      (theme == 'light' && !ColorFn.isLightHex(bgColor))
     ) {
       setBgColorErr(`please set a ${theme} background color`);
       return;
@@ -155,17 +149,6 @@ function ModifySettings() {
       spacing={1}
       style={{ backgroundColor: bgColorErr ? undefined : bgColor }}
     >
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          default page size:
-        </Typography>
-        <SelectPageSize
-          pageSize={pageSize}
-          handleChange={(size) => {
-            setPageSize(size);
-          }}
-        ></SelectPageSize>
-      </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           font size:
@@ -294,7 +277,6 @@ function ModifySettings() {
           <Tooltip
             title="dbpal use monaco editor as build in editor"
             placement="top"
-            arrow
           >
             <Typography width={headerSize} textAlign="right">
               monaco editor options:
@@ -435,7 +417,7 @@ function EditorOptions(props: {
           }}
         ></Chip>
       </Stack>
-      <SimpleFlexSizeEditor
+      <SimpleFlexEditor
         errPos={jsonErrPos}
         language="json"
         value={value}
@@ -459,7 +441,7 @@ function EditorOptions(props: {
             </Typography>
           ) : null
         }
-      ></SimpleFlexSizeEditor>
+      ></SimpleFlexEditor>
       <Divider />
       <Stack direction="row" spacing={1}>
         <Button
@@ -525,8 +507,8 @@ function makeComponents(appFontWeight) {
         tooltip: {
           fontSize: '0.9rem',
         },
-        arrow: true,
       },
+      defaultProps: { arrow: true },
     },
     MuiAlertTitle: {
       styleOverrides: {

@@ -56,7 +56,7 @@ import {
   keyNotInTable,
   EscDownEvent,
   EditorBar,
-  SimpleFlexSizeEditor,
+  SimpleFlexEditor,
 } from './Common';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
@@ -83,6 +83,7 @@ import {
   SettingContext,
   validJson,
   VisiableContext,
+  savePageSize,
 } from './helper';
 
 enum MongoDataViewModel {
@@ -762,11 +763,11 @@ function MongoTableListContextMenu(props: {
             height="65vh"
           >
             <ModalHeader title="View Json"></ModalHeader>
-            <SimpleFlexSizeEditor
+            <SimpleFlexEditor
               value={content}
               language="json"
               readOnly
-            ></SimpleFlexSizeEditor>
+            ></SimpleFlexEditor>
           </Box>
         </Modal>
       )}
@@ -968,7 +969,7 @@ function MongoTableJson(props: {
 
 function DoubleClickToModify() {
   return (
-    <Tooltip title="double click a row to modify." arrow>
+    <Tooltip title="double click a row to modify.">
       <BsFillLightbulbFill />
     </Tooltip>
   );
@@ -998,7 +999,7 @@ function JsonEditor(props: {
   }, [newValue]);
 
   return (
-    <SimpleFlexSizeEditor
+    <SimpleFlexEditor
       readOnly={!modifyOP}
       value={newValue}
       language="json"
@@ -1053,7 +1054,7 @@ function JsonEditor(props: {
           </Typography>
         )}
       </Stack>
-    ></SimpleFlexSizeEditor>
+    ></SimpleFlexEditor>
   );
 }
 
@@ -1123,7 +1124,8 @@ function MongoTableList(props: {
     setLoading,
   } = props;
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(useContext(SettingContext).pageSize);
+
+  const [pageSize, setPageSize] = useState(savePageSize.get());
   const { showNotification } = useContext(NotificationContext);
   const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
@@ -1192,6 +1194,7 @@ function MongoTableList(props: {
   const onPaginationModelChange = useCallback((m: GridPaginationModel) => {
     setPage(m.page);
     setPageSize(m.pageSize);
+    savePageSize.save(m.pageSize);
   }, []);
   const onRowDoubleClick = useCallback((e) => {
     handleLoadOne(e.row._id).then((doc) => {

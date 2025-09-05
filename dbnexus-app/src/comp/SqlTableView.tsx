@@ -45,7 +45,7 @@ import {
   keyNotInTable,
   modalStyle,
   reloadOK,
-  SimpleFlexSizeEditor,
+  SimpleFlexEditor,
 } from './Common';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -72,6 +72,7 @@ import {
   TabsSetContext,
   validJson,
   VisiableContext,
+  savePageSize,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
@@ -192,13 +193,13 @@ function WhereSort(props: {
         ref={setModalBox}
       >
         <ModalHeader title={`set ${label}`}></ModalHeader>
-        <SimpleFlexSizeEditor
+        <SimpleFlexEditor
           value={newValue}
           handleValue={(v) => {
             setNewValue(v);
           }}
           language={whereLanguage}
-        ></SimpleFlexSizeEditor>
+        ></SimpleFlexEditor>
 
         <Stack direction="row" spacing={1}>
           <Button
@@ -274,7 +275,7 @@ function EditInModal(props: { content: string; handleModify }) {
           ></Chip>
         ))}
       </Stack>
-      <SimpleFlexSizeEditor
+      <SimpleFlexEditor
         value={content}
         language={language}
         handleValue={(v) => {
@@ -298,7 +299,7 @@ function EditInModal(props: { content: string; handleModify }) {
             </Typography>
           ) : undefined
         }
-      ></SimpleFlexSizeEditor>
+      ></SimpleFlexEditor>
       <Divider />
       <Stack spacing={1} direction="row">
         <Button
@@ -364,7 +365,7 @@ function SqlTableView_(props: {
   const [showSetSort, setShowSetSort] = useState(false);
   const [page, setPage] = useState(0);
   const setting = useContext(SettingContext);
-  const [pageSize, setPageSize] = useState(setting.pageSize);
+  const [pageSize, setPageSize] = useState(savePageSize.get());
   const [resp, setResp] = useState<types.MuiDataGridData>({
     sql: '',
     fields: [],
@@ -409,9 +410,7 @@ function SqlTableView_(props: {
         };
         return (
           <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
-            <Tooltip title={makeTitle()} arrow>
-              {def.field}
-            </Tooltip>
+            <Tooltip title={makeTitle()}>{def.field}</Tooltip>
             {def.is_primary && <KeyIcon style={{ fontSize: '16px' }}></KeyIcon>}
           </Stack>
         );
@@ -541,10 +540,9 @@ function SqlTableView_(props: {
   const onPaginationModelChange = useCallback((e) => {
     setPage(e.page);
     setPageSize(e.pageSize);
+    savePageSize.save(e.pageSize);
   }, []);
-
   const { setUpMenu } = useContext(ContextMenuContext);
-
   const onSortModelChange = useCallback((sorts: GridSortModel) => {
     if (sorts.length == 0) {
       setSort('');
@@ -699,7 +697,7 @@ function SqlTableView_(props: {
         </Button>
         {/* <Typography color="info"> select * from {tableName} where </Typography> */}
 
-        <Tooltip title="filter something like 'age=18'" arrow>
+        <Tooltip title="filter something like 'age=18'">
           <Chip
             label={where}
             onClick={() => {
@@ -710,7 +708,7 @@ function SqlTableView_(props: {
           ></Chip>
         </Tooltip>
         {/* <Typography color="info"> order by </Typography> */}
-        <Tooltip title="sort something like 'age asc'" arrow>
+        <Tooltip title="sort something like 'age asc'">
           <Chip
             label={sort}
             onClick={() => {
@@ -734,7 +732,7 @@ function SqlTableView_(props: {
             />
             {resp.cache_time && (
               <>
-                <Tooltip title="last cache time" arrow>
+                <Tooltip title="last cache time">
                   <Typography color="info">
                     {new Date(resp.cache_time * 1000).toLocaleString()}
                   </Typography>

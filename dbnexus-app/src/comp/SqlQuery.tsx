@@ -47,7 +47,7 @@ import {
   ErrAndLoc,
   getEditorText,
   QueryLogHandler,
-  SaveSizesToStore,
+  SaveDomSizes,
   secondConfirm,
   SetCloseConfirmTextContext,
   SettingContext,
@@ -57,11 +57,6 @@ import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRound
 import { ExportView } from './Export.tsx';
 import { invoke } from '@tauri-apps/api/core';
 import { ExecutingTime, PossibleParseError } from './CommonComp.tsx';
-
-const fileFilter = {
-  filters: [{ name: 'sql', extensions: ['sql', 'cql', 'txt'] }],
-};
-
 function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
@@ -124,7 +119,7 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
 
   return (
     <>
-      <Tooltip title="reverse commit mode" arrow>
+      <Tooltip title="reverse commit mode">
         <Chip
           onClick={reverseCommitMode}
           label={`${commit ? 'auto' : 'manual'}-commit`}
@@ -135,16 +130,16 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
 
       {!commit && (
         <>
-          <Tooltip title="executes after begin transaction" arrow>
+          <Tooltip title="executes after begin transaction">
             <Chip label={txCount} size="small" color="info"></Chip>
           </Tooltip>
 
-          <Tooltip title="commit" arrow>
+          <Tooltip title="commit">
             <IconButton onClick={commitTx} color="primary">
               <FaUpload fontSize="1.1rem"></FaUpload>
             </IconButton>
           </Tooltip>
-          <Tooltip title="rollback" arrow>
+          <Tooltip title="rollback">
             <IconButton onClick={rollbackTx} color="primary">
               <MdOutlineReply fontSize="1.7rem"></MdOutlineReply>
             </IconButton>
@@ -191,7 +186,6 @@ function SqlQuery(props: {
   );
   const queryLogHandler = useRef(new QueryLogHandler(uuid));
   const [executeTimes, setExecuteTimes] = useState(0);
-  const [file, setFile] = useState('');
   const [conn, setConn] = useState<IQueryConn | null>(null);
   const [showExport, setShowExport] = useState(false);
 
@@ -412,7 +406,7 @@ function SqlQuery(props: {
   const [size, setSize] = useState(400);
   const sizeKey = 'query-size';
   useEffect(() => {
-    SaveSizesToStore.getSize(sizeKey).then((s) => {
+    SaveDomSizes.getSize(sizeKey).then((s) => {
       if (s && s.height) {
         setSize(s.height);
       }
@@ -469,7 +463,7 @@ function SqlQuery(props: {
       size={size}
       style={{ position: 'relative' }}
       onChange={(newvalue) => {
-        SaveSizesToStore.saveSize(sizeKey, { height: newvalue });
+        SaveDomSizes.saveSize(sizeKey, { height: newvalue });
       }}
     >
       <div
@@ -491,7 +485,7 @@ function SqlQuery(props: {
           spacing={1}
           sx={{ alignItems: 'center', flexWrap: 'wrap' }}
         >
-          <Tooltip title="execute" arrow>
+          <Tooltip title="execute">
             <IconButton
               loading={loading}
               disabled={loading || conn == null}
@@ -504,7 +498,7 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="execute and append result to tabs" arrow>
+          <Tooltip title="execute and append result to tabs">
             <IconButton
               loading={loading}
               disabled={loading || conn == null}
@@ -517,7 +511,7 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="execute sql not expecting result" arrow>
+          <Tooltip title="execute sql not expecting result">
             <IconButton
               loading={loading}
               disabled={loading || conn == null}
@@ -528,7 +522,7 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
           {supportExplain && (
-            <Tooltip title="explain sql" arrow>
+            <Tooltip title="explain sql">
               <IconButton
                 loading={loading}
                 disabled={loading || conn == null}
@@ -551,7 +545,6 @@ function SqlQuery(props: {
                 ? `query used ${showSuggestReconn}ms,try reconnect?`
                 : 'reconnect'
             }
-            arrow
           >
             <IconButton
               onClick={() => {
@@ -563,7 +556,7 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="export query result to a file" arrow>
+          <Tooltip title="export query result to a file">
             <IconButton
               loading={loading}
               disabled={loading || conn == null}
@@ -580,7 +573,6 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
           <Tooltip
-            arrow
             title={
               !favoriteName
                 ? 'save sql to favorite.'
@@ -607,18 +599,15 @@ function SqlQuery(props: {
           </Tooltip>
 
           <LoadStoreFileForQuery
-            file={file}
             getQuery={() => {
               return editor.current.getValue();
             }}
-            handleChange={(file, content) => {
-              setFile(file);
+            handleChange={(content) => {
               editor.current.setValue(content);
             }}
-            openOpt={{ ...fileFilter }}
-            saveOpt={{ ...fileFilter }}
+            kind={kind}
           ></LoadStoreFileForQuery>
-          <Tooltip title="query log" arrow>
+          <Tooltip title="query log">
             <IconButton
               onClick={() => {
                 setShowQueryLog((prev) => !prev);
@@ -700,7 +689,6 @@ function SqlQuery(props: {
                   }
                 }}
                 name="export_query_result"
-                supportCsvHeader={true}
               ></ExportView>
             </Box>
           </Modal>

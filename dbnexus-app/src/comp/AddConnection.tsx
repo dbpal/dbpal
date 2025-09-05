@@ -349,7 +349,11 @@ function Database(props: {
   return (
     <Stack>
       {candidates.length > 0 && (
-        <Stack direction="row" style={{ flexWrap: 'wrap' }}>
+        <Stack
+          direction="row"
+          style={{ flexWrap: 'wrap', alignItems: 'center' }}
+        >
+          <Typography color="success"> candidates:</Typography>
           {candidates.map((e) => (
             <Button
               key={e}
@@ -399,7 +403,11 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
   return (
     <Stack>
       {candidates.length > 0 && (
-        <Stack direction="row" style={{ flexWrap: 'wrap' }}>
+        <Stack
+          direction="row"
+          style={{ flexWrap: 'wrap', alignItems: 'center' }}
+        >
+          <Typography color="success"> candidates:</Typography>
           {candidates.map((e) => (
             <Button
               key={e}
