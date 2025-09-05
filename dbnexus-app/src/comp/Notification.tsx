@@ -1,4 +1,10 @@
-import React, { useState, ReactNode, createContext, useEffect } from 'react';
+import React, {
+  useState,
+  ReactNode,
+  createContext,
+  useEffect,
+  ReactElement,
+} from 'react';
 import {
   Snackbar,
   Alert,
@@ -16,7 +22,7 @@ interface NotificationContextProps {
   showNotification: (
     severity: AlertColor,
     title: string,
-    message?: string | Error
+    message?: string | Error | ReactElement
   ) => void;
 }
 
@@ -35,13 +41,13 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const [notification, setNotification] = useState({
     severity: 'info' as AlertColor,
     title: '',
-    message: '',
+    message: '' as any,
   });
 
   const showNotification = (
     severity: AlertColor,
     title: string,
-    message: string | Error | { reason: string } | undefined
+    message: string | Error | { reason: string } | ReactElement
   ) => {
     if (typeof message == 'object' && 'reason' in message) {
       // TODO show message
@@ -96,26 +102,30 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
               spacing={1}
               style={{ alignItems: 'flex-start' }}
             >
-              <Typography color={notification.severity}>
-                {notification.message}
-              </Typography>
-
-              {notification.message && (
-                <Button
-                  onClick={() => {
-                    handleCopyToClipboard(
-                      notification.message,
-                      undefined,
-                      () => {
-                        setCopeid(true);
-                      }
-                    );
-                  }}
-                  color={copied ? 'success' : 'primary'}
-                >
-                  {copied ? 'copied' : 'copy'}
-                </Button>
+              {React.isValidElement(notification.message) ? (
+                notification.message
+              ) : (
+                <Typography color={notification.severity}>
+                  {notification.message}
+                </Typography>
               )}
+              {notification.message &&
+                typeof notification.message == 'string' && (
+                  <Button
+                    onClick={() => {
+                      handleCopyToClipboard(
+                        notification.message,
+                        undefined,
+                        () => {
+                          setCopeid(true);
+                        }
+                      );
+                    }}
+                    color={copied ? 'success' : 'primary'}
+                  >
+                    {copied ? 'copied' : 'copy'}
+                  </Button>
+                )}
             </Stack>
           </Alert>
         </Snackbar>

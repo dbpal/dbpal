@@ -1268,6 +1268,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
               ),
             },
           }}
+          style={{ flex: 1 }}
         />
 
         <TextField

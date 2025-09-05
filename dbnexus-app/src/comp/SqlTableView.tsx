@@ -486,7 +486,10 @@ function SqlTableView_(props: {
         showNotification(
           'success',
           'Update OK',
-          `sql:${ret.sql} row affected:${ret.changes}`
+          <Stack>
+            <Typography> sql:{ret.sql} </Typography>
+            <Typography> row affected :{ret.changes} </Typography>
+          </Stack>
         );
         handleReload(false);
       } catch (e) {
@@ -522,7 +525,10 @@ function SqlTableView_(props: {
       showNotification(
         'success',
         'delete OK',
-        `sql:${ret.sql} row affected:${ret.changes}`
+        <Stack>
+          <Typography> sql:{ret.sql} </Typography>
+          <Typography> row affected :{ret.changes} </Typography>
+        </Stack>
       );
     } catch (e) {
       showNotification('error', 'delete failed', e);
