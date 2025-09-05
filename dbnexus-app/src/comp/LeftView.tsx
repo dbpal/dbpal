@@ -62,7 +62,6 @@ import {
   SettingContext,
   TabsSetContext,
   UuidContext,
-  TabActiveContext,
 } from './helper';
 import { ExceedMaxTreeItem, MenuRefresh } from './CommonComp';
 import { MongoTable } from './MongoDB';
@@ -348,7 +347,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
       e.width = width;
     }
   });
-  const vis = useContext(TabActiveContext);
+
   const { setUpMenu } = useContext(ContextMenuContext);
 
   function Menu(props: { content: string }) {
@@ -406,26 +405,24 @@ function ColumnsContent(props: { uuid: string; view: string }) {
         </Button>
       </Stack>
 
-      {vis && (
-        <div
-          style={{
-            display: 'grid',
-          }}
-        >
-          <DataGrid
-            style={gridStyle}
-            getRowId={getRowId}
-            slotProps={slotProps}
-            onColumnResize={onColumnResize}
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            rowHeight={setting.datagridRowHeightXXX()}
-            columnHeaderHeight={setting.datagridRowHeightXXX()}
-            columns={cols}
-            rows={fields}
-          ></DataGrid>
-        </div>
-      )}
+      <div
+        style={{
+          display: 'grid',
+        }}
+      >
+        <DataGrid
+          style={gridStyle}
+          getRowId={getRowId}
+          slotProps={slotProps}
+          onColumnResize={onColumnResize}
+          showCellVerticalBorder
+          showColumnVerticalBorder
+          rowHeight={setting.datagridRowHeightXXX()}
+          columnHeaderHeight={setting.datagridRowHeightXXX()}
+          columns={cols}
+          rows={fields}
+        ></DataGrid>
+      </div>
     </Stack>
   );
 }

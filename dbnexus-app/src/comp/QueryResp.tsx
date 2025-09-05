@@ -20,7 +20,6 @@ import {
   handleCopyToClipboard,
   columnWidths,
   ContextMenuContext,
-  TabActiveContext,
   resetMuiDataRespWidth,
   SettingContext,
   gridStyle,
@@ -329,7 +328,6 @@ function MultiQueryResp_(props: { data: any[] }) {
     setValue(newValue);
   };
 
-  const vis = useContext(TabActiveContext);
   return (
     <div style={{ top, opacity, left: top, ...styleForTrans }}>
       <div style={{ display: 'grid' }}>
@@ -347,15 +345,13 @@ function MultiQueryResp_(props: { data: any[] }) {
 
       {data.map((e, index) => {
         return (
-          <TabActiveContext.Provider value={vis && index == value} key={index}>
-            <div hidden={value != index}>
-              {e.Err ? (
-                <Alert severity="error">{e.Err}</Alert>
-              ) : (
-                <QueryResp data={e.Ok}></QueryResp>
-              )}
-            </div>
-          </TabActiveContext.Provider>
+          <div hidden={value != index} key={index}>
+            {e.Err ? (
+              <Alert severity="error">{e.Err}</Alert>
+            ) : (
+              <QueryResp data={e.Ok}></QueryResp>
+            )}
+          </div>
         );
       })}
     </div>

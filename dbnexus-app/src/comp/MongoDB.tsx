@@ -82,7 +82,6 @@ import {
   saveAndSetSize,
   SettingContext,
   validJson,
-  TabActiveContext,
   savePageSize,
 } from './helper';
 
@@ -1233,7 +1232,6 @@ function MongoTableList(props: {
         }
       }
     : undefined;
-  const vis = useContext(TabActiveContext);
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
     return {
@@ -1296,35 +1294,33 @@ function MongoTableList(props: {
     <>
       {resp && (
         <Stack spacing={1}>
-          {vis && (
-            <div
-              style={{
-                display: 'grid',
-              }}
-            >
-              <DataGrid
-                style={gridStyle}
-                loading={loading}
-                showCellVerticalBorder
-                showColumnVerticalBorder
-                slotProps={slotProps}
-                getRowId={getRowId}
-                rowHeight={setting.datagridRowHeightXXX()}
-                columnHeaderHeight={setting.datagridRowHeightXXX()}
-                rowCount={resp.total}
-                columns={resp.fields}
-                rows={resp.data}
-                pageSizeOptions={pageSizeOptions}
-                paginationMode="server"
-                paginationModel={paginationModel}
-                onPaginationModelChange={onPaginationModelChange}
-                onRowDoubleClick={onRowDoubleClick}
-                sortingMode="server"
-                onSortModelChange={onSortModelChange}
-                onColumnResize={onColumnResize}
-              ></DataGrid>
-            </div>
-          )}
+          <div
+            style={{
+              display: 'grid',
+            }}
+          >
+            <DataGrid
+              style={gridStyle}
+              loading={loading}
+              showCellVerticalBorder
+              showColumnVerticalBorder
+              slotProps={slotProps}
+              getRowId={getRowId}
+              rowHeight={setting.datagridRowHeightXXX()}
+              columnHeaderHeight={setting.datagridRowHeightXXX()}
+              rowCount={resp.total}
+              columns={resp.fields}
+              rows={resp.data}
+              pageSizeOptions={pageSizeOptions}
+              paginationMode="server"
+              paginationModel={paginationModel}
+              onPaginationModelChange={onPaginationModelChange}
+              onRowDoubleClick={onRowDoubleClick}
+              sortingMode="server"
+              onSortModelChange={onSortModelChange}
+              onColumnResize={onColumnResize}
+            ></DataGrid>
+          </div>
         </Stack>
       )}
       {selectModifyDoc && (
