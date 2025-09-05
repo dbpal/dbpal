@@ -22,6 +22,7 @@ use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 use dbnexus_db::sqlite::SqliteDB;
+use font_kit::error::SelectionError;
 pub const PASSWORD_KEY: &str = "site.dbpal.dev";
 #[tauri::command]
 pub fn has_entered_password(
@@ -34,9 +35,8 @@ pub fn has_entered_password(
 #[tauri::command]
 pub async fn fonts_all_families() -> Result<Vec<String>, ErrorFrontend> {
     let source = font_kit::source::SystemSource::new();
-    let fonts: Result<Vec<String>, font_kit::error::SelectionError> = source.all_families();
-    let x = if let Ok(font) = fonts { font } else { vec![] };
-    Ok(x)
+    let fonts = source.all_families().map_err(ErrorFrontend::from)?;
+    Ok(fonts)
 }
 
 #[tauri::command]
@@ -2619,7 +2619,14 @@ pub struct ErrorFrontend {
     // long message about why and backtrace
     detail: String,
 }
-
+impl From<SelectionError> for ErrorFrontend {
+    fn from(value: SelectionError) -> Self {
+        ErrorFrontend {
+            reason: value.to_string(),
+            detail: value.to_string(),
+        }
+    }
+}
 impl From<tauri::Error> for ErrorFrontend {
     fn from(value: tauri::Error) -> Self {
         let x = Self {
