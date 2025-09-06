@@ -124,7 +124,7 @@ function ModifySettings() {
         showNotification('success', 'Save Setting Failure', e);
       });
   };
-  const headerSize = '30%';
+  const headerSize = '16rem';
   useEffect(() => {
     if (!bgColor) {
       setBgColorErr('');
@@ -273,7 +273,7 @@ function ModifySettings() {
       </Stack>
 
       <Stack spacing={1}>
-        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+        <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
           <Tooltip
             title="dbpal use monaco editor as build in editor"
             placement="top"
@@ -282,35 +282,37 @@ function ModifySettings() {
               monaco editor options:
             </Typography>
           </Tooltip>
+          <Stack style={{ flex: 1 }} spacing={1}>
+            <Stack direction="row">
+              <IconButton
+                onClick={() => {
+                  setShowEditorOptions((e) => !e);
+                }}
+                color="primary"
+              >
+                <EditIcon> </EditIcon>
+              </IconButton>
+              <Typography color="info">{editorOptions}</Typography>
+            </Stack>
 
-          <IconButton
-            onClick={() => {
-              setShowEditorOptions((e) => !e);
-            }}
-            color="primary"
-          >
-            <EditIcon> </EditIcon>
-          </IconButton>
-
-          <Typography color="info">{editorOptions}</Typography>
+            {editorOptions && (
+              <EditorOptions
+                handleClose={() => {
+                  setShowEditorOptions(false);
+                }}
+                style={{
+                  height: '40vh',
+                  border: '1px solid',
+                  borderRadius: '8px',
+                  padding: '8px',
+                  display: showEditorOptions ? 'flex' : 'none',
+                }}
+                editorOptions={editorOptions}
+                setEditorOptions={setEditorOptions}
+              ></EditorOptions>
+            )}
+          </Stack>
         </Stack>
-
-        {editorOptions && (
-          <EditorOptions
-            handleClose={() => {
-              setShowEditorOptions(false);
-            }}
-            style={{
-              height: '40vh',
-              border: '1px solid',
-              borderRadius: '8px',
-              padding: '8px',
-              display: showEditorOptions ? 'flex' : 'none',
-            }}
-            editorOptions={editorOptions}
-            setEditorOptions={setEditorOptions}
-          ></EditorOptions>
-        )}
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
