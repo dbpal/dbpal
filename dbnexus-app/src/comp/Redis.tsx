@@ -1033,6 +1033,7 @@ function RedisSetTable(props: {
           }}
         >
           <DataGrid
+            showToolbar
             style={gridStyle}
             showCellVerticalBorder
             showColumnVerticalBorder
@@ -1352,6 +1353,7 @@ function RedisListTable(props: {
           }}
         >
           <DataGrid
+            showToolbar
             loading={loading}
             style={gridStyle}
             showCellVerticalBorder
@@ -1695,6 +1697,7 @@ function RedisZsetTable(props: {
           }}
         >
           <DataGrid
+            showToolbar
             style={gridStyle}
             onColumnResize={onColumnResize}
             loading={loading}
@@ -1977,6 +1980,7 @@ function RedisHashTable(props: {
           }}
         >
           <DataGrid
+            showToolbar
             onColumnResize={onColumnResize}
             loading={loading}
             style={gridStyle}

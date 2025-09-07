@@ -411,6 +411,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
         }}
       >
         <DataGrid
+          showToolbar
           style={gridStyle}
           getRowId={getRowId}
           slotProps={slotProps}

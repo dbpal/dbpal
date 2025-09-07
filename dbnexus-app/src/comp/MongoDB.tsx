@@ -1300,6 +1300,7 @@ function MongoTableList(props: {
             }}
           >
             <DataGrid
+              showToolbar
               style={gridStyle}
               loading={loading}
               showCellVerticalBorder

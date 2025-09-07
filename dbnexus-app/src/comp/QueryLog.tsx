@@ -207,6 +207,7 @@ function QueryLog(props: {
           }}
         >
           <DataGrid
+            showToolbar
             style={gridStyle}
             showCellVerticalBorder
             showColumnVerticalBorder

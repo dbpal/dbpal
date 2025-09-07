@@ -189,10 +189,10 @@ fn infer_multi_value_column_names(docs: &[Document]) -> anyhow::Result<Vec<Field
                 bson::Bson::Symbol(_) => "symbol",
                 bson::Bson::Decimal128(_) => "decimal128",
                 bson::Bson::Undefined => "undefined",
-                bson::Bson::MaxKey => continue,
-                bson::Bson::MinKey => continue,
+                bson::Bson::MaxKey => "max_key",
+                bson::Bson::MinKey => "min_key",
                 // Deprecated
-                bson::Bson::DbPointer(_) => continue,
+                bson::Bson::DbPointer(_) => "db_pointer",
             };
             ret.insert(k.clone(), Field::from_name_type(k.as_str(), ty));
         }

@@ -814,6 +814,7 @@ function SqlTableView_(props: {
         }}
       >
         <DataGrid
+          showToolbar
           style={gridStyle}
           loading={loading}
           showCellVerticalBorder

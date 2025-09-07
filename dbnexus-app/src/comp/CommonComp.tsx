@@ -458,6 +458,7 @@ function MetaValuesView({ values = [] as types.MetaValue[] }) {
       }}
     >
       <DataGrid
+        showToolbar
         style={gridStyle}
         sortModel={sortModel}
         onSortModelChange={onSortModelChange}

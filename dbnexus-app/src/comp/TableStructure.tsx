@@ -306,6 +306,7 @@ function ColumnsStructure(props: {
         }}
       >
         <DataGrid
+          showToolbar
           style={gridStyle}
           getRowId={getRowId}
           slotProps={slotProps}
@@ -628,6 +629,7 @@ function IndexesStructure(props: {
         }}
       >
         <DataGrid
+          showToolbar
           style={gridStyle}
           getRowId={getRowId}
           slotProps={slotProps}
@@ -1691,6 +1693,7 @@ function TriggersStructure(props: {
         }}
       >
         <DataGrid
+          showToolbar
           style={gridStyle}
           getRowId={getRowId}
           slotProps={slotProps}

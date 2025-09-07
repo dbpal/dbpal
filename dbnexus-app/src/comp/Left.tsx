@@ -451,6 +451,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
         }}
       >
         <DataGrid
+          showToolbar
           style={gridStyle}
           getRowId={getRowId}
           sortModel={sortModel}
@@ -787,6 +788,7 @@ function FavoriteSqlList(props: { handleClose }) {
         }}
       >
         <DataGrid
+          showToolbar
           style={gridStyle}
           sortModel={sortModel}
           onSortModelChange={onSortModelChange}
