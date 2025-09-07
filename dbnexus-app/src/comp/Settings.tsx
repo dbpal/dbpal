@@ -306,6 +306,7 @@ function ModifySettings() {
                   borderRadius: '8px',
                   padding: '8px',
                   display: showEditorOptions ? 'flex' : 'none',
+                  transform: 'all 0.7s ease',
                 }}
                 editorOptions={editorOptions}
                 setEditorOptions={setEditorOptions}

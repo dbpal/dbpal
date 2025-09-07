@@ -136,6 +136,7 @@ impl DBTrait for MongoDB {
 fn bson_value_to_string(b: &bson::Bson) -> anyhow::Result<Option<String>> {
     match b {
         Bson::Null | Bson::Undefined | Bson::MaxKey | Bson::MinKey => return anyhow::Ok(None),
+        Bson::String(x) => return anyhow::Ok(Some(x.to_owned())),
         _ => {}
     }
     let x = serde_json::to_string_pretty(b)?;
@@ -149,10 +150,11 @@ fn collect_table_resp(
     for doc in docs.iter() {
         let mut values = vec![];
         for f in fs.iter() {
-            let value = doc
-                .get(&f.field)
-                .and_then(|b| bson_value_to_string(b).ok())
-                .flatten();
+            let value = match doc.get(&f.field) {
+                Some(x) => Some(bson_value_to_string(x)?),
+                None => None,
+            }
+            .flatten();
             values.push(value);
         }
         ret.push(values);
