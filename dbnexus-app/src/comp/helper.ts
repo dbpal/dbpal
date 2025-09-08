@@ -7,6 +7,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
 import { BSON, EJSON } from "bson";
 import Database, { QueryResult } from '@tauri-apps/plugin-sql';
+import { pageSizeOptions } from "./CommonComp";
 
 const appDatabase = await Database.load('sqlite:dbpal.sqlite.db');
 function setUpDatabase() {
@@ -627,6 +628,8 @@ class UserSettings {
   tabSize: number = 4;
   lightBgColor: string = undefined;
   darkBgColor: string = undefined;
+  csvDelimiter: string = ',';
+  includeCsvHeader: boolean = true;
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
   editorTheme(): string {
     return this.isDark() ? 'vs-dark' : 'light';
@@ -646,10 +649,7 @@ class UserSettings {
     }
     let r = new UserSettings();
     for (const key in x) {
-      const v = x[key];
-      if (v) {
-        r[key] = v;
-      }
+      r[key] = x[key];
     }
     return r;
   }
@@ -745,6 +745,13 @@ function makeExecuteSql(uuid) {
 }
 
 
+function getStackTrace() {
+  const error = new Error();
+  console.log(error.stack);
+}
+
+
+
 class ColorFn {
 
   static hexToRgb(hex) {
@@ -777,8 +784,13 @@ class SavePageSize {
     })
   }
   save(size: number, key = "default") {
-    this.sizes[key] = size;
-    appStore.set(AppStoreKey.PageSize, this.sizes);
+    if (pageSizeOptions.find(e => size == e)) {
+      this.sizes[key] = size;
+      appStore.set(AppStoreKey.PageSize, this.sizes);
+    } else {
+      console.log("invalid page size", size, "this is bug");
+      getStackTrace();
+    }
   }
   get(key = "default", defaultSize = 100) {
     return this.sizes[key] || defaultSize;

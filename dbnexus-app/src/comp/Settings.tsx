@@ -8,12 +8,14 @@ import {
   CssBaseline,
   CssVarsTheme,
   Divider,
+  FormControlLabel,
   IconButton,
   InputAdornment,
   MenuItem,
   Select,
   Slider,
   Stack,
+  Switch,
   TextField,
   Theme,
   ThemeProvider,
@@ -48,6 +50,8 @@ function ModifySettings() {
   const [tabSize, setTabSize] = useState(2);
   const [bgColor, setBgColor] = useState('');
   const [bgColorErr, setBgColorErr] = useState('');
+  const [csvDelimiter, setCsvDelimiter] = useState(',');
+  const [csvHeader, setCsvHeader] = useState(true);
   const bgColorTextField = useRef<HTMLInputElement>(null);
   useEffect(() => {
     invoke<string[]>('fonts_all_families', {})
@@ -71,6 +75,8 @@ function ModifySettings() {
       } else {
         setBgColor(setting.lightBgColor);
       }
+      setCsvDelimiter(setting.csvDelimiter);
+      setCsvHeader(setting.includeCsvHeader);
       const content = JSON.stringify(
         setting.editorOption ? setting.editorOption : {},
         null,
@@ -110,6 +116,8 @@ function ModifySettings() {
       fontFamily,
       tabSize,
       editorOption: JSON.parse(editorOptions),
+      csvDelimiter: csvDelimiter,
+      includeCsvHeader: csvHeader,
     } as UserSettings;
     if (theme == 'dark') {
       s.darkBgColor = bgColor;
@@ -149,6 +157,7 @@ function ModifySettings() {
       spacing={1}
       style={{ backgroundColor: bgColorErr ? undefined : bgColor }}
     >
+      <Divider textAlign="left"> appearance </Divider>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           font size:
@@ -258,6 +267,62 @@ function ModifySettings() {
 
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
+          background color:
+        </Typography>
+        <div style={{ position: 'relative' }}>
+          <IconButton
+            color="primary"
+            onClick={() => {
+              setShowEditBgColor((e) => !e);
+            }}
+          >
+            <EditIcon> </EditIcon>
+          </IconButton>
+          {showEditBgColor && (
+            <HexColorPicker
+              color={bgColor}
+              onChange={(newValue) => {
+                setBgColor(newValue);
+              }}
+              style={{ position: 'absolute', zIndex: 10, top: '3rem' }}
+            />
+          )}
+        </div>
+
+        <TextField
+          value={bgColor}
+          onChange={(e) => {
+            setBgColor(e.target.value);
+          }}
+          inputRef={bgColorTextField}
+          style={{ width: '10rem' }}
+          size="small"
+          error={!!bgColorErr}
+          slotProps={{
+            input: {
+              endAdornment: bgColor && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setBgColor('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+        ></TextField>
+        <div style={{ position: 'relative' }}></div>
+        {bgColorErr && <Typography color="error"> {bgColorErr} </Typography>}
+      </Stack>
+
+      <Divider textAlign="left"> editor </Divider>
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
           tab size:
         </Typography>
 
@@ -315,60 +380,27 @@ function ModifySettings() {
           </Stack>
         </Stack>
       </Stack>
-
+      <Divider textAlign="left"> export </Divider>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
-          background color:
+          csv delimiter:
         </Typography>
-        <div style={{ position: 'relative' }}>
-          <IconButton
-            color="primary"
-            onClick={() => {
-              setShowEditBgColor((e) => !e);
-            }}
-          >
-            <EditIcon> </EditIcon>
-          </IconButton>
-          {showEditBgColor && (
-            <HexColorPicker
-              color={bgColor}
-              onChange={(newValue) => {
-                setBgColor(newValue);
-              }}
-              style={{ position: 'absolute', zIndex: 10, top: '3rem' }}
-            />
-          )}
-        </div>
-
         <TextField
-          value={bgColor}
-          onChange={(e) => {
-            setBgColor(e.target.value);
-          }}
-          inputRef={bgColorTextField}
-          style={{ width: '10rem' }}
           size="small"
-          error={!!bgColorErr}
-          slotProps={{
-            input: {
-              endAdornment: bgColor && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setBgColor('');
-                    }}
-                    edge="end"
-                    size="small"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
+          value={csvDelimiter}
+          onChange={(e) => setCsvDelimiter(e.target.value)}
+          error={csvDelimiter.length > 1}
+          helperText="only accept one character"
         ></TextField>
-        <div style={{ position: 'relative' }}></div>
-        {bgColorErr && <Typography color="error"> {bgColorErr} </Typography>}
+        <FormControlLabel
+          control={
+            <Switch
+              checked={csvHeader}
+              onChange={(e) => setCsvHeader(e.target.checked)}
+            />
+          }
+          label="include csv header"
+        />
       </Stack>
 
       <Divider />

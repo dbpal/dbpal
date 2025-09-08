@@ -35,6 +35,9 @@ import { NotificationContext } from './Notification';
 import { IoIosAddCircle } from 'react-icons/io';
 import {
   DataGrid,
+  GridCallbackDetails,
+  GridPaginationModel,
+  GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
 } from '@mui/x-data-grid';
@@ -48,7 +51,6 @@ import {
   SimpleFlexEditor,
 } from './Common';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import KeyIcon from '@mui/icons-material/Key';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
@@ -76,6 +78,7 @@ import {
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
 import {
+  AppColumnMenu,
   ExecutingTime,
   MenuResetColumnWidths,
   ModalHeader,
@@ -86,6 +89,7 @@ import { CancellationToken, editor, languages, Position } from 'monaco-editor';
 import { loader } from '@monaco-editor/react';
 import wcmatch from 'wildcard-match';
 import { MdEditNote } from 'react-icons/md';
+
 const confrimAboutPrimary = async (
   notWarnPri,
   fields: types.Field[]
@@ -135,7 +139,6 @@ loader
   .catch((e) => {
     console.log('init monaco language error:', e);
   });
-
 function WhereSort(props: {
   open: boolean;
   onClose;
@@ -364,6 +367,7 @@ function SqlTableView_(props: {
   const [showSetSort, setShowSetSort] = useState(false);
   const [page, setPage] = useState(0);
   const setting = useContext(SettingContext);
+
   const [pageSize, setPageSize] = useState(savePageSize.get());
   const [resp, setResp] = useState<types.MuiDataGridData>({
     sql: '',
@@ -542,11 +546,19 @@ function SqlTableView_(props: {
   const paginationModel = useMemo(() => {
     return { page, pageSize };
   }, [page, pageSize]);
-  const onPaginationModelChange = useCallback((e) => {
-    setPage(e.page);
-    setPageSize(e.pageSize);
-    savePageSize.save(e.pageSize);
-  }, []);
+  const onPaginationModelChange = useCallback(
+    (e: GridPaginationModel, reason: GridCallbackDetails<'pagination'>) => {
+      if (reason.reason == 'setPaginationModel') {
+        setPage(e.page);
+        setPageSize(e.pageSize);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    savePageSize.save(pageSize);
+  }, [pageSize]);
   const { setUpMenu } = useContext(ContextMenuContext);
   const onSortModelChange = useCallback((sorts: GridSortModel) => {
     if (sorts.length == 0) {
@@ -586,7 +598,6 @@ function SqlTableView_(props: {
           let content = row[field];
           delete row[keyNotInTable];
           let nullable = resp.fields.find((e) => e.field == field).nullable;
-
           setUpMenu({
             content: (
               <Menu
@@ -649,8 +660,13 @@ function SqlTableView_(props: {
             style: calMenuStyle(e),
           });
         },
-
         style: { cursor: 'context-menu' },
+      },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.csvDelimiter,
+          includeHeaders: setting.includeCsvHeader,
+        },
       },
     } as GridSlotsComponentsProps;
   }, [resp]);
@@ -682,7 +698,9 @@ function SqlTableView_(props: {
       };
     }
   }, [viewInModalBox]);
-
+  const slots = useMemo(() => {
+    return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
+  }, []);
   return (
     <Stack spacing={1}>
       <Stack
@@ -815,6 +833,7 @@ function SqlTableView_(props: {
       >
         <DataGrid
           showToolbar
+          slots={slots}
           style={gridStyle}
           loading={loading}
           showCellVerticalBorder
@@ -1147,7 +1166,6 @@ function Menu(props: {
     editRowInModal,
     resetColunmWidthCallBack,
     quoteStyle,
-    //@ts-ignore
     viewInModal,
   } = props;
   const { showNotification } = useContext(NotificationContext);
@@ -1164,7 +1182,9 @@ function Menu(props: {
           isAdd
         ></SqlTableViewData>
       );
-      setSelectTab(tabs.length);
+      setTimeout(() => {
+        setSelectTab(tabs.length);
+      }, 100);
       return [
         ...tabs,
         new TabContent(
@@ -1239,16 +1259,6 @@ function Menu(props: {
           </MenuItem>
         )}
 
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(field, showNotification);
-          }}
-        >
-          <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
-          </ListItemIcon>
-          <ListItemText> Copy Field </ListItemText>
-        </MenuItem>
         <Divider />
         <MenuItem
           onClick={() => {

@@ -159,7 +159,10 @@ function UdfMenu(props: {
       setSelectTab(index);
     } else {
       setTabs((e) => {
-        setSelectTab(tabs.length);
+        setTimeout(() => {
+          setSelectTab(tabs.length);
+        }, 100);
+
         return [
           ...e,
           new TabContent(
@@ -251,7 +254,10 @@ function CassandraAggregateMenu(props: {
       setSelectTab(index);
     } else {
       setTabs((e) => {
-        setSelectTab(tabs.length);
+        setTimeout(() => {
+          setSelectTab(tabs.length);
+        }, 100);
+
         return [
           ...e,
           new TabContent(

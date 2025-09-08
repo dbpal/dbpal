@@ -46,7 +46,9 @@ import { NotificationContext } from './Notification';
 import { TbJson } from 'react-icons/tb';
 import {
   DataGrid,
+  GridCallbackDetails,
   GridPaginationModel,
+  GridSlotsComponent,
   GridSlotsComponentsProps,
 } from '@mui/x-data-grid';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -63,6 +65,7 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { BsFillLightbulbFill } from 'react-icons/bs';
 import DataObjectIcon from '@mui/icons-material/DataObject';
 import {
+  AppColumnMenu,
   ExecutingTime,
   MenuResetColumnWidths,
   ModalHeader,
@@ -681,16 +684,6 @@ function MongoTableListContextMenu(props: {
           </MenuItem>
         )}
 
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(field, showNotification);
-          }}
-        >
-          <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
-          </ListItemIcon>
-          <ListItemText> Copy Field </ListItemText>
-        </MenuItem>
         <Divider />
         <MenuItem
           onClick={() => {
@@ -725,7 +718,7 @@ function MongoTableListContextMenu(props: {
           <ListItemIcon>
             <FilterAltIcon></FilterAltIcon>
           </ListItemIcon>
-          <ListItemText> Filter </ListItemText>
+          <ListItemText> Quick Filter </ListItemText>
         </MenuItem>
         {delOP && (
           <MenuItem
@@ -782,7 +775,7 @@ function MongoTableListContextMenu(props: {
             setShowFilter(false);
           }}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="45%">
             <ModalHeader title="Quick Filter"></ModalHeader>
             <MongoTableListMenuFilter
               loadValue={async () => {
@@ -822,9 +815,34 @@ function MongoTableListMenuFilter(props: {
         showNotification('error', 'get field value failed', e);
       });
   }, []);
-
   useEffect(() => {
     let c = {};
+    if (compare == 'starts') {
+      c[field] = { $regex: `^${value}`, $options: 'i' };
+      setDoc(c);
+      return;
+    }
+    if (compare == 'ends') {
+      c[field] = { $regex: `${value}$`, $options: 'i' };
+      setDoc(c);
+      return;
+    }
+    if (compare == 'contains') {
+      c[field] = { $regex: `${value}`, $options: 'i' };
+      setDoc(c);
+      return;
+    }
+    if (compare == 'null') {
+      c[field] = null;
+      setDoc(c);
+      return;
+    }
+    if (compare == 'not null') {
+      c[field] = { $ne: null };
+      setDoc(c);
+      return;
+    }
+
     c[compare] = value;
     let doc = {};
     doc[field] = c;
@@ -846,8 +864,34 @@ function MongoTableListMenuFilter(props: {
           ></Chip>
         ))}
       </Stack>
-      {bsonValue2MongoBson(doc).format()}
-      <Stack direction="row">
+      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+        {['null', 'not null'].map((e) => (
+          <Chip
+            label={e}
+            color={compare === e ? 'primary' : 'default'}
+            onClick={() => {
+              setCompare(e);
+            }}
+            size="small"
+          ></Chip>
+        ))}
+      </Stack>
+      {typeof value == 'string' && (
+        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+          {['starts', 'contains', 'ends'].map((e) => (
+            <Chip
+              label={e}
+              color={compare === e ? 'primary' : 'default'}
+              onClick={() => {
+                setCompare(e);
+              }}
+              size="small"
+            ></Chip>
+          ))}
+        </Stack>
+      )}
+
+      <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
         <Button
           variant="contained"
           onClick={() => {
@@ -857,6 +901,9 @@ function MongoTableListMenuFilter(props: {
         >
           set
         </Button>
+        <Typography color="success">
+          {bsonValue2MongoBson(doc).format()}
+        </Typography>
       </Stack>
     </Stack>
   );
@@ -1130,7 +1177,7 @@ function MongoTableList(props: {
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
     null
   );
-
+  const setting = useContext(SettingContext);
   const handleReload = async (showOK) => {
     setLoading(true);
     reloadOP(filter, sort, page + 1, pageSize)
@@ -1190,11 +1237,18 @@ function MongoTableList(props: {
   const getRowId = useCallback((e) => {
     return renderId(e[keyNotInTable]);
   }, []);
-  const onPaginationModelChange = useCallback((m: GridPaginationModel) => {
-    setPage(m.page);
-    setPageSize(m.pageSize);
-    savePageSize.save(m.pageSize);
-  }, []);
+  const onPaginationModelChange = useCallback(
+    (e: GridPaginationModel, reason: GridCallbackDetails<'pagination'>) => {
+      if (reason.reason == 'setPaginationModel') {
+        setPage(e.page);
+        setPageSize(e.pageSize);
+      }
+    },
+    []
+  );
+  useEffect(() => {
+    savePageSize.save(pageSize);
+  }, [pageSize]);
   const onRowDoubleClick = useCallback((e) => {
     handleLoadOne(e.row._id).then((doc) => {
       setSelectModifyDoc(doc);
@@ -1275,13 +1329,20 @@ function MongoTableList(props: {
         },
         style: { cursor: 'context-menu' },
       },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.csvDelimiter,
+          includeHeaders: setting.includeCsvHeader,
+        },
+      },
     } as GridSlotsComponentsProps;
   }, [resp]);
-
+  const slots = useMemo(() => {
+    return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
+  }, []);
   const onColumnResize = useCallback(({ colDef, width }) => {
     columnWidths.saveColumnWidths(colDef.field, width);
   }, []);
-  const setting = useContext(SettingContext);
 
   const [modalBox, setModalBox] = useState(null);
   useEffect(() => {
@@ -1303,6 +1364,7 @@ function MongoTableList(props: {
               showToolbar
               style={gridStyle}
               loading={loading}
+              slots={slots}
               showCellVerticalBorder
               showColumnVerticalBorder
               slotProps={slotProps}

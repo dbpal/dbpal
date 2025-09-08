@@ -250,6 +250,12 @@ function ColumnsStructure(props: {
         },
         style: { cursor: 'context-menu' },
       },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.csvDelimiter,
+          includeHeaders: setting.includeCsvHeader,
+        },
+      },
     } as GridSlotsComponentsProps;
   }, []);
 
@@ -587,6 +593,12 @@ function IndexesStructure(props: {
           });
         },
         style: { cursor: 'context-menu' },
+      },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.csvDelimiter,
+          includeHeaders: setting.includeCsvHeader,
+        },
       },
     } as GridSlotsComponentsProps;
   }, []);
@@ -1368,7 +1380,7 @@ function ModifyTableColumn(props: {
 function TableTypes(props: { handleChange; uuid; type }) {
   let { handleChange, uuid, type } = props;
   const [types, setTypes] = useState<string[]>([]);
-
+  const { showNotification } = useContext(NotificationContext);
   const [match, setMatch] = useState('');
   useEffect(() => {
     invoke<string[]>('list_data_types', { name: uuid })
@@ -1376,7 +1388,7 @@ function TableTypes(props: { handleChange; uuid; type }) {
         setTypes(ts);
       })
       .catch((e) => {
-        console.log('should not return a error', e);
+        showNotification('error', 'should not return a error', e);
       });
   }, []);
   return (
@@ -1663,6 +1675,12 @@ function TriggersStructure(props: {
           });
         },
         style: { cursor: 'context-menu' },
+      },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.csvDelimiter,
+          includeHeaders: setting.includeCsvHeader,
+        },
       },
     } as GridSlotsComponentsProps;
   }, [triggers]);

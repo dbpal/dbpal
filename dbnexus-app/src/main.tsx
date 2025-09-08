@@ -8,7 +8,6 @@ import MainPage from './comp/MainPage';
 import { debugBuild } from './comp/debug';
 import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
-import * as tauriwindow from '@tauri-apps/api/window';
 import { platform } from '@tauri-apps/plugin-os';
 import {
   appStore,
@@ -18,11 +17,9 @@ import {
   windowFocusChangeEvent,
 } from './comp/helper';
 import { emit, listen } from '@tauri-apps/api/event';
-
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-
+const currentWebview = WebviewWindow.getCurrent();
 async function setZoom(out: boolean) {
-  const webview = WebviewWindow.getCurrent(); // Replace "main" with your webview label
   let zoom = await appStore.get<number>(AppStoreKey.Zoom);
   if (!zoom) {
     zoom = 1;
@@ -40,7 +37,7 @@ async function setZoom(out: boolean) {
       zoom = min;
     }
   }
-  webview.setZoom(zoom);
+  currentWebview.setZoom(zoom);
   await appStore.set(AppStoreKey.Zoom, zoom);
 }
 
@@ -52,49 +49,43 @@ listen('zoom_out', async (_) => {
   await setZoom(true);
 });
 listen('zoom_reset', async (_) => {
-  const webview = WebviewWindow.getCurrent();
-  webview.setZoom(1);
+  currentWebview.setZoom(1);
   appStore.set(AppStoreKey.Zoom, 1);
 });
 
 appStore.get<number>(AppStoreKey.Zoom).then(async (zoom) => {
   if (zoom) {
-    const webview = WebviewWindow.getCurrent();
-    await webview.setZoom(zoom);
+    await currentWebview.setZoom(zoom);
   }
 });
 
 if (['windows', 'linux'].includes(platform())) {
   document.addEventListener('keydown', function (event) {
     if (event.key === 'F11') {
-      const window = tauriwindow.getCurrent();
-      window.isFullscreen().then((isFull) => {
-        window.setFullscreen(!isFull);
+      currentWebview.isFullscreen().then((isFull) => {
+        currentWebview.setFullscreen(!isFull);
       });
     }
   });
 }
 
-let appWindow = tauriwindow.getCurrent();
-if (appWindow) {
-  appWindow.onCloseRequested(async (event) => {
-    let confirm = await secondConfirm({
-      title: 'close the window',
-      content: 'are u sure to exit the app',
-      confirmText: 'close',
-    });
-    if (!confirm) {
-      event.preventDefault();
-    }
+currentWebview.onCloseRequested(async (event) => {
+  let confirm = await secondConfirm({
+    title: 'close the window',
+    content: 'are u sure to exit the app',
+    confirmText: 'close',
   });
-}
+  if (!confirm) {
+    event.preventDefault();
+  }
+});
 
-appWindow.onFocusChanged((x) => {
+currentWebview.onFocusChanged((x) => {
   emit(windowFocusChangeEvent, x.payload);
 });
 
 if (!debugBuild) {
-  appWindow.theme().then(async (theme) => {
+  currentWebview.theme().then(async (theme) => {
     if (!theme) {
       return;
     }
@@ -104,7 +95,7 @@ if (!debugBuild) {
   });
 }
 
-appWindow.onThemeChanged(async (msg) => {
+currentWebview.onThemeChanged(async (msg) => {
   let set = await UserSettings.get();
   set.theme = msg.payload;
   appStore.set(AppStoreKey.UserSettings, set);

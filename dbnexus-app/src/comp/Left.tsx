@@ -375,6 +375,12 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
         },
         style: { cursor: 'context-menu' },
       },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.csvDelimiter,
+          includeHeaders: setting.includeCsvHeader,
+        },
+      },
     } as GridSlotsComponentsProps;
   }, []);
 
@@ -636,7 +642,9 @@ function FavoriteSqlList(props: { handleClose }) {
             );
         }
         handleClose();
-        setSelectTab(tabs.length);
+        setTimeout(() => {
+          setSelectTab(tabs.length);
+        }, 100);
         return [
           ...tabs,
           new TabContent(
@@ -708,6 +716,12 @@ function FavoriteSqlList(props: { handleClose }) {
           });
         },
         style: { cursor: 'context-menu' },
+      },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.csvDelimiter,
+          includeHeaders: setting.includeCsvHeader,
+        },
       },
     } as GridSlotsComponentsProps;
   }, []);
@@ -1331,7 +1345,10 @@ function openNewQuery(
   }
 
   setTabs((e: TabContent[]) => {
-    setSelectTab(e.length);
+    setTimeout(() => {
+      setSelectTab(e.length);
+    }, 100);
+
     return [
       ...e,
       new TabContent(

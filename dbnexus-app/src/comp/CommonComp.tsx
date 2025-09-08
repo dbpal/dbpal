@@ -25,6 +25,9 @@ import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import {
   DataGrid,
   GridColDef,
+  GridColumnMenu,
+  GridColumnMenuItemProps,
+  GridColumnMenuProps,
   GridSlotsComponentsProps,
   GridSortModel,
 } from '@mui/x-data-grid';
@@ -437,6 +440,12 @@ function MetaValuesView({ values = [] as types.MetaValue[] }) {
         },
         style: { cursor: 'context-menu' },
       },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.csvDelimiter,
+          includeHeaders: setting.includeCsvHeader,
+        },
+      },
     } as GridSlotsComponentsProps;
   }, []);
   const setting = useContext(SettingContext);
@@ -788,6 +797,37 @@ function ExecutingTime(props: { loading: boolean; disableTime?: boolean }) {
     </>
   );
 }
+function CopyMenuItem(props: GridColumnMenuItemProps) {
+  const { colDef } = props;
+  const { showNotification } = useContext(NotificationContext);
+  return (
+    <MenuItem
+      onClick={() => {
+        handleCopyToClipboard(colDef.field, showNotification);
+      }}
+    >
+      <ListItemIcon> </ListItemIcon>
+      <ListItemText> copy field </ListItemText>
+    </MenuItem>
+  );
+}
+
+function AppColumnMenu(props: GridColumnMenuProps) {
+  return (
+    <GridColumnMenu
+      {...props}
+      slots={{
+        // Add new item
+        closeColumnMenuCopyField: CopyMenuItem,
+      }}
+      slotProps={{
+        closeColumnMenuCopyField: {
+          displayOrder: 15,
+        },
+      }}
+    />
+  );
+}
 
 export {
   LogLevelSelection,
@@ -811,4 +851,5 @@ export {
   UdfNameAndParameters,
   PossibleParseError,
   ExecutingTime,
+  AppColumnMenu,
 };

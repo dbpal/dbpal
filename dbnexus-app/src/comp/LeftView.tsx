@@ -390,6 +390,12 @@ function ColumnsContent(props: { uuid: string; view: string }) {
         },
         style: { cursor: 'context-menu' },
       },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.csvDelimiter,
+          includeHeaders: setting.includeCsvHeader,
+        },
+      },
     } as GridSlotsComponentsProps;
   }, []);
 
@@ -594,7 +600,10 @@ function ViewMenu(props: {
     }
 
     setTabs((e) => {
-      setSelectTab(tabs.length);
+      setTimeout(() => {
+        setSelectTab(tabs.length);
+      }, 100);
+
       return [
         ...e,
         new TabContent(id, view, list, <VisibilityIcon> </VisibilityIcon>),
@@ -609,7 +618,10 @@ function ViewMenu(props: {
       setSelectTab(index);
     } else {
       setTabs((e) => {
-        setSelectTab(tabs.length);
+        setTimeout(() => {
+          setSelectTab(tabs.length);
+        }, 100);
+
         return [
           ...e,
           new TabContent(

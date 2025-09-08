@@ -1001,54 +1001,6 @@ interface Location {
 
 
 if (debugBuild) {
-  let x = parseMongoBson(`
-      
-
-    {
-  _id: 'e673e32b21ad-1746683913560',
-  hostname: 'e673e32b21ad',
-  startTime: '2025-05-08T05:58:33.000Z' as date,
-  startTimeLocal: 'Thu May  8 05:58:33.560',
-  cmdLine: {net: {bindIp: '*'}},
-  pid: 1,
-  buildinfo: {
-    version: '8.0.8',
-    gitVersion: '7f52660c14217ed2c8d3240f823a2291a4fe6abd',
-    modules: ["1fsdfsdfewrwerqwrweqrweqrwerwerewrewqrewqrq3r4324234324234234324234234324324",
-    "fsfdsfsdfdsfdsfdsfdsfdsf"],
-    allocator: 'tcmalloc-google',
-    javascriptEngine: 'mozjs',
-    sysInfo: 'deprecated',
-    versionArray: [8,0,8,0],
-    openssl: {
-      running: 'OpenSSL 3.0.13 30 Jan 2024',
-      compiled: 'OpenSSL 3.0.13 30 Jan 2024'
-    },
-    buildEnvironment: {
-      distmod: 'ubuntu2404',
-      distarch: 'aarch64',
-      cc: '/opt/mongodbtoolchain/v4/bin/gcc: gcc (GCC) 11.3.0',
-      ccflags: '-Werror -include mongo/platform/basic.h -ffp-contract=off -fasynchronous-unwind-tables -g2 -Wall -Wsign-compare -Wno-unknown-pragmas -Winvalid-pch -gdwarf-5 -fno-omit-frame-pointer -fno-strict-aliasing -O2 -march=armv8.2-a -mtune=generic -Wno-unused-local-typedefs -Wno-unused-function -Wno-deprecated-declarations -Wno-unused-const-variable -Wno-unused-but-set-variable -Wno-missing-braces -Wno-psabi -fstack-protector-strong -gdwarf64 -Wa,--nocompress-debug-sections -Wimplicit-fallthrough=5',
-      cxx: '/opt/mongodbtoolchain/v4/bin/g++: g++ (GCC) 11.3.0',
-      cxxflags: '-Woverloaded-virtual -Wpessimizing-move -Wno-maybe-uninitialized -fsized-deallocation -std=c++20',
-      linkflags: '-Wl,--fatal-warnings -B/opt/mongodbtoolchain/v4/bin -gdwarf-5 -pthread -Wl,-z,now -fuse-ld=lld -fstack-protector-strong -gdwarf64 -Wl,--build-id -Wl,--hash-style=gnu -Wl,-z,noexecstack -Wl,--warn-execstack -Wl,-z,relro -Wl,--compress-debug-sections=none -Wl,-z,origin -Wl,--enable-new-dtags',
-      target_arch: 'aarch64',
-      target_os: 'linux',
-      cppdefines: 'SAFEINT_USE_INTRINSICS 0 PCRE2_STATIC ABSL_ALLOCATOR_NOTHROW NDEBUG _XOPEN_SOURCE 700 _GNU_SOURCE _FORTIFY_SOURCE 2 ABSL_FORCE_ALIGNED_ACCESS BOOST_ENABLE_ASSERT_DEBUG_HANDLER BOOST_FILESYSTEM_NO_CXX20_ATOMIC_REF BOOST_LOG_NO_SHORTHAND_NAMES BOOST_LOG_USE_NATIVE_SYSLOG BOOST_LOG_WITHOUT_THREAD_ATTR BOOST_MATH_NO_LONG_DOUBLE_MATH_FUNCTIONS BOOST_SYSTEM_NO_DEPRECATED BOOST_THREAD_USES_DATETIME BOOST_THREAD_VERSION 5'
-    },
-    bits: 64,
-    debug: false,
-    maxBsonObjectSize: 16777216,
-    storageEngines: ['devnull','wiredTiger']
-  }
-}
-  
-
-      
-
-
-    `).format();
-  console.log("!!!!!!!!!!!!!!!!!", x);
 
 }
 

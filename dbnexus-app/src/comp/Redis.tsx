@@ -40,6 +40,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { NotificationContext } from './Notification';
 import {
   DataGrid,
+  GridCallbackDetails,
   GridPaginationModel,
   GridSlotsComponentsProps,
   GridSortModel,
@@ -614,7 +615,6 @@ function RedisValueEditor(props: {
   const [editModel, setEditModel] = useState<RedisEditorMode>(
     RedisEditorMode.Text
   );
-
   const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   useEffect(() => {
@@ -834,15 +834,6 @@ function RedisEditSet(props: {
   );
 }
 
-function redisRenderCell(p: any) {
-  let value = hexTryToString(p);
-  if (typeof value === 'string') {
-    return value;
-  } else {
-    return 'BINARY HEX ' + p;
-  }
-}
-
 function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
   const { delOP, content } = props;
   const { showNotification } = useContext(NotificationContext);
@@ -895,9 +886,7 @@ function RedisSetTable(props: {
           e.id = uuidv4();
         });
         resp.fields[0]['flex'] = 1;
-        resp.fields[0]['renderCell'] = (p) => {
-          return redisRenderCell(p.row.value);
-        };
+        resp.fields[0]['valueGetter'] = valueGetter;
         setResp(resp);
         if (showOK) {
           reloadOK(showNotification);
@@ -931,6 +920,7 @@ function RedisSetTable(props: {
   }, []);
 
   const { setUpMenu } = useContext(ContextMenuContext);
+  const setting = useContext(SettingContext);
   const slotProps = useMemo(() => {
     return {
       row: {
@@ -956,10 +946,16 @@ function RedisSetTable(props: {
         },
         style: { cursor: 'context-menu' },
       },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.csvDelimiter,
+          includeHeaders: setting.includeCsvHeader,
+        },
+      },
     } as GridSlotsComponentsProps;
   }, [resp]);
-  const settings = useContext(SettingContext);
 
+  const settings = useContext(SettingContext);
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modalBox) {
@@ -1210,9 +1206,7 @@ function RedisListTable(props: {
         }
         resp.fields[1]['sortable'] = false;
         resp.fields[1]['flex'] = 1;
-        resp.fields[1]['renderCell'] = (p) => {
-          return redisRenderCell(p.row.value);
-        };
+        resp.fields[1]['valueGetter'] = valueGetter;
         setResp(resp);
         setRespOrigin(resp);
         if (showReloadOK) {
@@ -1246,11 +1240,18 @@ function RedisListTable(props: {
     setSelectRow(e.row);
   }, []);
 
-  const onPaginationModelChange = useCallback((x: GridPaginationModel) => {
-    setPage(x.page);
-    setPageSize(x.pageSize);
-    savePageSize.save(x.pageSize);
-  }, []);
+  const onPaginationModelChange = useCallback(
+    (e: GridPaginationModel, reason: GridCallbackDetails<'pagination'>) => {
+      if (reason.reason == 'setPaginationModel') {
+        setPage(e.page);
+        setPageSize(e.pageSize);
+      }
+    },
+    []
+  );
+  useEffect(() => {
+    savePageSize.save(pageSize);
+  }, [pageSize]);
   const paginationModel = useMemo(() => {
     return { page, pageSize };
   }, [page, pageSize]);
@@ -1304,6 +1305,12 @@ function RedisListTable(props: {
           });
         },
         style: { cursor: 'context-menu' },
+      },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.csvDelimiter,
+          includeHeaders: setting.includeCsvHeader,
+        },
       },
     } as GridSlotsComponentsProps;
   }, [resp]);
@@ -1497,13 +1504,11 @@ function RedisZsetTable(props: {
         if (scoreWidth) {
           resp.fields[0]['width'] = scoreWidth;
         }
-        resp.fields[1]['renderCell'] = (p) => {
-          return redisRenderCell(p.row.key);
-        };
         resp.data.forEach((e) => {
           //@ts-ignore rewrite to float value
           e.score = parseFloat(e['score']);
         });
+        resp.fields[1]['valueGetter'] = valueGetter;
         setResp(resp);
         if (showOK) {
           reloadOK(showNotification);
@@ -1561,6 +1566,12 @@ function RedisZsetTable(props: {
           });
         },
         style: { cursor: 'context-menu' },
+      },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.csvDelimiter,
+          includeHeaders: setting.includeCsvHeader,
+        },
       },
     } as GridSlotsComponentsProps;
   }, [resp]);
@@ -1805,6 +1816,14 @@ function NotReturnAllErr(props: { has_more: boolean }) {
   );
 }
 
+const valueGetter = (value) => {
+  const x = hexTryToString(value);
+  if (typeof x === 'string') {
+    return x;
+  } else {
+    return 'binary value of' + value;
+  }
+};
 function RedisHashTable(props: {
   reloadOP: (keyMatch: string) => Promise<types.MuiDataGridData>;
   modifyOP: (
@@ -1832,14 +1851,10 @@ function RedisHashTable(props: {
         if (keyWidth) {
           resp.fields[0]['width'] = keyWidth;
         }
-
         resp.fields[1]['flex'] = 1;
-        resp.fields[0]['renderCell'] = (p) => {
-          return redisRenderCell(p.row.key);
-        };
-        resp.fields[1]['renderCell'] = (p) => {
-          return redisRenderCell(p.row.value);
-        };
+        resp.fields[0]['valueGetter'] = valueGetter;
+        resp.fields[1]['valueGetter'] = valueGetter;
+
         setResp(resp);
         if (showOK) {
           reloadOK(showNotification);
@@ -1897,6 +1912,12 @@ function RedisHashTable(props: {
           });
         },
         style: { cursor: 'context-menu' },
+      },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.csvDelimiter,
+          includeHeaders: setting.includeCsvHeader,
+        },
       },
     } as GridSlotsComponentsProps;
   }, [resp]);

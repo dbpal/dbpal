@@ -18,7 +18,6 @@ import SaveIcon from '@mui/icons-material/Save';
 import { languages, editor, Position, CancellationToken } from 'monaco-editor';
 import { types } from './ApiStruct';
 import { format as formatSql, SqlLanguage } from 'sql-formatter';
-
 import {
   createContext,
   ReactNode,
@@ -564,7 +563,6 @@ function ConnConfigInfo(props: { uuid }) {
       }
     } catch (e) {
       showNotification('error', 'call server metas failed', e);
-      console.log(e);
     }
   };
   useEffect(() => {
@@ -1106,6 +1104,7 @@ function LoadStoreFileForQuery(props: {
   const { getQuery, handleChange, kind } = props;
   const [file, setFile] = useState('');
   const { showNotification } = useContext(NotificationContext);
+
   const loadFile = async () => {
     // ok to load
     try {
@@ -1212,6 +1211,7 @@ function LoadStoreFileForQuery(props: {
           </Tooltip>
         </Stack>
       )}
+
       <Tooltip title="attach file">
         <IconButton onClick={loadFile} color="primary">
           <AttachFileIcon />

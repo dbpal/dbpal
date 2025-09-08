@@ -27,6 +27,7 @@ import {
 } from './helper.ts';
 import {
   DataGrid,
+  GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
 } from '@mui/x-data-grid';
@@ -46,11 +47,13 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification.tsx';
 import {
+  AppColumnMenu,
   MenuResetColumnWidths,
   ModalHeader,
   ViewRowInModal,
 } from './CommonComp.tsx';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+
 function RespContextMenu(props: {
   content;
   field;
@@ -75,17 +78,6 @@ function RespContextMenu(props: {
           <ListItemText> Copy </ListItemText>
         </MenuItem>
       )}
-
-      <MenuItem
-        onClick={() => {
-          handleCopyToClipboard(field, showNotification);
-        }}
-      >
-        <ListItemIcon>
-          <ContentCopyIcon></ContentCopyIcon>
-        </ListItemIcon>
-        <ListItemText> Copy Field </ListItemText>
-      </MenuItem>
 
       <MenuItem onClick={viewInModal}>
         <ListItemIcon>
@@ -124,6 +116,7 @@ function RespContextMenu(props: {
 function QueryResp_(props: { data: types.MuiDataGridData }) {
   let { data: oldData } = props;
   const [data, setData] = useState<types.MuiDataGridData>(null);
+  const setting = useContext(SettingContext);
   useEffect(() => {
     oldData.data.forEach((e) => {
       e[keyNotInTable] = uuidv4();
@@ -183,9 +176,15 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
         },
         style: { cursor: 'context-menu' },
       },
+      toolbar: {
+        csvOptions: {
+          delimiter: setting.csvDelimiter,
+          includeHeaders: setting.includeCsvHeader,
+        },
+      },
     } as GridSlotsComponentsProps;
   }, [data]);
-  const setting = useContext(SettingContext);
+
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);
   }, []);
@@ -199,6 +198,9 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
     }
   }, [viewInModalBox]);
 
+  const slots = useMemo(() => {
+    return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
+  }, []);
   return (
     <Stack>
       {data && (
@@ -227,6 +229,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
           >
             <DataGrid
               getRowId={getRowId}
+              slots={slots}
               style={gridStyle}
               sortModel={sortModel}
               onSortModelChange={onSortModelChange}

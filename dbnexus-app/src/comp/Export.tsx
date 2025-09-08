@@ -16,6 +16,7 @@ import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { invoke } from '@tauri-apps/api/core';
 import { ModalHeader } from './CommonComp';
 import { openPath } from '@tauri-apps/plugin-opener';
+import { SettingContext } from './helper';
 
 function generateDefaultFilename(name, extension) {
   if (extension == 'jsonline') {
@@ -41,13 +42,17 @@ function ExportView(props: {
 }) {
   const { exportOP, supportKind, name } = props;
   const [kind, setKind] = useState(supportKind[0]);
-  const [includeCsvHeader, setIncluCsvdeHeader] = useState(false);
-  const [delimiter, setDelimiter] = useState(',');
+  const setting = useContext(SettingContext);
+  const [includeCsvHeader, setIncluCsvdeHeader] = useState(
+    setting.includeCsvHeader
+  );
+  const [delimiter, setDelimiter] = useState(setting.csvDelimiter);
   const [pretty, setPretty] = useState(true);
   const [includeTableSchema, setIncludeTableScheam] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<string | null>(null);
+
   const makeConfig = (): types.ExportKind | null => {
     switch (kind) {
       case 'csv':
@@ -174,7 +179,7 @@ function ExportView(props: {
           />
         </Stack>
       )}
-      {/* json line have no setttings */}
+      {/* json line have no settings */}
 
       {kind == 'jsonline' && <></>}
 

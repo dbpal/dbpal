@@ -767,7 +767,10 @@ function TableMenu(props: {
       showNotification
     );
     setTabs((e) => {
-      setSelectTab(tabs.length);
+      setTimeout(() => {
+        setSelectTab(tabs.length);
+      }, 100);
+
       return [
         ...e,
         new TabContent(id, table, tableList, <TableViewIcon> </TableViewIcon>),
@@ -783,7 +786,9 @@ function TableMenu(props: {
       redisTableType
     );
     setTabs((e) => {
-      setSelectTab(tabs.length);
+      setTimeout(() => {
+        setSelectTab(tabs.length);
+      }, 100);
       return [
         ...e,
         new TabContent(
@@ -802,7 +807,10 @@ function TableMenu(props: {
       setSelectTab(index);
     } else {
       setTabs((e) => {
-        setSelectTab(tabs.length);
+        setTimeout(() => {
+          setSelectTab(tabs.length);
+        }, 100);
+
         return [
           ...e,
           new TabContent(

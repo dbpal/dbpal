@@ -206,6 +206,9 @@ pub trait SchemaTrait:
     async fn export_table_or_view_to_file(
         &self, table_name: &str, filepath: &str, kind: ExportKind,
     ) -> anyhow::Result<()> {
+        if !self.table_exists(table_name).await? {
+            anyhow::bail!("table not exists")
+        }
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
         let h1 = {
             let x = SchemaTrait::clone(self);

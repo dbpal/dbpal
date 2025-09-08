@@ -99,6 +99,7 @@ fn main_() {
             let window = app.get_webview_window("main").unwrap();
             window.open_devtools();
         }
+
         let store = app.store("store.json").unwrap();
         *unsafe { App::get_config_ref() } = Some(Box::new(move |name| {
             let configs: Vec<DBConnectionConfig> = serde_json::from_value(
@@ -135,6 +136,7 @@ fn main_() {
             }
             anyhow::bail!(format!("config named '{}' not found", name))
         }));
+
         Ok(())
     };
 

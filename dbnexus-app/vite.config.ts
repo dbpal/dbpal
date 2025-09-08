@@ -4,7 +4,6 @@ import { internalIpV4 } from 'internal-ip';
 import topLevelAwait from 'vite-plugin-top-level-await';
 import fs from 'fs';
 
-// @ts-expect-error process is a nodejs global
 const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 
 // https://vitejs.dev/config/
