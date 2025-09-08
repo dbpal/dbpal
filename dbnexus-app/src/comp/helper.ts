@@ -60,6 +60,18 @@ class QueryEvent {
 }
 
 
+function rustResultOk(x: any): boolean {
+  if (x instanceof Array) {
+    for (let i = 0; i < x.length; i++) {
+      if (!rustResultOk(x[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return !!x['Ok'];
+}
+
 class QueryLogHandler {
   uuid: string
   name: string
@@ -67,9 +79,10 @@ class QueryLogHandler {
     this.uuid = uuid;
     this.name = extractConfigNameFromUuid(uuid);
   }
-  async save(sql: string, success: boolean, showNotification): Promise<void> {
+  async save(sql: string, success: boolean, showNotification?): Promise<void> {
     return appDatabase.execute("insert into query_log (uuid,name,sql,success) values (?,?,?,?)", [this.uuid, this.name, sql, success ? 1 : 0]).then(() => { }).catch(e => {
-      showNotification("error", "save query log fauked", e);
+      if (showNotification) { showNotification("error", "save query log failed", e); }
+
     });
   }
 
@@ -737,9 +750,12 @@ function makeGetParserErrr(uuid) {
 }
 function makeExecuteSql(uuid) {
   return (sql: string): Promise<any> => {
-    return invoke<ErrAndLoc | null>('execute_sql_no_open_conn', {
+    return invoke<any>('execute_sql_no_open_conn', {
       name: uuid,
       sql,
+    }).then(e => {
+      new QueryLogHandler(uuid,).save(sql, rustResultOk(e));
+      return e
     });
   };
 }
@@ -859,7 +875,8 @@ export {
   QueryEvent,
   ColorFn,
   getSupportExportKind,
-  savePageSize
+  savePageSize,
+  rustResultOk
 };
 
 

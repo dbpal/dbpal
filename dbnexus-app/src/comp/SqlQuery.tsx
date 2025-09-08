@@ -47,6 +47,7 @@ import {
   ErrAndLoc,
   getEditorText,
   QueryLogHandler,
+  rustResultOk,
   SaveDomSizes,
   secondConfirm,
   SetCloseConfirmTextContext,
@@ -741,15 +742,4 @@ function SqlQuery(props: {
   );
 }
 
-function rustResultOk(x: any): boolean {
-  if (x instanceof Array) {
-    for (let i = 0; i < x.length; i++) {
-      if (!rustResultOk(x[i])) {
-        return false;
-      }
-    }
-    return true;
-  }
-  return !!x['Ok'];
-}
 export { SqlQuery };

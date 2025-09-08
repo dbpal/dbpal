@@ -775,7 +775,7 @@ impl SchemaTrait for RedisDB {
                 include_table_schema: _,
             } => self.export_table_to_command(key, sender).await,
             ExportKind::JsonLine => self.export_table_as_json_line(key, sender).await,
-            ExportKind::Xlsx { include_header } => anyhow::bail!("Not implemented yet"),
+            ExportKind::Xlsx { .. } => anyhow::bail!("Not implemented yet"),
         }
     }
 

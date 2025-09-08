@@ -831,8 +831,6 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
             let file = file.to_owned();
             tokio::spawn(async move {
                 let mut workbook = rust_xlsxwriter::workbook::Workbook::new();
-
-                let sheet_name = "Sheet1";
                 // Add a worksheet to the workbook.
                 let worksheet = workbook.add_worksheet();
 
