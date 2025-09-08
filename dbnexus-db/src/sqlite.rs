@@ -610,6 +610,7 @@ impl SchemaTrait for SqliteDB {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
+            ExportKind::Xlsx { include_header } => anyhow::bail!("Not implemented"),
         }
     }
 
@@ -1235,6 +1236,9 @@ impl ExportQueryResult for SqliteDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
+            ExportKind::Xlsx { include_header } => {
+                anyhow::bail!("xlsx export is not supported for sqlite")
+            }
         }
     }
 }

@@ -112,16 +112,20 @@ impl ExportQueryResult for OracleDB {
                 include_header,
                 delimiter,
             } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
+                self
+                    .export_query_result_as_csv(sql, include_header, delimiter, sender)
                     .await
             }
             ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
+                self
+                    .export_query_result_as_json(sql, pretty, sender)
+                    .await
             }
             ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
+            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx export is not supported for oracle"),
         }
     }
 }
@@ -1063,18 +1067,20 @@ impl SchemaTrait for OracleDB {
                 include_header,
                 delimiter,
             } => {
-                self.export_table_as_csv(name, include_header, delimiter, sender)
+                self
+                    .export_table_as_csv(name, include_header, delimiter, sender)
                     .await
             }
             ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
             ExportKind::JsonLine => self.export_table_as_json_line(name, sender).await,
-
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self.export_table_as_sql(name, include_table_schema, sender)
+                self
+                    .export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
+            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx export not supported yet"),
         }
     }
 

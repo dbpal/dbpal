@@ -778,6 +778,14 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
     async fn export_query_result_to_file(
         &self, sql: &str, kind: ExportKind, file: &str,
     ) -> anyhow::Result<()> {
+        match &kind {
+            ExportKind::Xlsx { include_header } => {
+                return self
+                    .export_query_result_to_xlsx(sql, *include_header, file)
+                    .await;
+            }
+            _ => {}
+        }
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
         let j1 = {
             let x = self.clone();
@@ -797,6 +805,62 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         j1.await??;
         j2.await??;
         anyhow::Ok(())
+    }
+
+    async fn export_xlsx(
+        &self, _sql: &str, _include_header: bool,
+        _sender: tokio::sync::mpsc::Sender<(
+            rust_xlsxwriter::RowNum,
+            rust_xlsxwriter::ColNum,
+            XlsxEdit,
+        )>,
+    ) -> anyhow::Result<()> {
+        not_support_feature(self.backend_name())
+    }
+
+    async fn export_query_result_to_xlsx(
+        &self, sql: &str, include_header: bool, file: &str,
+    ) -> anyhow::Result<()> {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+        let j1 = {
+            let x = self.clone();
+            let sql = sql.to_string();
+            tokio::spawn(async move { x.export_xlsx(&sql, include_header, sender).await })
+        };
+        let j2 = {
+            let file = file.to_owned();
+            tokio::spawn(async move {
+                let mut workbook = rust_xlsxwriter::workbook::Workbook::new();
+
+                let sheet_name = "Sheet1";
+                // Add a worksheet to the workbook.
+                let worksheet = workbook.add_worksheet();
+
+                while let Some((line, col, edit)) = receiver.recv().await {
+                    match edit {
+                        XlsxEdit::String(x) => {
+                            worksheet.write_string(line, col, x)?;
+                        }
+                    }
+                }
+                workbook.save(file)?;
+                anyhow::Ok(())
+            })
+        };
+        j1.await??;
+        j2.await??;
+        anyhow::Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum XlsxEdit {
+    String(String),
+}
+
+impl From<String> for XlsxEdit {
+    fn from(value: String) -> Self {
+        Self::String(value)
     }
 }
 
@@ -1182,6 +1246,9 @@ pub enum ExportKind {
     Sql {
         include_table_schema: bool,
     },
+    Xlsx {
+        include_header: bool,
+    },
 }
 
 impl ExportKind {
@@ -1292,20 +1359,6 @@ pub fn monaco_editor_keyword_regexp(keywords: &[&str]) -> String {
     ret
 }
 
-#[cfg(test)]
-mod tests {
-    use super::UdfOrProcedureExtraParameter;
-
-    #[test]
-    fn test_serde_udf_or_precedure_extra_parameter() {
-        let x = Some(UdfOrProcedureExtraParameter::PostGres {
-            parameters: "int".to_string(),
-        });
-        let s = serde_json::to_string_pretty(&x).unwrap();
-        println!("{:?}", s);
-    }
-}
-
 pub(crate) fn ty_is_int(x: &sqlparser::ast::DataType) -> bool {
     use sqlparser::ast::DataType;
 
@@ -1401,3 +1454,18 @@ impl AutoCompletionQueryUuid {
 }
 
 pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;
+
+#[cfg(test)]
+mod tests {
+
+    use super::UdfOrProcedureExtraParameter;
+
+    #[test]
+    fn test_serde_udf_or_precedure_extra_parameter() {
+        let x = Some(UdfOrProcedureExtraParameter::PostGres {
+            parameters: "int".to_string(),
+        });
+        let s = serde_json::to_string_pretty(&x).unwrap();
+        println!("{:?}", s);
+    }
+}

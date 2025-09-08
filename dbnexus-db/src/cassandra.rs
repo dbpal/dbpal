@@ -795,6 +795,7 @@ impl ExportQueryResult for CassandraDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
+            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx not supported"),
         }
     }
 }
@@ -1355,6 +1356,7 @@ impl SchemaTrait for CassandraDB {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
+            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx export not supported"),
         }
     }
 

@@ -762,19 +762,24 @@ impl SchemaTrait for MsSqlServerDB {
                 include_header,
                 delimiter,
             } => {
-                self.export_table_as_csv(table_name, include_header, delimiter, sender)
+                self
+                    .export_table_as_csv(table_name, include_header, delimiter, sender)
                     .await
             }
             ExportKind::Json { pretty } => {
-                self.export_table_as_json(table_name, pretty, sender).await
+                self
+                    .export_table_as_json(table_name, pretty, sender)
+                    .await
             }
             ExportKind::JsonLine => self.export_table_as_json_line(table_name, sender).await,
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self.export_table_as_sql(table_name, include_table_schema, sender)
+                self
+                    .export_table_as_sql(table_name, include_table_schema, sender)
                     .await
             }
+            ExportKind::Xlsx { .. } => anyhow::bail!("Not support xlsx export"),
         }
     }
 
@@ -1642,16 +1647,20 @@ impl ExportQueryResult for MsSqlServerDB {
                 include_header,
                 delimiter,
             } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
+                self
+                    .export_query_result_as_csv(sql, include_header, delimiter, sender)
                     .await
             }
             ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
+                self
+                    .export_query_result_as_json(sql, pretty, sender)
+                    .await
             }
             ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
+            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx export is not supported"),
         }
     }
 }

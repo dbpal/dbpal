@@ -88,6 +88,7 @@ rsfbclient = { version = "0.25.1", default-features = false, features = [
     "pure_rust",
 ] }
 rsfbclient-rust = "*"
+rust_xlsxwriter = "0.90.0"
 [dev-dependencies]
 
 
