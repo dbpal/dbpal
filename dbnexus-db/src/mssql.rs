@@ -24,7 +24,8 @@ use crate::db::{
     ListTable, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
-    escape_sql_str, format_data_time_fix_offset, not_support_feature,
+    XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset,
+    not_support_feature,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 
@@ -522,6 +523,12 @@ impl MsSqlServerDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for MsSqlServerDB {
+    async fn export_table_or_view_as_xlsx(
+        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}""#, name);
+        ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -762,21 +769,17 @@ impl SchemaTrait for MsSqlServerDB {
                 include_header,
                 delimiter,
             } => {
-                self
-                    .export_table_as_csv(table_name, include_header, delimiter, sender)
+                self.export_table_as_csv(table_name, include_header, delimiter, sender)
                     .await
             }
             ExportKind::Json { pretty } => {
-                self
-                    .export_table_as_json(table_name, pretty, sender)
-                    .await
+                self.export_table_as_json(table_name, pretty, sender).await
             }
             ExportKind::JsonLine => self.export_table_as_json_line(table_name, sender).await,
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self
-                    .export_table_as_sql(table_name, include_table_schema, sender)
+                self.export_table_as_sql(table_name, include_table_schema, sender)
                     .await
             }
             ExportKind::Xlsx { .. } => anyhow::bail!("Not support xlsx export"),
@@ -1446,7 +1449,7 @@ impl MsSqlServerDB {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let sql = format!("SELECT * from {}", table_name);
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
         let mut stream = conn.query(sql.as_str(), &[]).await?.try_chunks(100);
         while let Some(rows) = stream.next().await {
@@ -1635,6 +1638,49 @@ type Connection = Client<Compat<TcpStream>>;
 
 #[async_trait::async_trait]
 impl ExportQueryResult for MsSqlServerDB {
+    async fn export_as_xlsx(
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut first = true;
+        let mut stream = conn.query(sql, &[]).await?.try_chunks(100);
+        let mut row_num = 0;
+
+        while let Some(rows) = stream.next().await {
+            let rows = rows?;
+            let mut rows_row = Vec::new();
+            for r in rows.into_iter() {
+                match r {
+                    tiberius::QueryItem::Row(r) => {
+                        rows_row.push(r);
+                    }
+                    tiberius::QueryItem::Metadata(meta) => {
+                        if !first {
+                            anyhow::bail!("multiple result set")
+                        }
+                        if first && include_header {
+                            for (index, col) in meta.columns().iter().enumerate() {
+                                sender
+                                    .send(XlsxEdit {
+                                        row: row_num,
+                                        column: index as rust_xlsxwriter::ColNum,
+                                        content: col.name().to_owned(),
+                                    })
+                                    .await?;
+                            }
+                            first = false
+                        }
+                    }
+                }
+            }
+            if !rows_row.is_empty() {
+                let data = encode_rows(&rows_row)?;
+                export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
+            }
+        }
+        anyhow::Ok(())
+    }
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -1647,14 +1693,11 @@ impl ExportQueryResult for MsSqlServerDB {
                 include_header,
                 delimiter,
             } => {
-                self
-                    .export_query_result_as_csv(sql, include_header, delimiter, sender)
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
                     .await
             }
             ExportKind::Json { pretty } => {
-                self
-                    .export_query_result_as_json(sql, pretty, sender)
-                    .await
+                self.export_query_result_as_json(sql, pretty, sender).await
             }
             ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
             ExportKind::Sql {

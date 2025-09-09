@@ -14,7 +14,7 @@ use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     ExportKind, ExportQueryResult, Field, GetBackendKind, ListMaterializedView, ListTable,
     NamedStaff, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, escape_sql_str, ty_is_float, ty_is_int,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, XlsxEdit, escape_sql_str, ty_is_float, ty_is_int,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser, seperate_sql_by_sqlparser_tokenizer};
 use crate::language_server::CompletionItem;
@@ -176,6 +176,12 @@ impl ClickHouseDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for ClickHouseDB {
+    async fn export_table_or_view_as_xlsx(
+        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"select * from `{}`.`{}`"#, self.config.db_str(), name);
+        ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -220,8 +226,7 @@ impl SchemaTrait for ClickHouseDB {
                 include_header,
                 delimiter,
             } => {
-                self
-                    .export_table_as_csv(name, include_header, delimiter, sender)
+                self.export_table_as_csv(name, include_header, delimiter, sender)
                     .await
             }
             ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
@@ -229,8 +234,7 @@ impl SchemaTrait for ClickHouseDB {
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self
-                    .export_table_as_sql(name, include_table_schema, sender)
+                self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
             ExportKind::Xlsx { .. } => anyhow::bail!("xlsx export not supported"),
@@ -727,6 +731,40 @@ impl ClickHouseDB {
 }
 #[async_trait::async_trait]
 impl ExportQueryResult for ClickHouseDB {
+    async fn export_as_xlsx(
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let result = self.query_as_json(sql).await?;
+        let mut row_number = 0;
+        if include_header {
+            for (index, c) in result.meta.iter().enumerate() {
+                sender
+                    .send(XlsxEdit {
+                        row: row_number,
+                        column: index as rust_xlsxwriter::ColNum,
+                        content: c.name.clone(),
+                    })
+                    .await?;
+            }
+            row_number += 1;
+        }
+        let datas = result.encode_json_result()?;
+        for d in datas {
+            for (col, d) in d.into_iter().enumerate() {
+                if let Some(d) = d {
+                    sender
+                        .send(XlsxEdit {
+                            row: row_number,
+                            column: col as rust_xlsxwriter::ColNum,
+                            content: d,
+                        })
+                        .await?;
+                }
+            }
+            row_number += 1;
+        }
+        anyhow::Ok(())
+    }
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -739,14 +777,11 @@ impl ExportQueryResult for ClickHouseDB {
                 include_header,
                 delimiter,
             } => {
-                self
-                    .export_query_result_as_csv(sql, include_header, delimiter, sender)
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
                     .await
             }
             ExportKind::Json { pretty } => {
-                self
-                    .export_query_result_as_json(sql, pretty, sender)
-                    .await
+                self.export_query_result_as_json(sql, pretty, sender).await
             }
             ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
             ExportKind::Sql {

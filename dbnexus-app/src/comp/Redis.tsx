@@ -1192,7 +1192,7 @@ function RedisListTable(props: {
   const [pageSize, setPageSize] = useState(savePageSize.get());
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
-
+  const setting = useContext(SettingContext);
   const handleReload = (showReloadOK: boolean) => {
     setLoading(true);
     reloadOP()
@@ -1242,16 +1242,15 @@ function RedisListTable(props: {
 
   const onPaginationModelChange = useCallback(
     (e: GridPaginationModel, reason: GridCallbackDetails<'pagination'>) => {
+      setPage(e.page);
+      setPageSize(e.pageSize);
       if (reason.reason == 'setPaginationModel') {
-        setPage(e.page);
-        setPageSize(e.pageSize);
+        savePageSize.save(pageSize);
       }
     },
     []
   );
-  useEffect(() => {
-    savePageSize.save(pageSize);
-  }, [pageSize]);
+
   const paginationModel = useMemo(() => {
     return { page, pageSize };
   }, [page, pageSize]);
@@ -1314,7 +1313,6 @@ function RedisListTable(props: {
       },
     } as GridSlotsComponentsProps;
   }, [resp]);
-  const setting = useContext(SettingContext);
 
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -1486,6 +1484,7 @@ function RedisZsetTable(props: {
   const [maxErr, setMaxErr] = useState(false);
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
+  const setting = useContext(SettingContext);
   const handleReload = (showOK: boolean) => {
     if (minErr || maxErr) {
       return;
@@ -1575,7 +1574,6 @@ function RedisZsetTable(props: {
       },
     } as GridSlotsComponentsProps;
   }, [resp]);
-  const setting = useContext(SettingContext);
 
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -1840,6 +1838,7 @@ function RedisHashTable(props: {
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const setting = useContext(SettingContext);
   const handleReload = (showOK) => {
     setLoading(true);
     reloadOP(keyMatch)
@@ -1921,7 +1920,6 @@ function RedisHashTable(props: {
       },
     } as GridSlotsComponentsProps;
   }, [resp]);
-  const setting = useContext(SettingContext);
 
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {

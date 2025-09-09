@@ -1239,16 +1239,15 @@ function MongoTableList(props: {
   }, []);
   const onPaginationModelChange = useCallback(
     (e: GridPaginationModel, reason: GridCallbackDetails<'pagination'>) => {
+      setPage(e.page);
+      setPageSize(e.pageSize);
       if (reason.reason == 'setPaginationModel') {
-        setPage(e.page);
-        setPageSize(e.pageSize);
+        savePageSize.save(pageSize);
       }
     },
     []
   );
-  useEffect(() => {
-    savePageSize.save(pageSize);
-  }, [pageSize]);
+
   const onRowDoubleClick = useCallback((e) => {
     handleLoadOne(e.row._id).then((doc) => {
       setSelectModifyDoc(doc);

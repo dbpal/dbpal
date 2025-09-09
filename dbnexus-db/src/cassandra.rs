@@ -32,8 +32,8 @@ use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef,
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
     ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter,
-    escape_sql_str,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
+    escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::{create_csv, current_timestamp};
 use crate::language_server::LexerCompletionTrait;
@@ -773,6 +773,37 @@ fn sql_to_each(sql: &str) -> Vec<&str> {
 #[async_trait::async_trait]
 
 impl ExportQueryResult for CassandraDB {
+    async fn export_as_xlsx(
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let resp = self.session.query(sql).await?.response_body()?;
+        let meta = resp.as_rows_metadata().map(|x| x.clone());
+        let meta = match meta {
+            Some(x) => x,
+            None => anyhow::bail!("no meta found???"),
+        };
+        let mut row_num = 0;
+
+        if include_header {
+            for (index, col) in meta.col_specs.iter().enumerate() {
+                sender
+                    .send(XlsxEdit {
+                        row: 0,
+                        column: index as rust_xlsxwriter::ColNum,
+                        content: col.name.clone(),
+                    })
+                    .await?;
+            }
+            row_num += 1;
+        }
+        let rows = resp.into_rows().unwrap_or_default();
+
+        let data = encode_rows(&meta, &rows)?;
+
+        export_query_as_xlsx_send_data(&mut row_num, data, sender).await?;
+
+        anyhow::Ok(())
+    }
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -1308,6 +1339,16 @@ impl CassandraDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for CassandraDB {
+    async fn export_table_or_view_as_xlsx(
+        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"select * from "{}"."{}""#,
+            self.config.key_space_str(),
+            name
+        );
+        ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }

@@ -455,17 +455,17 @@ function SqlQuery(props: {
     DataSourceKind.FireBird,
   ].includes(kind);
 
-  return (
+  let main = (
     //@ts-ignore
     <SplitPane
       split="horizontal"
       defaultSize={500}
       minSize={200}
       size={size}
-      style={{ position: 'relative' }}
       onChange={(newvalue) => {
         SaveDomSizes.saveSize(sizeKey, { height: newvalue });
       }}
+      style={{ height: 'fit-content' }}
     >
       <div
         style={{
@@ -557,7 +557,7 @@ function SqlQuery(props: {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="export query result to a file">
+          <Tooltip title="export query result to a file,implemented it not using query connection,uncommit row may not beable found">
             <IconButton
               loading={loading}
               disabled={loading || conn == null}
@@ -679,7 +679,7 @@ function SqlQuery(props: {
           >
             <Box sx={modalStyle} width="45%">
               <ExportView
-                supportKind={['csv', 'json', 'jsonline']}
+                supportKind={['csv', 'json', 'jsonline', 'xlsx']}
                 exportOP={async (kind, file) => {
                   try {
                     const sql = getEditorText(editor.current, showNotification);
@@ -701,7 +701,6 @@ function SqlQuery(props: {
               if (reason === 'backdropClick') {
                 return;
               }
-
               e.preventDefault();
               setShowFavoriteName(false);
             }}
@@ -740,6 +739,7 @@ function SqlQuery(props: {
       </div>
     </SplitPane>
   );
+  return <div style={{ position: 'relative' }}>{main}</div>;
 }
 
 export { SqlQuery };

@@ -257,6 +257,10 @@ export namespace types {
         "export_kind": "sql";
     } & {
         "include_table_schema": boolean;
+    }) | ({
+        "export_kind": "xlsx";
+    } & {
+        "include_header": boolean;
     }));
     export type RedisListTable = {
         "string_tables": (string)[];

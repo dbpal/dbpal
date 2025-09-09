@@ -205,9 +205,11 @@ export default function MainPage() {
   useEffect(() => {
     window.addEventListener('click', () => {
       const customMenu = document.getElementById('menu-div');
-      customMenu.style.display = 'none';
+      if (customMenu.style) {
+        customMenu.style.display = 'none';
+      }
     });
-  });
+  }, []);
 
   useEffect(() => {
     if (tab > 0 && tab >= tabs.length) {
@@ -294,7 +296,7 @@ export default function MainPage() {
                 style={{
                   position: 'fixed',
                   zIndex: 10000,
-                  height: 'auto',
+                  height: 'fit-content',
                   ...(menu && menu.style),
                 }}
               >

@@ -35,6 +35,23 @@ function generateDefaultFilename(name, extension) {
   return filename;
 }
 
+function IncludeHeader({ includeHeader, setIncludeHeader }) {
+  return (
+    <FormControlLabel
+      control={
+        <Checkbox
+          checked={includeHeader}
+          onChange={(e) => {
+            setIncludeHeader(e.target.checked);
+          }}
+          name="myCheckbox"
+          color="primary"
+        />
+      }
+      label="Include Header(if applicable)"
+    />
+  );
+}
 function ExportView(props: {
   name: string;
   exportOP: (kind: types.ExportKind, file: string) => Promise<void>;
@@ -43,9 +60,7 @@ function ExportView(props: {
   const { exportOP, supportKind, name } = props;
   const [kind, setKind] = useState(supportKind[0]);
   const setting = useContext(SettingContext);
-  const [includeCsvHeader, setIncluCsvdeHeader] = useState(
-    setting.includeCsvHeader
-  );
+  const [includeHeader, setIncludeHeader] = useState(setting.includeCsvHeader);
   const [delimiter, setDelimiter] = useState(setting.csvDelimiter);
   const [pretty, setPretty] = useState(true);
   const [includeTableSchema, setIncludeTableScheam] = useState(false);
@@ -62,7 +77,7 @@ function ExportView(props: {
         }
         return {
           export_kind: 'csv',
-          include_header: includeCsvHeader,
+          include_header: includeHeader,
           delimiter,
         };
       case 'sql':
@@ -71,6 +86,8 @@ function ExportView(props: {
         return { export_kind: 'json', pretty };
       case 'jsonline':
         return { export_kind: 'jsonline' };
+      case 'xlsx':
+        return { export_kind: 'xlsx', include_header: includeHeader };
     }
   };
 
@@ -118,19 +135,10 @@ function ExportView(props: {
       </Stack>
       {kind == 'csv' && (
         <Stack spacing={1}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={includeCsvHeader}
-                onChange={(e) => {
-                  setIncluCsvdeHeader(e.target.checked);
-                }}
-                name="myCheckbox"
-                color="primary"
-              />
-            }
-            label="Include Header(if applicable)"
-          />
+          <IncludeHeader
+            includeHeader={includeHeader}
+            setIncludeHeader={setIncludeHeader}
+          ></IncludeHeader>
           <Stack direction="row">
             <TextField
               size="small"
@@ -143,6 +151,14 @@ function ExportView(props: {
               helperText="only accept one character"
             ></TextField>
           </Stack>
+        </Stack>
+      )}
+      {kind == 'xlsx' && (
+        <Stack spacing={1}>
+          <IncludeHeader
+            includeHeader={includeHeader}
+            setIncludeHeader={setIncludeHeader}
+          ></IncludeHeader>
         </Stack>
       )}
       {kind == 'sql' && (
@@ -188,9 +204,7 @@ function ExportView(props: {
         <Button
           onClick={() => {
             openPath(file)
-              .then((e) => {
-                console.log('open ok', e);
-              })
+              .then(() => {})
               .catch((e) => {
                 showNotification('error', 'open export file failed', e);
               });

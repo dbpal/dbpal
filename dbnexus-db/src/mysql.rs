@@ -20,7 +20,8 @@ use crate::db::{
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
     NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait,
     SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, escape_sql_str,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, escape_sql_str,
+    export_query_as_xlsx_send_data,
 };
 use crate::language_server::CompletionItem;
 
@@ -667,6 +668,12 @@ impl std::fmt::Debug for MysqlDB {
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
+    async fn export_table_or_view_as_xlsx(
+        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from `{}`"#, name);
+        ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -981,8 +988,7 @@ impl SchemaTrait for MysqlDB {
                 include_header,
                 delimiter,
             } => {
-                self
-                    .export_table_as_csv(name, include_header, delimiter, sender)
+                self.export_table_as_csv(name, include_header, delimiter, sender)
                     .await
             }
             ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
@@ -990,8 +996,7 @@ impl SchemaTrait for MysqlDB {
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self
-                    .export_table_as_sql(name, include_table_schema, sender)
+                self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
             ExportKind::Xlsx { .. } => anyhow::bail!("xlsx not supported yet"),
@@ -1498,6 +1503,40 @@ impl DBTrait for MysqlDB {
 }
 #[async_trait::async_trait]
 impl ExportQueryResult for MysqlDB {
+    async fn export_as_xlsx(
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let mut first = true;
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch(conn.deref_mut())
+            .try_chunks(100);
+        let mut row_num = 0;
+        while let Some(rows) = stream.next().await {
+            let rows = rows?;
+
+            if first && !rows.is_empty() && include_header {
+                for (index, col) in rows[0].columns().iter().enumerate() {
+                    let col = col.name();
+                    sender
+                        .send(XlsxEdit {
+                            row: row_num,
+                            column: index as rust_xlsxwriter::ColNum,
+                            content: col.to_owned(),
+                        })
+                        .await?;
+                }
+                first = false;
+                row_num += 1;
+            }
+
+            let data = encode_rows(&rows, true)?;
+            export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
+        }
+
+        anyhow::Ok(())
+    }
+
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -1510,14 +1549,11 @@ impl ExportQueryResult for MysqlDB {
                 include_header,
                 delimiter,
             } => {
-                self
-                    .export_query_result_as_csv(sql, include_header, delimiter, sender)
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
                     .await
             }
             ExportKind::Json { pretty } => {
-                self
-                    .export_query_result_as_json(sql, pretty, sender)
-                    .await
+                self.export_query_result_as_json(sql, pretty, sender).await
             }
             ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
             ExportKind::Sql {

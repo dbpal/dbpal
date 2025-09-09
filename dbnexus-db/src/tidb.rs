@@ -5,7 +5,7 @@ use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
     NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
+    ShowExtraArgs, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter, XlsxEdit,
 };
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
@@ -53,6 +53,12 @@ impl std::fmt::Debug for TiDB {
 #[async_trait::async_trait]
 
 impl ExportQueryResult for TiDB {
+    async fn export_as_xlsx(
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        ExportQueryResult::export_as_xlsx(self.db.as_ref(), sql, include_header, sender).await
+    }
+
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -116,6 +122,12 @@ impl QuerySql for TiDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for TiDB {
+    async fn export_table_or_view_as_xlsx(
+        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        SchemaTrait::export_table_or_view_as_xlsx(self.db.as_ref(), name, include_header, sender)
+            .await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         self.db.list_sql_current_values()
     }

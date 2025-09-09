@@ -19,8 +19,8 @@ use crate::db::{
     AutoCompletionQueryUuid, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql,
     ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
-    escape_sql_str, not_support_feature,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
+    escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
@@ -212,13 +212,43 @@ impl SqliteDB {
         anyhow::Ok(())
     }
 
+    async fn export_query_result_as_xlsx(
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch(conn.deref_mut())
+            .try_chunks(1000);
+        let mut first = true;
+        let mut row_num = 0;
+        while let Some(rows) = stream.next().await {
+            let rows = rows?;
+            if first && rows.len() > 0 && include_header {
+                for (index, col) in rows[0].columns().iter().enumerate() {
+                    sender
+                        .send(XlsxEdit {
+                            row: row_num,
+                            column: index as rust_xlsxwriter::ColNum,
+                            content: col.name().to_string(),
+                        })
+                        .await?;
+                }
+                row_num += 1;
+                first = false;
+            }
+            let data = encode_rows(&rows)?;
+            export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
+        }
+        anyhow::Ok(())
+    }
+
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
+        self.export_query_result_as_csv(&sql, include_header, delimiter, sender.clone())
             .await
     }
 }
@@ -415,6 +445,14 @@ impl SqliteDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
+    async fn export_table_or_view_as_xlsx(
+        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * FROM "{}""#, name);
+        self.export_query_result_as_xlsx(&sql, include_header, sender)
+            .await
+    }
+
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -424,7 +462,7 @@ impl SchemaTrait for SqliteDB {
     }
 
     /*
-       在 SQLite 中，直接修改列类型（ALTER COLUMN TYPE）是不支持的。SQLite 的 ALTER TABLE 语句功能有限，它只允许：
+        在 SQLite 中，直接修改列类型（ALTER COLUMN TYPE）是不支持的。SQLite 的 ALTER TABLE 语句功能有限，它只允许：
     */
     async fn modify_table_column(
         &self, _table: &str, _old_name: &str, _new_name: &str, _typ: Option<ColumnType>,
@@ -1218,6 +1256,12 @@ impl ExportQueryResult for SqliteDB {
         Box::new(Clone::clone(self))
     }
 
+    async fn export_as_xlsx(
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        self.export_query_result_as_xlsx(sql, include_header, sender)
+            .await
+    }
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1913,7 +1957,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+
     async fn test_export_table() {
         let db = make_test_object().await;
         let table_name = "Persons";
@@ -2013,6 +2058,19 @@ mod tests {
                 .await
                 .unwrap();
             println!("json_line:{}", s);
+        }
+        {
+            let filepath = db.backend_name().make_test_xlsx_file(table_name);
+            db.export_table_or_view_to_file(
+                table_name,
+                &filepath,
+                ExportKind::Xlsx {
+                    include_header: true,
+                },
+            )
+            .await
+            .unwrap();
+            opener::open(&filepath).unwrap();
         }
     }
 

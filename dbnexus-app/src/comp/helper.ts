@@ -820,7 +820,7 @@ function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
     case DataSourceKind.Mongo:
       return ['json', 'jsonline'];
     default:
-      return isTable ? ['csv', 'sql', 'json', 'jsonline'] : ['csv', 'json', 'jsonline'];
+      return isTable ? ['csv', 'sql', 'json', 'jsonline', "xlsx"] : ['csv', 'json', 'jsonline', "xlsx"];
   }
 }
 

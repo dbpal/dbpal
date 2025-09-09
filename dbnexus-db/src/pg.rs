@@ -18,7 +18,8 @@ use crate::db::{
     Field, GetBackendKind, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff,
     POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
     SequenceDetail, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    export_query_as_xlsx_send_data,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
@@ -144,7 +145,11 @@ impl PostGresDB {
 
         let mut conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let sql = format!("SELECT * from {}.{}", self.config.schema_str(), table_name);
+        let sql = format!(
+            r#"SELECT * from "{}"."{}""#,
+            self.config.schema_str(),
+            table_name
+        );
         log::info!("sql:{}", sql);
         let mut stream = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch(conn.deref_mut())
@@ -519,6 +524,12 @@ impl PostGresDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
+    async fn export_table_or_view_as_xlsx(
+        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}"."{}""#, self.config.schema_str(), name);
+        ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -1779,6 +1790,39 @@ async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Re
 #[async_trait::async_trait]
 
 impl ExportQueryResult for PostGresDB {
+    async fn export_as_xlsx(
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let mut first = true;
+
+        let mut stream = sqlx::query(AssertSqlSafe(sql))
+            .fetch(conn.deref_mut())
+            .try_chunks(100);
+        let mut row_num = 0;
+
+        while let Some(rows) = stream.next().await {
+            let rows = rows?;
+            if first && !rows.is_empty() && include_header {
+                for (index, col) in rows[0].columns().iter().enumerate() {
+                    sender
+                        .send(XlsxEdit {
+                            row: row_num,
+                            column: index as rust_xlsxwriter::ColNum,
+                            content: col.name().to_string(),
+                        })
+                        .await?;
+                }
+                row_num += 1;
+                first = false
+            }
+
+            let data = encode_rows(&rows)?;
+            export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
+        }
+        anyhow::Ok(())
+    }
+
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }

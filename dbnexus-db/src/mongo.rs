@@ -17,7 +17,7 @@ use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
     GetBackendKind, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, not_support_feature,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, XlsxEdit, not_support_feature,
 };
 use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
@@ -85,6 +85,16 @@ impl ReadOnlyTrait for MongoDB {
 
 #[async_trait::async_trait]
 impl ExportQueryResult for MongoDB {
+    async fn export_query_result(
+        &self, _sql: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        not_support_feature(self.backend_name())
+    }
+    async fn export_as_xlsx(
+        &self, _sql: &str, _include_header: bool, _sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        not_support_feature(self.backend_name())
+    }
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -585,6 +595,11 @@ impl MongoDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for MongoDB {
+    async fn export_table_or_view_as_xlsx(
+        &self, _name: &str, _include_header: bool, _sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        not_support_feature(self.backend_name())
+    }
     async fn duplicate_table(&self, old_collection: &str, dup: &str) -> anyhow::Result<()> {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));

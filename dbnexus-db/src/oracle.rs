@@ -13,7 +13,7 @@ use crate::db::{
     ListMaterializedView, ListTable, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp,
     QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
-    escape_sql_str, not_support_feature,
+    XlsxEdit, escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
 use dashmap::DashMap;
 use oracle::pool::Pool;
@@ -100,6 +100,35 @@ impl OracleDB {
 const QUERY_AUTO_COMMIT: bool = true;
 #[async_trait::async_trait]
 impl ExportQueryResult for OracleDB {
+    async fn export_as_xlsx(
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let conn = self.get_conn().await?;
+        let sql = sql.to_owned();
+        tokio::task::spawn_blocking(move || {
+            let mut rows = conn.query(&sql, &[])?;
+            let mut row_num = 0;
+            let mut first = true;
+            while let Some(row) = rows.next() {
+                let row = row?;
+                if include_header && first {
+                    for (index, col) in rows.column_info().iter().enumerate() {
+                        sender.blocking_send(XlsxEdit {
+                            row: row_num,
+                            column: index as rust_xlsxwriter::ColNum,
+                            content: col.name().to_owned(),
+                        })?;
+                    }
+                    first = false;
+                    row_num += 1;
+                }
+                let data = encode_rows(vec![Ok(row)])?;
+                export_query_as_xlsx_send_blocking_data(&mut row_num, data, sender.clone())?;
+            }
+            anyhow::Ok(())
+        })
+        .await?
+    }
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -112,14 +141,11 @@ impl ExportQueryResult for OracleDB {
                 include_header,
                 delimiter,
             } => {
-                self
-                    .export_query_result_as_csv(sql, include_header, delimiter, sender)
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
                     .await
             }
             ExportKind::Json { pretty } => {
-                self
-                    .export_query_result_as_json(sql, pretty, sender)
-                    .await
+                self.export_query_result_as_json(sql, pretty, sender).await
             }
             ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
             ExportKind::Sql {
@@ -629,16 +655,6 @@ fn encode_row_as_json(r: &Row) -> anyhow::Result<serde_json::map::Map<String, se
     anyhow::Ok(values)
 }
 
-fn encode_rows_as_json(rows: Vec<oracle::Result<Row>>) -> anyhow::Result<Vec<serde_json::Value>> {
-    let mut datas = vec![];
-    for r in rows {
-        let r = r?;
-        let values = encode_row_as_json(&r)?;
-        datas.push(serde_json::Value::Object(values));
-    }
-    anyhow::Ok(datas)
-}
-
 fn create_view_sql(
     conn: &Connection, view_name: &str, materialized: bool,
 ) -> anyhow::Result<String> {
@@ -716,54 +732,59 @@ impl OracleDB {
         &self, table_name: &str, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        if include_table_schema {
-            let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
-            sender.send(Cow::Owned(ss.create_table.clone())).await?;
-            sender.send(";\n".into()).await?;
-            for index in ss.indexes.into_iter() {
-                sender.send(Cow::Owned(index)).await?;
-                sender.send(";\n".into()).await?;
-            }
-        }
         let conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let sql = format!("SELECT * from {}", table_name);
+        let sql = format!(r#"SELECT * from "{}"."{}""#, self.schema_str(), table_name);
+        let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
+        let __self = Clone::clone(self);
+        let table_name = table_name.to_owned();
         log::info!("sql:{}", sql);
-        let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
-        let rows = rows.into_iter().collect::<Vec<_>>();
-
-        let data = encode_rows(rows)?;
-        for d in data.into_iter() {
-            let mut m = HashMap::new();
-            for (d, f) in d.into_iter().zip(cols.iter()) {
-                m.insert(f.field.clone(), d);
+        tokio::task::spawn_blocking(move || {
+            if include_table_schema {
+                sender.blocking_send(Cow::Owned(ss.create_table.clone()))?;
+                sender.blocking_send(";\n".into())?;
+                for index in ss.indexes.into_iter() {
+                    sender.blocking_send(Cow::Owned(index))?;
+                    sender.blocking_send(";\n".into())?;
+                }
             }
-            let insert_sql = (self).insert_sql(None, table_name, &cols, &m)?;
-            sender.send(Cow::Owned(insert_sql)).await?;
-            sender.send(";\n".into()).await?;
-        }
-
-        anyhow::Ok(())
+            let mut rows = conn.query(sql.as_str(), &[])?;
+            while let Some(row) = rows.next() {
+                let row = row?;
+                let data = encode_rows(vec![Ok(row)])?;
+                for d in data.into_iter() {
+                    let mut m = HashMap::new();
+                    for (d, f) in d.into_iter().zip(cols.iter()) {
+                        m.insert(f.field.clone(), d);
+                    }
+                    let insert_sql = __self.insert_sql(None, &table_name, &cols, &m)?;
+                    sender.blocking_send(Cow::Owned(insert_sql))?;
+                    sender.blocking_send(";\n".into())?;
+                }
+            }
+            anyhow::Ok(())
+        })
+        .await?
     }
 
     async fn export_query_result_as_json_line(
         &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
-
-        let rows = block_in_place(|| conn.query(sql, &[]))?;
-        let rows = rows.into_iter().collect::<Vec<_>>();
-        for r in rows {
-            let r = r?;
-            let json = encode_row_as_json(&r)?;
-            let str = serde_json::to_string(&json)?;
-            sender.send(Cow::Owned(str)).await?;
-            sender.send("\n".into()).await?;
-        }
-
-        anyhow::Ok(())
+        let sql = sql.to_owned();
+        tokio::task::spawn_blocking(move || {
+            let mut rows = conn.query(&sql, &[])?;
+            while let Some(row) = rows.next() {
+                let row = row?;
+                let json = encode_row_as_json(&row)?;
+                let str = serde_json::to_string(&json)?;
+                sender.blocking_send(Cow::Owned(str))?;
+                sender.blocking_send("\n".into())?;
+            }
+            anyhow::Ok(())
+        })
+        .await?
     }
-
     async fn export_table_as_json_line(
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -776,19 +797,36 @@ impl OracleDB {
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
-
-        let rows = block_in_place(|| conn.query(sql, &[]))?;
-        let rows = rows.into_iter().collect::<Vec<_>>();
-        let json = encode_rows_as_json(rows)?;
-        let str = if pretty {
-            serde_json::to_string_pretty(&json)
-        } else {
-            serde_json::to_string(&json)
-        }?;
-        sender.send(Cow::Owned(str)).await?;
-        anyhow::Ok(())
+        let sql = sql.to_owned();
+        tokio::task::spawn_blocking(move || {
+            sender.blocking_send("[".into())?;
+            let mut first = true;
+            let mut rows = block_in_place(|| conn.query(&sql, &[]))?;
+            while let Some(row) = rows.next() {
+                let row = row?;
+                let json = encode_row_as_json(&row)?;
+                if !first {
+                    sender.blocking_send(",".into())?;
+                }
+                if pretty {
+                    sender.blocking_send("\n".into())?;
+                }
+                let str = if pretty {
+                    serde_json::to_string_pretty(&json)
+                } else {
+                    serde_json::to_string(&json)
+                }?;
+                sender.blocking_send(Cow::Owned(str))?;
+                first = false;
+            }
+            if pretty {
+                sender.blocking_send("\n".into())?;
+            }
+            sender.blocking_send("]".into())?;
+            anyhow::Ok(())
+        })
+        .await?
     }
-
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -805,47 +843,39 @@ impl OracleDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
-
-        let rows = block_in_place(|| conn.query(sql, &[]))?;
-        let rows: Vec<_> = rows.collect();
-        if include_header && !rows.is_empty() {
-            let fs = match rows.first().unwrap() {
-                Ok(x) => x
-                    .column_info()
-                    .iter()
-                    .map(|x| Some(x.name().to_owned()))
-                    .collect::<Vec<_>>(),
-                Err(_) => vec![],
-            };
-
-            sender
-                .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
-                .await?;
-        }
-
-        let data = encode_rows(rows)?;
-        sender
-            .send(Cow::Owned(create_csv(&data, delimiter)))
-            .await?;
-        anyhow::Ok(())
+        let sql = sql.to_owned();
+        tokio::task::spawn_blocking(move || {
+            let mut first = true;
+            let mut rows = conn.query(&sql, &[])?;
+            while let Some(row) = rows.next() {
+                let row = row?;
+                if include_header && first {
+                    let fs = row
+                        .column_info()
+                        .iter()
+                        .map(|x| Some(x.name().to_owned()))
+                        .collect();
+                    sender.blocking_send(Cow::Owned(create_csv(&vec![fs], delimiter)))?;
+                    first = false;
+                }
+                let data = encode_rows(vec![Ok(row)])?;
+                sender.blocking_send(Cow::Owned(create_csv(&data, delimiter)))?;
+            }
+            anyhow::Ok(())
+        })
+        .await?
     }
-
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        if include_header {
-            let fs = self.show_table_columns(table_name).await?;
-            let fs = fs.iter().map(|x| Some(x.field.clone())).collect::<Vec<_>>();
-            sender
-                .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
-                .await?;
-        }
-        let sql = format!("SELECT * from {}", table_name);
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
         self.export_query_result_as_csv(
-            &sql, false, // we have emit header before
-            delimiter, sender,
+            &sql,
+            include_header, // we have emit header before
+            delimiter,
+            sender,
         )
         .await
     }
@@ -952,6 +982,12 @@ impl ReadOnlyTrait for OracleDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for OracleDB {
+    async fn export_table_or_view_as_xlsx(
+        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}"."{}""#, self.schema_str(), name);
+        ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -1067,8 +1103,7 @@ impl SchemaTrait for OracleDB {
                 include_header,
                 delimiter,
             } => {
-                self
-                    .export_table_as_csv(name, include_header, delimiter, sender)
+                self.export_table_as_csv(name, include_header, delimiter, sender)
                     .await
             }
             ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
@@ -1076,8 +1111,7 @@ impl SchemaTrait for OracleDB {
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self
-                    .export_table_as_sql(name, include_table_schema, sender)
+                self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
             ExportKind::Xlsx { .. } => anyhow::bail!("xlsx export not supported yet"),

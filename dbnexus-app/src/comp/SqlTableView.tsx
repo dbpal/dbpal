@@ -548,17 +548,14 @@ function SqlTableView_(props: {
   }, [page, pageSize]);
   const onPaginationModelChange = useCallback(
     (e: GridPaginationModel, reason: GridCallbackDetails<'pagination'>) => {
+      setPage(e.page);
+      setPageSize(e.pageSize);
       if (reason.reason == 'setPaginationModel') {
-        setPage(e.page);
-        setPageSize(e.pageSize);
+        savePageSize.save(pageSize);
       }
     },
     []
   );
-
-  useEffect(() => {
-    savePageSize.save(pageSize);
-  }, [pageSize]);
   const { setUpMenu } = useContext(ContextMenuContext);
   const onSortModelChange = useCallback((sorts: GridSortModel) => {
     if (sorts.length == 0) {

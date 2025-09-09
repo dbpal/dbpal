@@ -15,7 +15,8 @@ use crate::db::{
     AutoCompletionQueryUuid, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql,
     ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, escape_sql_str,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit, escape_sql_str,
+    export_query_as_xlsx_send_data,
 };
 use crate::helper::{create_csv, is_dangerous_sql_by_parser};
 use crate::language_server::CompletionItem;
@@ -56,6 +57,34 @@ fn get_row_types(r: &Row) -> Vec<Field> {
 
 #[async_trait::async_trait]
 impl ExportQueryResult for LibSqlDB {
+    async fn export_as_xlsx(
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let conn = self.get_conn().await?;
+        let mut stream = conn.query(sql, params!()).await?;
+        let mut first = true;
+        let mut row_num = 0;
+        while let Some(row) = stream.next().await? {
+            if first && include_header {
+                for index in 0..row.column_count() {
+                    sender
+                        .send(XlsxEdit {
+                            row: row_num,
+                            column: index as rust_xlsxwriter::ColNum,
+                            content: row.column_name(index).unwrap_or_default().to_owned(),
+                        })
+                        .await?;
+                }
+                first = false;
+                row_num += 1;
+            }
+
+            let data = encode_rows(&vec![row])?;
+            export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
+        }
+        anyhow::Ok(())
+    }
+
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -68,14 +97,11 @@ impl ExportQueryResult for LibSqlDB {
                 include_header,
                 delimiter,
             } => {
-                self
-                    .export_query_result_as_csv(sql, include_header, delimiter, sender)
+                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
                     .await
             }
             ExportKind::Json { pretty } => {
-                self
-                    .export_query_result_as_json(sql, pretty, sender)
-                    .await
+                self.export_query_result_as_json(sql, pretty, sender).await
             }
             ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
             ExportKind::Sql {
@@ -435,6 +461,12 @@ impl ServerMetas for LibSqlDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for LibSqlDB {
+    async fn export_table_or_view_as_xlsx(
+        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}""#, name);
+        ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -591,8 +623,7 @@ impl SchemaTrait for LibSqlDB {
                 include_header,
                 delimiter,
             } => {
-                self
-                    .export_table_as_csv(name, include_header, delimiter, sender)
+                self.export_table_as_csv(name, include_header, delimiter, sender)
                     .await
             }
             ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
@@ -600,8 +631,7 @@ impl SchemaTrait for LibSqlDB {
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self
-                    .export_table_as_sql(name, include_table_schema, sender)
+                self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
             ExportKind::Xlsx { .. } => anyhow::bail!("xlsx not supported"),
@@ -903,7 +933,7 @@ impl LibSqlDB {
         }
         let conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let sql = format!("SELECT * from {}", table_name);
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
         let mut rows = conn.query(&sql, params!()).await?;
 
