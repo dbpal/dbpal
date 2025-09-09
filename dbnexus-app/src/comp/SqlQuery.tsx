@@ -17,6 +17,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { FaExclamation } from 'react-icons/fa';
 import {
   ReactNode,
+  RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -153,7 +154,6 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
 
 function SqlQuery(props: {
   uuid: string;
-  handelTextAndPositionChange?: (text: string, pos: Position) => void;
   makeConn: MakeIQueryConn;
   value?: string;
   saveFavoriteSql: (name: string, sql: string) => void;
@@ -161,9 +161,9 @@ function SqlQuery(props: {
   kind: DataSourceKind;
   buttons?: ReactNode;
   getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
+  editorRef?: RefObject<editor.IStandaloneCodeEditor>;
 }) {
   let {
-    handelTextAndPositionChange,
     uuid,
     makeConn,
     value,
@@ -172,6 +172,7 @@ function SqlQuery(props: {
     kind,
     buttons,
     getParseErr,
+    editorRef,
   } = props;
   const [resp, setResp] = useState([]);
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
@@ -185,6 +186,7 @@ function SqlQuery(props: {
   const [showSuggestReconn, setShowSuggestReconn] = useState<number | null>(
     null
   );
+  const setting = useContext(SettingContext);
   const queryLogHandler = useRef(new QueryLogHandler(uuid));
   const [executeTimes, setExecuteTimes] = useState(0);
   const [conn, setConn] = useState<IQueryConn | null>(null);
@@ -193,11 +195,11 @@ function SqlQuery(props: {
   const handleEditorDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor, _monaco) => {
       editor.current = ed;
+      if (editorRef) {
+        editorRef.current = ed;
+      }
       ed.onDidChangeModelContent((_event) => {
         let text = ed.getValue();
-        if (handelTextAndPositionChange) {
-          handelTextAndPositionChange(text, ed.getPosition());
-        }
         getParseErr(text).then((e) => {
           setParseErr(e);
         });
@@ -206,9 +208,6 @@ function SqlQuery(props: {
       ed.onDidChangeCursorPosition((_event) => {
         let p = ed.getPosition();
         setPos(p);
-        if (handelTextAndPositionChange) {
-          handelTextAndPositionChange(ed.getValue(), p);
-        }
       });
     },
     []
@@ -377,7 +376,7 @@ function SqlQuery(props: {
       }
     };
   }, [conn]);
-  const setting = useContext(SettingContext);
+
   const eidtorOptions =
     useMemo((): editor.IStandaloneEditorConstructionOptions => {
       return {
@@ -664,7 +663,6 @@ function SqlQuery(props: {
 
       <div>
         <MultiQueryResp data={resp}></MultiQueryResp>
-
         {showExport && (
           <Modal
             open={showExport}
@@ -681,13 +679,8 @@ function SqlQuery(props: {
               <ExportView
                 supportKind={['csv', 'json', 'jsonline', 'xlsx']}
                 exportOP={async (kind, file) => {
-                  try {
-                    const sql = getEditorText(editor.current, showNotification);
-                    await conn.exportQueryResult(sql, kind, file);
-                    showNotification('success', 'export OK');
-                  } catch (e) {
-                    showNotification('error', 'export failure', e);
-                  }
+                  const sql = getEditorText(editor.current, showNotification);
+                  return conn.exportQueryResult(sql, kind, file);
                 }}
                 name="export_query_result"
               ></ExportView>

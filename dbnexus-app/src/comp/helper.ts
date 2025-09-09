@@ -8,6 +8,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { BSON, EJSON } from "bson";
 import Database, { QueryResult } from '@tauri-apps/plugin-sql';
 import { pageSizeOptions } from "./CommonComp";
+import { fetch } from '@tauri-apps/plugin-http';
 
 const appDatabase = await Database.load('sqlite:dbpal.sqlite.db');
 function setUpDatabase() {
@@ -301,8 +302,8 @@ function calMenuStyle(e: MouseEvent): CSSProperties {
   const x = e.clientX;
   const y = e.clientY;
   let ret: CSSProperties = {};
-  const leftSizeMenuDom = document.getElementById('menu-div');
-  leftSizeMenuDom.style.display = 'block';
+  const menuDiv = document.getElementById('menu-div');
+  menuDiv.style.display = 'block';
   const { height, width } = getViewportSize();
   ret.top = 'auto';
   ret.bottom = 'auto';
@@ -823,7 +824,10 @@ function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
       return isTable ? ['csv', 'sql', 'json', 'jsonline', "xlsx"] : ['csv', 'json', 'jsonline', "xlsx"];
   }
 }
-
+const validURL = async (url) => {
+  let x = await fetch(url);
+  return x.ok;
+};
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -876,7 +880,8 @@ export {
   ColorFn,
   getSupportExportKind,
   savePageSize,
-  rustResultOk
+  rustResultOk,
+  validURL
 };
 
 

@@ -361,6 +361,7 @@ function MenuDeleteConfig({ name }) {
   );
 }
 function MetaValuesView({ values = [] as types.MetaValue[] }) {
+  const setting = useContext(SettingContext);
   let columns = [
     { field: 'name', width: columnWidths.getWidth('name') },
     { field: 'value', width: columnWidths.getWidth('value') },
@@ -448,7 +449,6 @@ function MetaValuesView({ values = [] as types.MetaValue[] }) {
       },
     } as GridSlotsComponentsProps;
   }, []);
-  const setting = useContext(SettingContext);
 
   const onSortModelChange = useCallback((e) => {
     setSortModel(e);

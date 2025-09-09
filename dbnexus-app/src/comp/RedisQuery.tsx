@@ -1,10 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';
-import { Position } from 'monaco-editor';
+import { editor } from 'monaco-editor';
 
 import { SqlQuery } from './SqlQuery.tsx';
-import { fetch } from '@tauri-apps/plugin-http';
 import { MakeIQueryConn } from './Common.tsx';
 import {
   appStore,
@@ -12,6 +11,7 @@ import {
   DataSourceKind,
   ErrAndLoc,
   SaveDomSizes,
+  validURL,
 } from './helper.ts';
 import { Chip } from '@mui/material';
 
@@ -54,6 +54,7 @@ function RedisQuery(props: {
   const [command, setCommand] = useState('get');
   const [isDragging, setIsDragging] = useState(false);
   const iframeRef = useRef(null);
+  const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
 
   // 禁用 iframe 的鼠标事件
   const disableIframe = () => {
@@ -81,14 +82,16 @@ function RedisQuery(props: {
       enableIframe();
     }
   }, [isDragging]);
-  const validURL = async (url) => {
-    let x = await fetch(url);
-    return x.ok;
-  };
-  const tryUpdateCommand = (text: string, pos: Position) => {
+
+  const tryUpdateCommand = useCallback(() => {
     if (!showDoc) {
       return;
     }
+    if (!editorRef.current) {
+      return;
+    }
+    const text = editorRef.current.getValue();
+    const pos = editorRef.current.getPosition();
     const linesArray = text.split('\n');
     const line = pos.lineNumber - 1;
     if (line >= linesArray.length) {
@@ -107,18 +110,27 @@ function RedisQuery(props: {
       return;
     }
     cmd = cmd.toLowerCase();
-    let url = getURL(cmd);
-
+    if (cmd == command) {
+      return; // no need to change
+    }
+    const url = getURL(cmd);
     validURL(url)
       .then((e) => {
         if (e) {
           setCommand(cmd);
         }
       })
-      .catch((e) => {
-        console.log('not valid url error:', e);
-      });
-  };
+      .catch(() => {});
+  }, [showDoc]);
+
+  useEffect(() => {
+    const int = setInterval(() => {
+      tryUpdateCommand();
+    }, 1000);
+    return () => {
+      clearInterval(int);
+    };
+  }, [tryUpdateCommand]);
   const [size, setSize] = useState<string | number>('40vw');
 
   const sizeKey = 'reids-query-size';
@@ -158,15 +170,7 @@ function RedisQuery(props: {
       style={{ width: '99%' }}
     >
       <SqlQuery
-        handelTextAndPositionChange={(text, pos) => {
-          if (!pos) {
-            return;
-          }
-          if (!text) {
-            return;
-          }
-          tryUpdateCommand(text, pos);
-        }}
+        editorRef={editorRef}
         getParseErr={getParseErr}
         uuid={language}
         makeConn={makeConn}
@@ -191,7 +195,6 @@ function RedisQuery(props: {
       <div style={{ height: '100vh' }}>
         {showDoc && (
           <iframe
-            hidden={!showDoc}
             ref={iframeRef} // 绑定 iframe 引用
             src={getURL(command)}
             style={{

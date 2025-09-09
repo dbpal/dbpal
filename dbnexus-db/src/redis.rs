@@ -623,7 +623,6 @@ impl RedisDB {
 
 async fn handle_export_xlsx(
     v: &redis::Value, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    array_type_notice: Option<RedisValueEncodeHit>,
 ) -> anyhow::Result<()> {
     match v {
         Value::Set(vs) => {
@@ -638,37 +637,14 @@ async fn handle_export_xlsx(
             }
         }
         Value::Array(vs) => {
-            let array_type_notice = array_type_notice.unwrap_or_default();
-            match array_type_notice {
-                RedisValueEncodeHit::Hash | RedisValueEncodeHit::ZsetWithScore => {
-                    for (index, v) in vs.chunks(2).enumerate() {
-                        sender
-                            .send(XlsxEdit {
-                                row: index as u32,
-                                column: 0,
-                                content: encode_response_value_to_string(&v[0]),
-                            })
-                            .await?;
-                        sender
-                            .send(XlsxEdit {
-                                row: index as u32,
-                                column: 1,
-                                content: encode_response_value_to_string(&v[1]),
-                            })
-                            .await?;
-                    }
-                }
-                RedisValueEncodeHit::None => {
-                    for (index, v) in vs.iter().enumerate() {
-                        sender
-                            .send(XlsxEdit {
-                                row: index as u32,
-                                column: 1,
-                                content: encode_response_value_to_string(&v),
-                            })
-                            .await?;
-                    }
-                }
+            for (index, v) in vs.iter().enumerate() {
+                sender
+                    .send(XlsxEdit {
+                        row: index as u32,
+                        column: 0,
+                        content: encode_response_value_to_string(&v),
+                    })
+                    .await?;
             }
         }
         Value::SimpleString(x) => {
@@ -681,12 +657,12 @@ async fn handle_export_xlsx(
                 .await?;
         }
         Value::BulkString(x) => match String::from_utf8(x.clone()) {
-            Ok(s) => {
+            Ok(value) => {
                 sender
                     .send(XlsxEdit {
                         row: 0,
                         column: 0,
-                        content: s,
+                        content: value,
                     })
                     .await?
             }
@@ -725,7 +701,7 @@ async fn handle_export_xlsx(
             data,
             attributes: _, // TODO how to handle this???
         } => {
-            Box::pin(handle_export_xlsx(&data, sender.clone(), array_type_notice)).await?;
+            Box::pin(handle_export_xlsx(&data, sender.clone())).await?;
         }
         Value::VerbatimString { format, text } => {
             sender
@@ -838,7 +814,6 @@ impl ExportQueryResult for RedisDB {
         }
         let c = &commands[0];
         log::info!("cmd is:{:?}", c);
-        let array_type_notice = RedisValueEncodeHit::from_cmd(&c[..]);
         let client = self.get_client().await?;
         let args = &c[1..];
         let mut conn = client.get_multiplexed_async_connection().await?;
@@ -846,7 +821,7 @@ impl ExportQueryResult for RedisDB {
             .arg(args)
             .query_async(&mut conn)
             .await?;
-        handle_export_xlsx(&value, sender.clone(), array_type_notice).await?;
+        handle_export_xlsx(&value, sender.clone()).await?;
         anyhow::Ok(())
     }
 
@@ -1521,13 +1496,16 @@ impl RedisToken {
         let mut state = RedisTokenState::default();
 
         fn push_token(
-            index: usize, tokens: &mut Vec<RedisToken>, buf: &mut Vec<u8>, line_number: u64,
+            index: usize, // 这个时候我已经处理完了 要添加到结果集了 所以这个index是加了1的
+            tokens: &mut Vec<RedisToken>,
+            buf: &mut Vec<u8>,
+            line_number: u64,
         ) -> anyhow::Result<()> {
             if buf.is_empty() {
                 return anyhow::Ok(());
             }
             let index = index as u64;
-            let end_column = index + 1;
+            let end_column = index + 1; // 加上自身的长度
             tokens.push(RedisToken::NotString {
                 start_column: end_column - (buf.len() as u64),
                 end_column,
@@ -1704,7 +1682,7 @@ async fn query_sql(
             .arg(args)
             .query_async(conn)
             .await
-            .map(|x| encode_response_value(&x, RedisValueEncodeHit::from_cmd(&c[..])));
+            .map(|x| encode_response_value(&x));
 
         match v {
             Ok(x) => {
@@ -1766,41 +1744,7 @@ fn encode_response_value_to_string(v: &Value) -> String {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-enum RedisValueEncodeHit {
-    Hash,
-    ZsetWithScore,
-    #[default]
-    None,
-}
-
-impl RedisValueEncodeHit {
-    fn from_cmd(cmd: &[String]) -> Option<Self> {
-        if cmd
-            .first()
-            .map(|x| x.eq_ignore_ascii_case("HGETALL"))
-            .unwrap_or(false)
-        {
-            return Some(Self::Hash);
-        }
-        if cmd
-            .first()
-            .map(|x| x.eq_ignore_ascii_case("ZRANGE"))
-            .unwrap_or(false)
-            && cmd
-                .last()
-                .map(|x| x.eq_ignore_ascii_case("WITHSCORES"))
-                .unwrap_or(false)
-        {
-            return Some(Self::ZsetWithScore);
-        }
-        None
-    }
-}
-
-fn encode_response_value(
-    v: &Value, array_type_notice: Option<RedisValueEncodeHit>,
-) -> anyhow::Result<QueryResp> {
+fn encode_response_value(v: &Value) -> anyhow::Result<QueryResp> {
     let ret = match v {
         Value::Set(vs) => {
             // a set
@@ -1812,50 +1756,12 @@ fn encode_response_value(
             QueryResp::result(None, result)
         }
         Value::Array(vs) => {
-            let array_type_notice = array_type_notice.unwrap_or_default();
-            match array_type_notice {
-                RedisValueEncodeHit::Hash => {
-                    let data = vs
-                        .chunks(2)
-                        .map(|x| {
-                            vec![
-                                Some(encode_response_value_to_string(&x[0])),
-                                Some(encode_response_value_to_string(&x[1])),
-                            ]
-                        })
-                        .collect::<Vec<_>>();
-                    let fields = vec![
-                        Field::from_name_type("key", ""),
-                        Field::from_name_type("value", ""),
-                    ];
-                    QueryResp::new(fields, 0, data, None)?
-                }
-
-                RedisValueEncodeHit::ZsetWithScore => {
-                    let data = vs
-                        .chunks(2)
-                        .map(|x| {
-                            vec![
-                                Some(encode_response_value_to_string(&x[0])),
-                                Some(encode_response_value_to_string(&x[1])),
-                            ]
-                        })
-                        .collect::<Vec<_>>();
-                    let fields = vec![
-                        Field::from_name_type("value", ""),
-                        Field::from_name_type("score", ""),
-                    ];
-                    QueryResp::new(fields, 0, data, None)?
-                }
-                RedisValueEncodeHit::None => {
-                    let result: Vec<_> = vs
-                        .iter()
-                        .map(encode_response_value_to_string)
-                        .map(Some)
-                        .collect();
-                    QueryResp::result(None, result)
-                }
-            }
+            let result: Vec<_> = vs
+                .iter()
+                .map(encode_response_value_to_string)
+                .map(Some)
+                .collect();
+            QueryResp::result(None, result)
         }
         Value::SimpleString(x) => QueryResp::result(None, vec![Some(x.to_string())]),
         Value::BulkString(_x) => {
@@ -1881,7 +1787,7 @@ fn encode_response_value(
         Value::Attribute {
             data,
             attributes: _, // TODO how to handle this???
-        } => encode_response_value(data, array_type_notice)?,
+        } => encode_response_value(data)?,
         Value::VerbatimString { format, text } => {
             let fields = vec![
                 Field::from_name_type("format", ""),
@@ -1988,11 +1894,11 @@ mod tests {
         }
     }
 
-    async fn test_query_export(db: &RedisDB, cmd: &str, key: &str) {
+    async fn test_query_export(db: &RedisDB, cmd: &str, key: &str, kind: ExportKind) {
         {
             // xlsx
             let name = db.backend_name().make_test_xlsx_file(key);
-            db.export_query_result_to_xlsx(cmd, false, &name)
+            db.export_query_result_to_file(cmd, kind, &name)
                 .await
                 .unwrap();
             opener::open(name.as_str()).unwrap();
@@ -2347,8 +2253,11 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
         test_query_export(
             &db,
-            format!("zrange {table_name} 0 -1").as_str(),
+            format!("zrange {table_name} 0 -1 WITHSCORES").as_str(),
             table_name,
+            ExportKind::Xlsx {
+                include_header: false,
+            },
         )
         .await;
     }

@@ -242,6 +242,8 @@ export default function MainPage() {
       style={{
         minHeight: '100vh',
         height: 'auto',
+        width: '100vw',
+        overflow: 'auto',
       }}
       maxSize={800}
       onChange={(newsize) => {
@@ -290,7 +292,7 @@ export default function MainPage() {
         >
           <NotificationProvider>
             <WindowFocusChangeContext value={windowFocus}>
-              <div> {mainContent} </div>
+              <div>{mainContent}</div>
               <div
                 id="menu-div"
                 style={{
