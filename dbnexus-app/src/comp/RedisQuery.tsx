@@ -61,9 +61,8 @@ function RedisQuery(props: {
       iframeRef.current.style.pointerEvents = 'none';
     }
   };
-
+  const [showDoc, setShowDoc] = useState(SaveShowdoc.instance.get());
   const urlPrefix = 'https://redis.io/docs/latest/commands/';
-
   const getURL = (command: string) => {
     return urlPrefix + command + '/' + '#examples';
   };
@@ -87,6 +86,9 @@ function RedisQuery(props: {
     return x.ok;
   };
   const tryUpdateCommand = (text: string, pos: Position) => {
+    if (!showDoc) {
+      return;
+    }
     const linesArray = text.split('\n');
     const line = pos.lineNumber - 1;
     if (line >= linesArray.length) {
@@ -118,7 +120,7 @@ function RedisQuery(props: {
       });
   };
   const [size, setSize] = useState<string | number>('40vw');
-  const [showDoc, setShowDoc] = useState(SaveShowdoc.instance.get());
+
   const sizeKey = 'reids-query-size';
   useEffect(() => {
     SaveDomSizes.getSize(sizeKey).then((e) => {

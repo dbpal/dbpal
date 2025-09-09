@@ -9,7 +9,6 @@ use dashmap::{DashMap, DashSet};
 use futures_util::StreamExt;
 use redis::aio::{ConnectionManager, ConnectionManagerConfig, MultiplexedConnection};
 use redis::{AsyncCommands, AsyncIter, Value};
-use sqlparser::tokenizer::Token;
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
@@ -21,7 +20,6 @@ use crate::db::{
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 use crate::meta_value::MetaValue;
-use crate::redis_lang_server::RedisDialet;
 
 /// https://stackoverflow.com/questions/30611215/redis-how-to-limit-the-return-number-of-keys-command
 
@@ -642,7 +640,7 @@ async fn handle_export_xlsx(
         Value::Array(vs) => {
             let array_type_notice = array_type_notice.unwrap_or_default();
             match array_type_notice {
-                RedisValueEncodeHit::Hash | RedisValueEncodeHit::Zset => {
+                RedisValueEncodeHit::Hash | RedisValueEncodeHit::ZsetWithScore => {
                     for (index, v) in vs.chunks(2).enumerate() {
                         sender
                             .send(XlsxEdit {
@@ -1471,31 +1469,210 @@ impl FromStr for RedisType {
     }
 }
 
-/// splite sql by line and whitespace
-/// to list of commmands and args
+#[derive(Default, Clone, Debug)]
+enum RedisTokenState {
+    #[default]
+    Init,
+    SingleQuote,
+    DoubleQuote,
+    Trans {
+        count: usize,
+        prev: Box<RedisTokenState>,
+    },
+    Whitespace,
+}
+
+impl RedisTokenState {
+    fn trans(&self, count: usize) -> Self {
+        Self::Trans {
+            count,
+            prev: Box::new(self.clone()),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum RedisToken {
+    String(String),
+    NotString {
+        line: u64,
+        start_column: u64,
+        end_column: u64,
+        value: String,
+    },
+}
+impl std::fmt::Display for RedisToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                RedisToken::String(x) => x,
+                RedisToken::NotString { value, .. } => value,
+            }
+        )
+    }
+}
+
+impl RedisToken {
+    pub(crate) fn tokenize(line: &str, line_number: u64) -> anyhow::Result<Vec<RedisToken>> {
+        let mut buf = vec![];
+        let mut tokens = vec![];
+        let mut state = RedisTokenState::default();
+
+        fn push_token(
+            index: usize, tokens: &mut Vec<RedisToken>, buf: &mut Vec<u8>, line_number: u64,
+        ) -> anyhow::Result<()> {
+            if buf.is_empty() {
+                return anyhow::Ok(());
+            }
+            let index = index as u64;
+            let end_column = index + 1;
+            tokens.push(RedisToken::NotString {
+                start_column: end_column - (buf.len() as u64),
+                end_column,
+                line: line_number,
+                value: match String::from_utf8(std::mem::take(buf)) {
+                    Ok(x) => x,
+                    Err(_) => {
+                        anyhow::bail!(format!("not a valid utf8 near:{}:{}", line_number, index))
+                    }
+                },
+            });
+            anyhow::Ok(())
+        }
+        let as_bytes = line.as_bytes();
+        for (index, c) in as_bytes.iter().enumerate() {
+            match state {
+                RedisTokenState::Init => match c {
+                    b'\'' => {
+                        state = RedisTokenState::SingleQuote;
+                        push_token(index, &mut tokens, &mut buf, line_number)?;
+                    }
+                    b'"' => {
+                        state = RedisTokenState::DoubleQuote;
+                        push_token(index, &mut tokens, &mut buf, line_number)?;
+                    }
+                    _ if c.is_ascii_whitespace() => {
+                        push_token(index, &mut tokens, &mut buf, line_number)?;
+                        state = RedisTokenState::Whitespace;
+                    }
+                    _ => {
+                        buf.push(*c);
+                    }
+                },
+                RedisTokenState::SingleQuote => match c {
+                    b'\'' => {
+                        tokens.push(RedisToken::String(
+                            String::from_utf8_lossy(&buf).to_string(),
+                        ));
+                        buf.clear();
+                        state = RedisTokenState::Init;
+                    }
+                    // try match \n
+                    b'\\' if as_bytes.get(index + 1).map(|x| *x == b'n').unwrap_or(false) => {
+                        buf.push(b'\n');
+                        state = state.trans(1);
+                    }
+                    b'\\'
+                        if as_bytes
+                            .get(index + 1)
+                            .map(|x| *x == b'\'')
+                            .unwrap_or(false) =>
+                    {
+                        buf.push(b'\'');
+                        state = state.trans(1);
+                    }
+                    _ => {
+                        buf.push(*c);
+                    }
+                },
+                RedisTokenState::DoubleQuote => {
+                    match c {
+                        b'\"' => {
+                            tokens.push(RedisToken::String(
+                                String::from_utf8_lossy(&buf).to_string(),
+                            ));
+                            buf.clear();
+                            state = RedisTokenState::Init;
+                        }
+                        // try match \n
+                        b'\\' if as_bytes.get(index + 1).map(|x| *x == b'n').unwrap_or(false) => {
+                            buf.push(b'\n');
+                            state = state.trans(1);
+                        }
+                        b'\\' if as_bytes.get(index + 1).map(|x| *x == b'"').unwrap_or(false) => {
+                            buf.push(b'\"');
+                            state = state.trans(1);
+                        }
+                        _ => {
+                            buf.push(*c);
+                        }
+                    }
+                }
+                RedisTokenState::Trans { count, prev } => {
+                    let x = count - 1;
+                    if x == 0 {
+                        state = prev.as_ref().clone();
+                    } else {
+                        state = RedisTokenState::Trans { count: x, prev }
+                    }
+                }
+                RedisTokenState::Whitespace => {
+                    if c.is_ascii_whitespace() {
+                        // nothing here
+                    } else if *c == b'\'' {
+                        state = RedisTokenState::SingleQuote;
+                    } else if *c == b'"' {
+                        state = RedisTokenState::DoubleQuote;
+                    } else {
+                        buf.push(*c);
+                        state = RedisTokenState::Init;
+                    }
+                }
+            }
+        }
+        match state {
+            RedisTokenState::Init => {
+                push_token(as_bytes.len(), &mut tokens, &mut buf, line_number)?;
+            }
+            RedisTokenState::SingleQuote => anyhow::bail!("unclose single quote"),
+            RedisTokenState::DoubleQuote => anyhow::bail!("unclose double quote"),
+            RedisTokenState::Trans { .. } => anyhow::bail!("this is internal error"),
+            RedisTokenState::Whitespace => {
+                // nothing here
+            }
+        }
+        anyhow::Ok(tokens)
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_token_xxx() {
+    let tokens =
+        RedisToken::tokenize(r#"abc xyz ccc 'aaaaaa"\'\n' "bbbbbb'\"\n" aaaa "#, 1).unwrap();
+    for t in tokens.iter() {
+        println!("token:{:?}", t);
+    }
+}
+
 fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
     let mut commands = Vec::new();
-    let dialet = RedisDialet {};
-
     for line in sql.lines() {
         if line.trim().is_empty() {
             continue;
         }
-        let tokens = sqlparser::tokenizer::Tokenizer::new(&dialet, line).tokenize()?;
-        let c = tokens
-            .iter()
-            .filter(|x| match x {
-                Token::Whitespace(_) => false,
-                _ => true,
-            })
-            .map(|x| match x {
-                Token::SingleQuotedString(x) => x.to_string(),
-                Token::DoubleQuotedString(x) => x.to_string(),
-                Token::Word(x) if x.quote_style == Some('"') => x.value.to_string(),
-                _ => x.to_string(),
-            })
-            .collect();
-        commands.push(c);
+        let tokens = RedisToken::tokenize(line, 1)?;
+        commands.push(
+            tokens
+                .into_iter()
+                .map(|x| match x {
+                    RedisToken::String(value) => value,
+                    RedisToken::NotString { value, .. } => value,
+                })
+                .collect(),
+        );
     }
     anyhow::Ok(commands)
 }
@@ -1592,7 +1769,7 @@ fn encode_response_value_to_string(v: &Value) -> String {
 #[derive(Clone, Copy, Debug, Default)]
 enum RedisValueEncodeHit {
     Hash,
-    Zset,
+    ZsetWithScore,
     #[default]
     None,
 }
@@ -1615,7 +1792,7 @@ impl RedisValueEncodeHit {
                 .map(|x| x.eq_ignore_ascii_case("WITHSCORES"))
                 .unwrap_or(false)
         {
-            return Some(Self::Zset);
+            return Some(Self::ZsetWithScore);
         }
         None
     }
@@ -1654,7 +1831,7 @@ fn encode_response_value(
                     QueryResp::new(fields, 0, data, None)?
                 }
 
-                RedisValueEncodeHit::Zset => {
+                RedisValueEncodeHit::ZsetWithScore => {
                     let data = vs
                         .chunks(2)
                         .map(|x| {

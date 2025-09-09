@@ -6,10 +6,9 @@ use std::task::Poll;
 use futures_core::future::BoxFuture;
 use futures_util::{FutureExt, StreamExt};
 use redis::{AsyncCommands, AsyncIter};
-use sqlparser::tokenizer::Token;
 
 use crate::language_server::{CompletionItem, CompletionKind, LanguageServer, in_pos};
-use crate::redis::{RedisDB, RedisType};
+use crate::redis::{RedisDB, RedisToken, RedisType};
 impl RedisDB {
     async fn completion_keys(
         &self, pattern: &str, kind: Option<RedisType>,
@@ -1317,45 +1316,37 @@ impl LanguageServer for RedisDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        let pos = sqlparser::tokenizer::Location {
+            line: line as u64,
+            column: col as u64,
+        };
         for (index, sql) in sql.lines().enumerate() {
-            if sql.trim().is_empty() {
+            let sql = sql.trim();
+            if sql.is_empty() {
                 continue;
             }
-            let line_token = index + 1;
-            let mut tokens = sqlparser::tokenizer::Tokenizer::new(&RedisDialet {}, sql)
-                .tokenize_with_location()?;
-
-            // correct the line
-            tokens.iter_mut().for_each(|x| {
-                x.span.start.line = line_token as u64;
-                x.span.end.line = line_token as u64;
-            });
-
+            let tokens = RedisToken::tokenize(sql, (index + 1) as u64)?;
             if tokens.is_empty() {
                 continue;
             }
-
-            let tokens = tokens
-                .into_iter()
-                .filter(|x| match &x.token {
-                    Token::Whitespace(_) => false,
-                    _ => true,
-                })
-                .collect::<Vec<_>>();
-            if tokens.is_empty() {
-                continue;
-            }
-            let pos = sqlparser::tokenizer::Location {
-                line: line as u64,
-                column: col as u64,
-            };
-            let command = match &tokens[0].token {
-                Token::Word(word) => {
-                    if in_pos(pos, tokens[0].span.start, word.value.len() as u64) {
-                        // we are auto completion on command.
+            let command = match &tokens[0] {
+                RedisToken::NotString {
+                    value,
+                    start_column,
+                    line,
+                    ..
+                } => {
+                    if in_pos(
+                        pos,
+                        sqlparser::tokenizer::Location {
+                            line: *line,
+                            column: *start_column as u64,
+                        },
+                        value.len() as u64,
+                    ) {
                         return anyhow::Ok(static_redis_command_completion_items());
                     }
-                    word.value.clone()
+                    value.clone().to_uppercase()
                 }
                 _ => {
                     continue;
@@ -1372,11 +1363,32 @@ impl LanguageServer for RedisDB {
                         .into_iter(),
                 )
             {
-                match &token.token {
-                    Token::Word(word) => {
-                        if in_pos(pos, token.span.start, word.value.len() as u64) {
-                            let item = f.await;
-                            return item;
+                match token {
+                    RedisToken::NotString {
+                        start_column,
+                        value,
+                        ..
+                    } => {
+                        println!(
+                            "pos:{:?} {:?} {:?} {:?}",
+                            pos,
+                            sqlparser::tokenizer::Location {
+                                line: (index + 1) as u64,
+                                column: (*start_column) as u64,
+                            },
+                            value.len(),
+                            token
+                        );
+
+                        if in_pos(
+                            pos,
+                            sqlparser::tokenizer::Location {
+                                line: (index + 1) as u64,
+                                column: (*start_column) as u64,
+                            },
+                            value.len() as u64,
+                        ) {
+                            return f.await;
                         }
                     }
                     _ => {
@@ -1387,7 +1399,6 @@ impl LanguageServer for RedisDB {
         }
         // lexer command
         let ret = static_redis_command_completion_items();
-
         anyhow::Ok(ret)
     }
 }
@@ -1487,6 +1498,8 @@ pub const REDIS_SPECIAL_ARGS: &[&str] = &[
     "RESET",
     "DOCTOR",
     "HELP",
+    "WITH",
+    "SCORE",
 ];
 
 #[cfg(test)]
@@ -1547,8 +1560,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(
-            r#"HMGET value_hash key key
-17 value_hash ; 21 key11111 ; 25 key11111"#,
+            r#"ZRANGE set
+11 zset_value"#,
             &db,
             false,
         )
