@@ -31,13 +31,10 @@ import {
   appStore,
   AppStoreKey,
   OpenedContext,
-  MenuConnectionInfo,
-  CreateDatabase,
   modalStyle,
   dropDatabase,
-  CreateSchema,
   dropSchema,
-  initMonacoLanague,
+  initMonacoLanguage,
   QueryConn,
   EscDownEvent,
 } from './Common';
@@ -68,7 +65,7 @@ import {
   generateRandomString,
   gridStyle,
   handleCopyToClipboard,
-  makeGetParserErrr,
+  makeGetParserErr,
   MatchPatternContext,
   secondConfirm,
   SettingContext,
@@ -110,6 +107,11 @@ import { FaBookmark } from 'react-icons/fa';
 import { SequenceTree } from './LeftSequence.tsx';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { TypesTree } from './LeftTypes.tsx';
+import {
+  CreateDatabase,
+  CreateSchema,
+  MenuConnectionInfo,
+} from './CommonComp2.tsx';
 
 function LeftTop(props: { matchPattern: string; setMatchPattern }) {
   const { matchPattern, setMatchPattern } = props;
@@ -451,11 +453,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
         </Tooltip>
       </Stack>
 
-      <div
-        style={{
-          display: 'grid',
-        }}
-      >
+      <div style={{ display: 'grid' }}>
         <DataGrid
           showToolbar
           style={gridStyle}
@@ -573,7 +571,7 @@ function FavoriteSqlList(props: { handleClose }) {
   };
   const { setTabs, setSelectTab } = useContext(TabsSetContext);
   const useRow = async (row: FavoriteSql) => {
-    initMonacoLanague(row.uuid, row.kind);
+    initMonacoLanguage(row.uuid, row.kind);
     try {
       let connOpend = await invoke<boolean>('conn_opend', { name: row.uuid });
       if (!connOpend) {
@@ -616,7 +614,7 @@ function FavoriteSqlList(props: { handleClose }) {
                   );
                 }}
                 value={row.sql}
-                getParseErr={makeGetParserErrr(row.uuid)}
+                getParseErr={makeGetParserErr(row.uuid)}
                 favoriteName={row.name}
               ></RedisQuery>
             );
@@ -624,7 +622,7 @@ function FavoriteSqlList(props: { handleClose }) {
           default:
             content = (
               <SqlQuery
-                getParseErr={makeGetParserErrr(row.uuid)}
+                getParseErr={makeGetParserErr(row.uuid)}
                 uuid={row.uuid}
                 makeConn={async () => {
                   return makeConn(row.uuid, row.kind);
@@ -796,11 +794,7 @@ function FavoriteSqlList(props: { handleClose }) {
           </Tooltip>
         )}
       </Stack>
-      <div
-        style={{
-          display: 'grid',
-        }}
-      >
+      <div style={{ display: 'grid' }}>
         <DataGrid
           showToolbar
           style={gridStyle}
@@ -1272,7 +1266,7 @@ function openNewQuery(
   kind: DataSourceKind,
   showNotification
 ) {
-  initMonacoLanague(uuid, kind);
+  initMonacoLanguage(uuid, kind);
 
   let id = uuid + '-query-' + generateRandomString();
   let content;
@@ -1303,7 +1297,7 @@ function openNewQuery(
               showNotification
             );
           }}
-          getParseErr={makeGetParserErrr(uuid)}
+          getParseErr={makeGetParserErr(uuid)}
           kind={kind}
         ></SqlQuery>
       );
@@ -1321,7 +1315,7 @@ function openNewQuery(
               showNotification
             );
           }}
-          getParseErr={makeGetParserErrr(uuid)}
+          getParseErr={makeGetParserErr(uuid)}
         ></RedisQuery>
       );
 

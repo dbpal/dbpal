@@ -10,8 +10,7 @@ import {
   progressBarSizeSmall,
   tabsHasId,
   modalStyle,
-  initMonacoLanague,
-  SimpleFlexEditor,
+  initMonacoLanguage,
   makeAutoComplete,
   EscDownEvent,
 } from './Common';
@@ -76,6 +75,7 @@ import {
   GridColDef,
   GridSlotsComponentsProps,
 } from '@mui/x-data-grid';
+import { SimpleFlexEditor } from './CommonComp2';
 function ViewsTree(props: { viewkind: ViewKind }) {
   const { viewkind } = props;
   const { uuid } = useContext(UuidContext);
@@ -216,7 +216,7 @@ function StatementStructure(props: {
   useEffect(() => {
     handleReload();
   }, []);
-  initMonacoLanague(uuid, kind);
+  initMonacoLanguage(uuid, kind);
   const [dom, setDom] = useState(null);
   useEffect(() => {
     if (dom) {
@@ -410,12 +410,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
           reload
         </Button>
       </Stack>
-
-      <div
-        style={{
-          display: 'grid',
-        }}
-      >
+      <div style={{ display: 'grid' }}>
         <DataGrid
           showToolbar
           style={gridStyle}

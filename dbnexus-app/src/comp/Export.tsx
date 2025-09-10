@@ -14,26 +14,8 @@ import { NotificationContext } from './Notification';
 import { save } from '@tauri-apps/plugin-dialog';
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import { invoke } from '@tauri-apps/api/core';
-import { ModalHeader } from './CommonComp';
-import { openPath } from '@tauri-apps/plugin-opener';
-import { SettingContext } from './helper';
-
-function generateDefaultFilename(name, extension) {
-  if (extension == 'jsonline') {
-    /*
-      统一用 .jsonl（全小写，无空格）最好。
-      这是社区事实标准：GitHub、Git LFS、Apache Spark、BigQuery、Hugging Face 等生态都按 .jsonl 识别，工具链（grep、jq、ripgrep、VS Code 插件）也都默认支持。
-    */
-    extension = 'jsonl';
-  }
-  // 获取当前时间
-  const now = new Date();
-  // 格式化时间为字符串
-  const timestamp = now.toISOString().replace(/[:.-]/g, '').slice(0, 15);
-  // 生成文件名
-  const filename = `${name}_${timestamp}.${extension}`;
-  return filename;
-}
+import { ModalHeader, OpenFileWithDefaultApp } from './CommonComp';
+import { generateDefaultFilename, SettingContext } from './helper';
 
 function IncludeHeader({ includeHeader, setIncludeHeader }) {
   return (
@@ -200,19 +182,7 @@ function ExportView(props: {
       {kind == 'jsonline' && <></>}
 
       <Divider />
-      {file && (
-        <Button
-          onClick={() => {
-            openPath(file)
-              .then(() => {})
-              .catch((e) => {
-                showNotification('error', 'open export file failed', e);
-              });
-          }}
-        >
-          open with default app (if applicable)
-        </Button>
-      )}
+      <OpenFileWithDefaultApp file={file} />
       <Stack>
         <Button
           onClick={async () => {

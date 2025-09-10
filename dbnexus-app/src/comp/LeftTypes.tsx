@@ -9,7 +9,7 @@ import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { useContext, useEffect, useRef, useState } from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import InfoIcon from '@mui/icons-material/Info';
-import { DefAndMetas, initMonacoLanague, tabsHasId } from './Common';
+import { DefAndMetas, initMonacoLanguage, tabsHasId } from './Common';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
@@ -23,7 +23,7 @@ import {
   DataSourceKind,
   generateRandomString,
   makeExecuteSql,
-  makeGetParserErrr,
+  makeGetParserErr,
   MatchPatternContext,
   maxTreeSize,
   secondConfirm,
@@ -132,7 +132,7 @@ function TypeMenu(props: {
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
-    initMonacoLanague(uuid, kind);
+    initMonacoLanguage(uuid, kind);
     const id = uuid + '-' + '-type-' + defxxx.name;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
@@ -157,7 +157,7 @@ function TypeMenu(props: {
                 }}
                 executeOP={makeExecuteSql(uuid)}
                 language={uuid}
-                getParseErr={makeGetParserErrr(uuid)}
+                getParseErr={makeGetParserErr(uuid)}
               ></DefAndMetasView>
             ),
             <PiTreeStructureFill />

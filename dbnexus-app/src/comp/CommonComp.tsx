@@ -9,6 +9,8 @@ import {
   Divider,
   Chip,
   useTheme,
+  Button,
+  TextField,
 } from '@mui/material';
 import {
   CSSProperties,
@@ -33,7 +35,7 @@ import {
 } from '@mui/x-data-grid';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidV4 } from 'uuid';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import { BsDatabaseAdd } from 'react-icons/bs';
@@ -51,24 +53,63 @@ import {
   columnWidths,
   ContextMenuContext,
   DataSourceKind,
-  editorSetPositonAndReveal,
+  editorSetPositionAndReveal,
   ErrAndLoc,
   errToString,
   FavoriteSql,
+  generateDefaultFilename,
   generateRandomString,
   gridStyle,
   handleCopyToClipboard,
   maxTreeSize,
+  pageSizeOptions,
   QueryLogHandler,
   saveAndSetSize,
   secondConfirm,
   SettingContext,
 } from './helper';
+
 import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
 import { getNamedConfig } from './Common';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { editor, Position } from 'monaco-editor';
+import { FaAlignLeft } from 'react-icons/fa';
+import { FaAlignRight } from 'react-icons/fa';
+import { FaAlignCenter } from 'react-icons/fa6';
+import { openPath } from '@tauri-apps/plugin-opener';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
+function SelectAlign(props: {
+  align: 'left' | 'right' | 'center';
+  handleChange;
+}) {
+  let theme = useTheme();
+  const { align, handleChange } = props;
+  return (
+    <Stack direction="row" fontSize="1.5rem" spacing={1}>
+      <FaAlignLeft
+        color={align == 'left' && theme.palette.success.main}
+        onClick={() => {
+          handleChange('left');
+        }}
+      />
+      <FaAlignCenter
+        color={align == 'center' && theme.palette.success.main}
+        onClick={() => {
+          handleChange('center');
+        }}
+      />
+      <FaAlignRight
+        color={align == 'right' && theme.palette.success.main}
+        onClick={() => {
+          handleChange('right');
+        }}
+      />
+    </Stack>
+  );
+}
+
 const LogLevelSelection = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];
   const getColor = (level: string) => {
@@ -241,7 +282,7 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
   );
 }
 
-function MenuOpenConn({ handleOpend, name, setLoading }) {
+function MenuOpenConn({ handleOpend: handleOpened, name, setLoading }) {
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenXXX = async () => {
@@ -277,7 +318,7 @@ function MenuOpenConn({ handleOpend, name, setLoading }) {
       showNotification('error', 'open connection failed', e);
       return;
     }
-    handleOpend();
+    handleOpened();
   };
   return (
     <MenuItem
@@ -295,7 +336,6 @@ function MenuOpenConn({ handleOpend, name, setLoading }) {
     </MenuItem>
   );
 }
-const pageSizeOptions = [10, 20, 50, 100];
 
 function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
   return (
@@ -337,11 +377,11 @@ function MenuDeleteConfig({ name }) {
       let old = await appStore.get<types.DBConnectionConfig[]>(
         AppStoreKey.ConnectionConfig
       );
-      let newdata = old.filter((e) => e.name != name);
+      let newData = old.filter((e) => e.name != name);
       await invoke('close_conn', { name });
       await FavoriteSql.deleteByConnectionName(name);
       await QueryLogHandler.deleteByConnectionname(name);
-      await appStore.set(AppStoreKey.ConnectionConfig, newdata);
+      await appStore.set(AppStoreKey.ConnectionConfig, newData);
     } catch (e) {
       showNotification('error', 'drop connection failed', e);
     }
@@ -372,7 +412,7 @@ function MetaValuesView({ values = [] as types.MetaValue[] }) {
   values.forEach((e) => {
     if (!('id' in e)) {
       //@ts-ignore
-      e.id = uuidv4();
+      e.id = uuidV4();
     }
   });
 
@@ -461,11 +501,7 @@ function MetaValuesView({ values = [] as types.MetaValue[] }) {
     }
   }, []);
   return (
-    <div
-      style={{
-        display: 'grid',
-      }}
-    >
+    <div style={{ display: 'grid' }}>
       <DataGrid
         showToolbar
         style={gridStyle}
@@ -659,21 +695,21 @@ function UdfNameAndParameters(props: {
   kind: DataSourceKind;
 }) {
   const { udf, kind } = props;
-  let paramater = '';
+  let parameter = '';
   switch (kind) {
     case DataSourceKind.Postgres:
     case DataSourceKind.Cockroach:
-      paramater = udf.parameters;
+      parameter = udf.parameters;
       break;
     case DataSourceKind.Cassandra:
-      paramater = udf.cassandra_parameters.join(',');
+      parameter = udf.cassandra_parameters.join(',');
       break;
   }
 
   return (
     <>
       <Typography>{udf.name}</Typography>
-      {paramater && (
+      {parameter && (
         <Typography
           color="success"
           style={{
@@ -686,7 +722,7 @@ function UdfNameAndParameters(props: {
             fontSize: '0.8rem',
           }}
         >
-          ({paramater})
+          ({parameter})
         </Typography>
       )}
     </>
@@ -714,7 +750,7 @@ function PossibleParseError(props: {
             return;
           }
           if (parseErr.line && parseErr.column) {
-            editorSetPositonAndReveal(
+            editorSetPositionAndReveal(
               editor,
               new Position(parseErr.line, parseErr.column)
             );
@@ -807,7 +843,7 @@ function CopyMenuItem(props: GridColumnMenuItemProps) {
       }}
     >
       <ListItemIcon> </ListItemIcon>
-      <ListItemText> copy field </ListItemText>
+      <ListItemText> Copy Field </ListItemText>
     </MenuItem>
   );
 }
@@ -829,6 +865,212 @@ function AppColumnMenu(props: GridColumnMenuProps) {
   );
 }
 
+function SelectColumns(props: {
+  fields: types.Field[];
+  includes;
+  setIncludes;
+  canSelectAll?;
+}) {
+  const { fields, includes, setIncludes, canSelectAll } = props;
+  const [matchStr, setMatchStr] = useState('');
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={1} style={{ alignContent: 'center' }}>
+        <TextField
+          value={matchStr}
+          onChange={(e) => {
+            setMatchStr(e.target.value);
+          }}
+          style={{ flex: 1 }}
+          size="small"
+          label="match field string"
+        ></TextField>
+        {canSelectAll && (
+          <Button
+            onClick={() => {
+              setIncludes(fields.map((x) => x.field));
+            }}
+          >
+            select all
+          </Button>
+        )}{' '}
+      </Stack>
+
+      <Stack
+        direction="row"
+        style={{ flexWrap: 'wrap', alignItems: 'center' }}
+        spacing={1}
+      >
+        <Typography color="info">includes:</Typography>
+        {includes.map((x) => (
+          <Chip
+            onClick={() => {
+              setIncludes((e) => e.filter((e) => e != x));
+            }}
+            size="small"
+            key={x}
+            color="success"
+            label={x}
+          ></Chip>
+        ))}
+      </Stack>
+
+      <Stack
+        direction="row"
+        style={{ flexWrap: 'wrap', alignItems: 'center' }}
+        spacing={1}
+      >
+        <Typography textAlign="right">candidates:</Typography>
+
+        {fields
+          .filter((f) => includes.find((e) => e == f.field) == undefined)
+          .filter((f) => f.field.includes(matchStr))
+          .map((x) => (
+            <Chip
+              size="small"
+              key={x.field}
+              onClick={() => {
+                setIncludes((e) => [...e, x.field]);
+              }}
+              color="default"
+              label={x.field}
+            ></Chip>
+          ))}
+      </Stack>
+    </Stack>
+  );
+}
+
+function OpenFileWithDefaultApp({ file }) {
+  const { showNotification } = useContext(NotificationContext);
+  return (
+    <>
+      {file && (
+        <Button
+          onClick={() => {
+            openPath(file)
+              .then(() => {})
+              .catch((e) => {
+                showNotification('error', 'open export file failed', e);
+              });
+          }}
+        >
+          open with default app (if applicable)
+        </Button>
+      )}
+    </>
+  );
+}
+
+function ExportMarkDown(props: {
+  fields: types.Field[];
+  data: any[];
+  name?: string;
+}) {
+  let { fields, data, name } = props;
+  if (!name) {
+    name = 'export';
+  }
+  const [includes, setIncludes] = useState<string[]>([]);
+  const [align, setAlign] = useState('center');
+  const { showNotification } = useContext(NotificationContext);
+  const [file, setFile] = useState('');
+  const makeMarkDownStr = () => {
+    let ret = '';
+    includes.forEach((x) => {
+      ret += `| ${x} `;
+    });
+    ret += '|\n';
+    includes.forEach(() => {
+      let a;
+      switch (align) {
+        case 'left':
+          a = ':----';
+          break;
+        case 'right':
+          a = '-----:';
+          break;
+        case 'center':
+          a = ':---:';
+          break;
+      }
+      ret += '|' + a;
+    });
+    ret += '|\n';
+
+    data.forEach((data) => {
+      includes.forEach((x) => {
+        ret += `| ${data[x]} `;
+      });
+      ret += '|\n';
+    });
+    return ret;
+  };
+  const handleExport = async (toClipBoard: boolean) => {
+    if (includes.length == 0) {
+      showNotification('error', 'Please select columns');
+      return;
+    }
+    let markdown = makeMarkDownStr();
+    if (toClipBoard) {
+      handleCopyToClipboard(markdown, undefined, () => {
+        showNotification('success', 'export OK');
+      });
+      return;
+    }
+    const f = await save({
+      defaultPath: generateDefaultFilename(name, 'md'),
+      filters: [{ name: 'markdown', extensions: ['md'] }],
+    });
+    if (!f) {
+      return;
+    }
+    try {
+      await writeTextFile(f, markdown);
+    } catch (e) {
+      showNotification('error', 'write markdown failed', e);
+      return;
+    }
+    setFile(f);
+  };
+
+  return (
+    <Stack spacing={1}>
+      <SelectColumns
+        canSelectAll={true}
+        fields={fields}
+        includes={includes}
+        setIncludes={setIncludes}
+      ></SelectColumns>
+      <OpenFileWithDefaultApp file={file} />
+      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+        <Button
+          onClick={() => {
+            handleExport(false);
+          }}
+          variant="outlined"
+        >
+          save file
+        </Button>
+        <Button
+          onClick={() => {
+            handleExport(true);
+          }}
+          variant="outlined"
+        >
+          copy to clipboard
+        </Button>
+        <SelectAlign
+          align={align as 'center'}
+          handleChange={(e) => {
+            setAlign(e);
+          }}
+        ></SelectAlign>
+        {<Typography color="info"> {align} </Typography>}
+      </Stack>
+    </Stack>
+  );
+}
 export {
   LogLevelSelection,
   MetaValuesView,
@@ -852,4 +1094,7 @@ export {
   PossibleParseError,
   ExecutingTime,
   AppColumnMenu,
+  ExportMarkDown,
+  SelectColumns,
+  OpenFileWithDefaultApp,
 };

@@ -23,7 +23,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { EscDownEvent, modalStyle, SimpleFlexEditor } from './Common.tsx';
+import { EscDownEvent, modalStyle } from './Common';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import {
@@ -37,6 +37,7 @@ import {
 import { ModalHeader } from './CommonComp.tsx';
 import { BsFillLightbulbFill } from 'react-icons/bs';
 import { NotificationContext } from './Notification.tsx';
+import { SimpleFlexEditor } from './CommonComp2.tsx';
 const pageSizeOptions = [10, 15];
 
 const initialState: object = {
@@ -177,7 +178,7 @@ function QueryLog(props: {
               try {
                 const confirm = await secondConfirm({
                   confirmText: 'delete',
-                  title: 'delete all qyery log?',
+                  title: 'delete all query log?',
                 });
                 if (!confirm) {
                   return;
@@ -201,16 +202,12 @@ function QueryLog(props: {
         )}
       </Stack>
       <Stack>
-        <div
-          style={{
-            display: 'grid',
-          }}
-        >
+        <div style={{ display: 'grid' }}>
           <DataGrid
             showToolbar
-            style={gridStyle}
             showCellVerticalBorder
             showColumnVerticalBorder
+            style={gridStyle}
             onRowDoubleClick={onRowDoubleClick}
             columns={columns}
             rows={logs}

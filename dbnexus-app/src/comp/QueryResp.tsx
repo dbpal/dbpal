@@ -14,7 +14,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidV4 } from 'uuid';
 import {
   calMenuStyle,
   handleCopyToClipboard,
@@ -40,7 +40,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { EscDownEvent, keyNotInTable, modalStyle } from './Common.tsx';
+import { EscDownEvent, keyNotInTable, modalStyle } from './Common';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
@@ -119,7 +119,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
   const setting = useContext(SettingContext);
   useEffect(() => {
     oldData.data.forEach((e) => {
-      e[keyNotInTable] = uuidv4();
+      e[keyNotInTable] = uuidV4();
     });
     oldData.fields.forEach((e) => {
       const width = columnWidths.getWidth(e.field);
@@ -222,16 +222,12 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
             )}
           </Stack>
 
-          <div
-            style={{
-              display: 'grid',
-            }}
-          >
+          <div style={{ display: 'grid' }}>
             <DataGrid
               getRowId={getRowId}
               slots={slots}
-              style={gridStyle}
               sortModel={sortModel}
+              style={gridStyle}
               onSortModelChange={onSortModelChange}
               showCellVerticalBorder
               showColumnVerticalBorder

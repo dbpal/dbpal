@@ -10,8 +10,8 @@ function triggerDetailsToMetas(x: types.TriggerDetail): types.MetaValue[] {
   const getEnableDesc = (): string => {
     if (x.enable.kind == 'postgres') {
       return `Controls in which session_replication_role modes the trigger fires. O = trigger fires in
-     “origin” and “local” modes, D = trigger is disabled, R = trigger fires in “replica” mode, A
-     = trigger fires always.`;
+      “origin” and “local” modes, D = trigger is disabled, R = trigger fires in “replica” mode, A
+      = trigger fires always.`;
     }
     return '';
   };

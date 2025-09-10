@@ -303,8 +303,7 @@ function makeViewTable(
   uuid,
   table: string,
   kind: DataSourceKind,
-  redisTableType: RedisTableType,
-  showNotification
+  redisTableType: RedisTableType
 ) {
   let tableList: ReactNode = null;
   switch (kind) {
@@ -397,23 +396,16 @@ function makeViewTable(
                 });
               }}
               loadContent={async () => {
-                try {
-                  let x = await invoke<types.MuiDataGridData>('show_table', {
-                    name: uuid,
-                    tableName: table,
-                    whereStr: null,
-                    orderBy: null,
-                    page: 0,
-                    pageSize: 0,
-                  });
-                  return x.data[0]['value'];
-                } catch (e) {
-                  showNotification(
-                    'success',
-                    'load redis string table failed',
-                    e
-                  );
-                }
+                return invoke<types.MuiDataGridData>('show_table', {
+                  name: uuid,
+                  tableName: table,
+                  whereStr: null,
+                  orderBy: null,
+                  page: 0,
+                  pageSize: 0,
+                }).then((x) => {
+                  return x.data[0]['result'];
+                });
               }}
             ></RedisStringTable>
           );
@@ -763,8 +755,7 @@ function TableMenu(props: {
       uuid,
       table,
       kind,
-      redisTableType,
-      showNotification
+      redisTableType
     );
     setTabs((e) => {
       setTimeout(() => {

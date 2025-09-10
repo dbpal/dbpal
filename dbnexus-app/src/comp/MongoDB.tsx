@@ -29,7 +29,7 @@ import {
   MongoBsonError,
   parseMongoBson,
 } from './MongoBsonCompiler';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidV4 } from 'uuid';
 import {
   ReactNode,
   useCallback,
@@ -52,14 +52,7 @@ import {
   GridSlotsComponentsProps,
 } from '@mui/x-data-grid';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import {
-  modalStyle,
-  reloadOK,
-  keyNotInTable,
-  EscDownEvent,
-  EditorBar,
-  SimpleFlexEditor,
-} from './Common';
+import { modalStyle, reloadOK, keyNotInTable, EscDownEvent } from './Common';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { BsFillLightbulbFill } from 'react-icons/bs';
@@ -87,6 +80,7 @@ import {
   validJson,
   savePageSize,
 } from './helper';
+import { EditorBar, SimpleFlexEditor } from './CommonComp2';
 
 enum MongoDataViewModel {
   List,
@@ -1185,7 +1179,7 @@ function MongoTableList(props: {
         let has_null = false;
         r.data.forEach((e) => {
           e['_id'] = EJSON.parse(e['_id']);
-          e[keyNotInTable] = uuidv4();
+          e[keyNotInTable] = uuidV4();
           if (!e['_id']) {
             showNotification(
               'error',
@@ -1354,16 +1348,12 @@ function MongoTableList(props: {
     <>
       {resp && (
         <Stack spacing={1}>
-          <div
-            style={{
-              display: 'grid',
-            }}
-          >
+          <div style={{ display: 'grid' }}>
             <DataGrid
               showToolbar
-              style={gridStyle}
               loading={loading}
               slots={slots}
+              style={gridStyle}
               showCellVerticalBorder
               showColumnVerticalBorder
               slotProps={slotProps}

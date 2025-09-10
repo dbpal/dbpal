@@ -24,7 +24,7 @@ import {
 } from '@mui/material';
 import { HexColorPicker } from 'react-colorful';
 import { NotificationContext } from './Notification';
-import { appStore, AppStoreKey, SimpleFlexEditor } from './Common';
+import { appStore, AppStoreKey } from './Common';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import {
   ErrAndLoc,
@@ -37,6 +37,7 @@ import { Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
 import EditIcon from '@mui/icons-material/Edit';
 import ClearIcon from '@mui/icons-material/Clear';
+import { SimpleFlexEditor } from './CommonComp2';
 function ModifySettings() {
   const { showNotification } = useContext(NotificationContext);
   const [fontWeight, setFontWeight] = useState('normal');

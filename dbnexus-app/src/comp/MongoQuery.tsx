@@ -24,16 +24,12 @@ import {
   saveAndSetSize,
   SettingContext,
 } from './helper';
-import {
-  EditorBar,
-  EscDownEvent,
-  LoadStoreFileForQuery,
-  modalStyle,
-} from './Common';
+import { EscDownEvent, modalStyle } from './Common';
 import { NotificationContext } from './Notification';
 import { LogLevelSelection, ModalHeader } from './CommonComp';
 import * as esprima from 'esprima';
 import { FaBookmark } from 'react-icons/fa';
+import { EditorBar, LoadStoreFileForQuery } from './CommonComp2';
 initMongoQueryGlobals();
 
 function makeLog(level, ...msg: any[]): string {

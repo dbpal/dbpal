@@ -28,7 +28,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-
+import { FaMarkdown } from 'react-icons/fa';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import { NotificationContext } from './Notification';
@@ -42,14 +42,8 @@ import {
   GridSortModel,
 } from '@mui/x-data-grid';
 import ClearIcon from '@mui/icons-material/Clear';
-import { v4 as uuidv4 } from 'uuid';
-import {
-  EscDownEvent,
-  keyNotInTable,
-  modalStyle,
-  reloadOK,
-  SimpleFlexEditor,
-} from './Common';
+import { v4 as uuidV4 } from 'uuid';
+import { EscDownEvent, keyNotInTable, modalStyle, reloadOK } from './Common';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import KeyIcon from '@mui/icons-material/Key';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -80,6 +74,7 @@ import FileCopyIcon from '@mui/icons-material/FileCopy';
 import {
   AppColumnMenu,
   ExecutingTime,
+  ExportMarkDown,
   MenuResetColumnWidths,
   ModalHeader,
   pageSizeOptions,
@@ -89,6 +84,7 @@ import { CancellationToken, editor, languages, Position } from 'monaco-editor';
 import { loader } from '@monaco-editor/react';
 import wcmatch from 'wildcard-match';
 import { MdEditNote } from 'react-icons/md';
+import { SimpleFlexEditor } from './CommonComp2';
 
 const confrimAboutPrimary = async (
   notWarnPri,
@@ -384,10 +380,10 @@ function SqlTableView_(props: {
     useState<EditInModalCellData>(null);
   const [editInModalRow, setEditInModalRow] = useState<object>(null);
   const [viewInModal, setViewInModal] = useState<object>(null);
-
+  const [showExportMarkDown, setShowExportMarkDown] = useState(false);
   const handleResp = (resp: types.MuiDataGridData) => {
     resp.data.forEach((data) => {
-      data[keyNotInTable] = uuidv4();
+      data[keyNotInTable] = uuidV4();
     });
     for (let i = 0; i < resp.fields.length; i++) {
       let field = resp.fields[i];
@@ -598,6 +594,9 @@ function SqlTableView_(props: {
           setUpMenu({
             content: (
               <Menu
+                showExportMarkDown={() => {
+                  setShowExportMarkDown(true);
+                }}
                 editCellInModal={() => {
                   setEditCellInModal(
                     new EditInModalCellData(row, field, row[field])
@@ -644,7 +643,7 @@ function SqlTableView_(props: {
                       }
                     : undefined
                 }
-                resetColunmWidthCallBack={() => {
+                resetColumnWidthCallBack={() => {
                   setResp((old) => {
                     return resetMuiDataRespWidth(old);
                   });
@@ -823,16 +822,12 @@ function SqlTableView_(props: {
         </Stack>
       </Stack>
 
-      <div
-        style={{
-          display: 'grid',
-        }}
-      >
+      <div style={{ display: 'grid' }}>
         <DataGrid
           showToolbar
           slots={slots}
-          style={gridStyle}
           loading={loading}
+          style={gridStyle}
           showCellVerticalBorder
           showColumnVerticalBorder
           slotProps={slotProps}
@@ -940,6 +935,24 @@ function SqlTableView_(props: {
                 handleReload(false);
               }}
             ></SqlTableViewData>
+          </Box>
+        </Modal>
+      )}
+
+      {showExportMarkDown && (
+        <Modal
+          open={showExportMarkDown}
+          onClose={(e: EscDownEvent, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            e.preventDefault();
+            setShowExportMarkDown(false);
+          }}
+        >
+          <Box sx={modalStyle} ref={setEditRowInMoalBox} width="60%">
+            <ModalHeader title="export markdown"></ModalHeader>
+            <ExportMarkDown fields={resp.fields} data={resp.data} />
           </Box>
         </Modal>
       )}
@@ -1142,9 +1155,10 @@ function Menu(props: {
   nullable: boolean;
   editCellInModal;
   editRowInModal;
-  resetColunmWidthCallBack;
+  resetColumnWidthCallBack;
   quoteStyle;
   viewInModal;
+  showExportMarkDown;
 }) {
   const {
     field,
@@ -1161,9 +1175,10 @@ function Menu(props: {
     nullable,
     editCellInModal,
     editRowInModal,
-    resetColunmWidthCallBack,
+    resetColumnWidthCallBack,
     quoteStyle,
     viewInModal,
+    showExportMarkDown,
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showFilter, setShowFilter] = useState(false);
@@ -1309,8 +1324,15 @@ function Menu(props: {
           </MenuItem>
         )}
         <MenuResetColumnWidths
-          reset={resetColunmWidthCallBack}
+          reset={resetColumnWidthCallBack}
         ></MenuResetColumnWidths>
+
+        <MenuItem onClick={showExportMarkDown}>
+          <ListItemIcon>
+            <FaMarkdown fontSize="1.5rem" />
+          </ListItemIcon>
+          <ListItemText>Export MarkDown</ListItemText>
+        </MenuItem>
       </MenuList>
 
       {showFilter && (

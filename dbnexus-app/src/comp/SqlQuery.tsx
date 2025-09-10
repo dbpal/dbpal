@@ -28,14 +28,12 @@ import {
 import FastForwardIcon from '@mui/icons-material/FastForward';
 import { editor, Position } from 'monaco-editor';
 import {
-  EditorBar,
   EscDownEvent,
   IQueryConn,
-  LoadStoreFileForQuery,
   MakeIQueryConn,
   modalStyle,
   msgTimeout,
-} from './Common.tsx';
+} from './Common.ts';
 import { BsFillLightbulbFill } from 'react-icons/bs';
 import { FaBookmark } from 'react-icons/fa';
 import { FaUpload } from 'react-icons/fa';
@@ -59,6 +57,7 @@ import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRound
 import { ExportView } from './Export.tsx';
 import { invoke } from '@tauri-apps/api/core';
 import { ExecutingTime, PossibleParseError } from './CommonComp.tsx';
+import { EditorBar, LoadStoreFileForQuery } from './CommonComp2.tsx';
 function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
@@ -183,9 +182,9 @@ function SqlQuery(props: {
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [showQueryLog, setShowQueryLog] = useState(false);
-  const [showSuggestReconn, setShowSuggestReconn] = useState<number | null>(
-    null
-  );
+  const [showSuggestReconnect, setShowSuggestReconnect] = useState<
+    number | null
+  >(null);
   const setting = useContext(SettingContext);
   const queryLogHandler = useRef(new QueryLogHandler(uuid));
   const [executeTimes, setExecuteTimes] = useState(0);
@@ -268,9 +267,9 @@ function SqlQuery(props: {
     //@ts-ignore
     let queryTime = new Date() - start;
     if (queryTime > 5_000) {
-      setShowSuggestReconn(queryTime as number);
+      setShowSuggestReconnect(queryTime as number);
       setTimeout(() => {
-        setShowSuggestReconn(null);
+        setShowSuggestReconnect(null);
       }, msgTimeout);
     }
   };
@@ -377,7 +376,7 @@ function SqlQuery(props: {
     };
   }, [conn]);
 
-  const eidtorOptions =
+  const editorOptions =
     useMemo((): editor.IStandaloneEditorConstructionOptions => {
       return {
         fontSize: setting.fontSize,
@@ -461,8 +460,8 @@ function SqlQuery(props: {
       defaultSize={500}
       minSize={200}
       size={size}
-      onChange={(newvalue) => {
-        SaveDomSizes.saveSize(sizeKey, { height: newvalue });
+      onChange={(newValue) => {
+        SaveDomSizes.saveSize(sizeKey, { height: newValue });
       }}
       style={{ height: 'fit-content' }}
     >
@@ -541,8 +540,8 @@ function SqlQuery(props: {
           )}
           <Tooltip
             title={
-              showSuggestReconn
-                ? `query used ${showSuggestReconn}ms,try reconnect?`
+              showSuggestReconnect
+                ? `query used ${showSuggestReconnect}ms,try reconnect?`
                 : 'reconnect'
             }
           >
@@ -552,11 +551,11 @@ function SqlQuery(props: {
               }}
               color="primary"
             >
-              <RefreshIcon color={showSuggestReconn ? 'error' : 'inherit'} />
+              <RefreshIcon color={showSuggestReconnect ? 'error' : 'inherit'} />
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="export query result to a file,implemented it not using query connection,uncommit row may not beable found">
+          <Tooltip title="export query result to a file,implemented it not using query connection,uncommit row may not be found">
             <IconButton
               loading={loading}
               disabled={loading || conn == null}
@@ -637,7 +636,7 @@ function SqlQuery(props: {
             width="99%"
             height="99%"
             value={value}
-            options={eidtorOptions}
+            options={editorOptions}
             theme={setting.editorTheme()}
           ></Editor>
         </div>
@@ -661,7 +660,7 @@ function SqlQuery(props: {
         ></EditorBar>
       </div>
 
-      <div>
+      <div style={{ minHeight: '300px' }}>
         <MultiQueryResp data={resp}></MultiQueryResp>
         {showExport && (
           <Modal

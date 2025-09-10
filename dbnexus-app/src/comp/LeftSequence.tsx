@@ -17,7 +17,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import {
   DefAndMetas,
   EscDownEvent,
-  initMonacoLanague,
+  initMonacoLanguage,
   modalStyle,
   tabsHasId,
 } from './Common';
@@ -33,7 +33,7 @@ import {
   ContextMenuContext,
   DataSourceKind,
   makeExecuteSql,
-  makeGetParserErrr,
+  makeGetParserErr,
   MatchPatternContext,
   maxTreeSize,
   secondConfirm,
@@ -166,7 +166,7 @@ function SequenceMenu(props: {
   const supportCaacase = [DataSourceKind.Postgres].includes(kind);
 
   const handleOpenDetails = () => {
-    initMonacoLanague(uuid, kind);
+    initMonacoLanguage(uuid, kind);
 
     const id = uuid + '-' + '-sequence-' + seq.name;
     let index = tabsHasId(tabs, id);
@@ -190,7 +190,7 @@ function SequenceMenu(props: {
                 }}
                 executeOP={makeExecuteSql(uuid)}
                 language={uuid}
-                getParseErr={makeGetParserErrr(uuid)}
+                getParseErr={makeGetParserErr(uuid)}
               ></DefAndMetasView>
             ),
             <GiProgression></GiProgression>

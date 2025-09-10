@@ -7,7 +7,8 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
 import { BSON, EJSON } from "bson";
 import Database, { QueryResult } from '@tauri-apps/plugin-sql';
-import { pageSizeOptions } from "./CommonComp";
+const pageSizeOptions = [10, 20, 50, 100];
+
 import { fetch } from '@tauri-apps/plugin-http';
 
 const appDatabase = await Database.load('sqlite:dbpal.sqlite.db');
@@ -25,8 +26,8 @@ function setUpDatabase() {
     `
   CREATE TABLE if not EXISTS element_size ( 
     name TEXT PRIMARY KEY not NULL,
-    width INTEGER NOT NULL,
-    height INTEGER not NULL
+    width INTEGER NULL,
+    height INTEGER NULL
   )
     `  , `
   CREATE TABLE if not EXISTS column_width ( 
@@ -551,7 +552,7 @@ type UISize = {
   width?: number;
   height?: number;
 };
-const gridStyle = { height: 'auto', maxHeight: '80vh' } as CSSProperties;
+const gridStyle = { height: "auto", minHeight: "20vh", maxHeight: "80vh" } as CSSProperties;
 
 function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "both" = "both") {
   let e = new ResizeObserver((en) => {
@@ -679,7 +680,7 @@ const SettingContext = createContext<UserSettings>(null);
 const windowFocusChangeEvent = "window-focus-change-event";
 const WindowFocusChangeContext = createContext(true);
 
-function editorSetPositonAndReveal(editor: editor.IStandaloneCodeEditor, pos: Position) {
+function editorSetPositionAndReveal(editor: editor.IStandaloneCodeEditor, pos: Position) {
   editor.setPosition(pos);
   editor.focus();
   editor.revealLines(pos.lineNumber, pos.lineNumber);
@@ -741,7 +742,7 @@ function getEditorText(
   return text;
 };
 
-function makeGetParserErrr(uuid) {
+function makeGetParserErr(uuid) {
   return (sql: string): Promise<ErrAndLoc | null> => {
     return invoke<ErrAndLoc | null>('sql_parse_error', {
       name: uuid,
@@ -828,6 +829,24 @@ const validURL = async (url) => {
   let x = await fetch(url);
   return x.ok;
 };
+
+
+function generateDefaultFilename(name, extension) {
+  if (extension == 'jsonline') {
+    /*
+      统一用 .jsonl（全小写，无空格）最好。
+      这是社区事实标准：GitHub、Git LFS、Apache Spark、BigQuery、Hugging Face 等生态都按 .jsonl 识别，工具链（grep、jq、ripgrep、VS Code 插件）也都默认支持。
+    */
+    extension = 'jsonl';
+  }
+  // 获取当前时间
+  const now = new Date();
+  // 格式化时间为字符串
+  const timestamp = now.toISOString().replace(/[:.-]/g, '').slice(0, 15);
+  // 生成文件名
+  const filename = `${name}_${timestamp}.${extension}`;
+  return filename;
+}
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -868,12 +887,12 @@ export {
   windowFocusChangeEvent,
   WindowFocusChangeContext,
   gridStyle,
-  editorSetPositonAndReveal,
+  editorSetPositionAndReveal,
   maxTreeSize,
   postgresLike,
   udfIdGenerate,
   getEditorText,
-  makeGetParserErrr,
+  makeGetParserErr,
   makeExecuteSql,
   QueryLogHandler,
   QueryEvent,
@@ -881,7 +900,9 @@ export {
   getSupportExportKind,
   savePageSize,
   rustResultOk,
-  validURL
+  validURL,
+  generateDefaultFilename,
+  pageSizeOptions
 };
 
 

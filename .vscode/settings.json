@@ -5,4 +5,7 @@
   "rust-analyzer.checkOnSave": true,
   "rust-analyzer.cargo.features": [],
   "prettier.singleQuote": true,
+  "cSpell.words": [
+    "jsonline"
+  ],
 }

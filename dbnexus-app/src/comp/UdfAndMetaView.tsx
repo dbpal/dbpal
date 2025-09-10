@@ -2,11 +2,12 @@ import { useContext, useEffect, useRef, useState } from 'react';
 
 import { NotificationContext } from './Notification';
 import { Button, Stack, Tooltip, Typography } from '@mui/material';
-import { DefAndMetas, SimpleFlexEditor } from './Common';
+import { DefAndMetas } from './Common';
 import { MetaValuesView, PossibleParseError } from './CommonComp';
 import { ErrAndLoc, getEditorText, saveAndSetSize } from './helper';
 import { MultiQueryResp } from './QueryResp';
 import { editor } from 'monaco-editor';
+import { SimpleFlexEditor } from './CommonComp2';
 
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
@@ -121,7 +122,9 @@ function DefAndMetasView(props: {
           <SimpleFlexEditor
             language={language}
             value={detail.def}
-            editorRef={editor}
+            handleEditor={(ed) => {
+              editor.current = ed;
+            }}
             handleValue={(sql) => {
               getParseErr(sql).then((e) => {
                 setParseErr(e);

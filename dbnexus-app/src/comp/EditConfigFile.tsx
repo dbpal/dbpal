@@ -3,7 +3,7 @@ import { useContext, useEffect, useState } from 'react';
 
 import { appStore, ErrAndLoc, validJson } from './helper';
 import { NotificationContext } from './Notification';
-import { SimpleFlexEditor } from './Common';
+import { SimpleFlexEditor } from './CommonComp2';
 
 function EditConfigFile(props: { handleClose }) {
   const { handleClose } = props;

@@ -1,4 +1,5 @@
 import {
+  RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -25,15 +26,10 @@ import {
   InputAdornment,
   IconButton,
 } from '@mui/material';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidV4 } from 'uuid';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import {
-  modalStyle,
-  reloadOK,
-  SimpleFlexEditor,
-  EscDownEvent,
-} from './Common.tsx';
+import { modalStyle, reloadOK, EscDownEvent } from './Common';
 import ClearIcon from '@mui/icons-material/Clear';
 import { types } from './ApiStruct.ts';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -50,7 +46,6 @@ import {
   calMenuStyle,
   columnWidths,
   ContextMenuContext,
-  gridStyle,
   handleCopyToClipboard,
   hexToString,
   hexTryToString,
@@ -60,6 +55,7 @@ import {
   stringToHex,
   validJson,
   savePageSize,
+  gridStyle,
 } from './helper.ts';
 
 import {
@@ -68,7 +64,8 @@ import {
   pageSizeOptions,
   ResizeWrapper,
 } from './CommonComp.tsx';
-import { Position } from 'monaco-editor';
+import { editor, Position } from 'monaco-editor';
+import { SimpleFlexEditor } from './CommonComp2.tsx';
 
 class RedisZsetHashModifyReq {
   constructor(
@@ -93,6 +90,7 @@ function RedisAddList(props: {
   const [direction, setDirection] = useState<'left' | 'right'>('left');
   const key = useRef('');
   const { showNotification } = useContext(NotificationContext);
+  const valueRef = useRef(new EditorAndMode());
   const handleAdd = () => {
     // reset some state
     setLoading(true);
@@ -130,11 +128,7 @@ function RedisAddList(props: {
           </RadioGroup>
         </Stack>
 
-        <RedisValueEditor
-          handleValue={(e) => {
-            key.current = e;
-          }}
-        ></RedisValueEditor>
+        <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
 
         <Stack direction="row" spacing={1}>
           <Button
@@ -160,22 +154,25 @@ function RedisStringTable(props: {
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [loadOK, setLoadOK] = useState(false);
-  const newContent = useRef('');
+  const valueRef = useRef(new EditorAndMode());
   useEffect(() => {
+    setLoading(true);
     loadContent()
       .then((e) => {
-        newContent.current = e;
         setContent(e);
         setLoadOK(true);
       })
       .catch((e) => {
         showNotification('error', 'load redis string data failed', e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   }, []);
 
   const handleModify = () => {
     setLoading(true);
-    modifyOP(newContent.current)
+    modifyOP(valueRef.current.getValue())
       .then(() => {
         showNotification('success', 'Modify OK');
       })
@@ -206,10 +203,8 @@ function RedisStringTable(props: {
     >
       {(content || loadOK) && (
         <RedisValueEditor
-          oldValue={content}
-          handleValue={(e) => {
-            newContent.current = e;
-          }}
+          value={content}
+          valueRef={valueRef}
         ></RedisValueEditor>
       )}
       <Stack direction="row" spacing={1}>
@@ -232,7 +227,7 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
   let { addOP } = props;
   const [loading, setLoading] = useState(false);
   const key = useRef('');
-
+  const valueRef = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
   const handleAdd = () => {
     // reset some state
@@ -257,11 +252,7 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
       minHeight="50vh"
     >
       <Stack spacing={1} flex={1}>
-        <RedisValueEditor
-          handleValue={(e) => {
-            key.current = e;
-          }}
-        ></RedisValueEditor>
+        <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
 
         <Stack direction="row" spacing={1}>
           <Button
@@ -283,14 +274,14 @@ function RedisAddHash(props: {
 }) {
   let { addOP } = props;
   const [loading, setLoading] = useState(false);
-  const value = useRef('');
-  const key = useRef('');
+  const valueRefKey = useRef(new EditorAndMode());
+  const valueRefValue = useRef(new EditorAndMode());
 
   const { showNotification } = useContext(NotificationContext);
   const handleAdd = () => {
     // reset some state
     setLoading(true);
-    addOP(key.current, value.current)
+    addOP(valueRefKey.current.getValue(), valueRefValue.current.getValue())
       .then(() => {
         showNotification('success', 'Add OK');
       })
@@ -312,19 +303,15 @@ function RedisAddHash(props: {
       <Stack spacing={1} flex={1}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           <RedisValueEditor
-            oldValue={key.current}
-            handleValue={(e) => {
-              key.current = e;
-            }}
+            value=""
             header="key"
+            valueRef={valueRefKey}
           ></RedisValueEditor>
         </div>
         <div style={{ flex: 1.5, display: 'flex', flexDirection: 'column' }}>
           <RedisValueEditor
-            oldValue={value.current}
-            handleValue={(e) => {
-              value.current = e;
-            }}
+            value=""
+            valueRef={valueRefValue}
             header="value"
           ></RedisValueEditor>
         </div>
@@ -349,15 +336,14 @@ function RedisAddZset(props: {
   let { addOP } = props;
   const [loading, setLoading] = useState(false);
   const [score, setScore] = useState('');
-  const key = useRef('');
   const [scoreErr, setScoreErr] = useState(false);
-
+  const valueRef = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
 
   const handleAdd = () => {
     // reset some state
     setLoading(true);
-    addOP(key.current, parseFloat(score))
+    addOP(valueRef.current.getValue(), parseFloat(score))
       .then(() => {
         showNotification('success', 'Add OK');
       })
@@ -405,12 +391,7 @@ function RedisAddZset(props: {
             },
           }}
         ></TextField>
-
-        <RedisValueEditor
-          handleValue={(e) => {
-            key.current = e;
-          }}
-        ></RedisValueEditor>
+        <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
 
         <Stack direction="row" spacing={1}>
           <Button
@@ -435,15 +416,19 @@ function RedisEditHash(props: {
 }) {
   const { oldKey, oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
-  const newkey = useRef(oldKey);
-  const newValue = useRef(oldValue);
+  const newkey = useRef(new EditorAndMode());
+  const newValue = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
 
   const handleModify = () => {
     // reset some state
     setLoading(true);
     modifyOP(
-      new RedisZsetHashModifyReq(oldKey, newkey.current, newValue.current)
+      new RedisZsetHashModifyReq(
+        oldKey,
+        newkey.current.getValue(),
+        newValue.current.getValue()
+      )
     )
       .then(() => {
         showNotification('success', 'Modify OK');
@@ -461,19 +446,15 @@ function RedisEditHash(props: {
     <Stack spacing={1} flex={1}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <RedisValueEditor
-          oldValue={oldKey}
-          handleValue={(e) => {
-            newkey.current = e;
-          }}
+          value={oldKey}
+          valueRef={newkey}
           header="key"
         ></RedisValueEditor>
       </div>
       <div style={{ flex: 1.5, display: 'flex', flexDirection: 'column' }}>
         <RedisValueEditor
-          oldValue={oldValue}
-          handleValue={(e) => {
-            newValue.current = e;
-          }}
+          value={oldValue}
+          valueRef={newValue}
           header="value"
         ></RedisValueEditor>
       </div>
@@ -501,17 +482,17 @@ function RedisEditZset(props: {
   const { oldKey, oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
 
-  const newKey = useRef(oldKey);
+  const newKey = useRef(new EditorAndMode());
   const [newValue, setNewValue] = useState(oldValue);
   const [newValueErr, setNewValueErr] = useState(false);
   const { showNotification } = useContext(NotificationContext);
 
   const handleModify = () => {
-    if (oldKey == newKey.current && oldValue == newValue) {
+    if (oldKey == newKey.current.getValue() && oldValue == newValue) {
       return;
     }
     setLoading(true);
-    modifyOP(oldKey, newKey.current, parseInt(newValue))
+    modifyOP(oldKey, newKey.current.getValue(), parseInt(newValue))
       .then(() => {
         showNotification('success', 'Modify OK');
         handleClose();
@@ -558,12 +539,7 @@ function RedisEditZset(props: {
           },
         }}
       ></TextField>
-      <RedisValueEditor
-        oldValue={oldKey}
-        handleValue={(e) => {
-          newKey.current = e;
-        }}
-      ></RedisValueEditor>
+      <RedisValueEditor value={oldKey} valueRef={newKey}></RedisValueEditor>
 
       <Stack direction="row" spacing={1}>
         <Button
@@ -605,12 +581,26 @@ function RedisEditModeSelect(props: {
   );
 }
 
+/// editor and edit mode use to get value
+class EditorAndMode {
+  editor: editor.IStandaloneCodeEditor;
+  mode: RedisEditorMode;
+  getValue() {
+    switch (this.mode) {
+      case RedisEditorMode.Hex:
+        return this.editor.getValue();
+      default:
+        return stringToHex(this.editor.getValue());
+    }
+  }
+}
+
 function RedisValueEditor(props: {
-  oldValue?: string;
-  handleValue: (a: string) => void;
+  value?: string;
+  valueRef: RefObject<EditorAndMode>;
   header?: string;
 }) {
-  let { oldValue, handleValue, header } = props;
+  let { value, valueRef, header } = props;
   const [newValue, setNewValue] = useState<string>('');
   const [editModel, setEditModel] = useState<RedisEditorMode>(
     RedisEditorMode.Text
@@ -618,38 +608,23 @@ function RedisValueEditor(props: {
   const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   useEffect(() => {
-    let value = hexTryToString(oldValue);
-    if (typeof value === 'string') {
+    const v = hexTryToString(value);
+    if (typeof v === 'string') {
       let isJson = false;
       try {
-        isJson = typeof JSON.parse(value) == 'object';
+        isJson = typeof JSON.parse(v) == 'object';
       } catch (e) {}
       if (isJson) {
         setEditModel(RedisEditorMode.Json);
       } else {
         setEditModel(RedisEditorMode.Text);
       }
-      setNewValue(value);
+      setNewValue(v);
     } else {
       setEditModel(RedisEditorMode.Hex);
-      setNewValue(oldValue);
+      setNewValue(value);
     }
   }, []);
-
-  useEffect(() => {
-    if (!newValue) {
-      // newvalue is still null no need to set.
-      return;
-    }
-    switch (editModel) {
-      case RedisEditorMode.Hex:
-        handleValue(newValue);
-        break;
-      default:
-        handleValue(stringToHex(newValue));
-    }
-  }, [newValue]);
-
   useEffect(() => {
     if (editModel != RedisEditorMode.Json) {
       setJsonErr(null);
@@ -663,9 +638,11 @@ function RedisValueEditor(props: {
         console.log('call valid json error', e);
       });
   }, [newValue, editModel]);
-
+  useEffect(() => {
+    valueRef.current.mode = editModel;
+  }, [editModel]);
   return (
-    <Stack spacing={1} flex={1} style={{ background: '1px solod red' }}>
+    <Stack spacing={1} flex={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <Typography
           variant="h6"
@@ -714,6 +691,9 @@ function RedisValueEditor(props: {
         handleValue={(v) => {
           setNewValue(v);
         }}
+        handleEditor={(ed) => {
+          valueRef.current.editor = ed;
+        }}
         errPos={jsonErrPos}
         wordWrap="on"
         barLeft={
@@ -746,13 +726,13 @@ function RedisEditList(props: {
 }) {
   let { oldValue, modifyOP, handleClose, index } = props;
   const [loading, setLoading] = useState(false);
-  const newValue = useRef(oldValue);
+  const newValue = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
 
   // really modify the content.
   const handleModify = () => {
     setLoading(true);
-    modifyOP(index, newValue.current)
+    modifyOP(index, newValue.current.getValue())
       .then(() => {
         showNotification('success', 'Modify OK', '');
         handleClose();
@@ -766,12 +746,7 @@ function RedisEditList(props: {
   };
   return (
     <Stack spacing={1} flex={1}>
-      <RedisValueEditor
-        oldValue={oldValue}
-        handleValue={(e) => {
-          newValue.current = e;
-        }}
-      ></RedisValueEditor>
+      <RedisValueEditor value={oldValue} valueRef={newValue}></RedisValueEditor>
       <Stack direction="row" spacing={1}>
         <Button
           loading={loading}
@@ -793,13 +768,13 @@ function RedisEditSet(props: {
 }) {
   let { oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
-  const newValue = useRef(oldValue);
+  const newValue = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
 
   // really modify the content.
   const handleModify = () => {
     setLoading(true);
-    modifyOP(oldValue, newValue.current)
+    modifyOP(oldValue, newValue.current.getValue())
       .then(() => {
         showNotification('success', 'Modify OK');
         handleClose();
@@ -813,13 +788,8 @@ function RedisEditSet(props: {
   };
 
   return (
-    <Stack spacing={1} flex={1} style={{ background: '1px solid red' }}>
-      <RedisValueEditor
-        oldValue={oldValue}
-        handleValue={(e) => {
-          newValue.current = e;
-        }}
-      ></RedisValueEditor>
+    <Stack spacing={1} flex={1}>
+      <RedisValueEditor value={oldValue} valueRef={newValue}></RedisValueEditor>
       <Stack direction="row" spacing={1}>
         <Button
           loading={loading}
@@ -883,7 +853,7 @@ function RedisSetTable(props: {
     reloadOP(keyMatch)
       .then((resp) => {
         resp.data.forEach((e) => {
-          e.id = uuidv4();
+          e.id = uuidV4();
         });
         resp.fields[0]['flex'] = 1;
         resp.fields[0]['valueGetter'] = valueGetter;
@@ -1023,15 +993,11 @@ function RedisSetTable(props: {
       </Stack>
 
       {resp && (
-        <div
-          style={{
-            display: 'grid',
-          }}
-        >
+        <div style={{ display: 'grid' }}>
           <DataGrid
             showToolbar
-            style={gridStyle}
             showCellVerticalBorder
+            style={gridStyle}
             showColumnVerticalBorder
             slotProps={slotProps}
             rowHeight={settings.datagridRowHeightXXX()}
@@ -1198,7 +1164,7 @@ function RedisListTable(props: {
     reloadOP()
       .then((resp) => {
         resp.data.forEach((e) => {
-          e.id = uuidv4();
+          e.id = uuidV4();
         });
         const seqWidth = columnWidths.getWidth('seq');
         if (seqWidth) {
@@ -1352,11 +1318,7 @@ function RedisListTable(props: {
       </Stack>
 
       {resp && (
-        <div
-          style={{
-            display: 'grid',
-          }}
-        >
+        <div style={{ display: 'grid' }}>
           <DataGrid
             showToolbar
             loading={loading}
@@ -1495,7 +1457,7 @@ function RedisZsetTable(props: {
     reloadOP(keyMatch, minValue, maxValue)
       .then((resp) => {
         resp.data.forEach((e) => {
-          e.id = uuidv4();
+          e.id = uuidV4();
         });
         resp.fields[1]['flex'] = 1;
         const scoreWidth = columnWidths.getWidth('score');
@@ -1700,16 +1662,12 @@ function RedisZsetTable(props: {
       </Stack>
 
       {resp && (
-        <div
-          style={{
-            display: 'grid',
-          }}
-        >
+        <div style={{ display: 'grid' }}>
           <DataGrid
             showToolbar
-            style={gridStyle}
             onColumnResize={onColumnResize}
             loading={loading}
+            style={gridStyle}
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
@@ -1844,7 +1802,7 @@ function RedisHashTable(props: {
     reloadOP(keyMatch)
       .then((resp) => {
         resp.data.forEach((e) => {
-          e.id = uuidv4();
+          e.id = uuidV4();
         });
         const keyWidth = columnWidths.getWidth('key');
         if (keyWidth) {
@@ -1993,11 +1951,7 @@ function RedisHashTable(props: {
       </Stack>
 
       {resp && (
-        <div
-          style={{
-            display: 'grid',
-          }}
-        >
+        <div style={{ display: 'grid' }}>
           <DataGrid
             showToolbar
             onColumnResize={onColumnResize}

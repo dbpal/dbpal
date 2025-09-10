@@ -10,7 +10,7 @@ import types from './ApiStruct';
 import {
   DefAndMetas,
   EscDownEvent,
-  initMonacoLanague,
+  initMonacoLanguage,
   modalStyle,
 } from './Common';
 import {
@@ -21,7 +21,7 @@ import {
   gridStyle,
   handleCopyToClipboard,
   makeExecuteSql,
-  makeGetParserErrr,
+  makeGetParserErr,
   saveAndSetSize,
   secondConfirm,
   SettingContext,
@@ -67,7 +67,7 @@ import AddIcon from '@mui/icons-material/Add';
 import { BSON } from 'bson';
 import { MongoValueEditor } from './MongoDB';
 import { TriggerDetail } from './TriggerDetail';
-import { ModalHeader, TrueOrFalse } from './CommonComp';
+import { ModalHeader, SelectColumns, TrueOrFalse } from './CommonComp';
 import ClearIcon from '@mui/icons-material/Clear';
 import { DefAndMetasView } from './UdfAndMetaView';
 function ColumnsStructure(props: {
@@ -306,16 +306,12 @@ function ColumnsStructure(props: {
         )}
       </Stack>
 
-      <div
-        style={{
-          display: 'grid',
-        }}
-      >
+      <div style={{ display: 'grid' }}>
         <DataGrid
           showToolbar
-          style={gridStyle}
           getRowId={getRowId}
           slotProps={slotProps}
+          style={gridStyle}
           onColumnResize={onColumnResize}
           showCellVerticalBorder
           showColumnVerticalBorder
@@ -635,15 +631,11 @@ function IndexesStructure(props: {
         </Button>
       </Stack>
 
-      <div
-        style={{
-          display: 'grid',
-        }}
-      >
+      <div style={{ display: 'grid' }}>
         <DataGrid
           showToolbar
-          style={gridStyle}
           getRowId={getRowId}
+          style={gridStyle}
           slotProps={slotProps}
           onColumnResize={onColumnResize}
           showCellVerticalBorder
@@ -932,45 +924,11 @@ function AddIndex(props: {
           },
         }}
       ></TextField>
-      <Stack
-        direction="row"
-        style={{ flexWrap: 'wrap', alignItems: 'center' }}
-        spacing={1}
-      >
-        <Typography color="info">includes:</Typography>
-        {includes.map((x) => (
-          <Chip
-            onClick={() => {
-              setIncludes((e) => e.filter((e) => e != x));
-            }}
-            size="small"
-            key={x}
-            color="success"
-            label={x}
-          ></Chip>
-        ))}
-      </Stack>
-
-      <Stack
-        direction="row"
-        style={{ flexWrap: 'wrap', alignItems: 'center' }}
-        spacing={1}
-      >
-        <Typography> candidates: </Typography>
-        {fields
-          .filter((f) => includes.find((e) => e == f.field) == undefined)
-          .map((x) => (
-            <Chip
-              size="small"
-              key={x.field}
-              onClick={() => {
-                setIncludes((e) => [...e, x.field]);
-              }}
-              color="default"
-              label={x.field}
-            ></Chip>
-          ))}
-      </Stack>
+      <SelectColumns
+        includes={includes}
+        setIncludes={setIncludes}
+        fields={fields}
+      ></SelectColumns>
       {indexTypeJsx}
       <Divider />
       <Stack direction="row">
@@ -1502,7 +1460,7 @@ function TriggersStructure(props: {
   table: string;
 }) {
   const { uuid, kind, table } = props;
-  initMonacoLanague(uuid, kind);
+  initMonacoLanguage(uuid, kind);
   const setting = useContext(SettingContext);
   const [loading, setLoading] = useState(false);
   const [triggers, setTriggers] = useState<types.TriggerDetail[]>([]);
@@ -1705,15 +1663,11 @@ function TriggersStructure(props: {
         )}
       </Stack>
 
-      <div
-        style={{
-          display: 'grid',
-        }}
-      >
+      <div style={{ display: 'grid' }}>
         <DataGrid
           showToolbar
-          style={gridStyle}
           getRowId={getRowId}
+          style={gridStyle}
           slotProps={slotProps}
           onColumnResize={onColumnResize}
           showCellVerticalBorder
@@ -1744,7 +1698,7 @@ function TriggersStructure(props: {
                 return Promise.resolve(row);
               }}
               uuid={uuid}
-              getParseErr={makeGetParserErrr(uuid)}
+              getParseErr={makeGetParserErr(uuid)}
               executeOP={makeExecuteSql(uuid)}
             ></TriggerDetail>
           </Box>
@@ -1877,7 +1831,7 @@ function StatementStructure(props: {
     ret += indexes.join('');
     return ret;
   };
-  initMonacoLanague(uuid, kind);
+  initMonacoLanguage(uuid, kind);
 
   return (
     <Stack>
@@ -1895,7 +1849,7 @@ function StatementStructure(props: {
         }}
         executeOP={makeExecuteSql(uuid)}
         language={uuid}
-        getParseErr={makeGetParserErrr(uuid)}
+        getParseErr={makeGetParserErr(uuid)}
       ></DefAndMetasView>
     </Stack>
   );

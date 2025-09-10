@@ -4,7 +4,7 @@ import './style/react-split-pane.css';
 import { editor } from 'monaco-editor';
 
 import { SqlQuery } from './SqlQuery.tsx';
-import { MakeIQueryConn } from './Common.tsx';
+import { MakeIQueryConn } from './Common.ts';
 import {
   appStore,
   AppStoreKey,
@@ -35,6 +35,11 @@ class SaveShowdoc {
   static instance = new SaveShowdoc();
 }
 
+const urlPrefix = 'https://redis.io/docs/latest/commands/';
+const getURL = (command: string) => {
+  return urlPrefix + command + '/' + '#examples';
+};
+
 function RedisQuery(props: {
   makeConn: MakeIQueryConn;
   language;
@@ -63,10 +68,6 @@ function RedisQuery(props: {
     }
   };
   const [showDoc, setShowDoc] = useState(SaveShowdoc.instance.get());
-  const urlPrefix = 'https://redis.io/docs/latest/commands/';
-  const getURL = (command: string) => {
-    return urlPrefix + command + '/' + '#examples';
-  };
 
   // 启用 iframe 的鼠标事件
   const enableIframe = () => {
