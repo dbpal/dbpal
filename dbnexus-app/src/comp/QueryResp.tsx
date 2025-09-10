@@ -48,6 +48,8 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification.tsx';
 import {
   AppColumnMenu,
+  ExportMarkDown,
+  MenuExportMarkDown,
   MenuResetColumnWidths,
   ModalHeader,
   ViewRowInModal,
@@ -60,9 +62,16 @@ function RespContextMenu(props: {
   setSort;
   resetColunmWidthCallBack;
   viewInModal;
+  showExportMarkDown;
 }) {
-  const { content, field, setSort, resetColunmWidthCallBack, viewInModal } =
-    props;
+  const {
+    content,
+    field,
+    setSort,
+    resetColunmWidthCallBack,
+    viewInModal,
+    showExportMarkDown,
+  } = props;
   const { showNotification } = useContext(NotificationContext);
   return (
     <MenuList>
@@ -106,6 +115,9 @@ function RespContextMenu(props: {
         </ListItemIcon>
         <ListItemText> {field} DESC </ListItemText>
       </MenuItem>
+      <MenuExportMarkDown
+        showExportMarkDown={showExportMarkDown}
+      ></MenuExportMarkDown>
       <MenuResetColumnWidths
         reset={resetColunmWidthCallBack}
       ></MenuResetColumnWidths>
@@ -117,6 +129,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
   let { data: oldData } = props;
   const [data, setData] = useState<types.MuiDataGridData>(null);
   const setting = useContext(SettingContext);
+  const [showExportMarkDown, setShowExportMarkDown] = useState(false);
   useEffect(() => {
     oldData.data.forEach((e) => {
       e[keyNotInTable] = uuidV4();
@@ -168,6 +181,9 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
                   setData((e) => {
                     return resetMuiDataRespWidth(e);
                   });
+                }}
+                showExportMarkDown={() => {
+                  setShowExportMarkDown(true);
                 }}
               ></RespContextMenu>
             ),
@@ -265,6 +281,23 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
               fields={data.fields}
               x={viewInModal}
             ></ViewRowInModal>
+          </Box>
+        </Modal>
+      )}
+      {showExportMarkDown && (
+        <Modal
+          open={showExportMarkDown}
+          onClose={(e: EscDownEvent, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            e.preventDefault();
+            setShowExportMarkDown(false);
+          }}
+        >
+          <Box sx={modalStyle} width="60%">
+            <ModalHeader title="export markdown"></ModalHeader>
+            <ExportMarkDown fields={data.fields} data={data.data} />
           </Box>
         </Modal>
       )}

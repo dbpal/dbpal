@@ -28,7 +28,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { FaMarkdown } from 'react-icons/fa';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import { NotificationContext } from './Notification';
@@ -75,6 +74,7 @@ import {
   AppColumnMenu,
   ExecutingTime,
   ExportMarkDown,
+  MenuExportMarkDown,
   MenuResetColumnWidths,
   ModalHeader,
   pageSizeOptions,
@@ -950,7 +950,7 @@ function SqlTableView_(props: {
             setShowExportMarkDown(false);
           }}
         >
-          <Box sx={modalStyle} ref={setEditRowInMoalBox} width="60%">
+          <Box sx={modalStyle} width="60%">
             <ModalHeader title="export markdown"></ModalHeader>
             <ExportMarkDown fields={resp.fields} data={resp.data} />
           </Box>
@@ -1327,12 +1327,9 @@ function Menu(props: {
           reset={resetColumnWidthCallBack}
         ></MenuResetColumnWidths>
 
-        <MenuItem onClick={showExportMarkDown}>
-          <ListItemIcon>
-            <FaMarkdown fontSize="1.5rem" />
-          </ListItemIcon>
-          <ListItemText>Export MarkDown</ListItemText>
-        </MenuItem>
+        <MenuExportMarkDown
+          showExportMarkDown={showExportMarkDown}
+        ></MenuExportMarkDown>
       </MenuList>
 
       {showFilter && (

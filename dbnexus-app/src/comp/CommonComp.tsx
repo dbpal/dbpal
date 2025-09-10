@@ -80,6 +80,18 @@ import { FaAlignCenter } from 'react-icons/fa6';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
+import { FaMarkdown } from 'react-icons/fa';
+
+function MenuExportMarkDown({ showExportMarkDown }) {
+  return (
+    <MenuItem onClick={showExportMarkDown}>
+      <ListItemIcon>
+        <FaMarkdown fontSize="1.5rem" />
+      </ListItemIcon>
+      <ListItemText>Export MarkDown</ListItemText>
+    </MenuItem>
+  );
+}
 function SelectAlign(props: {
   align: 'left' | 'right' | 'center';
   handleChange;
@@ -875,27 +887,6 @@ function SelectColumns(props: {
   const [matchStr, setMatchStr] = useState('');
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={1} style={{ alignContent: 'center' }}>
-        <TextField
-          value={matchStr}
-          onChange={(e) => {
-            setMatchStr(e.target.value);
-          }}
-          style={{ flex: 1 }}
-          size="small"
-          label="match field string"
-        ></TextField>
-        {canSelectAll && (
-          <Button
-            onClick={() => {
-              setIncludes(fields.map((x) => x.field));
-            }}
-          >
-            select all
-          </Button>
-        )}{' '}
-      </Stack>
-
       <Stack
         direction="row"
         style={{ flexWrap: 'wrap', alignItems: 'center' }}
@@ -914,14 +905,33 @@ function SelectColumns(props: {
           ></Chip>
         ))}
       </Stack>
-
+      <Stack direction="row" spacing={1} style={{ alignContent: 'center' }}>
+        <TextField
+          value={matchStr}
+          onChange={(e) => {
+            setMatchStr(e.target.value);
+          }}
+          style={{ flex: 1 }}
+          size="small"
+          label="match field string"
+          helperText="only for field candidate"
+        ></TextField>
+      </Stack>
       <Stack
         direction="row"
         style={{ flexWrap: 'wrap', alignItems: 'center' }}
         spacing={1}
       >
-        <Typography textAlign="right">candidates:</Typography>
-
+        <Typography>candidates:</Typography>
+        {canSelectAll && (
+          <Button
+            onClick={() => {
+              setIncludes(fields.map((x) => x.field));
+            }}
+          >
+            select all
+          </Button>
+        )}
         {fields
           .filter((f) => includes.find((e) => e == f.field) == undefined)
           .filter((f) => f.field.includes(matchStr))
@@ -1097,4 +1107,5 @@ export {
   ExportMarkDown,
   SelectColumns,
   OpenFileWithDefaultApp,
+  MenuExportMarkDown,
 };
