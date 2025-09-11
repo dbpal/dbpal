@@ -881,9 +881,8 @@ function SelectColumns(props: {
   fields: types.Field[];
   includes: string[];
   setIncludes;
-  canSelectAll?;
 }) {
-  const { fields, includes, setIncludes, canSelectAll } = props;
+  const { fields, includes, setIncludes } = props;
   const [matchStr, setMatchStr] = useState('');
   return (
     <Stack spacing={1}>
@@ -893,6 +892,15 @@ function SelectColumns(props: {
         spacing={1}
       >
         <Typography color="info">includes:</Typography>
+        {includes.length > 0 && (
+          <Button
+            onClick={() => {
+              setIncludes([]);
+            }}
+          >
+            clear
+          </Button>
+        )}
         {includes.map((x) => (
           <Chip
             onClick={() => {
@@ -905,29 +913,26 @@ function SelectColumns(props: {
           ></Chip>
         ))}
       </Stack>
-
-      {canSelectAll && includes.length != fields.length && (
-        <Stack direction="row" spacing={1} style={{ alignContent: 'center' }}>
-          <Button
-            onClick={() => {
-              setIncludes(fields.map((x) => x.field));
-            }}
-          >
-            select all
-          </Button>
-          <TextField
-            value={matchStr}
-            onChange={(e) => {
-              setMatchStr(e.target.value);
-            }}
-            style={{ flex: 1 }}
-            size="small"
-            label="match field name string"
-            helperText="only for field candidate"
-          ></TextField>
-        </Stack>
-      )}
-
+      <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
+        <Button
+          onClick={() => {
+            setIncludes(fields.map((x) => x.field));
+          }}
+          variant="outlined"
+        >
+          include all
+        </Button>
+        <TextField
+          value={matchStr}
+          onChange={(e) => {
+            setMatchStr(e.target.value);
+          }}
+          style={{ flex: 1 }}
+          size="small"
+          label="match field name string"
+          helperText="only for field candidate"
+        ></TextField>
+      </Stack>
       <Stack
         direction="row"
         style={{ flexWrap: 'wrap', alignItems: 'center' }}
@@ -1050,7 +1055,6 @@ function ExportMarkDownTable(props: {
   return (
     <Stack spacing={1}>
       <SelectColumns
-        canSelectAll={true}
         fields={fields}
         includes={includes}
         setIncludes={setIncludes}

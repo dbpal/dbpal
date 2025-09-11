@@ -997,7 +997,6 @@ interface Location {
   end: Position;
 }
 
- 
 
 export {
   parseMongoBson,
