@@ -19,6 +19,9 @@ impl LanguageServer for MariaDB {
     fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         LanguageServer::parse_error(self.db.as_ref(), sql)
     }
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        LangServerCommon::is_dangerous_sql_by_parser(self, sql)
+    }
 }
 
 #[async_trait::async_trait]

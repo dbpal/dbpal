@@ -15,13 +15,12 @@ use crate::datasource_config::PGDBConfig;
 use crate::db::{
     BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListMaterializedView, ListTable, NamedStaff,
-    POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    SequenceDetail, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
-    export_query_as_xlsx_send_data,
+    Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, POOL_MAX_CONNECTIONS,
+    ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, XlsxEdit, export_query_as_xlsx_send_data,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser};
+use crate::helper::create_csv;
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::pg_format::*;
@@ -1203,7 +1202,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         let mut conn = self.get_conn().await?;
         let schema = self.config.schema_str();
         let rows = sqlx::raw_sql(AssertSqlSafe(
@@ -1225,7 +1224,7 @@ impl SchemaTrait for PostGresDB {
             let view_name: String = r.get(0);
             ret.push(view_name);
         }
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 
     async fn table_delete(
@@ -1338,7 +1337,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
         let schema = self.config.schema_str();
 
         let sql = format!(
@@ -1359,7 +1358,7 @@ impl SchemaTrait for PostGresDB {
         for r in rows.iter() {
             let name: String = r.get(0);
 
-            ret.push(ListMaterializedView { name, size: None });
+            ret.push(ListTable { name, size: None });
         }
         anyhow::Ok(ret)
     }
@@ -1912,10 +1911,6 @@ impl QuerySql for PostGresDB {
         conn.rollback().await?;
 
         anyhow::Ok(())
-    }
-
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::PostgreSqlDialect {})
     }
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {

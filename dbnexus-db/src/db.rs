@@ -132,7 +132,7 @@ pub trait SchemaTrait:
         &self, _table_name: &str, _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet>;
 
-    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         not_support_feature(self.backend_name())
     }
     async fn drop_view(&self, _view_name: &str) -> anyhow::Result<()> {
@@ -180,7 +180,7 @@ pub trait SchemaTrait:
         not_support_feature(self.backend_name())
     }
 
-    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
         not_support_feature(self.backend_name())
     }
 
@@ -426,9 +426,7 @@ pub trait SqlBuilder: GetBackendKind {
     /// this method current use in `insert_sql` etc.
     fn put_value_in_sql(
         &self, _typ: &str, _: Option<i64>, _value: Option<&str>,
-    ) -> anyhow::Result<String> {
-        not_support_feature(self.backend_name())
-    }
+    ) -> anyhow::Result<String>;
 
     fn make_where(
         &self, fs: &Vec<Field>, wheres: &HashMap<String, Option<String>>,
@@ -645,7 +643,7 @@ pub enum UdfOrProcedureExtraParameter {
 
 impl UdfOrProcedureExtraParameter {
     pub(crate) fn wrong_type(&self) -> anyhow::Error {
-        anyhow::Error::msg(format!("wrong type of parameter of:{:?}", self))
+        anyhow::Error::msg(format!("wrong type of parameter passed:{:?}", self))
     }
 }
 
@@ -701,14 +699,12 @@ pub trait CatalogTrait:
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, TypeDef)]
 #[serde(tag = "extra", rename_all = "lowercase")]
-pub enum CreateDatabaseExtra {
-    // DuckDB { path: String },
-}
+pub enum CreateDatabaseExtra {}
 
 /// named staff maybe used for view udf etc...
 #[derive(Debug, serde::Serialize, TypeDef)]
 pub struct NamedStaff {
-    // some backend support reload function.
+    // some backend support reload function like postgres
     pub parameters: Option<String>,
     // cassandra support reload and parameter is a `Vec`
     pub cassandra_parameters: Option<Vec<String>>,
@@ -961,10 +957,6 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()>;
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()>;
-
-    fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
-        not_support_feature(self.backend_name())
-    }
 }
 
 #[derive(Debug, serde::Serialize, TypeDef)]
@@ -997,7 +989,6 @@ impl Display for HumanSize {
         )
     }
 }
-pub type ListMaterializedView = ListTable;
 
 impl Debug for HumanSize {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -1333,7 +1324,9 @@ impl PartialEq for TriggerDetail {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[derive(
+    Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq, typescript_type_def::TypeDef,
+)]
 #[serde(tag = "extra", rename_all = "lowercase")]
 pub enum ShowExtraArgs {
     Cassandra { allow_filtering: bool },

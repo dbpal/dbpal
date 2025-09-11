@@ -5,7 +5,7 @@ use crate::language_server::{
 };
 use crate::libsql::LibSqlDB;
 use crate::sqlite::SqliteDB;
-use crate::sqlite_lang_server_static::{SQLITE_KEY_WORDS, SQLITE_TYPES};
+use crate::sqlite_lang_server::{SQLITE_KEY_WORDS, SQLITE_TYPES};
 use crate::sqlparser_completion::TempTableColumn;
 use libsql::params;
 
@@ -18,6 +18,9 @@ impl LanguageServer for LibSqlDB {
     }
     fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         LangServerCommon::parse_error(self, sql)
+    }
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        LangServerCommon::is_dangerous_sql_by_parser(self, sql)
     }
 }
 

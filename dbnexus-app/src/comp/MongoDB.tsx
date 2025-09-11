@@ -60,6 +60,8 @@ import DataObjectIcon from '@mui/icons-material/DataObject';
 import {
   AppColumnMenu,
   ExecutingTime,
+  ExportMarkDownTable,
+  MenuExportMarkDownTable,
   MenuResetColumnWidths,
   ModalHeader,
   pageSizeOptions,
@@ -626,6 +628,7 @@ function MongoTableListContextMenu(props: {
   setFilter;
   loadDoc: () => Promise<BSON.Document>;
   setSort;
+  showExportMarkDown;
   resetColunmWidthCallBack;
 }) {
   const {
@@ -636,6 +639,7 @@ function MongoTableListContextMenu(props: {
     loadDoc,
     setSort,
     resetColunmWidthCallBack,
+    showExportMarkDown,
   } = props;
   const [showFilter, setShowFilter] = useState(false);
   const { showNotification } = useContext(NotificationContext);
@@ -726,6 +730,9 @@ function MongoTableListContextMenu(props: {
             <ListItemText> Delete </ListItemText>
           </MenuItem>
         )}
+        <MenuExportMarkDownTable
+          showExportMarkDown={showExportMarkDown}
+        ></MenuExportMarkDownTable>
         <MenuResetColumnWidths
           reset={resetColunmWidthCallBack}
         ></MenuResetColumnWidths>
@@ -1171,6 +1178,7 @@ function MongoTableList(props: {
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
     null
   );
+  const [showExportMarkDown, setShowExportMarkDown] = useState(false);
   const setting = useContext(SettingContext);
   const handleReload = async (showOK) => {
     setLoading(true);
@@ -1315,6 +1323,9 @@ function MongoTableList(props: {
                     return resetMuiDataRespWidth(old);
                   });
                 }}
+                showExportMarkDown={() => {
+                  setShowExportMarkDown(true);
+                }}
               ></MongoTableListContextMenu>
             ),
             style: calMenuStyle(e),
@@ -1411,6 +1422,24 @@ function MongoTableList(props: {
               }
               doc={selectModifyDoc}
             ></MongoValueEditor>
+          </Box>
+        </Modal>
+      )}
+
+      {showExportMarkDown && (
+        <Modal
+          open={showExportMarkDown}
+          onClose={(e: EscDownEvent, reason) => {
+            if (reason === 'backdropClick') {
+              return;
+            }
+            e.preventDefault();
+            setShowExportMarkDown(false);
+          }}
+        >
+          <Box sx={modalStyle} width="60%">
+            <ModalHeader title="export markdown table"></ModalHeader>
+            <ExportMarkDownTable fields={resp.fields} data={resp.data} />
           </Box>
         </Modal>
       )}

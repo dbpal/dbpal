@@ -19,11 +19,11 @@ use crate::MemoryLimit;
 use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     BackendKind, CheckConn, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
-    ListTable, NamedStaff, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, XlsxEdit, escape_sql_str,
+    ListTable, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser};
+use crate::helper::create_csv;
 use crate::meta_value::MetaValue;
 pub struct PoolManager {
     config: FireBirdConfig,
@@ -461,10 +461,6 @@ impl QuerySql for FireBirdDB {
 
         anyhow::Ok(())
     }
-
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
-    }
 }
 
 #[derive(Clone)]
@@ -805,7 +801,7 @@ impl SchemaTrait for FireBirdDB {
         })
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         let sql = r#"
             SELECT RDB$RELATION_NAME
             FROM RDB$RELATIONS
@@ -815,7 +811,7 @@ impl SchemaTrait for FireBirdDB {
         let rows: Vec<(String,)> = block_in_place(|| conn.query(sql, ()))?;
         anyhow::Ok(
             rows.into_iter()
-                .map(|x| NamedStaff::from(x.0.trim().to_owned()))
+                .map(|x| ListTable::from(x.0.trim().to_owned()))
                 .collect(),
         )
     }

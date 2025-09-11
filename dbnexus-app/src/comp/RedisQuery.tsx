@@ -93,12 +93,12 @@ function RedisQuery(props: {
     }
     const text = editorRef.current.getValue();
     const pos = editorRef.current.getPosition();
-    const linesArray = text.split('\n');
+    const lineArray = text.split('\n');
     const line = pos.lineNumber - 1;
-    if (line >= linesArray.length) {
+    if (line >= lineArray.length) {
       return;
     }
-    let cmds = linesArray[line].split(' ');
+    let cmds = lineArray[line].split(' ');
     let cmd = '';
     for (let i = 0; i < cmds.length; i++) {
       let c = cmds[i];

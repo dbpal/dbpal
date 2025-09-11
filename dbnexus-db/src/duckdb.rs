@@ -17,8 +17,8 @@ use crate::datasource_config::DuckDBConfig;
 use crate::db::{
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
-    IndexKind, ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, not_support_features,
+    IndexKind, ListTable, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -424,10 +424,6 @@ impl ExportQueryResult for DuckDB {
 impl QuerySql for DuckDB {
     fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
         anyhow::Ok(self.query_logs.get(&id))
-    }
-
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::DuckDbDialect {})
     }
 
     async fn query_sql(
@@ -1140,7 +1136,7 @@ impl SchemaTrait for DuckDB {
         anyhow::Ok(())
     }
 
-    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
         block_in_place(|| {
             self.list_materialized_table_impl(self.config.db_str(), self.config.schema_str())
         })
@@ -1209,7 +1205,7 @@ impl SchemaTrait for DuckDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         block_in_place(|| self.list_view_impl(self.config.db_str(), self.config.schema_str()))
     }
 

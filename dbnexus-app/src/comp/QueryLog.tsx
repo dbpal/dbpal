@@ -93,6 +93,10 @@ function QueryLog(props: {
       renderHeader: () => {
         return 'time';
       },
+      renderCell: (params) => {
+        // 加z是utc时间
+        return <div>{new Date(params.value + 'Z').toLocaleString()}</div>;
+      },
     },
     {
       width: columnWidths.getWidth('success'),

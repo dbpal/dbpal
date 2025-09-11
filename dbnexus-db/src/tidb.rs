@@ -114,10 +114,6 @@ impl QuerySql for TiDB {
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.db.close_connection(id).await
     }
-
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        self.db.is_dangerous_sql(sql)
-    }
 }
 
 #[async_trait::async_trait]
@@ -218,7 +214,7 @@ impl SchemaTrait for TiDB {
         self.db.table_delete(table_name, wheres).await
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.db.list_view().await
     }
 

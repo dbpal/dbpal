@@ -31,8 +31,8 @@ use crate::datasource_config::CassandraDBConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef,
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
-    ListMaterializedView, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
+    ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
     escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::{create_csv, current_timestamp};
@@ -902,56 +902,6 @@ impl QuerySql for CassandraDB {
     async fn close_connection(&self, _id: uuid::Uuid) -> anyhow::Result<()> {
         anyhow::Ok(())
     }
-
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        let ast = CassandraAST::new(sql);
-        for stmt in ast.statements.iter() {
-            let x = match &stmt.statement {
-                CassandraStatement::AlterKeyspace(..) => true,
-                CassandraStatement::AlterMaterializedView(..) => true,
-                CassandraStatement::AlterRole(..) => true,
-                CassandraStatement::AlterTable(..) => true,
-                CassandraStatement::AlterType(..) => true,
-                CassandraStatement::AlterUser(..) => true,
-                CassandraStatement::ApplyBatch => false,
-                CassandraStatement::CreateAggregate(..) => false,
-                CassandraStatement::CreateFunction(..) => false,
-                CassandraStatement::CreateIndex(..) => false,
-                CassandraStatement::CreateKeyspace(..) => false,
-                CassandraStatement::CreateMaterializedView(..) => false,
-                CassandraStatement::CreateRole(..) => false,
-                CassandraStatement::CreateTable(..) => false,
-                CassandraStatement::CreateTrigger(..) => false,
-                CassandraStatement::CreateType(..) => false,
-                CassandraStatement::CreateUser(..) => false,
-                CassandraStatement::Delete(..) => false,
-                CassandraStatement::DropAggregate(..) => true,
-                CassandraStatement::DropFunction(..) => true,
-                CassandraStatement::DropIndex(..) => true,
-                CassandraStatement::DropKeyspace(..) => true,
-                CassandraStatement::DropMaterializedView(..) => true,
-                CassandraStatement::DropRole(..) => true,
-                CassandraStatement::DropTable(..) => true,
-                CassandraStatement::DropTrigger(..) => true,
-                CassandraStatement::DropType(..) => true,
-                CassandraStatement::DropUser(..) => true,
-                CassandraStatement::Grant(..) => true,
-                CassandraStatement::Insert(..) => false,
-                CassandraStatement::ListPermissions(..) => false,
-                CassandraStatement::ListRoles(..) => false,
-                CassandraStatement::Revoke(..) => false,
-                CassandraStatement::Select(..) => false,
-                CassandraStatement::Truncate(..) => true,
-                CassandraStatement::Update(..) => false,
-                CassandraStatement::Use(..) => false,
-                CassandraStatement::Unknown(_) => false,
-            };
-            if x {
-                return anyhow::Ok(x);
-            }
-        }
-        anyhow::Ok(false)
-    }
 }
 
 impl CassandraDB {
@@ -1252,7 +1202,7 @@ impl CassandraDB {
 impl CassandraDB {
     pub(crate) async fn list_materialized_view_impl(
         &self, key_space: &str,
-    ) -> anyhow::Result<Vec<ListMaterializedView>> {
+    ) -> anyhow::Result<Vec<ListTable>> {
         let sql =
             format!("select view_name from system_schema.views where keyspace_name='{key_space}'");
         log::info!("sql:{}", sql);
@@ -1373,7 +1323,7 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(())
     }
 
-    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_materialized_view_impl(self.config.key_space_str())
             .await
     }

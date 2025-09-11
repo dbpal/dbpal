@@ -18,7 +18,7 @@ use crate::db::{
     ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_data,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser};
+use crate::helper::create_csv;
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::sqlite::{
@@ -158,10 +158,6 @@ impl QuerySql for LibSqlDB {
                 anyhow::bail!("transaction not found");
             }
         }
-    }
-
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::SQLiteDialect {})
     }
 
     async fn execute_sql_no_open_conn(
@@ -420,7 +416,7 @@ impl LibSqlDB {
         anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 
-    pub(crate) async fn list_view_impl(&self, db: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    pub(crate) async fn list_view_impl(&self, db: &str) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             r#"
             SELECT name
@@ -444,7 +440,7 @@ impl LibSqlDB {
             ret.push(name);
         }
 
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 }
 
@@ -472,7 +468,7 @@ impl SchemaTrait for LibSqlDB {
     }
 
     fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(crate::sqlite_lang_server_static::SQLITE_TYPES)
+        anyhow::Ok(crate::sqlite_lang_server::SQLITE_TYPES)
     }
 
     async fn create_index(
@@ -650,7 +646,7 @@ impl SchemaTrait for LibSqlDB {
         self
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_view_impl(SqliteDB::MAIN_DB).await
     }
 

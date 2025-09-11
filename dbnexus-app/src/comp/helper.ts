@@ -56,10 +56,6 @@ function setUpDatabase() {
 
 setUpDatabase();
 
-class QueryEvent {
-  //@ts-ignore 
-  constructor(public uuid: string, sql: string, success: number, create_at?: Date) { }
-}
 
 
 function rustResultOk(x: any): boolean {
@@ -88,7 +84,7 @@ class QueryLogHandler {
     });
   }
 
-  query(matchSql: string, page: number, pageSize: number, orde_by: string): Promise<QueryEvent[]> {
+  query(matchSql: string, page: number, pageSize: number, orde_by: string): Promise<any[]> {
     let sql = `
     select * from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""} order by ${orde_by ? orde_by : 'create_at desc'} limit ${pageSize} offset ${pageSize * (page - 1)}`;
     console.log("query log sql:", sql);
@@ -895,7 +891,6 @@ export {
   makeGetParserErr,
   makeExecuteSql,
   QueryLogHandler,
-  QueryEvent,
   ColorFn,
   getSupportExportKind,
   savePageSize,

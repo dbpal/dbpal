@@ -16,12 +16,11 @@ use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
-    GetBackendKind, Index, IndexKind, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowExtraArgs, SqlExecuteRet, XlsxEdit, not_support_feature,
+    GetBackendKind, Index, IndexKind, ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlExecuteRet, XlsxEdit, not_support_feature,
 };
 use crate::language_server::{CompletionItem, LanguageServer};
 use crate::meta_value::MetaValue;
-
 #[derive(Clone)]
 pub struct MongoDB {
     client: mongodb::Client,
@@ -74,6 +73,10 @@ impl LanguageServer for MongoDB {
     async fn auto_completion(
         &self, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        not_support_feature(self.backend_name())
+    }
+
+    fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
         not_support_feature(self.backend_name())
     }
 }
@@ -146,7 +149,8 @@ impl DBTrait for MongoDB {
 fn bson_value_to_string(b: &bson::Bson) -> anyhow::Result<Option<String>> {
     match b {
         Bson::Null | Bson::Undefined | Bson::MaxKey | Bson::MinKey => return anyhow::Ok(None),
-        Bson::String(x) => return anyhow::Ok(Some(x.to_owned())),
+
+        // Bson::String(x) => return anyhow::Ok(Some(x.to_owned())),
         _ => {}
     }
     let x = serde_json::to_string_pretty(b)?;
@@ -663,12 +667,12 @@ impl SchemaTrait for MongoDB {
         anyhow::Ok(())
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         let views = self
             .list_collection_name_by_type(Some(CollectionType::View))
             .await?;
 
-        anyhow::Ok(views.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(views.into_iter().map(ListTable::from).collect())
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {

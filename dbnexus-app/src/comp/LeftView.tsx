@@ -35,7 +35,7 @@ import {
 import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-
+import ViewComfyAltIcon from '@mui/icons-material/ViewComfyAlt';
 import types from './ApiStruct';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import ListIcon from '@mui/icons-material/List';
@@ -69,7 +69,6 @@ enum ViewKind {
   Normal,
   Materrialized,
 }
-import CalendarViewWeekIcon from '@mui/icons-material/CalendarViewWeek';
 import {
   DataGrid,
   GridColDef,
@@ -79,9 +78,7 @@ import { SimpleFlexEditor } from './CommonComp2';
 function ViewsTree(props: { viewkind: ViewKind }) {
   const { viewkind } = props;
   const { uuid } = useContext(UuidContext);
-  const [views, setViews] = useState<types.NamedStaff[] | types.ListTable[]>(
-    []
-  );
+  const [views, setViews] = useState<types.ListTable[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
   let invokeName = '';
@@ -100,7 +97,7 @@ function ViewsTree(props: { viewkind: ViewKind }) {
   }, [views, matchPattern]);
   const handleReload = () => {
     setLoading(true);
-    invoke<types.NamedStaff[] | types.ListTable[]>(invokeName, { name: uuid })
+    invoke<types.ListTable[]>(invokeName, { name: uuid })
       .then((ts) => {
         setViews(ts);
       })
@@ -125,18 +122,14 @@ function ViewsTree(props: { viewkind: ViewKind }) {
       itemId = uuid + '-materialized-views';
       break;
   }
-
   let name;
-  let icon;
-
+  let icon = getIcon(viewkind);
   switch (viewkind) {
     case ViewKind.Normal:
       name = 'views';
-      icon = <VisibilityIcon></VisibilityIcon>;
       break;
     case ViewKind.Materrialized:
       name = 'materialized views';
-      icon = <CalendarViewWeekIcon></CalendarViewWeekIcon>;
       break;
   }
 
@@ -429,6 +422,14 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   );
 }
 
+function getIcon(viewKind: ViewKind) {
+  switch (viewKind) {
+    case ViewKind.Materrialized:
+      return <ViewComfyAltIcon></ViewComfyAltIcon>;
+    default:
+      return <VisibilityIcon></VisibilityIcon>;
+  }
+}
 function ViewTree(props: {
   view: string;
   reload;
@@ -439,15 +440,8 @@ function ViewTree(props: {
   const { uuid } = useContext(UuidContext);
   const { kind: conn_type } = useContext(ConnTypeContext);
   let { setUpMenu } = useContext(ContextMenuContext);
-  let icon;
-  switch (viewkind) {
-    case ViewKind.Materrialized:
-      icon = <CalendarViewWeekIcon></CalendarViewWeekIcon>;
-      break;
-    case ViewKind.Normal:
-      icon = <VisibilityIcon></VisibilityIcon>;
-      break;
-  }
+  let icon = getIcon(viewkind);
+
   return (
     <TreeItem
       itemId={uuid + '-view-' + view}

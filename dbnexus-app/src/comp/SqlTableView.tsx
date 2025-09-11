@@ -73,8 +73,8 @@ import FileCopyIcon from '@mui/icons-material/FileCopy';
 import {
   AppColumnMenu,
   ExecutingTime,
-  ExportMarkDown,
-  MenuExportMarkDown,
+  ExportMarkDownTable,
+  MenuExportMarkDownTable,
   MenuResetColumnWidths,
   ModalHeader,
   pageSizeOptions,
@@ -87,7 +87,7 @@ import { MdEditNote } from 'react-icons/md';
 import { SimpleFlexEditor } from './CommonComp2';
 
 const confrimAboutPrimary = async (
-  notWarnPri,
+  notWarnPri: boolean,
   fields: types.Field[]
 ): Promise<boolean> => {
   if (notWarnPri) {
@@ -104,7 +104,7 @@ const confrimAboutPrimary = async (
 };
 
 const getRowId = (e) => e[keyNotInTable];
-const whereLanguage = 'ckqQtTcQDmO3e2fiBMB4QOv6Mhalfk';
+const whereLanguage = 'ckqQtTcQDmO3e2fiBMB4QOv6Mhalfk-1221';
 let whereAutoCompletion: (
   sql: string,
   pos: Position
@@ -137,7 +137,7 @@ loader
   });
 function WhereSort(props: {
   open: boolean;
-  onClose;
+  handleClose;
   value: string;
   setValue;
   label;
@@ -147,7 +147,7 @@ function WhereSort(props: {
     pos: Position
   ) => Promise<languages.CompletionList>;
 }) {
-  const { open, onClose, value, setValue, label, fields, autoCompletion } =
+  const { open, handleClose, value, setValue, label, fields, autoCompletion } =
     props;
   const [newValue, setNewValue] = useState(value);
 
@@ -181,7 +181,7 @@ function WhereSort(props: {
           return;
         }
         e.preventDefault();
-        onClose();
+        handleClose();
       }}
     >
       <Box
@@ -204,7 +204,7 @@ function WhereSort(props: {
             variant="contained"
             onClick={() => {
               setValue(newValue);
-              onClose();
+              handleClose();
             }}
           >
             set {label}
@@ -227,18 +227,17 @@ function WhereSort(props: {
 
 var EditInModalLanguage = 'text';
 
+const editInModalLanguages = [
+  { language: 'text' },
+  { language: 'html' },
+  { language: 'json' },
+  { language: 'xml' },
+] as {
+  language: string;
+}[];
+
 function EditInModal(props: { content: string; handleModify }) {
   const { content, handleModify } = props;
-  const languages = [
-    { language: 'text' },
-    { language: 'html' },
-    { language: 'json' },
-    { language: 'xml' },
-  ] as {
-    language: string;
-    color: string;
-  }[];
-
   const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   const [language, setLanguage] = useState(EditInModalLanguage);
@@ -260,7 +259,7 @@ function EditInModal(props: { content: string; handleModify }) {
   return (
     <Stack flex={1} spacing={1}>
       <Stack direction="row" spacing={1}>
-        {languages.map((e) => (
+        {editInModalLanguages.map((e) => (
           <Chip
             key={e.language}
             label={e.language}
@@ -327,7 +326,7 @@ function SqlTableView_(props: {
     orderBy: string,
     page: number,
     pageSize: number,
-    extra
+    extra: types.ShowExtraArgs
   ) => Promise<types.MuiDataGridData>;
   updateOP?: (wheres: object, values: object) => Promise<types.SqlExecuteRet>;
   deleteOP?: (wheres: object) => Promise<types.SqlExecuteRet>;
@@ -425,7 +424,7 @@ function SqlTableView_(props: {
   const handleReload = async (showOK: boolean) => {
     setLoading(true);
     try {
-      let extra = null;
+      let extra = null as types.ShowExtraArgs;
       switch (kind) {
         case DataSourceKind.Cassandra:
           extra = { extra: 'cassandra', allow_filtering: allowFiltering };
@@ -821,7 +820,6 @@ function SqlTableView_(props: {
           <ExecutingTime loading={loading}></ExecutingTime>
         </Stack>
       </Stack>
-
       <div style={{ display: 'grid' }}>
         <DataGrid
           showToolbar
@@ -951,8 +949,8 @@ function SqlTableView_(props: {
           }}
         >
           <Box sx={modalStyle} width="60%">
-            <ModalHeader title="export markdown"></ModalHeader>
-            <ExportMarkDown fields={resp.fields} data={resp.data} />
+            <ModalHeader title="export markdown table"></ModalHeader>
+            <ExportMarkDownTable fields={resp.fields} data={resp.data} />
           </Box>
         </Modal>
       )}
@@ -965,7 +963,7 @@ function SqlTableView_(props: {
             setWhere(v);
           }}
           autoCompletion={autoCompletion}
-          onClose={() => {
+          handleClose={() => {
             setShowSetWhere(false);
           }}
           label="filter"
@@ -981,7 +979,7 @@ function SqlTableView_(props: {
             setSort(v);
           }}
           fields={resp.fields}
-          onClose={() => {
+          handleClose={() => {
             setShowSetSort(false);
           }}
           label="sort"
@@ -1327,9 +1325,9 @@ function Menu(props: {
           reset={resetColumnWidthCallBack}
         ></MenuResetColumnWidths>
 
-        <MenuExportMarkDown
+        <MenuExportMarkDownTable
           showExportMarkDown={showExportMarkDown}
-        ></MenuExportMarkDown>
+        ></MenuExportMarkDownTable>
       </MenuList>
 
       {showFilter && (

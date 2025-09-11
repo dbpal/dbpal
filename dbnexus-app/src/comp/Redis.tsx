@@ -88,13 +88,16 @@ function RedisAddList(props: {
   const { lpushOP, rpushOP } = props;
   const [loading, setLoading] = useState(false);
   const [direction, setDirection] = useState<'left' | 'right'>('left');
-  const key = useRef('');
   const { showNotification } = useContext(NotificationContext);
   const valueRef = useRef(new EditorAndMode());
   const handleAdd = () => {
-    // reset some state
+    let c = valueRef.current.getValue();
+    if (!c) {
+      showNotification('error', 'Please input value');
+      return;
+    }
     setLoading(true);
-    (direction == 'left' ? lpushOP : rpushOP)(key.current)
+    (direction == 'left' ? lpushOP : rpushOP)(c)
       .then(() => {
         showNotification('success', 'Push OK');
       })
@@ -150,17 +153,15 @@ function RedisStringTable(props: {
   loadContent: () => Promise<string>;
 }) {
   const { modifyOP, loadContent } = props;
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
-  const [loadOK, setLoadOK] = useState(false);
   const valueRef = useRef(new EditorAndMode());
   useEffect(() => {
     setLoading(true);
     loadContent()
       .then((e) => {
         setContent(e);
-        setLoadOK(true);
       })
       .catch((e) => {
         showNotification('error', 'load redis string data failed', e);
@@ -201,7 +202,7 @@ function RedisStringTable(props: {
       }}
       ref={setDom}
     >
-      {(content || loadOK) && (
+      {typeof content == 'string' && (
         <RedisValueEditor
           value={content}
           valueRef={valueRef}
@@ -226,13 +227,16 @@ function RedisStringTable(props: {
 function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
   let { addOP } = props;
   const [loading, setLoading] = useState(false);
-  const key = useRef('');
   const valueRef = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
   const handleAdd = () => {
-    // reset some state
+    const c = valueRef.current.getValue();
+    if (!c) {
+      showNotification('error', 'please input value');
+      return;
+    }
     setLoading(true);
-    addOP(key.current)
+    addOP(c)
       .then(() => {
         showNotification('success', 'Add ok');
       })
@@ -243,7 +247,6 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
         setLoading(false);
       });
   };
-
   return (
     <ResizeWrapper
       sizeKey="redis-add-set"
@@ -274,14 +277,12 @@ function RedisAddHash(props: {
 }) {
   let { addOP } = props;
   const [loading, setLoading] = useState(false);
-  const valueRefKey = useRef(new EditorAndMode());
-  const valueRefValue = useRef(new EditorAndMode());
-
+  const key = useRef(new EditorAndMode());
+  const value = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
   const handleAdd = () => {
-    // reset some state
     setLoading(true);
-    addOP(valueRefKey.current.getValue(), valueRefValue.current.getValue())
+    addOP(key.current.getValue(), value.current.getValue())
       .then(() => {
         showNotification('success', 'Add OK');
       })
@@ -305,13 +306,13 @@ function RedisAddHash(props: {
           <RedisValueEditor
             value=""
             header="key"
-            valueRef={valueRefKey}
+            valueRef={key}
           ></RedisValueEditor>
         </div>
         <div style={{ flex: 1.5, display: 'flex', flexDirection: 'column' }}>
           <RedisValueEditor
             value=""
-            valueRef={valueRefValue}
+            valueRef={value}
             header="value"
           ></RedisValueEditor>
         </div>
@@ -336,7 +337,6 @@ function RedisAddZset(props: {
   let { addOP } = props;
   const [loading, setLoading] = useState(false);
   const [score, setScore] = useState('');
-  const [scoreErr, setScoreErr] = useState(false);
   const valueRef = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
 
@@ -363,37 +363,8 @@ function RedisAddZset(props: {
       minHeight="50vh"
     >
       <Stack spacing={1} flex={1}>
-        <TextField
-          size="small"
-          value={score}
-          label="score"
-          error={scoreErr}
-          helperText="put a valid float64 value"
-          onChange={(event) => {
-            setScore(event.target.value);
-            setScoreErr(isNaN(parseFloat(event.target.value)));
-          }}
-          slotProps={{
-            input: {
-              endAdornment: score && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setScore('');
-                    }}
-                    edge="end"
-                    size="small"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
-        ></TextField>
         <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
-
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
           <Button
             loading={loading}
             color="primary"
@@ -402,6 +373,33 @@ function RedisAddZset(props: {
           >
             Add
           </Button>
+          <TextField
+            size="small"
+            value={score}
+            label="score"
+            error={score ? isNaN(parseFloat(score)) : false}
+            helperText="put a valid float64 value"
+            onChange={(event) => {
+              setScore(event.target.value);
+            }}
+            slotProps={{
+              input: {
+                endAdornment: score && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => {
+                        setScore('');
+                      }}
+                      edge="end"
+                      size="small"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+          ></TextField>
         </Stack>
       </Stack>
     </ResizeWrapper>
@@ -421,7 +419,6 @@ function RedisEditHash(props: {
   const { showNotification } = useContext(NotificationContext);
 
   const handleModify = () => {
-    // reset some state
     setLoading(true);
     modifyOP(
       new RedisZsetHashModifyReq(
@@ -481,12 +478,9 @@ function RedisEditZset(props: {
 }) {
   const { oldKey, oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
-
   const newKey = useRef(new EditorAndMode());
   const [newValue, setNewValue] = useState(oldValue);
-  const [newValueErr, setNewValueErr] = useState(false);
   const { showNotification } = useContext(NotificationContext);
-
   const handleModify = () => {
     if (oldKey == newKey.current.getValue() && oldValue == newValue) {
       return;
@@ -507,41 +501,8 @@ function RedisEditZset(props: {
 
   return (
     <Stack spacing={1} flex={1}>
-      <TextField
-        size="small"
-        value={newValue}
-        label="score"
-        error={newValueErr}
-        helperText="put a valid float64 value"
-        onChange={(event) => {
-          setNewValue(event.target.value);
-          if (isNaN(parseFloat(event.target.value))) {
-            setNewValueErr(true);
-          } else {
-            setNewValueErr(false);
-          }
-        }}
-        slotProps={{
-          input: {
-            endAdornment: newValue && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setNewValue('');
-                  }}
-                  edge="end"
-                  size="small"
-                >
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
-      ></TextField>
       <RedisValueEditor value={oldKey} valueRef={newKey}></RedisValueEditor>
-
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
         <Button
           loading={loading}
           color="primary"
@@ -550,6 +511,33 @@ function RedisEditZset(props: {
         >
           modify
         </Button>
+        <TextField
+          size="small"
+          value={newValue}
+          label="score"
+          error={newValue ? isNaN(parseFloat(newValue)) : false}
+          helperText="put a valid float64 value"
+          onChange={(event) => {
+            setNewValue(event.target.value);
+          }}
+          slotProps={{
+            input: {
+              endAdornment: newValue && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setNewValue('');
+                    }}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+        ></TextField>
       </Stack>
     </Stack>
   );
@@ -625,18 +613,16 @@ function RedisValueEditor(props: {
       setNewValue(value);
     }
   }, []);
+
+  // check if json ok
   useEffect(() => {
     if (editModel != RedisEditorMode.Json) {
       setJsonErr(null);
       return;
     }
-    validJson(newValue)
-      .then((e) => {
-        setJsonErr(e);
-      })
-      .catch((e) => {
-        console.log('call valid json error', e);
-      });
+    validJson(newValue).then((e) => {
+      setJsonErr(e);
+    });
   }, [newValue, editModel]);
   useEffect(() => {
     valueRef.current.mode = editModel;
@@ -669,7 +655,6 @@ function RedisValueEditor(props: {
             setEditModel(mode);
           }}
         ></RedisEditModeSelect>
-
         {editModel == RedisEditorMode.Hex && (
           <>
             <span>looking for hex editor???</span>
@@ -683,11 +668,9 @@ function RedisValueEditor(props: {
           </>
         )}
       </Stack>
-
       <SimpleFlexEditor
         language={editModel == RedisEditorMode.Json ? 'json' : 'text'}
-        // in some times newvalue is not change as a string
-        value={typeof newValue == 'object' ? '' : newValue}
+        value={newValue}
         handleValue={(v) => {
           setNewValue(v);
         }}
@@ -714,6 +697,11 @@ function RedisValueEditor(props: {
           ) : undefined
         }
       ></SimpleFlexEditor>
+      {editModel == RedisEditorMode.Hex && (
+        <Stack>
+          <pre> {hexToString(newValue)}</pre>
+        </Stack>
+      )}
     </Stack>
   );
 }
@@ -771,7 +759,6 @@ function RedisEditSet(props: {
   const newValue = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
 
-  // really modify the content.
   const handleModify = () => {
     setLoading(true);
     modifyOP(oldValue, newValue.current.getValue())
@@ -1805,9 +1792,7 @@ function RedisHashTable(props: {
           e.id = uuidV4();
         });
         const keyWidth = columnWidths.getWidth('key');
-        if (keyWidth) {
-          resp.fields[0]['width'] = keyWidth;
-        }
+        resp.fields[0]['width'] = keyWidth;
         resp.fields[1]['flex'] = 1;
         resp.fields[0]['valueGetter'] = valueGetter;
         resp.fields[1]['valueGetter'] = valueGetter;
@@ -2017,75 +2002,6 @@ function RedisHashTable(props: {
   );
 }
 
-function RedisModifyKeyName(props: {
-  name: string;
-  modifyOP: (oldName: string, newName: string) => Promise<void>;
-}) {
-  let { name, modifyOP } = props;
-  const [newName, setNewName] = useState(name);
-  const { showNotification } = useContext(NotificationContext);
-  const [loading, setLoading] = useState(false);
-
-  const handleModify = () => {
-    setLoading(true);
-    modifyOP(newName, name)
-      .then(() => {
-        showNotification('success', 'Modify OK');
-      })
-      .catch((e) => {
-        showNotification('error', 'Modify failure', e);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  };
-
-  return (
-    <Stack spacing={1}>
-      <Stack direction="row">
-        <Typography variant="subtitle1"> New name: </Typography>
-      </Stack>
-
-      <TextField
-        size="small"
-        value={newName}
-        onChange={(e) => {
-          setNewName(e.target.value);
-        }}
-        slotProps={{
-          input: {
-            endAdornment: newName && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setNewName('');
-                  }}
-                  edge="end"
-                  size="small"
-                >
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
-        label="name"
-      ></TextField>
-      <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          disabled={name == newName}
-          color="primary"
-          variant="contained"
-          onClick={handleModify}
-        >
-          Save
-        </Button>
-      </Stack>
-    </Stack>
-  );
-}
-
 function DoubleClickToModify() {
   return (
     <Tooltip title="double click a row to modify.">
@@ -2101,7 +2017,6 @@ export {
   RedisZsetTable,
   RedisSetTable,
   RedisValueEditor,
-  RedisModifyKeyName,
   // add
   RedisAddSet,
   RedisAddHash,

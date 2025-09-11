@@ -11,8 +11,6 @@ import {
   Double,
   Document,
 } from 'bson';
-import { debugBuild } from './debug';
-
 class MongoBsonObject {
   constructor(
     public eles: MongoBsonKV[],
@@ -999,10 +997,7 @@ interface Location {
   end: Position;
 }
 
-
-if (debugBuild) {
-
-}
+ 
 
 export {
   parseMongoBson,

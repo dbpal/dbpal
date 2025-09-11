@@ -554,7 +554,7 @@ pub async fn table_delete(
 #[tauri::command]
 pub async fn list_view(
     name: String, app: tauri::State<'_, App>,
-) -> Result<Vec<NamedStaff>, ErrorFrontend> {
+) -> Result<Vec<ListTable>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&name).await?;

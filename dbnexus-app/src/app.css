@@ -10,3 +10,22 @@
     right: 50%;
   }
 }
+/* 
+::-webkit-resizer {
+  background-image: url('https://img.utdstc.com/icon/4aa/7c3/4aa7c3d6fd4aa91405776e3ce6b6adfe4759bf8da36317231e77d56459947fda:200');
+
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: bottom right;
+  background-color: transparent;
+
+  display: block !important;
+  width: 12px;
+  height: 12px;
+} */
+
+::-webkit-resizer {
+  background-color: skyblue;
+  border-radius: 50%;
+  border-style: inset;
+}

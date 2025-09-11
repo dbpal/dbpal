@@ -27,7 +27,7 @@ use crate::db::{
     XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset,
     not_support_feature,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser};
+use crate::helper::create_csv;
 
 use crate::meta_value::MetaValue;
 
@@ -491,7 +491,7 @@ impl MsSqlServerDB {
         anyhow::Ok(ret)
     }
 
-    pub(crate) async fn list_view_impl(&self, schema: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    pub(crate) async fn list_view_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             r#"
             SELECT 
@@ -512,7 +512,7 @@ impl MsSqlServerDB {
                 tiberius::QueryItem::Row(row) => {
                     let name: Option<&str> = row.try_get(0)?;
                     if let Some(name) = name {
-                        ret.push(NamedStaff::from(name.to_string()));
+                        ret.push(ListTable::from(name.to_string()));
                     }
                 }
                 tiberius::QueryItem::Metadata(_) => {}
@@ -850,7 +850,7 @@ impl SchemaTrait for MsSqlServerDB {
         anyhow::Ok(())
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_view_impl(self.config.schema_str().as_str()).await
     }
 
@@ -1772,10 +1772,6 @@ impl QuerySql for MsSqlServerDB {
         conn.simple_query("ROLLBACK TRANSACTION;").await?;
 
         anyhow::Ok(())
-    }
-
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {

@@ -85,6 +85,7 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   }, [commit]);
 
   useEffect(() => {
+    //这里的顺序很重要
     setTxCount((e) => e + 1);
     handleQueryCommit();
   }, [executeTimes]);
@@ -256,7 +257,7 @@ function SqlQuery(props: {
       return await secondConfirm({
         confirmText: 'Execute',
         title: 'This is a dangerous sql',
-        content: `Are u sure going to execute '${text}'`,
+        content: `Are u sure going to execute!!!!'`,
       });
     } else {
       return true;
@@ -279,13 +280,7 @@ function SqlQuery(props: {
     if (!text) {
       return;
     }
-    let confirm;
-    try {
-      confirm = await warnDangerousSql(text);
-    } catch (_e) {
-      console.log('warn about dangerous sql error', _e);
-      confirm = true;
-    }
+    let confirm = await warnDangerousSql(text);
     if (!confirm) {
       return;
     }
@@ -315,14 +310,7 @@ function SqlQuery(props: {
     if (explain) {
       text = `EXPLAIN ${text}`;
     }
-
-    let confirm;
-    try {
-      confirm = await warnDangerousSql(text);
-    } catch (e) {
-      console.log('warnDangerousSql failed : err:', e);
-      confirm = true;
-    }
+    let confirm = await warnDangerousSql(text);
     if (!confirm) {
       return;
     }
@@ -354,6 +342,7 @@ function SqlQuery(props: {
       });
   };
 
+  // make connection for the first time
   useEffect(() => {
     makeConn()
       .then((conn) => {
@@ -368,6 +357,7 @@ function SqlQuery(props: {
         showNotification('error', 'make connection failed', e);
       });
   }, []);
+  // destroy connection
   useEffect(() => {
     return () => {
       if (conn) {

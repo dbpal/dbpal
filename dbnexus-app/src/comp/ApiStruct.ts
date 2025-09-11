@@ -355,4 +355,9 @@ export namespace types {
         "name": string;
         "sql": (string | null);
     };
+    export type ShowExtraArgs = ({
+        "extra": "cassandra";
+    } & {
+        "allow_filtering": boolean;
+    });
 }

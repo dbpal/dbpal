@@ -1510,25 +1510,6 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl QuerySql for RedisDB {
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        anyhow::Ok(get_command_from_sql(sql)?.iter().any(|x| {
-            x.first()
-                .map(|x| {
-                    x.eq_ignore_ascii_case("FLUSHDB")
-                        || x.eq_ignore_ascii_case("FLUSHALL")
-                        || x.eq_ignore_ascii_case("DEL")
-                        || x.eq_ignore_ascii_case("CONFIG")
-                        || x.eq_ignore_ascii_case("SHUTDOWN")
-                        || x.eq_ignore_ascii_case("DEBUG")
-                        || x.eq_ignore_ascii_case("REPLICAOF")
-                        || x.eq_ignore_ascii_case("SWAPDB")
-                        || x.eq_ignore_ascii_case("EVAL")
-                        || x.eq_ignore_ascii_case("EVALSHA")
-                })
-                .unwrap_or(false)
-        }))
-    }
-
     /// redis have no transaction any connection is fine
     /// so connection management for redis is dummy
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
@@ -1823,17 +1804,7 @@ impl RedisToken {
     }
 }
 
-#[cfg(test)]
-#[test]
-fn test_token_xxx() {
-    let tokens =
-        RedisToken::tokenize(r#"abc xyz ccc 'aaaaaa"\'\n' "bbbbbb'\"\n" aaaa "#, 1).unwrap();
-    for t in tokens.iter() {
-        println!("token:{:?}", t);
-    }
-}
-
-fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
+pub(crate) fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
     let mut commands = Vec::new();
     for line in sql.lines() {
         if line.trim().is_empty() {
@@ -1853,16 +1824,6 @@ fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
     anyhow::Ok(commands)
 }
 
-#[cfg(test)]
-#[test]
-fn test_xxx() {
-    let cs = get_command_from_sql(r#"set my_key "value"   'value' "#).unwrap();
-    let c = &cs[0];
-
-    for x in c.iter() {
-        println!("x:{}", x);
-    }
-}
 impl ReadOnlyTrait for RedisDB {
     fn read_only(&self) -> bool {
         self.config.read_only
@@ -2080,6 +2041,35 @@ mod tests {
     };
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
+
+    #[cfg(test)]
+    #[test]
+    fn test_token_xxx() {
+        let tokens =
+            RedisToken::tokenize(r#"abc xyz ccc 'aaaaaa"\'\n' "bbbbbb'\"\n" aaaa "#, 1).unwrap();
+        for t in tokens.iter() {
+            println!("token:{:?}", t);
+        }
+
+        {
+            // error case
+            let tokens = RedisToken::tokenize(r#" 'a"#, 1);
+            match tokens {
+                Ok(_) => panic!("should hit error"),
+                Err(x) => assert!(x.to_string().contains("single")),
+            }
+        }
+
+        {
+            // error case
+            let tokens = RedisToken::tokenize(r#" "a"#, 1);
+            match tokens {
+                Ok(_) => panic!("should hit error"),
+                Err(x) => assert!(x.to_string().contains("double")),
+            }
+        }
+    }
+
     #[tokio::test]
     async fn test_select_zset_binary() {
         let db = make_test_object().await;

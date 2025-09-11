@@ -18,6 +18,7 @@ pub trait LanguageServer: GetBackendKind {
     fn parse_error(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         anyhow::Ok(None)
     }
+    fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -345,6 +346,33 @@ pub trait LangServerCommon: GetBackendKind {
      */
     async fn list_domain(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
+    }
+
+    fn is_dangerous_sql_by_parser(&self, sql: &str) -> anyhow::Result<bool> {
+        let dialect = self.dialect();
+        let ss = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql).unwrap_or_default();
+        for s in ss.iter() {
+            let x = match s {
+                Statement::Truncate { .. } => true,
+                Statement::Drop { .. } => true,
+                Statement::DropFunction { .. } => true,
+                Statement::DropSecret { .. } => true,
+                Statement::DropTrigger { .. } => true,
+                Statement::DropDomain(..) => true,
+                Statement::DropProcedure { .. } => true,
+                Statement::DropPolicy { .. } => true,
+                Statement::DropExtension { .. } => true,
+                Statement::Discard { .. } => true,
+                Statement::DropConnector {  ..  } => true, 
+                Statement::Delete(x) => x.selection.is_none(),
+                Statement::Update { selection, .. } => selection.is_none(),
+                _ => false,
+            };
+            if x {
+                return anyhow::Ok(true);
+            }
+        }
+        anyhow::Ok(false)
     }
 
     // some backend can use a query to query this.

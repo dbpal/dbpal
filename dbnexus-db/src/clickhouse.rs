@@ -12,11 +12,11 @@ use crate::MemoryLimit;
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    ExportKind, ExportQueryResult, Field, GetBackendKind, ListMaterializedView, ListTable,
-    NamedStaff, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, XlsxEdit, escape_sql_str, ty_is_float, ty_is_int,
+    ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, POOL_MAX_CONNECTIONS,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder,
+    SqlExecuteRet, XlsxEdit, escape_sql_str, ty_is_float, ty_is_int,
 };
-use crate::helper::{create_csv, is_dangerous_sql_by_parser, seperate_sql_by_sqlparser_tokenizer};
+use crate::helper::{create_csv, seperate_sql_by_sqlparser_tokenizer};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 
@@ -120,7 +120,7 @@ fn gen_show_sql(
 }
 
 impl ClickHouseDB {
-    pub(crate) async fn list_view_impl(&self, db: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    pub(crate) async fn list_view_impl(&self, db: &str) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             r#"
             SELECT name
@@ -132,12 +132,12 @@ impl ClickHouseDB {
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         let ret: Vec<String> = conn.query(&sql).fetch_all().await?;
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 
     pub(crate) async fn list_materialized_view_impl(
         &self, db: &str,
-    ) -> anyhow::Result<Vec<ListMaterializedView>> {
+    ) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             r#"
             SELECT name
@@ -149,7 +149,7 @@ impl ClickHouseDB {
         log::info!("sql:{}", sql);
         let conn = self.get_conn()?;
         let ret: Vec<String> = conn.query(&sql).fetch_all().await?;
-        anyhow::Ok(ret.into_iter().map(ListMaterializedView::from).collect())
+        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 
     pub(crate) async fn list_table_impl(&self, db: &str) -> anyhow::Result<Vec<ListTable>> {
@@ -185,11 +185,11 @@ impl SchemaTrait for ClickHouseDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
-    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_view_impl(self.config.db_str()).await
     }
 
-    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_materialized_view_impl(self.config.db_str()).await
     }
 
@@ -794,10 +794,6 @@ impl ExportQueryResult for ClickHouseDB {
 
 #[async_trait::async_trait]
 impl QuerySql for ClickHouseDB {
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::ClickHouseDialect {})
-    }
-
     async fn execute_sql_no_open_conn(
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {

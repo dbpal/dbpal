@@ -66,10 +66,9 @@ import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import AddIcon from '@mui/icons-material/Add';
 import { BSON } from 'bson';
 import { MongoValueEditor } from './MongoDB';
-import { TriggerDetail } from './TriggerDetail';
 import { ModalHeader, SelectColumns, TrueOrFalse } from './CommonComp';
 import ClearIcon from '@mui/icons-material/Clear';
-import { DefAndMetasView } from './UdfAndMetaView';
+import { DefAndMetasView, TriggerDetail } from './UdfAndMetaView';
 function ColumnsStructure(props: {
   uuid: string;
   kind: DataSourceKind;

@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 
-use sqlparser::ast::Statement;
 use sqlparser::dialect::Dialect;
 use sqlparser::tokenizer::Token;
 
@@ -73,30 +72,6 @@ pub fn current_timestamp() -> u64 {
         .expect("Time went backwards")
         .as_secs();
     timestamp
-}
-
-pub(crate) fn is_dangerous_sql_by_parser(sql: &str, dialect: &dyn Dialect) -> anyhow::Result<bool> {
-    let ss = sqlparser::parser::Parser::parse_sql(dialect, sql)?;
-    for s in ss.iter() {
-        let x = match s {
-            Statement::Truncate { .. } => true,
-            Statement::Drop { .. } => true,
-            Statement::DropFunction { .. } => true,
-            Statement::DropSecret { .. } => true,
-            Statement::DropTrigger { .. } => true,
-            Statement::DropDomain(..) => true,
-            Statement::DropProcedure { .. } => true,
-            Statement::DropPolicy { .. } => true,
-            Statement::DropExtension { .. } => true,
-            Statement::Discard { .. } => true,
-            Statement::Delete(x) => x.selection.is_none(),
-            _ => false,
-        };
-        if x {
-            return anyhow::Ok(true);
-        }
-    }
-    anyhow::Ok(false)
 }
 
 pub struct OffsetLimitIter<Index = usize> {

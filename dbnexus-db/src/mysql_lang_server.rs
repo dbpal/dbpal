@@ -53,6 +53,9 @@ impl LanguageServer for MysqlDB {
     fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         LangServerCommon::parse_error(self, sql)
     }
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        LangServerCommon::is_dangerous_sql_by_parser(self, sql)
+    }
 }
 
 impl MysqlDB {

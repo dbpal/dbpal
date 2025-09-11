@@ -49,6 +49,56 @@ impl LanguageServer for CassandraDB {
         // don't provide parse error for cassandra
         anyhow::Ok(None)
     }
+
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        let ast = CassandraAST::new(sql);
+        for stmt in ast.statements.iter() {
+            let x = match &stmt.statement {
+                CassandraStatement::AlterKeyspace(..) => true,
+                CassandraStatement::AlterMaterializedView(..) => true,
+                CassandraStatement::AlterRole(..) => true,
+                CassandraStatement::AlterTable(..) => true,
+                CassandraStatement::AlterType(..) => true,
+                CassandraStatement::AlterUser(..) => true,
+                CassandraStatement::ApplyBatch => false,
+                CassandraStatement::CreateAggregate(..) => false,
+                CassandraStatement::CreateFunction(..) => false,
+                CassandraStatement::CreateIndex(..) => false,
+                CassandraStatement::CreateKeyspace(..) => false,
+                CassandraStatement::CreateMaterializedView(..) => false,
+                CassandraStatement::CreateRole(..) => false,
+                CassandraStatement::CreateTable(..) => false,
+                CassandraStatement::CreateTrigger(..) => false,
+                CassandraStatement::CreateType(..) => false,
+                CassandraStatement::CreateUser(..) => false,
+                CassandraStatement::Delete(..) => false,
+                CassandraStatement::DropAggregate(..) => true,
+                CassandraStatement::DropFunction(..) => true,
+                CassandraStatement::DropIndex(..) => true,
+                CassandraStatement::DropKeyspace(..) => true,
+                CassandraStatement::DropMaterializedView(..) => true,
+                CassandraStatement::DropRole(..) => true,
+                CassandraStatement::DropTable(..) => true,
+                CassandraStatement::DropTrigger(..) => true,
+                CassandraStatement::DropType(..) => true,
+                CassandraStatement::DropUser(..) => true,
+                CassandraStatement::Grant(..) => true,
+                CassandraStatement::Insert(..) => false,
+                CassandraStatement::ListPermissions(..) => false,
+                CassandraStatement::ListRoles(..) => false,
+                CassandraStatement::Revoke(..) => false,
+                CassandraStatement::Select(..) => false,
+                CassandraStatement::Truncate(..) => true,
+                CassandraStatement::Update(..) => false,
+                CassandraStatement::Use(..) => false,
+                CassandraStatement::Unknown(_) => false,
+            };
+            if x {
+                return anyhow::Ok(x);
+            }
+        }
+        anyhow::Ok(false)
+    }
 }
 
 #[async_trait::async_trait]

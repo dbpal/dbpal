@@ -42,7 +42,6 @@ pub mod redis;
 pub mod redis_lang_server;
 pub mod sqlite;
 pub mod sqlite_lang_server;
-pub mod sqlite_lang_server_static;
 pub mod sqlparser_completing;
 pub mod sqlparser_completion;
 pub mod tidb;
@@ -104,11 +103,10 @@ impl MemoryLimit {
     }
 }
 
-#[allow(unused)]
 impl MemoryLimit {
     pub fn instance() -> &'static AtomicUsize {
         // default to 200M
-        static SIZE: AtomicUsize = AtomicUsize::new(1200 * 1024 * 1024);
+        static SIZE: AtomicUsize = AtomicUsize::new(400 * 1024 * 1024);
         &SIZE
     }
 

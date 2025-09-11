@@ -5,7 +5,6 @@ import ReactDOM from 'react-dom/client';
 import './app.css';
 import './comp/MainPage';
 import MainPage from './comp/MainPage';
-import { debugBuild } from './comp/debug';
 import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
 import { platform } from '@tauri-apps/plugin-os';
@@ -84,7 +83,7 @@ currentWebview.onFocusChanged((x) => {
   emit(windowFocusChangeEvent, x.payload);
 });
 
-if (!debugBuild) {
+if (!import.meta.env.DEV) {
   currentWebview.theme().then(async (theme) => {
     if (!theme) {
       return;
@@ -101,7 +100,7 @@ currentWebview.onThemeChanged(async (msg) => {
   appStore.set(AppStoreKey.UserSettings, set);
 });
 
-if (!debugBuild) {
+if (!import.meta.env.DEV) {
   document.addEventListener('contextmenu', function (event) {
     event.preventDefault();
   });
@@ -118,7 +117,7 @@ if (!debugBuild) {
   });
 }
 
-if (debugBuild) {
+if (import.meta.env.DEV) {
   window.addEventListener('load', (_event) => {
     invoke('page_init_callback');
   });

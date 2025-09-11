@@ -10,8 +10,8 @@ use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, HumanSize, Index, IndexKind,
-    ListMaterializedView, ListTable, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp,
-    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    ListTable, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
     XlsxEdit, escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
@@ -21,7 +21,7 @@ use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
-use crate::helper::{create_csv, is_dangerous_sql_by_parser};
+use crate::helper::create_csv;
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
@@ -191,10 +191,6 @@ impl QuerySql for OracleDB {
         .await?;
 
         anyhow::Ok(())
-    }
-
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::GenericDialect {})
     }
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
@@ -955,7 +951,7 @@ impl OracleDB {
         )
     }
 
-    pub(crate) async fn list_view_impl(&self, schema: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    pub(crate) async fn list_view_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
         let conn = self.get_conn().await?;
         let sql = format!(
             r#"
@@ -971,7 +967,7 @@ impl OracleDB {
             let name: String = r.get(0)?;
             ret.push(name);
         }
-        anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
+        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 }
 impl ReadOnlyTrait for OracleDB {
@@ -991,7 +987,7 @@ impl SchemaTrait for OracleDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
-    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             "SELECT MVIEW_NAME FROM USER_MVIEWS  WHERE OWNER='{}' ",
             self.schema_str()
@@ -1415,7 +1411,7 @@ impl SchemaTrait for OracleDB {
         })
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_view_impl(self.schema_str()).await
     }
 

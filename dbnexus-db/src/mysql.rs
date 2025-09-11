@@ -25,7 +25,7 @@ use crate::db::{
 };
 use crate::language_server::CompletionItem;
 
-use crate::helper::{create_csv, is_dangerous_sql_by_parser};
+use crate::helper::create_csv;
 use crate::meta_value::MetaValue;
 
 #[derive(Clone)]
@@ -633,7 +633,7 @@ impl MysqlDB {
             在 5.7 及更早版本，这些对象仍被标为 VIEW；8.0 以后为了与普通用户 VIEW 区分，统一改成 SYSTEM VIEW。
     */
 
-    pub(crate) async fn list_view_impl(&self, schema: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    pub(crate) async fn list_view_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             r#"
         SELECT table_name FROM information_schema.tables WHERE table_type = '{}' AND table_schema = '{}';
@@ -653,7 +653,7 @@ impl MysqlDB {
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let name: String = r.try_get_unchecked(0)?;
-            ret.push(NamedStaff::from(name));
+            ret.push(ListTable::from(name));
         }
         anyhow::Ok(ret)
     }
@@ -1088,7 +1088,7 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(())
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_view_impl(self.config.db_str()).await
     }
 
@@ -1634,10 +1634,6 @@ impl QuerySql for MysqlDB {
         let conn = self.get_conn().await?;
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
-    }
-
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::MySqlDialect {})
     }
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {

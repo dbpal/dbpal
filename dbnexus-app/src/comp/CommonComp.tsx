@@ -82,13 +82,13 @@ import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { FaMarkdown } from 'react-icons/fa';
 
-function MenuExportMarkDown({ showExportMarkDown }) {
+function MenuExportMarkDownTable({ showExportMarkDown }) {
   return (
     <MenuItem onClick={showExportMarkDown}>
       <ListItemIcon>
         <FaMarkdown fontSize="1.5rem" />
       </ListItemIcon>
-      <ListItemText>Export MarkDown</ListItemText>
+      <ListItemText>Export MarkDown Table</ListItemText>
     </MenuItem>
   );
 }
@@ -879,7 +879,7 @@ function AppColumnMenu(props: GridColumnMenuProps) {
 
 function SelectColumns(props: {
   fields: types.Field[];
-  includes;
+  includes: string[];
   setIncludes;
   canSelectAll?;
 }) {
@@ -905,25 +905,9 @@ function SelectColumns(props: {
           ></Chip>
         ))}
       </Stack>
-      <Stack direction="row" spacing={1} style={{ alignContent: 'center' }}>
-        <TextField
-          value={matchStr}
-          onChange={(e) => {
-            setMatchStr(e.target.value);
-          }}
-          style={{ flex: 1 }}
-          size="small"
-          label="match field string"
-          helperText="only for field candidate"
-        ></TextField>
-      </Stack>
-      <Stack
-        direction="row"
-        style={{ flexWrap: 'wrap', alignItems: 'center' }}
-        spacing={1}
-      >
-        <Typography>candidates:</Typography>
-        {canSelectAll && (
+
+      {canSelectAll && includes.length != fields.length && (
+        <Stack direction="row" spacing={1} style={{ alignContent: 'center' }}>
           <Button
             onClick={() => {
               setIncludes(fields.map((x) => x.field));
@@ -931,7 +915,25 @@ function SelectColumns(props: {
           >
             select all
           </Button>
-        )}
+          <TextField
+            value={matchStr}
+            onChange={(e) => {
+              setMatchStr(e.target.value);
+            }}
+            style={{ flex: 1 }}
+            size="small"
+            label="match field name string"
+            helperText="only for field candidate"
+          ></TextField>
+        </Stack>
+      )}
+
+      <Stack
+        direction="row"
+        style={{ flexWrap: 'wrap', alignItems: 'center' }}
+        spacing={1}
+      >
+        <Typography>candidates:</Typography>
         {fields
           .filter((f) => includes.find((e) => e == f.field) == undefined)
           .filter((f) => f.field.includes(matchStr))
@@ -972,7 +974,7 @@ function OpenFileWithDefaultApp({ file }) {
   );
 }
 
-function ExportMarkDown(props: {
+function ExportMarkDownTable(props: {
   fields: types.Field[];
   data: any[];
   name?: string;
@@ -1041,6 +1043,7 @@ function ExportMarkDown(props: {
       showNotification('error', 'write markdown failed', e);
       return;
     }
+    showNotification('success', 'export OK');
     setFile(f);
   };
 
@@ -1053,6 +1056,7 @@ function ExportMarkDown(props: {
         setIncludes={setIncludes}
       ></SelectColumns>
       <OpenFileWithDefaultApp file={file} />
+      <Divider></Divider>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <Button
           onClick={() => {
@@ -1076,7 +1080,6 @@ function ExportMarkDown(props: {
             setAlign(e);
           }}
         ></SelectAlign>
-        {<Typography color="info"> {align} </Typography>}
       </Stack>
     </Stack>
   );
@@ -1104,8 +1107,8 @@ export {
   PossibleParseError,
   ExecutingTime,
   AppColumnMenu,
-  ExportMarkDown,
+  ExportMarkDownTable,
   SelectColumns,
   OpenFileWithDefaultApp,
-  MenuExportMarkDown,
+  MenuExportMarkDownTable,
 };

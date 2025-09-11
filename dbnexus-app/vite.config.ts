@@ -8,12 +8,7 @@ const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 
 // https://vitejs.dev/config/
 export default defineConfig(async ({ command }) => {
-  {
-    const debugFile = __dirname + '/src/comp/debug.ts';
-    const content = `const debugBuild = ${command == 'serve'};
-export { debugBuild }`;
-    fs.writeFileSync(debugFile, content);
-  }
+
   return {
     plugins: [
       topLevelAwait({

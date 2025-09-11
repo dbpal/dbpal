@@ -48,8 +48,8 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification.tsx';
 import {
   AppColumnMenu,
-  ExportMarkDown,
-  MenuExportMarkDown,
+  ExportMarkDownTable,
+  MenuExportMarkDownTable,
   MenuResetColumnWidths,
   ModalHeader,
   ViewRowInModal,
@@ -115,9 +115,9 @@ function RespContextMenu(props: {
         </ListItemIcon>
         <ListItemText> {field} DESC </ListItemText>
       </MenuItem>
-      <MenuExportMarkDown
+      <MenuExportMarkDownTable
         showExportMarkDown={showExportMarkDown}
-      ></MenuExportMarkDown>
+      ></MenuExportMarkDownTable>
       <MenuResetColumnWidths
         reset={resetColunmWidthCallBack}
       ></MenuResetColumnWidths>
@@ -296,8 +296,8 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
           }}
         >
           <Box sx={modalStyle} width="60%">
-            <ModalHeader title="export markdown"></ModalHeader>
-            <ExportMarkDown fields={data.fields} data={data.data} />
+            <ModalHeader title="export markdown table"></ModalHeader>
+            <ExportMarkDownTable fields={data.fields} data={data.data} />
           </Box>
         </Modal>
       )}

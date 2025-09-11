@@ -224,6 +224,9 @@ impl LanguageServer for OracleDB {
     ) -> anyhow::Result<Vec<CompletionItem>> {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        LangServerCommon::is_dangerous_sql_by_parser(self, sql)
+    }
 }
 
 #[cfg(test)]

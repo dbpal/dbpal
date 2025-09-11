@@ -158,7 +158,7 @@ function ModifySettings() {
       spacing={1}
       style={{ backgroundColor: bgColorErr ? undefined : bgColor }}
     >
-      <Divider textAlign="left"> appearance </Divider>
+      <Divider textAlign="left">appearance</Divider>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           font size:
@@ -321,7 +321,9 @@ function ModifySettings() {
         {bgColorErr && <Typography color="error"> {bgColorErr} </Typography>}
       </Stack>
 
-      <Divider textAlign="left"> editor </Divider>
+      <Divider textAlign="left" style={{ marginTop: '20px' }}>
+        editor
+      </Divider>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           tab size:
@@ -381,7 +383,10 @@ function ModifySettings() {
           </Stack>
         </Stack>
       </Stack>
-      <Divider textAlign="left"> export </Divider>
+
+      <Divider textAlign="left" style={{ marginTop: '20px' }}>
+        export
+      </Divider>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           csv delimiter:

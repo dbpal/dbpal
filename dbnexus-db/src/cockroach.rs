@@ -11,11 +11,10 @@ use crate::datasource_config::PGDBConfig;
 use crate::db::{
     BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind,
-    Index, IndexKind, ListMaterializedView, ListTable, NamedStaff, ProcedureDetail, QueryResp,
-    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
     UdfOrProcedureExtraParameter, XlsxEdit,
 };
-use crate::helper::is_dangerous_sql_by_parser;
 use crate::meta_value::MetaValue;
 use crate::pg::PostGresDB;
 use crate::pg_format::encode_rows;
@@ -116,10 +115,6 @@ impl QuerySql for CockRoachDB {
 
     async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
         self.pg.close_connection(id).await
-    }
-
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        is_dangerous_sql_by_parser(sql, &sqlparser::dialect::PostgreSqlDialect {})
     }
 }
 #[async_trait::async_trait]
@@ -366,7 +361,7 @@ impl SchemaTrait for CockRoachDB {
         self.pg.drop_procedure(name, arg).await
     }
 
-    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListMaterializedView>> {
+    async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.pg.list_materialized_view().await
     }
 
@@ -374,7 +369,7 @@ impl SchemaTrait for CockRoachDB {
         self.pg.drop_materialized_view(name).await
     }
 
-    async fn list_view(&self) -> anyhow::Result<Vec<NamedStaff>> {
+    async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             r#"
             SELECT  table_name 
@@ -395,7 +390,7 @@ impl SchemaTrait for CockRoachDB {
         let mut ret = Vec::new();
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
-            ret.push(NamedStaff::from(name));
+            ret.push(ListTable::from(name));
         }
 
         anyhow::Ok(ret)

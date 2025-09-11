@@ -8,7 +8,7 @@ use futures_util::{FutureExt, StreamExt};
 use redis::{AsyncCommands, AsyncIter};
 
 use crate::language_server::{CompletionItem, CompletionKind, LanguageServer, in_pos};
-use crate::redis::{RedisDB, RedisToken, RedisType};
+use crate::redis::{RedisDB, RedisToken, RedisType, get_command_from_sql};
 impl RedisDB {
     async fn completion_keys(
         &self, pattern: &str, kind: Option<RedisType>,
@@ -1313,6 +1313,25 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for RedisDB {
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(get_command_from_sql(sql)?.iter().any(|x| {
+            x.first()
+                .map(|x| {
+                    x.eq_ignore_ascii_case("FLUSHDB")
+                        || x.eq_ignore_ascii_case("FLUSHALL")
+                        || x.eq_ignore_ascii_case("DEL")
+                        || x.eq_ignore_ascii_case("CONFIG")
+                        || x.eq_ignore_ascii_case("SHUTDOWN")
+                        || x.eq_ignore_ascii_case("DEBUG")
+                        || x.eq_ignore_ascii_case("REPLICAOF")
+                        || x.eq_ignore_ascii_case("SWAPDB")
+                        || x.eq_ignore_ascii_case("EVAL")
+                        || x.eq_ignore_ascii_case("EVALSHA")
+                })
+                .unwrap_or(false)
+        }))
+    }
+
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
