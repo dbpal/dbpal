@@ -24,7 +24,7 @@ use crate::helper::create_csv;
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::pg_format::*;
-use crate::pg_lang_server_static::POSTGRES_TYPES;
+use crate::pg_lang_server::POSTGRES_TYPES;
 
 /// postgres version of pg.
 #[derive(Clone)]

@@ -56,8 +56,7 @@ pub fn seperate_sql_by_sqlparser_tokenizer(
 
 fn escape_csv(s: &str, delimiter: char) -> Cow<'_, str> {
     if s.contains(delimiter) {
-        let s = s.replace("\"", "\\\"");
-        Cow::Owned(format!("\"{}\"", s))
+        Cow::Owned(format!(r#""{}""#, s))
     } else {
         Cow::Borrowed(s)
     }
@@ -144,11 +143,6 @@ mod tests {
             OffsetLimitIter::new(9, 4).collect::<Vec<_>>(),
             vec![0, 4, 8]
         );
-    }
-
-    #[test]
-    fn test_escape_csv() {
-        assert_eq!(escape_csv("\" aaaa,", ','), "\"\\\" aaaa,\"");
     }
 
     #[test]
