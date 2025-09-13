@@ -637,6 +637,7 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
               borderRadius: '10px',
               padding: '8px',
             }}
+            key={f.field}
           >
             <Stack
               direction="row"
@@ -918,6 +919,7 @@ function SelectColumns(props: {
           onClick={() => {
             setIncludes(fields.map((x) => x.field));
           }}
+          disabled={includes.length == fields.length}
           variant="outlined"
         >
           include all
@@ -927,6 +929,7 @@ function SelectColumns(props: {
           onChange={(e) => {
             setMatchStr(e.target.value);
           }}
+          disabled={includes.length == fields.length}
           style={{ flex: 1 }}
           size="small"
           label="match field name string"

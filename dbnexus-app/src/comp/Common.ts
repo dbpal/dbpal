@@ -190,6 +190,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           language = 'plsql';
           break;
         case DataSourceKind.Postgres:
+        case DataSourceKind.Cockroach:
           language = 'postgresql';
           break;
         case DataSourceKind.LibSql:
@@ -627,7 +628,7 @@ class QueryConn implements IQueryConn {
       name: this.uuid,
       queryId: this.queryId,
     })
-      .then(() => {})
+      .then(() => { })
       .catch((e) => {
         console.log('close connection failed,err', e);
       });
