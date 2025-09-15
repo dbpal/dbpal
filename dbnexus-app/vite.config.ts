@@ -1,22 +1,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { internalIpV4 } from 'internal-ip';
-import topLevelAwait from 'vite-plugin-top-level-await';
-import fs from 'fs';
 
 const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 
 // https://vitejs.dev/config/
 export default defineConfig(async ({ command }) => {
-
   return {
     plugins: [
-      topLevelAwait({
-        // The export name of top-level await promise for each chunk module
-        promiseExportName: '__tla',
-        // The function to generate import names of top-level await promise in each chunk module
-        promiseImportName: (i) => `__tla_${i}`,
-      }),
       react(),
     ],
     build: {
