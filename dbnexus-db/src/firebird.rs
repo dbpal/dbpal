@@ -2,6 +2,22 @@
 // FIREBIRD_ROOT_PASSWORD=root  -e FIREBIRD_USER=alice -e
 // FIREBIRD_PASSWORD=root  -e   -e   -p 3050:3050    firebirdsql/firebird
 
+/*
+    firebird 为啥 SELECT
+                RDB$RELATION_NAME AS TABLE_NAME
+            FROM
+                RDB$RELATIONS
+            WHERE
+                RDB$VIEW_BLR IS NULL  -- 排除视图
+                AND RDB$SYSTEM_FLAG = 0  -- 排除系统表
+            ORDER BY
+                RDB$RELATION_NAME 这个语句查出来的名字有空格
+复制
+原因一句话
+RDB$RELATION_NAME 的数据类型是 CHAR(31)，定长字符，不足 31 字节时 Firebird 自动用 空格（0x20） 补齐，所以 TRIM 一下即可。
+
+所以代码里面有很多的trim
+*/
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
@@ -24,6 +40,7 @@ use crate::db::{
     export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
 use crate::helper::create_csv;
+use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 pub struct PoolManager {
     config: FireBirdConfig,
@@ -469,11 +486,16 @@ pub struct FireBirdDB {
     pool: r2d2::Pool<PoolManager>,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<PooledConnection<PoolManager>>>>>,
     query_connections_tx: Arc<DashSet<uuid::Uuid>>,
+    pub(crate) key_words_completion: Arc<Mutex<Vec<CompletionItem>>>,
 }
 
 impl std::fmt::Debug for FireBirdDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "host={} user={}", self.config.host, self.config.username)
+        write!(
+            f,
+            "firebird host={} user={}",
+            self.config.host, self.config.username
+        )
     }
 }
 
@@ -523,19 +545,17 @@ impl FireBirdDB {
         &self, table_name: &str, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
+        if include_table_schema {
+            anyhow::bail!("include schema not support by firebird");
+        }
         let table_name = table_name.to_owned();
         let firebird = Clone::clone(self);
         let cols = SchemaTrait::show_table_columns(self, &table_name).await?;
         tokio::task::spawn_blocking(move || {
             let mut types = HashMap::new();
-
             cols.iter().for_each(|x| {
                 types.insert(&x.field, x);
             });
-
-            if include_table_schema {
-                anyhow::bail!("include schema not support by firebird");
-            }
             let mut cols_map = HashMap::new();
             cols.iter().for_each(|f| {
                 cols_map.insert(f.field.as_str(), f);
@@ -663,22 +683,18 @@ impl SchemaTrait for FireBirdDB {
 
         let sql = format!(
             r#"
-            SELECT 
-            rf.RDB$FIELD_NAME AS COLUMN_NAME, 
+        SELECT
+            rf.RDB$FIELD_NAME AS COLUMN_NAME,
             t.RDB$TYPE_NAME AS DATA_TYPE,
             f.RDB$FIELD_SUB_TYPE AS SUB_TYPE,
-            CASE WHEN f.RDB$NULL_FLAG = 1 THEN 'NO' ELSE 'YES' END AS IS_NULLABLE,
-            f.RDB$DEFAULT_SOURCE AS DEFAULT_VALUE
-        FROM 
-            RDB$RELATION_FIELDS rf
-        JOIN 
-            RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
-        JOIN 
-            RDB$TYPES t ON f.RDB$FIELD_TYPE = t.RDB$TYPE
-        WHERE 
-            rf.RDB$RELATION_NAME = '{}'
-            AND t.RDB$FIELD_NAME = 'RDB$FIELD_TYPE';
-        
+            CASE WHEN COALESCE(rf.RDB$NULL_FLAG, f.RDB$NULL_FLAG) = 1 THEN 'NO' ELSE 'YES' END AS IS_NULLABLE,
+            COALESCE(rf.RDB$DEFAULT_SOURCE, f.RDB$DEFAULT_SOURCE) AS DEFAULT_VALUE
+        FROM RDB$RELATION_FIELDS rf
+        JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
+        JOIN RDB$TYPES t ON f.RDB$FIELD_TYPE = t.RDB$TYPE
+        WHERE rf.RDB$RELATION_NAME = '{}'
+        AND t.RDB$FIELD_NAME = 'RDB$FIELD_TYPE';
+    
         "#,
             table_name
         );
@@ -771,7 +787,7 @@ impl SchemaTrait for FireBirdDB {
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = (self).update_sql(None, table_name, &fs, &values, &wheres)?;
+        let sql = self.update_sql(None, table_name, &fs, &values, &wheres)?;
         let mut conn = self.get_conn()?;
         let changes = block_in_place(|| conn.execute(&sql, ()))?;
         anyhow::Ok(SqlExecuteRet {
@@ -792,7 +808,7 @@ impl SchemaTrait for FireBirdDB {
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
-        let sql = (self).delete_sql(None, table_name, &fs, &wheres)?;
+        let sql = self.delete_sql(None, table_name, &fs, &wheres)?;
         let mut conn = self.get_conn()?;
         let changes = block_in_place(|| conn.execute(&sql, ()))?;
         anyhow::Ok(SqlExecuteRet {
@@ -856,27 +872,30 @@ impl SchemaTrait for FireBirdDB {
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
         let sql = format!(
             r#"
-        SELECT 
-            i.RDB$INDEX_NAME AS INDEX_NAME, 
-            i.RDB$UNIQUE_FLAG AS IS_UNIQUE, 
-            s.RDB$FIELD_NAME AS FIELD_NAME
-        FROM 
-            RDB$INDICES i
-        LEFT JOIN 
-            RDB$INDEX_SEGMENTS s ON s.RDB$INDEX_NAME = i.RDB$INDEX_NAME
-        WHERE 
-            i.RDB$SYSTEM_FLAG = 0 
-            AND i.RDB$RELATION_NAME = '{}'  -- 替换为你的表名
-        ORDER BY 
-            i.RDB$INDEX_NAME, s.RDB$FIELD_POSITION 
+        SELECT
+            i.RDB$INDEX_NAME AS INDEX_NAME,
+            i.RDB$UNIQUE_FLAG AS IS_UNIQUE,
+            s.RDB$FIELD_NAME AS FIELD_NAME,
+            CASE 
+                WHEN rc.RDB$CONSTRAINT_TYPE = 'PRIMARY KEY' THEN 1 
+                ELSE 0 
+            END AS IS_PRIMARY_KEY
+        FROM RDB$INDICES i
+        LEFT JOIN RDB$INDEX_SEGMENTS s 
+            ON s.RDB$INDEX_NAME = i.RDB$INDEX_NAME
+        LEFT JOIN RDB$RELATION_CONSTRAINTS rc 
+            ON rc.RDB$INDEX_NAME = i.RDB$INDEX_NAME
+        WHERE i.RDB$SYSTEM_FLAG = 0
+        AND i.RDB$RELATION_NAME = '{}'  -- 大写表名
+        ORDER BY i.RDB$INDEX_NAME, s.RDB$FIELD_POSITION;
 
         "#,
             table_name
         );
         let mut conn = self.get_conn()?;
-        let rows: Vec<(String, i64, String)> = block_in_place(|| conn.query(&sql, ()))?;
+        let rows: Vec<(String, i64, String, i32)> = block_in_place(|| conn.query(&sql, ()))?;
         let mut m: HashMap<String, Index> = HashMap::new();
-        for (name, unique, col) in rows.into_iter() {
+        for (name, unique, col, is_primary) in rows.into_iter() {
             let name = name.trim().to_owned();
             let col = col.trim().to_owned();
             let x = m.get_mut(&name);
@@ -889,7 +908,9 @@ impl SchemaTrait for FireBirdDB {
                         name.clone(),
                         Index {
                             name: Some(name),
-                            kind: if unique == 1 {
+                            kind: if is_primary != 0 {
+                                IndexKind::Primary
+                            } else if unique == 1 {
                                 IndexKind::Unique
                             } else {
                                 IndexKind::Index
@@ -1013,7 +1034,7 @@ fn put_value_in_sql(
                     .map(|x| format!("CAST(HEX_DECODE('{}') AS BLOB SUB_TYPE {})", x, sub_type))
                     .unwrap_or("null".to_string()),
             ),
-            None => anyhow::bail!("sub type shoule some."),
+            None => anyhow::bail!("sub type should some."),
         },
         _ => anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string())),
     }
@@ -1046,6 +1067,7 @@ impl FireBirdDB {
             pool,
             query_connections: Default::default(),
             query_connections_tx: Default::default(),
+            key_words_completion: Default::default(),
         })
     }
 
@@ -1105,7 +1127,7 @@ mod tests {
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_transaction() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
 
         let table_name = "TEST_COMMIT";
@@ -1115,7 +1137,7 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-             CREATE TABLE TEST_COMMIT (
+            CREATE TABLE TEST_COMMIT (
                 ID INTEGER PRIMARY KEY,
                 NAME VARCHAR(50)
             );
@@ -1169,7 +1191,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_view() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
 
         enable_test_log();
 
@@ -1237,7 +1259,7 @@ mod tests {
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_index() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let table_name = "TEST_INDEX";
         let index_name = "TEST_INDEX_NAME_INDEX";
@@ -1283,7 +1305,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_list_table() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         let db = make_test_object();
         let tables = db.list_table().await.unwrap();
         for table in tables {
@@ -1292,7 +1314,7 @@ mod tests {
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_truncate() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         let table_name = "TEST_TRUNCATE";
         let db = make_test_object();
         let _err = db.drop_table(table_name, false).await;
@@ -1340,7 +1362,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_table() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         // enable_test_log();
         let table_name = "TEST_TABLE";
         let db = make_test_object();
@@ -1430,7 +1452,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_table2() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
 
         enable_test_log();
         let table_name = "TEST_TABLE2";

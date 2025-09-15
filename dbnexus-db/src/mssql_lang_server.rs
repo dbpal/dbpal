@@ -92,16 +92,27 @@ impl LangServerCommon for MsSqlServerDB {
     }
 
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, _is_call: bool,
+        &self, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let sql = format!(
-            r#"  select TOP 1 * from  {}"{}" "#,
-            match schema {
-                Some(x) => format!("\"{}\".", x),
-                None => "".to_string(),
-            },
-            name
-        );
+        let sql = if is_call {
+            format!(
+                r#"  select  {}{}() "#,
+                match schema {
+                    Some(x) => format!("\"{}\".", x),
+                    None => "".to_string(),
+                },
+                name
+            )
+        } else {
+            format!(
+                r#"  select TOP 1 * from  {}"{}" "#,
+                match schema {
+                    Some(x) => format!("\"{}\".", x),
+                    None => "".to_string(),
+                },
+                name
+            )
+        };
         self.get_query_columns(&sql).await
     }
     async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
@@ -288,7 +299,7 @@ impl AstCompletionHelper for MsSqlServerDB {
                 }
             }
         }
-        log::error!("no reuslt found");
+        log::error!("no result found");
         anyhow::Ok(vec![])
     }
 

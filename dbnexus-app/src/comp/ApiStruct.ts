@@ -101,7 +101,7 @@ export namespace types {
         "https": boolean;
         "conn_timeout"?: (types.U32 | null);
     };
-    export type LibSqlDBConfigSouce = (({
+    export type LibSqlDBConfigSource = (({
         "source": "local";
     } & {
         "path": string;
@@ -112,7 +112,7 @@ export namespace types {
         "auth_token": string;
         "path": string;
     }));
-    export type LibSqlDBConfig = (types.LibSqlDBConfigSouce & {
+    export type LibSqlDBConfig = (types.LibSqlDBConfigSource & {
         "replica": boolean;
         "read_only": boolean;
         "conn_timeout"?: (types.U32 | null);

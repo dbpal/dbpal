@@ -17,7 +17,7 @@ interface ILogger {
 
 interface IMongoDB {
   collection: (name: string) => IMongoCollection;
-  createcollection: (name: string) => IMongoCollection;
+  createCollection: (name: string) => IMongoCollection;
   drop: () => Promise<void>;
   listCollectionNames: () => Promise<string[]>;
   runCommand: (doc: BSON.Document) => Promise<BSON.Document>;
@@ -26,7 +26,7 @@ interface IMongoDB {
 interface IMongoCollection {
   cuntDocuments: () => Promise<number>;
   createIndex: (index: BSON.Document) => Promise<string>;
-  createSerachIndex: (
+  createSearchIndex: (
     index: BSON.Document,
     name: string | null
   ) => Promise<string>;
@@ -96,7 +96,7 @@ class MongoDBQuery implements IMongoDB {
     }
     return new MongoDBQueryCollection(this.uuid, name);
   }
-  createcollection(name: string) {
+  createCollection(name: string) {
     return new MongoDBQueryCollection(this.uuid, name);
   }
   drop() {
@@ -196,7 +196,7 @@ class MongoDBQueryCollection implements IMongoCollection {
   createIndex(index: BSON.Document) {
     return invoke<string>('mongo_query_collection_create_index', { name: this.uuid, col: this.col, index: BSON.serialize(index) })
   }
-  createSerachIndex(index: BSON.Document, name: string | null) {
+  createSearchIndex(index: BSON.Document, name: string | null) {
     return invoke<string>('mongo_query_collection_create_search_index', {
       name: this.uuid, col: this.col, index: BSON.serialize(index),
       indexName: name
@@ -350,7 +350,7 @@ function initMongoQueryGlobals() {
 
 interface IMongoDB {
   collection: (name: string) => IMongoCollection;
-  createcollection: (name: string) => IMongoCollection;
+  createCollection: (name: string) => IMongoCollection;
   drop: () => Promise<void>;
   listCollectionNames: () => Promise<string[]>;
   runCommand: (doc: BSON.Document) => Promise<BSON.Document>;
@@ -359,7 +359,7 @@ interface IMongoDB {
 interface IMongoCollection {
   cuntDocuments: () => Promise<number>;
   createIndex: (index: BSON.Document) => Promise<string>;
-  createSerachIndex: (
+  createSearchIndex: (
     index: BSON.Document,
     name: string | null
   ) => Promise<string>;

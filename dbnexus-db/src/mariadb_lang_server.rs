@@ -71,7 +71,7 @@ impl AstCompletionHelper for MariaDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for MariaDB {
-    async fn list_sequences(&self, schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
+    async fn list_sequence(&self, schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
         let schema = self.db.not_allow_empty_schema(schema)?;
         self.list_sequences_impl(&schema).await
     }

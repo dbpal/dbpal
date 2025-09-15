@@ -175,21 +175,14 @@ impl AstCompletionHelper for PostGresDB {
     }
 
     async fn table_policy(&self, schema: Option<&str>, table: &str) -> anyhow::Result<Vec<String>> {
-        let sql = if let Some(schema) = self.schema_merge_config(schema) {
-            format!(
-                r#"SELECT policyname
+        let schema = self.not_allow_empty_schema(schema)?;
+        let sql = format!(
+            r#"SELECT policyname
                 FROM pg_policies
                 WHERE tablename = '{}' AND schemaname='{}';  -- 替换为你的表名"#,
-                table, schema
-            )
-        } else {
-            format!(
-                r#"SELECT policyname
-                FROM pg_policies
-                WHERE tablename = '{}';  -- 替换为你的表名"#,
-                table
-            )
-        };
+            table, schema
+        );
+
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -346,7 +339,7 @@ impl LangServerCommon for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_sequences(&self, schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
+    async fn list_sequence(&self, schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
         let schema = self.not_allow_empty_schema(schema)?;
         self.list_sequences_impl(&schema).await
     }
@@ -489,7 +482,7 @@ impl LangServerCommon for PostGresDB {
         if let Some(schema) = self.schema_merge_config(schema) {
             sql.push_str(format!(" WHERE schemaname='{}'", schema).as_str());
         }
-        // postgres has materilized view in other table
+        // postgres has materialized view in other table
         sql.push_str(
             "UNION SELECT matviewname from pg_matviews"
                 .to_string()
@@ -629,51 +622,82 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {
+        enable_test_log();
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
-        -- 我们创建一下的表来做测试的
 
-        CREATE TABLE departments (
+        let sql = [
+            r#"CREATE TABLE departments (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL
+        );"#,
+            r#"
+            CREATE TABLE departments (
             id SERIAL PRIMARY KEY,
             name VARCHAR(100) NOT NULL
         );
+        "#,
+            r#"
         CREATE TABLE employees (
             id SERIAL PRIMARY KEY,
             name VARCHAR(100) NOT NULL,
             department_id INTEGER REFERENCES departments(id)
         );
-        CREATE OR REPLACE RULE do_nothing_rule AS
+            "#,
+            r#"
+            CREATE OR REPLACE RULE do_nothing_rule AS
             ON INSERT TO employees
             DO INSTEAD
-            NOTHING;
-        CREATE OR REPLACE FUNCTION do_nothing()
-        RETURNS TRIGGER AS $$
-        BEGIN
-            RETURN NULL;  -- 不执行任何操作
-        END;
-        $$ LANGUAGE plpgsql;
-
+            NOTHING;"#,
+            r#"
+            CREATE OR REPLACE FUNCTION do_nothing()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                RETURN NULL;  -- 不执行任何操作
+            END;
+            $$ LANGUAGE plpgsql;
+            "#,
+            r#"
         CREATE TRIGGER do_nothing_trigger
         BEFORE INSERT OR UPDATE OR DELETE ON employees
         FOR EACH ROW
         EXECUTE FUNCTION do_nothing();
+            "#,
+            r#"
+
         create  view employees_test as select * from employees e;
-
-        ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
-
+            "#,
+            r#"
+                ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
+            "#,
+            r#"
         CREATE POLICY no_op_policy
         ON employees
         USING (true)  -- 任何行都可以访问
         WITH CHECK (true);  -- 任何行都可以插入/更新
-        "#,
-            )
-            .await;
+            "#,
+            r#"
+        CREATE SEQUENCE do_nothing_seq;
 
-        enable_test_log();
+            "#,
+            r#"
+                CREATE OR REPLACE PROCEDURE do_nothing_procedure()
+                LANGUAGE plpgsql
+                AS $$
+                BEGIN
+                    -- 这里什么都不做
+                    RETURN;
+                END;
+                $$;
+            "#,
+        ];
+        for sql in sql.iter() {
+            let ret = db.execute_sql(query_id, sql).await;
+            if let Some(err) = ret.err() {
+                log::error!("execute sql error:should be fine,err{}", err);
+            }
+        }
+
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");

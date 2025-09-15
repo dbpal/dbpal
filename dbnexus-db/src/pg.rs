@@ -114,7 +114,7 @@ impl DBTrait for PostGresDB {
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let sql = format!(r#"DROP SCHEMA "{name}";"#);
+        let sql = format!(r#"DROP SCHEMA "{name}"   CASCADE ;"#);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -532,11 +532,11 @@ impl SchemaTrait for PostGresDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
-    async fn list_sequences(&self) -> anyhow::Result<Vec<SequenceDetail>> {
+    async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         self.list_sequences_impl(self.config.schema_str()).await
     }
 
-    async fn rename_sequnce(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<()> {
         let sql = format!(r#"ALTER SEQUENCE "{old}" RENAME TO "{new}";"#);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -775,7 +775,6 @@ impl SchemaTrait for PostGresDB {
         };
         let parameters = match arg {
             UdfOrProcedureExtraParameter::PostGres { parameters } => parameters,
-
             _ => return Err(arg.wrong_type()),
         };
         let sql = format!(
@@ -824,6 +823,7 @@ impl SchemaTrait for PostGresDB {
             _ => return Err(arg.wrong_type()),
         };
         let sql = format!("DROP PROCEDURE {}({})", name, p);
+        log::error!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .execute(conn.deref_mut())
@@ -2173,8 +2173,8 @@ impl SqlBuilder for PostGresDB {
 mod tests {
     use super::make_test_object;
     use crate::db::{
-        CatalogTrait, CheckConn, ColumnType, DBTrait, ExportKind, ExportQueryResult, IndexKind,
-        QuerySql, SchemaTrait, ServerMetas, UdfOrProcedureExtraParameter,
+        CheckConn, ColumnType, DBTrait, ExportKind, ExportQueryResult, IndexKind, QuerySql,
+        SchemaTrait, ServerMetas, UdfOrProcedureExtraParameter,
     };
     use crate::enable_test_log;
     use std::collections::HashMap;
@@ -2202,17 +2202,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_procedure() {
+        enable_test_log();
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
-        let _ = db
+        let parameter = "a integer".to_string();
+        let name = "test_procedure";
+        let err = db
             .drop_procedure(
-                "test_procedure",
+                name,
                 Some(UdfOrProcedureExtraParameter::PostGres {
-                    parameters: "(a integer)".to_string(),
+                    parameters: parameter.clone(),
                 }),
             )
             .await;
-        db.query_sql(
+        if let Err(e) = err {
+            log::error!("drop procedure failed: {}", e);
+        }
+        db.execute_sql(
             query_id,
             r#"
             CREATE PROCEDURE test_procedure(a integer)
@@ -2225,6 +2231,7 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
         let list = SchemaTrait::list_procedure(&db).await.unwrap();
         for l in list.iter() {
@@ -2232,25 +2239,13 @@ mod tests {
                 .show_procedure(
                     &l.name,
                     Some(UdfOrProcedureExtraParameter::PostGres {
-                        parameters: "".to_string(),
+                        parameters: l.parameters.clone().unwrap_or_default(),
                     }),
                 )
                 .await
                 .unwrap();
             println!("udf:{},details:{:?}", l.name, details);
         }
-    }
-
-    #[tokio::test]
-    async fn test_databases() {
-        let db = make_test_object().await;
-        let _ = CatalogTrait::drop_database(&db, "abc").await;
-        CatalogTrait::create_database(&db, "abc", None)
-            .await
-            .unwrap();
-
-        let dbs = CatalogTrait::list_database(&db).await.unwrap();
-        println!("{:?}", dbs);
     }
 
     #[tokio::test]
@@ -2414,74 +2409,6 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
-    }
-
-    #[tokio::test]
-    async fn test_export() {
-        // init_log();
-        let table_name = "test_export";
-        let db = make_test_object().await;
-
-        let sql = r#"drop table if exists test_export; 
-                CREATE TABLE test_export (
-                
-                name VARCHAR(50),
-                age INT,
-                email VARCHAR(100)
-            ); 
-            INSERT INTO test_export (name, age, email) VALUES ('John', 25, 'john@example.com');
-            INSERT INTO test_export (name, age, email) VALUES ('Jane', 30, 'jane@example.com');
-            INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');
-            "#;
-        let query_id = db.open_connection().await.unwrap();
-
-        db.query_sql(query_id, sql).await.unwrap();
-
-        {
-            let s = db
-                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
-                .await
-                .unwrap();
-            println!("json:{}", s);
-            let _: serde_json::Value = serde_json::from_str(s.as_str()).unwrap();
-        }
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::CSV {
-                        include_header: true,
-                        delimiter: ',',
-                    },
-                )
-                .await
-                .unwrap();
-            println!("csv:{}", s);
-        }
-        {
-            let s = db
-                .export_table_to_string(
-                    table_name,
-                    ExportKind::Sql {
-                        include_table_schema: false,
-                    },
-                )
-                .await
-                .unwrap();
-            println!("sql:{}", s);
-        }
-        // {
-        //     let s = db
-        //         .export_table_to_string(
-        //             table_name,
-        //             ExportKind::Sql {
-        //                 include_table_schema: true,
-        //             },
-        //         )
-        //         .await
-        //         .unwrap();
-        //     println!("sql:{}", s);
-        // }
     }
 
     #[tokio::test]
@@ -2742,18 +2669,18 @@ mod tests {
         .unwrap();
         let name2 = format!("{}2", name);
 
-        let seqs = db.list_sequences().await.unwrap();
+        let seqs = db.list_sequence().await.unwrap();
         for seq in seqs.iter() {
             if seq.name.eq(name) {
                 println!("seq:{:?}", seq);
             }
         }
-        db.rename_sequnce(name, &name2).await.unwrap();
-        db.rename_sequnce(&name2, name).await.unwrap();
+        db.rename_sequence(name, &name2).await.unwrap();
+        db.rename_sequence(&name2, name).await.unwrap();
     }
 
     #[tokio::test]
-    async fn test_epxort() {
+    async fn test_export() {
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
         let table_name = "test_export_table";

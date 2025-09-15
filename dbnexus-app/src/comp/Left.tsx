@@ -93,7 +93,7 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import { RedisTables, TablesTree, TablesType } from './LeftTable.tsx';
 import { ViewKind, ViewsTree } from './LeftView.tsx';
-import { CassaandraAggregatesTree, UdfsTree } from './LeftUdf.tsx';
+import { CassandraAggregatesTree, UdfsTree } from './LeftUdf.tsx';
 import { ProceduresTree } from './LeftProcedure.tsx';
 import {
   DataGrid,
@@ -131,7 +131,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
     };
   }, []);
 
-  const toggerShow = () => {
+  const toggleShow = () => {
     setShow((e) => !e);
   };
 
@@ -139,11 +139,11 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
     <Stack spacing={1} style={{ padding: '4px 12px' }}>
       <Stack>
         {show ? (
-          <IconButton onClick={toggerShow}>
+          <IconButton onClick={toggleShow}>
             <KeyboardArrowDownIcon></KeyboardArrowDownIcon>
           </IconButton>
         ) : (
-          <IconButton onClick={toggerShow}>
+          <IconButton onClick={toggleShow}>
             <KeyboardArrowRightIcon></KeyboardArrowRightIcon>
           </IconButton>
         )}
@@ -511,7 +511,7 @@ function Left_() {
     <Stack
       style={{
         overflow: 'auto',
-        opacity: windowFocus ? 1 : '0.7',
+        opacity: windowFocus ? 1 : '0.6',
       }}
     >
       <LeftTop
@@ -553,14 +553,14 @@ const makeConn = async (uuid: string, kind: DataSourceKind) => {
 function FavoriteSqlList(props: { handleClose }) {
   const { handleClose } = props;
   const { showNotification } = useContext(NotificationContext);
-  const [sqls, setSqls] = useState<FavoriteSql[]>([]);
+  const [sql, setSql] = useState<FavoriteSql[]>([]);
   const [sortModel, setSortModel] = useState<GridSortModel>([
     { field: 'lastModified', sort: 'desc' },
   ]);
   const handleReload = async (showOK) => {
     try {
       const x = await FavoriteSql.getAll();
-      setSqls(x);
+      setSql(x);
     } catch (e) {
       showNotification('error', 'list all favorite sql failed', e);
       return;
@@ -573,8 +573,8 @@ function FavoriteSqlList(props: { handleClose }) {
   const useRow = async (row: FavoriteSql) => {
     initMonacoLanguage(row.uuid, row.kind);
     try {
-      let connOpend = await invoke<boolean>('conn_opend', { name: row.uuid });
-      if (!connOpend) {
+      let connOpened = await invoke<boolean>('conn_opened', { name: row.uuid });
+      if (!connOpened) {
         showNotification(
           'error',
           `connection ${extractConfigNameFromUuid(row.uuid)} not opened????`
@@ -754,7 +754,7 @@ function FavoriteSqlList(props: { handleClose }) {
     useRow(row.row);
   }, []);
 
-  const handleclean = async () => {
+  const handleClean = async () => {
     let confirm = await secondConfirm({
       title: 'clean all favorite sql???',
       confirmText: 'Clean',
@@ -777,18 +777,18 @@ function FavoriteSqlList(props: { handleClose }) {
         >
           reload
         </Button>
-        {sqls.length > 0 && (
+        {sql.length > 0 && (
           <Tooltip title="delete all sql">
             <IconButton
               onClick={() => {
-                handleclean();
+                handleClean();
               }}
             >
               <DeleteForeverIcon color="error"></DeleteForeverIcon>
             </IconButton>
           </Tooltip>
         )}
-        {sqls.length > 0 && (
+        {sql.length > 0 && (
           <Tooltip title="double click a row to use sql.">
             <Typography color="info">use</Typography>
           </Tooltip>
@@ -806,7 +806,7 @@ function FavoriteSqlList(props: { handleClose }) {
           rowHeight={setting.datagridRowHeightXXX()}
           columnHeaderHeight={setting.datagridRowHeightXXX()}
           columns={columns}
-          rows={sqls}
+          rows={sql}
           onColumnResize={onColumnResize}
           onRowDoubleClick={onRowDoubleClick}
         ></DataGrid>
@@ -882,10 +882,10 @@ function OneConfig_(props: { config: types.DBConnectionConfig }) {
   );
 }
 
-function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
+function SchemaTree(props: { schema?: string; reloadSchemas? }) {
   const { kind } = useContext(ConnTypeContext);
   const { uuid } = useContext(UuidContext);
-  const { schema, reloadSchemas } = prpos;
+  const { schema, reloadSchemas } = props;
   const getPrefix = () => {
     return uuid + schema;
   };
@@ -936,7 +936,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
                 opened={opened}
                 schema={schema}
                 setLoading={setLoading}
-                handleOpend={() => {
+                handleOpened={() => {
                   setOpened(true);
                 }}
                 handleCloseConn={() => {
@@ -964,38 +964,38 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
       {opened && kind == DataSourceKind.Sqlite && (
         <>
           <TablesTree typ={TablesType.Normal} />
-          <ViewsTree viewkind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.Normal} />
         </>
       )}
       {opened && kind == DataSourceKind.DuckDB && (
         <>
           <TablesTree typ={TablesType.Normal} />
-          <ViewsTree viewkind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.Normal} />
         </>
       )}
       {opened && kind == DataSourceKind.FireBird && (
         <>
           <TablesTree typ={TablesType.Normal} />
-          <ViewsTree viewkind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.Normal} />
         </>
       )}
       {opened && kind == DataSourceKind.LibSql && (
         <>
           <TablesTree typ={TablesType.Normal} />
-          <ViewsTree viewkind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.Normal} />
         </>
       )}
       {opened && kind == DataSourceKind.Cassandra && (
         <>
           <TablesTree typ={TablesType.Normal} />
-          <ViewsTree viewkind={ViewKind.Materrialized}></ViewsTree>
+          <ViewsTree viewKind={ViewKind.Materialized}></ViewsTree>
         </>
       )}
       {opened && kind == DataSourceKind.Mongo && (
         <>
           <TablesTree typ={TablesType.Normal} />
           <TablesTree typ={TablesType.MongoTimeSerial} />
-          <ViewsTree viewkind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.Normal} />
         </>
       )}
       {opened &&
@@ -1004,41 +1004,41 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
           kind == DataSourceKind.TiDB) && (
           <>
             <TablesTree typ={TablesType.Normal} />
-            <ViewsTree viewkind={ViewKind.Normal} />
+            <ViewsTree viewKind={ViewKind.Normal} />
           </>
         )}
       {opened && kind == DataSourceKind.ClickHouse && (
         <>
           <TablesTree typ={TablesType.Normal} />
-          <ViewsTree viewkind={ViewKind.Normal} />
-          <ViewsTree viewkind={ViewKind.Materrialized} />
+          <ViewsTree viewKind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.Materialized} />
         </>
       )}
       {opened && kind == DataSourceKind.Postgres && (
         <>
           <TablesTree typ={TablesType.Normal} />
-          <ViewsTree viewkind={ViewKind.Normal} />
-          <ViewsTree viewkind={ViewKind.Materrialized} />
+          <ViewsTree viewKind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.Materialized} />
         </>
       )}
       {opened && kind == DataSourceKind.Cockroach && (
         <>
           <TablesTree typ={TablesType.Normal} />
-          <ViewsTree viewkind={ViewKind.Normal} />
-          <ViewsTree viewkind={ViewKind.Materrialized} />
+          <ViewsTree viewKind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.Materialized} />
         </>
       )}
       {opened && kind == DataSourceKind.Oracle && (
         <>
           <TablesTree typ={TablesType.Normal} />
-          <ViewsTree viewkind={ViewKind.Normal} />
-          <ViewsTree viewkind={ViewKind.Materrialized} />
+          <ViewsTree viewKind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.Materialized} />
         </>
       )}
       {opened && kind == DataSourceKind.MsSql && (
         <>
           <TablesTree typ={TablesType.Normal} />
-          <ViewsTree viewkind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.Normal} />
         </>
       )}
       {opened && (
@@ -1050,7 +1050,7 @@ function SchemaTree(prpos: { schema?: string; reloadSchemas? }) {
       {opened && <>{supportSequence && <SequenceTree />}</>}
 
       {opened && kind == DataSourceKind.Cassandra && (
-        <CassaandraAggregatesTree />
+        <CassandraAggregatesTree />
       )}
       {opened && kind == DataSourceKind.Redis && (
         <RedisTables schema={schema} />
@@ -1064,7 +1064,7 @@ function DatabaseMenu(props: {
   database?: string;
   uuid: string;
   reload;
-  handleOpend;
+  handleOpened;
   opened;
   handleCloseConn;
   reloadDatabase;
@@ -1076,7 +1076,7 @@ function DatabaseMenu(props: {
     database,
     uuid,
     reload,
-    handleOpend,
+    handleOpened,
     opened,
     handleCloseConn,
     reloadDatabase,
@@ -1111,7 +1111,7 @@ function DatabaseMenu(props: {
           <MenuOpenConn
             name={uuid}
             setLoading={setLoading}
-            handleOpend={handleOpend}
+            handleOpened={handleOpened}
           ></MenuOpenConn>
         )}
 
@@ -1129,7 +1129,7 @@ function DatabaseMenu(props: {
         {database && kind != DataSourceKind.DuckDB && (
           <MenuItem
             onClick={() => {
-              // we are in database context uuid contains the databse name
+              // we are in database context uuid contains the database name
               // we need remove that
               let index = uuid.indexOf('/');
               dropDatabase({
@@ -1184,7 +1184,7 @@ function DatabaseMenu(props: {
 function CatalogMenu(props: {
   uuid;
   reload;
-  handleOpend;
+  handleOpened;
   opened;
   handleCloseConn;
   setLoading;
@@ -1193,7 +1193,7 @@ function CatalogMenu(props: {
   const {
     uuid,
     reload,
-    handleOpend,
+    handleOpened,
     opened,
     handleCloseConn,
     kind,
@@ -1207,7 +1207,7 @@ function CatalogMenu(props: {
           <MenuOpenConn
             name={uuid}
             setLoading={setLoading}
-            handleOpend={handleOpend}
+            handleOpened={handleOpened}
           ></MenuOpenConn>
         )}
 
@@ -1357,7 +1357,7 @@ function openNewQuery(
 function SchemaMenu(props: {
   schema?: string;
   uuid: string;
-  handleOpend;
+  handleOpened;
   opened;
   handleCloseConn;
   kind: DataSourceKind;
@@ -1367,7 +1367,7 @@ function SchemaMenu(props: {
   const {
     schema,
     uuid,
-    handleOpend,
+    handleOpened,
     opened,
     handleCloseConn,
     reloadSchemas,
@@ -1382,7 +1382,7 @@ function SchemaMenu(props: {
         <MenuOpenConn
           name={uuid}
           setLoading={setLoading}
-          handleOpend={handleOpend}
+          handleOpened={handleOpened}
         ></MenuOpenConn>
       )}
 
@@ -1406,7 +1406,7 @@ function SchemaMenu(props: {
       {schema && kind != DataSourceKind.Oracle && (
         <MenuItem
           onClick={() => {
-            // we are in database context uuid contains the databse name
+            // we are in database context uuid contains the database name
             // we need remove that
             let index = uuid.lastIndexOf('/');
             dropSchema({
@@ -1472,7 +1472,7 @@ function CatalogTree(_props: {}) {
                 setLoading={setLoading}
                 reload={handleReload}
                 opened={opened}
-                handleOpend={() => {
+                handleOpened={() => {
                   setOpened(true);
                 }}
                 handleCloseConn={() => {
@@ -1552,7 +1552,7 @@ function DatabaseTree(props: {
               <DatabaseMenu
                 setLoading={setLoading}
                 opened={opened}
-                handleOpend={() => {
+                handleOpened={() => {
                   setOpened(true);
                 }}
                 handleCloseConn={() => {

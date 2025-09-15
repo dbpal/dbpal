@@ -402,7 +402,7 @@ fn encode_rows_as_json(
     fn encode_list(vs: &mut Vec<CassandraType>) -> anyhow::Result<Vec<serde_json::Value>> {
         let mut ret = Vec::with_capacity(vs.len());
         for v in vs.iter_mut() {
-            ret.push(encode_rows_canssrandra_type(v)?);
+            ret.push(encode_rows_cassandra_type(v)?);
         }
         anyhow::Ok(ret)
     }
@@ -417,9 +417,9 @@ fn encode_rows_as_json(
         let mut ret = serde_json::Map::new();
 
         for v in vs.iter_mut() {
-            let key = encode_rows_canssrandra_type(&mut v.0)?;
+            let key = encode_rows_cassandra_type(&mut v.0)?;
             let key = serde_json::to_string(&key)?;
-            ret.insert(key, encode_rows_canssrandra_type(&mut v.1)?);
+            ret.insert(key, encode_rows_cassandra_type(&mut v.1)?);
         }
         anyhow::Ok(ret)
     }
@@ -431,13 +431,11 @@ fn encode_rows_as_json(
     ) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
         let mut ret = serde_json::Map::new();
         for v in hash_map.iter_mut() {
-            ret.insert(v.0.clone(), encode_rows_canssrandra_type(v.1)?);
+            ret.insert(v.0.clone(), encode_rows_cassandra_type(v.1)?);
         }
         anyhow::Ok(ret)
     }
-    fn encode_rows_canssrandra_type(
-        value: &mut CassandraType,
-    ) -> anyhow::Result<serde_json::Value> {
+    fn encode_rows_cassandra_type(value: &mut CassandraType) -> anyhow::Result<serde_json::Value> {
         let ret = match value {
             CassandraType::Ascii(x) => serde_json::Value::from(x.to_string()),
             CassandraType::Bigint(x) => serde_json::Value::from(x.to_string()),
@@ -649,14 +647,14 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
     fn encode_list(vs: &mut Vec<CassandraType>) -> anyhow::Result<String> {
         let mut ret = Vec::with_capacity(vs.len());
         for v in vs.iter_mut() {
-            ret.push(encode_rows_canssrandra_type(v)?);
+            ret.push(encode_rows_cassandra_type(v)?);
         }
         anyhow::Ok(format!("[{}]", ret.join(",")))
     }
     fn encode_tuple(vs: &mut Vec<CassandraType>) -> anyhow::Result<String> {
         let mut ret = Vec::with_capacity(vs.len());
         for v in vs.iter_mut() {
-            ret.push(encode_rows_canssrandra_type(v)?);
+            ret.push(encode_rows_cassandra_type(v)?);
         }
         anyhow::Ok(format!("({})", ret.join(",")))
     }
@@ -666,8 +664,8 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
         for v in vs.iter_mut() {
             ret.push(format!(
                 "{}:{}",
-                encode_rows_canssrandra_type(&mut v.0)?,
-                encode_rows_canssrandra_type(&mut v.1)?,
+                encode_rows_cassandra_type(&mut v.0)?,
+                encode_rows_cassandra_type(&mut v.1)?,
             ));
         }
         anyhow::Ok(format!("{{{}}}", ret.join(",")))
@@ -675,19 +673,19 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
     fn encode_set(vs: &mut Vec<CassandraType>) -> anyhow::Result<String> {
         let mut ret = Vec::with_capacity(vs.len());
         for v in vs.iter_mut() {
-            ret.push(encode_rows_canssrandra_type(v)?);
+            ret.push(encode_rows_cassandra_type(v)?);
         }
         anyhow::Ok(format!("{{{}}}", ret.join(",")))
     }
     fn encode_udf(hash_map: &mut HashMap<String, CassandraType>) -> anyhow::Result<String> {
         let mut ret = Vec::with_capacity(hash_map.len());
         for v in hash_map.iter_mut() {
-            ret.push(format!("{}:{}", v.0, encode_rows_canssrandra_type(v.1)?));
+            ret.push(format!("{}:{}", v.0, encode_rows_cassandra_type(v.1)?));
         }
         anyhow::Ok(format!("{{{}}}", ret.join(",")))
     }
 
-    fn encode_rows_canssrandra_type(value: &mut CassandraType) -> anyhow::Result<String> {
+    fn encode_rows_cassandra_type(value: &mut CassandraType) -> anyhow::Result<String> {
         let ret = match value {
             CassandraType::Ascii(x) => format!("'{}'", x),
             CassandraType::Bigint(x) => x.to_string(),
@@ -924,7 +922,7 @@ impl CassandraDB {
 
 impl CassandraDB {
     // page caching size
-    const PAGE_CACHE_LIMIG_SIZE: usize = 2000;
+    const PAGE_CACHE_LIMIT_SIZE: usize = 2000;
 
     // table is none means remove all cached.
     pub fn invalid_table_or_view_caching(&self, table: Option<&str>) {
@@ -935,7 +933,7 @@ impl CassandraDB {
         }
     }
 
-    fn page_caching_totoal(&self, name: &str) -> usize {
+    fn page_caching_total(&self, name: &str) -> usize {
         self.paging_cache
             .get(&name.to_string())
             .map(|x| x.result.data.len())
@@ -1010,7 +1008,7 @@ impl CassandraDB {
             } else {
                 "".to_string()
             },
-            format!("LIMIT {}", Self::PAGE_CACHE_LIMIG_SIZE),
+            format!("LIMIT {}", Self::PAGE_CACHE_LIMIT_SIZE),
             if allow_filtering {
                 "ALLOW FILTERING"
             } else {
@@ -1267,7 +1265,7 @@ impl CassandraDB {
             let name = name.unwrap();
             let sql = format!("DESCRIBE TYPE {name}");
             log::info!("sql:{}", sql);
-            let deccribe_rows = self
+            let describe_rows = self
                 .session
                 .query(sql)
                 .await?
@@ -1275,10 +1273,10 @@ impl CassandraDB {
                 .into_rows()
                 .unwrap_or_default();
 
-            if deccribe_rows.len() != 1 {
+            if describe_rows.len() != 1 {
                 anyhow::bail!("describe type should return one result.")
             }
-            let create_statement: Option<String> = deccribe_rows[0].get_by_index(3)?;
+            let create_statement: Option<String> = describe_rows[0].get_by_index(3)?;
             ret.push(CreatedTypeDef {
                 name,
                 sql: create_statement,
@@ -1464,7 +1462,7 @@ impl SchemaTrait for CassandraDB {
         self.list_table_impl(self.config.key_space_str()).await
     }
 
-    // cassandra can use this function for materlized view too.
+    // cassandra can use this function for materialized view too.
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
         let sql = format!(
             r#" SELECT column_name, type, kind
@@ -1547,7 +1545,7 @@ impl SchemaTrait for CassandraDB {
 
         anyhow::Ok(QueryResp {
             fields,
-            total: self.page_caching_totoal(table_name),
+            total: self.page_caching_total(table_name),
             data,
             sql: self.page_caching_sql(table_name),
             cache_time,
@@ -1788,7 +1786,7 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
 }
 
 // TODO this parse only support one parameter or `cassandra`
-// support multi parameter for aggregate functon.
+// support multi parameter for aggregate function.
 fn extract_parameter_for_aggregate(sql: &str) -> anyhow::Result<DataType> {
     let x = CassandraAST::new(sql);
 
@@ -1866,7 +1864,7 @@ impl DBTrait for CassandraDB {
 
         let extra = match &extra {
             Some(x) => x,
-            None => anyhow::bail!("cassandra need extra paramater."),
+            None => anyhow::bail!("cassandra need extra parameter."),
         };
         let (replication_strategy, replication_factor) = match extra {
             CreateSchemaExtra::Cassandra {
@@ -1921,7 +1919,7 @@ impl CassandraDB {
             let argument_types: Option<List> = row.get_by_index(1)?;
             let return_type: Option<String> = row.get_by_index(2)?;
             let language: Option<String> = row.get_by_index(3)?;
-            let parametres = if let Some(argument_types) = argument_types {
+            let parameters = if let Some(argument_types) = argument_types {
                 extract_parameters_from_server(argument_types)?
             } else {
                 vec![]
@@ -1930,7 +1928,7 @@ impl CassandraDB {
             ret.push(NamedStaff {
                 name,
                 parameters: None,
-                cassandra_parameters: Some(parametres),
+                cassandra_parameters: Some(parameters),
                 metas: vec![
                     MetaValue::new_opt("return_type", return_type),
                     MetaValue::new_opt("language", language),
@@ -1942,7 +1940,7 @@ impl CassandraDB {
 }
 
 fn extract_parameters_from_server(argument_types: List) -> anyhow::Result<Vec<String>> {
-    let mut parametres = vec![];
+    let mut parameters = vec![];
     let c = argument_types.as_cassandra_type()?;
     if let Some(c) = c {
         match c {
@@ -1950,10 +1948,10 @@ fn extract_parameters_from_server(argument_types: List) -> anyhow::Result<Vec<St
                 for ele in list.iter_mut() {
                     match ele {
                         CassandraType::Ascii(x) => {
-                            parametres.push(x.clone());
+                            parameters.push(x.clone());
                         }
                         CassandraType::Varchar(x) => {
-                            parametres.push(x.clone());
+                            parameters.push(x.clone());
                         }
                         _ => {
                             log::error!("parameter here should be string")
@@ -1966,7 +1964,7 @@ fn extract_parameters_from_server(argument_types: List) -> anyhow::Result<Vec<St
             }
         }
     }
-    anyhow::Ok(parametres)
+    anyhow::Ok(parameters)
 }
 
 #[cfg(test)]

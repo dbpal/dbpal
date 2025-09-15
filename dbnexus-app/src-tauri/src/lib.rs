@@ -3,7 +3,7 @@ pub mod handlers;
 
 #[cfg(test)]
 mod tests {
-    use dbnexus_db::datasource_config::{CassandraDBConfig, EnableSsl, LibSqlDBConfigSouce};
+    use dbnexus_db::datasource_config::{CassandraDBConfig, EnableSsl, LibSqlDBConfigSource};
     use dbnexus_db::db::{
         ColumnType, CreateTableAndIndexSql, CreatedTypeDef, QueryResp, SequenceDetail,
         ShowExtraArgs,
@@ -60,7 +60,7 @@ mod tests {
                 &MongoDBConfig::INFO,
                 &MuiDataGridData::INFO,
                 &CassandraDBConfig::INFO,
-                &LibSqlDBConfigSouce::INFO,
+                &LibSqlDBConfigSource::INFO,
                 &CreateTableAndIndexSql::INFO,
                 &EnableSsl::INFO,
                 &ColumnType::INFO,

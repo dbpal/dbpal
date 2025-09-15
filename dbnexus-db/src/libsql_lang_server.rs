@@ -169,7 +169,7 @@ impl AstCompletionHelper for LibSqlDB {
                 data_type: Some(x.decl_type().unwrap_or_default().to_string()),
             })
             .collect::<Vec<_>>();
-        // check if prepare return the reuslt.
+        // check if prepare return the result.
         if !ret.is_empty() {
             return anyhow::Ok(ret);
         }

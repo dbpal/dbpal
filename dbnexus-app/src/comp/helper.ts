@@ -84,9 +84,9 @@ class QueryLogHandler {
     });
   }
 
-  query(matchSql: string, page: number, pageSize: number, orde_by: string): Promise<any[]> {
+  query(matchSql: string, page: number, pageSize: number, order_by: string): Promise<any[]> {
     let sql = `
-    select * from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""} order by ${orde_by ? orde_by : 'create_at desc'} limit ${pageSize} offset ${pageSize * (page - 1)}`;
+    select * from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""} order by ${order_by ? order_by : 'create_at desc'} limit ${pageSize} offset ${pageSize * (page - 1)}`;
     console.log("query log sql:", sql);
     return appDatabase.select(sql, [this.uuid])
   }
@@ -142,7 +142,7 @@ function generateRandomString(length: number = 10): string {
 // 不然当成二进制数据来处理呢
 // 后台放回数据的时候都是 hex string模式
 
-function hexTryToString(hex): string | Uint8Array {
+function hexTryToString(hex): string | null {
   if (!hex) {
     return '';
   }
@@ -151,22 +151,13 @@ function hexTryToString(hex): string | Uint8Array {
   for (let i = 0; i < hex.length; i += 2) {
     bytes.push(parseInt(hex.substr(i, 2), 16));
   }
-  // 将字节数组转换为 UTF-8 字符串
-  let utf8String: string;
-
   try {
-    utf8String = new TextDecoder('utf-8', { fatal: true }).decode(
+    return new TextDecoder('utf-8', { fatal: true }).decode(
       new Uint8Array(bytes)
     );
   } catch {
-    return new Uint8Array(bytes);
+    return null;
   }
-  return utf8String;
-}
-function uint8ArrayToUtf8(uint8Array): string {
-  const decoder = new TextDecoder('utf-8');
-  const str = decoder.decode(uint8Array);
-  return str
 }
 
 function hexToString(hex: string): string {
@@ -404,14 +395,14 @@ class FavoriteSql {
   static async save(x: FavoriteSql, showNotification) {
     try {
       await appDatabase.execute("insert into favorite_sql(uuid,connection_name,name,kind,sql,last_modified) values(?,?,?,?,?,?)", [x.uuid, x.connection_name, x.name, x.kind, x.sql, x.last_modified]);
-      showNotification('success', "save sql Ok");
+      showNotification('success', "save favorite sql Ok");
     } catch (e) {
       showNotification('error', "save favorite sql failed", e);
       return
     }
   }
 
-  // todo performace issue????
+  // todo performance issue????
   static getAll(): Promise<FavoriteSql[]> {
     return appDatabase.select("select * from favorite_sql");
   }
@@ -867,7 +858,6 @@ export {
   columnWidths,
   handleCopyToClipboard,
   validJson,
-  uint8ArrayToUtf8,
   TabActiveContext,
   FavoriteSql,
   MatchPatternContext,

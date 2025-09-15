@@ -31,12 +31,12 @@ function DefAndMetasView(props: {
   const { showNotification } = useContext(NotificationContext);
   const [executeLoading, setExecuteLoading] = useState(false);
   const [parseErr, setParseErr] = useState<ErrAndLoc>(null);
-  const handleReload = (showok) => {
+  const handleReload = (showOk) => {
     setLoading(true);
     reloadOP()
       .then((detail) => {
         setDetail(detail);
-        if (showok) {
+        if (showOk) {
           showNotification('success', 'reload ok');
         }
       })
@@ -168,7 +168,7 @@ function triggerDetailsToMetas(x: types.TriggerDetail): types.MetaValue[] {
   };
   const ret: types.MetaValue[] = [
     // todo timing can be object
-    { name: 'timming', value: x.timing as string, desc: '' },
+    { name: 'timing', value: x.timing as string, desc: '' },
     { name: 'event', value: x.event, desc: '' },
   ];
   if (x.enable) {

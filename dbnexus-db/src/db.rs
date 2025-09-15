@@ -171,7 +171,7 @@ pub trait SchemaTrait:
     }
 
     async fn create_index(
-        &self, _table: &str, _name: &str, _kind: IndexKind, _fileds: &[String],
+        &self, _table: &str, _name: &str, _kind: IndexKind, _fields: &[String],
     ) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
@@ -380,10 +380,10 @@ pub trait SchemaTrait:
         h2.await?
     }
 
-    async fn list_sequences(&self) -> anyhow::Result<Vec<SequenceDetail>> {
+    async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         not_support_feature(self.backend_name())
     }
-    async fn rename_sequnce(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
+    async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
 
@@ -1511,7 +1511,7 @@ mod tests {
     use super::UdfOrProcedureExtraParameter;
 
     #[test]
-    fn test_serde_udf_or_precedure_extra_parameter() {
+    fn test_serde_udf_or_procedure_extra_parameter() {
         let x = Some(UdfOrProcedureExtraParameter::PostGres {
             parameters: "int".to_string(),
         });

@@ -103,9 +103,9 @@ function CreateSchema(props: {
   const { showNotification } = useContext(NotificationContext);
   const [schema, setSchema] = useState('');
   const schemaDom = useRef(null);
-  const replicationStrateges = ['SimpleStrategy', 'NetworkTopologyStrategy'];
+  const replicationStrategies = ['SimpleStrategy', 'NetworkTopologyStrategy'];
   const [replicationStrategy, setReplicationStrategy] = useState(
-    replicationStrateges[0]
+    replicationStrategies[0]
   );
   const [replicationFactor, setReplicationFactor] = useState('3');
   const handleCreate = () => {
@@ -150,7 +150,7 @@ function CreateSchema(props: {
           }}
           value={replicationStrategy}
         >
-          {replicationStrateges.map((e) => (
+          {replicationStrategies.map((e) => (
             <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
           ))}
         </RadioGroup>

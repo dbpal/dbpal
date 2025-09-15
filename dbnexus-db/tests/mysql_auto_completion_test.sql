@@ -70,3 +70,5 @@ employees.
 11 id
 SELECT * FROM JSON_TABLE('[{"a": 1, "b": 2}, {"a": 3, "b": 4}]','$[*]' COLUMNS(a INT PATH '$.a' DEFAULT '0' ON EMPTY,b INT PATH '$.b' NULL ON ERROR )) AS jt WHERE a > 0 ;
 165 a ; 165 jt
+SELECT * from (SELECT NOW() as now) t WHERE t.now;
+46 t ; 50 now

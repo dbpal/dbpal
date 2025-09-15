@@ -46,3 +46,5 @@ CREATE VIRTUAL TABLE documents USING fts5(title, content);
 42 fts5
 select * from (employees join employees)
 25 employees ; 40 employees
+SELECT name FROM pragma_function_list()
+12 name

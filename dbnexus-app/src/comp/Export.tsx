@@ -45,7 +45,7 @@ function ExportView(props: {
   const [includeHeader, setIncludeHeader] = useState(setting.includeCsvHeader);
   const [delimiter, setDelimiter] = useState(setting.csvDelimiter);
   const [pretty, setPretty] = useState(true);
-  const [includeTableSchema, setIncludeTableScheam] = useState(false);
+  const [includeTableSchema, setIncludeTableSchema] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<string | null>(null);
@@ -150,7 +150,7 @@ function ExportView(props: {
               <Checkbox
                 checked={includeTableSchema}
                 onChange={(e) => {
-                  setIncludeTableScheam(e.target.checked);
+                  setIncludeTableSchema(e.target.checked);
                 }}
                 name="myCheckbox"
                 color="primary"

@@ -70,7 +70,7 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
       let c = await conn.getAutoCommit();
       setCommit(c);
     } catch (e) {
-      showNotification('error', 'query commit failed', e);
+      showNotification('error', 'get commit modal failed', e);
     }
   };
   useEffect(() => {

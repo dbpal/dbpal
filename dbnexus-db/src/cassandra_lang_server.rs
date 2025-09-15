@@ -14,7 +14,7 @@ use crate::cassandra::CassandraDB;
 use crate::db::{CreatedTypeDef, DBTrait};
 use crate::language_server::{
     CompletionItem, CompletionKind, ErrAndLoc, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, remove_dupliate,
+    LexerCompletionTrait, remove_duplicate,
 };
 
 use crate::sqlparser_completion::TempTableColumn;
@@ -31,7 +31,7 @@ impl LanguageServer for CassandraDB {
         match r {
             Ok(mut x) => {
                 x.extend(dot.unwrap_or_default().into_iter());
-                return anyhow::Ok(remove_dupliate(x));
+                return anyhow::Ok(remove_duplicate(x));
             }
             Err(x) => {
                 log::error!("try completion on ast failed:{}", x)
@@ -43,7 +43,7 @@ impl LanguageServer for CassandraDB {
         if !use_lexer {
             return anyhow::Ok(vec![]);
         }
-        return LexerCompletionTrait::do_auto_completion(self, sql).await;
+        return LexerCompletionTrait::do_auto_completion(self, sql, line, col).await;
     }
     fn parse_error(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         // don't provide parse error for cassandra
@@ -116,6 +116,11 @@ impl LangServerCommon for CassandraDB {
         }
     }
 
+    /*
+        _is_call not used because cassandra have it's own parser
+        _is_call mainly use for function call statement like `select abs(-1)`
+        in sqlparser completion helper
+    */
     async fn list_column(
         &self, schema: Option<&str>, table_name: &str, _is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
@@ -347,7 +352,7 @@ impl AstCompletion {
         anyhow::Ok(())
     }
 
-    async fn on_meterialized_view(&mut self, name: &FQName) -> anyhow::Result<()> {
+    async fn on_materialized_view(&mut self, name: &FQName) -> anyhow::Result<()> {
         if let Some(key_space) = name.keyspace.as_ref() {
             self.on_key_space(key_space).await?;
             if self.finished() {
@@ -379,7 +384,7 @@ impl AstCompletion {
         };
         if name.keyspace.is_none() {
             // try suggest keyspace on table or view
-            // very common case unfinish statement like `test` then `.`
+            // very common case unfinished statement like `test` then `.`
             result.extend(self.table_view_key_spaces().await?.into_iter());
         }
         self.result = Some(result);
@@ -651,7 +656,7 @@ impl AstCompletion {
         let rows = body.into_rows().unwrap_or_default();
 
         if rows.len() != 1 {
-            anyhow::bail!("result shold contains one result");
+            anyhow::bail!("result should contains one result");
         }
 
         let def: Option<String> = rows[0].get_by_index(3)?;
@@ -920,7 +925,7 @@ impl AstCompletion {
                 self.on_key_space(&create_keyspace.name).await?;
             }
             CassandraStatement::AlterMaterializedView(alter_materialized_view) => {
-                self.on_meterialized_view(&alter_materialized_view.name)
+                self.on_materialized_view(&alter_materialized_view.name)
                     .await?;
             }
             CassandraStatement::AlterRole(role_common) => {
@@ -1275,7 +1280,7 @@ impl AstCompletion {
                 self.on_key_space(&common_drop.name.name).await?;
             }
             CassandraStatement::DropMaterializedView(common_drop) => {
-                self.on_meterialized_view(&common_drop.name).await?;
+                self.on_materialized_view(&common_drop.name).await?;
             }
             CassandraStatement::DropRole(common_drop) => {
                 self.on_role(&common_drop.name.name).await?;

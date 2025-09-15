@@ -88,7 +88,7 @@ pub async fn drop_database(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    log::info!("drop db:{}", name);
+    log::info!("drop db:{} {}", name, database);
     let x = app
         .get_opened(name.as_str())
         .await
@@ -98,6 +98,7 @@ pub async fn drop_database(
 
     let key = format!("{}/{}", name, database);
     app.close_conn_has_prefix(&key).await;
+
     match x {
         Open::Catalog(x) => {
             app.opens.lock().await.remove(&key);
@@ -122,6 +123,8 @@ pub async fn drop_schema(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
+    log::info!("drop schema:{} {}", name, schema);
+
     // first close connections because we want delete it
     let key = format!("{}/{}", name, schema);
     app.close_conn_has_prefix(&key).await;
@@ -908,7 +911,7 @@ pub async fn config_list_database_or_schema(
 }
 
 #[tauri::command]
-pub async fn conn_opend(name: String, app: tauri::State<'_, App>) -> Result<bool, ErrorFrontend> {
+pub async fn conn_opened(name: String, app: tauri::State<'_, App>) -> Result<bool, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let opend = app.get_opened(name.as_str()).await.is_ok();
@@ -2242,14 +2245,14 @@ pub async fn list_udf(
 }
 
 #[tauri::command]
-pub async fn list_sequences(
+pub async fn list_sequence(
     name: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<SequenceDetail>, ErrorFrontend> {
     let schema = app
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let sx = schema.list_sequences().await.map_err(ErrorFrontend::from)?;
+    let sx = schema.list_sequence().await.map_err(ErrorFrontend::from)?;
 
     Ok(sx)
 }
@@ -2270,7 +2273,7 @@ pub async fn drop_sequence(
 }
 
 #[tauri::command]
-pub async fn rename_sequnce(
+pub async fn rename_sequence(
     name: String, app: tauri::State<'_, App>, old: String, new: String,
 ) -> Result<(), ErrorFrontend> {
     let schema = app
@@ -2278,7 +2281,7 @@ pub async fn rename_sequnce(
         .await
         .map_err(ErrorFrontend::from)?;
     schema
-        .rename_sequnce(&old, &new)
+        .rename_sequence(&old, &new)
         .await
         .map_err(ErrorFrontend::from)?;
 

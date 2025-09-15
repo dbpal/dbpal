@@ -825,7 +825,7 @@ function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
 
 function RedisSetTable(props: {
   reloadOP: (keyMatch: string) => Promise<types.MuiDataGridData>;
-  modifyOP: (oldvalue: string, newValue: string) => Promise<void>;
+  modifyOP: (oldValue: string, newValue: string) => Promise<void>;
 
   delOP: (value: string) => Promise<void>;
 }) {
@@ -1601,7 +1601,7 @@ function RedisZsetTable(props: {
         />
         <TextField
           size="small"
-          label="maxiumn value(float64)"
+          label="maximum value(float64)"
           variant="outlined"
           value={max}
           error={maxErr}
@@ -1752,7 +1752,7 @@ function NotReturnAllErr(props: { has_more: boolean }) {
   const { has_more } = props;
   return (
     has_more && (
-      <Tooltip title="exceed max retrun value size,some result not retruned">
+      <Tooltip title="exceed max return value size,some result not returned">
         <Typography color="error"> some key not found? </Typography>
       </Tooltip>
     )

@@ -38,14 +38,14 @@ impl MysqlDBConfig {
 pub struct LibSqlDBConfig {
     pub replica: bool,
     #[serde(flatten)]
-    pub source: LibSqlDBConfigSouce,
+    pub source: LibSqlDBConfigSource,
     pub read_only: bool,
     #[serde(default)]
     pub conn_timeout: Option<u32>,
 }
 #[derive(Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 #[serde(tag = "source", rename_all = "lowercase")]
-pub enum LibSqlDBConfigSouce {
+pub enum LibSqlDBConfigSource {
     Local {
         path: String,
     },
@@ -56,11 +56,13 @@ pub enum LibSqlDBConfigSouce {
     },
 }
 
-impl std::fmt::Debug for LibSqlDBConfigSouce {
+impl std::fmt::Debug for LibSqlDBConfigSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LibSqlDBConfigSouce::Local { path } => write!(f, "{}", path),
-            LibSqlDBConfigSouce::Remote { url, path, .. } => write!(f, "url:{} path:{}", url, path),
+            LibSqlDBConfigSource::Local { path } => write!(f, "{}", path),
+            LibSqlDBConfigSource::Remote { url, path, .. } => {
+                write!(f, "url:{} path:{}", url, path)
+            }
         }
     }
 }

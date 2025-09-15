@@ -1,4 +1,4 @@
-use crate::language_server::{CompletionItem, CompletionKind, remove_dupliate};
+use crate::language_server::{CompletionItem, CompletionKind, remove_duplicate};
 use crate::sqlparser_completion::{
     CompletionStatement, Scope, TableEntered, TempTable, TempTableColumn,
 };
@@ -50,6 +50,25 @@ impl From<CommentObject> for CompletionKind {
 }
 
 impl<'a> CompletionStatement<'a> {
+    pub(crate) async fn c_on_show_statement_filter(&mut self, expr: &ShowStatementFilter) {
+        match expr {
+            ShowStatementFilter::Like(..) => {}
+            ShowStatementFilter::ILike(..) => {}
+            ShowStatementFilter::Where(expr) => self.c_on_expr(expr).await,
+            ShowStatementFilter::NoKeyword(..) => {}
+        }
+    }
+    pub(crate) async fn c_on_declare_assignment(&mut self, expr: &DeclareAssignment) {
+        match expr {
+            DeclareAssignment::Expr(expr)
+            | DeclareAssignment::Default(expr)
+            | DeclareAssignment::DuckAssignment(expr)
+            | DeclareAssignment::For(expr)
+            | DeclareAssignment::MsSqlAssignment(expr) => {
+                self.c_on_expr(expr).await;
+            }
+        }
+    }
     pub(crate) async fn c_on_postgres_extension(&mut self, name: &Ident, installed: bool) {
         if !self.in_pos(&name.span) {
             return;
@@ -109,7 +128,7 @@ impl<'a> CompletionStatement<'a> {
                 };
                 let mut scope = Scope::default();
                 scope.enter_temp_table(None, temp_table.clone());
-                let _gurad = self.scopes.enter(scope);
+                let _guard = self.scopes.enter(scope);
                 for col in column_defs.iter() {
                     if self.in_pos(&col.name.span) {
                         self.set_on_def();
@@ -145,7 +164,7 @@ impl<'a> CompletionStatement<'a> {
                 };
                 let mut scope = Scope::default();
                 scope.enter_temp_table(alias, temp_table.clone());
-                let _gurad = self.scopes.enter(scope);
+                let _guard = self.scopes.enter(scope);
                 for col in columns.iter() {
                     if self.in_pos(&col.name.span) {
                         self.set_on_def();
@@ -201,7 +220,7 @@ impl<'a> CompletionStatement<'a> {
                 };
                 let mut scope = Scope::default();
                 scope.enter_temp_table(None, temp_table.clone());
-                let _gurad = self.scopes.enter(scope);
+                let _guard = self.scopes.enter(scope);
                 for col in column_defs.iter() {
                     if self.in_pos(&col.name.span) {
                         self.set_on_def();
@@ -234,7 +253,7 @@ impl<'a> CompletionStatement<'a> {
                     .iter()
                     .filter(|x| matches!(x.field_name, Some(_)))
                     .map(|x| TempTableColumn {
-                        // we filterd before
+                        // we filtered before
                         name: x.field_name.as_ref().map(|x| x.value.clone()).unwrap(),
                         data_type: Some(x.field_type.to_string()),
                     })
@@ -381,7 +400,7 @@ impl<'a> CompletionStatement<'a> {
     ) {
         match show_create {
             ShowCreateObject::Event => {
-                // not support rigth now.
+                // not support right now.
             }
             ShowCreateObject::Function => self.c_on_function(name).await,
             ShowCreateObject::Procedure => self.c_on_procedure(name).await,
@@ -471,7 +490,7 @@ impl<'a> CompletionStatement<'a> {
             },
 
             _ => {
-                log::error!("unhandle table policy object :{}", name)
+                log::error!("unhandled table policy object :{}", name)
             }
         }
     }
@@ -561,7 +580,7 @@ impl<'a> CompletionStatement<'a> {
         let (schema, _) = extract_schema_and_item(name);
         self.result = Some(
             self.helper
-                .list_sequences(schema)
+                .list_sequence(schema)
                 .await
                 .map_err(|e| log::error!("list sequences error: {}", e))
                 .unwrap_or_default()
@@ -575,7 +594,7 @@ impl<'a> CompletionStatement<'a> {
         )
     }
     pub(crate) async fn c_on_user(&mut self, user: &Ident) {
-        if self.in_pos(&user.span) {
+        if !self.in_pos(&user.span) {
             return;
         }
         self.result = Some(self.list_user_completion().await)
@@ -651,24 +670,23 @@ impl<'a> CompletionStatement<'a> {
                     ObjectNamePart::Function(..) => {}
                 },
                 _ => {
-                    log::error!("role name not rigth:{:?}", name)
+                    log::error!("role name not right:{:?}", name)
                 }
             },
             CommentObject::Column => {
                 if name.0.len() >= 2 {
                     let table = name.0[..name.0.len() - 1].to_vec();
-                    self.c_on_column(
-                        &ObjectName(table),
-                        match name.0.last().unwrap() {
-                            ObjectNamePart::Identifier(ident) => ident,
-                            ObjectNamePart::Function(object_name_part_function) => {
-                                // TODO snowflak not support
-                                &object_name_part_function.name
-                            }
-                        },
-                        false,
-                    )
-                    .await;
+                    let table = ObjectName(table);
+                    self.c_on_table(&table).await;
+                    if self.finished() {
+                        return;
+                    }
+                    match name.0.last().unwrap() {
+                        ObjectNamePart::Identifier(ident) => {
+                            self.c_on_column(&table, ident, false).await
+                        }
+                        ObjectNamePart::Function(..) => {}
+                    }
                 }
             }
             CommentObject::Extension => {
@@ -680,11 +698,13 @@ impl<'a> CompletionStatement<'a> {
                         ObjectNamePart::Function(..) => {}
                     },
                     _ => {
-                        log::error!("postgres extension name not rigth:{:?}", name)
+                        log::error!("postgres extension name not right:{:?}", name)
                     }
                 };
             }
             CommentObject::User => match name.0.len() {
+                // 在 PostgreSQL 里，“用户”本身就是 可登录的 role，所以给 user 加注释仍然用：
+                // TODO
                 1 => match name.0.last().unwrap() {
                     ObjectNamePart::Identifier(ident) => {
                         self.c_on_user(ident).await;
@@ -796,26 +816,27 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_constraint(&mut self, table_name: &ObjectName, name: &Ident) {
-        if self.in_pos(&name.span) {
-            let (schema, table_name) = extract_schema_and_item(table_name);
-            self.result = Some(
-                self.helper
-                    .list_constraint(schema, table_name)
-                    .await
-                    .map_err(|err| {
-                        log::error!("list_constraint failed,err:{}", err);
-                    })
-                    .ok()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|x| CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Constraint,
-                        desc: None,
-                    })
-                    .collect::<Vec<_>>(),
-            );
+        if !self.in_pos(&name.span) {
+            return;
         }
+        let (schema, table_name) = extract_schema_and_item(table_name);
+        self.result = Some(
+            self.helper
+                .list_constraint(schema, table_name)
+                .await
+                .map_err(|err| {
+                    log::error!("list_constraint failed,err:{}", err);
+                })
+                .ok()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Constraint,
+                    desc: None,
+                })
+                .collect::<Vec<_>>(),
+        );
     }
 
     pub(crate) async fn c_on_clickhouse_partition(
@@ -995,7 +1016,7 @@ impl<'a> CompletionStatement<'a> {
                         .helper
                         .list_column(schema, table, false)
                         .await
-                        .map_err(|e| log::error!("list table colunm error: {}", e))
+                        .map_err(|e| log::error!("list table column error: {}", e))
                         .unwrap_or_default();
                     // add the column that we are adding
                     cols.push(TempTableColumn {
@@ -1011,7 +1032,7 @@ impl<'a> CompletionStatement<'a> {
                         columns: cols.clone(),
                     },
                 );
-                let _gurad = self.scopes.enter(scope);
+                let _guard = self.scopes.enter(scope);
                 for o in column_def.options.iter() {
                     self.c_on_column_option_def(o, cols.clone(), Some(table_name))
                         .await;
@@ -1025,7 +1046,7 @@ impl<'a> CompletionStatement<'a> {
                     return;
                 }
                 self.c_on_select_item(&select.projection[..]).await;
-                let _gurad = self
+                let _guard = self
                     .scopes
                     .enter(Scope::from_this_table(table_name.clone()));
                 if let Some(x) = select.group_by.as_ref() {
@@ -1277,7 +1298,7 @@ impl<'a> CompletionStatement<'a> {
             AlterTableOperation::ReplicaIdentity { .. } => {}
             AlterTableOperation::Lock { .. } => {}
             AlterTableOperation::ValidateConstraint { .. } => {
-                // TODO select containts
+                // TODO select contains
             }
         }
     }
@@ -1328,7 +1349,7 @@ impl<'a> CompletionStatement<'a> {
         );
     }
 
-    pub(crate) async fn objectname_to_idents(&self, name: &ObjectName) -> Vec<Ident> {
+    pub(crate) async fn object_name_to_idents(&self, name: &ObjectName) -> Vec<Ident> {
         name.0
             .iter()
             .map(|x| match x {
@@ -1341,11 +1362,11 @@ impl<'a> CompletionStatement<'a> {
             .collect()
     }
 
-    pub(crate) async fn c_on_expr_compund_identifier(&mut self, idents: &[Ident]) {
+    pub(crate) async fn c_on_expr_compound_identifier(&mut self, idents: &[Ident]) {
         if !idents.iter().any(|x| self.in_pos(&x.span)) {
             return;
         }
-        log::info!("hit compund identifier:{:?}", idents);
+        log::info!("hit compound identifier:{:?}", idents);
         match idents.len() {
             1 => {
                 // maybe never execute to here???
@@ -1380,7 +1401,7 @@ impl<'a> CompletionStatement<'a> {
                 }
                 if let Some(table) = self.scopes.nearest_table_named(table) {
                     match &table {
-                        TableEntered::FromTable { table, .. } => {
+                        TableEntered::ObjectName { table, .. } => {
                             self.c_on_column(table, &idents[1], false).await;
                         }
                         TableEntered::Temp { table, .. } => {
@@ -1421,12 +1442,12 @@ impl<'a> CompletionStatement<'a> {
         if !self.in_pos(&ident.span) {
             return;
         }
-        log::info!("hit idenfier:{:?}", ident);
+        log::info!("hit identifier:{:?}", ident);
         let mut results = vec![];
         let tables = self.scopes.tables_cloned();
         for t in tables.iter() {
             match t {
-                TableEntered::FromTable { table, .. } => {
+                TableEntered::ObjectName { table, .. } => {
                     let (schema, table) = extract_schema_and_item(table);
                     let items = self
                         .helper
@@ -1491,7 +1512,7 @@ impl<'a> CompletionStatement<'a> {
                 }),
         );
         results.extend(schemas.into_iter());
-        results = remove_dupliate(results);
+        results = remove_duplicate(results);
         self.result = Some(results);
     }
 
@@ -1549,7 +1570,7 @@ impl<'a> CompletionStatement<'a> {
                 // fallback to lexer
             }
             ColumnOption::Comment(_) => {
-                // no postiion
+                // no position
             }
             ColumnOption::OnUpdate(expr) => {
                 self.c_on_expr(expr).await;
@@ -1672,7 +1693,7 @@ impl<'a> CompletionStatement<'a> {
         match expr {
             Expr::Identifier(ident) => self.c_on_expr_ident(ident).await,
             Expr::CompoundIdentifier(vec) => {
-                self.c_on_expr_compund_identifier(vec).await;
+                self.c_on_expr_compound_identifier(vec).await;
             }
             Expr::JsonAccess { .. } => {
                 // snowflake databricks not support
@@ -2054,7 +2075,7 @@ impl<'a> CompletionStatement<'a> {
                                     })
                                     .collect::<Vec<_>>();
 
-                            self.c_on_expr_compund_identifier(&idents[..]).await;
+                            self.c_on_expr_compound_identifier(&idents[..]).await;
                         }
                     }
                     if self.finished() {
@@ -2148,7 +2169,7 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_index_column(&mut self, table_name: &ObjectName, col: &IndexColumn) {
-        let _gurad = self
+        let _guard = self
             .scopes
             .enter(Scope::from_this_table(table_name.clone()));
         self.c_on_expr(&col.column.expr).await;
@@ -2311,8 +2332,8 @@ impl<'a> CompletionStatement<'a> {
                 desc: None,
             })
             .collect::<Vec<_>>();
-        // remove dupliate we have entered table and tables in database
-        let items = remove_dupliate(items);
+        // remove duplicate we have entered table and tables in database
+        let items = remove_duplicate(items);
 
         self.result = Some(items);
     }
@@ -2410,7 +2431,7 @@ impl<'a> CompletionStatement<'a> {
                     let mut cs = vec![];
                     for table in tables.iter() {
                         match table {
-                            TableEntered::FromTable { table, .. } => {
+                            TableEntered::ObjectName { table, .. } => {
                                 let (schema, table) = extract_schema_and_item(table);
 
                                 cs.extend(
@@ -2533,7 +2554,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
                 SelectItem::QualifiedWildcard(select, wildcard_additional_options) => {
-                    self.c_on_select_item_qualified_wildcardkind(select).await;
+                    self.c_on_select_item_qualified_wildcard_kind(select).await;
                     self.c_on_wildcard_additional_options(wildcard_additional_options)
                         .await;
                 }
@@ -2544,7 +2565,7 @@ impl<'a> CompletionStatement<'a> {
         }
     }
 
-    pub(crate) async fn c_on_select_item_qualified_wildcardkind(
+    pub(crate) async fn c_on_select_item_qualified_wildcard_kind(
         &mut self, ast: &SelectItemQualifiedWildcardKind,
     ) {
         match ast {
@@ -2621,7 +2642,7 @@ impl<'a> CompletionStatement<'a> {
     pub(crate) async fn c_on_query(
         &mut self, query: &Query,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let _gurad = self.scopes.enter(Scope::default());
+        let _guard = self.scopes.enter(Scope::default());
         if let Some(with) = query.with.as_ref() {
             for c in with.cte_tables.iter() {
                 let cols = Box::pin(self.c_on_query(&c.query)).await?;
@@ -2696,20 +2717,20 @@ impl<'a> CompletionStatement<'a> {
         }
         return self.helper.get_query_columns(&query.to_string()).await;
     }
-    pub(crate) async fn c_on_assigement(&mut self, ass: &Assignment) {
+    pub(crate) async fn c_on_assignment(&mut self, ass: &Assignment) {
         self.c_on_expr(&ass.value).await;
         if self.finished() {
             return;
         }
         match &ass.target {
             AssignmentTarget::ColumnName(object_name) => {
-                let idents = self.objectname_to_idents(object_name).await;
-                self.c_on_expr_compund_identifier(&idents[..]).await;
+                let idents = self.object_name_to_idents(object_name).await;
+                self.c_on_expr_compound_identifier(&idents[..]).await;
             }
             AssignmentTarget::Tuple(object_names) => {
                 for name in object_names.iter() {
-                    let idents = self.objectname_to_idents(name).await;
-                    self.c_on_expr_compund_identifier(&idents[..]).await;
+                    let idents = self.object_name_to_idents(name).await;
+                    self.c_on_expr_compound_identifier(&idents[..]).await;
                     if self.finished() {
                         return;
                     }
@@ -2759,7 +2780,7 @@ impl<'a> CompletionStatement<'a> {
             }
             PipeOperator::Set { assignments } => {
                 for ass in assignments.iter() {
-                    self.c_on_assigement(ass).await;
+                    self.c_on_assignment(ass).await;
                     if self.finished() {
                         return;
                     }
@@ -2767,7 +2788,7 @@ impl<'a> CompletionStatement<'a> {
             }
             PipeOperator::Drop { columns } => {
                 for col in columns.iter() {
-                    self.c_on_expr_compund_identifier(&[col.clone()]).await;
+                    self.c_on_expr_compound_identifier(&[col.clone()]).await;
                     if self.finished() {
                         return;
                     }
@@ -2812,7 +2833,7 @@ impl<'a> CompletionStatement<'a> {
                         self.set_on_def();
                         return;
                     }
-                    self.c_on_expr_compund_identifier(&[map.ident.clone()])
+                    self.c_on_expr_compound_identifier(&[map.ident.clone()])
                         .await;
                     if self.finished() {
                         return;
@@ -2912,8 +2933,8 @@ impl<'a> CompletionStatement<'a> {
                 self.c_on_expr(expr).await;
             }
             FunctionArgExpr::QualifiedWildcard(object_name) => {
-                let idents = self.objectname_to_idents(object_name).await;
-                self.c_on_expr_compund_identifier(&idents[..]).await;
+                let idents = self.object_name_to_idents(object_name).await;
+                self.c_on_expr_compound_identifier(&idents[..]).await;
             }
             FunctionArgExpr::Wildcard => {}
         }
@@ -3012,7 +3033,7 @@ impl<'a> CompletionStatement<'a> {
             }
         }
     }
-    pub(crate) async fn c_on_openjson_table_column(&mut self, ast: &OpenJsonTableColumn) {
+    pub(crate) async fn c_on_open_json_table_column(&mut self, ast: &OpenJsonTableColumn) {
         if self.in_pos(&ast.name.span) {
             self.set_on_def();
             return;
@@ -3279,7 +3300,7 @@ impl<'a> CompletionStatement<'a> {
                 ..
             } => {
                 for col in columns.iter() {
-                    self.c_on_openjson_table_column(col).await;
+                    self.c_on_open_json_table_column(col).await;
                     if self.finished() {
                         return;
                     }
@@ -3462,6 +3483,7 @@ impl<'a> CompletionStatement<'a> {
         if !self.last_name_in_pos(name) {
             return;
         }
+        log::info!("hit procedure:{:?}", name);
         let (schema, _) = extract_schema_and_item(name);
         self.result = Some(
             self.helper
@@ -3618,6 +3640,7 @@ impl<'a> CompletionStatement<'a> {
         if !self.last_name_in_pos(name) {
             return;
         }
+        log::info!("hit function drop:{:?}", name);
         let (schema, _) = extract_schema_and_item(name);
         self.result = Some(
             self.helper
@@ -3653,7 +3676,7 @@ impl<'a> CompletionStatement<'a> {
             self.helper
                 .list_procedure(schema)
                 .await
-                .map_err(|e| log::error!("list precedure error:{:?}", e))
+                .map_err(|e| log::error!("list procedure error:{:?}", e))
                 .unwrap_or_default()
                 .into_iter()
                 .map(|x| CompletionItem {
@@ -3670,7 +3693,16 @@ impl<'a> CompletionStatement<'a> {
             RoleOption::ConnectionLimit(expr) | RoleOption::ValidUntil(expr) => {
                 self.c_on_expr(expr).await;
             }
+            RoleOption::Password(x) => {
+                self.c_on_password(x).await;
+            }
             _ => {}
+        }
+    }
+    pub(crate) async fn c_on_password(&mut self, ast: &Password) {
+        match ast {
+            Password::Password(expr) => self.c_on_expr(expr).await,
+            Password::NullPassword => {}
         }
     }
 }

@@ -302,7 +302,7 @@ impl SchemaTrait for MariaDB {
     }
 
     async fn create_view_sql(&self, view_name: &str, _m: bool) -> anyhow::Result<String> {
-        // mysql has no materlized view
+        // mysql has no materialized view
         self.db.create_view_sql(view_name, false).await
     }
 
@@ -366,11 +366,11 @@ impl SchemaTrait for MariaDB {
         self.db.drop_procedure(name, arg).await
     }
 
-    async fn list_sequences(&self) -> anyhow::Result<Vec<SequenceDetail>> {
+    async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         self.list_sequences_impl(self.db.config.db_str()).await
     }
 
-    async fn rename_sequnce(&self, old: &str, new: &str) -> anyhow::Result<()> {
+    async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<()> {
         let sql = format!("RENAME TABLE {old}  TO {new}");
         let mut conn = self.db.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -499,15 +499,15 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        let seqs = SchemaTrait::list_sequences(&db).await.unwrap();
-        for seq in seqs.iter() {
+        let sequences = SchemaTrait::list_sequence(&db).await.unwrap();
+        for seq in sequences.iter() {
             if seq.name.eq(name) {
                 println!("{:?}", seq)
             }
         }
         let name2 = format!("{name}2");
-        db.rename_sequnce(name, &name2).await.unwrap();
-        db.rename_sequnce(&name2, name).await.unwrap();
+        db.rename_sequence(name, &name2).await.unwrap();
+        db.rename_sequence(&name2, name).await.unwrap();
     }
 
     #[tokio::test]

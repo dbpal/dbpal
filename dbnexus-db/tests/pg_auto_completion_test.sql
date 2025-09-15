@@ -12,12 +12,14 @@ select id from employees e
 10 name
 insert into employees (id) select id from employees
 18 employees ; 26 name ; 37 name
-insert into employees (id) values (1)
-26 name
+insert into employees (id) values (1) RETURNING id
+26 name ; 51 id 
+insert into employees(id) select id from employees;
+25 id ; 51 employees
 select count(*) from employees
 11 count ; 11 abs ; 11 sin
-update employees set name = 1 where id = 10000
-25 name ; 25 id ; 39 name
+update employees set name = 1 where id = 10000 RETURNING id 
+25 name ; 25 id ; 39 name ; 60 id 
 create view view_name as select * from employees
 49 employees
 COPY employees(id) FROM '/path/to/myfile.csv' WITH (FORMAT csv);
@@ -28,8 +30,8 @@ update employees set name = 1 where id = 10000 RETURNING id
 25 name ; 25 id ; 39 name ; 60 id
 update employees set name = 1 from employees where id = 10000
 45 employees
-delete from employees where id = 1000
-31 id ; 31 name
+delete from employees where id = 1000 RETURNING id
+31 id ; 31 name ; 51 id
 delete from employees USING employees
 38 employees
 create view view_name as select * from employees
@@ -73,15 +75,15 @@ drop table employees;
 DROP FUNCTION IF EXISTS do_nothing(INTEGER);
 35 do_nothing
 DROP PROCEDURE procedure_name() 
-30 test_procedure
+30 do_nothing_procedure
 drop POLICY no_op_policy on employees
 25 no_op_policy ; 38 employees
 SET ROLE role_name;
 19 postgres
 SET search_path TO my_schema;
 16 search_path
-DROP TRIGGER trigger_insert_test_create_trigger on test_create_trigger;
-48 trigger_insert_test_create_trigger ; 71 test_create_trigger
+DROP TRIGGER do_nothing_trigger on employees;
+32 do_nothing_trigger ; 45 employees
 select * from xxx.employees;
 18 xxx ; 28 employees
 GRANT UPDATE (id) ON employees TO user_role WITH GRANT OPTION  GRANTED BY current_user;
@@ -100,3 +102,29 @@ DROP EXTENSION plpgsql;
 23 plpgsql
 SELECT * FROM unnest(ARRAY[10,20,30]) AS numbers WHERE numbers > 0 ;
 63 numbers
+SELECT * from abs(-1) as abs WHERE abs > 0 
+39 abs
+COMMENT ON SCHEMA xxx IS '任意文字';
+22 xxx
+COMMENT ON DATABASE test IS NULL;
+25 test
+COMMENT ON TABLE employees IS '员工基本信息表';
+27 employees
+COMMENT ON COLUMN employees.id IS '税前月薪，单位：元';
+28 employees ;31 id
+COMMENT ON ROLE app_read IS NULL;
+25 postgres
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA xxx TO postgres;
+49 xxx ; 49 test ;61 postgres 
+GRANT ALL PRIVILEGES ON SEQUENCE xxx.do_nothing_seq TO postgres;
+37 xxx ; 52 do_nothing_seq ; 64 postgres
+GRANT ALL PRIVILEGES ON TABLE xxx.employees TO postgres;
+34 xxx ; 44 employees ; 56 postgres
+GRANT ALL PRIVILEGES ON DATABASE test TO postgres;
+38 test ; 50 postgres
+GRANT SELECT ON VIEW xxx.employees_test TO postgres;
+25 xxx ; 40 employees_test ; 52 postgres
+GRANT EXECUTE ON PROCEDURE xxx.do_nothing_procedure() TO postgres;
+31 xxx ; 52 do_nothing_procedure ; 66 postgres
+GRANT EXECUTE ON FUNCTION xxx.do_nothing() TO role_name;
+30 xxx ; 41 do_nothing ; 56 postgres

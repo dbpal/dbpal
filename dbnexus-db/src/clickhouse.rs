@@ -16,7 +16,7 @@ use crate::db::{
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder,
     SqlExecuteRet, XlsxEdit, escape_sql_str, ty_is_float, ty_is_int,
 };
-use crate::helper::{create_csv, seperate_sql_by_sqlparser_tokenizer};
+use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 
@@ -156,7 +156,7 @@ impl ClickHouseDB {
         let sql = format!("show tables from `{}`", db);
         let conn = self.get_conn()?;
         let ret: Vec<String> = conn.query(&sql).fetch_all().await?;
-        // delete materiazlied view
+        // delete materialized view
         let mut ret = ret.into_iter().collect::<HashSet<_>>();
         let m = self
             .list_materialized_view_impl(db)
@@ -433,14 +433,14 @@ impl SchemaTrait for ClickHouseDB {
 
         let result = self.query_as_json(&sql).await?;
 
-        let mut infered_fs = result.infer_fields();
-        infered_fs.iter_mut().for_each(|f| {
+        let mut inferred_fs = result.infer_fields();
+        inferred_fs.iter_mut().for_each(|f| {
             if let Some(x) = fs.get(&f.field) {
                 *f = x.clone();
             }
         });
         let data = result.encode_json_result()?;
-        anyhow::Ok(QueryResp::new(infered_fs, total, data, sql)?)
+        anyhow::Ok(QueryResp::new(inferred_fs, total, data, sql)?)
     }
 
     async fn show_view(
@@ -603,7 +603,7 @@ fn put_value_in_sql(typ: &sqlparser::ast::DataType, value: Option<&str>) -> Stri
         .map(|x| format!("'{}'", escape_sql_str(x)))
         .unwrap_or("null".to_string());
 
-    fn custon_need_quote(x: &ObjectName) -> bool {
+    fn custom_need_quote(x: &ObjectName) -> bool {
         let x = x.to_string().to_lowercase();
         x == "ipv4" || x == "ipv6"
     }
@@ -611,7 +611,7 @@ fn put_value_in_sql(typ: &sqlparser::ast::DataType, value: Option<&str>) -> Stri
         DataType::Nullable(x) => put_value_in_sql(x.as_ref(), value),
         DataType::String(_) => single_quote_str,
         DataType::FixedString(_) => single_quote_str,
-        DataType::Custom(x, _) if custon_need_quote(x) => single_quote_str,
+        DataType::Custom(x, _) if custom_need_quote(x) => single_quote_str,
         DataType::Date => single_quote_str,
         DataType::Date32 => single_quote_str,
         DataType::Datetime(_) => single_quote_str,
@@ -656,7 +656,7 @@ impl r2d2::ManageConnection for PoolManager {
     }
 
     fn has_broken(&self, conn: &mut Self::Connection) -> bool {
-        self.is_valid(conn).is_ok()
+        self.is_valid(conn).is_err()
     }
 }
 
@@ -820,7 +820,7 @@ impl QuerySql for ClickHouseDB {
         &self, _query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let dialect = sqlparser::dialect::ClickHouseDialect {};
-        let sqls = seperate_sql_by_sqlparser_tokenizer(sql, &dialect)?;
+        let sqls = separate_sql_by_sqlparser_tokenizer(sql, &dialect)?;
         let mut ret = Vec::new();
 
         let mut ml = MemoryLimit::new();
@@ -998,7 +998,7 @@ impl JsonResp {
                             // a check
                             if values.len() != tys.len() {
                                 anyhow::bail!(
-                                    "we are dealing with tuple values length and types length shold be equal ,values len:{} tys:{:?}",
+                                    "we are dealing with tuple values length and types length should be equal ,values len:{} tys:{:?}",
                                     values.len(),
                                     tys
                                 )
@@ -1020,7 +1020,7 @@ impl JsonResp {
                                         ArrayElemTypeDef::Parenthesis(x) => x.as_ref(),
                                         _ => {
                                             anyhow::bail!(
-                                                "clickhouse accpet Parenthesis type parameter."
+                                                "clickhouse accept Parenthesis type parameter."
                                             )
                                         }
                                     },

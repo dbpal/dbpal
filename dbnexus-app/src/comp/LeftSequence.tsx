@@ -46,24 +46,24 @@ function SequenceTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
   const idPrefix = uuid + '-sequence-';
-  const [seqs, setSeqs] = useState<types.SequenceDetail[]>([]);
+  const [seq, setSeq] = useState<types.SequenceDetail[]>([]);
   const { showNotification } = useContext(NotificationContext);
 
   const reload = () => {
-    invoke<types.SequenceDetail[]>('list_sequences', { name: uuid })
+    invoke<types.SequenceDetail[]>('list_sequence', { name: uuid })
       .then((ts) => {
-        setSeqs(ts);
+        setSeq(ts);
       })
       .catch((e) => {
-        showNotification('error', 'list sequences failed', e);
+        showNotification('error', 'list sequence failed', e);
       });
   };
 
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(seqs.filter((e) => matchPattern(e.name)).length);
-  }, [seqs, matchPattern]);
+    setExceed(seq.filter((e) => matchPattern(e.name)).length);
+  }, [seq, matchPattern]);
   const getItemId = (x: types.SequenceDetail) => {
     switch (kind) {
       default:
@@ -98,7 +98,7 @@ function SequenceTree() {
         <span> sequences </span>
       </Stack>
     >
-      {seqs
+      {seq
         .filter((e) => matchPattern(e.name))
         .map((seq, index) => {
           if (index >= maxTreeSize) {
@@ -163,7 +163,7 @@ function SequenceMenu(props: {
   const { showNotification } = useContext(NotificationContext);
   const [showDrop, setShowDrop] = useState(false);
   const [cascade, setCascade] = useState(false);
-  const supportCaacase = [DataSourceKind.Postgres].includes(kind);
+  const supportCascade = [DataSourceKind.Postgres].includes(kind);
 
   const handleOpenDetails = () => {
     initMonacoLanguage(uuid, kind);
@@ -257,7 +257,7 @@ function SequenceMenu(props: {
         >
           <Box sx={modalStyle} width="45%">
             <Stack spacing={1}>
-              {supportCaacase && (
+              {supportCascade && (
                 <Stack>
                   <FormControlLabel
                     control={

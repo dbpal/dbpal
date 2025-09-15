@@ -72,18 +72,18 @@ function MongoQuery(props: {
   const [logger, _setLogger] = useState(
     loglevel.getLogger(generateRandomString(10))
   );
-  const [loggerlevel, setLoggerlevel] = useState('trace');
+  const [loggerLevel, setLoggerLevel] = useState('trace');
   const [showLoggerLevel, setShowLoggerLevel] = useState(false);
   const [db, _] = useState(new MongoDBQuery(uuid));
-  const [bsonExtraDataType, _setbsonExtraDataTypes] = useState(
+  const [bsonExtraDataType, _setBsonExtraDataTypes] = useState(
     new BsonExtraDataType()
   );
 
   useEffect(() => {
-    logger.setLevel(loggerlevel as loglevel.LogLevelDesc);
-  }, [loggerlevel]);
+    logger.setLevel(loggerLevel as loglevel.LogLevelDesc);
+  }, [loggerLevel]);
 
-  const logEditorOnmount = (
+  const logEditorOnMount = (
     editor: editor.IStandaloneCodeEditor,
     _monaco: Monaco
   ) => {
@@ -176,7 +176,7 @@ function MongoQuery(props: {
 
         <Tooltip title="logger level">
           <Chip
-            label={loggerlevel}
+            label={loggerLevel}
             color="primary"
             size="small"
             onClick={() => {
@@ -275,7 +275,7 @@ function MongoQuery(props: {
             height="99%"
             language="log"
             theme={setting.editorTheme()}
-            onMount={logEditorOnmount}
+            onMount={logEditorOnMount}
           ></Editor>
         </div>
         <EditorBar pos={loggerPos}></EditorBar>
@@ -295,9 +295,9 @@ function MongoQuery(props: {
           <Box sx={modalStyle} width="45%">
             <ModalHeader title="Set Logger Level"></ModalHeader>
             <LogLevelSelection
-              level={loggerlevel}
+              level={loggerLevel}
               handleChange={(level) => {
-                setLoggerlevel(level);
+                setLoggerLevel(level);
                 setShowLoggerLevel(false);
               }}
             ></LogLevelSelection>

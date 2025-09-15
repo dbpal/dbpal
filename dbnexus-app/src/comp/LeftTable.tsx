@@ -256,7 +256,7 @@ function DropTable(props: {
       });
   };
 
-  const suportCascade = (): boolean => {
+  const supportCascade = (): boolean => {
     switch (kind) {
       case DataSourceKind.Mysql:
       case DataSourceKind.MariaDB:
@@ -274,7 +274,7 @@ function DropTable(props: {
 
   return (
     <Stack spacing={1}>
-      {suportCascade() && (
+      {supportCascade() && (
         <FormControlLabel
           control={
             <Switch
@@ -456,12 +456,12 @@ function makeViewTable(
                   orderBy: null,
                 });
               }}
-              modifyOP={async (old, newx) => {
+              modifyOP={async (old, newValue) => {
                 return await invoke('redis_set_replace', {
                   name: uuid,
                   key: table,
                   old,
-                  new: newx,
+                  new: newValue,
                 });
               }}
               delOP={async (member) => {
@@ -723,7 +723,7 @@ function TableMenu(props: {
   redisTableType?: RedisTableType;
 }) {
   let { table, uuid, reload, kind, redisTableType } = props;
-  const [showDup, setshowDup] = useState(false);
+  const [showDup, setShowDup] = useState(false);
   const [showRename, setShowRename] = useState(false);
   const [showDrop, setShowDrop] = useState(false);
   const [showExport, setShowExport] = useState(false);
@@ -791,7 +791,7 @@ function TableMenu(props: {
       ];
     });
   };
-  const handleStrucure = () => {
+  const handleStructure = () => {
     let id = uuid + '-table-' + table + '-struct';
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
@@ -860,7 +860,7 @@ function TableMenu(props: {
             </MenuItem>
           )}
 
-        <MenuItem onClick={handleStrucure}>
+        <MenuItem onClick={handleStructure}>
           <ListItemIcon>
             <IoConstructOutline
               style={{ fontSize: '1.2rem' }}
@@ -884,7 +884,7 @@ function TableMenu(props: {
 
         <MenuItem
           onClick={() => {
-            setshowDup(true);
+            setShowDup(true);
           }}
         >
           <ListItemIcon>
@@ -947,7 +947,7 @@ function TableMenu(props: {
             }
 
             e.preventDefault();
-            setshowDup(false);
+            setShowDup(false);
           }}
         >
           <Box sx={modalStyle} width="45%">
@@ -956,7 +956,7 @@ function TableMenu(props: {
               table={table}
               uuid={uuid}
               handleClose={() => {
-                setshowDup(false);
+                setShowDup(false);
               }}
               reloadTables={reload}
             ></DupTable>
@@ -1156,8 +1156,8 @@ function RenameTable(props: {
   );
 }
 
-function RedisTables(prpos: { schema?: string }) {
-  const { schema } = prpos;
+function RedisTables(props: { schema?: string }) {
+  const { schema } = props;
 
   const { kind } = useContext(ConnTypeContext);
   const { uuid } = useContext(UuidContext);
@@ -1200,7 +1200,7 @@ function RedisTables(prpos: { schema?: string }) {
   let stringTableTreePrefix = getPrefix() + '-table-string-';
   let listTableTreePrefix = getPrefix() + '-table-list-';
   let setTableTreePrefix = getPrefix() + '-table-set-';
-  let zsetTableTreePrefix = getPrefix() + '-table-sset-';
+  let zsetTableTreePrefix = getPrefix() + '-table-zset-';
   let hashTableTreePrefix = getPrefix() + '-table-hash-';
 
   const makeOneKind = (
@@ -1289,7 +1289,7 @@ function RedisTables(prpos: { schema?: string }) {
           }}
         >
           {tables && tables.has_more ? (
-            <Tooltip title={`result exceed ${max},some result are omited`}>
+            <Tooltip title={`result exceed ${max},some result are omitted`}>
               <Chip
                 size="small"
                 color="error"

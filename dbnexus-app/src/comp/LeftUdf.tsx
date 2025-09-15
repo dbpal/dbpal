@@ -342,7 +342,7 @@ function CassandraAggregateMenu(props: {
   );
 }
 
-function CassaandraAggregatesTree() {
+function CassandraAggregatesTree() {
   const { uuid } = useContext(UuidContext);
   const idPrefix = uuid + '-cassandra-aggregate-';
   const [aggs, setAggs] = useState<types.NamedStaff[]>([]);
@@ -441,4 +441,4 @@ function CassaandraAggregatesTree() {
   );
 }
 
-export { UdfsTree, CassaandraAggregatesTree };
+export { UdfsTree, CassandraAggregatesTree };

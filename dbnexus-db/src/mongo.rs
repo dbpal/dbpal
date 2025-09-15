@@ -24,14 +24,14 @@ use crate::meta_value::MetaValue;
 #[derive(Clone)]
 pub struct MongoDB {
     client: mongodb::Client,
-    dbname: Option<String>,
+    db_name: Option<String>,
     read_only: bool,
     created_databases: Arc<DashSet<String>>,
 }
 
 impl std::fmt::Debug for MongoDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "mssql on:{:?}", self.dbname)
+        write!(f, "mssql on:{:?}", self.db_name)
     }
 }
 
@@ -56,7 +56,7 @@ impl MongoDB {
 
         anyhow::Ok(Self {
             client,
-            dbname: ds.db.clone(),
+            db_name: ds.db.clone(),
             read_only: ds.read_only,
             created_databases: Default::default(),
         })
@@ -125,7 +125,7 @@ impl DBTrait for MongoDB {
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
-        x.dbname = Some(name.to_string());
+        x.db_name = Some(name.to_string());
         return anyhow::Ok(Arc::new(x));
     }
 
@@ -621,8 +621,8 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        let old = format!("{}.{}", self.dbname.as_ref().unwrap(), old);
-        let new = format!("{}.{}", self.dbname.as_ref().unwrap(), new);
+        let old = format!("{}.{}", self.db_name.as_ref().unwrap(), old);
+        let new = format!("{}.{}", self.db_name.as_ref().unwrap(), new);
         let cmd = bson::doc! { "renameCollection":  old , "to": new};
         let client = self.get_conn().await?;
         let db = client.database("admin");
@@ -838,7 +838,7 @@ impl QuerySql for MongoDB {
 impl MongoDB {
     pub(crate) async fn get_db(&self) -> anyhow::Result<mongodb::Database> {
         let client = self.get_conn().await?;
-        Ok(client.database(self.dbname.as_ref().unwrap()))
+        Ok(client.database(self.db_name.as_ref().unwrap()))
     }
 
     pub(crate) async fn get_conn(&self) -> anyhow::Result<mongodb::Client> {
@@ -1047,9 +1047,9 @@ mod tests {
         db.drop_index(table, &index_name).await.unwrap();
     }
     #[tokio::test]
-    async fn test_truncat() {
+    async fn test_truncate() {
         let db = make_test_object();
-        let table = "test_truncat";
+        let table = "test_truncate";
         let _ = db.drop_table(&table, false).await;
 
         db.insert(&table, doc! {"name" : "haha" , "age" : 2 })

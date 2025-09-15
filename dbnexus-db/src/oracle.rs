@@ -2030,31 +2030,31 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_materilized_view() {
+    async fn test_materialized_view() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
         let conn = db.get_conn().await.unwrap();
         let db = db;
-        let _ = db.drop_table("TEST_MATERLIZED_VIEW_TABLE", false).await;
-        let _ = db.drop_materialized_view("TEST_MATERLIZED_VIEW").await;
+        let _ = db.drop_table("TEST_MATERIALIZED_VIEW_TABLE", false).await;
+        let _ = db.drop_materialized_view("TEST_MATERIALIZED_VIEW").await;
 
         let ss = vec![
             r#"
-        CREATE TABLE  TEST_MATERLIZED_VIEW_TABLE (
+        CREATE TABLE  TEST_MATERIALIZED_VIEW_TABLE (
             product_id   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             product_name VARCHAR2(50) NOT NULL,
             category     VARCHAR2(30) NOT NULL,
             price        NUMBER(8,2)  NOT NULL
         )"#,
-            "INSERT INTO TEST_MATERLIZED_VIEW_TABLE (product_name, category, price)
+            "INSERT INTO TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price)
 VALUES ('iPhone 13', 'Electronics', 799.99)",
             "INSERT INTO
-TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
+TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
 'Electronics', 699.99)",
             r#"
-            CREATE MATERIALIZED VIEW TEST_MATERLIZED_VIEW AS
+            CREATE MATERIALIZED VIEW TEST_MATERIALIZED_VIEW AS
             SELECT product_id, product_name, category, price
-            FROM  TEST_MATERLIZED_VIEW_TABLE"#,
+            FROM  TEST_MATERIALIZED_VIEW_TABLE"#,
         ];
 
         for s in ss.iter() {
@@ -2065,11 +2065,11 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
         println!("list_materialized_view:{:?}", views);
 
         let resp = db
-            .show_view("TEST_MATERLIZED_VIEW", None, None, 1, 100, None)
+            .show_view("TEST_MATERIALIZED_VIEW", None, None, 1, 100, None)
             .await;
         println!("show view:{:?}", resp);
         let sql = db
-            .create_view_sql("TEST_MATERLIZED_VIEW", true)
+            .create_view_sql("TEST_MATERIALIZED_VIEW", true)
             .await
             .unwrap();
         println!("create view sql:{}", sql);
@@ -2157,7 +2157,7 @@ TEST_MATERLIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Gala
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_multidb_trait() {
+    async fn test_multi_db_trait() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(None);
         let db = &db as &dyn DBTrait;

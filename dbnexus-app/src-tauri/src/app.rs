@@ -445,7 +445,12 @@ impl App {
         self.insert_open(name.to_string(), db.clone()).await;
         anyhow::Ok(db)
     }
-
+    #[allow(unused)]
+    pub async fn print_keys(&self) {
+        for k in self.opens.lock().await.keys() {
+            println!("!!!!!!!!!!!!!!!!!{}", k);
+        }
+    }
     pub async fn close_conn_has_prefix(&self, name: &str) {
         let mut v = Vec::new();
         for k in self.opens.lock().await.keys() {

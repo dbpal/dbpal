@@ -10,7 +10,7 @@ use libsql::{Connection, Row, ValueType, params};
 use tokio::sync::Mutex;
 
 use crate::MemoryLimit;
-use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSouce};
+use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
 use crate::db::{
     AutoCompletionQueryUuid, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql,
     ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
@@ -23,7 +23,7 @@ use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::sqlite::{
     SqliteDB, encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql,
-    gen_show_sql, integer_like, numreic_like, real_like, text_like,
+    gen_show_sql, integer_like, numeric_like, real_like, text_like,
 };
 
 #[derive(Clone)]
@@ -299,7 +299,7 @@ impl bb8::ManageConnection for PoolManager {
     async fn connect(&self) -> Result<Self::Connection, Self::Error> {
         let replica = self.config.replica;
         let conn = match &self.config.source {
-            LibSqlDBConfigSouce::Local { path } => {
+            LibSqlDBConfigSource::Local { path } => {
                 let b = if replica {
                     libsql::Builder::new_local_replica(path).build().await?
                 } else {
@@ -307,7 +307,7 @@ impl bb8::ManageConnection for PoolManager {
                 };
                 b.connect()?
             }
-            LibSqlDBConfigSouce::Remote {
+            LibSqlDBConfigSource::Remote {
                 url,
                 auth_token,
                 path,
@@ -870,7 +870,7 @@ impl SqlBuilder for LibSqlDB {
                 None => "null".to_string(),
             },
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
-            _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) || real_like(&typ) => {
+            _ if integer_like(typ.as_str()) || numeric_like(typ.as_str()) || real_like(&typ) => {
                 value.unwrap_or("null").to_string()
             }
             "BLOB" => value.unwrap_or("null").to_string(),
@@ -1159,7 +1159,7 @@ pub(crate) async fn make_test_object() -> LibSqlDB {
     LibSqlDB::new(LibSqlDBConfig {
         conn_timeout: None,
         replica: false,
-        source: LibSqlDBConfigSouce::Remote {
+        source: LibSqlDBConfigSource::Remote {
             url: "http://localhost:8080".to_string(),
             auth_token: "".to_string(),
             path: "".to_string(),
@@ -1674,7 +1674,7 @@ mod tests {
         )
         .await
         .unwrap();
-        println!("\nafetr here are view test.\n");
+        println!("\n after here are view test.\n");
 
         let views = db.list_view().await.unwrap();
         for v in views.iter() {

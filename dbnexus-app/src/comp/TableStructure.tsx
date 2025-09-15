@@ -674,7 +674,7 @@ function IndexesStructure(props: {
               handleClose={() => {
                 setShowAdd(false);
               }}
-              realod={handleReload}
+              reload={handleReload}
             ></MongoAddIndex>
           </Box>
         </Modal>
@@ -707,7 +707,7 @@ function IndexesStructure(props: {
                 setShowAdd(false);
               }}
               kind={kind}
-              realod={handleReload}
+              reload={handleReload}
             ></AddIndex>
           </Box>
         </Modal>
@@ -742,8 +742,8 @@ function IndexesStructure(props: {
   );
 }
 
-function MongoAddIndex(props: { uuid; table; handleClose; realod }) {
-  const { uuid, table, handleClose, realod } = props;
+function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
+  const { uuid, table, handleClose, reload } = props;
 
   const indexTypes = ['normal', 'unique'];
   const [indexType, setIndexType] = useState(indexTypes[0]);
@@ -767,7 +767,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; realod }) {
       });
       showNotification('success', 'create index ok');
       handleClose();
-      realod();
+      reload();
     } catch (e) {
       showNotification('error', 'create index failed', e);
     }
@@ -812,10 +812,10 @@ function AddIndex(props: {
   uuid;
   table;
   handleClose;
-  realod;
+  reload;
   kind: DataSourceKind;
 }) {
-  let { uuid, table, handleClose, realod, kind } = props;
+  let { uuid, table, handleClose, reload, kind } = props;
 
   const [fields, setFields] = useState<types.Field[]>([]);
   const [includes, setIncludes] = useState<string[]>([]);
@@ -888,7 +888,7 @@ function AddIndex(props: {
       });
       showNotification('success', 'create index ok');
       handleClose();
-      realod();
+      reload();
     } catch (e) {
       showNotification('error', 'create index failed', e);
     }
@@ -1074,7 +1074,7 @@ function TableAddColumn(props: {
         <SqlDefaultValue
           uuid={uuid}
           defaultValue={defaultValue}
-          setDefautlValue={setDefaultValue}
+          setDefaultValue={setDefaultValue}
         ></SqlDefaultValue>
       )}
 
@@ -1117,9 +1117,9 @@ function TableAddColumn(props: {
 function SqlDefaultValue(props: {
   uuid: string;
   defaultValue;
-  setDefautlValue;
+  setDefaultValue;
 }) {
-  const { uuid, defaultValue, setDefautlValue } = props;
+  const { uuid, defaultValue, setDefaultValue } = props;
   const [currentValue, setCurrentValue] = useState<string[]>([]);
   const { showNotification } = useContext(NotificationContext);
   useEffect(() => {
@@ -1138,7 +1138,7 @@ function SqlDefaultValue(props: {
         label="default value"
         value={defaultValue}
         onChange={(e) => {
-          setDefautlValue(e.target.value);
+          setDefaultValue(e.target.value);
         }}
         style={{ flex: 1 }}
         size="small"
@@ -1148,7 +1148,7 @@ function SqlDefaultValue(props: {
               <InputAdornment position="end">
                 <IconButton
                   onClick={() => {
-                    setDefautlValue('');
+                    setDefaultValue('');
                   }}
                   edge="end"
                   size="small"
@@ -1166,7 +1166,7 @@ function SqlDefaultValue(props: {
           size="small"
           value={defaultValue}
           label="font family"
-          onChange={(e) => setDefautlValue(e.target.value as string)}
+          onChange={(e) => setDefaultValue(e.target.value as string)}
         >
           <MenuItem value="">empty </MenuItem>
           {currentValue.map((e) => {
@@ -1227,7 +1227,7 @@ function ModifyTableColumn(props: {
         setLoading(false);
       });
   };
-  let supoortModifyType = kind != DataSourceKind.Cassandra;
+  let supportModifyType = kind != DataSourceKind.Cassandra;
   return (
     <Stack spacing={1}>
       <TextField
@@ -1258,7 +1258,7 @@ function ModifyTableColumn(props: {
         }}
         error={!newName}
       ></TextField>
-      {supoortModifyType && !modifyType && (
+      {supportModifyType && !modifyType && (
         <FormControlLabel
           control={
             <Checkbox
@@ -1506,7 +1506,7 @@ function TriggersStructure(props: {
       });
   };
 
-  const handleEnabless = (invoke_name: string, trigger, operation: string) => {
+  const handleEnables = (invoke_name: string, trigger, operation: string) => {
     invoke(invoke_name, { trigger, ...callPara })
       .then(() => {
         showNotification('error', `${operation}  OK`);
@@ -1558,7 +1558,7 @@ function TriggersStructure(props: {
         <MenuItem
           sx={{ color: 'error.main' }}
           onClick={() => {
-            handleEnabless('disable_trigger', detail.name, 'Disable trigger');
+            handleEnables('disable_trigger', detail.name, 'Disable trigger');
           }}
         >
           <ListItemIcon>
@@ -1569,7 +1569,7 @@ function TriggersStructure(props: {
       ) : (
         <MenuItem
           onClick={() => {
-            handleEnabless('enable_trigger', detail.name, 'Enable trigger');
+            handleEnables('enable_trigger', detail.name, 'Enable trigger');
           }}
         >
           <ListItemIcon>

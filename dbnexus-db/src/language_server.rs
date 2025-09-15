@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 
 use sqlparser::ast::Statement;
-use sqlparser::tokenizer::{Location, Token};
+use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
 use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
 
@@ -30,7 +30,7 @@ pub struct CompletionItem {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, TypeDef)]
 pub enum CompletionKind {
-    Command, // commnad right now use by redis
+    Command, // command right now use by redis
     KeyWord,
     Function,
     Database,
@@ -81,7 +81,7 @@ pub fn in_pos(
     pos.line == t.line && (pos.column >= t.column && pos.column <= (t.column + len.into()))
 }
 
-pub(crate) fn remove_dupliate(items: Vec<CompletionItem>) -> Vec<CompletionItem> {
+pub(crate) fn remove_duplicate(items: Vec<CompletionItem>) -> Vec<CompletionItem> {
     items
         .into_iter()
         .map(CompletionItemNameHasher::from)
@@ -127,16 +127,25 @@ pub trait LexerCompletionTrait: LangServerCommon {
         anyhow::Ok(vec![])
     }
 
-    async fn do_auto_completion(&self, sql: &str) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn do_auto_completion(
+        &self, sql: &str, line: u32, col: u32,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
         let tokens = sqlparser::tokenizer::Tokenizer::new(self.dialect().as_ref(), sql)
-            .tokenize()
+            .tokenize_with_location()
             .unwrap_or_default();
         let mut all_item = self.all_completion_items().await;
+        let pos = sqlparser::tokenizer::Location {
+            line: line as u64,
+            column: col as u64,
+        };
+
         all_item.extend(self.get_table_columns_if_possible(&tokens[..]).await);
         for t in tokens.iter() {
-            match t {
+            match &t.token {
                 Token::Word(x) => {
-                    if x.keyword == sqlparser::keywords::Keyword::NoKeyword {
+                    if x.keyword == sqlparser::keywords::Keyword::NoKeyword
+                        && !in_pos(pos, t.span.start, x.value.len() as u64)
+                    {
                         all_item.push(CompletionItem {
                             item: x.value.clone().into(),
                             kind: CompletionKind::Text,
@@ -232,7 +241,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
         ret.extend(
             self.list_procedure(None)
                 .await
-                .map_err(|err| log::error!("list precedure failed,err:{}", err))
+                .map_err(|err| log::error!("list procedure failed,err:{}", err))
                 .unwrap_or_default()
                 .into_iter()
                 .map(|x| CompletionItem {
@@ -256,7 +265,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
         ret
     }
 
-    async fn get_table_columns_if_possible(&self, tokens: &[Token]) -> Vec<CompletionItem> {
+    async fn get_table_columns_if_possible(&self, tokens: &[TokenWithSpan]) -> Vec<CompletionItem> {
         let mut tables: HashSet<String> = self
             .list_table(None)
             .await
@@ -278,8 +287,8 @@ pub trait LexerCompletionTrait: LangServerCommon {
 
         let mut table_hits = HashSet::new();
         for t in tokens.iter() {
-            if let Token::Word(x) = t {
-                // lowcase match is ok for me
+            if let Token::Word(x) = &t.token {
+                // lowercase match is ok for me
                 // we just need make sure this table is in the database(not exactly)
                 let name = x.value.to_lowercase();
                 if tables.contains(&name) {
@@ -297,7 +306,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
             ret.extend(columns.into_iter().map(CompletionItem::from));
         }
 
-        remove_dupliate(ret)
+        remove_duplicate(ret)
     }
 }
 
@@ -363,7 +372,7 @@ pub trait LangServerCommon: GetBackendKind {
                 Statement::DropPolicy { .. } => true,
                 Statement::DropExtension { .. } => true,
                 Statement::Discard { .. } => true,
-                Statement::DropConnector {  ..  } => true, 
+                Statement::DropConnector { .. } => true,
                 Statement::Delete(x) => x.selection.is_none(),
                 Statement::Update { selection, .. } => selection.is_none(),
                 _ => false,
@@ -384,7 +393,7 @@ pub trait LangServerCommon: GetBackendKind {
     ) -> anyhow::Result<Vec<CreatedTypeDef>> {
         anyhow::Ok(vec![])
     }
-    async fn list_sequences(&self, _schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
+    async fn list_sequence(&self, _schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
         anyhow::Ok(vec![])
     }
 
@@ -447,7 +456,7 @@ pub trait LangServerCommon: GetBackendKind {
         &self, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>>;
 
-    // completion on ast struct like `SCHEMA.XXXX`  , 'TALBE.XXXX'
+    // completion on ast struct like `SCHEMA.XXXX`  , 'TABLE.XXXX'
     async fn try_completion_dot(
         &self, sql: &str, line: u32, col: u32,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -556,7 +565,7 @@ pub trait LangServerCommon: GetBackendKind {
 
                     if self.hit_table(schema, &table).await {
                         // try a TABLE.xxxx
-                        // right now schama is table name
+                        // right now schema is table name
                         // we hope the use not use table alias
                         log::trace!("hit table or view '{}' trying to completion columns", table);
                         ret.extend(
@@ -686,7 +695,7 @@ pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletion
             // 有时候是关键字也会结合 这点一般的解析程序不太一样呢
             // 自动完成更多的给出可能性 但是有可能是错误的 问题不大
             xs.extend(dot.unwrap_or_default());
-            return Ok(remove_dupliate(xs));
+            return Ok(remove_duplicate(xs));
         }
         Err(err) => {
             log::error!("completion on ast failed,err:{}", err);
@@ -700,7 +709,7 @@ pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletion
         log::warn!("disabled use lexer , we will return empty data.");
         return anyhow::Ok(vec![]);
     }
-    return LexerCompletionTrait::do_auto_completion(backend, sql).await;
+    return LexerCompletionTrait::do_auto_completion(backend, sql, line, col).await;
 }
 
 pub(crate) async fn try_parser_completion(
@@ -729,7 +738,7 @@ pub(crate) async fn try_parser_completion(
                 Err(err) => {
                     // here is very fine.no need to break
                     log::error!("parse sql error:{}", err);
-                    // we better skip to next to avoid infinit loop
+                    // we better skip to next to avoid infinite loop
                     parser.next_token();
                 }
             }
@@ -757,7 +766,7 @@ pub(crate) mod completion_test {
 
     use super::{CompletionItem, LanguageServer};
 
-    /// test if completion items contains a centains string
+    /// test if completion items contains a contains string
     /// use in test to see if completion is ok.
     /// this fn not returns just panic if not contains.
     pub fn test_completion_items_contains(items: &[CompletionItem], line: usize, name: &str) {

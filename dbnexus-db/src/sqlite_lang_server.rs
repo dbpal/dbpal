@@ -14,7 +14,7 @@ impl LangServerCommon for SqliteDB {
     async fn list_column(
         &self, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let schema = Self::mrege_schema(schema);
+        let schema = Self::merge_schema(schema);
         let sql = format!(
             r#"select * from "{schema}"."{name}{}" limit 1"#,
             if is_call { "()" } else { "" }
@@ -78,14 +78,14 @@ impl LangServerCommon for SqliteDB {
     }
 
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::mrege_schema(schema);
+        let schema = Self::merge_schema(schema);
         self.list_view_impl(schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::mrege_schema(schema);
+        let schema = Self::merge_schema(schema);
         self.list_table_impl(schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
@@ -190,7 +190,7 @@ impl SqliteDB {
 }
 
 impl SqliteDB {
-    pub(crate) fn mrege_schema(schema: Option<&str>) -> &str {
+    pub(crate) fn merge_schema(schema: Option<&str>) -> &str {
         match schema {
             Some(s) => s,
             None => SqliteDB::MAIN_DB,
@@ -244,7 +244,7 @@ impl AstCompletionHelper for SqliteDB {
     }
 
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::mrege_schema(_schema);
+        let schema = Self::merge_schema(_schema);
         self.list_index_name_impl(schema).await
     }
 

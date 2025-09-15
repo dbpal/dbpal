@@ -1588,44 +1588,6 @@ mod tests {
     }
 }
 
-#[derive(Debug)]
-pub struct RedisDialet {}
-
-impl sqlparser::dialect::Dialect for RedisDialet {
-    /// Determine if a character is a valid start character for an unquoted
-    /// identifier
-    fn is_identifier_start(&self, ch: char) -> bool {
-        /*
-        Redis 的键（key）可以包含多种字符，具体包括：
-        字母：大写字母（A-Z）和小写字母（a-z）
-        数字：0-9
-        特殊字符：如下划线（_）、冒号（:）、破折号（-）、点（.）、斜杠（/），以及其他大多数 ASCII 字符。
-        不过，建议避免使用空格和某些特殊字符（如空字符、控制字符等）作为键的一部分，以免造成潜在的问题。同时，键的长度限制为 512 MB，但通常建议保持键的简短和有意义。
-                */
-        ch.is_alphabetic()
-            || ch == ':'
-            || ch == '$'
-            || ch == '/'
-            || ch.is_numeric()
-            || ch == '.'
-            || ch == '-'
-            || ch == '_'
-    }
-
-    fn supports_string_literal_backslash_escape(&self) -> bool {
-        true
-    }
-
-    fn supports_unicode_string_literal(&self) -> bool {
-        true
-    }
-
-    /// Determine if a character is a valid unquoted identifier character
-    fn is_identifier_part(&self, ch: char) -> bool {
-        self.is_identifier_start(ch)
-    }
-}
-
 fn static_redis_command_completion_items() -> Vec<CompletionItem> {
     static ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
     ITEMS

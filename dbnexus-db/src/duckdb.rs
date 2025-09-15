@@ -429,7 +429,7 @@ impl QuerySql for DuckDB {
     async fn query_sql(
         &self, query_id: uuid::UUID, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut _log_gurad = self.query_logs.get_guard(query_id, sql);
+        let mut _log_guard = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -459,14 +459,14 @@ impl QuerySql for DuckDB {
                 },
             }
         }
-        _log_gurad.set_success(ret.iter().all(|x| x.is_ok()));
+        _log_guard.set_success(ret.iter().all(|x| x.is_ok()));
         anyhow::Ok(ret)
     }
 
     async fn execute_sql(
         &self, query_id: uuid::UUID, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut _log_gurad = self.query_logs.get_guard(query_id, sql);
+        let mut _log_guard = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -477,7 +477,7 @@ impl QuerySql for DuckDB {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
         };
-        _log_gurad.set_success(resp.is_ok());
+        _log_guard.set_success(resp.is_ok());
         anyhow::Ok(resp)
     }
 
@@ -546,12 +546,12 @@ fn format_timestamp(time_uint: TimeUnit, value: i64, is_time: bool) -> anyhow::R
 }
 
 fn encode_value(
-    value: &duckdb::types::Value, ty: &DataType, prased_type: Option<&sqlparser::ast::DataType>,
+    value: &duckdb::types::Value, ty: &DataType, parsed_type: Option<&sqlparser::ast::DataType>,
     nested: bool,
 ) -> anyhow::Result<Option<String>> {
-    log::trace!("value:{:?} ty:{:?} parse type:{:?}", value, ty, prased_type);
+    log::trace!("value:{:?} ty:{:?} parse type:{:?}", value, ty, parsed_type);
     let is_time = matches!(ty, DataType::Time32(_)) || matches!(ty, DataType::Time64(_));
-    let is_bit = prased_type
+    let is_bit = parsed_type
         .map(|x| match x {
             sqlparser::ast::DataType::Bit(_) => true,
             _ => false,
@@ -630,7 +630,7 @@ fn encode_value(
                     anyhow::bail!("expect a list type but:{:?}", ty)
                 }
             };
-            let parsed_type = match prased_type {
+            let parsed_type = match parsed_type {
                 Some(x) => match x {
                     sqlparser::ast::DataType::Array(x) => match x {
                         sqlparser::ast::ArrayElemTypeDef::SquareBracket(data_type, _) => {
@@ -672,7 +672,7 @@ fn encode_value(
                         anyhow::bail!("expect struct type but {:?}", ty)
                     }
                 };
-                let prased_type = match prased_type {
+                let parsed_type = match parsed_type {
                     Some(x) => match x {
                         sqlparser::ast::DataType::Struct(x, _) => {
                             let f = x.iter().find(|x| match &x.field_name {
@@ -702,7 +702,7 @@ fn encode_value(
                 values.push(format!(
                     "{}:{}",
                     k,
-                    encode_value(v, ty, prased_type.as_ref(), true)?.unwrap_or("null".to_string())
+                    encode_value(v, ty, parsed_type.as_ref(), true)?.unwrap_or("null".to_string())
                 ));
             }
             Some(format!("{{{}}}", values.join(",")))
@@ -730,9 +730,9 @@ fn encode_value(
                 }
             };
 
-            let (pkty, pvty) = match prased_type {
+            let (pkty, pvty) = match parsed_type {
                 None => (None, None),
-                Some(prased_type) => match prased_type {
+                Some(parsed_type) => match parsed_type {
                     sqlparser::ast::DataType::Map(k, v) => {
                         (Some(k.as_ref().clone()), Some(v.as_ref().clone()))
                     }
@@ -750,7 +750,7 @@ fn encode_value(
                         }
                     }
                     _ => {
-                        anyhow::bail!("type must be map but {:?}", prased_type)
+                        anyhow::bail!("type must be map but {:?}", parsed_type)
                     }
                 },
             };
@@ -1732,7 +1732,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_view() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let query_id = db.open_connection().await.unwrap();
@@ -1802,7 +1802,7 @@ mod tests {
     #[ignore = "materizlized view not implemented https://github.com/duckdb/duckdb/discussions/3638"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_materializd_view() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let query_id = db.open_connection().await.unwrap();
@@ -1870,7 +1870,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_database() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(None);
         let x = db.list_database().await.unwrap();
@@ -1879,7 +1879,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_server_metas() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         let db = make_test_object(None);
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
@@ -1887,7 +1887,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_schema() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         let db = make_test_object(None);
         let schema_name = "abc";
         let _err = db.drop_schema(schema_name).await;
@@ -1903,7 +1903,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_list_table() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string()));
         let x = db.list_table().await.unwrap();
         println!("tables:{:?}", x);
@@ -1911,7 +1911,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_table_columns() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
 
         let db = make_test_object(Some("main".to_string()));
         let x = db.show_table_columns("employees").await.unwrap();
@@ -1922,7 +1922,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_check_conn() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         let db = make_test_object(None);
         let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
         println!("ping time is:{:?}", d);
@@ -1930,7 +1930,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_table_columns1111() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string()));
         let conn = db.get_conn().unwrap();
         let mut stmt = conn.prepare("SELECT * from main.test_types1").unwrap();
@@ -1941,7 +1941,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_index() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_index";
@@ -1979,7 +1979,7 @@ mod tests {
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_column() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_column";
@@ -2046,7 +2046,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types1() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types1";
@@ -2133,7 +2133,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types1_array() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types1_array";
@@ -2235,7 +2235,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types2() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types2";
@@ -2325,7 +2325,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types2_array() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types2_array";
@@ -2415,7 +2415,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types3() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types3";
@@ -2504,7 +2504,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types3_array() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types3_array";
@@ -2594,7 +2594,7 @@ mod tests {
     #[ignore = "https://github.com/duckdb/duckdb-rs/issues/478"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types4() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types4";
@@ -2675,7 +2675,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_types5() {
-        let _gurad = test_lock().lock().await;
+        let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types5";

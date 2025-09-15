@@ -4199,7 +4199,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -6504,9 +6504,9 @@ dependencies = [
 
 [[package]]
 name = "rsfbclient"
-version = "0.25.1"
+version = "0.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef8426f3dfa7d2b0e04326b7d948555d5eceab4f9d755dd6f324535bc6767a10"
+checksum = "f54af78361bb9d6e8289656c66b6d9d74b69e0da6b4c88273d3adbab8e74cbe6"
 dependencies = [
  "chrono",
  "lru-cache",
@@ -6519,9 +6519,9 @@ dependencies = [
 
 [[package]]
 name = "rsfbclient-core"
-version = "0.25.1"
+version = "0.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e52b386554c9a7f96ff2043563c3d2f249e7b528b2995ab04650b58072b20e93"
+checksum = "172f6daa14633c896262d9de9726e0e658f40f8c5afff83924f7f06ee290141c"
 dependencies = [
  "chrono",
  "encoding",
@@ -6532,9 +6532,9 @@ dependencies = [
 
 [[package]]
 name = "rsfbclient-derive"
-version = "0.25.1"
+version = "0.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d318dd573630080ec956cc3347f54367f6ad49e384bad484abe1b71438708bf1"
+checksum = "e467a144ade6e26bb077b331ecf493310eb59578f956ac5b6570584d928e1f05"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -6542,9 +6542,9 @@ dependencies = [
 
 [[package]]
 name = "rsfbclient-rust"
-version = "0.25.1"
+version = "0.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "247897a09e9d32c2ee753b04d5aab0038c8eb5167f0f2896c5144534597594bb"
+checksum = "692a9515a252308cb19c1230ac63c0533df326a56c070ba846ac7fb04976d0da"
 dependencies = [
  "bytes",
  "digest 0.10.7",

@@ -102,7 +102,7 @@ function TypesTree() {
                         reload={reload}
                         uuid={uuid}
                         kind={kind}
-                        defxxx={typ}
+                        createdType={typ}
                       ></TypeMenu>
                     ),
                     style: calMenuStyle(e),
@@ -124,16 +124,16 @@ function TypesTree() {
 
 function TypeMenu(props: {
   uuid;
-  defxxx: types.CreatedTypeDef;
+  createdType: types.CreatedTypeDef;
   reload;
   kind: DataSourceKind;
 }) {
-  const { uuid, defxxx, reload, kind } = props;
+  const { uuid, createdType, reload, kind } = props;
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
     initMonacoLanguage(uuid, kind);
-    const id = uuid + '-' + '-type-' + defxxx.name;
+    const id = uuid + '-' + '-type-' + createdType.name;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
       setSelectTab(index);
@@ -147,12 +147,12 @@ function TypeMenu(props: {
           ...e,
           new TabContent(
             id,
-            defxxx.name,
+            createdType.name,
             (
               <DefAndMetasView
                 reloadOP={async () => {
                   return Promise.resolve({
-                    def: defxxx.sql,
+                    def: createdType.sql,
                   } as DefAndMetas);
                 }}
                 executeOP={makeExecuteSql(uuid)}
@@ -168,14 +168,14 @@ function TypeMenu(props: {
   };
   const handleDrop = async () => {
     let confirm = await secondConfirm({
-      title: `Drop type '${defxxx.name}'`,
+      title: `Drop type '${createdType.name}'`,
       confirmText: 'Drop',
     });
     if (!confirm) {
       return;
     }
 
-    invoke('drop_created_type', { name: uuid, typeName: defxxx.name })
+    invoke('drop_created_type', { name: uuid, typeName: createdType.name })
       .then(() => {
         showNotification('success', 'Drop type OK');
         reload();

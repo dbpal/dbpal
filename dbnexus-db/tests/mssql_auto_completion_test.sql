@@ -48,3 +48,5 @@ explain  select * from employees
 33 employees
 SELECT * FROM OPENJSON( N'[{"id":1,"name":"Alice","age":30},{"id":2,"name":"Bob","age":25}]' ) WITH (id   int         '$.id', name nvarchar(50) '$.name',age  int         '$.age')AS t WHERE t.id > 0 ;
 191 t 
+SELECT * from (SELECT ABS(-1) as abs) as t  WHERE t.abs > 0
+52 t ; 56 abs

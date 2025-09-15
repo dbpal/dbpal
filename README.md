@@ -53,8 +53,7 @@ INSERT INTO documents (title, content) VALUES ('Second Document', 'This is the c
 redis分页实现要好好研究下
 oracle add table column有问题
 
-
-
+检查default value
 
 781128
 

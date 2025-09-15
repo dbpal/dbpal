@@ -294,7 +294,7 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
   );
 }
 
-function MenuOpenConn({ handleOpend: handleOpened, name, setLoading }) {
+function MenuOpenConn({ handleOpened, name, setLoading }) {
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenXXX = async () => {
@@ -1028,7 +1028,7 @@ function ExportMarkDownTable(props: {
   };
   const handleExport = async (toClipBoard: boolean) => {
     if (includes.length == 0) {
-      showNotification('error', 'Please select columns');
+      showNotification('error', 'Please select column');
       return;
     }
     let markdown = makeMarkDownStr();

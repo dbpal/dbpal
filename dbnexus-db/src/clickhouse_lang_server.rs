@@ -42,16 +42,27 @@ impl ClickHouseDB {
 
 impl LangServerCommon for ClickHouseDB {
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, _is_call: bool,
+        &self, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let sql = format!(
-            r#"select * from {}"{}""#,
-            match schema {
-                Some(x) => format!("\"{}\".", x),
-                None => "".to_string(),
-            },
-            name
-        );
+        let sql = if is_call {
+            format!(
+                r#"select {}{}()"#,
+                match schema {
+                    Some(x) => format!("\"{}\".", x),
+                    None => "".to_string(),
+                },
+                name
+            )
+        } else {
+            format!(
+                r#"select * from {}"{}""#,
+                match schema {
+                    Some(x) => format!("\"{}\".", x),
+                    None => "".to_string(),
+                },
+                name
+            )
+        };
         self.get_query_columns(&sql).await
     }
     async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
@@ -226,10 +237,10 @@ mod tests {
         // enable_test_log();
         let query_id = db.open_connection().await.unwrap();
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
-                 CREATE TABLE employees (
+                CREATE TABLE employees (
                     employee_id UInt32,
                     first_name String,
                     last_name String,
@@ -239,16 +250,16 @@ mod tests {
                     salary Float64
                 ) ENGINE = MergeTree()
                 ORDER BY employee_id;
-         "#,
+            "#,
             )
             .await
             .unwrap();
 
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
-                 ALTER TABLE employees 
+                ALTER TABLE employees 
                     ADD PROJECTION employee_salary_projection 
                     (
                         SELECT 
@@ -258,7 +269,7 @@ mod tests {
                         GROUP BY 
                             department
                     );
-         "#,
+            "#,
             )
             .await
             .unwrap();

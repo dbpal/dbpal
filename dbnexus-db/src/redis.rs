@@ -2197,14 +2197,14 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     }
     #[ignore = "run me by hand"]
     #[tokio::test]
-    async fn test_check_alot_of_key() {
+    async fn test_check_a_lot_of_key() {
         let db = make_test_object().await;
         crate::db::CheckConn::check_conn(&db).await.unwrap();
         let query_id = db.open_connection().await.unwrap();
         for i in 0..100000 {
             db.query_sql(
                 query_id,
-                format!("set test_alot_of_key{} {}", i, i).as_str(),
+                format!("set test_a_lot_of_key{} {}", i, i).as_str(),
             )
             .await
             .unwrap();

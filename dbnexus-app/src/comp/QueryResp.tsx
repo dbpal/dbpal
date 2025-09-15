@@ -60,7 +60,7 @@ function RespContextMenu(props: {
   content;
   field;
   setSort;
-  resetColunmWidthCallBack;
+  resetColumnWidthCallBack;
   viewInModal;
   showExportMarkDown;
 }) {
@@ -68,7 +68,7 @@ function RespContextMenu(props: {
     content,
     field,
     setSort,
-    resetColunmWidthCallBack,
+    resetColumnWidthCallBack,
     viewInModal,
     showExportMarkDown,
   } = props;
@@ -119,7 +119,7 @@ function RespContextMenu(props: {
         showExportMarkDown={showExportMarkDown}
       ></MenuExportMarkDownTable>
       <MenuResetColumnWidths
-        reset={resetColunmWidthCallBack}
+        reset={resetColumnWidthCallBack}
       ></MenuResetColumnWidths>
     </MenuList>
   );
@@ -177,7 +177,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
                 content={content}
                 field={field}
                 setSort={setSortModel}
-                resetColunmWidthCallBack={() => {
+                resetColumnWidthCallBack={() => {
                   setData((e) => {
                     return resetMuiDataRespWidth(e);
                   });

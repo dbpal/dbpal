@@ -246,8 +246,8 @@ export default function MainPage() {
         overflow: 'auto',
       }}
       maxSize={800}
-      onChange={(newsize) => {
-        SaveDomSizes.saveSize(leftSizeKey, { width: newsize });
+      onChange={(newSize) => {
+        SaveDomSizes.saveSize(leftSizeKey, { width: newSize });
       }}
     >
       <div

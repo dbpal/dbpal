@@ -127,7 +127,7 @@ function TabsWithContent_(props: {
             '& .MuiTabs-flexContainer': { columnGap: 0 }, // 4px
             // 2. Tab 内边距
             '& .MuiTab-root': { minHeight: 36, px: 0.4 }, // 高度36px，左右12px
-            opacity: windowFocus ? 1 : 0.7,
+            opacity: windowFocus ? 1 : 0.6,
           }}
         >
           {tabs.map((tab, index) => {

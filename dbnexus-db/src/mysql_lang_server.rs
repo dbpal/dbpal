@@ -77,15 +77,27 @@ impl MysqlDB {
 #[async_trait::async_trait]
 impl LangServerCommon for MysqlDB {
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, _is_call: bool,
+        &self, schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let sql = format!(
-            r#"select * from {}`{name}` limit 1"#,
-            match schema {
-                Some(x) => format!("`{}`.", x),
-                None => "".to_string(),
-            }
-        );
+        let sql = if is_call {
+            format!(
+                r#"select {}`{}`()"#,
+                match schema {
+                    Some(x) => format!("`{}`.", x),
+                    None => "".to_string(),
+                },
+                name,
+            )
+        } else {
+            format!(
+                r#"select * from {}`{}` limit 1"#,
+                match schema {
+                    Some(x) => format!("`{}`.", x),
+                    None => "".to_string(),
+                },
+                name,
+            )
+        };
         log::info!("sql:{}", sql);
         self.get_query_columns(&sql).await
     }

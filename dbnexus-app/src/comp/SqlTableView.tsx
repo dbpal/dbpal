@@ -86,7 +86,7 @@ import wcmatch from 'wildcard-match';
 import { MdEditNote } from 'react-icons/md';
 import { SimpleFlexEditor } from './CommonComp2';
 
-const confrimAboutPrimary = async (
+const confirmAboutPrimary = async (
   notWarnPri: boolean,
   fields: types.Field[]
 ): Promise<boolean> => {
@@ -104,7 +104,7 @@ const confrimAboutPrimary = async (
 };
 
 const getRowId = (e) => e[keyNotInTable];
-const whereLanguage = 'ckqQtTcQDmO3e2fiBMB4QOv6Mhalfk-1221';
+const whereLanguage = 'ckqQtTcQDmO3e2fiBMB4QOvmhalfk-1221';
 let whereAutoCompletion: (
   sql: string,
   pos: Position
@@ -476,7 +476,7 @@ function SqlTableView_(props: {
       if (updateRow.size == 0) {
         return newRow;
       }
-      if (!(await confrimAboutPrimary(notWarnPri, resp.fields))) {
+      if (!(await confirmAboutPrimary(notWarnPri, resp.fields))) {
         return oldRow;
       }
       try {
@@ -499,8 +499,8 @@ function SqlTableView_(props: {
     [resp]
   );
 
-  const handleDetele = async (id) => {
-    if (!(await confrimAboutPrimary(notWarnPri, resp.fields))) {
+  const handleDelete = async (id) => {
+    if (!(await confirmAboutPrimary(notWarnPri, resp.fields))) {
       return;
     }
     let old;
@@ -609,7 +609,7 @@ function SqlTableView_(props: {
                 field={field}
                 content={content}
                 handleDelete={() => {
-                  handleDetele(id);
+                  handleDelete(id);
                 }}
                 row={row}
                 tableName={tableName}
@@ -628,7 +628,6 @@ function SqlTableView_(props: {
                     ? async () => {
                         let x = resp.data.find((e) => e[keyNotInTable] == id);
                         try {
-                          //ts-ignoe
                           let values = {};
                           values[field] = null;
                           await updateOP(x, values);
@@ -666,7 +665,7 @@ function SqlTableView_(props: {
     } as GridSlotsComponentsProps;
   }, [resp]);
 
-  const [editInModalBox, setEditInMoalBox] = useState(null);
+  const [editInModalBox, setEditInModalBox] = useState(null);
   useEffect(() => {
     if (editInModalBox) {
       let x1 = saveAndSetSize(editInModalBox, 'edit-cell');
@@ -675,7 +674,7 @@ function SqlTableView_(props: {
       };
     }
   }, [editInModalBox]);
-  const [editRowInModalBox, setEditRowInMoalBox] = useState(null);
+  const [editRowInModalBox, setEditRowInModalBox] = useState(null);
   useEffect(() => {
     if (editRowInModalBox) {
       let x1 = saveAndSetSize(editRowInModalBox, 'edit-row', 'width');
@@ -887,7 +886,7 @@ function SqlTableView_(props: {
         >
           <Box
             sx={{ resize: 'both', ...modalStyle }}
-            ref={setEditInMoalBox}
+            ref={setEditInModalBox}
             width="80%"
             height="30vh"
           >
@@ -918,7 +917,7 @@ function SqlTableView_(props: {
         >
           <Box
             sx={{ resize: 'horizontal', ...modalStyle }}
-            ref={setEditRowInMoalBox}
+            ref={setEditRowInModalBox}
             width="80%"
           >
             <ModalHeader title="edit row"></ModalHeader>

@@ -67,7 +67,7 @@ import { MongoTable } from './MongoDB';
 
 enum ViewKind {
   Normal,
-  Materrialized,
+  Materialized,
 }
 import {
   DataGrid,
@@ -75,18 +75,18 @@ import {
   GridSlotsComponentsProps,
 } from '@mui/x-data-grid';
 import { SimpleFlexEditor } from './CommonComp2';
-function ViewsTree(props: { viewkind: ViewKind }) {
-  const { viewkind } = props;
+function ViewsTree(props: { viewKind: ViewKind }) {
+  const { viewKind } = props;
   const { uuid } = useContext(UuidContext);
   const [views, setViews] = useState<types.ListTable[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
   let invokeName = '';
-  switch (viewkind) {
+  switch (viewKind) {
     case ViewKind.Normal:
       invokeName = 'list_view';
       break;
-    case ViewKind.Materrialized:
+    case ViewKind.Materialized:
       invokeName = 'list_materialized_view';
       break;
   }
@@ -114,21 +114,21 @@ function ViewsTree(props: { viewkind: ViewKind }) {
 
   let { setUpMenu } = useContext(ContextMenuContext);
   let itemId;
-  switch (viewkind) {
+  switch (viewKind) {
     case ViewKind.Normal:
       itemId = uuid + '-views';
       break;
-    case ViewKind.Materrialized:
+    case ViewKind.Materialized:
       itemId = uuid + '-materialized-views';
       break;
   }
   let name;
-  let icon = getIcon(viewkind);
-  switch (viewkind) {
+  let icon = getIcon(viewKind);
+  switch (viewKind) {
     case ViewKind.Normal:
       name = 'views';
       break;
-    case ViewKind.Materrialized:
+    case ViewKind.Materialized:
       name = 'materialized views';
       break;
   }
@@ -165,7 +165,7 @@ function ViewsTree(props: { viewkind: ViewKind }) {
           }
           return (
             <ViewTree
-              viewkind={viewkind}
+              viewKind={viewKind}
               key={e.name}
               view={e.name}
               reload={handleReload}
@@ -194,7 +194,7 @@ function StatementStructure(props: {
     invoke<string>('create_view_sql', {
       name: uuid,
       viewName: view,
-      materialized: viewKind == ViewKind.Materrialized,
+      materialized: viewKind == ViewKind.Materialized,
     })
       .then((e) => {
         setSql(e);
@@ -424,7 +424,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
 
 function getIcon(viewKind: ViewKind) {
   switch (viewKind) {
-    case ViewKind.Materrialized:
+    case ViewKind.Materialized:
       return <ViewComfyAltIcon></ViewComfyAltIcon>;
     default:
       return <VisibilityIcon></VisibilityIcon>;
@@ -433,14 +433,14 @@ function getIcon(viewKind: ViewKind) {
 function ViewTree(props: {
   view: string;
   reload;
-  viewkind: ViewKind;
+  viewKind: ViewKind;
   size?: string;
 }) {
-  let { view, reload, viewkind, size } = props;
+  let { view, reload, viewKind, size } = props;
   const { uuid } = useContext(UuidContext);
   const { kind: conn_type } = useContext(ConnTypeContext);
   let { setUpMenu } = useContext(ContextMenuContext);
-  let icon = getIcon(viewkind);
+  let icon = getIcon(viewKind);
 
   return (
     <TreeItem
@@ -458,7 +458,7 @@ function ViewTree(props: {
                   reload={reload}
                   view={view}
                   uuid={uuid}
-                  viewkind={viewkind}
+                  viewKind={viewKind}
                 />
               ),
               style: calMenuStyle(e),
@@ -468,7 +468,7 @@ function ViewTree(props: {
           <Stack direction="row" spacing={1}>
             {icon} <span> {view} </span>
           </Stack>
-          {viewkind == ViewKind.Materrialized && <span> {size} </span>}
+          {viewKind == ViewKind.Materialized && <span> {size} </span>}
         </Stack>
       }
     ></TreeItem>
@@ -480,9 +480,9 @@ function ViewMenu(props: {
   uuid: string;
   reload;
   kind: DataSourceKind;
-  viewkind: ViewKind;
+  viewKind: ViewKind;
 }) {
-  let { view, uuid, reload, kind, viewkind } = props;
+  let { view, uuid, reload, kind, viewKind } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showExport, setShowExport] = useState(false);
   const handleDrop = async () => {
@@ -495,11 +495,11 @@ function ViewMenu(props: {
       return;
     }
     let invokeName;
-    switch (viewkind) {
+    switch (viewKind) {
       case ViewKind.Normal:
         invokeName = 'drop_view';
         break;
-      case ViewKind.Materrialized:
+      case ViewKind.Materialized:
         invokeName = 'drop_materialized_view';
         break;
     }
@@ -585,7 +585,7 @@ function ViewMenu(props: {
         );
         break;
       default:
-        showNotification('error', `datasouce ${kind} need impl view`);
+        showNotification('error', `data source ${kind} need impl view`);
     }
 
     setTabs((e) => {
@@ -600,7 +600,7 @@ function ViewMenu(props: {
     });
   };
 
-  const handleSturcture = () => {
+  const handleStructure = () => {
     let id = uuid + '-view-' + view + '-structure';
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
@@ -621,7 +621,7 @@ function ViewMenu(props: {
                 view={view}
                 uuid={uuid}
                 kind={kind}
-                viewKind={viewkind}
+                viewKind={viewKind}
               ></ViewStructure>
             ),
             <IoConstructOutline> </IoConstructOutline>
@@ -645,7 +645,7 @@ function ViewMenu(props: {
           ></Typography>
         </MenuItem>
 
-        <MenuItem onClick={handleSturcture}>
+        <MenuItem onClick={handleStructure}>
           <ListItemIcon>
             <IoConstructOutline
               style={{ fontSize: '1.2rem' }}

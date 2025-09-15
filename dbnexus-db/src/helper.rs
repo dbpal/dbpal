@@ -24,7 +24,7 @@ pub(crate) fn create_csv(ds: &Vec<Vec<Option<String>>>, delimiter: char) -> Stri
     s
 }
 
-pub fn seperate_sql_by_sqlparser_tokenizer(
+pub fn separate_sql_by_sqlparser_tokenizer(
     sql: &str, dialect: &dyn Dialect,
 ) -> anyhow::Result<Vec<String>> {
     let tokens: Vec<_> = sqlparser::tokenizer::Tokenizer::new(dialect, sql)
@@ -152,13 +152,13 @@ mod tests {
     }
 
     #[test]
-    fn test_sql_seprate() {
+    fn test_sql_separate() {
         {
             let d = sqlparser::dialect::ClickHouseDialect {};
-            let x = seperate_sql_by_sqlparser_tokenizer(
+            let x = separate_sql_by_sqlparser_tokenizer(
                 r#"
         
-            sele1ct 1;
+            select 1;
             ;;;;;;
 
 
@@ -175,10 +175,10 @@ mod tests {
 
         {
             let d = sqlparser::dialect::ClickHouseDialect {};
-            let x = seperate_sql_by_sqlparser_tokenizer(
+            let x = separate_sql_by_sqlparser_tokenizer(
                 r#"
         
-            sele1ct 1;
+            select 1;
 
             select 2
         "#,

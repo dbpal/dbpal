@@ -15,7 +15,7 @@ import {
 } from './helper.ts';
 import { Chip } from '@mui/material';
 
-class SaveShowdoc {
+class SaveShowDoc {
   showDocOld = true;
   save(x: boolean) {
     this.showDocOld = x;
@@ -32,7 +32,7 @@ class SaveShowdoc {
   get(): boolean {
     return this.showDocOld;
   }
-  static instance = new SaveShowdoc();
+  static instance = new SaveShowDoc();
 }
 
 const urlPrefix = 'https://redis.io/docs/latest/commands/';
@@ -67,7 +67,7 @@ function RedisQuery(props: {
       iframeRef.current.style.pointerEvents = 'none';
     }
   };
-  const [showDoc, setShowDoc] = useState(SaveShowdoc.instance.get());
+  const [showDoc, setShowDoc] = useState(SaveShowDoc.instance.get());
 
   // 启用 iframe 的鼠标事件
   const enableIframe = () => {
@@ -148,7 +148,7 @@ function RedisQuery(props: {
     } else {
       setSize('100%');
     }
-    SaveShowdoc.instance.save(showDoc);
+    SaveShowDoc.instance.save(showDoc);
   }, [showDoc]);
 
   return (
@@ -165,8 +165,8 @@ function RedisQuery(props: {
       onDragFinished={(_: number): void => {
         setIsDragging(false);
       }} // 拖动结束
-      onChange={(newsize) => {
-        SaveDomSizes.saveSize(sizeKey, { width: newsize });
+      onChange={(newSize) => {
+        SaveDomSizes.saveSize(sizeKey, { width: newSize });
       }}
       style={{ width: '99%' }}
     >

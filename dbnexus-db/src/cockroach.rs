@@ -146,7 +146,7 @@ impl ServerMetas for CockRoachDB {
 
 impl std::fmt::Debug for CockRoachDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "cochroach on:{:?}", self.pg.config)
+        write!(f, "cockroach on:{:?}", self.pg.config)
     }
 }
 

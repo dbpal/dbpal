@@ -339,12 +339,12 @@ function Database(props: {
   setDatabase;
   candidates: string[];
   onBlur?;
-  lable?: string;
+  label?: string;
 }) {
-  let { database, setDatabase, candidates, onBlur, lable } = props;
+  let { database, setDatabase, candidates, onBlur, label } = props;
 
-  if (!lable) {
-    lable = 'database';
+  if (!label) {
+    label = 'database';
   }
   return (
     <Stack>
@@ -370,7 +370,7 @@ function Database(props: {
         <TextField
           fullWidth
           size="small"
-          label={lable}
+          label={label}
           value={database}
           onBlur={onBlur}
           onChange={(e) => setDatabase(e.target.value)}
@@ -497,14 +497,14 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
     getConfig('conn_timeout')
   );
 
-  const [libSqlModel, setlibSqlModal] = useState<'remote' | 'local'>(
+  const [libSqlModel, setLibSqlModal] = useState<'remote' | 'local'>(
     //@ts-ignore
     getConfig('source', 'local') // backend has name this to source
   );
   const [url, setUrl] = useState(getConfig('url'));
   const [replica, setReplica] = useState(getConfig('replica', false));
   const [authToken, setAuthToken] = useState(getConfig('auth_token'));
-  const [schemaCandidates, setSchemesCandidats] = useState([]);
+  const [schemaCandidates, setSchemesCandidates] = useState([]);
   //@ts-ignore
   const supportConnectionTimeout = ![
     DataSourceKind.Redis,
@@ -885,11 +885,11 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
       if (config) {
         invoke<string[]>('config_list_database_or_schema', { conn: config })
           .then((e) => {
-            setSchemesCandidats(e);
+            setSchemesCandidates(e);
           })
           .catch((e) => {
             console.log('list schemas failed,', e);
-            setSchemesCandidats([]);
+            setSchemesCandidates([]);
           });
       }
     }
@@ -912,7 +912,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           <MenuItem value={DataSourceKind.Sqlite}>SQLite</MenuItem>
           <MenuItem value={DataSourceKind.Redis}>Redis</MenuItem>
           <MenuItem value={DataSourceKind.Mongo}>Mongo</MenuItem>
-          <MenuItem value={DataSourceKind.Oracle}>Oracel</MenuItem>
+          <MenuItem value={DataSourceKind.Oracle}>Oracle</MenuItem>
           <MenuItem value={DataSourceKind.MsSql}>
             Sql Server(microsoft)
           </MenuItem>
@@ -973,7 +973,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           setReplica={setReplica}
           authToken={authToken}
           setAuthToken={setAuthToken}
-          setlibSqlModal={setlibSqlModal}
+          setLibSqlModal={setLibSqlModal}
           libSqlModel={libSqlModel}
         ></LibSql>
       )}
@@ -1101,7 +1101,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             database={database}
             setDatabase={setDatabase}
             onBlur={toggleTriggerReload}
-            lable="key space"
+            label="key space"
           ></Database>
         </>
       )}
@@ -1344,7 +1344,7 @@ function LibSql(props: {
   authToken: string;
   setAuthToken;
   libSqlModel;
-  setlibSqlModal;
+  setLibSqlModal;
 }) {
   const {
     replica,
@@ -1356,7 +1356,7 @@ function LibSql(props: {
     authToken,
     setAuthToken,
     libSqlModel,
-    setlibSqlModal,
+    setLibSqlModal,
   } = props;
   let models = ['remote', 'local'];
   return (
@@ -1364,7 +1364,7 @@ function LibSql(props: {
       <RadioGroup
         row
         onChange={(e) => {
-          setlibSqlModal(e.target.value);
+          setLibSqlModal(e.target.value);
         }}
         value={libSqlModel}
       >

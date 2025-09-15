@@ -71,9 +71,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const transition = (props: any) => {
     return <Slide {...props} direction="left" />;
   };
-  const [copied, setCopeid] = useState(false);
+  const [copied, setCopied] = useState(false);
   useEffect(() => {
-    setCopeid(false);
+    setCopied(false);
   }, [notification]);
   return (
     <NotificationContext.Provider value={{ showNotification }}>
@@ -117,7 +117,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
                         notification.message,
                         undefined,
                         () => {
-                          setCopeid(true);
+                          setCopied(true);
                         }
                       );
                     }}

@@ -56,7 +56,7 @@ impl AstCompletionHelper for FireBirdDB {
 #[async_trait::async_trait]
 impl LexerCompletionTrait for FireBirdDB {
     const TEXTS: &'static [&'static str] = &["true", "false"];
-    const TYPES: &'static [&'static str] = FIEEBIRD_TYPES;
+    const TYPES: &'static [&'static str] = FIREBIRD_TYPES;
 }
 
 #[cfg(test)]
@@ -101,7 +101,7 @@ mod tests {
     }
 }
 
-const FIEEBIRD_TYPES: &[&str] = &[
+const FIREBIRD_TYPES: &[&str] = &[
     "INT64",
     "CHAR",
     "TIMESTAMP",
@@ -119,28 +119,41 @@ const FIEEBIRD_TYPES: &[&str] = &[
 #[async_trait::async_trait]
 impl LangServerCommon for FireBirdDB {
     async fn list_column(
-        &self, _schema: Option<&str>, name: &str, _is_call: bool,
+        &self, _schema: Option<&str>, name: &str, is_call: bool,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        SchemaTrait::show_table_columns(self, name).await.map(|x| {
-            x.into_iter()
-                .map(|x| TempTableColumn {
-                    name: x.field.clone(),
-                    data_type: Some(x.data_type.clone()),
-                })
-                .collect()
-        })
+        /*
+                    -- 直接写
+        SELECT ABS(-1)  FROM RDB$DATABASE;   -- 返回 1
+        SELECT SUBSTRING('abc' FROM 2 FOR 2) FROM RDB$DATABASE;
+        */
+        if is_call {
+            let sql = format!("SELECT {}() FROM RDB$DATABASE", name);
+            self.get_query_columns(&sql).await
+        } else {
+            SchemaTrait::show_table_columns(self, name).await.map(|x| {
+                x.into_iter()
+                    .map(|x| TempTableColumn {
+                        name: x.field.clone(),
+                        data_type: Some(x.data_type.clone()),
+                    })
+                    .collect()
+            })
+        }
     }
     async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        anyhow::Ok(
-            KEY_WORDS
-                .iter()
-                .map(|x| CompletionItem {
-                    item: x.to_string().into(),
-                    desc: None,
-                    kind: CompletionKind::KeyWord,
-                })
-                .collect(),
-        )
+        let mut lock = self.key_words_completion.lock().await;
+        if !lock.is_empty() {
+            return Ok(lock.clone());
+        }
+        *lock = FIREBIRD_KEYWORDS
+            .iter()
+            .map(|x| CompletionItem {
+                item: x.to_string().into(),
+                desc: None,
+                kind: CompletionKind::KeyWord,
+            })
+            .collect();
+        anyhow::Ok(lock.clone())
     }
     async fn list_function(
         &self, _schema: Option<&str>, _include_build_in: bool,
@@ -153,15 +166,20 @@ impl LangServerCommon for FireBirdDB {
         "#;
         let mut conn = self.get_conn()?;
         let rows: Vec<(String,)> = conn.query(sql, ())?;
-        anyhow::Ok(
-            rows.into_iter()
-                .map(|x| CompletionItem {
-                    item: x.0.trim().to_owned().into(),
-                    kind: CompletionKind::Function,
-                    desc: None,
-                })
-                .collect(),
-        )
+        let mut result: Vec<_> = rows
+            .into_iter()
+            .map(|x| CompletionItem {
+                item: x.0.trim().to_owned().into(),
+                kind: CompletionKind::Function,
+                desc: None,
+            })
+            .collect();
+        result.extend(FB_BUILTIN_FUNCTIONS.iter().map(|x| CompletionItem {
+            item: (*x).into(),
+            kind: CompletionKind::Function,
+            desc: None,
+        }));
+        anyhow::Ok(result)
     }
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
         Box::new(sqlparser::dialect::GenericDialect {})
@@ -174,46 +192,37 @@ impl LangServerCommon for FireBirdDB {
                 RDB$RELATIONS
             WHERE 
                 RDB$VIEW_BLR IS NULL  -- 排除视图
-       "#;
+        "#;
         let mut conn = self.get_conn()?;
         let rows: Vec<(String,)> = conn.query(sql, ())?;
         anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
     }
     async fn list_view(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let sql = r#"
-          SELECT RDB$RELATION_NAME
+        SELECT RDB$RELATION_NAME
             FROM RDB$RELATIONS
             WHERE RDB$VIEW_BLR IS NOT NULL;
-   "#;
+        "#;
         let mut conn = self.get_conn()?;
         let rows: Vec<(String,)> = conn.query(sql, ())?;
         anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
     }
 }
-//  https://firebirdsql.org/refdocs/langrefupd25-reskeywords-full-keywords.html
-const KEY_WORDS: &[&str] = &[
-    "ABS",
-    "ACCENT",
-    "ACOS",
-    "ACTION",
+/// 给我firebird的完成的关键字列表rust数组 并且去掉了内置函数
+/// Firebird 4.0 **保留关键字**（不含内置函数）
+pub const FIREBIRD_KEYWORDS: &[&str] = &[
     "ACTIVE",
     "ADD",
     "ADMIN",
     "AFTER",
     "ALL",
     "ALTER",
-    "ALWAYS",
     "AND",
     "ANY",
     "AS",
     "ASC",
     "ASCENDING",
-    "ASCII_CHAR",
-    "ASCII_VAL",
-    "ASIN",
     "AT",
-    "ATAN",
-    "ATAN2",
     "AUTO",
     "AUTONOMOUS",
     "AVG",
@@ -222,12 +231,6 @@ const KEY_WORDS: &[&str] = &[
     "BEGIN",
     "BETWEEN",
     "BIGINT",
-    "BIN_AND",
-    "BIN_NOT",
-    "BIN_OR",
-    "BIN_SHL",
-    "BIN_SHR",
-    "BIN_XOR",
     "BIT_LENGTH",
     "BLOB",
     "BLOCK",
@@ -238,13 +241,8 @@ const KEY_WORDS: &[&str] = &[
     "CASCADE",
     "CASE",
     "CAST",
-    "CEIL",
-    "CEILING",
     "CHAR",
-    "CHAR_LENGTH",
-    "CHAR_TO_UUID",
     "CHARACTER",
-    "CHARACTER_LENGTH",
     "CHECK",
     "CLOSE",
     "COALESCE",
@@ -260,9 +258,6 @@ const KEY_WORDS: &[&str] = &[
     "CONNECT",
     "CONSTRAINT",
     "CONTAINING",
-    "COS",
-    "COSH",
-    "COT",
     "COUNT",
     "CREATE",
     "CROSS",
@@ -277,15 +272,11 @@ const KEY_WORDS: &[&str] = &[
     "CURRENT_USER",
     "CURSOR",
     "DATA",
-    "DATABASE",
     "DATE",
-    "DATEADD",
-    "DATEDIFF",
     "DAY",
     "DEC",
     "DECIMAL",
     "DECLARE",
-    "DECODE",
     "DEFAULT",
     "DELETE",
     "DELETING",
@@ -306,17 +297,13 @@ const KEY_WORDS: &[&str] = &[
     "EXCEPTION",
     "EXECUTE",
     "EXISTS",
-    "EXIT",
-    "EXP",
     "EXTERNAL",
     "EXTRACT",
     "FETCH",
     "FILE",
     "FILTER",
     "FIRST",
-    "FIRSTNAME",
     "FLOAT",
-    "FLOOR",
     "FOR",
     "FOREIGN",
     "FREE_IT",
@@ -325,7 +312,6 @@ const KEY_WORDS: &[&str] = &[
     "FUNCTION",
     "GDSCODE",
     "GEN_ID",
-    "GEN_UUID",
     "GENERATED",
     "GENERATOR",
     "GLOBAL",
@@ -337,7 +323,6 @@ const KEY_WORDS: &[&str] = &[
     "HOUR",
     "IF",
     "IGNORE",
-    "IIF",
     "IN",
     "INACTIVE",
     "INDEX",
@@ -353,8 +338,8 @@ const KEY_WORDS: &[&str] = &[
     "ISOLATION",
     "JOIN",
     "KEY",
+    "LAG",
     "LAST",
-    "LASTNAME",
     "LEADING",
     "LEAVE",
     "LEFT",
@@ -363,27 +348,24 @@ const KEY_WORDS: &[&str] = &[
     "LIKE",
     "LIMBO",
     "LIST",
-    "LN",
+    "LOCAL",
+    "LOCALTIME",
+    "LOCALTIMESTAMP",
     "LOCK",
     "LOG",
-    "LOG10",
     "LONG",
     "LOWER",
     "LPAD",
     "MANUAL",
     "MAPPING",
+    "MATCH",
     "MATCHED",
-    "MATCHING",
     "MAX",
+    "MAXIMUM",
     "MAXIMUM_SEGMENT",
-    "MAXVALUE",
     "MERGE",
-    "MIDDLENAME",
-    "MILLISECOND",
     "MIN",
     "MINUTE",
-    "MINVALUE",
-    "MOD",
     "MODULE_NAME",
     "MONTH",
     "NAMES",
@@ -408,6 +390,7 @@ const KEY_WORDS: &[&str] = &[
     "OS_NAME",
     "OUTER",
     "OUTPUT_TYPE",
+    "OVER",
     "OVERFLOW",
     "OVERLAY",
     "PAD",
@@ -428,7 +411,6 @@ const KEY_WORDS: &[&str] = &[
     "PRIVILEGES",
     "PROCEDURE",
     "PROTECTED",
-    "RAND",
     "RDB$DB_KEY",
     "READ",
     "REAL",
@@ -452,7 +434,7 @@ const KEY_WORDS: &[&str] = &[
     "RIGHT",
     "ROLE",
     "ROLLBACK",
-    "ROUND",
+    "ROW",
     "ROW_COUNT",
     "ROWS",
     "RPAD",
@@ -463,15 +445,10 @@ const KEY_WORDS: &[&str] = &[
     "SEGMENT",
     "SELECT",
     "SENSITIVE",
-    "SEQUENCE",
     "SET",
     "SHADOW",
     "SHARED",
-    "SIGN",
-    "SIMILAR",
-    "SIN",
     "SINGULAR",
-    "SINH",
     "SIZE",
     "SKIP",
     "SMALLINT",
@@ -480,37 +457,29 @@ const KEY_WORDS: &[&str] = &[
     "SORT",
     "SOURCE",
     "SPACE",
+    "SQL",
     "SQLCODE",
     "SQLSTATE",
-    "SQRT",
-    "STABILITY",
     "START",
     "STARTING",
-    "STARTS",
     "STATEMENT",
+    "STATIC",
     "STATISTICS",
     "SUB_TYPE",
-    "SUBSTRING",
     "SUM",
     "SUSPEND",
     "TABLE",
-    "TAN",
-    "TANH",
     "TEMPORARY",
     "THEN",
     "TIME",
-    "TIMEOUT",
     "TIMESTAMP",
     "TO",
     "TRAILING",
     "TRANSACTION",
     "TRIGGER",
     "TRIM",
-    "TRUNC",
-    "TWO_PHASE",
     "TYPE",
     "UNCOMMITTED",
-    "UNDO",
     "UNION",
     "UNIQUE",
     "UPDATE",
@@ -536,4 +505,66 @@ const KEY_WORDS: &[&str] = &[
     "WRITE",
     "YEAR",
     "YEARDAY",
+];
+
+/*
+    firebird所有的内置函数 ABS 之类的给我一个rust数组 我直接处理
+*/
+/// Firebird 内置函数（标量）名称表，按字母序
+pub const FB_BUILTIN_FUNCTIONS: &[&str] = &[
+    "ABS",
+    "ACOS",
+    "ASCII_CHAR",
+    "ASCII_VAL",
+    "ASIN",
+    "ATAN",
+    "ATAN2",
+    "BIN_AND",
+    "BIN_OR",
+    "BIN_XOR",
+    "BIT_LENGTH",
+    "CAST",
+    "CEIL",
+    "CEILING",
+    "CHAR_LENGTH",
+    "CHAR_TO_UUID",
+    "COS",
+    "COT",
+    "DATEADD",
+    "DATEDIFF",
+    "DAY",
+    "EXP",
+    "FLOOR",
+    "GEN_UUID",
+    "HASH",
+    "HOUR",
+    "LEFT",
+    "LN",
+    "LOG",
+    "LOWER",
+    "LPAD",
+    "MILLISECOND",
+    "MINUTE",
+    "MONTH",
+    "OCTET_LENGTH",
+    "PI",
+    "POWER",
+    "RAND",
+    "REPLACE",
+    "REVERSE",
+    "RIGHT",
+    "ROUND",
+    "RPAD",
+    "SECOND",
+    "SIGN",
+    "SIN",
+    "SQRT",
+    "SUBSTRING",
+    "TAN",
+    "TRIM",
+    "UPPER",
+    "UUID_TO_CHAR",
+    "WEEK",
+    "WEEKDAY",
+    "YEAR",
 ];

@@ -87,7 +87,7 @@ async function dropDatabase(props: {
       }
     })
     .catch((e) => {
-      showNotification('error', 'Drop failure', e);
+      showNotification('error', 'Drop failed', e);
     });
 }
 
@@ -209,11 +209,11 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
     }
   };
 
-  const singleLineCommnentReg = /(--[^\n]*|#[^\n]*)/g;
+  const singleLineCommentReg = /(--[^\n]*|#[^\n]*)/g;
   const stringReg = /\'(?:\\.|[^\\\'])*\'/;
   function initLanguageXXX(
     uuid: string,
-    Ilanguage: languages.IMonarchLanguage,
+    ILanguage: languages.IMonarchLanguage,
     autoCompletion: (
       text: string,
       pos: Position
@@ -227,7 +227,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
       .init()
       .then((monaco) => {
         monaco.languages.register({ id: uuid });
-        monaco.languages.setMonarchTokensProvider(uuid, Ilanguage);
+        monaco.languages.setMonarchTokensProvider(uuid, ILanguage);
         if (format) {
           monaco.languages.registerDocumentFormattingEditProvider(uuid, {
             provideDocumentFormattingEdits(model, options, _token) {
@@ -267,7 +267,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
               [stringReg, 'string'],
 
-              [singleLineCommnentReg, 'comment'],
+              [singleLineCommentReg, 'comment'],
             ],
           },
           brackets: [
@@ -311,7 +311,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
               [clickhouseKeyWords, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
               [stringReg, 'string'],
-              [singleLineCommnentReg, 'comment'],
+              [singleLineCommentReg, 'comment'],
             ],
           },
           brackets: [
@@ -334,7 +334,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
               [tidbKeywords, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
               [stringReg, 'string'],
-              [singleLineCommnentReg, 'comment'],
+              [singleLineCommentReg, 'comment'],
             ],
           },
           brackets: [
@@ -357,7 +357,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
               [sqliteKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [stringReg, 'string'],
-              [singleLineCommnentReg, 'comment'],
+              [singleLineCommentReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
@@ -375,7 +375,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
               [firebirdKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [stringReg, 'string'],
-              [singleLineCommnentReg, 'comment'],
+              [singleLineCommentReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
@@ -393,7 +393,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
               [duckdbKeyWords, 'keyword'],
               [/[_a-z\$][_a-z0-9\$]*/i, 'identifier'],
               [stringReg, 'string'],
-              [singleLineCommnentReg, 'comment'],
+              [singleLineCommentReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
@@ -412,7 +412,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
               [postgresKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
-              [singleLineCommnentReg, 'comment'],
+              [singleLineCommentReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
@@ -432,7 +432,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
               [/\"(?:\\.|[^\"\"])*\"/, 'string'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
 
-              [singleLineCommnentReg, 'comment'],
+              [singleLineCommentReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
@@ -451,7 +451,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
               [/\"(?:\\.|[^\\\"])*\"/, 'string'],
-              [singleLineCommnentReg, 'comment'],
+              [singleLineCommentReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
@@ -482,7 +482,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
               [oracleKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
-              [singleLineCommnentReg, 'comment'],
+              [singleLineCommentReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,
@@ -500,7 +500,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
               [cassandraKeywords, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
-              [singleLineCommnentReg, 'comment'],
+              [singleLineCommentReg, 'comment'],
             ],
           },
         } as languages.IMonarchLanguage,

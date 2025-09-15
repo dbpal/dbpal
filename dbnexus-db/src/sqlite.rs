@@ -252,7 +252,7 @@ impl SqliteDB {
             .await
     }
 }
-// TODO sqlparse don't support parse trigger statement
+// TODO sqlparser don't support parse trigger statement
 // use lexer to solve this issue.
 fn extract_trigger_detail_on_lexer(name: &str, sql: String) -> anyhow::Result<TriggerDetail> {
     let t = sqlparser::tokenizer::Tokenizer::new(&sqlparser::dialect::SQLiteDialect {}, &sql)
@@ -952,7 +952,7 @@ impl SqlBuilder for SqliteDB {
                 None => "null".to_string(),
             },
             "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
-            _ if integer_like(typ.as_str()) || numreic_like(typ.as_str()) => {
+            _ if integer_like(typ.as_str()) || numeric_like(typ.as_str()) => {
                 value.unwrap_or("null").to_string()
             }
             "BLOB" => value.unwrap_or("null").to_string(),
@@ -1024,7 +1024,7 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
                 .unwrap_or(null_value.clone())
             }
 
-            _ if numreic_like(&typ) => {
+            _ if numeric_like(&typ) => {
                 let v: Option<f64> = r.try_get(c)?;
                 v.map(serde_json::Value::from).unwrap_or(null_value.clone())
             }
@@ -1067,7 +1067,7 @@ pub(crate) fn integer_like(typ: &str) -> bool {
         || typ == "INT8"
 }
 
-pub(crate) fn numreic_like(typ: &str) -> bool {
+pub(crate) fn numeric_like(typ: &str) -> bool {
     typ == "NUMERIC" || typ.starts_with("DECIMAL")
 }
 
@@ -1138,7 +1138,7 @@ fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>
                         }
                     }
                 }
-                _ if numreic_like(ty) => {
+                _ if numeric_like(ty) => {
                     let v: Option<f64> = r.try_get(c)?;
                     v.map(|x| format!("{}", x))
                 }
@@ -1756,13 +1756,13 @@ mod tests {
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
         for i in 0..10 {
-            let tablename = format!("has_data_{}", i);
-            let err = db.drop_table(&tablename, false).await;
+            let table_name = format!("has_data_{}", i);
+            let err = db.drop_table(&table_name, false).await;
             if let Err(err) = err {
                 println!("drop table error:{:?}", err);
             }
             let create_table = format!(
-                r#"create table {tablename} (
+                r#"create table {table_name} (
                 col1 real,
                 col2 real,
                 col3 real,
@@ -1778,7 +1778,7 @@ mod tests {
             println!("create table result:{:?}", result);
             for _ in 0..1550 {
                 let sql = format!(
-                    "insert into {tablename} values({} , {} , {} , {} ,{} ,{} ,{});",
+                    "insert into {table_name} values({} , {} , {} , {} ,{} ,{} ,{});",
                     rand::random::<f64>() * 100000f64,
                     rand::random::<f64>() * 100000f64,
                     rand::random::<f64>() * 100000f64,
@@ -2170,7 +2170,7 @@ mod tests {
         .execute(conn.deref_mut())
         .await
         .unwrap();
-        println!("\nafetr here are view test.\n");
+        println!("\n after here are view test.\n");
 
         let views = db.list_view().await.unwrap();
         for v in views.iter() {

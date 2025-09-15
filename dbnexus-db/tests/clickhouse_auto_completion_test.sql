@@ -14,3 +14,5 @@ ALTER TABLE employees DROP PROJECTION employee_salary_projection;
 22 employees
 SELECT * FROM file('data.csv', 'CSV')
 18 file
+SELECT * from (SELECT abs(-1) as abs) where abs 
+48 abs
