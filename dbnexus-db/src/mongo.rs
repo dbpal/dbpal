@@ -116,7 +116,7 @@ impl DBTrait for MongoDB {
             .into_iter()
             .collect::<HashSet<String>>();
         names.extend(
-            <DashSet<std::string::String> as Clone>::clone(&self.created_databases).into_iter(),
+            <DashSet<std::string::String> as Clone>::clone(&self.created_databases),
         );
         let mut names = names.into_iter().collect::<Vec<_>>();
         names.sort();

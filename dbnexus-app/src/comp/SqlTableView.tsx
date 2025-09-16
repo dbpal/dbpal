@@ -141,14 +141,23 @@ function WhereSort(props: {
   value: string;
   setValue;
   label;
+  tableName;
   fields: types.Field[];
   autoCompletion: (
     sql: string,
     pos: Position
   ) => Promise<languages.CompletionList>;
 }) {
-  const { open, handleClose, value, setValue, label, fields, autoCompletion } =
-    props;
+  const {
+    open,
+    handleClose,
+    value,
+    setValue,
+    label,
+    tableName,
+    fields,
+    autoCompletion,
+  } = props;
   const [newValue, setNewValue] = useState(value);
 
   whereAutoCompletion = async (sql, p) => {
@@ -199,7 +208,7 @@ function WhereSort(props: {
           language={whereLanguage}
         ></SimpleFlexEditor>
 
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
           <Button
             variant="contained"
             onClick={() => {
@@ -218,6 +227,16 @@ function WhereSort(props: {
             >
               clear
             </Button>
+          )}
+          {label == 'filter' && newValue && (
+            <Typography color="success">
+              {`select * from ${tableName} where ${newValue}`}
+            </Typography>
+          )}
+          {label == 'sort' && newValue && (
+            <Typography color="success">
+              {`select * from ${tableName} order by ${newValue}`}
+            </Typography>
           )}
         </Stack>
       </Box>
@@ -956,6 +975,7 @@ function SqlTableView_(props: {
 
       {showSetWhere && (
         <WhereSort
+          tableName={tableName}
           open={showSetWhere}
           value={where}
           setValue={(v) => {
@@ -971,6 +991,7 @@ function SqlTableView_(props: {
       )}
       {showSetSort && (
         <WhereSort
+          tableName={tableName}
           autoCompletion={autoCompletion}
           open={showSetSort}
           value={sort}

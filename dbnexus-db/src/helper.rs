@@ -37,7 +37,7 @@ pub fn separate_sql_by_sqlparser_tokenizer(
     for t in tokens.iter() {
         match t {
             Token::SemiColon => {
-                if cache.len() > 0 {
+                if !cache.is_empty() {
                     ret.push(cache.join(" "));
                     cache.clear();
                 }
@@ -47,7 +47,7 @@ pub fn separate_sql_by_sqlparser_tokenizer(
             }
         }
     }
-    if cache.len() > 0 {
+    if !cache.is_empty() {
         ret.push(cache.join(" "));
     }
 
@@ -190,5 +190,19 @@ mod tests {
                 println!("{}", s);
             }
         }
+    }
+}
+
+#[inline]
+pub(crate) fn remove_first_char_string(s: String) -> String {
+    s.chars().skip(1).collect()
+}
+
+// try remove a @ used for mysql etc database
+pub(crate) fn try_remove_at(value: String) -> String {
+    if value.starts_with('@') && !value.starts_with("@@") {
+        remove_first_char_string(value)
+    } else {
+        value
     }
 }

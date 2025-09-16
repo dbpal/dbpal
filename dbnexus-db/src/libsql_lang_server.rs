@@ -29,27 +29,59 @@ impl LanguageServer for LibSqlDB {
 impl crate::language_server::LexerCompletionTrait for LibSqlDB {
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = SQLITE_TYPES;
-
-    async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut x = AstCompletionHelper::sqlite_pragma(self).await?;
-        let y = AstCompletionHelper::sqlite_module_name(self).await?;
-        x.extend(y.into_iter().map(|x| CompletionItem {
-            item: x.into(),
-            kind: CompletionKind::Module,
-            desc: None,
-        }));
-        anyhow::Ok(x)
-    }
 }
 
 #[async_trait::async_trait]
 impl LangServerCommon for LibSqlDB {
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = Self::merge_schema(schema);
+        self.list_index_name_impl(schema).await
+    }
+    async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
+        let sql = "SELECT name  FROM pragma_module_list";
+        let conn = self.get_conn().await?;
+        let mut rows = conn.query(sql, params!()).await?;
+        let mut ret = vec![];
+        while let Some(row) = rows.next().await? {
+            let name: String = row.get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut lock = self.pragma_completion.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+        let sql: &'static str = r#"
+            PRAGMA pragma_list
+        "#;
+        let mut ret = vec![];
+        let conn = self.get_conn().await?;
+        let mut rows = conn.query(sql, params!()).await?;
+        while let Some(row) = rows.next().await? {
+            let name: String = row.get(0)?;
+            ret.push(CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Pragma,
+                desc: None,
+            });
+        }
+        *lock = ret;
+        return anyhow::Ok(lock.clone());
+    }
+
     async fn list_column(
-        &self, _schema: Option<&str>, name: &str, is_call: bool,
+        &self, _schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!(
             r#"select * from "{name}"{} limit 1"#,
-            if is_call { "()" } else { "" }
+            if let Some(args) = is_call {
+                format!("({})", args.join(","))
+            } else {
+                "".to_string()
+            }
         );
         self.get_query_columns(&sql).await
     }
@@ -146,17 +178,6 @@ impl LibSqlDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for LibSqlDB {
-    async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
-        let sql = "SELECT name  FROM pragma_module_list";
-        let conn = self.get_conn().await?;
-        let mut rows = conn.query(sql, params!()).await?;
-        let mut ret = vec![];
-        while let Some(row) = rows.next().await? {
-            let name: String = row.get(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
-    }
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let conn = self.get_conn().await?;
         log::info!("sql:{}", sql);
@@ -183,34 +204,6 @@ impl AstCompletionHelper for LibSqlDB {
                 })
                 .collect(),
         )
-    }
-
-    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::merge_schema(schema);
-        self.list_index_name_impl(schema).await
-    }
-
-    async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.pragma_completion.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
-        let sql: &'static str = r#"
-            PRAGMA pragma_list
-        "#;
-        let mut ret = vec![];
-        let conn = self.get_conn().await?;
-        let mut rows = conn.query(sql, params!()).await?;
-        while let Some(row) = rows.next().await? {
-            let name: String = row.get(0)?;
-            ret.push(CompletionItem {
-                item: name.into(),
-                kind: CompletionKind::Pragma,
-                desc: None,
-            });
-        }
-        *lock = ret;
-        return anyhow::Ok(lock.clone());
     }
 }
 

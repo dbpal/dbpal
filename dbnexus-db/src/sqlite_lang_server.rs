@@ -11,13 +11,57 @@ use crate::sqlparser_completion::TempTableColumn;
 
 #[async_trait::async_trait]
 impl LangServerCommon for SqliteDB {
+    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = Self::merge_schema(_schema);
+        self.list_index_name_impl(schema).await
+    }
+
+    // issue https://github.com/launchbadge/sqlx/issues/4010
+    async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
+        let sql = "SELECT name  FROM pragma_module_list";
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = vec![];
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+    async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let mut lock = self.pragma_completion.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+        let sql = "PRAGMA pragma_list";
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            ret.push(CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Pragma,
+                desc: None,
+            });
+        }
+        *lock = ret.clone();
+        return anyhow::Ok(lock.clone());
+    }
+
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: bool,
+        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let schema = Self::merge_schema(schema);
         let sql = format!(
             r#"select * from "{schema}"."{name}{}" limit 1"#,
-            if is_call { "()" } else { "" }
+            if let Some(is_call) = is_call {
+                format!("({})", is_call.join(","))
+            } else {
+                "".to_string()
+            }
         );
         log::info!("sql:{}", sql);
         self.get_query_columns(&sql).await
@@ -126,17 +170,6 @@ impl LangServerCommon for SqliteDB {
 impl crate::language_server::LexerCompletionTrait for SqliteDB {
     const TEXTS: &'static [&'static str] = &["true", "false"];
     const TYPES: &'static [&'static str] = SQLITE_TYPES;
-
-    async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut x = AstCompletionHelper::sqlite_pragma(self).await?;
-        let y = AstCompletionHelper::sqlite_module_name(self).await?;
-        x.extend(y.into_iter().map(|x| CompletionItem {
-            item: x.into(),
-            kind: CompletionKind::Module,
-            desc: None,
-        }));
-        anyhow::Ok(x)
-    }
 }
 
 #[async_trait::async_trait]
@@ -200,21 +233,6 @@ impl SqliteDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for SqliteDB {
-    // issue https://github.com/launchbadge/sqlx/issues/4010
-    async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
-        let sql = "SELECT name  FROM pragma_module_list";
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = vec![];
-        for row in rows.iter() {
-            let name: String = row.try_get(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
-    }
-
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let s = match self.query_connection.get(&AutoCompletionQueryUuid::get()) {
             Some(conn) => {
@@ -241,32 +259,6 @@ impl AstCompletionHelper for SqliteDB {
             })
             .collect::<Vec<_>>();
         anyhow::Ok(ret)
-    }
-
-    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = Self::merge_schema(_schema);
-        self.list_index_name_impl(schema).await
-    }
-
-    async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.pragma_completion.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
-        let sql = "PRAGMA pragma_list";
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let name: String = row.try_get(0)?;
-            ret.push(CompletionItem {
-                item: name.into(),
-                kind: CompletionKind::Pragma,
-                desc: None,
-            });
-        }
-        *lock = ret.clone();
-        return anyhow::Ok(lock.clone());
     }
 }
 

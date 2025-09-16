@@ -1,3 +1,14 @@
+/*
+
+MySQL 只允许省略 sys. 前缀直接调用“函数”，对“存储过程（PROCEDURE）”没有开同样的绿灯。
+换言之：
+对表（table）和视图（view）更没有“绿灯”——
+它们必须用“库名.对象名”或先 USE 库名 再裸写对象名，否则就报 ERROR 1146 (42S02): Table 'db.tbl' doesn't exist。
+一句话：
+函数（function）：sys 独享全局免前缀。
+过程（procedure）、表（table）、视图（view）：一律没有特权，想跨库访问就老老实实加前缀或切换默认库。
+*/
+
 use crate::db::{AutoCompletionQueryUuid, name_start_ascii_alphabetic};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
@@ -6,40 +17,12 @@ use crate::language_server::{
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
 use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
-use std::borrow::Cow;
 use std::ops::DerefMut;
 
 use sqlx::{Column, Executor, Statement};
 #[async_trait::async_trait]
 impl LexerCompletionTrait for MysqlDB {
     const TYPES: &'static [&'static str] = MYSQL_TYPES;
-
-    async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        self.build_fn_completion_items().await
-    }
-}
-
-impl MysqlDB {
-    async fn build_fn_completion_items(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut conn = self.get_conn().await?;
-
-        let rows = sqlx::raw_sql("SHOW FUNCTION STATUS;")
-            .fetch_all(conn.deref_mut())
-            .await
-            .unwrap();
-        let mut ret: Vec<_> = Vec::with_capacity(rows.len());
-
-        for r in rows.iter() {
-            // let db: String = r.get(0);
-            let name: String = r.get(1);
-            ret.push(CompletionItem {
-                item: Cow::Owned(name),
-                kind: crate::language_server::CompletionKind::Function,
-                desc: None,
-            });
-        }
-        anyhow::Ok(ret)
-    }
 }
 
 #[async_trait::async_trait]
@@ -59,15 +42,37 @@ impl LanguageServer for MysqlDB {
 }
 
 impl MysqlDB {
-    pub(crate) fn merge_schema(&self, schema: Option<&str>) -> Option<String> {
+    pub(crate) async fn merge_schema(&self, schema: Option<&str>) -> Option<String> {
         if schema.is_some() {
             return schema.map(|x| x.to_string());
+        }
+        // check if user use `use` to select database
+        let used_db = match self.query_connection.get(&AutoCompletionQueryUuid::get()) {
+            Some(x) => {
+                let mut conn = x.lock().await;
+                let conn = conn.deref_mut();
+                let sql = "SELECT DATABASE();";
+                let row = sqlx::raw_sql(sql).fetch_one(conn.deref_mut()).await.ok();
+                match row {
+                    Some(row) => {
+                        let name: Option<String> = row.try_get(0).ok().flatten();
+                        name
+                    }
+                    None => None,
+                }
+            }
+            None => None,
+        };
+        if used_db.is_some() {
+            return used_db;
         }
         self.config.db.as_ref().map(|x| x.to_string())
     }
 
-    pub(crate) fn not_allow_empty_schema(&self, schema: Option<&str>) -> anyhow::Result<String> {
-        match self.merge_schema(schema) {
+    pub(crate) async fn not_allow_empty_schema(
+        &self, schema: Option<&str>,
+    ) -> anyhow::Result<String> {
+        match self.merge_schema(schema).await {
             Some(x) => anyhow::Ok(x),
             None => anyhow::bail!("empty schema"),
         }
@@ -76,17 +81,70 @@ impl MysqlDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for MysqlDB {
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let schema = self.not_allow_empty_schema(schema).await?;
+        let sql = format!(
+            r#"
+        SELECT   INDEX_NAME 
+        FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = '{}'"#,
+            schema
+        );
+        log::info!("sql:{}", sql);
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
+        let sql = "show variables";
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_user(&self) -> anyhow::Result<Vec<String>> {
+        let sql = "SELECT  DISTINCT  user FROM mysql.user";
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+
+        for r in rows {
+            let name: String = r.try_get(0)?;
+            ret.push(name);
+        }
+        anyhow::Ok(ret)
+    }
+
+    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_user(self).await
+    }
+
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: bool,
+        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let sql = if is_call {
+        let sql = if let Some(args) = is_call {
             format!(
-                r#"select {}`{}`()"#,
+                r#"select {}`{}`({})"#,
                 match schema {
                     Some(x) => format!("`{}`.", x),
                     None => "".to_string(),
                 },
                 name,
+                args.join(","),
             )
         } else {
             format!(
@@ -130,13 +188,13 @@ impl LangServerCommon for MysqlDB {
     async fn list_function(
         &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let schema = self.merge_schema(schema);
+        let schema = self.merge_schema(schema).await;
         let mut conn = self.get_conn().await?;
-        let mut ret = if let Some(schema) = schema {
+        let mut ret = if let Some(schema) = &schema {
             crate::mysql::FunctionOrProcedure::query_list(
                 crate::mysql::FunctionOrProcedure::Function,
                 conn.deref_mut(),
-                &schema,
+                schema,
             )
             .await
             .map(|x| {
@@ -163,7 +221,15 @@ impl LangServerCommon for MysqlDB {
     }
 
     async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = self.not_allow_empty_schema(schema)?;
+        /*
+        mysql在数据库test可以直接调用sys的procedure 不使用sys这个前缀
+        编辑
+        复制
+        不行。
+        MySQL 只允许省略 sys. 前缀直接调用“函数”，对“存储过程（PROCEDURE）”没有开同样的绿灯。
+        换言之：
+        */
+        let schema = self.not_allow_empty_schema(schema).await?;
         let mut conn = self.get_conn().await?;
         crate::mysql::FunctionOrProcedure::query_list(
             crate::mysql::FunctionOrProcedure::Procedure,
@@ -173,14 +239,14 @@ impl LangServerCommon for MysqlDB {
         .await
     }
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = self.not_allow_empty_schema(schema)?;
+        let schema = self.not_allow_empty_schema(schema).await?;
         self.list_table_impl(&schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = self.not_allow_empty_schema(schema)?;
+        let schema = self.not_allow_empty_schema(schema).await?;
         self.list_view_impl(&schema)
             .await
             .map(|x| x.into_iter().map(|x| x.name).collect())
@@ -209,7 +275,7 @@ impl LangServerCommon for MysqlDB {
         let sql = r#"
             SELECT  sql_text ,statement_name   
                 FROM performance_schema.prepared_statements_instances WHERE 
-                 statement_name is not null;
+                statement_name is not null;
         "#;
         let rows = sqlx::raw_sql(AssertSqlSafe(sql))
             .fetch_all(conn.deref_mut())
@@ -230,13 +296,13 @@ impl LangServerCommon for MysqlDB {
 #[async_trait::async_trait]
 impl AstCompletionHelper for MysqlDB {
     async fn mysql_show_create_trigger(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let schema = self.not_allow_empty_schema(None)?;
+        let schema = self.not_allow_empty_schema(None).await?;
         let sql = format!(
             r#"
             SELECT TRIGGER_NAME 
                 FROM INFORMATION_SCHEMA.TRIGGERS
                 WHERE TRIGGER_SCHEMA = '{}'
-         "#,
+            "#,
             schema
         );
         let mut conn = self.get_conn().await?;
@@ -274,46 +340,10 @@ impl AstCompletionHelper for MysqlDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = self.not_allow_empty_schema(schema)?;
-        let sql = format!(
-            r#"
-        SELECT   INDEX_NAME 
-        FROM information_schema.STATISTICS
-        WHERE TABLE_SCHEMA = '{}'"#,
-            schema
-        );
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
-        let sql = "show variables";
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
-    }
-
     async fn list_partition(
         &self, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        let schema = self.not_allow_empty_schema(schema)?;
+        let schema = self.not_allow_empty_schema(schema).await?;
         let sql = format!(
             r#"
         SELECT PARTITION_NAME
@@ -334,27 +364,10 @@ impl AstCompletionHelper for MysqlDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_user(&self) -> anyhow::Result<Vec<String>> {
-        let sql = "SELECT  DISTINCT  user FROM mysql.user";
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-
-        for r in rows {
-            let name: String = r.try_get(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
-    }
-
-    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_user(self).await
-    }
-
     async fn list_constraint(
         &self, schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
-        let schema = self.not_allow_empty_schema(schema)?;
+        let schema = self.not_allow_empty_schema(schema).await?;
         let sql = format!(
             r#"SELECT CONSTRAINT_NAME
                 FROM information_schema.TABLE_CONSTRAINTS
@@ -378,7 +391,7 @@ impl AstCompletionHelper for MysqlDB {
     async fn list_table_trigger(
         &self, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        let schema = self.not_allow_empty_schema(schema)?;
+        let schema = self.not_allow_empty_schema(schema).await?;
         let sql = format!(
             r#"SELECT TRIGGER_NAME
                 FROM information_schema.TRIGGERS
@@ -405,8 +418,8 @@ mod tests {
 
     use crate::datasource_config::MysqlDBConfig;
     use crate::db::{AutoCompletionQueryUuid, QuerySql, monaco_editor_keyword_regexp};
-    use crate::language_server::LangServerCommon;
     use crate::language_server::completion_test::test_file_auto_completion;
+    use crate::language_server::{LangServerCommon, LanguageServer};
     use crate::mysql::MysqlDB;
     use crate::{TEST_HOST, enable_test_log};
 
@@ -431,7 +444,6 @@ mod tests {
     #[tokio::test]
     async fn print_key_words() {
         let db = make_test_object(make_config()).await;
-
         let keywords = <MysqlDB as LangServerCommon>::key_words(&db)
             .await
             .unwrap()
@@ -539,6 +551,24 @@ mod tests {
                 .iter()
                 .any(|x| x.name.eq("stmtxxx"))
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+
+    async fn test_at_variable_lexer() {
+        let sql = include_str!("../tests/mysql_at_var_lexer.sql");
+        let db = make_test_object(make_config()).await;
+
+        let item = LanguageServer::auto_completion(&db, sql, 2, 11, true)
+            .await
+            .unwrap();
+        item.iter().for_each(|x| {
+            if x.item.contains("my_var") {
+                println!("!!!!!:{:?}", x.item);
+            }
+        });
+
+        assert!(item.iter().any(|x| x.item == "my_var"));
     }
 }
 

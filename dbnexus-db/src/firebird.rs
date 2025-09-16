@@ -299,10 +299,10 @@ impl ExportQueryResult for FireBirdDB {
         let sql = sql.to_owned();
         tokio::task::spawn_blocking(move || {
             let mut row_num = 0;
-            let mut stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
+            let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
             let mut first = true;
-            while let Some(row) = stream.next() {
+            for row in stream {
                 let row = row?;
                 if first && include_header {
                     for (index, col) in row.cols.iter().enumerate() {

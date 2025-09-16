@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use cdrs_tokio::types::IntoRustByIndex;
 use cql3_parser::alter_table::AlterTableOperation;
 use cql3_parser::alter_type::AlterTypeOperation;
@@ -9,9 +11,10 @@ use cql3_parser::common::{
 use cql3_parser::create_index::IndexColumnType;
 use cql3_parser::insert::InsertValues;
 use cql3_parser::select::SelectElement;
+use tokio::sync::Mutex;
 
-use crate::cassandra::CassandraDB;
-use crate::db::{CreatedTypeDef, DBTrait};
+use crate::cassandra::{AppSession, CassandraDB};
+use crate::db::{AutoCompletionQueryUuid, CreatedTypeDef, DBTrait};
 use crate::language_server::{
     CompletionItem, CompletionKind, ErrAndLoc, LangServerCommon, LanguageServer,
     LexerCompletionTrait, remove_duplicate,
@@ -30,7 +33,7 @@ impl LanguageServer for CassandraDB {
         let r = AstCompletion::completion(sql, line - 1, col - 1, Clone::clone(self)).await;
         match r {
             Ok(mut x) => {
-                x.extend(dot.unwrap_or_default().into_iter());
+                x.extend(dot.unwrap_or_default());
                 return anyhow::Ok(remove_duplicate(x));
             }
             Err(x) => {
@@ -107,13 +110,28 @@ impl LexerCompletionTrait for CassandraDB {
     const TYPES: &'static [&'static str] = CASSANDRA_TYPES;
 }
 
+impl CassandraDB {
+    fn get_query_session(&self) -> anyhow::Result<Arc<Mutex<AppSession>>> {
+        match self.query_connection.get(&AutoCompletionQueryUuid::get()) {
+            Some(x) => anyhow::Ok(x.clone()),
+            None => anyhow::bail!("connection closed???"),
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl LangServerCommon for CassandraDB {
-    async fn list_created_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
-        match self.merge_schema(schema) {
-            Some(s) => self.list_created_types_impl(&s).await,
-            None => anyhow::Ok(vec![]),
-        }
+    async fn list_index(&self, key_space: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let key_space = self.need_key_space(key_space).await?;
+
+        self.get_index_name(&key_space).await
+    }
+
+    async fn list_created_type(
+        &self, key_space: Option<&str>,
+    ) -> anyhow::Result<Vec<CreatedTypeDef>> {
+        let key_space = self.need_key_space(key_space).await?;
+        self.list_created_types_impl(&key_space).await
     }
 
     /*
@@ -122,25 +140,21 @@ impl LangServerCommon for CassandraDB {
         in sqlparser completion helper
     */
     async fn list_column(
-        &self, schema: Option<&str>, table_name: &str, _is_call: bool,
+        &self, key_space: Option<&str>, table_name: &str, _is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let key_space = self.merge_schema(schema);
-        if key_space.is_none() {
-            return Err(anyhow::anyhow!("keyspace is not set"));
-        }
+        let key_space = self.need_key_space(key_space).await?;
         // this sql can query view columns too.
         let sql = format!(
             "SELECT column_name ,type
                             FROM system_schema.columns 
                             WHERE keyspace_name = '{}' 
                             AND table_name = '{}';",
-            key_space.unwrap(),
-            table_name,
+            key_space, table_name,
         );
         log::info!("sql:{}", sql);
-
-        let rows = self
-            .session
+        let session = self.get_query_session()?;
+        let session = session.lock().await;
+        let rows = session
             .query(sql)
             .await?
             .response_body()?
@@ -171,35 +185,32 @@ impl LangServerCommon for CassandraDB {
         anyhow::Ok(r)
     }
     async fn list_function(
-        &self, schema: Option<&str>, include_build_in: bool,
+        &self, key_space: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let mut ret = Vec::new();
-        let schema = self.merge_schema(schema);
-        if let Some(key_space) = schema.as_ref() {
-            ret.extend(
-                self.list_aggregate_impl(key_space)
-                    .await?
-                    .into_iter()
-                    .map(|x| CompletionItem {
-                        kind: CompletionKind::Function,
-                        desc: x.cassandra_parameters.clone().map(|x| x.join(",").into()),
-                        item: x.name.clone().into(),
-                    }),
-            );
-
-            ret.extend(
-                self.list_udf_impl(key_space)
-                    .await?
-                    .into_iter()
-                    .map(|x| CompletionItem {
-                        kind: CompletionKind::Function,
-                        desc: x.cassandra_parameters.clone().map(|x| x.join(",").into()),
-                        item: x.name.clone().into(),
-                    }),
-            );
-        }
+        let key_space = self.need_key_space(key_space).await?;
+        ret.extend(
+            self.list_aggregate_impl(&key_space)
+                .await?
+                .into_iter()
+                .map(|x| CompletionItem {
+                    kind: CompletionKind::Function,
+                    desc: x.cassandra_parameters.clone().map(|x| x.join(",").into()),
+                    item: x.name.clone().into(),
+                }),
+        );
+        ret.extend(
+            self.list_udf_impl(&key_space)
+                .await?
+                .into_iter()
+                .map(|x| CompletionItem {
+                    kind: CompletionKind::Function,
+                    desc: x.cassandra_parameters.clone().map(|x| x.join(",").into()),
+                    item: x.name.clone().into(),
+                }),
+        );
         if include_build_in {
-            ret.extend(self.cassandra_build_in_fns().into_iter());
+            ret.extend(self.cassandra_build_in_fns());
         }
         anyhow::Ok(ret)
     }
@@ -209,24 +220,17 @@ impl LangServerCommon for CassandraDB {
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
         Box::new(sqlparser::dialect::GenericDialect {})
     }
-    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = self.merge_schema(schema);
-        match schema {
-            Some(schema) => CassandraDB::list_table_impl(self, &schema)
-                .await
-                .map(|x| x.into_iter().map(|x| x.name).collect()),
-            None => anyhow::Ok(vec![]),
-        }
+    async fn list_table(&self, key_space: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let key_space = self.need_key_space(key_space).await?;
+        CassandraDB::list_table_impl(self, &key_space)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
     }
-    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = self.merge_schema(schema);
-        match schema {
-            Some(schema) => self
-                .list_materialized_view_impl(&schema)
-                .await
-                .map(|x| x.into_iter().map(|x| x.name).collect()),
-            None => anyhow::Ok(vec![]),
-        }
+    async fn list_view(&self, key_space: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let key_space = self.need_key_space(key_space).await?;
+        self.list_materialized_view_impl(&key_space)
+            .await
+            .map(|x| x.into_iter().map(|x| x.name).collect())
     }
 }
 
@@ -250,6 +254,52 @@ struct AstCompletion {
     on_def: bool,
     result: Option<Vec<CompletionItem>>,
     db: CassandraDB,
+}
+
+impl CassandraDB {
+    async fn get_index_name(&self, key_space: &String) -> anyhow::Result<Vec<String>> {
+        let sql = format!(
+            r#"
+            SELECT index_name 
+                FROM system_schema.indexes 
+                WHERE keyspace_name = '{key_space}'
+        "#
+        );
+        log::info!("sql:{}", sql);
+        let session = self.get_query_session()?;
+        let session = session.lock().await;
+        let rows = session
+            .query(sql)
+            .await?
+            .response_body()?
+            .into_rows()
+            .unwrap_or_default();
+        let mut result = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let name: Option<String> = row.get_by_index(0)?;
+            if let Some(name) = name {
+                result.push(name);
+            }
+        }
+        anyhow::Ok(result)
+    }
+}
+
+impl CassandraDB {
+    async fn need_key_space(&self, key_space: Option<&str>) -> anyhow::Result<String> {
+        if let Some(key_space) = key_space {
+            return anyhow::Ok(key_space.to_string());
+        }
+        let session = self.get_query_session()?;
+        let session = session.lock().await;
+        if let Some(x) = session.current_keyspace() {
+            return anyhow::Ok(x.as_str().to_string());
+        }
+        match &self.config.db {
+            Some(x) => anyhow::Ok(x.clone()),
+            None => Err(anyhow::Error::msg("need provide key space")),
+        }
+    }
 }
 
 impl AstCompletion {
@@ -300,19 +350,11 @@ impl AstCompletion {
         anyhow::bail!("no completion found on ast")
     }
 
-    fn need_key_space(&self, key_space: Option<&str>) -> anyhow::Result<String> {
-        if let Some(key_space) = key_space {
-            return anyhow::Ok(key_space.to_string());
-        }
-        match &self.db.config.db {
-            Some(x) => anyhow::Ok(x.clone()),
-            None => Err(anyhow::Error::msg("need provide key space")),
-        }
-    }
-
-    fn need_key_space_identifier(&self, key_space: Option<&Identifier>) -> anyhow::Result<String> {
+    async fn need_key_space_identifier(
+        &self, key_space: Option<&Identifier>,
+    ) -> anyhow::Result<String> {
         let x = key_space.map(|x| x.to_string());
-        self.need_key_space(x.as_deref())
+        self.db.need_key_space(x.as_deref()).await
     }
 
     fn in_pos(&self, span: Option<&Span>) -> bool {
@@ -364,6 +406,7 @@ impl AstCompletion {
         }
         let key_space = self
             .need_key_space_identifier(name.keyspace.as_ref())
+            .await
             .map_err(|x| {
                 log::error!("need key space:{}", x);
             })
@@ -405,6 +448,7 @@ impl AstCompletion {
 
         let key_space = self
             .need_key_space_identifier(table.keyspace.as_ref())
+            .await
             .map_err(|e| log::error!("{}", e))
             .unwrap_or_default();
 
@@ -479,9 +523,9 @@ impl AstCompletion {
 
         let sql = " SELECT role FROM system_auth.roles;".to_string();
         log::info!("sql:{}", sql);
-        let rows = self
-            .db
-            .session
+        let session = self.db.get_query_session()?;
+        let session = session.lock().await;
+        let rows = session
             .query(sql)
             .await?
             .response_body()?
@@ -513,10 +557,9 @@ impl AstCompletion {
             "SELECT role FROM system_auth.roles WHERE is_superuser = false   allow filtering  ;";
 
         log::info!("sql:{}", sql);
-
-        let rows = self
-            .db
-            .session
+        let session = self.db.get_query_session()?;
+        let session = session.lock().await;
+        let rows = session
             .query(sql)
             .await?
             .response_body()?
@@ -546,7 +589,9 @@ impl AstCompletion {
         if !self.in_pos(col.span()) {
             return anyhow::Ok(());
         }
-        let key_space = self.need_key_space_identifier(table.keyspace.as_ref())?;
+        let key_space = self
+            .need_key_space_identifier(table.keyspace.as_ref())
+            .await?;
 
         let sql = format!(
             "SELECT column_name 
@@ -559,10 +604,9 @@ impl AstCompletion {
             }
         );
         log::info!("sql:{}", sql);
-
-        let rows = self
-            .db
-            .session
+        let session = self.db.get_query_session()?;
+        let session = session.lock().await;
+        let rows = session
             .query(sql)
             .await?
             .response_body()?
@@ -606,7 +650,9 @@ impl AstCompletion {
         if !self.in_pos(typ.name.span()) {
             return anyhow::Ok(());
         }
-        let key_space = self.need_key_space_identifier(typ.keyspace.as_ref())?;
+        let key_space = self
+            .need_key_space_identifier(typ.keyspace.as_ref())
+            .await?;
         let sql = format!(
             r#"
                 SELECT type_name 
@@ -614,9 +660,9 @@ impl AstCompletion {
                 WHERE keyspace_name = '{key_space}';"#
         );
         log::info!("sql:{}", sql);
-        let rows = self
-            .db
-            .session
+        let session = self.db.get_query_session()?;
+        let session = session.lock().await;
+        let rows = session
             .query(sql)
             .await?
             .response_body()?
@@ -646,9 +692,9 @@ impl AstCompletion {
         if !self.in_pos(field.span()) {
             return anyhow::Ok(());
         }
-        let body = self
-            .db
-            .session
+        let session = self.db.get_query_session()?;
+        let session = session.lock().await;
+        let body = session
             .query(format!("DESCRIBE TYPE {};", typ.name))
             .await?
             .response_body()?;
@@ -708,7 +754,7 @@ impl AstCompletion {
         if !self.in_pos(a.name.span()) {
             return anyhow::Ok(());
         }
-        let key_space = self.need_key_space_identifier(a.keyspace.as_ref())?;
+        let key_space = self.need_key_space_identifier(a.keyspace.as_ref()).await?;
 
         let sql = format!(
             r#"
@@ -717,9 +763,9 @@ impl AstCompletion {
             WHERE keyspace_name = '{key_space}';"#
         );
         log::info!("sql:{}", sql);
-        let rows = self
-            .db
-            .session
+        let session = self.db.get_query_session()?;
+        let session = session.lock().await;
+        let rows = session
             .query(sql)
             .await?
             .response_body()?
@@ -751,7 +797,7 @@ impl AstCompletion {
         if !self.in_pos(a.name.span()) {
             return anyhow::Ok(());
         }
-        let key_space = self.need_key_space_identifier(a.keyspace.as_ref())?;
+        let key_space = self.need_key_space_identifier(a.keyspace.as_ref()).await?;
 
         let sql = format!(
             r#"
@@ -761,10 +807,10 @@ impl AstCompletion {
         "#
         );
         log::info!("sql:{}", sql);
+        let session = self.db.get_query_session()?;
+        let session = session.lock().await;
 
-        let rows = self
-            .db
-            .session
+        let rows = session
             .query(sql)
             .await?
             .response_body()?
@@ -796,37 +842,19 @@ impl AstCompletion {
         if !self.in_pos(a.name.span()) {
             return anyhow::Ok(());
         }
-        let key_space = self.need_key_space_identifier(a.keyspace.as_ref())?;
+        let key_space = self.need_key_space_identifier(a.keyspace.as_ref()).await?;
+        let result = self.db.get_index_name(&key_space).await?;
 
-        let sql = format!(
-            r#"
-            SELECT index_name 
-                FROM system_schema.indexes 
-                WHERE keyspace_name = '{key_space}'
-        "#
-        );
-        log::info!("sql:{}", sql);
-
-        let rows = self
-            .db
-            .session
-            .query(sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
-        let mut result = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let name: Option<String> = row.get_by_index(0)?;
-            if let Some(name) = name {
-                result.push(CompletionItem {
-                    item: name.into(),
+        self.result = Some(
+            result
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Index,
                     desc: None,
-                    kind: CompletionKind::Function,
-                });
-            }
-        }
-        self.result = Some(result);
+                })
+                .collect(),
+        );
         anyhow::Ok(())
     }
 
@@ -841,7 +869,7 @@ impl AstCompletion {
         if !self.in_pos(a.name.span()) {
             return anyhow::Ok(());
         }
-        let key_space = self.need_key_space_identifier(a.keyspace.as_ref())?;
+        let key_space = self.need_key_space_identifier(a.keyspace.as_ref()).await?;
 
         let sql = format!(
             r#"
@@ -851,10 +879,9 @@ impl AstCompletion {
         "#
         );
         log::info!("sql:{}", sql);
-
-        let rows = self
-            .db
-            .session
+        let session = self.db.get_query_session()?;
+        let session = session.lock().await;
+        let rows = session
             .query(sql)
             .await?
             .response_body()?
@@ -1028,15 +1055,17 @@ impl AstCompletion {
                     }
                 }
                 {
-                    let key_space =
-                        self.need_key_space_identifier(aggregate.sfunc.keyspace.as_ref())?;
+                    let key_space = self
+                        .need_key_space_identifier(aggregate.sfunc.keyspace.as_ref())
+                        .await?;
 
                     self.on_udf(&key_space, &aggregate.sfunc.name).await?;
                 }
 
                 {
-                    let key_space =
-                        self.need_key_space_identifier(aggregate.finalfunc.keyspace.as_ref())?;
+                    let key_space = self
+                        .need_key_space_identifier(aggregate.finalfunc.keyspace.as_ref())
+                        .await?;
 
                     self.on_udf(&key_space, &aggregate.finalfunc.name).await?;
                 }

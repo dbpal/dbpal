@@ -1,27 +1,39 @@
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::OnceLock;
+use std::str::FromStr;
+use std::sync::{Arc, OnceLock};
 use std::task::Poll;
 
 use futures_core::future::BoxFuture;
 use futures_util::{FutureExt, StreamExt};
+use redis::aio::MultiplexedConnection;
 use redis::{AsyncCommands, AsyncIter};
+use tokio::sync::Mutex;
 
+use crate::db::AutoCompletionQueryUuid;
 use crate::language_server::{CompletionItem, CompletionKind, LanguageServer, in_pos};
 use crate::redis::{RedisDB, RedisToken, RedisType, get_command_from_sql};
 impl RedisDB {
+    fn get_query_conn(&self) -> anyhow::Result<Arc<Mutex<MultiplexedConnection>>> {
+        let conn = self.query_connections.get(&AutoCompletionQueryUuid::get());
+        match conn {
+            Some(x) => anyhow::Ok(x.clone()),
+            None => anyhow::bail!("should be able get connection"),
+        }
+    }
     async fn completion_keys(
         &self, pattern: &str, kind: Option<RedisType>,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         log::trace!("completion on keys pattern:{}", pattern);
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_query_conn()?;
+        let mut conn = conn.lock().await;
+
         let keys: Vec<Vec<u8>> = conn.keys(format!("*{}*", pattern)).await?;
         let keys = {
             let mut ks = vec![];
             for k in keys {
-                match String::from_utf8(k) {
-                    Ok(x) => ks.push(x),
-                    Err(_) => {}
+                if let Ok(x) = String::from_utf8(k) {
+                    ks.push(x)
                 }
             }
             ks
@@ -30,7 +42,7 @@ impl RedisDB {
         for key in keys.into_iter() {
             let type_matched = match kind {
                 Some(ty2) => {
-                    let ty = Self::get_key_type(&mut conn, &key).await?;
+                    let ty = RedisType::from_str(&conn.key_type::<_, String>(&key).await?)?;
                     ty == ty2
                 }
                 None => true,
@@ -49,14 +61,14 @@ impl RedisDB {
     async fn completion_hash_keys(
         &self, hash_key: &str, p: &str,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_query_conn()?;
+        let mut conn = conn.lock().await;
         let mut stream: AsyncIter<'_, Vec<u8>> =
             conn.hscan_match(hash_key, format!("*{}*", p)).await?;
         let mut keys = vec![];
         while let Some(k) = stream.next().await {
-            match String::from_utf8(k) {
-                Ok(x) => keys.push(x),
-                Err(_) => {}
+            if let Ok(x) = String::from_utf8(k) {
+                keys.push(x)
             }
         }
         anyhow::Ok(
@@ -73,13 +85,13 @@ impl RedisDB {
     async fn completion_set_member(
         &self, key: &str, p: &str,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_query_conn()?;
+        let mut conn = conn.lock().await;
         let mut stream = conn.sscan_match(key, format!("*{}*", p)).await?;
         let mut keys = vec![];
         while let Some(k) = stream.next().await {
-            match String::from_utf8(k) {
-                Ok(x) => keys.push(x),
-                Err(_) => {}
+            if let Ok(x) = String::from_utf8(k) {
+                keys.push(x)
             }
         }
         anyhow::Ok(
@@ -96,14 +108,14 @@ impl RedisDB {
     async fn completion_zset_member(
         &self, key: &str, member: &str,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_query_conn()?;
+        let mut conn = conn.lock().await;
         let mut stream: AsyncIter<(Vec<u8>, f64)> =
             conn.zscan_match(key, format!("*{}*", member)).await?;
         let mut keys = vec![];
         while let Some((key, score)) = stream.next().await {
-            match String::from_utf8(key) {
-                Ok(x) => keys.push((score, x)),
-                Err(_) => {}
+            if let Ok(x) = String::from_utf8(key) {
+                keys.push((score, x))
             }
         }
         anyhow::Ok(
@@ -296,7 +308,7 @@ impl RedisDB {
                 vec![
                     async move {
                         /*
-                           帮我列出所有redis的cliet的子命令用rust数组
+                           帮我列出所有redis的client的子命令用rust数组
                         */
                         const CLIENT_SUBCOMMANDS: &[&str] = &[
                             "LIST",
@@ -566,7 +578,7 @@ impl RedisDB {
                                     // suggest hash key
                                 }
                                 _ => async move {
-                                    self.completion_hash_keys(&patterns[0], &pattern).await
+                                    self.completion_hash_keys(&patterns[0], pattern).await
                                 }
                                 .boxed(),
                             }
@@ -1359,7 +1371,7 @@ impl LanguageServer for RedisDB {
                         pos,
                         sqlparser::tokenizer::Location {
                             line: *line,
-                            column: *start_column as u64,
+                            column: *start_column,
                         },
                         value.len() as u64,
                     ) {
@@ -1393,7 +1405,7 @@ impl LanguageServer for RedisDB {
                             pos,
                             sqlparser::tokenizer::Location {
                                 line: (index + 1) as u64,
-                                column: (*start_column) as u64,
+                                column: (*start_column),
                             },
                             value.len(),
                             token
@@ -1403,7 +1415,7 @@ impl LanguageServer for RedisDB {
                             pos,
                             sqlparser::tokenizer::Location {
                                 line: (index + 1) as u64,
-                                column: (*start_column) as u64,
+                                column: (*start_column),
                             },
                             value.len() as u64,
                         ) {
@@ -1761,4 +1773,5 @@ pub const REDIS_COMMANDS: &[&str] = &[
     "ZSCAN",
     "ZSCORE",
     "ZUNIONSTORE",
+    "SELECT",
 ];

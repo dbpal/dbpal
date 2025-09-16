@@ -50,6 +50,79 @@ impl MsSqlServerDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for MsSqlServerDB {
+    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let sql = r#"
+       SELECT 
+            i.name AS IndexName  FROM 
+            sys.indexes AS i
+        INNER JOIN 
+            sys.index_columns AS ic 
+            ON i.object_id = ic.object_id 
+            AND i.index_id = ic.index_id
+        INNER JOIN 
+            sys.columns AS c 
+            ON ic.object_id = c.object_id 
+            AND ic.column_id = c.column_id
+        INNER JOIN 
+            sys.tables AS t 
+            ON i.object_id = t.object_id
+        WHERE 
+            t.is_ms_shipped = 0 -- 过滤掉系统表
+        ORDER BY 
+            t.name, i.name, ic.key_ordinal;
+            "#;
+        let mut conn = self.get_conn().await?;
+
+        let mut ret = Vec::new();
+
+        let mut stream = conn.simple_query(sql).await?;
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                QueryItem::Row(row) => {
+                    let name: Option<&str> = row.try_get(0)?;
+                    if let Some(name) = name {
+                        ret.push(name.to_owned());
+                    }
+                }
+                QueryItem::Metadata(..) => {}
+            }
+        }
+
+        anyhow::Ok(ret)
+    }
+
+    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(
+            SQL_SERVER_GLOBAL_VARS
+                .iter()
+                .map(|x| x.to_string())
+                .collect(),
+        )
+    }
+
+    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
+        let sql = r#"
+        SELECT name AS RoleName
+            FROM sys.database_principals
+            WHERE type = 'R';  -- 'R' 表示角色
+        "#;
+        let mut conn = self.get_conn().await?;
+        let mut stream = conn.deref_mut().simple_query(sql).await?;
+        let mut ret = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                QueryItem::Row(row) => {
+                    let name: Option<&str> = row.get(0);
+                    ret.push(name.unwrap_or_default().to_string());
+                }
+                QueryItem::Metadata(_) => {}
+            }
+        }
+        anyhow::Ok(ret)
+    }
+
     async fn list_created_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
         let schema = self.not_allow_empty_schema(schema)?;
         let sql = format!(
@@ -92,16 +165,17 @@ impl LangServerCommon for MsSqlServerDB {
     }
 
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: bool,
+        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let sql = if is_call {
+        let sql = if let Some(is_call) = is_call {
             format!(
-                r#"  select  {}{}() "#,
+                r#"  select  {}{}({}) "#,
                 match schema {
                     Some(x) => format!("\"{}\".", x),
                     None => "".to_string(),
                 },
-                name
+                name,
+                is_call.join(",")
             )
         } else {
             format!(
@@ -137,7 +211,7 @@ impl LangServerCommon for MsSqlServerDB {
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let schema = self.schema_merge_config(schema);
         let mut ret = if let Some(schema) = &schema {
-            self.list_udf_impl(&schema)
+            self.list_udf_impl(schema)
                 .await
                 .map(|x| {
                     x.into_iter().map(|x| CompletionItem {
@@ -178,7 +252,7 @@ impl LangServerCommon for MsSqlServerDB {
                 sys.schemas s
             ORDER BY 
                 s.name;
-       "#;
+        "#;
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let mut stream = conn.simple_query(sql).await?;
@@ -225,28 +299,6 @@ impl LangServerCommon for MsSqlServerDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for MsSqlServerDB {
-    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
-        let sql = r#"
-        SELECT name AS RoleName
-            FROM sys.database_principals
-            WHERE type = 'R';  -- 'R' 表示角色
-        "#;
-        let mut conn = self.get_conn().await?;
-        let mut stream = conn.deref_mut().simple_query(sql).await?;
-        let mut ret = Vec::new();
-        while let Some(item) = stream.next().await {
-            let item = item?;
-            match item {
-                QueryItem::Row(row) => {
-                    let name: Option<&str> = row.get(0);
-                    ret.push(name.unwrap_or_default().to_string());
-                }
-                QueryItem::Metadata(_) => {}
-            }
-        }
-        anyhow::Ok(ret)
-    }
-
     async fn list_constraint(
         &self, _schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -301,48 +353,6 @@ impl AstCompletionHelper for MsSqlServerDB {
         }
         log::error!("no result found");
         anyhow::Ok(vec![])
-    }
-
-    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let sql = r#"
-       SELECT 
-            i.name AS IndexName  FROM 
-            sys.indexes AS i
-        INNER JOIN 
-            sys.index_columns AS ic 
-            ON i.object_id = ic.object_id 
-            AND i.index_id = ic.index_id
-        INNER JOIN 
-            sys.columns AS c 
-            ON ic.object_id = c.object_id 
-            AND ic.column_id = c.column_id
-        INNER JOIN 
-            sys.tables AS t 
-            ON i.object_id = t.object_id
-        WHERE 
-            t.is_ms_shipped = 0 -- 过滤掉系统表
-        ORDER BY 
-            t.name, i.name, ic.key_ordinal;
-            "#;
-        let mut conn = self.get_conn().await?;
-
-        let mut ret = Vec::new();
-
-        let mut stream = conn.simple_query(sql).await?;
-        while let Some(item) = stream.next().await {
-            let item = item?;
-            match item {
-                QueryItem::Row(row) => {
-                    let name: Option<&str> = row.try_get(0)?;
-                    if let Some(name) = name {
-                        ret.push(name.to_owned());
-                    }
-                }
-                QueryItem::Metadata(..) => {}
-            }
-        }
-
-        anyhow::Ok(ret)
     }
 }
 
@@ -828,4 +838,56 @@ pub const SQLSERVER_TYPES: &[&str] = &[
     "VARCHAR(MAX)",
     "NVARCHAR(MAX)",
     "VARBINARY(MAX)",
+];
+
+/// SQL Server 所有 @@ 全局变量名（系统函数）
+/// 用法：format!("@@{}", VAR[i])
+pub const SQL_SERVER_GLOBAL_VARS: &[&str] = &[
+    "DATEFIRST",
+    "DBTS",
+    "LANGID",
+    "LANGUAGE",
+    "LOCK_TIMEOUT",
+    "MAX_CONNECTIONS",
+    "MAX_PRECISION",
+    "NESTLEVEL",
+    "OPTIONS",
+    "REMSERVER",
+    "SERVERNAME",
+    "SERVICENAME",
+    "SPID",
+    "TEXTSIZE",
+    "VERSION",
+    "CURSOR_ROWS",
+    "FETCH_STATUS",
+    "PROCID",
+    "ERROR",
+    "ROWCOUNT",
+    "TRANCOUNT",
+    "IDENTITY",
+    "PACK_RECEIVED",
+    "PACK_SENT",
+    "PACKET_ERRORS",
+    "TOTAL_READ",
+    "TOTAL_WRITE",
+    "TOTAL_ERRORS",
+    "CONNECTIONS",
+    "CPU_BUSY",
+    "IDLE",
+    "IO_BUSY",
+    "PACKET_ERRORS",
+    "TIMETICKS",
+    "TOTAL_ERRORS",
+    "TOTAL_READ",
+    "TOTAL_WRITE",
+    "BUSY",
+    "IDLE",
+    "IO_BUSY",
+    "PACK_RECEIVED",
+    "PACK_SENT",
+    "PACKET_ERRORS",
+    "TIMETICKS",
+    "TOTAL_ERRORS",
+    "TOTAL_READ",
+    "TOTAL_WRITE",
 ];

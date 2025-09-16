@@ -7,6 +7,7 @@ use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
 
 use crate::db::{BackendKind, CreatedTypeDef, GetBackendKind, SequenceDetail, not_support_feature};
+use crate::helper::try_remove_at;
 use crate::sqlparser_completion::{CompletionStatement, TempTableColumn};
 
 #[async_trait::async_trait]
@@ -123,37 +124,52 @@ pub trait LexerCompletionTrait: LangServerCommon {
     const TYPES: &'static [&'static str];
     const TEXTS: &'static [&'static str] = &[];
 
-    async fn extra_completion_item(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        anyhow::Ok(vec![])
-    }
-
     async fn do_auto_completion(
         &self, sql: &str, line: u32, col: u32,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        let tokens = sqlparser::tokenizer::Tokenizer::new(self.dialect().as_ref(), sql)
-            .tokenize_with_location()
-            .unwrap_or_default();
-        let mut all_item = self.all_completion_items().await;
         let pos = sqlparser::tokenizer::Location {
             line: line as u64,
             column: col as u64,
         };
-
-        all_item.extend(self.get_table_columns_if_possible(&tokens[..]).await);
-        for t in tokens.iter() {
-            match &t.token {
-                Token::Word(x) => {
-                    if x.keyword == sqlparser::keywords::Keyword::NoKeyword
-                        && !in_pos(pos, t.span.start, x.value.len() as u64)
+        let tokens = sqlparser::tokenizer::Tokenizer::new(self.dialect().as_ref(), sql)
+            .tokenize_with_location()
+            .unwrap_or_default();
+        if self.backend_name().support_at() {
+            // 试图去匹配 @@
+            for t in tokens.iter() {
+                if let Token::Word(x) = &t.token {
+                    if x.value.starts_with("@@")
+                        && in_pos(pos, t.span.start, x.value.len() as u64)
                     {
-                        all_item.push(CompletionItem {
-                            item: x.value.clone().into(),
-                            kind: CompletionKind::Text,
-                            desc: None,
-                        });
+                        // 词法匹配到了@@
+                        return anyhow::Ok(self.list_variable_completion().await);
                     }
                 }
-                _ => {}
+            }
+        }
+        let mut all_item = self.all_completion_items().await;
+        all_item.extend(self.get_table_columns_if_possible(&tokens[..]).await);
+        if !self.backend_name().support_at() {
+            // this is not access var via @@ we better completion all variable
+            all_item.extend(self.list_variable_completion().await);
+        }
+        // 推送词法部分
+        for t in tokens.iter() {
+            if let Token::Word(x) = &t.token {
+                if x.keyword == sqlparser::keywords::Keyword::NoKeyword
+                    && !in_pos(pos, t.span.start, x.value.len() as u64)
+                {
+                    let mut value = x.value.clone();
+                    //@my_var 会被sqlparser解析成一个标识符
+                    if self.backend_name().support_at() {
+                        value = try_remove_at(value);
+                    }
+                    all_item.push(CompletionItem {
+                        item: value.into(),
+                        kind: CompletionKind::Text,
+                        desc: None,
+                    });
+                }
             }
         }
         return anyhow::Ok(all_item);
@@ -161,13 +177,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
 
     async fn all_completion_items(&self) -> Vec<CompletionItem> {
         let mut ret = Vec::new();
-        ret.extend(
-            self.key_words()
-                .await
-                .map_err(|e| log::error!("get keywords failed ,err:{}", e))
-                .unwrap_or_default()
-                .into_iter(),
-        );
+        ret.extend(self.key_words_completion().await);
         ret.extend(
             Self::TYPES
                 .iter()
@@ -187,13 +197,6 @@ pub trait LexerCompletionTrait: LangServerCommon {
                     desc: None,
                 })
                 .collect::<Vec<_>>(),
-        );
-        ret.extend(
-            self.extra_completion_item()
-                .await
-                .map_err(|e| log::error!("extra completion items failed,err:{}", e))
-                .unwrap_or_default()
-                .into_iter(),
         );
         ret.extend(
             self.list_table(None)
@@ -223,21 +226,9 @@ pub trait LexerCompletionTrait: LangServerCommon {
             self.list_function(None, true)
                 .await
                 .map_err(|err| log::error!("list function failed,err:{}", err))
-                .unwrap_or_default()
-                .into_iter(),
+                .unwrap_or_default(),
         );
-        ret.extend(
-            self.list_schema()
-                .await
-                .map_err(|err| log::error!("list schema failed,err:{}", err))
-                .unwrap_or_default()
-                .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Schema,
-                    desc: None,
-                }),
-        );
+        ret.extend(self.list_schema_completion().await);
         ret.extend(
             self.list_procedure(None)
                 .await
@@ -250,6 +241,25 @@ pub trait LexerCompletionTrait: LangServerCommon {
                     desc: None,
                 }),
         );
+        ret.extend(
+            self.sqlite_pragma()
+                .await
+                .map_err(|err| log::error!("list sqlite pragma,err:{}", err))
+                .unwrap_or_default(),
+        );
+        ret.extend(
+            self.sqlite_module_name()
+                .await
+                .map_err(|err| log::error!("list sqlite pragma,err:{}", err))
+                .unwrap_or_default()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Module,
+                    desc: None,
+                }),
+        );
+
         // here mssql list_procedure and list_execute will have the same result.
         // will make duplicate object.
         if self.backend_name() != BackendKind::SqlServer {
@@ -262,6 +272,11 @@ pub trait LexerCompletionTrait: LangServerCommon {
                     .map(CompletionItem::from),
             );
         }
+        ret.extend(self.user_and_role().await);
+        ret.extend(self.list_database_completion().await);
+        ret.extend(self.list_sequence_completion(None).await);
+        ret.extend(self.list_domain_completion(None).await);
+        ret.extend(self.list_index_completion(None).await);
         ret
     }
 
@@ -283,7 +298,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
             .into_iter()
             .map(|x: String| x.to_lowercase())
             .collect::<HashSet<_>>();
-        tables.extend(views.into_iter());
+        tables.extend(views);
 
         let mut table_hits = HashSet::new();
         for t in tokens.iter() {
@@ -299,7 +314,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
         let mut ret = vec![];
         for t in table_hits.iter() {
             let columns = self
-                .list_column(None, t, false)
+                .list_column(None, t, None)
                 .await
                 .map_err(|e| log::error!("list columns failed,err:{}", e))
                 .unwrap_or_default();
@@ -341,6 +356,55 @@ impl From<PostGresExtension> for CompletionItem {
 #[async_trait::async_trait]
 
 pub trait LangServerCommon: GetBackendKind {
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
+
+    // postgres use `show all`
+    // mysql use `show variables`
+    // to query all variables
+    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
+        not_support_feature(self.backend_name())
+    }
+    async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
+        not_support_feature(self.backend_name())
+    }
+    async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        anyhow::Ok(vec![])
+    }
+    // some backend user and role can have the same name
+    async fn user_and_role(&self) -> Vec<CompletionItem> {
+        let mut ret: Vec<CompletionItem> = self
+            .list_user()
+            .await
+            .map_err(|e| log::error!("list user failed,err:{}", e))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::User,
+                desc: None,
+            })
+            .collect();
+
+        ret.extend(
+            self.list_role()
+                .await
+                .map_err(|e| log::error!("list user failed,err:{}", e))
+                .unwrap_or_default()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Role,
+                    desc: None,
+                }),
+        );
+        remove_duplicate(ret)
+    }
+    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
+        not_support_feature(self.backend_name())
+    }
+    async fn list_user(&self) -> anyhow::Result<Vec<String>> {
+        not_support_feature(self.backend_name())
+    }
     /*
     -- 标准 SQL（PostgreSQL、Oracle、DB2 支持；MySQL 没有）
     CREATE DOMAIN us_postal_code AS CHAR(5)
@@ -429,7 +493,7 @@ pub trait LangServerCommon: GetBackendKind {
         tables
             .iter()
             .chain(views.iter())
-            .any(|x| x.eq_ignore_ascii_case(&name))
+            .any(|x| x.eq_ignore_ascii_case(name))
     }
 
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
@@ -453,7 +517,7 @@ pub trait LangServerCommon: GetBackendKind {
         not_support_feature(self.backend_name())
     }
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: bool,
+        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>>;
 
     // completion on ast struct like `SCHEMA.XXXX`  , 'TABLE.XXXX'
@@ -485,7 +549,7 @@ pub trait LangServerCommon: GetBackendKind {
                 let schema = &x.value;
                 let mut ret = vec![];
 
-                if self.hit_schema(&schema).await {
+                if self.hit_schema(schema).await {
                     // try completion on schema.xxx syntax
                     ret.extend(
                         self.list_table(Some(schema))
@@ -563,13 +627,13 @@ pub trait LangServerCommon: GetBackendKind {
                         None
                     };
 
-                    if self.hit_table(schema, &table).await {
+                    if self.hit_table(schema, table).await {
                         // try a TABLE.xxxx
                         // right now schema is table name
                         // we hope the use not use table alias
                         log::trace!("hit table or view '{}' trying to completion columns", table);
                         ret.extend(
-                            self.list_column(schema, &table, false)
+                            self.list_column(schema, table, None)
                                 .await
                                 .map_err(|e| log::error!("list column failed: {}", e))
                                 .unwrap_or_default()
@@ -582,6 +646,126 @@ pub trait LangServerCommon: GetBackendKind {
             }
         }
         anyhow::bail!("can't find completion");
+    }
+
+    async fn key_words_completion(&self) -> Vec<CompletionItem> {
+        self.key_words()
+            .await
+            .map_err(|e| log::error!("get keywords failed,e:{}", e))
+            .unwrap_or_default()
+    }
+    async fn list_role_completion(&self) -> Vec<CompletionItem> {
+        self.list_role()
+            .await
+            .map_err(|e| log::error!("list role failed,err:{}", e))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|name| CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::User,
+                desc: None,
+            })
+            .collect()
+    }
+    async fn list_user_completion(&self) -> Vec<CompletionItem> {
+        self.list_user()
+            .await
+            .map_err(|e| log::error!("list user failed,err:{}", e))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|name| CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::User,
+                desc: None,
+            })
+            .collect()
+    }
+    async fn list_schema_completion(&self) -> Vec<CompletionItem> {
+        self.list_schema()
+            .await
+            .map_err(|e| log::error!("list schema failed,err:{}", e))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|name| CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Schema,
+                desc: None,
+            })
+            .collect()
+    }
+
+    async fn list_database_completion(&self) -> Vec<CompletionItem> {
+        self.list_database()
+            .await
+            .map_err(|e| log::error!("list database failed,err:{}", e))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|name| CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Database,
+                desc: None,
+            })
+            .collect()
+    }
+    async fn list_variable_completion(&self) -> Vec<CompletionItem> {
+        self.list_variable()
+            .await
+            .map_err(|e| log::error!("list variable failed,err:{}", e))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|name| CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Variable,
+                desc: None,
+            })
+            .collect()
+    }
+    async fn list_sequence_completion(&self, schema: Option<&str>) -> Vec<CompletionItem> {
+        self.list_sequence(schema)
+            .await
+            .map_err(|e| log::error!("list sequence failed,err:{}", e))
+            .unwrap_or_default()
+            .into_iter()
+            .map(CompletionItem::from)
+            .collect()
+    }
+    async fn list_domain_completion(&self, schema: Option<&str>) -> Vec<CompletionItem> {
+        self.list_domain(schema)
+            .await
+            .map_err(|e| log::error!("list domain failed,err:{}", e))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Domain,
+                desc: None,
+            })
+            .collect()
+    }
+    async fn list_index_completion(&self, schema: Option<&str>) -> Vec<CompletionItem> {
+        self.list_index(schema)
+            .await
+            .map_err(|e| log::error!("list index failed,err:{}", e))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Index,
+                desc: None,
+            })
+            .collect()
+    }
+}
+
+impl From<SequenceDetail> for CompletionItem {
+    fn from(value: SequenceDetail) -> Self {
+        let SequenceDetail { name, sql, .. } = value;
+
+        CompletionItem {
+            item: name.into(),
+            kind: CompletionKind::Sequence,
+            desc: Some(sql.into()),
+        }
     }
 }
 
@@ -604,16 +788,12 @@ impl From<DBExecutable> for CompletionItem {
 
 #[async_trait::async_trait]
 pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServerCommon {
-    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
-
     async fn postgres_list_extension(
         &self, _installed: bool,
     ) -> anyhow::Result<Vec<PostGresExtension>> {
         anyhow::Ok(vec![])
     }
-    async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
-    }
+
     async fn get_query_columns(&self, _sql: &str) -> anyhow::Result<Vec<TempTableColumn>>;
 
     async fn duckdb_extensions(
@@ -636,13 +816,6 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         anyhow::Ok(vec![])
     }
 
-    // postgres use `show all`
-    // mysql use `show variables`
-    // to query all variables
-    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
-    }
-
     async fn list_partition(
         &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -654,12 +827,6 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         not_support_feature(self.backend_name())
     }
 
-    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
-    }
-    async fn list_user(&self) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
-    }
     async fn list_postgres_rule(
         &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -674,10 +841,6 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
-    }
-
-    async fn sqlite_pragma(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        anyhow::Ok(vec![])
     }
 }
 

@@ -60,7 +60,10 @@ impl AstCompletionHelper for OracleDB {
                 .collect(),
         )
     }
+}
 
+#[async_trait::async_trait]
+impl LangServerCommon for OracleDB {
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = self.not_allow_empty_schema(schema)?;
         let sql = format!(
@@ -80,10 +83,6 @@ impl AstCompletionHelper for OracleDB {
         }
         anyhow::Ok(ret)
     }
-}
-
-#[async_trait::async_trait]
-impl LangServerCommon for OracleDB {
     /*
     -- 最简单的调用
     SELECT scott.函数名(参数) AS 别名 FROM dual;
@@ -93,7 +92,7 @@ impl LangServerCommon for OracleDB {
     调用函数的例子和调用一个表一样 所以is_call不需要单独处理
     */
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, _is_call: bool,
+        &self, schema: Option<&str>, name: &str, _is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!(
             r#"select * from {}"{}""#,

@@ -744,8 +744,8 @@ impl OracleDB {
                     sender.blocking_send(";\n".into())?;
                 }
             }
-            let mut rows = conn.query(sql.as_str(), &[])?;
-            while let Some(row) = rows.next() {
+            let rows = conn.query(sql.as_str(), &[])?;
+            for row in rows {
                 let row = row?;
                 let data = encode_rows(vec![Ok(row)])?;
                 for d in data.into_iter() {
@@ -769,8 +769,8 @@ impl OracleDB {
         let conn = self.get_conn().await?;
         let sql = sql.to_owned();
         tokio::task::spawn_blocking(move || {
-            let mut rows = conn.query(&sql, &[])?;
-            while let Some(row) = rows.next() {
+            let rows = conn.query(&sql, &[])?;
+            for row in rows {
                 let row = row?;
                 let json = encode_row_as_json(&row)?;
                 let str = serde_json::to_string(&json)?;
@@ -797,8 +797,8 @@ impl OracleDB {
         tokio::task::spawn_blocking(move || {
             sender.blocking_send("[".into())?;
             let mut first = true;
-            let mut rows = block_in_place(|| conn.query(&sql, &[]))?;
-            while let Some(row) = rows.next() {
+            let rows = block_in_place(|| conn.query(&sql, &[]))?;
+            for row in rows {
                 let row = row?;
                 let json = encode_row_as_json(&row)?;
                 if !first {
@@ -842,8 +842,8 @@ impl OracleDB {
         let sql = sql.to_owned();
         tokio::task::spawn_blocking(move || {
             let mut first = true;
-            let mut rows = conn.query(&sql, &[])?;
-            while let Some(row) = rows.next() {
+            let rows = conn.query(&sql, &[])?;
+            for row in rows {
                 let row = row?;
                 if include_header && first {
                     let fs = row

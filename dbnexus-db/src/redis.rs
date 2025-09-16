@@ -27,7 +27,7 @@ use crate::meta_value::MetaValue;
 pub struct RedisDB {
     config: RedisDBConfig,
     conn_manager: ConnectionManager,
-    query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<MultiplexedConnection>>>>,
+    pub(crate) query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<MultiplexedConnection>>>>,
     created_database: Arc<DashSet<String>>,
 }
 
@@ -662,7 +662,7 @@ fn value_2_json(v: &redis::Value) -> serde_json::Value {
         Value::Attribute {
             data,
             attributes: _, // TODO how to handle this???
-        } => value_2_json(&data),
+        } => value_2_json(data),
         Value::VerbatimString { format, text } => {
             let mut m = serde_json::Map::new();
             m.insert("format".to_string(), format.to_string().into());
@@ -715,7 +715,7 @@ async fn handle_export_xlsx(
                     .send(XlsxEdit {
                         row: index as u32,
                         column: 0,
-                        content: encode_response_value_to_string(&v),
+                        content: encode_response_value_to_string(v),
                     })
                     .await?;
             }
@@ -740,7 +740,7 @@ async fn handle_export_xlsx(
                     .await?
             }
             Err(_) => {
-                for (index, e) in x.into_iter().enumerate() {
+                for (index, e) in x.iter().enumerate() {
                     sender
                         .send(XlsxEdit {
                             row: index as u32,
@@ -774,7 +774,7 @@ async fn handle_export_xlsx(
             data,
             attributes: _, // TODO how to handle this???
         } => {
-            Box::pin(handle_export_xlsx(&data, sender.clone())).await?;
+            Box::pin(handle_export_xlsx(data, sender.clone())).await?;
         }
         Value::VerbatimString { format, text } => {
             sender
@@ -902,7 +902,7 @@ impl RedisDB {
                 }
             }
             _ => {
-                anyhow::bail!("unsupport data return from the server:{:?}", value)
+                anyhow::bail!("unsupported data return from the server:{:?}", value)
             }
         }
         anyhow::Ok(())
@@ -962,7 +962,7 @@ impl RedisDB {
                         sender.send("\n".into()).await?;
                     }
                 }
-                Value::Attribute { data, .. } => Box::pin(handle(&data, sender)).await?,
+                Value::Attribute { data, .. } => Box::pin(handle(data, sender)).await?,
                 Value::Double(value) => sender.send(value.to_string().into()).await?,
                 Value::Boolean(value) => sender.send(value.to_string().into()).await?,
                 Value::VerbatimString { format, text } => {
@@ -1329,7 +1329,7 @@ impl SchemaTrait for RedisDB {
                     total,
                     data: key_values
                         .into_iter()
-                        .zip(value_values.into_iter())
+                        .zip(value_values)
                         .map(|(k, v)| {
                             vec![
                                 Some(hex::encode(k.as_slice())),
@@ -1548,7 +1548,7 @@ impl QuerySql for RedisDB {
             }
             0 => return anyhow::Ok(Err("empty statement???".into())),
             _ => {
-                log::warn!("multi resp shoule be fine");
+                log::warn!("multi resp should be fine");
                 return anyhow::Ok(ret[0].clone());
             }
         }
@@ -1889,7 +1889,7 @@ fn encode_response_value_to_string(v: &Value) -> String {
         Value::Attribute {
             data,
             attributes: _,
-        } => encode_response_value_to_string(&data),
+        } => encode_response_value_to_string(data),
         Value::Set(values) => {
             let x: Vec<_> = values.iter().map(encode_response_value_to_string).collect();
             format!("[{}]", x.join(", "))
@@ -2187,10 +2187,10 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let db11 = db.open_schema("db11").await.unwrap();
         let db11 = db11.as_any().downcast_ref::<RedisDB>().unwrap();
         db11.string_set("xxxxx", "yyyy".as_bytes()).await.unwrap();
-        let dbnames = db.list_schema().await.unwrap();
-        for dbname in dbnames.iter() {
-            println!("db:{:?}", dbnames);
-            db.open_schema(&dbname).await.unwrap();
+        let db_names = db.list_schema().await.unwrap();
+        for db_name in db_names.iter() {
+            println!("db:{:?}", db_names);
+            db.open_schema(&db_name).await.unwrap();
         }
 
         db.drop_schema("db11").await.unwrap();

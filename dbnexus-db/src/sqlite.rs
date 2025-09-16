@@ -223,7 +223,7 @@ impl SqliteDB {
         let mut row_num = 0;
         while let Some(rows) = stream.next().await {
             let rows = rows?;
-            if first && rows.len() > 0 && include_header {
+            if first && !rows.is_empty() && include_header {
                 for (index, col) in rows[0].columns().iter().enumerate() {
                     sender
                         .send(XlsxEdit {
@@ -933,9 +933,9 @@ impl SqlBuilder for SqliteDB {
         let v = match typ.as_str() {
             "" | "NULL" => match value {
                 Some(x) => {
-                    if let Ok(_) = x.parse::<f64>() {
+                    if x.parse::<f64>().is_ok() {
                         x.to_string()
-                    } else if let Ok(_) = x.parse::<i64>() {
+                    } else if x.parse::<i64>().is_ok() {
                         x.to_string()
                     } else {
                         format!("'{}'", escape_sql_str(x))
@@ -1019,9 +1019,7 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
                 let v: Option<Vec<u8>> = r.try_get(c)?;
                 v.map(|x| {
                     serde_json::Value::Array(x.into_iter().map(serde_json::Value::from).collect())
-                })
-                .map(serde_json::Value::from)
-                .unwrap_or(null_value.clone())
+                }).unwrap_or(null_value.clone())
             }
 
             _ if numeric_like(&typ) => {

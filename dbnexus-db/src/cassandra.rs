@@ -61,21 +61,15 @@ use dashmap::DashMap;
 use num_bigint::{BigInt, ToBigInt};
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Mutex;
 
 #[derive(Clone)]
 pub struct CassandraDB {
-    pub(crate) session: Arc<
-        cdrs_tokio::cluster::session::Session<
-            cdrs_tokio::transport::TransportTcp,
-            cdrs_tokio::cluster::TcpConnectionManager,
-            RoundRobinLoadBalancingStrategy<
-                cdrs_tokio::transport::TransportTcp,
-                cdrs_tokio::cluster::TcpConnectionManager,
-            >,
-        >,
-    >,
+    session: Arc<AppSession>,
+    pub(crate) query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<AppSession>>>>,
     pub(crate) config: CassandraDBConfig,
     paging_cache: Arc<DashMap<String, Arc<PageCache>>>,
 }
@@ -129,48 +123,61 @@ impl PageCache {
     }
 }
 
-impl CassandraDB {
-    pub async fn new(config: CassandraDBConfig) -> anyhow::Result<Self> {
-        let mut node_builder = NodeTcpConfigBuilder::new();
+pub type AppSession = cdrs_tokio::cluster::session::Session<
+    cdrs_tokio::transport::TransportTcp,
+    cdrs_tokio::cluster::TcpConnectionManager,
+    RoundRobinLoadBalancingStrategy<
+        cdrs_tokio::transport::TransportTcp,
+        cdrs_tokio::cluster::TcpConnectionManager,
+    >,
+>;
 
-        node_builder = node_builder
-            .with_contact_point(format!("{}:{}", config.host, config.port.unwrap_or(9042)).into());
+async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<AppSession> {
+    let mut node_builder = NodeTcpConfigBuilder::new();
 
-        if config.username.is_some() && config.password.is_some() {
-            let a = StaticPasswordAuthenticatorProvider::new(
-                config.username.as_deref().unwrap(),
-                config.password.as_deref().unwrap(),
-            );
-            node_builder = node_builder.with_authenticator_provider(Arc::new(a))
-        }
+    node_builder = node_builder
+        .with_contact_point(format!("{}:{}", config.host, config.port.unwrap_or(9042)).into());
 
-        let cluster_config = node_builder.build().await?;
+    if config.username.is_some() && config.password.is_some() {
+        let a = StaticPasswordAuthenticatorProvider::new(
+            config.username.as_deref().unwrap(),
+            config.password.as_deref().unwrap(),
+        );
+        node_builder = node_builder.with_authenticator_provider(Arc::new(a))
+    }
 
-        let mut session_builder =
-            TcpSessionBuilder::new(RoundRobinLoadBalancingStrategy::new(), cluster_config);
+    let cluster_config = node_builder.build().await?;
 
-        if let Some(conn_timeout) = config.conn_timeout {
-            let mut b = ConnectionPoolConfigBuilder::new();
-            b = b.with_connect_timeout(Some(Duration::from_millis(conn_timeout as u64)));
-            session_builder = session_builder.with_connection_pool_config(b.build());
-        }
-        if let Some(keyspace) = config.db.as_deref() {
-            session_builder = session_builder.with_keyspace(keyspace.to_owned());
-        }
+    let mut session_builder =
+        TcpSessionBuilder::new(RoundRobinLoadBalancingStrategy::new(), cluster_config);
 
-        let session: cdrs_tokio::cluster::session::Session<
+    if let Some(conn_timeout) = config.conn_timeout {
+        let mut b = ConnectionPoolConfigBuilder::new();
+        b = b.with_connect_timeout(Some(Duration::from_millis(conn_timeout as u64)));
+        session_builder = session_builder.with_connection_pool_config(b.build());
+    }
+    if let Some(keyspace) = config.db.as_deref() {
+        session_builder = session_builder.with_keyspace(keyspace.to_owned());
+    }
+
+    let session: cdrs_tokio::cluster::session::Session<
+        cdrs_tokio::transport::TransportTcp,
+        cdrs_tokio::cluster::TcpConnectionManager,
+        RoundRobinLoadBalancingStrategy<
             cdrs_tokio::transport::TransportTcp,
             cdrs_tokio::cluster::TcpConnectionManager,
-            RoundRobinLoadBalancingStrategy<
-                cdrs_tokio::transport::TransportTcp,
-                cdrs_tokio::cluster::TcpConnectionManager,
-            >,
-        > = session_builder.build().await?;
-
+        >,
+    > = session_builder.build().await?;
+    anyhow::Ok(session)
+}
+impl CassandraDB {
+    pub async fn new(config: CassandraDBConfig) -> anyhow::Result<Self> {
+        let session = make_session(&config).await?;
         anyhow::Ok(Self {
             session: Arc::new(session),
             config,
             paging_cache: Default::default(),
+            query_connection: Default::default(),
         })
     }
 }
@@ -775,7 +782,7 @@ impl ExportQueryResult for CassandraDB {
         &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
     ) -> anyhow::Result<()> {
         let resp = self.session.query(sql).await?.response_body()?;
-        let meta = resp.as_rows_metadata().map(|x| x.clone());
+        let meta = resp.as_rows_metadata().cloned();
         let meta = match meta {
             Some(x) => x,
             None => anyhow::bail!("no meta found???"),
@@ -840,11 +847,16 @@ impl QuerySql for CassandraDB {
         anyhow::Ok(ret)
     }
     async fn execute_sql(
-        &self, _query_id: uuid::Uuid, sql: &str,
+        &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.invalid_table_or_view_caching(None);
-
-        let ret = match self.session.query(sql).await {
+        let conn = match self.query_connection.get(&query_id) {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("query connection closed???"),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        let ret = match conn.query(sql).await {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
         };
@@ -852,15 +864,19 @@ impl QuerySql for CassandraDB {
     }
 
     async fn query_sql(
-        &self, _query_id: uuid::Uuid, sql: &str,
+        &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         self.invalid_table_or_view_caching(None);
-
         let mut ret = vec![];
         let mut ml = MemoryLimit::new();
-
+        let conn = match self.query_connection.get(&query_id) {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("query connection closed???"),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         for sql in sql_to_each(sql) {
-            match self.session.query(&sql).await {
+            match conn.query(&sql).await {
                 Ok(x) => {
                     let body = x.response_body()?;
                     ml.exceed_error()?;
@@ -890,14 +906,22 @@ impl QuerySql for CassandraDB {
     }
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
-        anyhow::Ok(uuid::Uuid::new_v4())
+        let id = uuid::Uuid::new_v4();
+        let session = make_session(&self.config).await?;
+        self.query_connection
+            .insert(id, Arc::new(Mutex::new(session)));
+        anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, _id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        let session = make_session(&self.config).await?;
+        self.query_connection
+            .insert(id, Arc::new(Mutex::new(session)));
         anyhow::Ok(())
     }
 
-    async fn close_connection(&self, _id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        self.query_connection.remove(&id);
         anyhow::Ok(())
     }
 }
@@ -1817,15 +1841,6 @@ fn extract_parameter_for_function(sql: &str) -> anyhow::Result<Vec<ColumnDefinit
         CassandraStatement::CreateFunction(x) => anyhow::Ok(x.params.clone()),
         _ => {
             anyhow::bail!("this should be create function statement.")
-        }
-    }
-}
-
-impl CassandraDB {
-    pub(crate) fn merge_schema(&self, schema: Option<&str>) -> Option<String> {
-        match schema {
-            Some(x) => Some(x.to_string()),
-            None => self.config.db.clone(),
         }
     }
 }

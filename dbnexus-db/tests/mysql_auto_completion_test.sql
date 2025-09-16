@@ -72,3 +72,5 @@ SELECT * FROM JSON_TABLE('[{"a": 1, "b": 2}, {"a": 3, "b": 4}]','$[*]' COLUMNS(a
 165 a ; 165 jt
 SELECT * from (SELECT NOW() as now) t WHERE t.now;
 46 t ; 50 now
+select @@version
+17 version

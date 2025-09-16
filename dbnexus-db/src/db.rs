@@ -40,6 +40,11 @@ impl BackendKind {
             _ => false,
         }
     }
+
+    // 支持这样的语法 @@或者@访问一些全局或者局部的变量
+    pub(crate) fn support_at(self) -> bool {
+        self.mysql_like() || self == Self::SqlServer
+    }
     pub(crate) fn postgres_like(self) -> bool {
         match self {
             Self::PostGres | Self::CockRoach => true,
@@ -222,36 +227,33 @@ pub trait SchemaTrait:
         if !self.table_exists(table_name).await? {
             anyhow::bail!("table not exists")
         }
-        match kind {
-            ExportKind::Xlsx { include_header } => {
-                let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
-                let h1 = {
-                    let x = SchemaTrait::clone(self);
-                    let table_name = table_name.to_string();
+        if let ExportKind::Xlsx { include_header } = kind {
+            let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+            let h1 = {
+                let x = SchemaTrait::clone(self);
+                let table_name = table_name.to_string();
 
-                    let h1 = tokio::spawn(async move {
-                        x.export_table_or_view_as_xlsx(&table_name, include_header, sender)
-                            .await
-                    });
-                    h1
-                };
-                let h2 = {
-                    let filepath = filepath.to_string();
-                    tokio::spawn(async move {
-                        let mut workbook = rust_xlsxwriter::Workbook::new();
-                        let sheet = workbook.add_worksheet();
-                        while let Some(r) = receiver.recv().await {
-                            block_in_place(|| sheet.write_string(r.row, r.column, &r.content))?;
-                        }
-                        workbook.save(&filepath)?;
-                        anyhow::Ok(())
-                    })
-                };
-                h1.await??;
-                h2.await??;
-                return anyhow::Ok(());
-            }
-            _ => {}
+                let h1 = tokio::spawn(async move {
+                    x.export_table_or_view_as_xlsx(&table_name, include_header, sender)
+                        .await
+                });
+                h1
+            };
+            let h2 = {
+                let filepath = filepath.to_string();
+                tokio::spawn(async move {
+                    let mut workbook = rust_xlsxwriter::Workbook::new();
+                    let sheet = workbook.add_worksheet();
+                    while let Some(r) = receiver.recv().await {
+                        block_in_place(|| sheet.write_string(r.row, r.column, &r.content))?;
+                    }
+                    workbook.save(&filepath)?;
+                    anyhow::Ok(())
+                })
+            };
+            h1.await??;
+            h2.await??;
+            return anyhow::Ok(());
         }
 
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
@@ -404,7 +406,7 @@ pub trait SqlBuilder: GetBackendKind {
             .map(|x| {
                 Self::CURRENT_VALUES
                     .iter()
-                    .any(|y| x.eq_ignore_ascii_case(*y))
+                    .any(|y| x.eq_ignore_ascii_case(y))
             })
             .unwrap_or(false)
     }
@@ -579,7 +581,7 @@ pub trait SqlBuilder: GetBackendKind {
                 if !first {
                     sql.push(',');
                 }
-                sql.push_str(format!("{}", self.quote(f.field.as_str())).as_str());
+                sql.push_str(self.quote(f.field.as_str()).to_string().as_str());
                 first = false;
             }
             sql.push(')');
@@ -864,13 +866,10 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         &self, sql: &str, kind: ExportKind, file: &str,
     ) -> anyhow::Result<()> {
         log::info!("sql:{}", sql);
-        match &kind {
-            ExportKind::Xlsx { include_header } => {
-                return self
-                    .export_query_result_to_xlsx(sql, *include_header, file)
-                    .await;
-            }
-            _ => {}
+        if let ExportKind::Xlsx { include_header } = &kind {
+            return self
+                .export_query_result_to_xlsx(sql, *include_header, file)
+                .await;
         }
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
         let j1 = {

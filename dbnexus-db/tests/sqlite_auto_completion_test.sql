@@ -48,3 +48,5 @@ select * from (employees join employees)
 25 employees ; 40 employees
 SELECT name FROM pragma_function_list()
 12 name
+SELECT * from (SELECT abs(-1)) where "abs(-1)" > 0
+39 abs(-1)

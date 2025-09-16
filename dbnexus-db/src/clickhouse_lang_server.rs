@@ -28,7 +28,7 @@ impl ClickHouseDB {
         if schema.is_some() {
             return schema.map(|x| x.to_string());
         }
-        self.config.db.as_ref().map(|x| x.clone())
+        self.config.db.clone()
     }
 
     fn not_allow_none_schema(&self, schema: Option<&str>) -> anyhow::Result<String> {
@@ -41,17 +41,21 @@ impl ClickHouseDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for ClickHouseDB {
+    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: bool,
+        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let sql = if is_call {
+        let sql = if let Some(is_call) = is_call {
             format!(
-                r#"select {}{}()"#,
+                r#"select {}{}({})"#,
                 match schema {
                     Some(x) => format!("\"{}\".", x),
                     None => "".to_string(),
                 },
-                name
+                name,
+                is_call.join(",")
             )
         } else {
             format!(
@@ -173,10 +177,6 @@ impl AstCompletionHelper for ClickHouseDB {
                 })
                 .collect(),
         )
-    }
-
-    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![])
     }
 }
 

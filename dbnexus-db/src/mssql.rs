@@ -305,7 +305,7 @@ fn gen_select_sql(
     if let Some(order_by) = order_by {
         sql.push_str(format!(" ORDER BY {order_by} ").as_str());
     } else {
-        // sql server 的offet子句只能和order by一起使用
+        // sql server 的offset子句只能和order by一起使用
         sql.push_str(" ORDER  BY (SELECT NULL) ")
     }
 
@@ -953,7 +953,7 @@ impl SchemaTrait for MsSqlServerDB {
             Some(x) => make_table_list_from_meta_and_row(&x, &rows, total as usize, sql)?,
             None => anyhow::bail!("SELECT should yield at lease one meta"),
         };
-        // infered schema is accurate as show_table_columns
+        // inferred schema is accurate as show_table_columns
         ret.fields = cols;
         anyhow::Ok(ret)
     }
@@ -1155,7 +1155,7 @@ impl SchemaTrait for MsSqlServerDB {
                 tiberius::QueryItem::Metadata(_result_metadata) => {}
             }
         }
-        anyhow::bail!("query udf defition failed, no result.")
+        anyhow::bail!("query udf definition failed, no result.")
     }
 
     async fn drop_udf(
@@ -1212,7 +1212,7 @@ impl SchemaTrait for MsSqlServerDB {
                 tiberius::QueryItem::Metadata(_) => {}
             }
         }
-        anyhow::bail!("query precedure contains no result.")
+        anyhow::bail!("query procedure contains no result.")
     }
 
     async fn drop_procedure(
@@ -2398,12 +2398,12 @@ mod tests {
                 id INT PRIMARY KEY,
                 name VARCHAR(50),
                 age INT
-              );
+            );
 
-              INSERT INTO test_query (id, name, age) VALUES (1, 'John', 25);
-              INSERT INTO test_query (id, name, age) VALUES (2, 'Jane', 30);
-              INSERT INTO test_query (id, name, age) VALUES (3, 'Mike', 35);
-              COMMIT;
+            INSERT INTO test_query (id, name, age) VALUES (1, 'John', 25);
+            INSERT INTO test_query (id, name, age) VALUES (2, 'Jane', 30);
+            INSERT INTO test_query (id, name, age) VALUES (3, 'Mike', 35);
+            COMMIT;
         "#,
             )
             .await
@@ -2418,10 +2418,10 @@ mod tests {
         let db = make_test_object().await;
         let db = &db as &dyn crate::db::DBTrait;
 
-        let dbnames = db.list_schema().await.unwrap();
-        assert_eq!(dbnames, vec![MsSqlServerDB::DBO_SCHEMA]);
-        for dbname in dbnames.iter() {
-            db.open_schema(&dbname).await.unwrap();
+        let db_names = db.list_schema().await.unwrap();
+        assert_eq!(db_names, vec![MsSqlServerDB::DBO_SCHEMA]);
+        for db_name in db_names.iter() {
+            db.open_schema(&db_name).await.unwrap();
         }
     }
     #[ignore = "run manually"]

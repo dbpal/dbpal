@@ -24,10 +24,6 @@ impl LanguageServer for CockRoachDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for CockRoachDB {
-    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_index(self.pg.as_ref(), schema).await
-    }
-
     async fn postgres_list_extension(
         &self, installed: bool,
     ) -> anyhow::Result<Vec<PostGresExtension>> {
@@ -38,20 +34,10 @@ impl AstCompletionHelper for CockRoachDB {
         AstCompletionHelper::get_query_columns(self.pg.as_ref(), sql).await
     }
 
-    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_variable(self.pg.as_ref()).await
-    }
-
     async fn table_policy(&self, schema: Option<&str>, table: &str) -> anyhow::Result<Vec<String>> {
         AstCompletionHelper::table_policy(self.pg.as_ref(), schema, table).await
     }
 
-    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_role(self.pg.as_ref()).await
-    }
-    async fn list_user(&self) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_user(self.pg.as_ref()).await
-    }
     async fn list_postgres_rule(
         &self, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
@@ -71,6 +57,20 @@ impl AstCompletionHelper for CockRoachDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for CockRoachDB {
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_index(self.pg.as_ref(), schema).await
+    }
+
+    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_variable(self.pg.as_ref()).await
+    }
+
+    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_role(self.pg.as_ref()).await
+    }
+    async fn list_user(&self) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::list_user(self.pg.as_ref()).await
+    }
     async fn list_domain(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         LangServerCommon::list_domain(self.pg.as_ref(), schema).await
     }
@@ -82,7 +82,7 @@ impl LangServerCommon for CockRoachDB {
         self.pg.key_words().await
     }
     async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: bool,
+        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         LangServerCommon::list_column(self.pg.as_ref(), schema, name, is_call).await
     }

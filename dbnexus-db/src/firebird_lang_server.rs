@@ -40,17 +40,6 @@ impl AstCompletionHelper for FireBirdDB {
             anyhow::Ok(vec![])
         }
     }
-
-    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let sql = r#"
-            SELECT RDB$INDEX_NAME AS IndexName
-                FROM RDB$INDICES
-        "#;
-
-        let mut conn = self.get_conn()?;
-        let rows: Vec<(String,)> = conn.query(sql, ())?;
-        anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
-    }
 }
 
 #[async_trait::async_trait]
@@ -118,16 +107,26 @@ const FIREBIRD_TYPES: &[&str] = &[
 
 #[async_trait::async_trait]
 impl LangServerCommon for FireBirdDB {
+    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let sql = r#"
+            SELECT RDB$INDEX_NAME AS IndexName
+                FROM RDB$INDICES
+        "#;
+
+        let mut conn = self.get_conn()?;
+        let rows: Vec<(String,)> = conn.query(sql, ())?;
+        anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
+    }
     async fn list_column(
-        &self, _schema: Option<&str>, name: &str, is_call: bool,
+        &self, _schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         /*
                     -- 直接写
         SELECT ABS(-1)  FROM RDB$DATABASE;   -- 返回 1
         SELECT SUBSTRING('abc' FROM 2 FOR 2) FROM RDB$DATABASE;
         */
-        if is_call {
-            let sql = format!("SELECT {}() FROM RDB$DATABASE", name);
+        if let Some(is_call) = is_call {
+            let sql = format!("SELECT {}({}) FROM RDB$DATABASE", name, is_call.concat());
             self.get_query_columns(&sql).await
         } else {
             SchemaTrait::show_table_columns(self, name).await.map(|x| {

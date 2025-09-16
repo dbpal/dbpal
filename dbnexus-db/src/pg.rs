@@ -34,7 +34,6 @@ pub struct PostGresDB {
     pub(crate) query_connection:
         Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
     pub(crate) key_word_completion: Arc<Mutex<Vec<CompletionItem>>>,
-    pub(crate) build_in_fn: Arc<Mutex<Vec<CompletionItem>>>,
 }
 
 #[async_trait::async_trait]
@@ -476,8 +475,7 @@ impl PostGresDB {
 
 
             "#,
-                    self.config.schema_str(),
-                    name
+                    schema, name
                 );
 
                 let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -494,7 +492,7 @@ impl PostGresDB {
                     select start_value, min_value , max_value , increment_by ,  last_value 
                     FROM pg_sequences where schemaname = '{}'
                 "#,
-                    self.config.schema_str()
+                    schema
                 );
                 let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                     .fetch_one(conn.deref_mut())
@@ -1685,7 +1683,6 @@ impl PostGresDB {
             config,
             query_connection: Default::default(),
             key_word_completion: Default::default(),
-            build_in_fn: Default::default(),
         })
     }
 
@@ -2669,8 +2666,8 @@ mod tests {
         .unwrap();
         let name2 = format!("{}2", name);
 
-        let seqs = db.list_sequence().await.unwrap();
-        for seq in seqs.iter() {
+        let seq = db.list_sequence().await.unwrap();
+        for seq in seq.iter() {
             if seq.name.eq(name) {
                 println!("seq:{:?}", seq);
             }

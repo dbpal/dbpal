@@ -50,6 +50,61 @@ impl From<CommentObject> for CompletionKind {
 }
 
 impl<'a> CompletionStatement<'a> {
+    pub(crate) async fn c_on_use(&mut self, u: &Use) {
+        match u {
+            Use::Catalog(object_name) | Use::Schema(object_name) | Use::Database(object_name) => {
+                if self.in_pos(&object_name.span()) {
+                    let mut r = self.helper.list_schema_completion().await;
+                    r.extend(self.helper.list_database_completion().await.into_iter());
+                    self.result = Some(r)
+                }
+            }
+            Use::Warehouse(..) => {
+                // TODO
+            }
+            Use::Role(object_name) => self.c_on_role_objectname(object_name).await,
+            Use::SecondaryRoles(..) => {
+                // snowflake not support
+            }
+            Use::Object(..) => {
+                // TODO use a table???
+            }
+            Use::Default => {}
+        }
+    }
+    pub(crate) async fn c_on_create_table_options(&mut self, op: &CreateTableOptions) {
+        match op {
+            CreateTableOptions::None => {}
+            CreateTableOptions::With(sql_options)
+            | CreateTableOptions::Options(sql_options)
+            | CreateTableOptions::Plain(sql_options)
+            | CreateTableOptions::TableProperties(sql_options) => {
+                for op in sql_options.iter() {
+                    self.c_on_sql_option(op).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+    pub(crate) async fn c_on_view_column_def(&mut self, def: &ViewColumnDef) {
+        if self.in_pos(&def.name.span) {
+            self.set_on_def();
+            return;
+        }
+        if let Some(x) = def.data_type.as_ref() {
+            self.c_on_data_type(x).await;
+        }
+        if let Some(ops) = def.options.as_ref() {
+            for op in ops.as_slice().iter() {
+                self.c_on_column_option(op).await;
+                if self.finished() {
+                    return;
+                }
+            }
+        }
+    }
     pub(crate) async fn c_on_show_statement_filter(&mut self, expr: &ShowStatementFilter) {
         match expr {
             ShowStatementFilter::Like(..) => {}
@@ -126,17 +181,15 @@ impl<'a> CompletionStatement<'a> {
                             .collect::<Vec<_>>(),
                     ),
                 };
-                let mut scope = Scope::default();
-                scope.enter_temp_table(None, temp_table.clone());
-                let _guard = self.scopes.enter(scope);
+                self.scopes
+                    .current_scope(|scope| scope.enter_temp_table(None, temp_table.clone()));
                 for col in column_defs.iter() {
                     if self.in_pos(&col.name.span) {
                         self.set_on_def();
                         return;
                     }
                     for def in col.options.iter() {
-                        self.c_on_column_option_def(def, temp_table.columns.clone(), None)
-                            .await;
+                        self.c_on_column_option_def(def).await;
                         if self.finished() {
                             return;
                         }
@@ -162,17 +215,15 @@ impl<'a> CompletionStatement<'a> {
                     },
                     None => None,
                 };
-                let mut scope = Scope::default();
-                scope.enter_temp_table(alias, temp_table.clone());
-                let _guard = self.scopes.enter(scope);
+                self.scopes
+                    .current_scope(|scope| scope.enter_temp_table(alias, temp_table.clone()));
                 for col in columns.iter() {
                     if self.in_pos(&col.name.span) {
                         self.set_on_def();
                         return;
                     }
                     for def in col.options.iter() {
-                        self.c_on_column_option_def(def, temp_table.columns.clone(), None)
-                            .await;
+                        self.c_on_column_option_def(def).await;
                         if self.finished() {
                             return;
                         }
@@ -218,17 +269,15 @@ impl<'a> CompletionStatement<'a> {
                             .collect::<Vec<_>>(),
                     ),
                 };
-                let mut scope = Scope::default();
-                scope.enter_temp_table(None, temp_table.clone());
-                let _guard = self.scopes.enter(scope);
+                self.scopes
+                    .current_scope(|scope| scope.enter_temp_table(None, temp_table.clone()));
                 for col in column_defs.iter() {
                     if self.in_pos(&col.name.span) {
                         self.set_on_def();
                         return;
                     }
                     for def in col.options.iter() {
-                        self.c_on_column_option_def(def, temp_table.columns.clone(), None)
-                            .await;
+                        self.c_on_column_option_def(def).await;
                         if self.finished() {
                             return;
                         }
@@ -251,15 +300,21 @@ impl<'a> CompletionStatement<'a> {
             DataType::Struct(struct_fields, ..) => {
                 let cols: Vec<_> = struct_fields
                     .iter()
-                    .filter(|x| matches!(x.field_name, Some(_)))
+                    .filter(|x| x.field_name.is_some())
                     .map(|x| TempTableColumn {
                         // we filtered before
                         name: x.field_name.as_ref().map(|x| x.value.clone()).unwrap(),
                         data_type: Some(x.field_type.to_string()),
                     })
                     .collect();
-                let cols = Arc::new(cols);
-
+                self.scopes.current_scope(|s| {
+                    s.enter_temp_table(
+                        None,
+                        TempTable {
+                            columns: Arc::new(cols),
+                        },
+                    )
+                });
                 for f in struct_fields.iter() {
                     if let Some(name) = f.field_name.as_ref() {
                         if self.in_pos(&name.span) {
@@ -273,7 +328,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                     if let Some(ops) = f.options.as_ref() {
                         for op in ops.iter() {
-                            self.c_on_sql_option(op, cols.clone()).await;
+                            self.c_on_sql_option(op).await;
                             if self.finished() {
                                 return;
                             }
@@ -340,11 +395,28 @@ impl<'a> CompletionStatement<'a> {
         // sqlparser don't support parse trigger body??
     }
 
+    pub(crate) async fn c_on_role_objectname(&mut self, name: &ObjectName) {
+        match name.0.len() {
+            1 => {
+                self.c_on_role(match name.0.first().unwrap() {
+                    ObjectNamePart::Identifier(ident) => ident,
+                    ObjectNamePart::Function(object_name_part_function) => {
+                        // TODO
+                        &object_name_part_function.name
+                    }
+                })
+                .await
+            }
+            _ => {
+                log::error!("role name is too long:{:?}", name)
+            }
+        }
+    }
     pub(crate) async fn c_on_role(&mut self, role: &Ident) {
         if !self.in_pos(&role.span) {
             return;
         }
-        self.result = Some(self.list_role_completion().await);
+        self.result = Some(self.helper.list_role_completion().await);
     }
 
     pub(crate) async fn c_on_cluster(&mut self, c: &Ident) {
@@ -414,21 +486,7 @@ impl<'a> CompletionStatement<'a> {
         if !self.in_pos(&var.span) {
             return;
         }
-        let mut results: Vec<_> = self
-            .helper
-            .list_variable()
-            .await
-            .map_err(|e| {
-                log::error!("list variable failed,err:{:?}", e);
-            })
-            .unwrap_or_default()
-            .into_iter()
-            .map(|x| CompletionItem {
-                item: x.into(),
-                kind: CompletionKind::Variable,
-                desc: None,
-            })
-            .collect();
+        let mut results: Vec<_> = self.helper.list_variable_completion().await;
         for var in self.scopes.vars_cloned() {
             results.push(CompletionItem {
                 item: var.name.to_string().into(),
@@ -455,7 +513,7 @@ impl<'a> CompletionStatement<'a> {
             .collect();
         if name.0.len() == 1 {
             // 也许在完成schema
-            results.extend(self.list_schema_completion().await);
+            results.extend(self.helper.list_schema_completion().await);
         }
         self.result = Some(results);
     }
@@ -475,7 +533,7 @@ impl<'a> CompletionStatement<'a> {
                 .collect(),
         );
     }
-
+    #[allow(dead_code)]
     pub(crate) async fn c_on_table_policy_object(
         &mut self, table_name: &ObjectName, name: &ObjectName,
     ) {
@@ -531,25 +589,11 @@ impl<'a> CompletionStatement<'a> {
             ObjectType::Index => self.c_on_index(name).await,
             ObjectType::Schema | ObjectType::Database => {
                 //  我不知道这里指的是schema还是database所以返回全部的结果
-                let mut r = self.list_schema_completion().await;
-                r.extend(self.list_database_completion().await.into_iter());
+                let mut r = self.helper.list_schema_completion().await;
+                r.extend(self.helper.list_database_completion().await.into_iter());
                 self.result = Some(r);
             }
-            ObjectType::Role => match name.0.len() {
-                1 => {
-                    self.c_on_role(match name.0.first().unwrap() {
-                        ObjectNamePart::Identifier(ident) => ident,
-                        ObjectNamePart::Function(object_name_part_function) => {
-                            // TODO
-                            &object_name_part_function.name
-                        }
-                    })
-                    .await
-                }
-                _ => {
-                    log::error!("role name is too long:{:?}", name)
-                }
-            },
+            ObjectType::Role => self.c_on_role_objectname(name).await,
             ObjectType::Sequence => {
                 self.c_on_sequence(name).await;
             }
@@ -559,13 +603,10 @@ impl<'a> CompletionStatement<'a> {
             ObjectType::Type => {
                 self.c_on_type(name).await;
             }
-            ObjectType::User => match name.0.last() {
-                Some(x) => match x {
-                    ObjectNamePart::Identifier(ident) => self.c_on_user(ident).await,
-                    ObjectNamePart::Function(..) => {}
-                },
-                None => {}
-            },
+            ObjectType::User => if let Some(x) = name.0.last() { match x {
+                ObjectNamePart::Identifier(ident) => self.c_on_user(ident).await,
+                ObjectNamePart::Function(..) => {}
+            } },
         }
     }
     pub(crate) async fn c_on_sequence(&mut self, name: &ObjectName) {
@@ -578,26 +619,13 @@ impl<'a> CompletionStatement<'a> {
         }
         log::info!("hit on sequence");
         let (schema, _) = extract_schema_and_item(name);
-        self.result = Some(
-            self.helper
-                .list_sequence(schema)
-                .await
-                .map_err(|e| log::error!("list sequences error: {}", e))
-                .unwrap_or_default()
-                .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.name.into(),
-                    kind: CompletionKind::Sequence,
-                    desc: Some(x.sql.into()),
-                })
-                .collect(),
-        )
+        self.result = Some(self.helper.list_sequence_completion(schema).await)
     }
     pub(crate) async fn c_on_user(&mut self, user: &Ident) {
         if !self.in_pos(&user.span) {
             return;
         }
-        self.result = Some(self.list_user_completion().await)
+        self.result = Some(self.helper.list_user_completion().await)
     }
 
     pub(crate) async fn c_on_privileges_action(&mut self, tables: &[ObjectName], a: &Action) {
@@ -618,7 +646,7 @@ impl<'a> CompletionStatement<'a> {
                         let (schema, table) = extract_schema_and_item(table);
                         let cs = self
                             .helper
-                            .list_column(schema, table, false)
+                            .list_column(schema, table, None)
                             .await
                             .map_err(|e| {
                                 log::error!("list_column failed,err:{}", e);
@@ -632,15 +660,7 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
 
-            Action::DatabaseRole { role } => match role.0.len() {
-                1 => match role.0.first().unwrap() {
-                    ObjectNamePart::Identifier(ident) => self.c_on_role(ident).await,
-                    ObjectNamePart::Function(..) => {}
-                },
-                _ => {
-                    log::error!("not 1 length role name named {:?}", role)
-                }
-            },
+            Action::DatabaseRole { role } => self.c_on_role_objectname(role).await,
 
             Action::Role { role } => {
                 self.c_on_role(role).await;
@@ -658,21 +678,11 @@ impl<'a> CompletionStatement<'a> {
         match object_type {
             CommentObject::Table => self.c_on_table(name).await,
             CommentObject::Schema | CommentObject::Database => {
-                let mut results = self.list_schema_completion().await;
-                results.extend(self.list_database_completion().await.into_iter());
+                let mut results = self.helper.list_schema_completion().await;
+                results.extend(self.helper.list_database_completion().await.into_iter());
                 self.result = Some(results);
             }
-            CommentObject::Role => match name.0.len() {
-                1 => match name.0.last().unwrap() {
-                    ObjectNamePart::Identifier(ident) => {
-                        self.c_on_role(ident).await;
-                    }
-                    ObjectNamePart::Function(..) => {}
-                },
-                _ => {
-                    log::error!("role name not right:{:?}", name)
-                }
-            },
+            CommentObject::Role => self.c_on_role_objectname(name).await,
             CommentObject::Column => {
                 if name.0.len() >= 2 {
                     let table = name.0[..name.0.len() - 1].to_vec();
@@ -689,19 +699,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            CommentObject::Extension => {
-                match name.0.len() {
-                    1 => match name.0.last().unwrap() {
-                        ObjectNamePart::Identifier(ident) => {
-                            self.c_on_postgres_extension(ident, false).await;
-                        }
-                        ObjectNamePart::Function(..) => {}
-                    },
-                    _ => {
-                        log::error!("postgres extension name not right:{:?}", name)
-                    }
-                };
-            }
+            CommentObject::Extension => self.c_on_role_objectname(name).await,
             CommentObject::User => match name.0.len() {
                 // 在 PostgreSQL 里，“用户”本身就是 可登录的 role，所以给 user 加注释仍然用：
                 // TODO
@@ -772,23 +770,7 @@ impl<'a> CompletionStatement<'a> {
             return;
         }
         let (schema, _) = extract_schema_and_item(name);
-        self.result = Some(
-            self.helper
-                .list_index(schema)
-                .await
-                .map_err(|err| {
-                    log::error!("list index failed,err:{}", err);
-                })
-                .ok()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Index,
-                    desc: None,
-                })
-                .collect::<Vec<_>>(),
-        );
+        self.result = Some(self.helper.list_index_completion(schema).await);
     }
 
     pub(crate) async fn c_on_postgres_rule(&mut self, table_name: &ObjectName, rule: &Ident) {
@@ -1014,7 +996,7 @@ impl<'a> CompletionStatement<'a> {
                 let cols = Arc::new({
                     let mut cols = self
                         .helper
-                        .list_column(schema, table, false)
+                        .list_column(schema, table, None)
                         .await
                         .map_err(|e| log::error!("list table column error: {}", e))
                         .unwrap_or_default();
@@ -1025,17 +1007,16 @@ impl<'a> CompletionStatement<'a> {
                     });
                     cols
                 });
-                let mut scope = Scope::default();
-                scope.enter_temp_table(
-                    None,
-                    TempTable {
-                        columns: cols.clone(),
-                    },
-                );
-                let _guard = self.scopes.enter(scope);
+                self.scopes.current_scope(|scope| {
+                    scope.enter_temp_table(
+                        None,
+                        TempTable {
+                            columns: cols.clone(),
+                        },
+                    )
+                });
                 for o in column_def.options.iter() {
-                    self.c_on_column_option_def(o, cols.clone(), Some(table_name))
-                        .await;
+                    self.c_on_column_option_def(o).await;
                 }
                 self.c_on_column_mysql_position(table_name, column_position.as_ref())
                     .await;
@@ -1045,7 +1026,7 @@ impl<'a> CompletionStatement<'a> {
                     self.set_on_def();
                     return;
                 }
-                self.c_on_select_item(&select.projection[..]).await;
+                self.c_on_select_items(&select.projection[..]).await;
                 let _guard = self
                     .scopes
                     .enter(Scope::from_this_table(table_name.clone()));
@@ -1221,13 +1202,11 @@ impl<'a> CompletionStatement<'a> {
                 }
                 if self.in_pos(&new_column_name.span) {
                     self.set_on_def();
-                    return;
                 }
             }
             AlterTableOperation::RenameTable { table_name } => {
                 if self.in_pos(&table_name.span()) {
                     self.set_on_def();
-                    return;
                 }
             }
             AlterTableOperation::ChangeColumn {
@@ -1304,19 +1283,17 @@ impl<'a> CompletionStatement<'a> {
     }
 
     pub(crate) async fn c_on_owner(&mut self, o: &Owner) {
-        match o {
-            Owner::Ident(x) => {
-                if self.in_pos(&x.span) {
-                    self.result = Some(
-                        self.list_role_completion()
-                            .await
-                            .into_iter()
-                            .chain(self.list_user_completion().await.into_iter())
-                            .collect::<Vec<_>>(),
-                    )
-                }
+        if let Owner::Ident(x) = o {
+            if self.in_pos(&x.span) {
+                self.result = Some(
+                    self.helper
+                        .list_role_completion()
+                        .await
+                        .into_iter()
+                        .chain(self.helper.list_user_completion().await.into_iter())
+                        .collect::<Vec<_>>(),
+                )
             }
-            _ => {}
         }
     }
 
@@ -1443,6 +1420,40 @@ impl<'a> CompletionStatement<'a> {
             return;
         }
         log::info!("hit identifier:{:?}", ident);
+        if ident.value.starts_with("@@") && self.helper.backend_name().support_at()
+        // sql server的情况和mysql差不多
+        {
+            /*
+            在 MySQL 中，@@ 是用于访问系统变量的语法。系统变量存储了数据库服务器的各种配置信息和状态。以下是一些关键点：
+            访问系统变量：
+            使用 @@ 前缀可以访问全局或会话级别的系统变量。
+            例如，SELECT @@version; 查询当前 MySQL 服务器的版本。
+            */
+            self.result = Some(self.helper.list_variable_completion().await);
+            return;
+        }
+        if ident.value.starts_with("@") && self.helper.backend_name().support_at()
+        // sql server的情况和mysql差不多
+        {
+            /*
+            在 MySQL 中，用户自定义变量（以 @ 开头的变量）不会在任何系统视图或命令输出中列出，因此无法直接列出所有用户定义的变量。用户变量的作用域仅限于当前会话，并且它们不会被系统视图记录。
+
+            查看用户自定义变量的方法
+            虽然没有直接的方法列出所有用户自定义变量，但你可以通过以下方式管理和查看它们：
+
+            手动记录：
+
+            在使用用户变量时，最好手动记录它们的名称和用途，以便在需要时查找。
+            查询特定变量：
+
+            如果你知道某个用户变量的名称，可以直接查询其值：
+            */
+
+            // 最好什么都不做 也不表示我处理到了这个语法结果让词法分析来做完成
+            // 我也不能通过数据操作查询到
+            return;
+        }
+
         let mut results = vec![];
         let tables = self.scopes.tables_cloned();
         for t in tables.iter() {
@@ -1451,7 +1462,7 @@ impl<'a> CompletionStatement<'a> {
                     let (schema, table) = extract_schema_and_item(table);
                     let items = self
                         .helper
-                        .list_column(schema, table, false)
+                        .list_column(schema, table, None)
                         .await
                         .map_err(|e| {
                             log::error!("list_column failed,err:{}", e);
@@ -1498,7 +1509,7 @@ impl<'a> CompletionStatement<'a> {
             results.extend(fs);
         }
         //也要schema
-        let schemas = self.list_database_completion().await;
+        let schemas = self.helper.list_database_completion().await;
         /*
             ai提示词 sql查询里面 有哪些关键字 可以放在select的列的前面 给我完成的列表
         */
@@ -1516,19 +1527,8 @@ impl<'a> CompletionStatement<'a> {
         self.result = Some(results);
     }
 
-    /// on `ColumnOptionDef` require table been entered
-    ///
-    pub(crate) async fn c_on_column_option_def(
-        &mut self, def: &ColumnOptionDef, cols: Arc<Vec<TempTableColumn>>,
-        table_name: Option<&ObjectName>,
-    ) {
-        if let Some(name) = &def.name {
-            if self.in_pos(&name.span) {
-                self.set_on_def();
-                return;
-            }
-        }
-        match &def.option {
+    pub(crate) async fn c_on_column_option(&mut self, op: &ColumnOption) {
+        match op {
             ColumnOption::Null => {}
             ColumnOption::NotNull => {}
             ColumnOption::Default(expr) => {
@@ -1612,7 +1612,7 @@ impl<'a> CompletionStatement<'a> {
             }
             ColumnOption::Options(options) => {
                 for op in options.iter() {
-                    self.c_on_sql_option(op, cols.clone()).await;
+                    self.c_on_sql_option(op).await;
                     if self.finished() {
                         return;
                     }
@@ -1629,17 +1629,15 @@ impl<'a> CompletionStatement<'a> {
                         column_policy_property
                     }
                 };
-                if let Some(table_name) = table_name {
-                    self.c_on_table_policy_object(table_name, &ast.policy_name)
-                        .await;
-                }
                 if self.finished() {
                     return;
                 }
                 if let Some(xs) = ast.using_columns.as_ref() {
-                    if xs.iter().any(|col| self.in_pos(&col.span)) {
-                        self.result = Some(cols.iter().map(CompletionItem::from).collect());
-                        return;
+                    for x in xs.iter() {
+                        self.c_on_expr_ident(x).await;
+                        if self.finished() {
+                            return;
+                        }
                     }
                 }
             }
@@ -1655,9 +1653,19 @@ impl<'a> CompletionStatement<'a> {
         }
     }
 
-    pub(crate) async fn c_on_sql_option(
-        &mut self, ast: &SqlOption, cols: Arc<Vec<TempTableColumn>>,
-    ) {
+    /// on `ColumnOptionDef` require table been entered
+    ///
+    pub(crate) async fn c_on_column_option_def(&mut self, def: &ColumnOptionDef) {
+        if let Some(name) = &def.name {
+            if self.in_pos(&name.span) {
+                self.set_on_def();
+                return;
+            }
+        }
+        self.c_on_column_option(&def.option).await;
+    }
+
+    pub(crate) async fn c_on_sql_option(&mut self, ast: &SqlOption) {
         match ast {
             SqlOption::Clustered(..) => {}
             SqlOption::Ident(..) => {
@@ -1672,8 +1680,7 @@ impl<'a> CompletionStatement<'a> {
                 ..
             } => {
                 if self.in_pos(&column_name.span) {
-                    self.result = Some(cols.iter().map(CompletionItem::from).collect());
-
+                    self.c_on_expr_ident(column_name).await;
                     return;
                 }
                 for f in for_values.iter() {
@@ -1749,15 +1756,14 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Expr::InSubquery { expr, subquery, .. } => {
+                let cols = Box::pin(self.c_on_query(subquery.as_ref()))
+                    .await
+                    .map_err(|e| log::error!("a error:{:?}", e))
+                    .unwrap_or_default();
+                self.scopes.current_scope(|s| s.enter_temp_cols(cols));
                 Box::pin(self.c_on_expr(expr)).await;
                 if self.finished() {
-                    return;
                 }
-
-                let _ = Box::pin(self.c_on_query(subquery.as_ref()))
-                    .await
-                    .map(|e| log::error!("a error:{:?}", e))
-                    .ok();
             }
             Expr::InUnnest {
                 expr, array_expr, ..
@@ -1980,14 +1986,12 @@ impl<'a> CompletionStatement<'a> {
             Expr::Exists { subquery, .. } => {
                 let _ = Box::pin(self.c_on_query(subquery))
                     .await
-                    .map_err(|e| log::error!("a error:{}", e))
-                    .ok();
+                    .map_err(|e| log::error!("a error:{}", e));
             }
             Expr::Subquery(query) => {
                 let _ = Box::pin(self.c_on_query(query))
                     .await
-                    .map_err(|e| log::error!("a error:{}", e))
-                    .ok();
+                    .map_err(|e| log::error!("a error:{}", e));
             }
             Expr::GroupingSets(vec) => {
                 for v in vec.iter() {
@@ -2199,7 +2203,7 @@ impl<'a> CompletionStatement<'a> {
         let (schema, table_name) = extract_schema_and_item(table_name);
         let items = self
             .helper
-            .list_column(schema, table_name, false)
+            .list_column(schema, table_name, None)
             .await
             .map_err(|e| {
                 log::error!("list column error:{:?}", e);
@@ -2246,7 +2250,7 @@ impl<'a> CompletionStatement<'a> {
             2 => {
                 let schema = &name.0[0];
                 if self.in_pos(&schema.span()) {
-                    self.result = Some(self.list_schema_completion().await);
+                    self.result = Some(self.helper.list_schema_completion().await);
                 }
             }
             1 => {
@@ -2436,7 +2440,7 @@ impl<'a> CompletionStatement<'a> {
 
                                 cs.extend(
                                     self.helper
-                                        .list_column(schema, table, false)
+                                        .list_column(schema, table, None)
                                         .await
                                         .map_err(|e| {
                                             log::error!("list_column failed,err:{}", e);
@@ -2517,7 +2521,7 @@ impl<'a> CompletionStatement<'a> {
                 return;
             }
         }
-        self.c_on_select_item(&selection.projection).await;
+        self.c_on_select_items(&selection.projection).await;
     }
 
     pub(crate) async fn c_on_input_format_clause(&mut self, ast: &InputFormatClause) {
@@ -2535,7 +2539,7 @@ impl<'a> CompletionStatement<'a> {
         }
         self.c_on_expr(&ast.value).await;
     }
-    pub(crate) async fn c_on_select_item(&mut self, projection: &[SelectItem]) {
+    pub(crate) async fn c_on_select_items(&mut self, projection: &[SelectItem]) {
         for p in projection.iter() {
             match p {
                 SelectItem::UnnamedExpr(expr) => {
@@ -2646,14 +2650,7 @@ impl<'a> CompletionStatement<'a> {
         if let Some(with) = query.with.as_ref() {
             for c in with.cte_tables.iter() {
                 let cols = Box::pin(self.c_on_query(&c.query)).await?;
-                self.scopes.current_scope(|s| {
-                    s.enter_temp_table(
-                        Some(c.alias.name.clone()),
-                        TempTable {
-                            columns: Arc::new(cols),
-                        },
-                    )
-                })
+                self.scopes.current_scope(|s| s.enter_temp_cols(cols))
             }
         }
         Box::pin(self.c_on_set_expr(&query.body)).await;
@@ -2773,10 +2770,10 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             PipeOperator::Select { exprs } => {
-                self.c_on_select_item(&exprs[..]).await;
+                self.c_on_select_items(&exprs[..]).await;
             }
             PipeOperator::Extend { exprs } => {
-                self.c_on_select_item(&exprs[..]).await;
+                self.c_on_select_items(&exprs[..]).await;
             }
             PipeOperator::Set { assignments } => {
                 for ass in assignments.iter() {
@@ -2798,7 +2795,6 @@ impl<'a> CompletionStatement<'a> {
             PipeOperator::As { alias } => {
                 if self.in_pos(&alias.span) {
                     self.set_on_def();
-                    return;
                 }
             }
             PipeOperator::Aggregate {
@@ -2977,7 +2973,7 @@ impl<'a> CompletionStatement<'a> {
             // 复制
             // 是的，column_alias 就是给 列起的别名，也就是 列的定义。
             // 你在问题中提到的这段语法：
-            Some(alias) if alias.columns.len() > 0 => Some(
+            Some(alias) if !alias.columns.is_empty() => Some(
                 alias
                     .columns
                     .iter()
@@ -3051,7 +3047,6 @@ impl<'a> CompletionStatement<'a> {
                 partitions,
                 ..
             } => {
-                log::trace!("table name:{:?} alias:{:?} args:{:?}", name, alias, args);
                 if let Some(alias) = alias {
                     self.c_on_table_alias(alias).await;
                     if self.finished() {
@@ -3072,7 +3067,12 @@ impl<'a> CompletionStatement<'a> {
                     cols
                 } else {
                     self.helper
-                        .list_column(schema, table_name, args.is_some())
+                        .list_column(
+                            schema,
+                            table_name,
+                            args.as_ref()
+                                .map(|x| x.args.iter().map(|x| x.to_string()).collect()),
+                        )
                         .await
                         .map_err(|e| log::error!("list column error: {:?}", e))
                         .unwrap_or_default()
@@ -3156,9 +3156,17 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
 
-            TableFactor::Function { alias, name, .. } => {
+            TableFactor::Function {
+                alias, name, args, ..
+            } => {
                 if let Some(alias) = alias {
                     self.c_on_table_alias(alias).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+                for arg in args.iter() {
+                    self.c_on_function_arg(arg).await;
                     if self.finished() {
                         return;
                     }
@@ -3173,7 +3181,11 @@ impl<'a> CompletionStatement<'a> {
                     cols
                 } else {
                     self.helper
-                        .list_column(schema, name, true)
+                        .list_column(
+                            schema,
+                            name,
+                            Some(args.iter().map(|s| s.to_string()).collect()),
+                        )
                         .await
                         .map_err(|e| log::error!("list column failed,e:{}", e))
                         .ok()
@@ -3205,7 +3217,7 @@ impl<'a> CompletionStatement<'a> {
                 }
                 let query_cols = self
                     .helper
-                    .get_query_columns(&format!("select * from {}", ast.to_string()))
+                    .get_query_columns(&format!("select * from {}", ast))
                     .await
                     .map_err(|e| log::error!("get query columns error: {}", e))
                     .unwrap_or_default();
@@ -3247,14 +3259,14 @@ impl<'a> CompletionStatement<'a> {
                 }
                 let query_cols = self
                     .helper
-                    .get_query_columns(&format!("select * from {}", ast.to_string()))
+                    .get_query_columns(&format!("select * from {}", ast))
                     .await
                     .map_err(|e| log::error!("get query columns error: {}", e))
                     .unwrap_or_default();
 
                 let cols = if let Some(cols) = self.get_table_alias_columns(alias) {
                     cols
-                } else if columns.len() > 0 {
+                } else if !columns.is_empty() {
                     fn collect_json_columns(ret: &mut Vec<TempTableColumn>, ast: &JsonTableColumn) {
                         match ast {
                             JsonTableColumn::Named(json_table_named_column) => {
@@ -3317,14 +3329,14 @@ impl<'a> CompletionStatement<'a> {
                 }
                 let query_cols = self
                     .helper
-                    .get_query_columns(&format!("select * from {}", ast.to_string()))
+                    .get_query_columns(&format!("select * from {}", ast))
                     .await
                     .map_err(|e| log::error!("get query columns error: {}", e))
                     .unwrap_or_default();
 
                 let cols = if let Some(cols) = self.get_table_alias_columns(alias) {
                     cols
-                } else if columns.len() > 0 {
+                } else if !columns.is_empty() {
                     columns
                         .iter()
                         .map(|c| TempTableColumn {
@@ -3467,7 +3479,6 @@ impl<'a> CompletionStatement<'a> {
                 if let Some(d) = default {
                     self.c_on_expr(d).await;
                     if self.finished() {
-                        return;
                     }
                 }
             }
@@ -3583,7 +3594,7 @@ impl<'a> CompletionStatement<'a> {
             WindowFrameBound::CurrentRow => {}
             WindowFrameBound::Preceding(expr) | WindowFrameBound::Following(expr) => {
                 if let Some(expr) = expr.as_ref() {
-                    self.c_on_expr(&expr).await;
+                    self.c_on_expr(expr).await;
                 }
             }
         }
@@ -3704,73 +3715,6 @@ impl<'a> CompletionStatement<'a> {
             Password::Password(expr) => self.c_on_expr(expr).await,
             Password::NullPassword => {}
         }
-    }
-}
-
-impl<'a> CompletionStatement<'_> {
-    pub(crate) async fn key_words_completion(&self) -> Vec<CompletionItem> {
-        self.helper
-            .key_words()
-            .await
-            .map_err(|e| log::error!("get keywords failed,e:{}", e))
-            .unwrap_or_default()
-    }
-    pub(crate) async fn list_role_completion(&self) -> Vec<CompletionItem> {
-        self.helper
-            .list_role()
-            .await
-            .map_err(|e| log::error!("list role failed,err:{}", e))
-            .unwrap_or_default()
-            .into_iter()
-            .map(|name| CompletionItem {
-                item: name.into(),
-                kind: CompletionKind::User,
-                desc: None,
-            })
-            .collect()
-    }
-    pub(crate) async fn list_user_completion(&self) -> Vec<CompletionItem> {
-        self.helper
-            .list_user()
-            .await
-            .map_err(|e| log::error!("list user failed,err:{}", e))
-            .unwrap_or_default()
-            .into_iter()
-            .map(|name| CompletionItem {
-                item: name.into(),
-                kind: CompletionKind::User,
-                desc: None,
-            })
-            .collect()
-    }
-    pub(crate) async fn list_schema_completion(&self) -> Vec<CompletionItem> {
-        self.helper
-            .list_schema()
-            .await
-            .map_err(|e| log::error!("list schema failed,err:{}", e))
-            .unwrap_or_default()
-            .into_iter()
-            .map(|name| CompletionItem {
-                item: name.into(),
-                kind: CompletionKind::Schema,
-                desc: None,
-            })
-            .collect()
-    }
-
-    pub(crate) async fn list_database_completion(&self) -> Vec<CompletionItem> {
-        self.helper
-            .list_database()
-            .await
-            .map_err(|e| log::error!("list database failed,err:{}", e))
-            .unwrap_or_default()
-            .into_iter()
-            .map(|name| CompletionItem {
-                item: name.into(),
-                kind: CompletionKind::Database,
-                desc: None,
-            })
-            .collect()
     }
 }
 

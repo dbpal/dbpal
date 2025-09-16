@@ -128,3 +128,5 @@ GRANT EXECUTE ON PROCEDURE xxx.do_nothing_procedure() TO postgres;
 31 xxx ; 52 do_nothing_procedure ; 66 postgres
 GRANT EXECUTE ON FUNCTION xxx.do_nothing() TO role_name;
 30 xxx ; 41 do_nothing ; 56 postgres
+create SEQUENCE xxx.abc
+20 xxx
