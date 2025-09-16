@@ -917,7 +917,11 @@ function SelectColumns(props: {
       <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
         <Button
           onClick={() => {
-            setIncludes(fields.map((x) => x.field));
+            setIncludes(
+              fields
+                .filter((e) => e.field.includes(matchStr))
+                .map((x) => x.field)
+            );
           }}
           disabled={includes.length == fields.length}
           variant="outlined"

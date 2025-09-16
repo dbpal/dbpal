@@ -31,8 +31,8 @@ use crate::datasource_config::CassandraDBConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef,
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
-    ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
+    ListTable, NamedStaff, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
     escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::{create_csv, current_timestamp};
@@ -61,15 +61,13 @@ use dashmap::DashMap;
 use num_bigint::{BigInt, ToBigInt};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
 
 #[derive(Clone)]
 pub struct CassandraDB {
     session: Arc<AppSession>,
-    pub(crate) query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<AppSession>>>>,
+    pub(crate) query_connection: Arc<DashMap<uuid::Uuid, Arc<AppSession>>>,
     pub(crate) config: CassandraDBConfig,
     paging_cache: Arc<DashMap<String, Arc<PageCache>>>,
 }
@@ -132,7 +130,9 @@ pub type AppSession = cdrs_tokio::cluster::session::Session<
     >,
 >;
 
-async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<AppSession> {
+async fn make_session(
+    config: &CassandraDBConfig, max_pool_size: usize,
+) -> anyhow::Result<AppSession> {
     let mut node_builder = NodeTcpConfigBuilder::new();
 
     node_builder = node_builder
@@ -150,12 +150,13 @@ async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<AppSession> 
 
     let mut session_builder =
         TcpSessionBuilder::new(RoundRobinLoadBalancingStrategy::new(), cluster_config);
-
+    let mut b = ConnectionPoolConfigBuilder::new();
     if let Some(conn_timeout) = config.conn_timeout {
-        let mut b = ConnectionPoolConfigBuilder::new();
         b = b.with_connect_timeout(Some(Duration::from_millis(conn_timeout as u64)));
-        session_builder = session_builder.with_connection_pool_config(b.build());
+        b = b.with_local_size(max_pool_size);
     }
+    session_builder = session_builder.with_connection_pool_config(b.build());
+
     if let Some(keyspace) = config.db.as_deref() {
         session_builder = session_builder.with_keyspace(keyspace.to_owned());
     }
@@ -172,7 +173,7 @@ async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<AppSession> 
 }
 impl CassandraDB {
     pub async fn new(config: CassandraDBConfig) -> anyhow::Result<Self> {
-        let session = make_session(&config).await?;
+        let session = make_session(&config, POOL_MAX_CONNECTIONS as usize).await?;
         anyhow::Ok(Self {
             session: Arc::new(session),
             config,
@@ -854,8 +855,6 @@ impl QuerySql for CassandraDB {
             Some(x) => x.clone(),
             None => anyhow::bail!("query connection closed???"),
         };
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
         let ret = match conn.query(sql).await {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
@@ -873,8 +872,6 @@ impl QuerySql for CassandraDB {
             Some(x) => x.clone(),
             None => anyhow::bail!("query connection closed???"),
         };
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
         for sql in sql_to_each(sql) {
             match conn.query(&sql).await {
                 Ok(x) => {
@@ -907,16 +904,14 @@ impl QuerySql for CassandraDB {
 
     async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
         let id = uuid::Uuid::new_v4();
-        let session = make_session(&self.config).await?;
-        self.query_connection
-            .insert(id, Arc::new(Mutex::new(session)));
+        let session = make_session(&self.config, 1).await?;
+        self.query_connection.insert(id, Arc::new(session));
         anyhow::Ok(id)
     }
 
     async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
-        let session = make_session(&self.config).await?;
-        self.query_connection
-            .insert(id, Arc::new(Mutex::new(session)));
+        let session = make_session(&self.config, 1).await?;
+        self.query_connection.insert(id, Arc::new(session));
         anyhow::Ok(())
     }
 

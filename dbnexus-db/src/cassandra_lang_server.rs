@@ -11,7 +11,6 @@ use cql3_parser::common::{
 use cql3_parser::create_index::IndexColumnType;
 use cql3_parser::insert::InsertValues;
 use cql3_parser::select::SelectElement;
-use tokio::sync::Mutex;
 
 use crate::cassandra::{AppSession, CassandraDB};
 use crate::db::{AutoCompletionQueryUuid, CreatedTypeDef, DBTrait};
@@ -111,7 +110,7 @@ impl LexerCompletionTrait for CassandraDB {
 }
 
 impl CassandraDB {
-    fn get_query_session(&self) -> anyhow::Result<Arc<Mutex<AppSession>>> {
+    fn get_query_session(&self) -> anyhow::Result<Arc<AppSession>> {
         match self.query_connection.get(&AutoCompletionQueryUuid::get()) {
             Some(x) => anyhow::Ok(x.clone()),
             None => anyhow::bail!("connection closed???"),
@@ -153,7 +152,6 @@ impl LangServerCommon for CassandraDB {
         );
         log::info!("sql:{}", sql);
         let session = self.get_query_session()?;
-        let session = session.lock().await;
         let rows = session
             .query(sql)
             .await?
@@ -267,7 +265,6 @@ impl CassandraDB {
         );
         log::info!("sql:{}", sql);
         let session = self.get_query_session()?;
-        let session = session.lock().await;
         let rows = session
             .query(sql)
             .await?
@@ -291,7 +288,6 @@ impl CassandraDB {
             return anyhow::Ok(key_space.to_string());
         }
         let session = self.get_query_session()?;
-        let session = session.lock().await;
         if let Some(x) = session.current_keyspace() {
             return anyhow::Ok(x.as_str().to_string());
         }
@@ -524,7 +520,6 @@ impl AstCompletion {
         let sql = " SELECT role FROM system_auth.roles;".to_string();
         log::info!("sql:{}", sql);
         let session = self.db.get_query_session()?;
-        let session = session.lock().await;
         let rows = session
             .query(sql)
             .await?
@@ -558,7 +553,6 @@ impl AstCompletion {
 
         log::info!("sql:{}", sql);
         let session = self.db.get_query_session()?;
-        let session = session.lock().await;
         let rows = session
             .query(sql)
             .await?
@@ -605,7 +599,6 @@ impl AstCompletion {
         );
         log::info!("sql:{}", sql);
         let session = self.db.get_query_session()?;
-        let session = session.lock().await;
         let rows = session
             .query(sql)
             .await?
@@ -661,7 +654,6 @@ impl AstCompletion {
         );
         log::info!("sql:{}", sql);
         let session = self.db.get_query_session()?;
-        let session = session.lock().await;
         let rows = session
             .query(sql)
             .await?
@@ -693,7 +685,6 @@ impl AstCompletion {
             return anyhow::Ok(());
         }
         let session = self.db.get_query_session()?;
-        let session = session.lock().await;
         let body = session
             .query(format!("DESCRIBE TYPE {};", typ.name))
             .await?
@@ -764,7 +755,6 @@ impl AstCompletion {
         );
         log::info!("sql:{}", sql);
         let session = self.db.get_query_session()?;
-        let session = session.lock().await;
         let rows = session
             .query(sql)
             .await?
@@ -808,7 +798,6 @@ impl AstCompletion {
         );
         log::info!("sql:{}", sql);
         let session = self.db.get_query_session()?;
-        let session = session.lock().await;
 
         let rows = session
             .query(sql)
@@ -880,7 +869,6 @@ impl AstCompletion {
         );
         log::info!("sql:{}", sql);
         let session = self.db.get_query_session()?;
-        let session = session.lock().await;
         let rows = session
             .query(sql)
             .await?
