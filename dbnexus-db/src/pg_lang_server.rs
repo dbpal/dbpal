@@ -6,7 +6,6 @@ use crate::language_server::{
 
 use crate::pg::PostGresDB;
 use crate::sqlparser_completion::TempTableColumn;
-use sqlparser::tokenizer::Token;
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 use std::collections::HashSet;
 use std::ops::DerefMut;
@@ -38,17 +37,10 @@ impl PostGresDB {
                         // information_schema, public like this
                         let s: Option<String> = x.try_get(0).ok().flatten();
                         let ret = s.map(|string| {
-                            let mut m = HashSet::new();
-                            let d = self.dialect();
-                            sqlparser::tokenizer::Tokenizer::new(d.as_ref(), &string)
-                                .tokenize()
-                                .map_err(|e| log::error!("token search path failed,err:{}", e))
-                                .unwrap_or_default()
-                                .into_iter()
-                                .for_each(|e| if let Token::Word(x) = e {
-                                    m.insert(x.value);
-                                });
-                            m
+                            string
+                                .split(",")
+                                .map(|x| x.trim().to_string())
+                                .collect::<HashSet<_>>()
                         });
                         ret
                     }
