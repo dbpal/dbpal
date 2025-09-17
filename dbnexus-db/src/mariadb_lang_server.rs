@@ -36,8 +36,10 @@ impl AstCompletionHelper for MariaDB {
         AstCompletionHelper::list_partition(self.db.as_ref(), schema, table).await
     }
 
-    async fn mysql_show_create_trigger(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::mysql_show_create_trigger(self.db.as_ref()).await
+    async fn mysql_show_create_trigger(
+        &self, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        AstCompletionHelper::mysql_show_create_trigger(self.db.as_ref(), schema).await
     }
 
     async fn list_constraint(

@@ -68,6 +68,7 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   const handleQueryCommit = async () => {
     try {
       let c = await conn.getAutoCommit();
+      console.log('commit:', c);
       setCommit(c);
     } catch (e) {
       showNotification('error', 'get commit modal failed', e);

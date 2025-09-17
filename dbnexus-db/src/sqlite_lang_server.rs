@@ -323,13 +323,7 @@ mod tests {
     async fn test_completion_xxx() {
         enable_test_log();
         let db = make_test_object().await;
-        test_file_auto_completion(
-            r#"select employees.id  from employees
-36 departments"#,
-            &db,
-            false,
-        )
-        .await;
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, false).await;
     }
 }
 

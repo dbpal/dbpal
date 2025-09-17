@@ -941,7 +941,7 @@ impl LibSqlDB {
                     m.insert(f.field.clone(), d);
                 }
 
-                let insert_sql = (self).insert_sql(None, table_name, &cols, &m)?;
+                let insert_sql = self.insert_sql(None, table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
                 sender.send(";\n".into()).await?;
             }

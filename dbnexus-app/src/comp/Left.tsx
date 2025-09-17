@@ -908,6 +908,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     DataSourceKind.Oracle,
     DataSourceKind.Cassandra,
     DataSourceKind.Cockroach,
+    DataSourceKind.ClickHouse,
   ]).has(kind);
   let supportSequence = [
     DataSourceKind.MariaDB,

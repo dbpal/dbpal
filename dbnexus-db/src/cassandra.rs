@@ -156,19 +156,10 @@ async fn make_session(
         b = b.with_local_size(max_pool_size);
     }
     session_builder = session_builder.with_connection_pool_config(b.build());
-
     if let Some(keyspace) = config.db.as_deref() {
         session_builder = session_builder.with_keyspace(keyspace.to_owned());
     }
-
-    let session: cdrs_tokio::cluster::session::Session<
-        cdrs_tokio::transport::TransportTcp,
-        cdrs_tokio::cluster::TcpConnectionManager,
-        RoundRobinLoadBalancingStrategy<
-            cdrs_tokio::transport::TransportTcp,
-            cdrs_tokio::cluster::TcpConnectionManager,
-        >,
-    > = session_builder.build().await?;
+    let session: AppSession = session_builder.build().await?;
     anyhow::Ok(session)
 }
 impl CassandraDB {

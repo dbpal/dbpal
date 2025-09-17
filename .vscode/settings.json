@@ -233,6 +233,7 @@
     "msdb",
     "MSET",
     "MSETNX",
+    "msvc",
     "MULTI",
     "MVIEW",
     "MVIEWS",

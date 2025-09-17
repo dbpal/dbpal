@@ -1438,7 +1438,7 @@ impl SchemaTrait for DuckDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = (self).insert_sql(
+        let sql = self.insert_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
@@ -1460,7 +1460,7 @@ impl SchemaTrait for DuckDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = (self).update_sql(
+        let sql = self.update_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,
@@ -1481,7 +1481,7 @@ impl SchemaTrait for DuckDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = (self).delete_sql(
+        let sql = self.delete_sql(
             self.config.schema.as_ref().map(|x| x.as_str()),
             table_name,
             &fs,

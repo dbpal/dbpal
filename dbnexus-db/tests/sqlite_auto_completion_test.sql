@@ -50,3 +50,5 @@ SELECT name FROM pragma_function_list()
 12 name
 SELECT * from (SELECT abs(-1)) where "abs(-1)" > 0
 39 abs(-1)
+SELECT * from (select * from (SELECT 1 as xxxx)) ORDER BY xxxx
+63 xxxx

@@ -213,7 +213,7 @@ impl LibSqlDB {
             r#"
         SELECT name
             FROM "{db}".sqlite_master
-            WHERE type = 'index';"#
+            WHERE type = 'index'"#
         );
         log::info!("sql:{}", sql);
         let conn = self.get_conn().await?;

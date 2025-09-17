@@ -101,7 +101,7 @@ impl SqliteDB {
                     m.insert(f.field.clone(), d);
                 }
 
-                let insert_sql = (self).insert_sql(None, table_name, &cols, &m)?;
+                let insert_sql = self.insert_sql(None, table_name, &cols, &m)?;
                 sender.send(Cow::Owned(insert_sql)).await?;
                 sender.send(";\n".into()).await?;
             }
@@ -1019,7 +1019,8 @@ fn encode_row_as_json(r: &SqliteRow) -> anyhow::Result<serde_json::Value> {
                 let v: Option<Vec<u8>> = r.try_get(c)?;
                 v.map(|x| {
                     serde_json::Value::Array(x.into_iter().map(serde_json::Value::from).collect())
-                }).unwrap_or(null_value.clone())
+                })
+                .unwrap_or(null_value.clone())
             }
 
             _ if numeric_like(&typ) => {

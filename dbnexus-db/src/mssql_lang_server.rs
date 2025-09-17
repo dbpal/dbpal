@@ -52,7 +52,7 @@ impl MsSqlServerDB {
 impl LangServerCommon for MsSqlServerDB {
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let sql = r#"
-       SELECT 
+        SELECT 
             i.name AS IndexName  FROM 
             sys.indexes AS i
         INNER JOIN 

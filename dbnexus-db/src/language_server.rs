@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::collections::HashSet;
+use std::time::Duration;
 
 use sqlparser::ast::Statement;
 use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
@@ -138,8 +139,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
             // 试图去匹配 @@
             for t in tokens.iter() {
                 if let Token::Word(x) = &t.token {
-                    if x.value.starts_with("@@")
-                        && in_pos(pos, t.span.start, x.value.len() as u64)
+                    if x.value.starts_with("@@") && in_pos(pos, t.span.start, x.value.len() as u64)
                     {
                         // 词法匹配到了@@
                         return anyhow::Ok(self.list_variable_completion().await);
@@ -364,6 +364,9 @@ pub trait LangServerCommon: GetBackendKind {
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
+    async fn list_event(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
     async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
@@ -446,6 +449,12 @@ pub trait LangServerCommon: GetBackendKind {
             }
         }
         anyhow::Ok(false)
+    }
+
+    fn parse_statement(&self, sql: &str) -> anyhow::Result<Vec<sqlparser::ast::Statement>> {
+        let dialect = self.dialect();
+        let ss = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql)?;
+        anyhow::Ok(ss)
     }
 
     // some backend can use a query to query this.
@@ -720,6 +729,19 @@ pub trait LangServerCommon: GetBackendKind {
             })
             .collect()
     }
+    async fn list_event_completion(&self, schema: Option<&str>) -> Vec<CompletionItem> {
+        self.list_event(schema)
+            .await
+            .map_err(|e| log::error!("list event failed,err:{}", e))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|name| CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Event,
+                desc: None,
+            })
+            .collect()
+    }
     async fn list_sequence_completion(&self, schema: Option<&str>) -> Vec<CompletionItem> {
         self.list_sequence(schema)
             .await
@@ -808,7 +830,9 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         not_support_feature(self.backend_name())
     }
 
-    async fn mysql_show_create_trigger(&self) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn mysql_show_create_trigger(
+        &self, _schema: Option<&str>,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
         anyhow::Ok(vec![])
     }
 
@@ -851,7 +875,14 @@ pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletion
     backend: &T, sql: &str, line: u32, col: u32, use_lexer: bool,
 ) -> anyhow::Result<Vec<CompletionItem>> {
     let dot = backend.try_completion_dot(sql, line, col).await;
-    let r = try_parser_completion(sql, line, col, backend).await;
+    let r = tokio::time::timeout(Duration::from_secs(4), async move {
+        try_parser_completion(sql, line, col, backend).await
+    })
+    .await
+    .map_err(|e| {
+        log::error!("ast completion not finished in reasonable time this maybe a bug,sql:{:?} line:{} col:{} backend:{}" , sql , line, col,backend.backend_name()) ;
+        e
+    })?;
     match r {
         Ok(mut xs) => {
             // xxx. 有可能和后面的元素结合产生不同寻常的结果

@@ -1,6 +1,5 @@
 use crate::db::BackendKind;
 use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc};
-use crate::sqlparser_completing::extract_schema_and_item;
 use sqlparser::ast::{
     AlterIndexOperation, AlterRoleOperation, AlterTypeOperation, BeginEndStatements, CaseStatement,
     ConditionalStatementBlock, ConditionalStatements, CopySource, CreateDomain, CreateFunctionBody,
@@ -9,7 +8,7 @@ use sqlparser::ast::{
     OneOrManyWithParens, OpenStatement, Owner, PrintStatement, Privileges, RaiseStatement,
     RaiseStatementValue, ReturnStatement, ReturnStatementValue, SchemaName, SequenceOptions, Set,
     SetConfigValue, SetSessionParamKind, Spanned, Statement, TableConstraint, TableObject,
-    TriggerEvent, UpdateTableFromKind, UserDefinedTypeRepresentation, WhileStatement,
+    TriggerEvent, UpdateTableFromKind, Use, UserDefinedTypeRepresentation, WhileStatement,
 };
 use sqlparser::ast::{CopyOption, Expr};
 use sqlparser::tokenizer::{Location, Span};
@@ -46,6 +45,17 @@ impl Drop for ScopesDropGuard {
 }
 
 impl Scopes {
+    pub(crate) fn debug(&self) {
+        for (index, s) in self.ss.lock().unwrap().iter().rev().enumerate() {
+            println!("scope {:?}-----------------", index);
+            for t in s.vars.iter() {
+                println!("var:{:?}", t);
+            }
+            for t in s.tables.iter() {
+                println!("tbl:{:?}", t)
+            }
+        }
+    }
     pub(crate) fn new() -> Self {
         Self {
             // at lease one scope.
@@ -759,8 +769,7 @@ impl<'a> CompletionStatement<'a> {
                 }
                 if let Some(x) = with_check {
                     self.c_on_expr(x).await;
-                    if self.finished() {
-                    }
+                    if self.finished() {}
                 }
             }
             Statement::AlterTable {
@@ -1014,8 +1023,29 @@ impl<'a> CompletionStatement<'a> {
             Statement::ShowCollation { .. } => {
                 // fallback to lexer
             }
-            Statement::Use(x) => {
-                self.c_on_use(x).await;
+            Statement::Use(u) => {
+                match u {
+                    Use::Catalog(object_name)
+                    | Use::Schema(object_name)
+                    | Use::Database(object_name) => {
+                        if self.in_pos(&object_name.span()) {
+                            let mut r = self.helper.list_schema_completion().await;
+                            r.extend(self.helper.list_database_completion().await.into_iter());
+                            self.result = Some(r)
+                        }
+                    }
+                    Use::Warehouse(..) => {
+                        // TODO
+                    }
+                    Use::Role(object_name) => self.c_on_role_objectname(object_name).await,
+                    Use::SecondaryRoles(..) => {
+                        // snowflake not support
+                    }
+                    Use::Object(..) => {
+                        // TODO use a table???
+                    }
+                    Use::Default => {}
+                }
             }
             Statement::StartTransaction {
                 statements,
@@ -1171,7 +1201,7 @@ impl<'a> CompletionStatement<'a> {
                             self.c_on_begin_end_statements(begin_end_statements).await;
                         }
                         CreateFunctionBody::AsReturnSelect(select) => {
-                            self.c_on_select(select).await;
+                            let _ = self.c_on_select(select).await;
                         }
                     }
                 }
@@ -1545,27 +1575,9 @@ impl<'a> CompletionStatement<'a> {
                     return;
                 }
                 for op in sequence_options.iter() {
-                    match op {
-                        SequenceOptions::IncrementBy(expr, _) => {
-                            self.c_on_expr(expr).await;
-                        }
-                        SequenceOptions::MinValue(expr) => {
-                            if let Some(expr) = expr {
-                                self.c_on_expr(expr).await;
-                            }
-                        }
-                        SequenceOptions::MaxValue(expr) => {
-                            if let Some(expr) = expr {
-                                self.c_on_expr(expr).await;
-                            }
-                        }
-                        SequenceOptions::StartWith(expr, _) => {
-                            self.c_on_expr(expr).await;
-                        }
-                        SequenceOptions::Cache(expr) => {
-                            self.c_on_expr(expr).await;
-                        }
-                        SequenceOptions::Cycle(_) => {}
+                    self.c_on_sequence_options(op).await;
+                    if self.finished() {
+                        return;
                     }
                 }
             }
@@ -1755,6 +1767,30 @@ impl<'a> CompletionStatement<'a> {
             Statement::CreateServer(create_server_statement) => {
                 self.c_on_create_server(create_server_statement).await;
             }
+        }
+    }
+    pub(crate) async fn c_on_sequence_options(&mut self, op: &SequenceOptions) {
+        match op {
+            SequenceOptions::IncrementBy(expr, _) => {
+                self.c_on_expr(expr).await;
+            }
+            SequenceOptions::MinValue(expr) => {
+                if let Some(expr) = expr {
+                    self.c_on_expr(expr).await;
+                }
+            }
+            SequenceOptions::MaxValue(expr) => {
+                if let Some(expr) = expr {
+                    self.c_on_expr(expr).await;
+                }
+            }
+            SequenceOptions::StartWith(expr, _) => {
+                self.c_on_expr(expr).await;
+            }
+            SequenceOptions::Cache(expr) => {
+                self.c_on_expr(expr).await;
+            }
+            SequenceOptions::Cycle(_) => {}
         }
     }
 }
@@ -1986,8 +2022,7 @@ impl<'a> CompletionStatement<'a> {
         }
         if let Some(clone) = create_table.clone.as_ref() {
             self.c_on_table(clone).await;
-            if self.finished() {
-            }
+            if self.finished() {}
         }
 
         // 其他都可以fallback 到lexer的实现
@@ -2184,8 +2219,7 @@ impl<'a> CompletionStatement<'a> {
         }
         if let Some(else_block) = ast.else_block.as_ref() {
             self.c_on_conditional_statement_block(else_block).await;
-            if self.finished() {
-            }
+            if self.finished() {}
         }
     }
 
@@ -2226,8 +2260,12 @@ impl<'a> CompletionStatement<'a> {
             return;
         }
         log::info!("hit drop domain:{:?}", ast.name);
-        let (schema, _) = extract_schema_and_item(&ast.name);
-        self.result = Some(self.helper.list_domain_completion(schema).await);
+        let (schema, _) = self.extract_schema_and_item(&ast.name);
+        self.result = Some(
+            self.helper
+                .list_domain_completion(schema.as_ref().map(|x| x.as_str()))
+                .await,
+        );
     }
     async fn c_on_grantee(&mut self, g: &Grantee) {
         if let Some(name) = g.name.as_ref() {
@@ -2362,10 +2400,9 @@ mod tests {
     #[test]
     fn test_sql_statement() {
         let sql = r#"
-            set @a = 1;
-            SELECT @a;
+            SELECT 11 as xxxxx WHERE xx
         "#;
-        let dialect = sqlparser::dialect::MySqlDialect {};
+        let dialect = sqlparser::dialect::SQLiteDialect {};
         let p = sqlparser::parser::Parser::new(&dialect);
         let mut p = p.try_with_sql(sql).unwrap();
         let statement = p.parse_statement().unwrap();

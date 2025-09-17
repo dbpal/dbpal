@@ -12,9 +12,10 @@ use crate::MemoryLimit;
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, POOL_MAX_CONNECTIONS,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder,
-    SqlExecuteRet, XlsxEdit, escape_sql_str, ty_is_float, ty_is_int,
+    DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, NamedStaff,
+    POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
+    escape_sql_str, ty_is_float, ty_is_int,
 };
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
 use crate::language_server::CompletionItem;
@@ -250,8 +251,7 @@ impl SchemaTrait for ClickHouseDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
         let fs = self.show_table_columns(table_name).await?;
-
-        let sql = (self).delete_sql(self.config.db.as_deref(), table_name, &fs, &wheres)?;
+        let sql = self.delete_sql(self.config.db.as_deref(), table_name, &fs, &wheres)?;
         log::info!("sql:{}", sql);
 
         let conn = self.get_conn()?;
@@ -280,7 +280,7 @@ impl SchemaTrait for ClickHouseDB {
 
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
 
-        let j1 = {
+        let jh1 = {
             let x = Clone::clone(self);
             let table = table.to_owned();
             tokio::spawn(async move {
@@ -294,7 +294,7 @@ impl SchemaTrait for ClickHouseDB {
                 .await
             })
         };
-        let j2 = {
+        let jh2 = {
             let table = table.to_owned();
             let dup = dup.to_owned();
             let x = Clone::clone(self);
@@ -308,8 +308,8 @@ impl SchemaTrait for ClickHouseDB {
                 anyhow::Ok(())
             })
         };
-        j1.await??;
-        j2.await??;
+        jh1.await??;
+        jh2.await??;
         anyhow::Ok(())
     }
 
@@ -374,11 +374,8 @@ impl SchemaTrait for ClickHouseDB {
             #[allow(unused)]
             is_in_sorting_key: bool,
         }
-
         let rows: Vec<Row> = conn.query(&sql).fetch_all().await.unwrap();
-
         let mut ret = Vec::with_capacity(rows.len());
-
         for r in rows.into_iter() {
             let Row {
                 column_name,
@@ -411,7 +408,9 @@ impl SchemaTrait for ClickHouseDB {
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
-        let total = self.query_count(table_name, where_str).await?;
+        let total = self
+            .query_count(self.config.db_str(), table_name, where_str)
+            .await?;
         let fs = self.show_table_columns(table_name).await?;
         let fs = {
             let mut m = HashMap::new();
@@ -447,7 +446,9 @@ impl SchemaTrait for ClickHouseDB {
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
-        let total = self.query_count(view_name, where_str).await?;
+        let total = self
+            .query_count(self.config.db_str(), view_name, where_str)
+            .await?;
 
         let sql = gen_show_sql(
             self.config.db_str(),
@@ -489,7 +490,6 @@ impl SchemaTrait for ClickHouseDB {
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
-
         let fs = self.show_table_columns(table_name).await?;
         let sql = self.update_sql(self.config.db.as_deref(), table_name, &fs, &values, &wheres)?;
         log::info!("sql:{}", sql);
@@ -510,7 +510,7 @@ impl SchemaTrait for ClickHouseDB {
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
         let sql = format!(
             r#"
-       ALTER TABLE "{}" DROP COLUMN `{}`;
+        ALTER TABLE `{}` DROP COLUMN `{}`;
         "#,
             table, col,
         );
@@ -581,11 +581,47 @@ impl SchemaTrait for ClickHouseDB {
         conn.query(&sql).execute().await?;
         anyhow::Ok(())
     }
+
+    async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
+        let sql = "SELECT name  from system.functions where origin = 'SQLUserDefined'";
+        let conn = self.get_conn()?;
+        let rows: Vec<String> = conn.query(sql).fetch_all().await?;
+        anyhow::Ok(
+            rows.into_iter()
+                .map(|name| NamedStaff::from(name))
+                .collect(),
+        )
+    }
+
+    async fn show_udf(
+        &self, name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+    ) -> anyhow::Result<DefAndMetas> {
+        let sql = format!(
+            r#"SELECT create_query from system.functions where origin = 'SQLUserDefined' and  name='{name}'"#
+        );
+        let conn = self.get_conn()?;
+        let create_query: String = conn.query(&sql).fetch_one().await?;
+        anyhow::Ok(DefAndMetas {
+            def: create_query,
+            metas: vec![],
+        })
+    }
+
+    async fn drop_udf(
+        &self, name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
+    ) -> anyhow::Result<()> {
+        let sql = format!("DROP FUNCTION `{name}`",);
+        let conn = self.get_conn()?;
+        conn.query(&sql).execute().await?;
+        anyhow::Ok(())
+    }
 }
 
 impl ClickHouseDB {
-    async fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
-        let mut sql = format!(r#"SELECT count(1) FROM `{name}` "#);
+    async fn query_count(
+        &self, db: &str, name: &str, where_str: Option<&str>,
+    ) -> anyhow::Result<usize> {
+        let mut sql = format!(r#"SELECT count(1) FROM `{db}`.`{name}` "#);
         if let Some(where_str) = where_str {
             sql.push_str(format!(" where {where_str}").as_str());
         }
@@ -792,11 +828,29 @@ impl ExportQueryResult for ClickHouseDB {
     }
 }
 
+impl ClickHouseDB {
+    fn not_allow_switch_db(&self, sql: &str) -> anyhow::Result<()> {
+        let ss = crate::language_server::LangServerCommon::parse_statement(self, sql)
+            .unwrap_or_default();
+
+        for s in ss.iter() {
+            match s {
+                sqlparser::ast::Statement::Use(_) => {
+                    anyhow::bail!("due to internal reason, you can not switch database")
+                }
+                _ => {}
+            }
+        }
+        anyhow::Ok(())
+    }
+}
+
 #[async_trait::async_trait]
 impl QuerySql for ClickHouseDB {
     async fn execute_sql_no_open_conn(
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
+        self.not_allow_switch_db(sql)?;
         let conn = self.get_conn()?;
         let ret = match conn.query(sql).execute().await {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
@@ -807,24 +861,23 @@ impl QuerySql for ClickHouseDB {
     async fn execute_sql(
         &self, _query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
+        self.not_allow_switch_db(sql)?;
         let conn = self.get_conn()?;
         let ret = match conn.query(sql).execute().await {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
         };
-
         anyhow::Ok(ret)
     }
 
     async fn query_sql(
         &self, _query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        self.not_allow_switch_db(sql)?;
         let dialect = sqlparser::dialect::ClickHouseDialect {};
         let sqls = separate_sql_by_sqlparser_tokenizer(sql, &dialect)?;
         let mut ret = Vec::new();
-
         let mut ml = MemoryLimit::new();
-
         for sql in sqls.iter() {
             ml.exceed_error()?;
             let x = self.query_as_json(sql).await;
@@ -1260,6 +1313,27 @@ from test
         }
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_udf() {
+        let db = make_test_object();
+        let query_id = db.open_connection().await.unwrap();
+        let name = "test_udf_add";
+
+        let _ = db.drop_udf(name, None).await;
+
+        db.execute_sql(
+            query_id,
+            r#"CREATE FUNCTION test_udf_add AS (a, b) -> a + b;"#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        for l in db.list_udf().await.unwrap() {
+            let detail = db.show_udf(&l.name, None).await.unwrap();
+            println!("detail:{:?}", detail);
+        }
+    }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_metas() {
         let db = make_test_object();

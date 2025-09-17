@@ -74,3 +74,9 @@ SELECT * from (SELECT NOW() as now) t WHERE t.now;
 46 t ; 50 now
 select @@version
 17 version
+SELECT * FROM employees WHERE MATCH(id) AGAINST ('+MySQL -Oracle "全文索引"' IN BOOLEAN MODE);
+24 employees ; 39 id 
+select employees.* from employees
+17 employees
+select * from employees JOIN employees using (id) 
+24 employees ; 49 id

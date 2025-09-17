@@ -36,13 +36,12 @@ impl PostGresDB {
                     Some(x) => {
                         // information_schema, public like this
                         let s: Option<String> = x.try_get(0).ok().flatten();
-                        let ret = s.map(|string| {
+                        s.map(|string| {
                             string
                                 .split(",")
                                 .map(|x| x.trim().to_string())
                                 .collect::<HashSet<_>>()
-                        });
-                        ret
+                        })
                     }
                     None => None,
                 }

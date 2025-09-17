@@ -240,6 +240,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
 
           <div style={{ display: 'grid' }}>
             <DataGrid
+              showToolbar
               getRowId={getRowId}
               slots={slots}
               sortModel={sortModel}

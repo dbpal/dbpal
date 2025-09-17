@@ -295,8 +295,10 @@ impl LangServerCommon for MysqlDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for MysqlDB {
-    async fn mysql_show_create_trigger(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let schema = self.not_allow_empty_schema(None).await?;
+    async fn mysql_show_create_trigger(
+        &self, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let schema = self.not_allow_empty_schema(schema).await?;
         let sql = format!(
             r#"
             SELECT TRIGGER_NAME 

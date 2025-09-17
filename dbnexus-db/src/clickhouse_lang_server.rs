@@ -42,6 +42,7 @@ impl ClickHouseDB {
 
 impl LangServerCommon for ClickHouseDB {
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        // clickhouse 不支持索引
         anyhow::Ok(vec![])
     }
     async fn list_column(
@@ -94,6 +95,7 @@ impl LangServerCommon for ClickHouseDB {
         &self, _schema: Option<&str>, _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         // 在 ClickHouse 中，使用以下查询可以查看所有函数，包括表函数（table functions）：
+        // 看起来clickhouse 都有全局的作用域
         let sql = "select name , description from system.functions";
         let conn = self.get_conn()?;
         let result: Vec<(String, String)> = conn.query(sql).fetch_all().await?;
@@ -137,7 +139,7 @@ impl LangServerCommon for ClickHouseDB {
 impl AstCompletionHelper for ClickHouseDB {
     async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
         let sql = r#"
-         SELECT
+        SELECT
             cluster 
         FROM
             system.clusters

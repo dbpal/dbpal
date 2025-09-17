@@ -675,11 +675,11 @@ pub async fn export_query_result_to_file(
     random_sleep().await;
     random_error()?;
 
-    let opend = app
+    let opened = app
         .get_opened(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    match opend {
+    match opened {
         Open::Catalog(x) => {
             x.export_query_result_to_file(&sql, kind, &file)
                 .await
@@ -905,7 +905,7 @@ pub async fn config_list_database_or_schema(
             .list_database()
             .await
             .map_err(ErrorFrontend::from),
-        Open::DataBase(dbtrait) => dbtrait.list_schema().await.map_err(ErrorFrontend::from),
+        Open::DataBase(db_trait) => db_trait.list_schema().await.map_err(ErrorFrontend::from),
         Open::Schema(_) => Ok(vec![]),
     }
 }
@@ -914,8 +914,8 @@ pub async fn config_list_database_or_schema(
 pub async fn conn_opened(name: String, app: tauri::State<'_, App>) -> Result<bool, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let opend = app.get_opened(name.as_str()).await.is_ok();
-    Ok(opend)
+    let opened = app.get_opened(name.as_str()).await.is_ok();
+    Ok(opened)
 }
 
 #[tauri::command]

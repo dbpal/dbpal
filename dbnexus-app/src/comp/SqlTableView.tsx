@@ -1048,7 +1048,7 @@ function SqlTableViewData(props: {
       if (f.is_auto_increment) {
         continue;
       }
-      if (!args[f.field] && !f.nullable) {
+      if (!args[f.field] && !f.nullable && !f.default_value) {
         inputDoms.current[f.field].focus();
         showNotification('error', `filed '${f.field}' need be filled`);
         return;
