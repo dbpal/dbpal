@@ -1,16 +1,17 @@
 use crate::db::BackendKind;
+use crate::helper::try_remove_one_at;
 use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc};
+use sqlparser::ast::CopyOption;
 use sqlparser::ast::{
     AlterIndexOperation, AlterRoleOperation, AlterTypeOperation, BeginEndStatements, CaseStatement,
     ConditionalStatementBlock, ConditionalStatements, CopySource, CreateDomain, CreateFunctionBody,
     CreateServerStatement, CreateTable, DataType, DenyStatement, DropDomain, GrantObjects, Grantee,
-    GranteeName, Ident, IfStatement, MergeAction, MergeInsertKind, ObjectName, ObjectNamePart,
-    OneOrManyWithParens, OpenStatement, Owner, PrintStatement, Privileges, RaiseStatement,
-    RaiseStatementValue, ReturnStatement, ReturnStatementValue, SchemaName, SequenceOptions, Set,
-    SetConfigValue, SetSessionParamKind, Spanned, Statement, TableConstraint, TableObject,
-    TriggerEvent, UpdateTableFromKind, Use, UserDefinedTypeRepresentation, WhileStatement,
+    GranteeName, Ident, IfStatement, ObjectName, ObjectNamePart, OneOrManyWithParens,
+    OpenStatement, Owner, PrintStatement, Privileges, RaiseStatement, RaiseStatementValue,
+    ReturnStatement, ReturnStatementValue, SchemaName, SequenceOptions, Set, SetConfigValue,
+    Spanned, Statement, TableObject, TriggerEvent, UpdateTableFromKind, Use,
+    UserDefinedTypeRepresentation, WhileStatement,
 };
-use sqlparser::ast::{CopyOption, Expr};
 use sqlparser::tokenizer::{Location, Span};
 use std::collections::HashSet;
 use std::ops::DerefMut;
@@ -236,6 +237,15 @@ pub struct Var {
     pub(crate) name: Ident,
 }
 
+impl From<String> for Var {
+    fn from(value: String) -> Self {
+        Self {
+            data_type: None,
+            name: Ident::new(value),
+        }
+    }
+}
+
 impl Scope {
     pub(crate) fn enter_table(&mut self, alias: Option<Ident>, table_name: ObjectName) {
         log::info!("enter table {:?} {:?}", alias, table_name);
@@ -261,17 +271,6 @@ impl Scope {
     pub(crate) fn enter_var(&mut self, var: Var) {
         log::info!("enter var:{:?}", var);
         self.vars.push(var);
-    }
-
-    // we know we are dealing with this table.
-    pub(crate) fn from_this_table(this_table: ObjectName) -> Self {
-        Self {
-            tables: vec![TableEntered::ObjectName {
-                table: this_table,
-                alias: None,
-            }],
-            ..Default::default()
-        }
     }
 }
 
@@ -371,17 +370,19 @@ impl<'a> CompletionStatement<'a> {
             }
             Statement::Insert(insert) => {
                 match &insert.table {
-                    TableObject::TableName(object_name) => {
-                        self.c_on_table(object_name).await;
+                    TableObject::TableName(table_name) => {
+                        self.c_on_table(table_name).await;
                         if self.finished() {
                             return;
                         }
                         for c in insert.columns.iter().chain(insert.after_columns.iter()) {
-                            self.c_on_column(object_name, c, false).await;
+                            self.c_on_column(table_name, c, false).await;
                             if self.finished() {
                                 return;
                             }
                         }
+                        self.scopes
+                            .current_scope(|s| s.enter_table(None, table_name.clone()));
                     }
                     // table function in include in function.
                     TableObject::TableFunction(f) => {
@@ -402,29 +403,21 @@ impl<'a> CompletionStatement<'a> {
                         return;
                     }
                 }
-                match &insert.table {
-                    TableObject::TableName(object_name) => {
-                        if let Some(returning) = &insert.returning {
-                            // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE
-                            // 或 DELETE 语句后返回被操作的行的特定列。
-                            // 这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
-                            let _guard = self
-                                .scopes
-                                .enter(Scope::from_this_table(object_name.clone()));
-                            self.c_on_select_items(&returning[..]).await;
-                            if self.finished() {
-                                return;
-                            }
-                            for ass in insert.assignments.iter() {
-                                self.c_on_assignment(ass).await;
-                                if self.finished() {
-                                    return;
-                                }
-                            }
-                        }
+                if let Some(returning) = &insert.returning {
+                    // 在 SQL 中，特别是在 PostgreSQL 中，RETURNING 关键字用于在 INSERT、UPDATE
+                    // 或 DELETE 语句后返回被操作的行的特定列。
+                    // 这使得你可以在执行数据修改后立即获取相关信息，例如新插入的记录的 ID。
+                    self.c_on_select_items(&returning[..]).await;
+                    if self.finished() {
+                        return;
                     }
-                    TableObject::TableFunction(..) => {}
-                };
+                }
+                for ass in insert.assignments.iter() {
+                    self.c_on_assignment(ass).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
                 if let Some(ss) = &insert.settings.as_ref() {
                     for s in ss.iter() {
                         self.c_on_setting(s).await;
@@ -1533,40 +1526,9 @@ impl<'a> CompletionStatement<'a> {
                 }
                 self.c_on_expr(on).await;
                 for cl in clauses.iter() {
-                    if let Some(p) = cl.predicate.as_ref() {
-                        self.c_on_expr(p).await;
-                    }
-                    match &cl.action {
-                        MergeAction::Insert(merge_insert_expr) => {
-                            match &merge_insert_expr.kind {
-                                MergeInsertKind::Values(values) => {
-                                    for vv in values.rows.iter() {
-                                        for v in vv.iter() {
-                                            self.c_on_expr(v).await;
-                                            if self.finished() {
-                                                return;
-                                            }
-                                        }
-                                    }
-                                }
-                                MergeInsertKind::Row => {}
-                            }
-                            for col in merge_insert_expr.columns.iter() {
-                                self.c_on_expr_ident(col).await;
-                                if self.finished() {
-                                    return;
-                                }
-                            }
-                        }
-                        MergeAction::Update { assignments } => {
-                            for ass in assignments.iter() {
-                                self.c_on_assignment(ass).await;
-                                if self.finished() {
-                                    return;
-                                }
-                            }
-                        }
-                        MergeAction::Delete => {}
+                    self.c_on_merge_clause(cl).await;
+                    if self.finished() {
+                        return;
                     }
                 }
                 if let Some(output) = output {
@@ -1634,7 +1596,7 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::Pragma { name, .. } => {
-                self.c_on_pragma(name).await;
+                self.c_on_sqlite_pragma(name).await;
             }
             Statement::LockTables { tables } => {
                 for t in tables.iter() {
@@ -1776,11 +1738,11 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::Set(set) => self.c_on_set(set).await,
-            Statement::Case(case_statement) => self.c_on_case(case_statement).await,
-            Statement::If(if_statement) => self.c_on_if(if_statement).await,
-            Statement::While(while_statement) => self.c_on_while(while_statement).await,
-            Statement::Raise(raise_statement) => self.c_on_raise(raise_statement).await,
-            Statement::Open(open_statement) => self.c_on_open(open_statement).await,
+            Statement::Case(case_statement) => self.c_on_case_statement(case_statement).await,
+            Statement::If(if_statement) => self.c_on_if_statement(if_statement).await,
+            Statement::While(while_statement) => self.c_on_while_statement(while_statement).await,
+            Statement::Raise(raise_statement) => self.c_on_raise_statement(raise_statement).await,
+            Statement::Open(open_statement) => self.c_on_open_statement(open_statement).await,
             Statement::DropDomain(drop_domain) => self.c_on_drop_domain(drop_domain).await,
             Statement::Deny(deny_statement) => self.c_on_deny_statement(deny_statement).await,
             Statement::CreateDomain(create_domain) => self.c_on_create_domain(create_domain).await,
@@ -1789,7 +1751,8 @@ impl<'a> CompletionStatement<'a> {
                 self.c_on_return_statement(return_statement).await
             }
             Statement::CreateServer(create_server_statement) => {
-                self.c_on_create_server(create_server_statement).await;
+                self.c_on_create_server_statement(create_server_statement)
+                    .await;
             }
         }
     }
@@ -1820,7 +1783,9 @@ impl<'a> CompletionStatement<'a> {
 }
 
 impl<'a> CompletionStatement<'a> {
-    async fn c_on_create_server(&mut self, create_server_statement: &CreateServerStatement) {
+    async fn c_on_create_server_statement(
+        &mut self, create_server_statement: &CreateServerStatement,
+    ) {
         if self.in_pos(&create_server_statement.name.span()) {
             self.set_on_def();
         }
@@ -1912,120 +1877,7 @@ impl<'a> CompletionStatement<'a> {
             }
         }
         for c in create_table.constraints.iter() {
-            match c {
-                TableConstraint::Unique {
-                    name,
-                    index_name,
-                    columns,
-                    ..
-                }
-                | TableConstraint::PrimaryKey {
-                    name,
-                    index_name,
-                    columns,
-                    ..
-                } => {
-                    if name.is_some() {
-                        // TODO we are on create table
-                        // we can't have constraint name right now
-                    }
-                    if let Some(name) = index_name {
-                        if self.in_pos(&name.span) {
-                            self.set_on_def();
-                            return;
-                        }
-                    }
-                    if columns.iter().any(|x| match &x.column.expr {
-                        Expr::Identifier(x) => self.in_pos(&x.span),
-                        _ => false,
-                    }) {
-                        // hit column
-                        let mut r = vec![];
-                        for c in columns.iter() {
-                            if let Expr::Identifier(x) = &c.column.expr {
-                                r.push(CompletionItem {
-                                    item: x.value.clone().into(),
-                                    kind: CompletionKind::Column,
-                                    desc: None,
-                                });
-                            }
-                        }
-                        self.result = Some(r);
-                    }
-                }
-                TableConstraint::ForeignKey {
-                    name,
-                    columns,
-                    foreign_table,
-                    referred_columns,
-                    ..
-                } => {
-                    if let Some(name) = name {
-                        if self.in_pos(&name.span) {
-                            return;
-                        }
-                    }
-                    if columns.iter().any(|x| self.in_pos(&x.span)) {
-                        // hit column
-                        self.result = Some(
-                            columns
-                                .iter()
-                                .map(|x| CompletionItem {
-                                    item: x.value.clone().into(),
-                                    kind: CompletionKind::Column,
-                                    desc: None,
-                                })
-                                .collect(),
-                        );
-                        return;
-                    }
-                    self.c_on_table(foreign_table).await;
-                    for r in referred_columns.iter() {
-                        self.c_on_column(foreign_table, r, false).await;
-                        if self.finished() {
-                            return;
-                        }
-                    }
-                }
-                TableConstraint::Check { name, expr, .. } => {
-                    if let Some(name) = name {
-                        if self.in_pos(&name.span) {
-                            return;
-                        }
-                    }
-                    Box::pin(self.c_on_expr(expr)).await;
-                }
-                TableConstraint::Index { name, columns, .. } => {
-                    if let Some(name) = name {
-                        if self.in_pos(&name.span) {
-                            return;
-                        }
-                    }
-                    for column in columns {
-                        self.c_on_order_by_expr(&column.column).await;
-                        if self.finished() {
-                            return;
-                        }
-                    }
-                }
-                TableConstraint::FulltextOrSpatial {
-                    opt_index_name,
-                    columns,
-                    ..
-                } => {
-                    if let Some(name) = opt_index_name {
-                        if self.in_pos(&name.span) {
-                            return;
-                        }
-                    }
-                    for column in columns {
-                        self.c_on_order_by_expr(&column.column).await;
-                        if self.finished() {
-                            return;
-                        }
-                    }
-                }
-            }
+            self.c_on_table_constraint(c, None).await;
         }
         if let Some(query) = &create_table.query {
             let _ = self.c_on_query(query).await;
@@ -2148,6 +2000,26 @@ impl<'a> CompletionStatement<'a> {
             }
         }
     }
+
+    fn try_remove_one_at(&self, value: String) -> String {
+        if self.helper.backend_name().support_at() {
+            try_remove_one_at(value)
+        } else {
+            value
+        }
+    }
+
+    async fn object_name_to_string(&self, name: &ObjectName) -> String {
+        let x = self
+            .object_name_to_idents(name)
+            .await
+            .into_iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>()
+            .join(".");
+        self.try_remove_one_at(x)
+    }
+
     async fn c_on_set(&mut self, ast: &Set) {
         match ast {
             Set::SingleAssignment {
@@ -2167,6 +2039,8 @@ impl<'a> CompletionStatement<'a> {
                         return;
                     }
                 }
+                let name = self.object_name_to_string(variable).await;
+                self.scopes.current_scope(|s| s.enter_var(name.into()))
             }
             Set::ParenthesizedAssignments { variables, values } => {
                 for var in variables.iter() {
@@ -2178,6 +2052,8 @@ impl<'a> CompletionStatement<'a> {
                             ObjectNamePart::Function(..) => {}
                         }
                     }
+                    let name = self.object_name_to_string(var).await;
+                    self.scopes.current_scope(|s| s.enter_var(name.into()))
                 }
                 for value in values.iter() {
                     self.c_on_expr(value).await;
@@ -2198,15 +2074,13 @@ impl<'a> CompletionStatement<'a> {
                     if self.finished() {
                         return;
                     }
+                    let name = self.object_name_to_string(&ass.name).await;
+                    self.scopes.current_scope(|s| s.enter_var(name.into()))
                 }
             }
-            Set::SetSessionParam(set_session_param_kind) => match set_session_param_kind {
-                // no completion here mostly of all don't have position.
-                SetSessionParamKind::Generic(..) => {}
-                SetSessionParamKind::IdentityInsert(..) => {}
-                SetSessionParamKind::Offsets(..) => {}
-                SetSessionParamKind::Statistics(..) => {}
-            },
+            Set::SetSessionParam(..) => {
+                // no completionable items
+            }
             Set::SetRole { role_name, .. } => {
                 if let Some(role_name) = role_name {
                     self.c_on_role(role_name).await;
@@ -2231,7 +2105,7 @@ impl<'a> CompletionStatement<'a> {
             .await;
     }
 
-    async fn c_on_case(&mut self, ast: &CaseStatement) {
+    async fn c_on_case_statement(&mut self, ast: &CaseStatement) {
         if let Some(match_expr) = ast.match_expr.as_ref() {
             self.c_on_expr(match_expr).await;
         }
@@ -2247,7 +2121,7 @@ impl<'a> CompletionStatement<'a> {
         }
     }
 
-    async fn c_on_if(&mut self, ast: &IfStatement) {
+    async fn c_on_if_statement(&mut self, ast: &IfStatement) {
         self.c_on_conditional_statement_block(&ast.if_block).await;
         if self.finished() {
             return;
@@ -2260,11 +2134,11 @@ impl<'a> CompletionStatement<'a> {
         }
     }
 
-    async fn c_on_while(&mut self, ast: &WhileStatement) {
+    async fn c_on_while_statement(&mut self, ast: &WhileStatement) {
         self.c_on_conditional_statement_block(&ast.while_block)
             .await
     }
-    async fn c_on_raise(&mut self, ast: &RaiseStatement) {
+    async fn c_on_raise_statement(&mut self, ast: &RaiseStatement) {
         if let Some(value) = ast.value.as_ref() {
             match value {
                 RaiseStatementValue::UsingMessage(expr) => self.c_on_expr(expr).await,
@@ -2273,7 +2147,7 @@ impl<'a> CompletionStatement<'a> {
         }
     }
 
-    async fn c_on_open(&mut self, ast: &OpenStatement) {
+    async fn c_on_open_statement(&mut self, ast: &OpenStatement) {
         if self.in_pos(&ast.cursor_name.span) {
             self.set_on_def();
         }
@@ -2293,7 +2167,6 @@ impl<'a> CompletionStatement<'a> {
                 GranteeName::ObjectName(object_name) => {
                     self.c_on_role_objectname(object_name).await;
                 }
-
                 GranteeName::UserHost { user, .. } => {
                     self.c_on_user(user).await;
                 }
@@ -2314,7 +2187,14 @@ impl<'a> CompletionStatement<'a> {
             self.c_on_role(g).await;
         }
     }
+    /*
+    example:
 
+    CREATE DOMAIN phone_cn AS text
+    CHECK (
+        VALUE ~ '^1[0-9]{10}$'   -- 11 位，1 开头
+        AND VALUE IS NOT NULL        -- 显式拒绝 NULL
+    );*/
     async fn c_on_create_domain(&mut self, ast: &CreateDomain) {
         self.c_on_schema(&ast.name).await;
         if self.last_name_in_pos(&ast.name) {
@@ -2325,10 +2205,10 @@ impl<'a> CompletionStatement<'a> {
         if let Some(d) = ast.default.as_ref() {
             self.c_on_expr(d).await;
         }
-
         //
-        for _c in ast.constraints.iter() {
+        for _ in ast.constraints.iter() {
             // TODO here I don't the table is
+            // looking at the syntax I think I want to fallback to lexer
         }
     }
 
@@ -2336,12 +2216,11 @@ impl<'a> CompletionStatement<'a> {
         self.c_on_expr(&ast.message).await;
     }
     async fn c_on_return_statement(&mut self, ast: &ReturnStatement) {
-        if let Some(r) = ast.value.as_ref() {
-            match r {
-                ReturnStatementValue::Expr(expr) => {
-                    self.c_on_expr(expr).await;
-                }
-            }
+        match &ast.value {
+            Some(expr) => match expr {
+                ReturnStatementValue::Expr(expr) => self.c_on_expr(expr).await,
+            },
+            None => {}
         }
     }
 }
@@ -2420,9 +2299,9 @@ mod tests {
     #[test]
     fn test_sql_statement() {
         let sql = r#"
-            SELECT * from aaaa
+            set a.b = 1;
         "#;
-        let dialect = sqlparser::dialect::SQLiteDialect {};
+        let dialect = sqlparser::dialect::MySqlDialect {};
         let p = sqlparser::parser::Parser::new(&dialect);
         let mut p = p.try_with_sql(sql).unwrap();
         let statement = p.parse_statement().unwrap();

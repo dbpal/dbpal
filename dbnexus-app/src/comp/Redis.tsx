@@ -1118,6 +1118,7 @@ function RedisListTableContextMenu(props: {
                     await delOP(parseInt(count));
                     setShowDel(false);
                   }}
+                  variant="outlined"
                 >
                   delete
                 </Button>

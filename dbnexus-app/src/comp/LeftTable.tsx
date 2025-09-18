@@ -1295,6 +1295,7 @@ function RedisTables(props: { schema?: string }) {
                 color="error"
                 icon={<FilterAltIcon />}
                 label={`${filter}`}
+                variant="outlined"
               />
             </Tooltip>
           ) : (

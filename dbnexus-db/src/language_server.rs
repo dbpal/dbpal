@@ -8,7 +8,7 @@ use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
 
 use crate::db::{BackendKind, CreatedTypeDef, GetBackendKind, SequenceDetail, not_support_feature};
-use crate::helper::try_remove_at;
+use crate::helper::try_remove_one_at;
 use crate::sqlparser_completion::{CompletionStatement, TempTableColumn};
 
 #[async_trait::async_trait]
@@ -162,7 +162,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
                     let mut value = x.value.clone();
                     //@my_var 会被sqlparser解析成一个标识符
                     if self.backend_name().support_at() {
-                        value = try_remove_at(value);
+                        value = try_remove_one_at(value);
                     }
                     all_item.push(CompletionItem {
                         item: value.into(),
@@ -425,8 +425,8 @@ pub trait LangServerCommon: GetBackendKind {
     }
 
     fn is_dangerous_sql_by_parser(&self, sql: &str) -> anyhow::Result<bool> {
-        let dialect = self.dialect();
-        let ss = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql).unwrap_or_default();
+        let ss = self.parse_statements(sql)?;
+
         for s in ss.iter() {
             let x = match s {
                 Statement::Truncate { .. } => true,
@@ -451,7 +451,7 @@ pub trait LangServerCommon: GetBackendKind {
         anyhow::Ok(false)
     }
 
-    fn parse_statement(&self, sql: &str) -> anyhow::Result<Vec<sqlparser::ast::Statement>> {
+    fn parse_statements(&self, sql: &str) -> anyhow::Result<Vec<sqlparser::ast::Statement>> {
         let dialect = self.dialect();
         let ss = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql)?;
         anyhow::Ok(ss)
@@ -514,6 +514,16 @@ pub trait LangServerCommon: GetBackendKind {
     async fn list_execute(&self, _schema: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
         anyhow::Ok(vec![])
     }
+    async fn list_execute_completion(&self, schema: Option<&str>) -> Vec<CompletionItem> {
+        self.list_execute(schema)
+            .await
+            .map_err(|e| log::error!("list prepare failed,err:{}", e))
+            .unwrap_or_default()
+            .into_iter()
+            .map(CompletionItem::from)
+            .collect()
+    }
+
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync>;
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
     // list view or materialized view
@@ -803,6 +813,20 @@ pub trait LangServerCommon: GetBackendKind {
     }
 }
 
+#[allow(dead_code)]
+impl dyn LangServerCommon {
+    fn contains_tx_operation(&self, sql: &str) -> bool {
+        let ss = self.parse_statements(sql).unwrap();
+
+        ss.iter().any(|x| match x {
+            Statement::Commit { .. }
+            | Statement::Rollback { .. }
+            | Statement::StartTransaction { .. } => true,
+            _ => false,
+        })
+    }
+}
+
 impl From<SequenceDetail> for CompletionItem {
     fn from(value: SequenceDetail) -> Self {
         let SequenceDetail { name, sql, .. } = value;
@@ -987,11 +1011,14 @@ pub(crate) mod completion_test {
     /// test if completion items contains a contains string
     /// use in test to see if completion is ok.
     /// this fn not returns just panic if not contains.
-    pub fn test_completion_items_contains(items: &[CompletionItem], line: usize, name: &str) {
+    pub fn test_completion_items_contains(
+        items: &[CompletionItem], line: usize, col: u64, name: &str,
+    ) {
         assert!(
             items.iter().any(|x| x.item.eq_ignore_ascii_case(name)),
-            "line:{} items:{:?},expect:{:?}",
+            "line {}:{} items:{:?},expect:{:?}",
             line,
+            col,
             {
                 let items = items.iter().map(|x| x.item.deref()).collect::<Vec<_>>();
                 items.join(",")
@@ -1011,6 +1038,7 @@ pub(crate) mod completion_test {
                 kind: CompletionKind::Text,
                 desc: None,
             }],
+            1,
             1,
             "aaa",
         );
@@ -1094,7 +1122,7 @@ select xxxx
                     .await
                     .unwrap();
                 for should in i.1.iter() {
-                    test_completion_items_contains(&items[..], item.line, &should);
+                    test_completion_items_contains(&items[..], item.line, i.0, &should);
                 }
             }
         }

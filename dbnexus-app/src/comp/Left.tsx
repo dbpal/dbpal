@@ -48,7 +48,7 @@ import { NotificationContext } from './Notification';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-
+import CloseIcon from '@mui/icons-material/Close';
 import logoImg from '../../icon.png';
 
 import { TabContent } from './Tabs';
@@ -113,7 +113,6 @@ import {
   CreateSchema,
   MenuConnectionInfo,
 } from './CommonComp2.tsx';
-import { console } from 'inspector';
 
 function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   const { matchPattern, setMatchPattern } = props;
@@ -139,7 +138,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   };
 
   return (
-    <Stack spacing={1} style={{ padding: '4px 12px' }}>
+    <Stack spacing={1} style={{ padding: '2px' }}>
       <Stack>
         {show ? (
           <IconButton onClick={toggleShow}>
@@ -202,11 +201,32 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
         </Tooltip>
       </Stack>
 
-      <Stack spacing={1} style={{ display: show ? 'flex' : 'none' }}>
+      <Stack
+        spacing={1}
+        style={{
+          display: show ? 'flex' : 'none',
+          border: '2px solid green',
+          borderRadius: '0.5rem',
+          padding: '2px 0.5rem',
+        }}
+      >
         <Typography color="info">
-          match pattern for table view udf procedure...
+          match pattern for table,view,udf,procedure etc...
         </Typography>
-        <Stack direction="row" style={{ flexWrap: 'wrap' }} spacing={1}>
+        <Stack
+          direction="row"
+          style={{ flexWrap: 'wrap', alignItems: 'center' }}
+          spacing={1}
+        >
+          {matchPattern.length > 1 && (
+            <IconButton
+              onClick={() => {
+                setMatchPattern([]);
+              }}
+            >
+              <CloseIcon></CloseIcon>
+            </IconButton>
+          )}
           {matchPattern.map((e, index) => (
             <Chip
               key={index}
@@ -247,7 +267,6 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
                 ),
               },
             }}
-            helperText="name etc"
           ></TextField>
           <Button
             onClick={() => {

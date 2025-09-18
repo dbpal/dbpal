@@ -95,7 +95,7 @@ function DefAndMetasView(props: {
         <Tooltip title="execute the sql">
           <Button
             loading={executeLoading}
-            color="primary"
+            color="success"
             style={{
               minWidth: '3rem',
             }}

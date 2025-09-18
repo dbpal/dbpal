@@ -17,6 +17,7 @@ use crate::language_server::{
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
 use sqlx::{AssertSqlSafe, Row, SqlSafeStr};
+use std::collections::HashSet;
 use std::ops::DerefMut;
 
 use sqlx::{Column, Executor, Statement};
@@ -103,17 +104,36 @@ impl LangServerCommon for MysqlDB {
         anyhow::Ok(ret)
     }
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
-        let sql = "show variables";
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: String = r.try_get(0)?;
-            ret.push(name);
+        let conn = match self.query_connection.get(&AutoCompletionQueryUuid::get()) {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("should be able to get query connection"),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        let mut ret = HashSet::new();
+
+        {
+            let sql = "show variables";
+            let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+                .fetch_all(conn.deref_mut())
+                .await?;
+
+            for r in rows.iter() {
+                let name: String = r.try_get(0)?;
+                ret.insert(name);
+            }
         }
-        anyhow::Ok(ret)
+        {
+            let sql = "show global variables";
+            let rows = sqlx::raw_sql(AssertSqlSafe(sql))
+                .fetch_all(conn.deref_mut())
+                .await?;
+            for r in rows.iter() {
+                let name: String = r.try_get(0)?;
+                ret.insert(name);
+            }
+        }
+        anyhow::Ok(ret.into_iter().collect())
     }
 
     async fn list_user(&self) -> anyhow::Result<Vec<String>> {
@@ -523,13 +543,7 @@ mod tests {
         config.db = None;
 
         let db = make_test_object(config).await;
-        test_file_auto_completion(
-            r#"SELECT    mysql. from test_view 
-17 func"#,
-            &db,
-            false,
-        )
-        .await;
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, false).await;
     }
     #[tokio::test]
     async fn test_prepare() {

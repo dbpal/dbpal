@@ -93,6 +93,13 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
 
   const commitTx = async () => {
     try {
+      const confirm = await secondConfirm({
+        title: 'Commit Transaction',
+        confirmText: 'Commit',
+      });
+      if (!confirm) {
+        return;
+      }
       await conn.commit();
       showNotification('success', 'commit ok');
       handleQueryCommit();
@@ -103,6 +110,13 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
 
   const rollbackTx = async () => {
     try {
+      const confirm = await secondConfirm({
+        title: 'Rollback Transaction',
+        confirmText: 'rollback',
+      });
+      if (!confirm) {
+        return;
+      }
       await conn.rollback();
       showNotification('success', 'rollback ok');
       handleQueryCommit();
@@ -128,6 +142,7 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
           label={`${commit ? 'auto' : 'manual'}-commit`}
           size="small"
           color={commit ? 'info' : 'success'}
+          variant="outlined"
         ></Chip>
       </Tooltip>
 

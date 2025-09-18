@@ -339,6 +339,8 @@ function ModifySetting() {
             onClick={() => {
               setTabSize(e);
             }}
+            key={e}
+            variant="outlined"
           ></Chip>
         ))}
       </Stack>

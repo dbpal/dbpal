@@ -481,15 +481,8 @@ impl<'a> CompletionStatement<'a> {
             return;
         }
         let (schema, _) = self.extract_schema_and_item(name);
-        let mut results: Vec<CompletionItem> = self
-            .helper
-            .list_execute(schema.as_deref())
-            .await
-            .map_err(|e| log::error!("list execute failed,err:{}", e))
-            .unwrap_or_default()
-            .into_iter()
-            .map(CompletionItem::from)
-            .collect();
+        let mut results: Vec<CompletionItem> =
+            self.helper.list_execute_completion(schema.as_deref()).await;
         if name.0.len() == 1 {
             // 也许在完成schema 如果要执行一个 sys.xxx
             results.extend(self.helper.list_schema_completion().await);
@@ -501,16 +494,7 @@ impl<'a> CompletionStatement<'a> {
         if !self.in_pos(&ident.span) {
             return;
         }
-        self.result = Some(
-            self.helper
-                .list_execute(None)
-                .await
-                .map_err(|e| log::error!("list prepare failed,err:{}", e))
-                .unwrap_or_default()
-                .into_iter()
-                .map(CompletionItem::from)
-                .collect(),
-        );
+        self.result = Some(self.helper.list_execute_completion(None).await);
     }
     #[allow(dead_code)]
     pub(crate) async fn c_on_table_policy_object(
@@ -863,6 +847,116 @@ impl<'a> CompletionStatement<'a> {
         );
     }
 
+    pub(crate) async fn c_on_table_constraint(
+        &mut self, constraint: &TableConstraint, table_name: Option<&ObjectName>,
+    ) {
+        match constraint {
+            TableConstraint::Unique {
+                name,
+                index_name,
+                columns,
+                ..
+            }
+            | TableConstraint::PrimaryKey {
+                name,
+                index_name,
+                columns,
+                ..
+            } => {
+                if let Some(name) = name {
+                    if let Some(table_name) = table_name {
+                        self.c_on_constraint(table_name, name).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                };
+                if let Some(index_name) = index_name {
+                    if self.in_pos(&index_name.span) {
+                        self.set_on_def();
+                        return;
+                    }
+                };
+                for c in columns.iter() {
+                    self.c_on_index_column(c).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            TableConstraint::ForeignKey {
+                name,
+                columns,
+                foreign_table,
+                referred_columns,
+                ..
+            } => {
+                if let Some(name) = name {
+                    if self.in_pos(&name.span) {
+                        self.set_on_def();
+                        return;
+                    }
+                }
+                for c in columns.iter() {
+                    self.c_on_expr_ident(c).await;
+                }
+                self.c_on_table(foreign_table).await;
+                if self.finished() {
+                    return;
+                }
+                for c in referred_columns.iter() {
+                    self.c_on_column(foreign_table, c, false).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            TableConstraint::Check { name, expr, .. } => {
+                //  https://www.w3schools.com/sql/sql_check.asp
+                if let Some(name) = name {
+                    if self.in_pos(&name.span) {
+                        self.set_on_def();
+                        return;
+                    }
+                }
+                self.c_on_expr(expr).await;
+            }
+            TableConstraint::Index { name, columns, .. } => {
+                // MySQLs [index definition][1] for index creation
+                if let Some(name) = name {
+                    if self.in_pos(&name.span) {
+                        self.set_on_def();
+                        return;
+                    }
+                }
+                for c in columns.iter() {
+                    self.c_on_index_column(c).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            TableConstraint::FulltextOrSpatial {
+                opt_index_name,
+                columns,
+                ..
+            } => {
+                if let Some(opt_index_name) = opt_index_name {
+                    if self.in_pos(&opt_index_name.span) {
+                        self.set_on_def();
+                        return;
+                    }
+                };
+                for c in columns.iter() {
+                    self.c_on_index_column(c).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     pub(crate) async fn c_on_alert_table_operation(
         &mut self, table_name: &ObjectName, ast: &AlterTableOperation,
     ) {
@@ -870,112 +964,8 @@ impl<'a> CompletionStatement<'a> {
             .current_scope(|s| s.enter_table(None, table_name.clone()));
         match ast {
             AlterTableOperation::AddConstraint { constraint, .. } => {
-                match constraint {
-                    TableConstraint::Unique {
-                        name,
-                        index_name,
-                        columns,
-                        ..
-                    }
-                    | TableConstraint::PrimaryKey {
-                        name,
-                        index_name,
-                        columns,
-                        ..
-                    } => {
-                        if let Some(name) = name {
-                            self.c_on_constraint(table_name, name).await;
-                            if self.finished() {
-                                return;
-                            }
-                        };
-                        if let Some(index_name) = index_name {
-                            if self.in_pos(&index_name.span) {
-                                self.set_on_def();
-                                return;
-                            }
-                        };
-                        for c in columns.iter() {
-                            self.c_on_index_column(c).await;
-                            if self.finished() {
-                                return;
-                            }
-                        }
-                    }
-                    TableConstraint::ForeignKey {
-                        name,
-                        columns,
-                        foreign_table,
-                        referred_columns,
-                        ..
-                    } => {
-                        if let Some(name) = name {
-                            if self.in_pos(&name.span) {
-                                self.set_on_def();
-                                return;
-                            }
-                        }
-                        for c in columns.iter() {
-                            self.c_on_column(table_name, c, false).await;
-                            if self.finished() {
-                                return;
-                            }
-                        }
-                        self.c_on_table(foreign_table).await;
-                        if self.finished() {
-                            return;
-                        }
-                        for c in referred_columns.iter() {
-                            self.c_on_column(foreign_table, c, false).await;
-                            if self.finished() {
-                                return;
-                            }
-                        }
-                    }
-                    TableConstraint::Check { name, expr, .. } => {
-                        //  https://www.w3schools.com/sql/sql_check.asp
-                        if let Some(name) = name {
-                            if self.in_pos(&name.span) {
-                                self.set_on_def();
-                                return;
-                            }
-                        }
-                        self.c_on_expr(expr).await;
-                    }
-                    TableConstraint::Index { name, columns, .. } => {
-                        // MySQLs [index definition][1] for index creation
-                        if let Some(name) = name {
-                            if self.in_pos(&name.span) {
-                                self.set_on_def();
-                                return;
-                            }
-                        }
-                        for c in columns.iter() {
-                            self.c_on_index_column(c).await;
-                            if self.finished() {
-                                return;
-                            }
-                        }
-                    }
-                    TableConstraint::FulltextOrSpatial {
-                        opt_index_name,
-                        columns,
-                        ..
-                    } => {
-                        if let Some(opt_index_name) = opt_index_name {
-                            if self.in_pos(&opt_index_name.span) {
-                                self.set_on_def();
-                                return;
-                            }
-                        };
-                        for c in columns.iter() {
-                            self.c_on_index_column(c).await;
-                            if self.finished() {
-                                return;
-                            }
-                        }
-                    }
-                }
+                self.c_on_table_constraint(constraint, Some(table_name))
+                    .await;
             }
             AlterTableOperation::AddColumn {
                 column_def,
@@ -3697,6 +3687,43 @@ impl<'a> CompletionStatement<'a> {
         }
     }
 
+    pub(crate) async fn c_on_merge_clause(&mut self, cl: &MergeClause) {
+        if let Some(p) = cl.predicate.as_ref() {
+            self.c_on_expr(p).await;
+        }
+        match &cl.action {
+            MergeAction::Insert(merge_insert_expr) => {
+                match &merge_insert_expr.kind {
+                    MergeInsertKind::Values(values) => {
+                        for vv in values.rows.iter() {
+                            for v in vv.iter() {
+                                self.c_on_expr(v).await;
+                                if self.finished() {
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    MergeInsertKind::Row => {}
+                }
+                for col in merge_insert_expr.columns.iter() {
+                    self.c_on_expr_ident(col).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            MergeAction::Update { assignments } => {
+                for ass in assignments.iter() {
+                    self.c_on_assignment(ass).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            MergeAction::Delete => {}
+        }
+    }
     pub(crate) async fn c_on_procedure(&mut self, name: &ObjectName) {
         self.c_on_schema(name).await;
         if self.finished() {
@@ -3723,7 +3750,7 @@ impl<'a> CompletionStatement<'a> {
 
     // sqlite pragma
 
-    pub(crate) async fn c_on_pragma(&mut self, name: &ObjectName) {
+    pub(crate) async fn c_on_sqlite_pragma(&mut self, name: &ObjectName) {
         if !self.in_pos(&name.span()) {
             return;
         }

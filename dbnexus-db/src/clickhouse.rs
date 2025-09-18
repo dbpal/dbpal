@@ -830,7 +830,7 @@ impl ExportQueryResult for ClickHouseDB {
 
 impl ClickHouseDB {
     fn not_allow_switch_db(&self, sql: &str) -> anyhow::Result<()> {
-        let ss = crate::language_server::LangServerCommon::parse_statement(self, sql)
+        let ss = crate::language_server::LangServerCommon::parse_statements(self, sql)
             .unwrap_or_default();
 
         for s in ss.iter() {

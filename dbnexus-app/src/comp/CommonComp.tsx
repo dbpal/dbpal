@@ -901,6 +901,7 @@ function SelectColumns(props: {
             onClick={() => {
               setIncludes([]);
             }}
+            variant="outlined"
           >
             clear
           </Button>
@@ -959,6 +960,7 @@ function SelectColumns(props: {
               onClick={() => {
                 setIncludes((e) => [...e, x.field]);
               }}
+              variant="outlined"
               color="default"
               label={x.field}
             ></Chip>

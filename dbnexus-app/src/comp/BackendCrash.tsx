@@ -22,7 +22,7 @@ function BackendCrash(props: { msg: string }) {
           report
         </Button>
         <Button
-          variant="contained"
+          variant="outlined"
           onClick={() => {
             handleCopyToClipboard(msg, showNotification);
           }}

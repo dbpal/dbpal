@@ -220,7 +220,7 @@ function WhereSort(props: {
           </Button>
           {newValue && (
             <Button
-              variant="contained"
+              variant="outlined"
               onClick={() => {
                 setNewValue('');
               }}
@@ -751,6 +751,7 @@ function SqlTableView_(props: {
               setShowSetSort(true);
             }}
             color="secondary"
+            variant="outlined"
             icon={<FaArrowsAltV />}
           ></Chip>
         </Tooltip>
@@ -778,7 +779,7 @@ function SqlTableView_(props: {
                 then returns data based on pagination."
                 >
                   <Button
-                    variant="contained"
+                    variant="outlined"
                     onClick={() => {
                       invalidCassandraTableViewCache()
                         .then(() => {

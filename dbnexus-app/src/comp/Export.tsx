@@ -1,12 +1,11 @@
 import {
-  Button,
   Checkbox,
   Chip,
   Divider,
   FormControlLabel,
+  IconButton,
   Stack,
   TextField,
-  Tooltip,
 } from '@mui/material';
 import { useContext, useEffect, useState } from 'react';
 import types from './ApiStruct';
@@ -184,16 +183,15 @@ function ExportView(props: {
       <Divider />
       <OpenFileWithDefaultApp file={file} />
       <Stack>
-        <Button
+        <IconButton
           onClick={async () => {
             handleExport();
           }}
+          color="primary"
           loading={loading}
         >
-          <Tooltip title="export">
-            <ArrowCircleDownIcon> </ArrowCircleDownIcon>
-          </Tooltip>
-        </Button>
+          <ArrowCircleDownIcon> </ArrowCircleDownIcon>
+        </IconButton>
       </Stack>
     </Stack>
   );

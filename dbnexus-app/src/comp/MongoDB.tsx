@@ -16,6 +16,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { v4 as uuidV4 } from 'uuid';
 import ListIcon from '@mui/icons-material/List';
 import { loader } from '@monaco-editor/react';
 import { CancellationToken, editor, languages, Position } from 'monaco-editor';
@@ -519,6 +520,7 @@ function MongoTableToolBar(props: {
             setShowModifySort(true);
           }}
           color="secondary"
+          variant="outlined"
           icon={<FaArrowsAltV />}
         ></Chip>
         {someNotice}
@@ -1193,19 +1195,9 @@ function MongoTableList(props: {
     setLoading(true);
     reloadOP(filter, sort, page + 1, pageSize)
       .then((r) => {
-        let has_null = false;
         r.data.forEach((e) => {
-          if (!e[mongoID]) {
-            showNotification(
-              'error',
-              'use null as _id which is not support right now'
-            );
-            has_null = true;
-          }
+          e[keyNotInTable] = uuidV4();
         });
-        if (has_null) {
-          return;
-        }
         r.fields.forEach((f) => {
           let width = columnWidths.getWidth(f.field);
           if (width) {
@@ -1244,7 +1236,7 @@ function MongoTableList(props: {
   };
 
   const getRowId = useCallback((e) => {
-    return renderId(e[mongoID]);
+    return renderId(e[keyNotInTable]);
   }, []);
   const onPaginationModelChange = useCallback(
     (e: GridPaginationModel, reason: GridCallbackDetails<'pagination'>) => {
@@ -1286,7 +1278,7 @@ function MongoTableList(props: {
     ? async (id: string) => {
         let del = resp.data.find((e) => e[keyNotInTable] == id);
         try {
-          await deleteOP([del[mongoID]]);
+          await deleteOP([EJSON.parse(del[mongoID])]);
           showNotification('success', 'delete OK');
           handleReload(false);
         } catch (e) {
@@ -1300,7 +1292,6 @@ function MongoTableList(props: {
       row: {
         onContextMenu: (e) => {
           const { currentTarget, target } = e;
-          // let content = (target as HTMLDivElement).innerHTML;
           let field = (target as HTMLDivElement).getAttribute('data-field');
           let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
           if (!field) {
@@ -1322,7 +1313,7 @@ function MongoTableList(props: {
                 setFilter={setFilter}
                 loadDoc={async () => {
                   let doc = resp.data.find((x) => x[keyNotInTable] == id);
-                  return await loadOne(doc[mongoID]);
+                  return await loadOne(EJSON.parse(doc[mongoID]));
                 }}
                 setSort={setSort}
                 resetColumnWidthCallBack={() => {

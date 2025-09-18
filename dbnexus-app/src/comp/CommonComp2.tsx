@@ -14,6 +14,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
 import {
   Button,
+  Chip,
   FormControlLabel,
   IconButton,
   ListItemIcon,
@@ -196,14 +197,14 @@ function CreateSchema(props: {
           {range
             .filter((e) => !schemaSet.has(e))
             .map((e) => (
-              <Button
+              <Chip
                 key={e}
                 onClick={() => {
                   setSchema(e);
                 }}
-              >
-                {e}
-              </Button>
+                label={e}
+                variant="outlined"
+              ></Chip>
             ))}
         </Stack>
         <Stack>

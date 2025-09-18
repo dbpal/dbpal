@@ -282,7 +282,7 @@ function EnableSSlCert(props: {
         enable ssl
       </>
       {enableSsl && (
-        <>
+        <Stack direction="row" spacing={1} style={{ flexWrap: 'wrap' }}>
           <Tooltip
             title={sslCa}
             onClick={async () => {
@@ -297,10 +297,12 @@ function EnableSSlCert(props: {
                 'CA Cert(optional):' + (sslCa ? extractBaseName(sslCa) : '')
               }
               size="small"
+              variant="outlined"
             ></Chip>
           </Tooltip>
           <Tooltip title={sslCert}>
             <Chip
+              variant="outlined"
               onClick={async () => {
                 let file = await selectOneFile();
                 if (file) {
@@ -316,6 +318,7 @@ function EnableSSlCert(props: {
           </Tooltip>
           <Tooltip title={sslKey}>
             <Chip
+              variant="outlined"
               onClick={async () => {
                 let file = await selectOneFile();
                 if (file) {
@@ -328,7 +331,7 @@ function EnableSSlCert(props: {
               }
             ></Chip>
           </Tooltip>
-        </>
+        </Stack>
       )}
     </Stack>
   );
