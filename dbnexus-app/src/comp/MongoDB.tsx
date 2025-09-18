@@ -889,6 +889,7 @@ function MongoTableListMenuFilter(props: {
               onClick={() => {
                 setCompare(e);
               }}
+              key={e} 
               size="small"
             ></Chip>
           ))}

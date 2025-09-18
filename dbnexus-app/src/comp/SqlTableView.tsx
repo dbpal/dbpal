@@ -1471,6 +1471,7 @@ function FilterOnValue(props: {
               onClick={() => {
                 setCompare(e);
               }}
+              key={e}
               size="small"
             />
           ))}
