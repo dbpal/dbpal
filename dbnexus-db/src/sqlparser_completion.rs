@@ -12,6 +12,7 @@ use sqlparser::ast::{
 };
 use sqlparser::ast::{CopyOption, Expr};
 use sqlparser::tokenizer::{Location, Span};
+use std::collections::HashSet;
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
@@ -21,6 +22,7 @@ pub struct CompletionStatement<'a> {
     pub(crate) helper: &'a dyn AstCompletionHelper,
     pub(crate) scopes: Scopes,
     pub(crate) on_def: bool,
+    pub(crate) select_item_columns: HashSet<TempTableColumn>,
 }
 
 #[derive(Clone)]
@@ -45,6 +47,7 @@ impl Drop for ScopesDropGuard {
 }
 
 impl Scopes {
+    #[allow(unused)]
     pub(crate) fn debug(&self) {
         for (index, s) in self.ss.lock().unwrap().iter().rev().enumerate() {
             println!("scope {:?}-----------------", index);
@@ -131,6 +134,18 @@ pub struct TempTableColumn {
     pub(crate) name: String,
     pub(crate) data_type: Option<String>,
 }
+impl std::hash::Hash for TempTableColumn {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+    }
+}
+
+impl PartialEq for TempTableColumn {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+impl Eq for TempTableColumn {}
 
 impl From<TempTableColumn> for CompletionItem {
     fn from(value: TempTableColumn) -> Self {
@@ -148,6 +163,15 @@ impl From<&TempTableColumn> for CompletionItem {
             item: value.name.clone().into(),
             kind: CompletionKind::Column,
             desc: value.data_type.as_ref().map(|x| x.clone().into()),
+        }
+    }
+}
+
+impl From<String> for TempTableColumn {
+    fn from(value: String) -> Self {
+        Self {
+            name: value,
+            data_type: None,
         }
     }
 }
@@ -259,6 +283,7 @@ impl<'a> CompletionStatement<'a> {
             result: None,
             scopes: Scopes::new(),
             on_def: false,
+            select_item_columns: Default::default(),
         }
     }
 
@@ -377,7 +402,6 @@ impl<'a> CompletionStatement<'a> {
                         return;
                     }
                 }
-
                 match &insert.table {
                     TableObject::TableName(object_name) => {
                         if let Some(returning) = &insert.returning {
@@ -2261,11 +2285,7 @@ impl<'a> CompletionStatement<'a> {
         }
         log::info!("hit drop domain:{:?}", ast.name);
         let (schema, _) = self.extract_schema_and_item(&ast.name);
-        self.result = Some(
-            self.helper
-                .list_domain_completion(schema.as_ref().map(|x| x.as_str()))
-                .await,
-        );
+        self.result = Some(self.helper.list_domain_completion(schema.as_deref()).await);
     }
     async fn c_on_grantee(&mut self, g: &Grantee) {
         if let Some(name) = g.name.as_ref() {
@@ -2400,7 +2420,7 @@ mod tests {
     #[test]
     fn test_sql_statement() {
         let sql = r#"
-            SELECT 11 as xxxxx WHERE xx
+            SELECT * from aaaa
         "#;
         let dialect = sqlparser::dialect::SQLiteDialect {};
         let p = sqlparser::parser::Parser::new(&dialect);

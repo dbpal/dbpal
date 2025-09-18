@@ -627,6 +627,7 @@ function ResizeWrapper(props: {
 function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
   const { fields, x, isTable } = props;
   const theme = useTheme();
+  const setting = useContext(SettingContext);
   return (
     <Stack spacing={1}>
       {fields.map((f) => {
@@ -678,6 +679,8 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
                 overflow: 'auto',
                 opacity: 0.9,
                 color: theme.palette.success.main,
+                fontFamily: setting.fontFamily,
+                fontWeight: setting.fontWeight,
               }}
             >
               {x[f.field]}

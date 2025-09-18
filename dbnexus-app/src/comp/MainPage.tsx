@@ -60,7 +60,7 @@ const shortCuts = {
   closeCurrentTab: (_: KeyboardEvent) => void;
 };
 
-import { ModifySettings, SettingComp } from './Settings.tsx';
+import { ModifySetting, SettingComp } from './Settings.tsx';
 import {
   ContextMenuContext,
   generateRandomString,
@@ -116,7 +116,7 @@ export default function MainPage() {
           new TabContent(
             showSettingID,
             'setting',
-            <ModifySettings />,
+            <ModifySetting />,
             <IoMdSettings> </IoMdSettings>
           ),
         ];

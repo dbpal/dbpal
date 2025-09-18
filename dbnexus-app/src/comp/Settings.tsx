@@ -38,7 +38,7 @@ import { invoke } from '@tauri-apps/api/core';
 import EditIcon from '@mui/icons-material/Edit';
 import ClearIcon from '@mui/icons-material/Clear';
 import { SimpleFlexEditor } from './CommonComp2';
-function ModifySettings() {
+function ModifySetting() {
   const { showNotification } = useContext(NotificationContext);
   const [fontWeight, setFontWeight] = useState('normal');
   const [fontSize, setFontSize] = useState(16);
@@ -264,6 +264,9 @@ function ModifySettings() {
             },
           }}
         ></TextField>
+        <Typography color="success" style={{ fontFamily }}>
+          select * from employees
+        </Typography>
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
@@ -699,4 +702,4 @@ function SettingComp(props: { children }) {
   );
 }
 
-export { ModifySettings, SettingComp };
+export { ModifySetting, SettingComp };

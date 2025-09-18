@@ -525,10 +525,34 @@ pub trait LangServerCommon: GetBackendKind {
     async fn list_procedure(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
+    async fn list_procedure_completion(&self, schema: Option<&str>) -> Vec<CompletionItem> {
+        self.list_procedure(schema)
+            .await
+            .map_err(|e| {
+                log::error!("list procedure error:{:?}", e);
+            })
+            .ok()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|x| CompletionItem {
+                kind: CompletionKind::Procedure,
+                item: x.into(),
+                desc: None,
+            })
+            .collect::<Vec<_>>()
+    }
+
     async fn list_column(
         &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>>;
-
+    async fn list_column_oked(
+        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
+    ) -> Vec<TempTableColumn> {
+        self.list_column(schema, name, is_call)
+            .await
+            .map_err(|e| log::error!("list column error: {}", e))
+            .unwrap_or_default()
+    }
     // completion on ast struct like `SCHEMA.XXXX`  , 'TABLE.XXXX'
     async fn try_completion_dot(
         &self, sql: &str, line: u32, col: u32,
@@ -554,7 +578,7 @@ pub trait LangServerCommon: GetBackendKind {
                     continue;
                 }
                 // hit position
-                //matched a `aaa.`
+                // matched a `aaa.`
                 let schema = &x.value;
                 let mut ret = vec![];
 
@@ -815,7 +839,6 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
     ) -> anyhow::Result<Vec<PostGresExtension>> {
         anyhow::Ok(vec![])
     }
-
     async fn get_query_columns(&self, _sql: &str) -> anyhow::Result<Vec<TempTableColumn>>;
 
     async fn duckdb_extensions(
@@ -880,7 +903,8 @@ pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletion
     })
     .await
     .map_err(|e| {
-        log::error!("ast completion not finished in reasonable time this maybe a bug,sql:{:?} line:{} col:{} backend:{}" , sql , line, col,backend.backend_name()) ;
+        println!("ast completion not finished in reasonable time this maybe a bug,sql:{} line:{} col:{} backend:{}" ,
+        sql,line,col,backend.backend_name()) ;
         e
     })?;
     match r {

@@ -1,6 +1,7 @@
 import {
   Box,
   Button,
+  Chip,
   CircularProgress,
   Divider,
   IconButton,
@@ -112,9 +113,11 @@ import {
   CreateSchema,
   MenuConnectionInfo,
 } from './CommonComp2.tsx';
+import { console } from 'inspector';
 
-function LeftTop(props: { matchPattern: string; setMatchPattern }) {
+function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   const { matchPattern, setMatchPattern } = props;
+  const [matchPatterInput, setMatchPatternInput] = useState('');
   const [showFavoriteSql, setShowFavoriteSql] = useState(false);
   const [showAddConnection, setShowAddConnection] = useState(false);
   const [copyConn, setCopyConn] = useState<types.DBConnectionConfig>(null);
@@ -130,7 +133,7 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
       });
     };
   }, []);
-
+  const { showNotification } = useContext(NotificationContext);
   const toggleShow = () => {
     setShow((e) => !e);
   };
@@ -149,82 +152,120 @@ function LeftTop(props: { matchPattern: string; setMatchPattern }) {
         )}
       </Stack>
 
-      {show && (
-        <Stack
-          direction="row"
-          style={{ justifyContent: 'center', flexWrap: 'wrap' }}
-        >
-          <Tooltip title="DBPal site">
-            <img
-              src={logoImg}
-              style={{ width: '3.3rem', cursor: 'pointer' }}
-              onClick={() => {
-                openUrl('https://dbpal.site/');
-              }}
-              alt="logo"
-            ></img>
-          </Tooltip>
+      <Stack
+        direction="row"
+        style={{
+          justifyContent: 'center',
+          flexWrap: 'wrap',
+          display: show ? 'flex' : 'none',
+        }}
+      >
+        <Tooltip title="DBPal site">
+          <img
+            src={logoImg}
+            style={{ width: '3.3rem', cursor: 'pointer' }}
+            onClick={() => {
+              openUrl('https://dbpal.site/');
+            }}
+            alt="logo"
+          ></img>
+        </Tooltip>
 
-          <Tooltip title="make a connection">
-            <IconButton
-              onClick={() => {
-                setShowAddConnection(true);
-              }}
-            >
-              <GrConnect style={{ fontSize: '2.1rem' }}> </GrConnect>
-            </IconButton>
-          </Tooltip>
+        <Tooltip title="make a connection">
+          <IconButton
+            onClick={() => {
+              setShowAddConnection(true);
+            }}
+          >
+            <GrConnect style={{ fontSize: '2.1rem' }}> </GrConnect>
+          </IconButton>
+        </Tooltip>
 
-          <Tooltip title="Favorite sql statement">
-            <IconButton
-              onClick={() => {
-                setShowFavoriteSql(true);
-              }}
-            >
-              <FaBookmark style={{ fontSize: '2.1rem' }}> </FaBookmark>
-            </IconButton>
-          </Tooltip>
+        <Tooltip title="Favorite sql statement">
+          <IconButton
+            onClick={() => {
+              setShowFavoriteSql(true);
+            }}
+          >
+            <FaBookmark style={{ fontSize: '2.1rem' }}> </FaBookmark>
+          </IconButton>
+        </Tooltip>
 
-          <Tooltip title="copy a connection">
-            <IconButton
-              onClick={() => {
-                setShowCopyConn(true);
+        <Tooltip title="copy a connection">
+          <IconButton
+            onClick={() => {
+              setShowCopyConn(true);
+            }}
+          >
+            <FaCopy style={{ fontSize: '2.2rem' }}> </FaCopy>
+          </IconButton>
+        </Tooltip>
+      </Stack>
+
+      <Stack spacing={1} style={{ display: show ? 'flex' : 'none' }}>
+        <Typography color="info">
+          match pattern for table view udf procedure...
+        </Typography>
+        <Stack direction="row" style={{ flexWrap: 'wrap' }} spacing={1}>
+          {matchPattern.map((e, index) => (
+            <Chip
+              key={index}
+              label={e}
+              size="small"
+              color="success"
+              onDelete={() => {
+                setMatchPattern((arr) =>
+                  arr.filter((_, eIndex) => eIndex !== index)
+                );
               }}
-            >
-              <FaCopy style={{ fontSize: '2.2rem' }}> </FaCopy>
-            </IconButton>
-          </Tooltip>
+            />
+          ))}
         </Stack>
-      )}
-      {show && (
-        <TextField
-          fullWidth
-          value={matchPattern}
-          size="small"
-          label="match pattern for table view udf procedure ..."
-          onChange={(e) => {
-            setMatchPattern(e.target.value.trim());
-          }}
-          slotProps={{
-            input: {
-              endAdornment: matchPattern && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setMatchPattern('');
-                    }}
-                    edge="end"
-                    size="small"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
-          helperText="name etc"
-        ></TextField>
-      )}
+        <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
+          <TextField
+            fullWidth
+            value={matchPatterInput}
+            size="small"
+            label="match pattern"
+            onChange={(e) => {
+              setMatchPatternInput(e.target.value.trim());
+            }}
+            slotProps={{
+              input: {
+                endAdornment: matchPatterInput && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => {
+                        setMatchPatternInput('');
+                      }}
+                      edge="end"
+                      size="small"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+            helperText="name etc"
+          ></TextField>
+          <Button
+            onClick={() => {
+              if (matchPattern.find((e) => e == matchPatterInput)) {
+                showNotification('error', 'the value already exists');
+                return;
+              }
+              if (!matchPatterInput) {
+                showNotification('error', 'please input match pattern');
+                return;
+              }
+              setMatchPattern((e) => [...e, matchPatterInput]);
+            }}
+          >
+            apply
+          </Button>
+        </Stack>
+      </Stack>
 
       {showFavoriteSql && (
         <Modal
@@ -478,7 +519,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
 function Left_() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const [matchPattern, setMatchPattern] = useState('');
+  const [matchPattern, setMatchPattern] = useState<string[]>([]);
   const handleReload = async () => {
     appStore
       .get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig)
@@ -499,13 +540,21 @@ function Left_() {
   appStore.onKeyChange(AppStoreKey.ConnectionConfig, () => {
     handleReload();
   });
-  const m = useMemo(() => {
-    return matchPattern
-      ? wcmatch('*' + matchPattern + '*', { flags: 'i' })
-      : () => {
+  const m = useCallback(
+    (x: string) => {
+      if (matchPattern.length == 0) {
+        return true;
+      }
+      for (let i = 0; i < matchPattern.length; i++) {
+        const m = wcmatch('*' + matchPattern[i] + '*', { flags: 'i' });
+        if (m(x)) {
           return true;
-        };
-  }, [matchPattern]);
+        }
+      }
+      return false;
+    },
+    [matchPattern]
+  );
   const windowFocus = useContext(WindowFocusChangeContext);
   return (
     <Stack

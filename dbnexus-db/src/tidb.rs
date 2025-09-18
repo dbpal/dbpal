@@ -256,7 +256,7 @@ impl SchemaTrait for TiDB {
     }
 
     async fn create_view_sql(&self, view_name: &str, _m: bool) -> anyhow::Result<String> {
-        // mysql has no materlized view
+        // mysql has no materialized view
         self.db.create_view_sql(view_name, false).await
     }
 

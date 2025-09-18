@@ -130,3 +130,19 @@ GRANT EXECUTE ON FUNCTION xxx.do_nothing() TO role_name;
 30 xxx ; 41 do_nothing ; 56 postgres
 create SEQUENCE xxx.abc
 20 xxx
+select * from (insert into employees(id) values (2) RETURNING id, id as xxx) WHERE id and xxx
+37 employees ; 40 id ; 65 id ; 86 id ; 94 id 
+select * from (insert into employees(id) values (2) RETURNING *) WHERE id
+37 employees ; 40 id ; 74 id 
+select * from (delete from employees where id = 1  RETURNING *) WHERE id
+37 employees ; 46 id ; 73 id 
+select * from (delete from employees as t where id = 1  RETURNING t.*) WHERE id
+37 employees ; 51 id ; 80 id 
+select * from (delete from employees where id = 1  RETURNING departments.*) WHERE id
+37 employees ; 46 id ; 85 id 
+SELECT * FROM (VALUES (1, 2), (3, 4)) AS t(c1, c2) WHERE c1 > 0 
+60 c1
+WITH aaa as (select * from employees) select * from employees where aaa.id > 0 
+72 aaa ; 75 id 
+WITH aaa(emp_id) as (select * from employees) select * from employees where aaa.emp_id > 0 
+80 aaa ; 87 emp_id 

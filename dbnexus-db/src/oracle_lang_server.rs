@@ -112,7 +112,7 @@ impl LangServerCommon for OracleDB {
         }
         let conn = self.get_conn().await?;
         let sql = r#"
-             SELECT  keyword 
+            SELECT  keyword 
                 FROM V$RESERVED_WORDS
         "#;
         let result = block_in_place(|| conn.query(sql, &[]))?;

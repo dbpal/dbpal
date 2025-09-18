@@ -898,7 +898,7 @@ impl DuckDB {
                     values.insert(name.clone(), value);
                 }
                 let sql = handle.insert_sql(
-                    handle.config.schema.as_ref().map(|x| x.as_str()),
+                    handle.config.schema.as_deref(),
                     &table_name,
                     &fs,
                     &values,
@@ -1439,7 +1439,7 @@ impl SchemaTrait for DuckDB {
         let fs = self.show_table_columns(table_name).await?;
 
         let sql = self.insert_sql(
-            self.config.schema.as_ref().map(|x| x.as_str()),
+            self.config.schema.as_deref(),
             table_name,
             &fs,
             &values,
@@ -1461,7 +1461,7 @@ impl SchemaTrait for DuckDB {
         let fs = self.show_table_columns(table_name).await?;
 
         let sql = self.update_sql(
-            self.config.schema.as_ref().map(|x| x.as_str()),
+            self.config.schema.as_deref(),
             table_name,
             &fs,
             &values,
@@ -1482,7 +1482,7 @@ impl SchemaTrait for DuckDB {
         let fs = self.show_table_columns(table_name).await?;
 
         let sql = self.delete_sql(
-            self.config.schema.as_ref().map(|x| x.as_str()),
+            self.config.schema.as_deref(),
             table_name,
             &fs,
             &wheres,

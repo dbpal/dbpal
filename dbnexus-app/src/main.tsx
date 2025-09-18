@@ -1,5 +1,5 @@
 'use strict';
-
+console.log('!!!!!!!!!!!!!');
 import ReactDOM from 'react-dom/client';
 
 import './app.css';
@@ -17,6 +17,7 @@ import {
 } from './comp/helper';
 import { emit, listen } from '@tauri-apps/api/event';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { console } from 'inspector';
 const currentWebview = WebviewWindow.getCurrent();
 async function setZoom(out: boolean) {
   let zoom = await appStore.get<number>(AppStoreKey.Zoom);
