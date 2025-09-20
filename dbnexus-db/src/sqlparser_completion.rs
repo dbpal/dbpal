@@ -66,12 +66,6 @@ impl Scopes {
             ss: Arc::new(Mutex::new(vec![Scope::default()])),
         }
     }
-    pub(crate) fn drop_n(&self, n: usize) -> ScopesDropGuard {
-        ScopesDropGuard {
-            ss: self.ss.clone(),
-            n,
-        }
-    }
 
     pub(crate) fn current_scope<R>(&self, f: impl FnOnce(&mut Scope) -> R) -> R {
         f(self.ss.lock().unwrap().last_mut().unwrap())
@@ -303,8 +297,8 @@ impl<'a> CompletionStatement<'a> {
     pub(crate) async fn completion_on_statement(&mut self, statement: &Statement) {
         let _guard = match statement {
             // only `Declare` enter var will enter var in outer scope
-            Statement::Declare { .. } | Statement::Set(..) => self.scopes.drop_n(0),
-            _ => self.scopes.enter(Scope::default()),
+            Statement::Declare { .. } | Statement::Set(..) => None,
+            _ => Some(self.scopes.enter(Scope::default())),
         };
         match statement {
             Statement::Analyze {
