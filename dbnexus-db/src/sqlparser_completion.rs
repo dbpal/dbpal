@@ -1,17 +1,7 @@
 use crate::db::BackendKind;
 use crate::helper::try_remove_one_at;
 use crate::language_server::{AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc};
-use sqlparser::ast::CopyOption;
-use sqlparser::ast::{
-    AlterIndexOperation, AlterRoleOperation, AlterTypeOperation, BeginEndStatements, CaseStatement,
-    ConditionalStatementBlock, ConditionalStatements, CopySource, CreateDomain, CreateFunctionBody,
-    CreateServerStatement, CreateTable, DataType, DenyStatement, DropDomain, GrantObjects, Grantee,
-    GranteeName, Ident, IfStatement, ObjectName, ObjectNamePart, OneOrManyWithParens,
-    OpenStatement, Owner, PrintStatement, Privileges, RaiseStatement, RaiseStatementValue,
-    ReturnStatement, ReturnStatementValue, SchemaName, SequenceOptions, Set, SetConfigValue,
-    Spanned, Statement, TableObject, TriggerEvent, UpdateTableFromKind, Use,
-    UserDefinedTypeRepresentation, WhileStatement,
-};
+use sqlparser::ast::*;
 use sqlparser::tokenizer::{Location, Span};
 use std::collections::HashSet;
 use std::ops::DerefMut;
