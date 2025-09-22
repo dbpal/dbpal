@@ -92,7 +92,7 @@ PREPARE select_user AS SELECT * FROM employees WHERE id = $1;
 47 employees
 COPY employees(id) TO 'file.csv' WITH csv Header
 15 employees ; 18 id 
-copy (select * from employees) to 'file.csv' WITH csv Header
+COPY (select * from employees) to 'file.csv' WITH csv Header
 30 employees
 CREATE POLICY departments_policy ON departments FOR ALL USING (dept = current_setting('my.dept', true))  WITH CHECK (dept = current_setting('my.dept', true));
 45 departments

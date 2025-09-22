@@ -2615,12 +2615,46 @@ impl<'a> CompletionStatement<'a> {
         }
     }
     pub(crate) async fn c_on_input_format_clause(&mut self, ast: &InputFormatClause) {
+        /*
+        在 ClickHouse 里，FORMAT 并不是 SQL 标准里的 “FORMAT 子句”（像 TO_CHAR(dt,'YYYY-MM-DD') 那种），而是放在整条语句 最后 的一个 结果输出格式指示器。
+        语法只有一句话：
+        sql
+        复制
+        SELECT …
+        [FROM …]
+        [WHERE …]
+        [GROUP BY …]
+        [ORDER BY …]
+        [LIMIT …]
+        FORMAT <format_name>;
+        */
+        log::trace!("input clause:{:?}", ast);
+        self.c_on_on_clickhouse_format(&ast.ident).await;
         for v in ast.values.iter() {
             self.c_on_expr(v).await;
             if self.finished() {
                 return;
             }
         }
+    }
+
+    pub(crate) async fn c_on_on_clickhouse_format(&mut self, ast: &Ident) {
+        if !self.in_pos(&ast.span) {
+            return;
+        }
+        log::info!("hit clickhouse format:{:?}", ast);
+
+        self.result = Some(
+            self.helper
+                .clickhouse_format_clause()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::KeyWord,
+                    desc: None,
+                })
+                .collect(),
+        )
     }
     pub(crate) async fn c_on_setting(&mut self, ast: &Setting) {
         if self.in_pos(&ast.key.span) {

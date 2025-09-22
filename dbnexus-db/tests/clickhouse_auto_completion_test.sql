@@ -16,3 +16,5 @@ SELECT * FROM file('data.csv', 'CSV')
 18 file
 SELECT * from (SELECT abs(-1) as abs) where abs 
 48 abs
+INSERT INTO employees FORMAT CSV "value1,value2,value3"
+22 employees ; 33 CSV

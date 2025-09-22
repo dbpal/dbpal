@@ -80,3 +80,5 @@ select * from employees JOIN employees using (id)
 24 employees ; 49 id
 rename table test.employees to test.employees_new
 18 test ; 28 employees ; 36 test
+delete employees from employees where id = 1000
+17 employees ; 32 employees ; 41 id

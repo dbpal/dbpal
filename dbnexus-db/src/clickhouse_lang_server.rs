@@ -41,6 +41,9 @@ impl ClickHouseDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for ClickHouseDB {
+    fn clickhouse_format_clause(&self) -> Vec<String> {
+        CLICKHOUSE_FORMATS.iter().map(|x| x.to_string()).collect()
+    }
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         // clickhouse 不支持索引
         anyhow::Ok(vec![])
@@ -288,13 +291,7 @@ mod tests {
     async fn test_completion_xxx() {
         enable_test_log();
         let db = make_test_object();
-        test_file_auto_completion(
-            r#"ALTER TABLE employees ADD PROJECTION employee_salary_projection(SELECT department, AVG(salary) AS avg_salary, COUNT(*) AS employee_count GROUP BY department);
-82 department "#,
-            &db,
-            false,
-        )
-        .await;
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, false).await;
     }
 
     // clickhouse is a little different keyword can select from database
@@ -325,3 +322,79 @@ mod tests {
         println!("{}", s);
     }
 }
+
+// clickhouse_formats.rs
+pub const CLICKHOUSE_FORMATS: &[&str] = &[
+    "Arrow",
+    "ArrowStream",
+    "Avro",
+    "CapnProto",
+    "CSV",
+    "CSVWithNames",
+    "CSVWithNamesAndTypes",
+    "CustomSeparated",
+    "CustomSeparatedWithNames",
+    "CustomSeparatedWithNamesAndTypes",
+    "ExcelCSV",
+    "HiveText",
+    "HTML",
+    "JSON",
+    "JSONAsString",
+    "JSONColumns",
+    "JSONColumnsWithMetadata",
+    "JSONCompact",
+    "JSONCompactColumns",
+    "JSONCompactEachRow",
+    "JSONCompactEachRowWithNames",
+    "JSONCompactEachRowWithNamesAndTypes",
+    "JSONCompactStrings",
+    "JSONEachRow",
+    "JSONEachRowWithProgress",
+    "JSONLines",
+    "JSONObjectEachRow",
+    "JSONStrings",
+    "JSONStringsEachRow",
+    "JSONStringsEachRowWithProgress",
+    "Markdown",
+    "MsgPack",
+    "MySQLDump",
+    "Native",
+    "Null",
+    "ORC",
+    "Parquet",
+    "ParquetMetadata",
+    "Pretty",
+    "PrettyCompact",
+    "PrettyCompactMonoBlock",
+    "PrettyCompactNoEscapes",
+    "PrettyMonoBlock",
+    "PrettyNoEscapes",
+    "PrettySpace",
+    "PrettySpaceNoEscapes",
+    "Prometheus",
+    "Protobuf",
+    "ProtobufList",
+    "ProtobufSingle",
+    "RawBLOB",
+    "RowBinary",
+    "RowBinaryWithNames",
+    "RowBinaryWithNamesAndTypes",
+    "SQLInsert",
+    "TSKV",
+    "TabSeparated",
+    "TabSeparatedRaw",
+    "TabSeparatedRawWithNames",
+    "TabSeparatedRawWithNamesAndTypes",
+    "TabSeparatedWithNames",
+    "TabSeparatedWithNamesAndTypes",
+    "Template",
+    "TemplateIgnoreSpaces",
+    "TSV",
+    "TSVWithNames",
+    "TSVWithNamesAndTypes",
+    "Values",
+    "Vertical",
+    "VerticalRaw",
+    "XML",
+    "YAML",
+];

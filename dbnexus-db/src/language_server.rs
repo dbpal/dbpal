@@ -259,6 +259,15 @@ pub trait LexerCompletionTrait: LangServerCommon {
                     desc: None,
                 }),
         );
+        ret.extend(
+            self.clickhouse_format_clause()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::KeyWord,
+                    desc: None,
+                }),
+        );
 
         // here mssql list_procedure and list_execute will have the same result.
         // will make duplicate object.
@@ -356,6 +365,10 @@ impl From<PostGresExtension> for CompletionItem {
 #[async_trait::async_trait]
 
 pub trait LangServerCommon: GetBackendKind {
+    fn clickhouse_format_clause(&self) -> Vec<String> {
+        vec![]
+    }
+
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>>;
 
     // postgres use `show all`

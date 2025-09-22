@@ -16,31 +16,27 @@ pub struct CompletionStatement<'a> {
     pub(crate) select_item_columns: HashSet<TempTableColumn>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Scopes {
-    pub(crate) ss: Arc<Mutex<Vec<Scope>>>,
+    pub(crate) scopes: Arc<Mutex<Vec<Scope>>>,
 }
 
 pub(crate) struct ScopesDropGuard {
-    ss: Arc<Mutex<Vec<Scope>>>,
-    n: usize,
+    scopes: Arc<Mutex<Vec<Scope>>>,
 }
 
 impl Drop for ScopesDropGuard {
     fn drop(&mut self) {
-        let n = self.n;
-        let mut m = self.ss.lock().unwrap();
+        let mut m = self.scopes.lock().unwrap();
         let m = m.deref_mut();
-        for _ in 0..n {
-            m.pop();
-        }
+        m.pop();
     }
 }
 
 impl Scopes {
     #[allow(unused)]
     pub(crate) fn debug(&self) {
-        for (index, s) in self.ss.lock().unwrap().iter().rev().enumerate() {
+        for (index, s) in self.scopes.lock().unwrap().iter().rev().enumerate() {
             println!("scope {:?}-----------------", index);
             for t in s.vars.iter() {
                 println!("var:{:?}", t);
@@ -51,19 +47,16 @@ impl Scopes {
         }
     }
     pub(crate) fn new() -> Self {
-        Self {
-            // at lease one scope.
-            ss: Arc::new(Mutex::new(vec![Scope::default()])),
-        }
+        Self::default()
     }
 
     pub(crate) fn current_scope<R>(&self, f: impl FnOnce(&mut Scope) -> R) -> R {
-        f(self.ss.lock().unwrap().last_mut().unwrap())
+        f(self.scopes.lock().unwrap().last_mut().unwrap())
     }
 
     pub(crate) fn tables_cloned(&self) -> Vec<TableEntered> {
         let mut ret = vec![];
-        let lock = self.ss.lock().unwrap();
+        let lock = self.scopes.lock().unwrap();
         for s in lock.iter().rev() {
             ret.extend(s.tables.clone().into_iter());
         }
@@ -72,7 +65,7 @@ impl Scopes {
 
     pub(crate) fn vars_cloned(&self) -> Vec<Var> {
         let mut ret = vec![];
-        let lock = self.ss.lock().unwrap();
+        let lock = self.scopes.lock().unwrap();
         for s in lock.iter().rev() {
             ret.extend(s.vars.iter().cloned());
         }
@@ -80,10 +73,9 @@ impl Scopes {
     }
 
     pub(crate) fn enter(&self, scope: Scope) -> ScopesDropGuard {
-        self.ss.lock().unwrap().push(scope);
+        self.scopes.lock().unwrap().push(scope);
         ScopesDropGuard {
-            ss: self.ss.clone(),
-            n: 1,
+            scopes: self.scopes.clone(),
         }
     }
     pub(crate) fn enter_var(&self, var: Var) {
@@ -93,7 +85,7 @@ impl Scopes {
     }
 
     pub(crate) fn inner_first<R>(&self, mut f: impl FnMut(&Scope) -> Option<R>) -> Option<R> {
-        for s in self.ss.lock().unwrap().iter().rev() {
+        for s in self.scopes.lock().unwrap().iter().rev() {
             let x = f(s);
             if x.is_some() {
                 return x;
@@ -215,6 +207,7 @@ impl TableEntered {
             .unwrap_or(false)
     }
 }
+
 #[derive(Clone, Debug)]
 pub struct Var {
     pub(crate) data_type: Option<DataType>,
@@ -330,7 +323,6 @@ impl<'a> CompletionStatement<'a> {
                 }
                 if let Some(on_cluster) = on_cluster.as_ref() {
                     self.c_on_cluster(on_cluster).await;
-                    if self.finished() {}
                 }
                 if let Some(partitions) = partitions.as_ref() {
                     for t in table_names.iter() {
@@ -536,11 +528,13 @@ impl<'a> CompletionStatement<'a> {
                         return;
                     }
                 }
-                for t in delete.tables.iter() {
-                    self.c_on_table(t).await;
+                for table in delete.tables.iter() {
+                    self.c_on_table(table).await;
                     if self.finished() {
                         return;
                     }
+                    self.scopes
+                        .current_scope(|s| s.enter_table(None, table.clone()));
                 }
                 if let Some(s) = &delete.selection {
                     Box::pin(self.c_on_expr(s)).await;
@@ -2283,7 +2277,7 @@ mod tests {
     #[test]
     fn test_sql_statement() {
         let sql = r#"
-            set a.b = 1;
+            delete emp from emp where emp.id = 1
         "#;
         let dialect = sqlparser::dialect::MySqlDialect {};
         let p = sqlparser::parser::Parser::new(&dialect);
