@@ -405,8 +405,7 @@ function SqlTableView_(props: {
     });
     for (let i = 0; i < resp.fields.length; i++) {
       let field = resp.fields[i];
-      //@ts-ignore
-      field.renderHeader = (e) => {
+      field['renderHeader'] = (e) => {
         let def = e.colDef;
         const makeTitle = (): string => {
           let f = def as types.Field;
@@ -1458,6 +1457,7 @@ function FilterOnValue(props: {
             onClick={() => {
               setCompare(e);
             }}
+            key={e}
             size="small"
           />
         ))}

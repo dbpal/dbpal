@@ -4,7 +4,11 @@
 mod app;
 mod handlers;
 use std::backtrace::Backtrace;
+use std::fs::File;
+use std::io::Write;
 use std::panic;
+use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
 use app::{App, DBConnectionConfig};
 use handlers::{
@@ -12,15 +16,15 @@ use handlers::{
     cassandra_invalid_table_or_view_caching, cassandra_list_aggregate, cassandra_show_aggregate,
     check_conn, close_conn, command_panic, config_list_database_or_schema, conn_opened,
     create_database, create_index, create_schema, create_table_and_index_sql, create_view_sql,
-    delete_password, disable_trigger, drop_created_type, drop_database, drop_index,
+    delete_password, disable_trigger, drop_created_type, drop_database, drop_event, drop_index,
     drop_materialized_view, drop_procedure, drop_schema, drop_sequence, drop_table,
     drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
     execute_sql, execute_sql_no_open_conn, export_query_result_to_file, export_table_or_view,
     fonts_all_families, has_entered_password, is_dangerous_sql, list_created_types,
-    list_data_types, list_database, list_materialized_view, list_procedure, list_schema,
-    list_sequence, list_sql_current_values, list_table, list_udf, list_view, modify_table_column,
-    mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id, mongo_insert,
-    mongo_list_time_serial_collection, mongo_query_collection_count_docs,
+    list_data_types, list_database, list_event, list_materialized_view, list_procedure,
+    list_schema, list_sequence, list_sql_current_values, list_table, list_udf, list_view,
+    modify_table_column, mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id,
+    mongo_insert, mongo_list_time_serial_collection, mongo_query_collection_count_docs,
     mongo_query_collection_create_index, mongo_query_collection_create_search_index,
     mongo_query_collection_delete_many, mongo_query_collection_delete_one,
     mongo_query_collection_distinct, mongo_query_collection_drop,
@@ -45,8 +49,8 @@ use handlers::{
     table_insert, table_update, test_connection, truncate_table, valid_json,
 };
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{Emitter, Manager};
-use tauri_plugin_store::StoreExt;
+use tauri::{Emitter, Manager, Wry};
+use tauri_plugin_store::{Store, StoreExt};
 
 fn main() {
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -69,17 +73,118 @@ fn is_mac() -> bool {
     return false;
 }
 
-fn main_() {
-    {
-        use env_logger::{Builder, Env};
-        let mut builder = Builder::from_env(Env::default());
-        builder.format_file(true);
-        builder.format_line_number(true);
-        builder.try_init().unwrap();
+pub struct AppLogger {
+    file: Mutex<File>,
+    config: Arc<Store<Wry>>,
+}
+
+impl AppLogger {
+    const CONFIG_KEY: &str = "logger";
+}
+
+#[allow(dead_code)]
+fn logger_test() {
+    std::thread::spawn(|| {
+        loop {
+            log::info!("this is info log");
+            log::trace!("this is trace log");
+            log::error!("this is error log");
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
+    });
+}
+
+impl AppLogger {
+    fn get_level(&self) -> log::Level {
+        let x = self.config.get(Self::CONFIG_KEY);
+        x.as_ref()
+            .map(|x| match x {
+                serde_json::Value::Object(map) => match map.get("level") {
+                    Some(serde_json::Value::String(level)) => match log::Level::from_str(level) {
+                        Ok(level) => Some(level),
+                        Err(err) => {
+                            println!(
+                                "parse level failed,err:{:?} this is a bug from frontend",
+                                err
+                            );
+                            None
+                        }
+                    },
+                    _ => None,
+                },
+                _ => None,
+            })
+            .flatten()
+            .unwrap_or(log::Level::Info)
     }
+    fn get_max_size(&self) -> u64 {
+        let x = self.config.get(Self::CONFIG_KEY);
+        x.as_ref()
+            .map(|x| match x {
+                serde_json::Value::Object(map) => match map.get("max_size") {
+                    Some(serde_json::Value::Number(max)) => {
+                        Some(max.as_u64().unwrap_or(5) * 1024 * 1024)
+                    }
+                    _ => None,
+                },
+                _ => None,
+            })
+            .flatten()
+            .unwrap_or(5 * 1024 * 1024)
+    }
+}
+
+impl log::Log for AppLogger {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        metadata.level() <= self.get_level()
+    }
+    fn log(&self, record: &log::Record) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+        let mut f = self.file.lock().unwrap();
+        match f.metadata() {
+            Ok(meta) => {
+                if meta.len() > self.get_max_size() {
+                    match f.set_len(0) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            println!("truncate file failed,err:{}", err);
+                            return;
+                        }
+                    }
+                }
+            }
+            Err(err) => {
+                println!("get file metadata failed,err:{}", err);
+                return;
+            }
+        }
+        let s = format!(
+            "{} {}:{} {}-{}\n",
+            chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+            record.file().unwrap_or_default(),
+            record.line().unwrap_or_default(),
+            record.level(),
+            record.args()
+        );
+        match f.write_all(s.as_bytes()) {
+            Ok(_) => {}
+            Err(err) => println!("write file failed,err:{:?}", err),
+        }
+    }
+    fn flush(&self) {
+        match self.file.lock().unwrap().flush() {
+            Ok(err) => println!("flush file failed,err:{:?}", err),
+            Err(_) => {}
+        }
+    }
+}
+
+fn main_() {
+    logger_test();
     let app = App::new();
     let saved_password = app.saved_password.clone();
-
     let setup = |app: &mut tauri::App| {
         {
             let handler = app.handle().clone();
@@ -99,8 +204,28 @@ fn main_() {
             let window = app.get_webview_window("main").unwrap();
             window.open_devtools();
         }
-
         let store = app.store("store.json").unwrap();
+        match app.path().app_data_dir() {
+            Ok(mut f_path) => {
+                f_path.push("dbpal.log");
+                let mut ops = std::fs::OpenOptions::new();
+                ops.write(true);
+                ops.create(true);
+                match ops.open(f_path) {
+                    Ok(file) => {
+                        let logger = AppLogger {
+                            config: store.clone(),
+                            file: Mutex::new(file),
+                        };
+                        log::set_boxed_logger(Box::new(logger)).unwrap();
+                        log::set_max_level(log::LevelFilter::Trace);
+                    }
+                    Err(err) => println!("can't open file for write,err:{:?}", err),
+                }
+            }
+            Err(err) => println!("can't get app data dir,err:{:?}", err),
+        }
+
         *unsafe { App::get_config_ref() } = Some(Box::new(move |name| {
             let configs: Vec<DBConnectionConfig> = serde_json::from_value(
                 store
@@ -256,6 +381,13 @@ fn main_() {
                                 true,
                                 None as Option<&'static str>,
                             )?,
+                            &MenuItem::with_id(
+                                handle,
+                                "open_log_file",
+                                "open log file",
+                                true,
+                                None as Option<&'static str>,
+                            )?,
                             &PredefinedMenuItem::about(
                                 handle,
                                 Some("make database management easy."),
@@ -303,6 +435,9 @@ fn main_() {
             }
             if event.id.0 == "zoom_reset" {
                 handle.emit("zoom_reset", "").unwrap();
+            }
+            if event.id.0 == "open_log_file" {
+                handle.emit("open_log_file", "").unwrap();
             }
         })
         .plugin(tauri_plugin_dialog::init())
@@ -440,6 +575,8 @@ fn main_() {
             sql_parse_error,
             execute_sql_no_open_conn,
             drop_created_type,
+            list_event,
+            drop_event,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

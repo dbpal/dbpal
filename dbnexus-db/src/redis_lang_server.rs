@@ -1400,17 +1400,6 @@ impl LanguageServer for RedisDB {
                         value,
                         ..
                     } => {
-                        println!(
-                            "pos:{:?} {:?} {:?} {:?}",
-                            pos,
-                            sqlparser::tokenizer::Location {
-                                line: (index + 1) as u64,
-                                column: (*start_column),
-                            },
-                            value.len(),
-                            token
-                        );
-
                         if in_pos(
                             pos,
                             sqlparser::tokenizer::Location {

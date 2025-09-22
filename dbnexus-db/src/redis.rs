@@ -2020,7 +2020,7 @@ pub(crate) async fn make_test_object() -> RedisDB {
         password: None,
         db: Some("db0".to_string()),
         read_only: false,
-        conn_timeout: None,
+        conn_timeout: Some(1000),
         save_password: true,
     })
     .await

@@ -1259,7 +1259,7 @@ impl SqlBuilder for ClickHouseDB {
 #[cfg(test)]
 pub(crate) fn make_test_object() -> ClickHouseDB {
     ClickHouseDB::new(ClickHouseConfig {
-        conn_timeout: None,
+        conn_timeout: Some(1000),
         host: "127.0.0.1".to_string(),
         port: 8123,
         read_only: false,

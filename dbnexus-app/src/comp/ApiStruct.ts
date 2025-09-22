@@ -360,4 +360,9 @@ export namespace types {
     } & {
         "allow_filtering": boolean;
     });
+    export type SqlEvent = {
+        "name": string;
+        "sql": string;
+        "metas": (types.MetaValue)[];
+    };
 }

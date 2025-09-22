@@ -272,6 +272,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {
+        enable_test_log();
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
         let _ = db

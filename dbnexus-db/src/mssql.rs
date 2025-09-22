@@ -2007,7 +2007,7 @@ impl CatalogTrait for MsSqlServerDB {
 pub(crate) async fn make_test_object() -> MsSqlServerDB {
     let ss = MsSqlServerDB::new(SqlServerDBConfig {
         host: TEST_HOST.to_string(),
-        conn_timeout: None,
+        conn_timeout: Some(1000),
         port: 1433,
         username: Some("sa".to_string()),
         password: Some("sfdewRE123".to_string()),

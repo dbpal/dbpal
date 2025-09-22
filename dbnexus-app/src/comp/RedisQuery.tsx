@@ -161,7 +161,6 @@ function RedisQuery(props: {
       onDragStarted={() => {
         setIsDragging(true);
       }} // 拖动开始
-      //@ts-ignore
       onDragFinished={(_: number): void => {
         setIsDragging(false);
       }} // 拖动结束

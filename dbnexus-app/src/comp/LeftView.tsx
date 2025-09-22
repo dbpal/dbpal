@@ -169,7 +169,6 @@ function ViewsTree(props: { viewKind: ViewKind }) {
               key={e.name}
               view={e.name}
               reload={handleReload}
-              //@ts-ignore
               size={e.size}
             ></ViewTree>
           );

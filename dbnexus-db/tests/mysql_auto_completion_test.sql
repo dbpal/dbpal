@@ -80,5 +80,9 @@ select * from employees JOIN employees using (id)
 24 employees ; 49 id
 rename table test.employees to test.employees_new
 18 test ; 28 employees ; 36 test
-delete employees from employees where id = 1000
-17 employees ; 32 employees ; 41 id
+delete employees from departments d where d.id = 1000
+17 employees ; 44 d; 47 id
+show create table employees
+28 employees
+show create event do_nothing_event_loop
+40 do_nothing_event_loop

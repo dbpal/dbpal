@@ -19,7 +19,7 @@ use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
     NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
+    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlEvent, SqlExecuteRet, TriggerDetail,
     TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_data,
 };
@@ -665,9 +665,78 @@ impl std::fmt::Debug for MysqlDB {
     }
 }
 
+impl MysqlDB {
+    pub(crate) async fn list_event_impl(&self, schema: &str) -> anyhow::Result<Vec<SqlEvent>> {
+        let sql = format!(
+            r#"
+            SELECT EVENT_NAME,
+        STATUS,          -- ENABLED / DISABLED / SLAVESIDE_DISABLED
+        EVENT_TYPE,      -- ONE TIME / RECURRING
+        INTERVAL_VALUE,
+        INTERVAL_FIELD,  -- 周期频率（如 1 DAY）
+        LAST_EXECUTED
+        FROM   information_schema.EVENTS
+        WHERE  EVENT_SCHEMA = '{schema}'  -- 这里换成你的库名
+        ORDER  BY EVENT_NAME;
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = Vec::with_capacity(rows.len());
+
+        for r in rows.iter() {
+            let name: String = r.try_get(0)?;
+            let status: Option<String> = r.try_get_unchecked(1)?;
+            let event_type: Option<String> = r.try_get(2)?;
+            let interval_value: Option<String> = r.try_get(3)?;
+            let interval_field: Option<String> = r.try_get(4)?;
+            let last_executed: Option<chrono::NaiveDateTime> = r.try_get(5)?;
+
+            let create_sql = {
+                let sql = format!(r#"SHOW CREATE EVENT `{}`.`{}`"#, schema, name);
+                let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                    .fetch_one(conn.deref_mut())
+                    .await?;
+                row.try_get::<'_, String, _>(3)?
+            };
+            ret.push(SqlEvent {
+                name,
+                sql: create_sql,
+                metas: vec![
+                    MetaValue::new_opt("status", status),
+                    MetaValue::new_opt("event_type", event_type),
+                    MetaValue::new(
+                        "interval",
+                        format!(
+                            "{}{}",
+                            interval_value.unwrap_or_default(),
+                            interval_field.unwrap_or_default()
+                        ),
+                    ),
+                    MetaValue::new_opt("last_executed", last_executed),
+                ],
+            });
+        }
+        anyhow::Ok(ret)
+    }
+}
 #[async_trait::async_trait]
 
 impl SchemaTrait for MysqlDB {
+    async fn list_event(&self) -> anyhow::Result<Vec<SqlEvent>> {
+        self.list_event_impl(self.config.schema_str()).await
+    }
+    async fn drop_event(&self, name: &str) -> anyhow::Result<()> {
+        let sql = format!(r#"DROP EVENT `{}`"#, name);
+        let mut conn = self.get_conn().await?;
+        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+            .execute(conn.deref_mut())
+            .await?;
+        anyhow::Ok(())
+    }
+
     async fn export_table_or_view_as_xlsx(
         &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
     ) -> anyhow::Result<()> {
@@ -816,7 +885,7 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
 
         let ret = FunctionOrProcedure::Procedure
-            .query_list(conn.deref_mut(), self.config.db_str())
+            .query_list(conn.deref_mut(), self.config.schema_str())
             .await?;
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
@@ -883,7 +952,7 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
 
         let ret = FunctionOrProcedure::Function
-            .query_list(conn.deref_mut(), self.config.db_str())
+            .query_list(conn.deref_mut(), self.config.schema_str())
             .await?;
 
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
@@ -964,7 +1033,7 @@ impl SchemaTrait for MysqlDB {
                 WHERE EVENT_OBJECT_TABLE = '{table_name}'
                 AND TRIGGER_SCHEMA = '{}';
         "#,
-            self.config.db_str()
+            self.config.schema_str()
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -1089,7 +1158,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.list_view_impl(self.config.db_str()).await
+        self.list_view_impl(self.config.schema_str()).await
     }
 
     async fn table_delete(
@@ -2739,6 +2808,32 @@ pub(crate) mod test_fns {
 
         println!("begin ret:{:?}", ret);
     }
+
+    pub(crate) async fn test_event(db: MysqlDB) {
+        enable_test_log();
+        let id = db.open_connection().await.unwrap();
+        let name = "test_event";
+        let _ = db.drop_event(name).await;
+        db.execute_sql(
+            id.clone(),
+            r#"
+            CREATE EVENT test_event
+            ON SCHEDULE EVERY 10 SECOND
+            STARTS CURRENT_TIMESTAMP
+            DO
+            BEGIN
+                /* 空语句块，可永久存在 */
+            END;
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        for d in db.list_event().await.unwrap() {
+            println!("event:{:?}", d);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -2750,7 +2845,7 @@ mod tests {
 
     pub(crate) fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {
-            conn_timeout: None,
+            conn_timeout: Some(1000),
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
             password: Some("root".to_string()),
@@ -2901,5 +2996,9 @@ mod tests {
     #[tokio::test]
     async fn test_query() {
         test_fns::test_query(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_event() {
+        test_fns::test_event(make_test_object(make_config()).await).await;
     }
 }

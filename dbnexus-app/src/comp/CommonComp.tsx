@@ -11,6 +11,9 @@ import {
   useTheme,
   Button,
   TextField,
+  InputLabel,
+  Select,
+  FormControl,
 } from '@mui/material';
 import {
   CSSProperties,
@@ -124,37 +127,26 @@ function SelectAlign(props: {
 
 const LogLevelSelection = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];
-  const getColor = (level: string) => {
-    switch (level) {
-      case 'trace':
-        return 'primary';
-      case 'debug':
-        return 'secondary';
-      case 'info':
-        return 'info';
-      case 'warn':
-        return 'warning';
-      case 'error':
-        return 'error';
-    }
-  };
 
   return (
-    <Stack direction="row" spacing={1}>
-      {levels.map((e) => {
-        return (
-          <Chip
-            key={e}
-            size="small"
-            disabled={level == e}
-            color={getColor(e)}
-            onClick={() => {
-              handleChange(e);
-            }}
-            label={e}
-          ></Chip>
-        );
-      })}
+    <Stack style={{ minWidth: '7rem' }}>
+      <FormControl fullWidth>
+        <InputLabel>logger level</InputLabel>
+        <Select
+          size="small"
+          value={level}
+          label="logger level"
+          onChange={(e) => handleChange(e.target.value)}
+        >
+          {levels.map((e) => {
+            return (
+              <MenuItem key={e} value={e}>
+                {e}
+              </MenuItem>
+            );
+          })}
+        </Select>
+      </FormControl>
     </Stack>
   );
 };

@@ -1,4 +1,4 @@
-use crate::db::{DBTrait, SequenceDetail};
+use crate::db::{DBTrait, SequenceDetail, SqlEvent};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
     LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
@@ -58,6 +58,9 @@ impl AstCompletionHelper for MariaDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for MariaDB {
+    async fn list_event(&self, schema: Option<&str>) -> anyhow::Result<Vec<SqlEvent>> {
+        LangServerCommon::list_event(self.db.as_ref(), schema).await
+    }
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         LangServerCommon::list_index(self.db.as_ref(), schema).await
     }

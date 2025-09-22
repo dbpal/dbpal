@@ -16,6 +16,7 @@ import { EscDownEvent, modalStyle, tabsHasId } from './Common';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
 import { event } from '@tauri-apps/api';
+import { RiBloggerLine } from 'react-icons/ri';
 const shortCuts = {
   callback: (e: KeyboardEvent) => {
     if (platform() == 'macos') {
@@ -75,7 +76,10 @@ import { Box, Modal, Paper } from '@mui/material';
 import { BackendCrash } from './BackendCrash.tsx';
 import { EditConfigFile } from './EditConfigFile.tsx';
 import { ModalHeader } from './CommonComp.tsx';
+import { LogFile } from './LogFile.tsx';
 const showSettingID = generateRandomString();
+const openLogFileId = generateRandomString();
+
 export default function MainPage() {
   let [tabs, setTabs] = useState<TabContent[]>([]);
   const [tab, setTab] = useState(0);
@@ -168,6 +172,35 @@ export default function MainPage() {
         });
       }
     );
+    return () => {
+      unlisten.then((e) => {
+        e();
+      });
+    };
+  }, []);
+  useEffect(() => {
+    let unlisten = listen<string>('open_log_file', () => {
+      setTabs((tabs) => {
+        let index = tabsHasId(tabs, openLogFileId);
+        if (typeof index === 'number') {
+          setTab(index);
+          return tabs;
+        } else {
+          setTimeout(() => {
+            setTab(tabs.length);
+          }, 100);
+          return [
+            ...tabs,
+            new TabContent(
+              openLogFileId,
+              'log file',
+              <LogFile />,
+              <RiBloggerLine />
+            ),
+          ];
+        }
+      });
+    });
     return () => {
       unlisten.then((e) => {
         e();

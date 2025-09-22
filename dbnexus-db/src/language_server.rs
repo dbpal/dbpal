@@ -7,7 +7,9 @@ use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
 use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
 
-use crate::db::{BackendKind, CreatedTypeDef, GetBackendKind, SequenceDetail, not_support_feature};
+use crate::db::{
+    BackendKind, CreatedTypeDef, GetBackendKind, SequenceDetail, SqlEvent, not_support_feature,
+};
 use crate::helper::try_remove_one_at;
 use crate::sqlparser_completion::{CompletionStatement, TempTableColumn};
 
@@ -65,11 +67,6 @@ pub enum CompletionKind {
     Domain,
 }
 
-impl From<CompletionKind> for u32 {
-    fn from(val: CompletionKind) -> Self {
-        val as u32
-    }
-}
 impl std::fmt::Display for CompletionKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let x = format!("{:?}", self).to_lowercase();
@@ -362,6 +359,16 @@ impl From<PostGresExtension> for CompletionItem {
     }
 }
 
+impl From<SqlEvent> for CompletionItem {
+    fn from(value: SqlEvent) -> Self {
+        CompletionItem {
+            item: value.name.into(),
+            kind: CompletionKind::Event,
+            desc: Some(value.sql.into()),
+        }
+    }
+}
+
 #[async_trait::async_trait]
 
 pub trait LangServerCommon: GetBackendKind {
@@ -377,7 +384,7 @@ pub trait LangServerCommon: GetBackendKind {
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
-    async fn list_event(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+    async fn list_event(&self, _schema: Option<&str>) -> anyhow::Result<Vec<SqlEvent>> {
         anyhow::Ok(vec![])
     }
     async fn sqlite_module_name(&self) -> anyhow::Result<Vec<String>> {
@@ -782,11 +789,7 @@ pub trait LangServerCommon: GetBackendKind {
             .map_err(|e| log::error!("list event failed,err:{}", e))
             .unwrap_or_default()
             .into_iter()
-            .map(|name| CompletionItem {
-                item: name.into(),
-                kind: CompletionKind::Event,
-                desc: None,
-            })
+            .map(CompletionItem::from)
             .collect()
     }
     async fn list_sequence_completion(&self, schema: Option<&str>) -> Vec<CompletionItem> {
@@ -909,6 +912,21 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
         &self, _schema: Option<&str>, _table: &str,
     ) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
+    }
+    async fn table_policy_completion(
+        &self, schema: Option<&str>, table: &str,
+    ) -> Vec<CompletionItem> {
+        self.table_policy(schema, table)
+            .await
+            .map_err(|e| log::error!("list table policy failed,err:{}", e))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Policy,
+                desc: None,
+            })
+            .collect()
     }
 
     async fn list_postgres_rule(

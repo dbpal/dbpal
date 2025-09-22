@@ -73,7 +73,6 @@ function MongoQuery(props: {
     loglevel.getLogger(generateRandomString(10))
   );
   const [loggerLevel, setLoggerLevel] = useState('trace');
-  const [showLoggerLevel, setShowLoggerLevel] = useState(false);
   const [db, _] = useState(new MongoDBQuery(uuid));
   const [bsonExtraDataType, _setBsonExtraDataTypes] = useState(
     new BsonExtraDataType()
@@ -174,17 +173,12 @@ function MongoQuery(props: {
           </IconButton>
         </Tooltip>
 
-        <Tooltip title="logger level">
-          <Chip
-            label={loggerLevel}
-            color="primary"
-            size="small"
-            onClick={() => {
-              setShowLoggerLevel(true);
-            }}
-          />
-        </Tooltip>
-
+        <LogLevelSelection
+          level={loggerLevel}
+          handleChange={(level) => {
+            setLoggerLevel(level);
+          }}
+        ></LogLevelSelection>
         <Tooltip
           title={
             !favoriteName
@@ -280,30 +274,6 @@ function MongoQuery(props: {
         </div>
         <EditorBar pos={loggerPos}></EditorBar>
       </div>
-      {showLoggerLevel && (
-        <Modal
-          open={showLoggerLevel}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
-            e.preventDefault();
-            setShowLoggerLevel(false);
-          }}
-        >
-          <Box sx={modalStyle} width="45%">
-            <ModalHeader title="Set Logger Level"></ModalHeader>
-            <LogLevelSelection
-              level={loggerLevel}
-              handleChange={(level) => {
-                setLoggerLevel(level);
-                setShowLoggerLevel(false);
-              }}
-            ></LogLevelSelection>
-          </Box>
-        </Modal>
-      )}
       {showSetFavoriteName && (
         <Modal
           open={showSetFavoriteName}

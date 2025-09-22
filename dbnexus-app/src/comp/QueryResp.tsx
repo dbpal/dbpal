@@ -134,15 +134,18 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
     oldData.data.forEach((e) => {
       e[keyNotInTable] = uuidV4();
     });
-    oldData.fields.forEach((e) => {
-      const width = columnWidths.getWidth(e.field);
+    oldData.fields.forEach((field) => {
+      const width = columnWidths.getWidth(field.field);
       if (width) {
-        e['width'] = width;
+        field['width'] = width;
       }
-      //@ts-ignore
-      e.renderHeader = (e) => {
-        let def = e.colDef;
-        return <Tooltip title={`${def.field} ${def.typ}`}>{def.field}</Tooltip>;
+      field['renderHeader'] = (e) => {
+        let def = e.colDef as types.Field;
+        return (
+          <Tooltip title={`${def.field} ${def.data_type}`}>
+            <span> {def.field}</span>
+          </Tooltip>
+        );
       };
     });
     setData(oldData);

@@ -107,12 +107,13 @@ import { AddConnection } from './AddConnection.tsx';
 import { FaBookmark } from 'react-icons/fa';
 import { SequenceTree } from './LeftSequence.tsx';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { TypesTree } from './LeftTypes.tsx';
+import { TypesTree } from './LeftType.tsx';
 import {
   CreateDatabase,
   CreateSchema,
   MenuConnectionInfo,
 } from './CommonComp2.tsx';
+import { EventsTree } from './LeftEvent.tsx';
 
 function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   const { matchPattern, setMatchPattern } = props;
@@ -989,6 +990,9 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     DataSourceKind.Cockroach,
     DataSourceKind.Cassandra,
   ].includes(kind);
+  let supportEvent = [DataSourceKind.Mysql, DataSourceKind.MariaDB].includes(
+    kind
+  );
 
   let { setUpMenu } = useContext(ContextMenuContext);
   const [loading, setLoading] = useState(false);
@@ -1125,6 +1129,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
         <RedisTables schema={schema} />
       )}
       {opened && supportType && <TypesTree />}
+      {opened && supportEvent && <EventsTree />}
     </TreeItem>
   );
 }

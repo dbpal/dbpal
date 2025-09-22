@@ -269,13 +269,18 @@ function SqlQuery(props: {
   };
 
   const warnDangerousSql = async (text): Promise<boolean> => {
-    if (await conn.isDangerSql(text)) {
-      return await secondConfirm({
-        confirmText: 'Execute',
-        title: 'This is a dangerous sql',
-        content: `Are u sure going to execute!!!!'`,
-      });
-    } else {
+    try {
+      if (await conn.isDangerSql(text)) {
+        return await secondConfirm({
+          confirmText: 'Execute',
+          title: 'This is a dangerous sql',
+          content: `Are u sure going to execute!!!!'`,
+        });
+      } else {
+        return true;
+      }
+    } catch (e) {
+      console.log('warning dangerous failed,error:', e);
       return true;
     }
   };

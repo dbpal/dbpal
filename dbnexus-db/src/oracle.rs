@@ -1747,7 +1747,7 @@ impl OracleDB {
 pub(crate) fn make_test_object(schema: Option<String>) -> OracleDB {
     let x = OracleDB::new(
         OracleDBConfig {
-            conn_timeout: None,
+            conn_timeout: Some(1000),
             username: "system".to_string(),
             password: "welcome123".to_string(),
             schema,

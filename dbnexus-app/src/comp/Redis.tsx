@@ -833,7 +833,7 @@ function RedisSetTable(props: {
   const [keyMatch, setKeyMatch] = useState('');
   const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
   const { showNotification } = useContext(NotificationContext);
-  const [selectRow, setSelectRow] = useState(null);
+  const [selectRow, setSelectRow] = useState<{ id; value }>(null);
   const [loading, setLoading] = useState(false);
   const handleReload = (showOK) => {
     setLoading(true);
@@ -1025,13 +1025,10 @@ function RedisSetTable(props: {
                 } catch (e) {
                   throw e;
                 }
-                //@ts-ignore
                 selectRow.value = newValue;
                 handleReload(false);
               }}
-              //@ts-ignore
               key={selectRow.id}
-              //@ts-ignore
               oldValue={selectRow.value}
               handleClose={() => {
                 setSelectRow(null);

@@ -61,7 +61,7 @@ impl log::Log for SimpleLogger {
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
             eprintln!(
-                "{}:{}  {} - {}",
+                "{}:{} {}-{}",
                 record.file().unwrap_or_default(),
                 record.line().unwrap_or_default(),
                 record.level(),

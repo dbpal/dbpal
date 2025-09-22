@@ -232,7 +232,7 @@ function ModifySetting() {
             })
             .map((f) => {
               return (
-                <MenuItem style={{ fontFamily: f }} value={f}>
+                <MenuItem style={{ fontFamily: f }} value={f} key={f}>
                   {f}
                 </MenuItem>
               );
@@ -340,7 +340,6 @@ function ModifySetting() {
               setTabSize(e);
             }}
             key={e}
-            variant="outlined"
           ></Chip>
         ))}
       </Stack>

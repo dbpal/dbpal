@@ -508,11 +508,6 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   const [replica, setReplica] = useState(getConfig('replica', false));
   const [authToken, setAuthToken] = useState(getConfig('auth_token'));
   const [schemaCandidates, setSchemesCandidates] = useState([]);
-  //@ts-ignore
-  const supportConnectionTimeout = ![
-    DataSourceKind.Redis,
-    DataSourceKind.Cassandra,
-  ].includes(connectionType);
 
   const makeConfig = (): types.DBConnectionConfig | null => {
     const portInt = parseInt(port);

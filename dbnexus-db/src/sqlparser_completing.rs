@@ -128,7 +128,6 @@ impl<'a> CompletionStatement<'a> {
         }
         log::info!("hit type:{:?}", name);
         let (schema, _) = self.extract_schema_and_item(name);
-
         self.result = Some(
             self.helper
                 .list_created_type(schema.as_deref())
@@ -414,7 +413,6 @@ impl<'a> CompletionStatement<'a> {
         if !self.last_name_in_pos(object_name) {
             return;
         }
-
         // 在 MySQL 中，SHOW CREATE TRIGGER 语句用于显示创建指定触发器的 CREATE TRIGGER
         // 语句 。其基本语法为：
         // sql复制
@@ -454,7 +452,6 @@ impl<'a> CompletionStatement<'a> {
         if self.finished() {
             return;
         }
-
         if !self.last_name_in_pos(name) {
             return;
         }
@@ -523,17 +520,8 @@ impl<'a> CompletionStatement<'a> {
         let (schema, table) = self.extract_schema_and_item(table_name);
         self.result = Some(
             self.helper
-                .table_policy(schema.as_deref(), &table)
-                .await
-                .map_err(|e| log::error!("list table policy failed,err:{:?}", e))
-                .unwrap_or_default()
-                .into_iter()
-                .map(|x| CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Policy,
-                    desc: None,
-                })
-                .collect(),
+                .table_policy_completion(schema.as_deref(), &table)
+                .await,
         );
     }
 
@@ -552,9 +540,9 @@ impl<'a> CompletionStatement<'a> {
             ObjectType::Index => self.c_on_index(name).await,
             ObjectType::Schema | ObjectType::Database => {
                 //  我不知道这里指的是schema还是database所以返回全部的结果
-                let mut r = self.helper.list_schema_completion().await;
-                r.extend(self.helper.list_database_completion().await.into_iter());
-                self.result = Some(r);
+                let mut results = self.helper.list_schema_completion().await;
+                results.extend(self.helper.list_database_completion().await.into_iter());
+                self.result = Some(results);
             }
             ObjectType::Role => self.c_on_role_objectname(name).await,
             ObjectType::Sequence => {
@@ -584,7 +572,7 @@ impl<'a> CompletionStatement<'a> {
         if !self.last_name_in_pos(name) {
             return;
         }
-        log::info!("hit on sequence");
+        log::info!("hit on sequence:{:?}", name);
         let (schema, _) = self.extract_schema_and_item(name);
         self.result = Some(
             self.helper
@@ -743,9 +731,6 @@ impl<'a> CompletionStatement<'a> {
 
     pub(crate) async fn c_on_index(&mut self, name: &ObjectName) {
         self.c_on_schema(name).await;
-        if self.finished() {
-            return;
-        }
         if !self.last_name_in_pos(name) {
             return;
         }
@@ -1231,7 +1216,9 @@ impl<'a> CompletionStatement<'a> {
             }
             AlterColumnOperation::DropDefault => {}
             AlterColumnOperation::SetDataType {
-                data_type, using, ..
+                data_type,
+                using,
+                had_set: _,
             } => {
                 self.c_on_data_type(data_type).await;
                 if let Some(u) = using {
@@ -1242,9 +1229,9 @@ impl<'a> CompletionStatement<'a> {
                 generated_as: _,
                 sequence_options,
             } => {
-                if let Some(ss) = sequence_options {
-                    for s in ss.iter() {
-                        self.c_on_sequence_options(s).await;
+                if let Some(ops) = sequence_options {
+                    for op in ops.iter() {
+                        self.c_on_sequence_options(op).await;
                         if self.finished() {
                             return;
                         }
@@ -1266,30 +1253,7 @@ impl<'a> CompletionStatement<'a> {
     pub(crate) async fn c_on_projection_select(&mut self, select: &ProjectionSelect) {
         self.c_on_select_items(&select.projection[..]).await;
         if let Some(x) = select.group_by.as_ref() {
-            match x {
-                GroupByExpr::All(group_by_with_modifiers) => {
-                    for g in group_by_with_modifiers.iter() {
-                        self.c_on_group_by_with_modifier(g).await;
-                        if self.finished() {
-                            return;
-                        }
-                    }
-                }
-                GroupByExpr::Expressions(exprs, group_by_with_modifiers) => {
-                    for g in group_by_with_modifiers.iter() {
-                        self.c_on_group_by_with_modifier(g).await;
-                        if self.finished() {
-                            return;
-                        }
-                    }
-                    for e in exprs.iter() {
-                        self.c_on_expr(e).await;
-                        if self.finished() {
-                            return;
-                        }
-                    }
-                }
-            }
+            self.c_on_group_by_expr(x).await
         }
         if let Some(o) = select.order_by.as_ref() {
             self.c_on_order_by(o).await;
@@ -2165,33 +2129,17 @@ impl<'a> CompletionStatement<'a> {
     pub(crate) async fn c_on_lambda(&mut self, lambda: &LambdaFunction) {
         // lambda consider a function
         let _guard = self.scopes.enter(Scope::default());
-        match &lambda.params {
-            OneOrManyWithParens::One(name) => {
-                if self.in_pos(&name.span) {
-                    self.set_on_def();
-                    return;
-                }
-                self.scopes.current_scope(|scope| {
-                    scope.enter_var(Var {
-                        name: name.clone(),
-                        data_type: None,
-                    })
-                });
+        for name in lambda.params.iter() {
+            if self.in_pos(&name.span) {
+                self.set_on_def();
+                return;
             }
-            OneOrManyWithParens::Many(items) => {
-                if items.iter().any(|x| self.in_pos(&x.span)) {
-                    self.set_on_def();
-                    return;
-                }
-                for name in items.iter() {
-                    self.scopes.current_scope(|scope| {
-                        scope.enter_var(Var {
-                            name: name.clone(),
-                            data_type: None,
-                        })
-                    });
-                }
-            }
+            self.scopes.current_scope(|scope| {
+                scope.enter_var(Var {
+                    name: name.clone(),
+                    data_type: None,
+                })
+            });
         }
         self.c_on_expr(&lambda.body).await;
     }
@@ -2201,23 +2149,26 @@ impl<'a> CompletionStatement<'a> {
         if self.finished() {
             return;
         }
-        if let Some(full) = orderby.with_fill.as_ref() {
-            if let Some(from) = full.from.as_ref() {
-                self.c_on_expr(from).await;
-                if self.finished() {
-                    return;
-                }
+        if let Some(fill) = orderby.with_fill.as_ref() {
+            self.c_on_with_fill(fill).await;
+        }
+    }
+
+    pub(crate) async fn c_on_with_fill(&mut self, fill: &WithFill) {
+        if let Some(from) = fill.from.as_ref() {
+            self.c_on_expr(from).await;
+            if self.finished() {
+                return;
             }
-            if let Some(to) = full.to.as_ref() {
-                self.c_on_expr(to).await;
-                if self.finished() {
-                    return;
-                }
+        }
+        if let Some(to) = fill.to.as_ref() {
+            self.c_on_expr(to).await;
+            if self.finished() {
+                return;
             }
-            if let Some(step) = full.step.as_ref() {
-                self.c_on_expr(step).await;
-                if self.finished() {}
-            }
+        }
+        if let Some(step) = fill.step.as_ref() {
+            self.c_on_expr(step).await;
         }
     }
 
@@ -2527,6 +2478,9 @@ impl<'a> CompletionStatement<'a> {
     }
     pub(crate) async fn c_on_connect_by(&mut self, cb: &ConnectBy) {
         self.c_on_expr(&cb.condition).await;
+        if self.finished() {
+            return;
+        }
         for e in cb.relationships.iter() {
             self.c_on_expr(e).await;
             if self.finished() {
@@ -2549,6 +2503,7 @@ impl<'a> CompletionStatement<'a> {
             self.helper
                 .get_query_columns(&select.to_string())
                 .await
+                .map_err(|e| log::error!("get query columns error: {}", e))
                 .unwrap_or_default()
         };
         self.scopes
@@ -3091,7 +3046,6 @@ impl<'a> CompletionStatement<'a> {
                 self.c_on_expr(on).await;
             }
         }
-
         if let Some(offset) = sample.offset.as_ref() {
             self.c_on_expr(offset).await;
         }
@@ -3729,9 +3683,9 @@ impl<'a> CompletionStatement<'a> {
             MergeAction::Insert(merge_insert_expr) => {
                 match &merge_insert_expr.kind {
                     MergeInsertKind::Values(values) => {
-                        for vv in values.rows.iter() {
-                            for v in vv.iter() {
-                                self.c_on_expr(v).await;
+                        for exprs in values.rows.iter() {
+                            for expr in exprs.iter() {
+                                self.c_on_expr(expr).await;
                                 if self.finished() {
                                     return;
                                 }
@@ -3779,11 +3733,10 @@ impl<'a> CompletionStatement<'a> {
         name.0
             .last()
             .map(|x| self.in_pos(&x.span()))
-            .unwrap_or(false)
+            .unwrap_or_default()
     }
 
     // sqlite pragma
-
     pub(crate) async fn c_on_sqlite_pragma(&mut self, name: &ObjectName) {
         if !self.in_pos(&name.span()) {
             return;

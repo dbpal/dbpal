@@ -967,7 +967,7 @@ function TableAddColumn(props: {
       return;
     }
     if (!typ) {
-      showNotification('error', 'type name is empty');
+      showNotification('error', 'type is empty');
       return;
     }
     setLoading(true);
@@ -1170,7 +1170,11 @@ function SqlDefaultValue(props: {
         >
           <MenuItem value="">empty </MenuItem>
           {currentValue.map((e) => {
-            return <MenuItem value={e}>{e}</MenuItem>;
+            return (
+              <MenuItem key={e} value={e}>
+                {e}
+              </MenuItem>
+            );
           })}
         </Select>
       </FormControl>

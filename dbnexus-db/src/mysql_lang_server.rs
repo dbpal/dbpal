@@ -9,7 +9,7 @@ MySQL 只允许省略 sys. 前缀直接调用“函数”，对“存储过程�
 过程（procedure）、表（table）、视图（view）：一律没有特权，想跨库访问就老老实实加前缀或切换默认库。
 */
 
-use crate::db::{AutoCompletionQueryUuid, name_start_ascii_alphabetic};
+use crate::db::{AutoCompletionQueryUuid, SqlEvent, name_start_ascii_alphabetic};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
     LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
@@ -82,6 +82,11 @@ impl MysqlDB {
 
 #[async_trait::async_trait]
 impl LangServerCommon for MysqlDB {
+    async fn list_event(&self, schema: Option<&str>) -> anyhow::Result<Vec<SqlEvent>> {
+        let shcema = self.not_allow_empty_schema(schema).await?;
+        self.list_event_impl(&shcema).await
+    }
+
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = self.not_allow_empty_schema(schema).await?;
         let sql = format!(
@@ -451,7 +456,7 @@ mod tests {
     }
     fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {
-            conn_timeout: None,
+            conn_timeout: Some(1000),
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
             password: Some("root".to_string()),
@@ -523,7 +528,22 @@ mod tests {
             //
 
             DELIMITER ;
-    "#,
+            "#,
+            )
+            .await
+            .unwrap();
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+            CREATE EVENT do_nothing_event_loop
+            ON SCHEDULE EVERY 10 SECOND
+            STARTS CURRENT_TIMESTAMP
+            DO
+            BEGIN
+            /* 空语句块，可永久存在 */
+            END;
+            "#,
             )
             .await
             .unwrap();

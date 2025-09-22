@@ -9,7 +9,7 @@ use dbnexus_db::cockroach::CockRoachDB;
 use dbnexus_db::db::{
     AutoCompletionQueryUuid, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedTypeDef, DefAndMetas, ExportKind, Field, Index, IndexKind,
-    ListTable, NamedStaff, ProcedureDetail, QueryResp, SequenceDetail, ShowExtraArgs,
+    ListTable, NamedStaff, ProcedureDetail, QueryResp, SequenceDetail, ShowExtraArgs, SqlEvent,
     SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use dbnexus_db::firebird::FireBirdDB;
@@ -664,6 +664,31 @@ pub async fn list_created_types(
 
     schema
         .list_created_types()
+        .await
+        .map_err(ErrorFrontend::from)
+}
+
+#[tauri::command]
+pub async fn list_event(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<SqlEvent>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
+
+    schema.list_event().await.map_err(ErrorFrontend::from)
+}
+
+#[tauri::command]
+pub async fn drop_event(
+    name: String, event_name: String, app: tauri::State<'_, App>,
+) -> Result<(), ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
+
+    schema
+        .drop_event(&event_name)
         .await
         .map_err(ErrorFrontend::from)
 }

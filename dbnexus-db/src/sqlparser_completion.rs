@@ -735,7 +735,6 @@ impl<'a> CompletionStatement<'a> {
                         _ => false,
                     }) {
                         // this postgres specific statement
-
                         // hit the position
                         // 是的，CREATE POLICY 语句中的 TO 子句用于指定角色（role）。这允许您定义特定角色对表或视图的访问权限。
                         let mut results: Vec<_> = self.helper.list_role_completion().await;
@@ -801,13 +800,24 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            Statement::AlterView { name, query, .. } => {
+            Statement::AlterView {
+                name,
+                query,
+                columns: _,
+                with_options,
+            } => {
                 self.c_on_view(name).await;
                 if self.finished() {
                     return;
                 }
                 let cols = self.c_on_query(query).await.unwrap_or_default();
                 self.scopes.current_scope(|s| s.enter_temp_cols(cols));
+                for w in with_options.iter() {
+                    self.c_on_sql_option(w).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
             }
             Statement::AlterRole { name, operation } => {
                 self.c_on_role(name).await;
@@ -877,14 +887,15 @@ impl<'a> CompletionStatement<'a> {
                 table,
                 ..
             } => {
+                if let Some(table) = table {
+                    self.c_on_table(table).await;
+                }
+
                 for name in names.iter() {
                     self.c_on_object_type_drop(*object_type, name).await;
                     if self.finished() {
                         return;
                     }
-                }
-                if let Some(table) = table {
-                    self.c_on_table(table).await;
                 }
             }
             Statement::DropFunction { func_desc, .. } => {
@@ -904,7 +915,8 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::DropSecret { .. } => {
-                // DROP SECRET 并不是 SQL 标准语句，而是部分现代数据库为管理“外部访问密钥”引入的扩展命令，用于删除事先通过 CREATE SECRET 注册的凭证对象。目前可见于以下系统
+                // DROP SECRET 并不是 SQL 标准语句，而是部分现代数据库为管理“外部访问密钥”引入的扩展命令，
+                // 用于删除事先通过 CREATE SECRET 注册的凭证对象。目前可见于以下系统
             }
             Statement::DropPolicy {
                 table_name, name, ..
@@ -941,7 +953,6 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-
             Statement::Fetch { into, .. } => {
                 if let Some(into) = into {
                     self.c_on_table(into).await;
@@ -959,6 +970,7 @@ impl<'a> CompletionStatement<'a> {
             }
             Statement::Discard { .. } => {
                 // fallback to lexer
+                // no completable elements
             }
             Statement::ShowFunctions { filter } => {
                 // Presto-specific
@@ -968,8 +980,8 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::ShowVariable { variable } => {
-                let name = self.helper.backend_name();
-                if name.postgres_like() {
+                let kind = self.helper.backend_name();
+                if kind.postgres_like() {
                     for var in variable {
                         self.c_on_variable(var).await;
                         if self.finished() {
@@ -998,8 +1010,7 @@ impl<'a> CompletionStatement<'a> {
                 self.c_on_mysql_show_create(*obj_type, obj_name).await;
             }
             Statement::ShowColumns { .. } => {
-                // can completion on table name etc
-                // right now fall back to lexer
+                // fallback to lexer
                 // lexer completion will suggest tables.
             }
             Statement::ShowDatabases { .. } => {
@@ -1024,9 +1035,10 @@ impl<'a> CompletionStatement<'a> {
                     | Use::Schema(object_name)
                     | Use::Database(object_name) => {
                         if self.in_pos(&object_name.span()) {
-                            let mut r = self.helper.list_schema_completion().await;
-                            r.extend(self.helper.list_database_completion().await.into_iter());
-                            self.result = Some(r)
+                            let mut results = self.helper.list_schema_completion().await;
+                            results
+                                .extend(self.helper.list_database_completion().await.into_iter());
+                            self.result = Some(results)
                         }
                     }
                     Use::Warehouse(..) => {
@@ -1034,7 +1046,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                     Use::Role(object_name) => self.c_on_role_objectname(object_name).await,
                     Use::SecondaryRoles(..) => {
-                        // snowflake not support
+                        // USE SECONDARY ROLES ALL 是 Snowflake 数据库的 SQL 语句
                     }
                     Use::Object(..) => {
                         // TODO use a table???
@@ -1090,6 +1102,7 @@ impl<'a> CompletionStatement<'a> {
                 schema_name,
                 with,
                 options,
+                default_collate_spec,
                 ..
             } => {
                 // no need to completion.
@@ -1128,6 +1141,9 @@ impl<'a> CompletionStatement<'a> {
                             return;
                         }
                     }
+                }
+                if let Some(d) = default_collate_spec {
+                    self.c_on_expr(d).await;
                 }
             }
             Statement::CreateDatabase { db_name, .. } => {
@@ -1293,6 +1309,7 @@ impl<'a> CompletionStatement<'a> {
                     .await;
                 }
             }
+
             Statement::CreateProcedure {
                 name, params, body, ..
             } => {
@@ -1454,11 +1471,11 @@ impl<'a> CompletionStatement<'a> {
                     //
                     self.c_on_table(table_name).await;
                     if self.last_name_in_pos(table_name) && table_name.0.len() == 1 {
-                        let mut r = self.result.take().unwrap_or_default();
-                        let words = self.helper.key_words_completion().await;
+                        let mut results = self.result.take().unwrap_or_default();
+                        let kw = self.helper.key_words_completion().await;
                         // possible
-                        r.extend(words.into_iter());
-                        self.result = Some(r);
+                        results.extend(kw.into_iter());
+                        self.result = Some(results);
                     }
                 }
             }
@@ -1466,6 +1483,9 @@ impl<'a> CompletionStatement<'a> {
                 statement, options, ..
             } => {
                 Box::pin(self.completion_on_statement(statement)).await;
+                if self.finished() {
+                    return;
+                }
                 if let Some(ops) = options {
                     for op in ops.iter() {
                         if let Some(arg) = op.arg.as_ref() {
@@ -1604,11 +1624,22 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::OptimizeTable {
-                name, on_cluster, ..
+                name,
+                on_cluster,
+                deduplicate,
+                ..
             } => {
                 self.c_on_table(name).await;
                 if let Some(on_cluster) = on_cluster {
                     self.c_on_cluster(on_cluster).await;
+                }
+                if let Some(deduplicate) = deduplicate {
+                    match deduplicate {
+                        Deduplicate::All => {}
+                        Deduplicate::ByExpression(expr) => {
+                            self.c_on_expr(expr).await;
+                        }
+                    }
                 }
             }
             Statement::LISTEN { .. } => {
@@ -1659,7 +1690,6 @@ impl<'a> CompletionStatement<'a> {
             Statement::DropConnector { .. } => {
                 // hive not support
             }
-
             Statement::CreateExtension { name, schema, .. } => {
                 self.c_on_postgres_extension(name, false).await;
                 if self.finished() {
@@ -1781,6 +1811,7 @@ impl<'a> CompletionStatement<'a> {
         }
     }
     async fn c_on_begin_end_statements(&mut self, ast: &BeginEndStatements) {
+        // begin ane end introduce a new scope
         let _guard = self.scopes.enter(Scope::default());
         for s in ast.statements.iter() {
             Box::pin(self.completion_on_statement(s)).await;

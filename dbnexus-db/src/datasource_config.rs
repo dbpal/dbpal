@@ -29,7 +29,7 @@ pub struct MysqlDBConfig {
 }
 
 impl MysqlDBConfig {
-    pub(crate) fn db_str(&self) -> &str {
+    pub(crate) fn schema_str(&self) -> &str {
         self.db.as_deref().expect("must be some")
     }
 }

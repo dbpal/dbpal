@@ -54,7 +54,7 @@ impl MariaDB {
             START_VALUE, MINIMUM_VALUE ,
             MAXIMUM_VALUE  , INCREMENT
             from information_schema.SEQUENCES where SEQUENCE_SCHEMA = '{}'
-         ",
+            ",
             schema
         );
         let mut conn = self.db.get_conn().await?;
@@ -367,7 +367,7 @@ impl SchemaTrait for MariaDB {
     }
 
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
-        self.list_sequences_impl(self.db.config.db_str()).await
+        self.list_sequences_impl(self.db.config.schema_str()).await
     }
 
     async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<()> {
@@ -433,7 +433,7 @@ impl ServerMetas for MariaDB {
 #[cfg(test)]
 pub(crate) fn make_config() -> MysqlDBConfig {
     MysqlDBConfig {
-        conn_timeout: None,
+        conn_timeout: Some(1000),
         host: crate::TEST_HOST.to_string(),
         username: "root".to_string(),
         password: Some("root".to_string()),
@@ -599,5 +599,9 @@ mod tests {
     #[tokio::test]
     async fn test_view() {
         test_fns::test_view(make_test_object(make_config()).await).await;
+    }
+    #[tokio::test]
+    async fn test_event() {
+        test_fns::test_event(make_test_object(make_config()).await).await;
     }
 }

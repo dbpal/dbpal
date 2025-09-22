@@ -395,8 +395,20 @@ pub trait SchemaTrait:
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         &[]
     }
+    async fn list_event(&self) -> anyhow::Result<Vec<SqlEvent>> {
+        anyhow::Ok(vec![])
+    }
+    async fn drop_event(&self, _name: &str) -> anyhow::Result<()> {
+        not_support_feature(self.backend_name())
+    }
 }
 
+#[derive(Debug, typescript_type_def::TypeDef, serde::Serialize)]
+pub struct SqlEvent {
+    pub name: String,
+    pub sql: String,
+    pub metas: Vec<MetaValue>,
+}
 pub trait SqlBuilder: GetBackendKind {
     // like current_timestamp can directly use in sql
     const CURRENT_VALUES: &'static [&'static str] = &[];

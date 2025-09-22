@@ -6,7 +6,7 @@ mod tests {
     use dbnexus_db::datasource_config::{CassandraDBConfig, EnableSsl, LibSqlDBConfigSource};
     use dbnexus_db::db::{
         ColumnType, CreateTableAndIndexSql, CreatedTypeDef, QueryResp, SequenceDetail,
-        ShowExtraArgs,
+        ShowExtraArgs, SqlEvent,
     };
 
     #[test]
@@ -68,6 +68,7 @@ mod tests {
                 &SequenceDetail::INFO,
                 &CreatedTypeDef::INFO,
                 &ShowExtraArgs::INFO,
+                &SqlEvent::INFO,
             ];
 
             let mut buf = Vec::new();

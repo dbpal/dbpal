@@ -104,7 +104,7 @@ function DefAndMetasView(props: {
             }}
             variant="contained"
           >
-            execute
+            execute!
           </Button>
         </Tooltip>
       </Stack>

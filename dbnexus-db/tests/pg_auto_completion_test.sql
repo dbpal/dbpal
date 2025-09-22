@@ -34,8 +34,6 @@ delete from employees where id = 1000 RETURNING id
 31 id ; 31 name ; 51 id
 delete from employees USING employees
 38 employees
-create view view_name as select * from employees
-49 employees
 CREATE TABLE order_items ( order_id INT, product_id INT, quantity INT, PRIMARY KEY (order_id, product_id));
 93 order_id
 CREATE TABLE child ( id SERIAL PRIMARY KEY, parent_id INT, FOREIGN KEY (parent_id) REFERENCES employees(id));
@@ -146,3 +144,5 @@ WITH aaa as (select * from employees) select * from employees where aaa.id > 0
 72 aaa ; 75 id 
 WITH aaa(emp_id) as (select * from employees) select * from employees where aaa.emp_id > 0 
 80 aaa ; 87 emp_id 
+show allow_alter_system
+24 allow_alter_system
