@@ -1,4 +1,4 @@
-import { ReactNode, useContext, useEffect, useState } from 'react';
+import { ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import {
   modalStyle,
   tabsHasId,
@@ -133,10 +133,10 @@ function TablesTree(props: { typ: TablesType }) {
       tablesText = 'time serial';
       break;
   }
-
+  const tablesId = useRef(generateRandomString());
   return (
     <TreeItem
-      itemId={uuid + '-tables-' + typ + '-'}
+      itemId={tablesId.current}
       label=<Stack
         spacing={1}
         direction="row"
@@ -1191,9 +1191,10 @@ function RedisTables(props: { schema?: string }) {
         name = 'hash';
         break;
     }
+    let tablesID = useRef(generateRandomString());
     return (
       <TreeItem
-        itemId={idPrefix}
+        itemId={tablesID.current}
         label=<Stack
           spacing={1}
           direction="row"

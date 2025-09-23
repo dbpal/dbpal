@@ -11,7 +11,7 @@ import {
   Switch,
 } from '@mui/material';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import InfoIcon from '@mui/icons-material/Info';
 import {
@@ -33,6 +33,7 @@ import {
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
+  generateRandomString,
   makeExecuteSql,
   makeGetParserErr,
   MatchPatternContext,
@@ -76,10 +77,10 @@ function SequenceTree() {
   useEffect(() => {
     reload();
   }, []);
-
+  const idForTree = useRef(generateRandomString());
   return (
     <TreeItem
-      itemId={idPrefix}
+      itemId={idForTree.current}
       label=<Stack
         direction="row"
         spacing={1}

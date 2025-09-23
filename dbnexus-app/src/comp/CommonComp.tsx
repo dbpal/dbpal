@@ -14,6 +14,7 @@ import {
   InputLabel,
   Select,
   FormControl,
+  IconButton,
 } from '@mui/material';
 import {
   CSSProperties,
@@ -881,14 +882,14 @@ function SelectColumns(props: {
       >
         <Typography color="info">includes:</Typography>
         {includes.length > 0 && (
-          <Button
+          <IconButton
             onClick={() => {
               setIncludes([]);
             }}
-            variant="outlined"
+            color="error"
           >
-            clear
-          </Button>
+            <CloseIcon></CloseIcon>
+          </IconButton>
         )}
         {includes.map((x) => (
           <Chip
