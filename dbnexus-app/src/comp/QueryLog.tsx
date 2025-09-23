@@ -23,7 +23,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { EscDownEvent, modalStyle } from './Common';
+import { EscDownEvent, modalHandleClose, modalStyle } from './Common';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import {
@@ -255,13 +255,10 @@ function QueryLog(props: {
         {selectSql && (
           <Modal
             open={!!selectSql}
-            onClose={(e: EscDownEvent, reason) => {
-              if (reason === 'backdropClick') {
-                return;
-              }
+            onClose={modalHandleClose((e: EscDownEvent) => {
               e.preventDefault();
               setSelectSql('');
-            }}
+            })}
           >
             <Box
               sx={{ resize: 'both', ...modalStyle }}

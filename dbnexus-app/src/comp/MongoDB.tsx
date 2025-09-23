@@ -52,7 +52,13 @@ import {
   GridSlotsComponentsProps,
 } from '@mui/x-data-grid';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import { modalStyle, reloadOK, keyNotInTable, EscDownEvent } from './Common';
+import {
+  modalStyle,
+  reloadOK,
+  keyNotInTable,
+  EscDownEvent,
+  modalHandleClose,
+} from './Common';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { BsFillLightbulbFill } from 'react-icons/bs';
@@ -556,14 +562,10 @@ function MongoTableToolBar(props: {
       {showModifyFilter && (
         <Modal
           open={showModifyFilter}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowModifyFilter(false);
-          }}
+          })}
         >
           <Box
             sx={{ resize: 'both', ...modalStyle }}
@@ -586,14 +588,10 @@ function MongoTableToolBar(props: {
       {showModifySort && (
         <Modal
           open={showModifySort}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowModifySort(false);
-          }}
+          })}
         >
           <Box
             sx={{ resize: 'both', ...modalStyle }}
@@ -740,13 +738,10 @@ function MongoTableListContextMenu(props: {
       {showViewJson && (
         <Modal
           open={showViewJson}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowViewJson(false);
-          }}
+          })}
         >
           <Box
             sx={{ resize: 'both', ...modalStyle }}
@@ -767,13 +762,10 @@ function MongoTableListContextMenu(props: {
       {showFilter && (
         <Modal
           open={showFilter}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowFilter(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="45%">
             <ModalHeader title="Quick Filter"></ModalHeader>
@@ -1378,13 +1370,10 @@ function MongoTableList(props: {
       {selectModifyDoc && (
         <Modal
           open={!!selectModifyDoc}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectModifyDoc(null);
-          }}
+          })}
         >
           <Box
             sx={{ resize: 'both', ...modalStyle }}
@@ -1418,13 +1407,10 @@ function MongoTableList(props: {
       {showExportMarkDown && (
         <Modal
           open={showExportMarkDown}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowExportMarkDown(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="60%">
             <ModalHeader title="export markdown table"></ModalHeader>

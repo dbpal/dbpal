@@ -4,6 +4,7 @@ import {
   tabsHasId,
   makeAutoComplete,
   EscDownEvent,
+  modalHandleClose,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -933,14 +934,10 @@ function TableMenu(props: {
       {showDup && (
         <Modal
           open={showDup}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowDup(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="45%">
             <ModalHeader title="Duplicate"></ModalHeader>
@@ -958,14 +955,10 @@ function TableMenu(props: {
       {showRename && (
         <Modal
           open={showRename}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowRename(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="45%">
             <ModalHeader title="Rename"></ModalHeader>
@@ -983,14 +976,10 @@ function TableMenu(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowExport(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="45%">
             <ExportTableOrView
@@ -1005,14 +994,10 @@ function TableMenu(props: {
       {showDrop && (
         <Modal
           open={showDrop}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowDrop(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="45%">
             <ModalHeader title="Drop Table"></ModalHeader>
@@ -1312,14 +1297,10 @@ function RedisTables(props: { schema?: string }) {
       {showEditFilter && (
         <Modal
           open={showEditFilter}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowEditFilter(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="45%">
             <ModalHeader title="Edit key match string"></ModalHeader>

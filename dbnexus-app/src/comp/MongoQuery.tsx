@@ -26,7 +26,7 @@ import {
   saveAndSetSize,
   SettingContext,
 } from './helper';
-import { EscDownEvent, modalStyle } from './Common';
+import { EscDownEvent, modalHandleClose, modalStyle } from './Common';
 import { NotificationContext } from './Notification';
 import { LogLevelSelection, ModalHeader } from './CommonComp';
 import * as esprima from 'esprima';
@@ -300,13 +300,10 @@ function MongoQuery(props: {
       {showSetFavoriteName && (
         <Modal
           open={showSetFavoriteName}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowFavoriteName(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="45%">
             <ModalHeader title="Set Favorite Name"></ModalHeader>

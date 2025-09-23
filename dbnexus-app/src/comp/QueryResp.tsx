@@ -40,7 +40,12 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { EscDownEvent, keyNotInTable, modalStyle } from './Common';
+import {
+  EscDownEvent,
+  keyNotInTable,
+  modalHandleClose,
+  modalStyle,
+} from './Common';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
@@ -266,13 +271,10 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
       {viewInModal && (
         <Modal
           open={!!viewInModal}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setViewInModal(null);
-          }}
+          })}
         >
           <Box
             sx={{ resize: 'both', ...modalStyle }}
@@ -291,13 +293,10 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
       {showExportMarkDown && (
         <Modal
           open={showExportMarkDown}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowExportMarkDown(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="60%">
             <ModalHeader title="export markdown table"></ModalHeader>

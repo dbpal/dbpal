@@ -162,7 +162,6 @@ function UserAndPassword(props: {
           },
         }}
       />
-
       <Stack
         style={{
           width: '31rem',

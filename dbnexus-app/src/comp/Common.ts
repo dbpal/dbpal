@@ -633,6 +633,18 @@ class QueryConn implements IQueryConn {
   }
 }
 
+
+function modalHandleClose(callback: (e: EscDownEvent, reason: 'backdropClick' | 'escapeKeyDown') => void) {
+  return (e: EscDownEvent, reason: 'backdropClick' | 'escapeKeyDown') => {
+    if (reason === 'backdropClick') {
+      return;
+    }
+    callback(e, reason)
+  }
+}
+
+
+
 function extractBaseName(file) {
   const fileName = file.match(/[^\\/]+$/)[0];
   return fileName;
@@ -659,6 +671,7 @@ export {
   keyNotInTable,
   extractBaseName,
   makeAutoComplete,
+  modalHandleClose,
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent };

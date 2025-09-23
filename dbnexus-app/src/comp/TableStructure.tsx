@@ -11,6 +11,7 @@ import {
   DefAndMetas,
   EscDownEvent,
   initMonacoLanguage,
+  modalHandleClose,
   modalStyle,
 } from './Common';
 import {
@@ -324,14 +325,10 @@ function ColumnsStructure(props: {
       {showAdd && (
         <Modal
           open={showAdd}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
-          }}
+          })}
         >
           <Box
             sx={{ resize: 'horizontal', ...modalStyle }}
@@ -357,13 +354,10 @@ function ColumnsStructure(props: {
         ![DataSourceKind.Sqlite, DataSourceKind.LibSql].includes(kind) && (
           <Modal
             open={!!row}
-            onClose={(e: EscDownEvent, reason) => {
-              if (reason === 'backdropClick') {
-                return;
-              }
+            onClose={modalHandleClose((e: EscDownEvent) => {
               e.preventDefault();
               setRow(null);
-            }}
+            })}
           >
             <Box
               sx={{ resize: 'horizontal', ...modalStyle }}
@@ -641,14 +635,10 @@ function IndexesStructure(props: {
       {showAdd && kind == DataSourceKind.Mongo && (
         <Modal
           open={showAdd}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
-          }}
+          })}
         >
           <Box
             sx={{
@@ -675,13 +665,10 @@ function IndexesStructure(props: {
       {showAdd && kind != DataSourceKind.Mongo && (
         <Modal
           open={showAdd}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAdd(false);
-          }}
+          })}
         >
           <Box
             sx={{
@@ -708,13 +695,10 @@ function IndexesStructure(props: {
       {renameIndexName && (
         <Modal
           open={!!renameIndexName}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setRenameIndexName('');
-          }}
+          })}
         >
           <Box sx={modalStyle} width="40%">
             <ModalHeader title={`Rename Index`}></ModalHeader>
@@ -1650,13 +1634,10 @@ function TriggersStructure(props: {
       {row && (
         <Modal
           open={!!row}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setRow(null);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="80%">
             <ModalHeader title={`Trigger Detail`}></ModalHeader>

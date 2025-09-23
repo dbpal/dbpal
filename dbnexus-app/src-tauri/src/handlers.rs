@@ -3,7 +3,7 @@ use std::io::Seek;
 use std::ops::DerefMut;
 use std::time::Duration;
 
-use crate::app::{self, App, DBConnectionConfig, Open};
+use crate::app::{self, App, DBConnectionConfig, DatabaseBackend};
 use bson::{Document, doc};
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
@@ -70,9 +70,9 @@ pub async fn save_entered_password(
     conn.set_password(pass.clone());
     let o = conn.open().await.map_err(ErrorFrontend::from)?;
     match o {
-        Open::Catalog(x) => x.check_conn().await,
-        Open::DataBase(x) => x.check_conn().await,
-        Open::Schema(x) => x.check_conn().await,
+        DatabaseBackend::Catalog(x) => x.check_conn().await,
+        DatabaseBackend::DataBase(x) => x.check_conn().await,
+        DatabaseBackend::Schema(x) => x.check_conn().await,
     }
     .map_err(ErrorFrontend::from)?;
     app.saved_password.insert(name, pass);
@@ -102,7 +102,7 @@ pub async fn save_password(name: String, pass: String) -> Result<(), ErrorFronte
 #[tauri::command]
 pub async fn page_init_callback(app: tauri::State<'_, App>) -> Result<(), ()> {
     log::info!("page init call clear all open connection.");
-    app.opens.lock().await.clear();
+    app.backend.lock().await.clear();
     Ok(())
 }
 
@@ -114,7 +114,7 @@ pub async fn drop_database(
     random_error()?;
     log::info!("drop db:{} {}", name, database);
     let x = app
-        .get_opened(name.as_str())
+        .get_backend(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -124,8 +124,8 @@ pub async fn drop_database(
     app.close_conn_has_prefix(&key).await;
 
     match x {
-        Open::Catalog(x) => {
-            app.opens.lock().await.remove(&key);
+        DatabaseBackend::Catalog(x) => {
+            app.backend.lock().await.remove(&key);
 
             x.drop_database(&database)
                 .await
@@ -153,12 +153,12 @@ pub async fn drop_schema(
     let key = format!("{}/{}", name, schema);
     app.close_conn_has_prefix(&key).await;
     let x = app
-        .get_opened(name.as_str())
+        .get_backend(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match x {
-        Open::DataBase(x) => {
-            app.opens.lock().await.remove(&key);
+        DatabaseBackend::DataBase(x) => {
+            app.backend.lock().await.remove(&key);
             x.drop_schema(&schema).await.map_err(ErrorFrontend::from)?;
             Ok(())
         }
@@ -177,25 +177,14 @@ pub async fn create_database(
     random_error()?;
 
     let x = app
-        .get_opened(name.as_str())
+        .get_backend(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match x {
-        Open::Catalog(x) => {
+        DatabaseBackend::Catalog(x) => {
             x.create_database(&database, extra)
                 .await
                 .map_err(ErrorFrontend::from)?;
-
-            let key = format!("{}/{}", name, database);
-
-            let db = x.open_db(&database).await.map_err(ErrorFrontend::from)?;
-
-            app.enter_open_child(&key, &Open::from(db.clone()))
-                .await
-                .map_err(ErrorFrontend::from)?;
-
-            app.insert_open(key, db.into()).await;
-
             Ok(())
         }
 
@@ -214,18 +203,14 @@ pub async fn create_schema(
     random_error()?;
 
     let x = app
-        .get_opened(name.as_str())
+        .get_backend(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match x {
-        Open::DataBase(x) => {
+        DatabaseBackend::DataBase(x) => {
             x.create_schema(&schema, extra)
                 .await
                 .map_err(ErrorFrontend::from)?;
-            let key = format!("{}/{}", name, schema);
-            let schema = x.open_schema(&schema).await.map_err(ErrorFrontend::from)?;
-
-            app.insert_open(key, schema.into()).await;
             Ok(())
         }
         _ => Err(ErrorFrontend::from(format!(
@@ -243,7 +228,7 @@ pub async fn open_conn(name: String, app: tauri::State<'_, App>) -> Result<(), E
     let secs = 10;
     let name_clone = name.clone();
     tokio::time::timeout(Duration::from_secs(secs), async move {
-        app.open(name.as_str())
+        app.get_backend(name.as_str())
             .await
             .map_err(ErrorFrontend::from)
             .map(|_| ())
@@ -591,11 +576,11 @@ pub async fn server_metas(
 ) -> Result<Vec<MetaValue>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let o = app.get_opened(&name).await.map_err(ErrorFrontend::from)?;
+    let o = app.get_backend(&name).await.map_err(ErrorFrontend::from)?;
     match o {
-        Open::Catalog(x) => x.show_metas().await,
-        Open::DataBase(x) => x.show_metas().await,
-        Open::Schema(x) => x.show_metas().await,
+        DatabaseBackend::Catalog(x) => x.show_metas().await,
+        DatabaseBackend::DataBase(x) => x.show_metas().await,
+        DatabaseBackend::Schema(x) => x.show_metas().await,
     }
     .map_err(ErrorFrontend::from)
 }
@@ -723,21 +708,21 @@ pub async fn export_query_result_to_file(
     random_error()?;
 
     let opened = app
-        .get_opened(name.as_str())
+        .get_backend(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
     match opened {
-        Open::Catalog(x) => {
+        DatabaseBackend::Catalog(x) => {
             x.export_query_result_to_file(&sql, kind, &file)
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        Open::DataBase(x) => {
+        DatabaseBackend::DataBase(x) => {
             x.export_query_result_to_file(&sql, kind, &file)
                 .await
                 .map_err(ErrorFrontend::from)?;
         }
-        Open::Schema(x) => {
+        DatabaseBackend::Schema(x) => {
             x.export_query_result_to_file(&sql, kind, &file)
                 .await
                 .map_err(ErrorFrontend::from)?;
@@ -754,14 +739,14 @@ pub async fn is_dangerous_sql(
     random_error()?;
 
     let db = app
-        .get_opened(name.as_str())
+        .get_backend(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
     let result = match db {
-        Open::DataBase(x) => x.is_dangerous_sql(&sql),
-        Open::Schema(x) => x.is_dangerous_sql(&sql),
-        Open::Catalog(x) => x.is_dangerous_sql(&sql),
+        DatabaseBackend::DataBase(x) => x.is_dangerous_sql(&sql),
+        DatabaseBackend::Schema(x) => x.is_dangerous_sql(&sql),
+        DatabaseBackend::Catalog(x) => x.is_dangerous_sql(&sql),
     }
     .map_err(ErrorFrontend::from)?;
 
@@ -774,12 +759,15 @@ pub async fn query_sql(
     random_sleep().await;
     random_error()?;
 
-    let db = app.open(name.as_str()).await.map_err(ErrorFrontend::from)?;
+    let db = app
+        .get_backend(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
 
     let result = match db {
-        Open::DataBase(x) => x.query_sql(query_id, &sql).await,
-        Open::Schema(x) => x.query_sql(query_id, &sql).await,
-        Open::Catalog(x) => x.query_sql(query_id, &sql).await,
+        DatabaseBackend::DataBase(x) => x.query_sql(query_id, &sql).await,
+        DatabaseBackend::Schema(x) => x.query_sql(query_id, &sql).await,
+        DatabaseBackend::Catalog(x) => x.query_sql(query_id, &sql).await,
     };
 
     result.map_err(ErrorFrontend::from).map(|x| {
@@ -799,12 +787,15 @@ pub async fn execute_sql_no_open_conn(
     random_sleep().await;
     random_error()?;
 
-    let db = app.open(name.as_str()).await.map_err(ErrorFrontend::from)?;
+    let db = app
+        .get_backend(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
 
     let result = match db {
-        Open::DataBase(x) => x.execute_sql_no_open_conn(&sql).await,
-        Open::Schema(x) => x.execute_sql_no_open_conn(&sql).await,
-        Open::Catalog(x) => x.execute_sql_no_open_conn(&sql).await,
+        DatabaseBackend::DataBase(x) => x.execute_sql_no_open_conn(&sql).await,
+        DatabaseBackend::Schema(x) => x.execute_sql_no_open_conn(&sql).await,
+        DatabaseBackend::Catalog(x) => x.execute_sql_no_open_conn(&sql).await,
     }
     .map_err(ErrorFrontend::from)?;
     Ok(result.map(MuiDataGridData::from))
@@ -816,12 +807,15 @@ pub async fn execute_sql(
     random_sleep().await;
     random_error()?;
 
-    let db = app.open(name.as_str()).await.map_err(ErrorFrontend::from)?;
+    let db = app
+        .get_backend(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
 
     let result = match db {
-        Open::DataBase(x) => x.execute_sql(query_id, &sql).await,
-        Open::Schema(x) => x.execute_sql(query_id, &sql).await,
-        Open::Catalog(x) => x.execute_sql(query_id, &sql).await,
+        DatabaseBackend::DataBase(x) => x.execute_sql(query_id, &sql).await,
+        DatabaseBackend::Schema(x) => x.execute_sql(query_id, &sql).await,
+        DatabaseBackend::Catalog(x) => x.execute_sql(query_id, &sql).await,
     }
     .map_err(ErrorFrontend::from)?;
     Ok(result.map(MuiDataGridData::from))
@@ -833,11 +827,14 @@ pub async fn query_sql_open_connection(
 ) -> Result<uuid::Uuid, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.open(name.as_str()).await.map_err(|e| e.to_string())?;
+    let db = app
+        .get_backend(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
     let result = match db {
-        Open::DataBase(x) => x.open_connection().await,
-        Open::Schema(x) => x.open_connection().await,
-        Open::Catalog(x) => x.open_connection().await,
+        DatabaseBackend::DataBase(x) => x.open_connection().await,
+        DatabaseBackend::Schema(x) => x.open_connection().await,
+        DatabaseBackend::Catalog(x) => x.open_connection().await,
     };
     result.map_err(ErrorFrontend::from)
 }
@@ -848,11 +845,14 @@ pub async fn query_sql_re_connection(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.open(name.as_str()).await.map_err(|e| e.to_string())?;
+    let db = app
+        .get_backend(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
     let result = match db {
-        Open::DataBase(x) => x.re_connect(query_id).await,
-        Open::Schema(x) => x.re_connect(query_id).await,
-        Open::Catalog(x) => x.re_connect(query_id).await,
+        DatabaseBackend::DataBase(x) => x.re_connect(query_id).await,
+        DatabaseBackend::Schema(x) => x.re_connect(query_id).await,
+        DatabaseBackend::Catalog(x) => x.re_connect(query_id).await,
     };
     result.map_err(ErrorFrontend::from)
 }
@@ -863,11 +863,14 @@ pub async fn query_sql_close_connection(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.open(name.as_str()).await.map_err(|e| e.to_string())?;
+    let db = app
+        .get_backend(name.as_str())
+        .await
+        .map_err(|e| e.to_string())?;
     let result = match db {
-        Open::DataBase(x) => x.close_connection(query_id).await,
-        Open::Schema(x) => x.close_connection(query_id).await,
-        Open::Catalog(x) => x.close_connection(query_id).await,
+        DatabaseBackend::DataBase(x) => x.close_connection(query_id).await,
+        DatabaseBackend::Schema(x) => x.close_connection(query_id).await,
+        DatabaseBackend::Catalog(x) => x.close_connection(query_id).await,
     };
     result.map_err(ErrorFrontend::from)
 }
@@ -899,11 +902,11 @@ pub async fn check_conn(
     random_error()?;
     let t = 5;
     tokio::time::timeout(Duration::from_secs(t), async move {
-        let db = app.open(&name).await?;
+        let db = app.get_backend(&name).await?;
         match db {
-            app::Open::DataBase(x) => x.check_conn().await,
-            app::Open::Schema(x) => x.check_conn().await,
-            app::Open::Catalog(x) => x.check_conn().await,
+            app::DatabaseBackend::DataBase(x) => x.check_conn().await,
+            app::DatabaseBackend::Schema(x) => x.check_conn().await,
+            app::DatabaseBackend::Catalog(x) => x.check_conn().await,
         }
         .map_err(ErrorFrontend::from)
         .map(|d| {
@@ -931,9 +934,9 @@ pub async fn test_connection(
     tokio::time::timeout(Duration::from_secs(5), async {
         let db = config.open().await.map_err(|e| e.to_string())?;
         match db {
-            app::Open::DataBase(x) => x.check_conn().await,
-            app::Open::Schema(x) => x.check_conn().await,
-            app::Open::Catalog(x) => x.check_conn().await,
+            app::DatabaseBackend::DataBase(x) => x.check_conn().await,
+            app::DatabaseBackend::Schema(x) => x.check_conn().await,
+            app::DatabaseBackend::Catalog(x) => x.check_conn().await,
         }
         .map_err(ErrorFrontend::from)
         .map(|d| d.as_millis() as u64)
@@ -948,12 +951,14 @@ pub async fn config_list_database_or_schema(
 ) -> Result<Vec<String>, ErrorFrontend> {
     let x = conn.open().await?;
     match x {
-        Open::Catalog(catalog_trait) => catalog_trait
+        DatabaseBackend::Catalog(catalog_trait) => catalog_trait
             .list_database()
             .await
             .map_err(ErrorFrontend::from),
-        Open::DataBase(db_trait) => db_trait.list_schema().await.map_err(ErrorFrontend::from),
-        Open::Schema(_) => Ok(vec![]),
+        DatabaseBackend::DataBase(db_trait) => {
+            db_trait.list_schema().await.map_err(ErrorFrontend::from)
+        }
+        DatabaseBackend::Schema(_) => Ok(vec![]),
     }
 }
 
@@ -961,7 +966,7 @@ pub async fn config_list_database_or_schema(
 pub async fn conn_opened(name: String, app: tauri::State<'_, App>) -> Result<bool, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let opened = app.get_opened(name.as_str()).await.is_ok();
+    let opened = app.get_backend(name.as_str()).await.is_ok();
     Ok(opened)
 }
 
@@ -974,10 +979,10 @@ pub async fn list_database(
 > {
     random_sleep().await;
     random_error()?;
-    let db = app.open(name.as_str()).await?;
-    app.enter_open_child(name.as_str(), &db).await?;
+    let db = app.get_backend(name.as_str()).await?;
+    // app.enter_open_child(name.as_str(), &db).await?;
     match db {
-        app::Open::Catalog(x) => x.list_database().await,
+        app::DatabaseBackend::Catalog(x) => x.list_database().await,
         _ => {
             return Err(ErrorFrontend::from(format!(
                 "not catalog trait  of  {}",
@@ -994,17 +999,17 @@ pub async fn list_schema(
 ) -> Result<Vec<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.open(name.as_str()).await?;
-    app.enter_open_child(name.as_str(), &db).await?;
+    let db = app.get_backend(name.as_str()).await?;
+
     match db {
-        app::Open::DataBase(x) => x.list_schema().await,
-        app::Open::Catalog(_) => {
+        app::DatabaseBackend::DataBase(x) => x.list_schema().await,
+        app::DatabaseBackend::Catalog(_) => {
             return Err(ErrorFrontend::from(format!(
                 "not database trait but a catalog of {}",
                 name
             )));
         }
-        app::Open::Schema(_) => {
+        app::DatabaseBackend::Schema(_) => {
             return Err(ErrorFrontend::from(format!(
                 "not database trait but a schema of {}",
                 name
@@ -1020,13 +1025,13 @@ pub async fn auto_completion(
     random_sleep().await;
     random_error()?;
     let use_lexer = true;
-    let db = app.get_opened(name.as_str()).await?;
+    let db = app.get_backend(name.as_str()).await?;
 
     let ret = tokio::time::timeout(std::time::Duration::from_secs(4), async {
         match db {
-            Open::Catalog(x) => x.auto_completion(&sql, line, col, use_lexer).await,
-            Open::DataBase(x) => x.auto_completion(&sql, line, col, use_lexer).await,
-            Open::Schema(x) => x.auto_completion(&sql, line, col, use_lexer).await,
+            DatabaseBackend::Catalog(x) => x.auto_completion(&sql, line, col, use_lexer).await,
+            DatabaseBackend::DataBase(x) => x.auto_completion(&sql, line, col, use_lexer).await,
+            DatabaseBackend::Schema(x) => x.auto_completion(&sql, line, col, use_lexer).await,
         }
     })
     .await
@@ -1041,11 +1046,11 @@ pub async fn sql_parse_error(
 ) -> Result<Option<ErrAndLoc>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let db = app.get_opened(name.as_str()).await?;
+    let db = app.get_backend(name.as_str()).await?;
     let ret = match db {
-        Open::Catalog(x) => x.parse_error(&sql),
-        Open::DataBase(x) => x.parse_error(&sql),
-        Open::Schema(x) => x.parse_error(&sql),
+        DatabaseBackend::Catalog(x) => x.parse_error(&sql),
+        DatabaseBackend::DataBase(x) => x.parse_error(&sql),
+        DatabaseBackend::Schema(x) => x.parse_error(&sql),
     }
     .map_err(ErrorFrontend::from)?;
     Ok(ret)
@@ -1058,13 +1063,13 @@ pub async fn query_set_autocommit(
     random_sleep().await;
     random_error()?;
     let open = app
-        .get_opened(name.as_str())
+        .get_backend(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match open {
-        Open::Catalog(x) => x.set_auto_commit(query_id, commit).await,
-        Open::DataBase(x) => x.set_auto_commit(query_id, commit).await,
-        Open::Schema(x) => x.set_auto_commit(query_id, commit).await,
+        DatabaseBackend::Catalog(x) => x.set_auto_commit(query_id, commit).await,
+        DatabaseBackend::DataBase(x) => x.set_auto_commit(query_id, commit).await,
+        DatabaseBackend::Schema(x) => x.set_auto_commit(query_id, commit).await,
     }
     .map_err(ErrorFrontend::from)?;
     Ok(())
@@ -1077,13 +1082,13 @@ pub async fn query_get_commit(
     random_sleep().await;
     random_error()?;
     let open = app
-        .get_opened(name.as_str())
+        .get_backend(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match open {
-        Open::Catalog(x) => x.get_auto_commit(query_id).await,
-        Open::DataBase(x) => x.get_auto_commit(query_id).await,
-        Open::Schema(x) => x.get_auto_commit(query_id).await,
+        DatabaseBackend::Catalog(x) => x.get_auto_commit(query_id).await,
+        DatabaseBackend::DataBase(x) => x.get_auto_commit(query_id).await,
+        DatabaseBackend::Schema(x) => x.get_auto_commit(query_id).await,
     }
     .map_err(ErrorFrontend::from)
 }
@@ -1095,13 +1100,13 @@ pub async fn query_commit(
     random_sleep().await;
     random_error()?;
     let open = app
-        .get_opened(name.as_str())
+        .get_backend(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match open {
-        Open::Catalog(x) => x.commit(query_id).await,
-        Open::DataBase(x) => x.commit(query_id).await,
-        Open::Schema(x) => x.commit(query_id).await,
+        DatabaseBackend::Catalog(x) => x.commit(query_id).await,
+        DatabaseBackend::DataBase(x) => x.commit(query_id).await,
+        DatabaseBackend::Schema(x) => x.commit(query_id).await,
     }
     .map_err(ErrorFrontend::from)
 }
@@ -1113,13 +1118,13 @@ pub async fn query_rollback(
     random_sleep().await;
     random_error()?;
     let db = app
-        .get_opened(name.as_str())
+        .get_backend(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
     match db {
-        Open::Catalog(x) => x.rollback(query_id).await,
-        Open::DataBase(x) => x.rollback(query_id).await,
-        Open::Schema(x) => x.rollback(query_id).await,
+        DatabaseBackend::Catalog(x) => x.rollback(query_id).await,
+        DatabaseBackend::DataBase(x) => x.rollback(query_id).await,
+        DatabaseBackend::Schema(x) => x.rollback(query_id).await,
     }
     .map_err(ErrorFrontend::from)
 }

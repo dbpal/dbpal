@@ -12,7 +12,12 @@ import {
 import { IoMdSettings } from 'react-icons/io';
 import { MdError } from 'react-icons/md';
 import { TabContent, TabsWithContent } from './Tabs';
-import { EscDownEvent, modalStyle, tabsHasId } from './Common';
+import {
+  EscDownEvent,
+  modalHandleClose,
+  modalStyle,
+  tabsHasId,
+} from './Common';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
 import { event } from '@tauri-apps/api';
@@ -341,13 +346,10 @@ export default function MainPage() {
               {showEditConfig && (
                 <Modal
                   open={showEditConfig}
-                  onClose={(e: EscDownEvent, reason) => {
-                    if (reason === 'backdropClick') {
-                      return;
-                    }
+                  onClose={modalHandleClose((e: EscDownEvent) => {
                     e.preventDefault();
                     setShowEditConfig(false);
-                  }}
+                  })}
                 >
                   <Box
                     sx={{ resize: 'both', ...modalStyle }}

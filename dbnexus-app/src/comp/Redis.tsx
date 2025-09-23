@@ -29,7 +29,7 @@ import {
 import { v4 as uuidV4 } from 'uuid';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import { modalStyle, reloadOK, EscDownEvent } from './Common';
+import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from './Common';
 import ClearIcon from '@mui/icons-material/Clear';
 import { types } from './ApiStruct.ts';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -953,13 +953,10 @@ function RedisSetTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          }}
+          })}
         >
           <Box
             sx={{ resize: 'both', ...modalStyle }}
@@ -1030,14 +1027,10 @@ function RedisListTableContextMenu(props: {
       {showDel && (
         <Modal
           open={!!showDel}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowDel(null);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="40%">
             <ModalHeader title="Delete Redis List"></ModalHeader>
@@ -1281,14 +1274,10 @@ function RedisListTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          }}
+          })}
         >
           <Box
             sx={{ resize: 'both', ...modalStyle }}
@@ -1613,14 +1602,10 @@ function RedisZsetTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          }}
+          })}
         >
           <Box
             sx={{ resize: 'both', ...modalStyle }}
@@ -1897,14 +1882,10 @@ function RedisHashTable(props: {
       {selectRow && (
         <Modal
           open={!!selectRow}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setSelectRow(null);
-          }}
+          })}
         >
           <Box
             sx={{ resize: 'both', ...modalStyle }}

@@ -32,6 +32,7 @@ import {
   EscDownEvent,
   IQueryConn,
   MakeIQueryConn,
+  modalHandleClose,
   modalStyle,
   msgTimeout,
 } from './Common.ts';
@@ -110,13 +111,6 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
 
   const rollbackTx = async () => {
     try {
-      const confirm = await secondConfirm({
-        title: 'Rollback Transaction',
-        confirmText: 'rollback',
-      });
-      if (!confirm) {
-        return;
-      }
       await conn.rollback();
       showNotification('success', 'rollback ok');
       handleQueryCommit();
@@ -683,14 +677,10 @@ function SqlQuery(props: {
         {showExport && (
           <Modal
             open={showExport}
-            onClose={(e: EscDownEvent, reason) => {
-              if (reason === 'backdropClick') {
-                return;
-              }
-
+            onClose={modalHandleClose((e: EscDownEvent) => {
               e.preventDefault();
               setShowExport(false);
-            }}
+            })}
           >
             <Box sx={modalStyle} width="45%">
               <ExportView
@@ -707,13 +697,10 @@ function SqlQuery(props: {
         {showSetFavoriteName && (
           <Modal
             open={showSetFavoriteName}
-            onClose={(e: EscDownEvent, reason) => {
-              if (reason === 'backdropClick') {
-                return;
-              }
+            onClose={modalHandleClose((e: EscDownEvent) => {
               e.preventDefault();
               setShowFavoriteName(false);
-            }}
+            })}
           >
             <Box sx={modalStyle} width="40%">
               <Stack spacing={1}>

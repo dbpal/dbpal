@@ -42,7 +42,13 @@ import {
 } from '@mui/x-data-grid';
 import ClearIcon from '@mui/icons-material/Clear';
 import { v4 as uuidV4 } from 'uuid';
-import { EscDownEvent, keyNotInTable, modalStyle, reloadOK } from './Common';
+import {
+  EscDownEvent,
+  keyNotInTable,
+  modalHandleClose,
+  modalStyle,
+  reloadOK,
+} from './Common';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import KeyIcon from '@mui/icons-material/Key';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -186,13 +192,10 @@ function WhereSort(props: {
   return (
     <Modal
       open={open}
-      onClose={(e: EscDownEvent, reason) => {
-        if (reason === 'backdropClick') {
-          return;
-        }
+      onClose={modalHandleClose((e: EscDownEvent) => {
         e.preventDefault();
         handleClose();
-      }}
+      })}
     >
       <Box
         sx={{ resize: 'both', ...modalStyle }}
@@ -867,13 +870,10 @@ function SqlTableView_(props: {
       {viewInModal && (
         <Modal
           open={!!viewInModal}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setViewInModal(null);
-          }}
+          })}
         >
           <Box
             sx={{ resize: 'both', ...modalStyle }}
@@ -893,13 +893,10 @@ function SqlTableView_(props: {
       {editCellInModal && (
         <Modal
           open={!!editCellInModal}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setEditCellInModal(null);
-          }}
+          })}
         >
           <Box
             sx={{ resize: 'both', ...modalStyle }}
@@ -924,13 +921,10 @@ function SqlTableView_(props: {
       {editInModalRow && (
         <Modal
           open={!!editInModalRow}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setEditInModalRow(null);
-          }}
+          })}
         >
           <Box
             sx={{ resize: 'horizontal', ...modalStyle }}
@@ -956,13 +950,10 @@ function SqlTableView_(props: {
       {showExportMarkDown && (
         <Modal
           open={showExportMarkDown}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowExportMarkDown(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="60%">
             <ModalHeader title="export markdown table"></ModalHeader>
@@ -1348,14 +1339,10 @@ function Menu(props: {
       {showFilter && (
         <Modal
           open={showFilter}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowFilter(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="50%">
             <ModalHeader title="Quick Filter"></ModalHeader>

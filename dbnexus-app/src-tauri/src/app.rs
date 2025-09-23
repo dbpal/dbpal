@@ -166,38 +166,38 @@ impl DBConnectionConfig {
 }
 
 impl DBConnectionConfig {
-    pub async fn open(&self) -> anyhow::Result<Open> {
+    pub async fn open(&self) -> anyhow::Result<DatabaseBackend> {
         match self {
             DBConnectionConfig::Sqlite { conn, name: _ } => {
                 let db: Arc<dyn SchemaTrait> = Arc::new(
                     dbnexus_db::sqlite::SqliteDB::new(conn.clone(), conn.read_only).await?,
                 );
-                anyhow::Ok(Open::Schema(db))
+                anyhow::Ok(DatabaseBackend::Schema(db))
             }
             DBConnectionConfig::Mysql { conn, name: _ } => match &conn.db {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
                         Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
-                    anyhow::Ok(Open::Schema(db))
+                    anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> =
                         Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
-                    anyhow::Ok(Open::DataBase(db))
+                    anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
             DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
                         Arc::new(dbnexus_db::mariadb::MariaDB::new(conn.clone()).await?);
-                    anyhow::Ok(Open::Schema(db))
+                    anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> = Arc::new({
                         let x = dbnexus_db::mariadb::MariaDB::new(conn.clone()).await?;
                         x
                     });
-                    anyhow::Ok(Open::DataBase(db))
+                    anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
             DBConnectionConfig::Tidb { conn, name: _ } => match &conn.db {
@@ -205,58 +205,58 @@ impl DBConnectionConfig {
                     let db: Arc<dyn SchemaTrait> =
                         Arc::new(dbnexus_db::tidb::TiDB::new(conn.clone()).await?);
 
-                    anyhow::Ok(Open::Schema(db))
+                    anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> =
                         Arc::new(dbnexus_db::tidb::TiDB::new(conn.clone()).await?);
-                    anyhow::Ok(Open::DataBase(db))
+                    anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
             DBConnectionConfig::Postgres { conn, name: _ } => {
                 let o = Arc::new(dbnexus_db::pg::PostGresDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
-                    return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
+                    return anyhow::Ok(DatabaseBackend::Catalog(o as Arc<dyn CatalogTrait>));
                 }
 
                 match &conn.schema {
-                    None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
-                    Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
+                    None => anyhow::Ok(DatabaseBackend::DataBase(o as Arc<dyn DBTrait>)),
+                    Some(_) => anyhow::Ok(DatabaseBackend::Schema(o as Arc<dyn SchemaTrait>)),
                 }
             }
             DBConnectionConfig::CockRoach { conn, .. } => {
                 let o = Arc::new(dbnexus_db::cockroach::CockRoachDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
-                    return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
+                    return anyhow::Ok(DatabaseBackend::Catalog(o as Arc<dyn CatalogTrait>));
                 }
                 match &conn.schema {
-                    None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
-                    Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
+                    None => anyhow::Ok(DatabaseBackend::DataBase(o as Arc<dyn DBTrait>)),
+                    Some(_) => anyhow::Ok(DatabaseBackend::Schema(o as Arc<dyn SchemaTrait>)),
                 }
             }
             DBConnectionConfig::MsSql { conn, name: _ } => {
                 let o = Arc::new(dbnexus_db::mssql::SqlServerDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
-                    return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
+                    return anyhow::Ok(DatabaseBackend::Catalog(o as Arc<dyn CatalogTrait>));
                 }
                 match &conn.schema {
-                    Some(_) => anyhow::Ok(Open::Schema(o as Arc<dyn SchemaTrait>)),
-                    None => anyhow::Ok(Open::DataBase(o as Arc<dyn DBTrait>)),
+                    Some(_) => anyhow::Ok(DatabaseBackend::Schema(o as Arc<dyn SchemaTrait>)),
+                    None => anyhow::Ok(DatabaseBackend::DataBase(o as Arc<dyn DBTrait>)),
                 }
             }
             DBConnectionConfig::Mongo { conn, name: _ } => {
                 let db: Arc<MongoDB> = Arc::new(dbnexus_db::mongo::MongoDB::new(conn.clone())?);
                 match conn.db {
-                    Some(_) => anyhow::Ok(Open::Schema(db)),
-                    None => anyhow::Ok(Open::DataBase(db)),
+                    Some(_) => anyhow::Ok(DatabaseBackend::Schema(db)),
+                    None => anyhow::Ok(DatabaseBackend::DataBase(db)),
                 }
             }
             DBConnectionConfig::Redis { conn, .. } => {
                 let redis = dbnexus_db::redis::RedisDB::new(conn.clone()).await?;
 
                 let db = match &conn.db {
-                    Some(_) => Open::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
-                    None => Open::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
+                    Some(_) => DatabaseBackend::Schema(Arc::new(redis) as Arc<dyn SchemaTrait>),
+                    None => DatabaseBackend::DataBase(Arc::new(redis) as Arc<dyn DBTrait>),
                 };
 
                 anyhow::Ok(db)
@@ -265,19 +265,19 @@ impl DBConnectionConfig {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
                         Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
-                    anyhow::Ok(Open::Schema(db))
+                    anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
                     let db: Arc<dyn DBTrait> =
                         Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
-                    anyhow::Ok(Open::DataBase(db))
+                    anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
             DBConnectionConfig::Cassandra { conn, .. } => {
                 let db = dbnexus_db::cassandra::CassandraDB::new(conn.clone()).await?;
                 let db = match &conn.db {
-                    Some(_) => Open::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
-                    None => Open::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
+                    Some(_) => DatabaseBackend::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
+                    None => DatabaseBackend::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
                 };
                 anyhow::Ok(db)
             }
@@ -287,10 +287,16 @@ impl DBConnectionConfig {
                     let db = dbnexus_db::duckdb::DuckDB::new(_conn.clone())?;
                     return match &_conn.db {
                         Some(_) => match &_conn.schema {
-                            Some(_) => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>)),
-                            None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn DBTrait>)),
+                            Some(_) => anyhow::Ok(DatabaseBackend::from(
+                                Arc::new(db) as Arc<dyn SchemaTrait>
+                            )),
+                            None => {
+                                anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn DBTrait>))
+                            }
                         },
-                        None => anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn CatalogTrait>)),
+                        None => {
+                            anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn CatalogTrait>))
+                        }
                     };
                 }
                 #[cfg(not(feature = "duckdb"))]
@@ -299,19 +305,19 @@ impl DBConnectionConfig {
             DBConnectionConfig::ClickHouse { conn, .. } => {
                 let db = dbnexus_db::clickhouse::ClickHouseDB::new(conn.clone())?;
                 let db = match &conn.db {
-                    Some(_) => Open::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
-                    None => Open::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
+                    Some(_) => DatabaseBackend::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
+                    None => DatabaseBackend::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
                 };
 
                 anyhow::Ok(db)
             }
             DBConnectionConfig::LibSql { conn, .. } => {
                 let db = dbnexus_db::libsql::LibSqlDB::new(conn.clone()).await?;
-                anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>))
+                anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn SchemaTrait>))
             }
             DBConnectionConfig::FireBird { conn, .. } => {
                 let db = dbnexus_db::firebird::FireBirdDB::new(conn.clone())?;
-                anyhow::Ok(Open::from(Arc::new(db) as Arc<dyn SchemaTrait>))
+                anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn SchemaTrait>))
             }
         }
     }
@@ -319,7 +325,7 @@ impl DBConnectionConfig {
 
 /// opened database variant for frontend
 #[derive(Clone, Debug)]
-pub enum Open {
+pub enum DatabaseBackend {
     Catalog(Arc<dyn dbnexus_db::db::CatalogTrait>),
     /// database can contains multi database
     DataBase(Arc<dyn dbnexus_db::db::DBTrait>),
@@ -327,18 +333,18 @@ pub enum Open {
     Schema(Arc<dyn dbnexus_db::db::SchemaTrait>),
 }
 
-impl From<Arc<dyn dbnexus_db::db::CatalogTrait>> for Open {
+impl From<Arc<dyn dbnexus_db::db::CatalogTrait>> for DatabaseBackend {
     fn from(value: Arc<dyn dbnexus_db::db::CatalogTrait>) -> Self {
         Self::Catalog(value)
     }
 }
 
-impl From<Arc<dyn dbnexus_db::db::DBTrait>> for Open {
+impl From<Arc<dyn dbnexus_db::db::DBTrait>> for DatabaseBackend {
     fn from(value: Arc<dyn dbnexus_db::db::DBTrait>) -> Self {
         Self::DataBase(value)
     }
 }
-impl From<Arc<dyn dbnexus_db::db::SchemaTrait>> for Open {
+impl From<Arc<dyn dbnexus_db::db::SchemaTrait>> for DatabaseBackend {
     fn from(value: Arc<dyn dbnexus_db::db::SchemaTrait>) -> Self {
         Self::Schema(value)
     }
@@ -347,7 +353,7 @@ impl From<Arc<dyn dbnexus_db::db::SchemaTrait>> for Open {
 /// all the databases
 #[derive(Clone, Default)]
 pub struct App {
-    pub opens: Arc<Mutex<HashMap<String, Open>>>,
+    pub backend: Arc<Mutex<HashMap<String, DatabaseBackend>>>,
     pub saved_password: Arc<DashMap<String, String>>,
 }
 
@@ -359,124 +365,128 @@ impl App {
 type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;
 
 impl App {
-    pub async fn insert_open(&self, name: impl Into<String>, open: Open) {
-        let name = name.into();
-        self.opens.lock().await.insert(name, open);
-    }
-
     pub unsafe fn get_config_ref() -> &'static mut Option<GetConfigFN> {
         static mut GET_CONFIG_FN: Option<GetConfigFN> = None;
         #[allow(static_mut_refs)] // this var will init once by main
         &mut GET_CONFIG_FN
     }
 
-    pub async fn enter_open_child(&self, name: &str, open: &Open) -> anyhow::Result<()> {
-        match &open {
-            Open::Catalog(catalog_trait) => {
-                let databases = catalog_trait.list_database().await?;
-                for database in databases.iter() {
-                    let name = format!("{}/{}", name, database);
-                    let db_trait = match self.get_opened(&name).await {
-                        Ok(x) => match x {
-                            Open::DataBase(x) => x.clone(),
-                            _ => unreachable!(),
-                        },
-                        Err(_) => {
-                            log::info!("enter child named:{}", name);
-                            let db_trait = catalog_trait.open_db(database).await?;
-                            self.insert_open(name.clone(), db_trait.clone().into())
-                                .await;
-                            db_trait.clone()
-                        }
-                    };
-
-                    let schemas = db_trait.list_schema().await?;
-                    for schema in schemas.iter() {
-                        let name = format!("{}/{}", name, schema);
-                        match self.get_opened(&name).await {
-                            Ok(_) => {}
-                            Err(_) => {
-                                log::info!("enter child named:{}", name);
-                                let s = db_trait.open_schema(schema).await?;
-                                self.insert_open(name, s.clone().into()).await;
-                            }
-                        }
-                    }
-                }
-            }
-            Open::DataBase(db_trait) => {
-                let schemas = db_trait.list_schema().await?;
-                for schema in schemas.iter() {
-                    let name = format!("{}/{}", name, schema);
-                    match self.get_opened(&name).await {
-                        Ok(_) => {}
-                        Err(_) => {
-                            log::info!("enter child named:{}", name);
-                            let s = db_trait.open_schema(schema).await?;
-                            self.insert_open(name, s.clone().into()).await;
-                        }
-                    }
-                }
-            }
-            Open::Schema(_) => {}
-        }
-        anyhow::Ok(())
-    }
-
-    pub async fn open(&self, name: &str) -> anyhow::Result<Open> {
-        if let Some(x) = self.opens.lock().await.get(&name.to_string()) {
-            return anyhow::Ok(x.clone());
-        }
-        let config = unsafe { (Self::get_config_ref().as_ref().map(|x| x(name))).unwrap()? };
-        #[cfg(debug_assertions)]
-        println!("open config:{:?}", config);
-        let db = config.open().await?;
-        match &db {
-            Open::DataBase(x) => {
-                x.check_conn().await?;
-            }
-            Open::Schema(x) => {
-                x.check_conn().await?;
-            }
-            Open::Catalog(x) => {
-                x.check_conn().await?;
-            }
-        }
-        self.enter_open_child(name, &db).await?;
-        self.insert_open(name.to_string(), db.clone()).await;
-        anyhow::Ok(db)
-    }
     #[allow(unused)]
     pub async fn print_keys(&self) {
-        for k in self.opens.lock().await.keys() {
+        for k in self.backend.lock().await.keys() {
             println!("!!!!!!!!!!!!!!!!!{}", k);
         }
     }
     pub async fn close_conn_has_prefix(&self, name: &str) {
         let mut v = Vec::new();
-        for k in self.opens.lock().await.keys() {
+        for k in self.backend.lock().await.keys() {
             if k.starts_with(name) {
                 v.push(k.clone());
             }
         }
         for k in v.into_iter() {
-            self.opens.lock().await.remove(&k);
+            self.backend.lock().await.remove(&k);
         }
     }
 
     pub async fn get_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
-        match self.get_opened(name).await? {
-            Open::Schema(x) => anyhow::Ok(x.clone()),
+        match self.get_backend(name).await? {
+            DatabaseBackend::Schema(x) => anyhow::Ok(x.clone()),
             _ => anyhow::bail!(format!("'{}' a schema trait", name)),
         }
     }
 
-    pub async fn get_opened(&self, name: &str) -> anyhow::Result<Open> {
-        let db = self.opens.lock().await.get(name).cloned();
-        let x = match db {
-            Some(x) => x,
-            None => anyhow::bail!("'{}' not found,the connection maybe closed???", name),
-        };
-        anyhow::Ok(x)
+    pub async fn get_backend(&self, name: &str) -> anyhow::Result<DatabaseBackend> {
+        let db = self.backend.lock().await.get(name).cloned();
+        if db.is_some() {
+            return anyhow::Ok(db.unwrap());
+        }
+        let config = unsafe { Self::get_config_ref().as_ref().map(|x| x(name)) }.unwrap();
+        #[cfg(debug_assertions)]
+        println!("open config:{:?}", config);
+        match config {
+            Ok(config) => {
+                let db = config.open().await?;
+                self.backend
+                    .lock()
+                    .await
+                    .insert(name.to_string(), db.clone().into());
+                return anyhow::Ok(db);
+            }
+            Err(err) => log::error!("can't get config for {},err:{}", name, err),
+        }
+
+        // try open and enter
+        let name_parts: Vec<_> = name.split("/").map(|x| x.to_string()).collect();
+        match name_parts.len() {
+            2 => {
+                let backend = self.backend.lock().await.get(&name_parts[0]).cloned();
+                match backend {
+                    Some(DatabaseBackend::DataBase(x)) => {
+                        let schema = x.open_schema(&name_parts[1]).await?;
+                        self.backend
+                            .lock()
+                            .await
+                            .insert(name.to_string(), schema.clone().into());
+                        anyhow::Ok(DatabaseBackend::Schema(schema))
+                    }
+                    Some(DatabaseBackend::Catalog(x)) => {
+                        let db = x.open_db(&name_parts[1]).await?;
+                        self.backend
+                            .lock()
+                            .await
+                            .insert(name.to_string(), db.clone().into());
+                        anyhow::Ok(DatabaseBackend::DataBase(db))
+                    }
+                    _ => {
+                        anyhow::bail!(format!(
+                            "'{}' not found ,should be catalog or database trait but:{:?}",
+                            name_parts[0], backend
+                        ));
+                    }
+                }
+            }
+            3 => {
+                let db_name = format!("{}/{}", &name_parts[0], &name_parts[1]);
+                let open = self.backend.lock().await.get(&db_name).cloned();
+                let db_trait = match open {
+                    Some(x) => match x {
+                        DatabaseBackend::DataBase(x) => x.clone(),
+                        _ => {
+                            anyhow::bail!("this must be db trait")
+                        }
+                    },
+                    None => {
+                        let c = self.backend.lock().await.get(&name_parts[0]).cloned();
+                        match c {
+                            Some(x) => match x {
+                                DatabaseBackend::Catalog(x) => {
+                                    let db = x.open_db(&name_parts[1]).await?;
+                                    self.backend.lock().await.insert(db_name, db.clone().into());
+                                    db
+                                }
+                                _ => {
+                                    anyhow::bail!("internal error,catalog must been entered ")
+                                }
+                            },
+                            None => {
+                                anyhow::bail!("internal error,catalog must been entered")
+                            }
+                        }
+                    }
+                };
+
+                let schema = db_trait.open_schema(&name_parts[2]).await?;
+                self.backend
+                    .lock()
+                    .await
+                    .insert(name.to_string(), schema.clone().into());
+                anyhow::Ok(DatabaseBackend::Schema(schema))
+            }
+            _ => {
+                // nothing to do here
+                anyhow::bail!("'{}' name part not right, this is a internal error", name);
+            }
+        }
     }
 }

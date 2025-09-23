@@ -36,6 +36,7 @@ import {
   initMonacoLanguage,
   QueryConn,
   EscDownEvent,
+  modalHandleClose,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -293,13 +294,10 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
       {showFavoriteSql && (
         <Modal
           open={showFavoriteSql}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowFavoriteSql(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="75%">
             <ModalHeader title="Favorite SQL Statements"></ModalHeader>
@@ -315,15 +313,12 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
       {showAddConnection && (
         <Modal
           open={showAddConnection}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowAddConnection(false);
-          }}
+          })}
         >
-          <Box sx={modalStyle} width="55%">
+          <Box sx={{ ...modalStyle, maxWidth: '1000px' }} width="65%">
             <ModalHeader title="Add Connection"></ModalHeader>
             <AddConnection
               handleClose={() => {
@@ -336,15 +331,12 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
       {copyConn && (
         <Modal
           open={!!copyConn}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setCopyConn(null);
-          }}
+          })}
         >
-          <Box sx={modalStyle} width="55%">
+          <Box sx={{ ...modalStyle, maxWidth: '1000px' }} width="65%">
             <ModalHeader title="Copy Connection"></ModalHeader>
             <AddConnection
               handleClose={() => {
@@ -355,17 +347,13 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
           </Box>
         </Modal>
       )}
-
       {showCopyConn && (
         <Modal
           open={showCopyConn}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowCopyConn(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="65%">
             <ModalHeader title="Copy Connection"></ModalHeader>
@@ -1236,13 +1224,10 @@ function DatabaseMenu(props: {
       {showCreateSchema && (
         <Modal
           open={showCreateSchema}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowCreateSchema(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="40%">
             <CreateSchema
@@ -1315,14 +1300,10 @@ function CatalogMenu(props: {
       {showCreateDB && (
         <Modal
           open={showCreateDB}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowCreateDB(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="50%">
             <ModalHeader title="Create Database"></ModalHeader>

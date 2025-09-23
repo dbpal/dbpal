@@ -18,6 +18,7 @@ import {
   DefAndMetas,
   EscDownEvent,
   initMonacoLanguage,
+  modalHandleClose,
   modalStyle,
   tabsHasId,
 } from './Common';
@@ -247,13 +248,10 @@ function SequenceMenu(props: {
       {showDrop && (
         <Modal
           open={showDrop}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowDrop(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="45%">
             <Stack spacing={1}>

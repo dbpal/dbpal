@@ -12,6 +12,7 @@ import {
   initMonacoLanguage,
   makeAutoComplete,
   EscDownEvent,
+  modalHandleClose,
 } from './Common';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification';
@@ -691,14 +692,10 @@ function ViewMenu(props: {
       {showExport && (
         <Modal
           open={showExport}
-          onClose={(e: EscDownEvent, reason) => {
-            if (reason === 'backdropClick') {
-              return;
-            }
-
+          onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
             setShowExport(false);
-          }}
+          })}
         >
           <Box sx={modalStyle} width="45%">
             <ExportTableOrView
