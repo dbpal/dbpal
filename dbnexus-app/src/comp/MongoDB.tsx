@@ -70,7 +70,7 @@ import {
 } from './CommonComp';
 import {
   calMenuStyle,
-  columnWidths,
+  ColumnWidth,
   ContextMenuContext,
   DocsAndCount,
   gridStyle,
@@ -80,7 +80,7 @@ import {
   saveAndSetSize,
   SettingContext,
   validJson,
-  savePageSize,
+  SavePageSize,
 } from './helper';
 import { EditorBar, SimpleFlexEditor } from './CommonComp2';
 
@@ -324,7 +324,6 @@ function MongoBsonEditor(props: {
           <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
             {setOP && (
               <Button
-                variant="contained"
                 loading={loading}
                 onClick={() => {
                   setLoading(true);
@@ -339,7 +338,7 @@ function MongoBsonEditor(props: {
             )}
             {delOP && (
               <Button
-                variant="contained"
+                variant="outlined"
                 loading={loading}
                 onClick={() => {
                   setLoading(true);
@@ -488,12 +487,7 @@ function MongoTableToolBar(props: {
         spacing={1}
         style={{ flexWrap: 'wrap', alignItems: 'center' }}
       >
-        <Button
-          loading={loading}
-          variant="contained"
-          color="primary"
-          onClick={handleReload}
-        >
+        <Button loading={loading} color="primary" onClick={handleReload}>
           reload
         </Button>
 
@@ -506,6 +500,7 @@ function MongoTableToolBar(props: {
           onClick={() => {
             setShowModifyFilter(true);
           }}
+          size="medium"
           color="primary"
           icon={<FilterAltIcon />}
         ></Chip>
@@ -519,6 +514,7 @@ function MongoTableToolBar(props: {
           onClick={() => {
             setShowModifySort(true);
           }}
+          size="medium"
           color="secondary"
           variant="outlined"
           icon={<FaArrowsAltV />}
@@ -863,7 +859,6 @@ function MongoTableListMenuFilter(props: {
               setCompare(x);
             }}
             label={x}
-            size="small"
             color={compare === x ? 'primary' : 'default'}
           ></Chip>
         ))}
@@ -876,7 +871,6 @@ function MongoTableListMenuFilter(props: {
             onClick={() => {
               setCompare(e);
             }}
-            size="small"
           ></Chip>
         ))}
       </Stack>
@@ -889,8 +883,7 @@ function MongoTableListMenuFilter(props: {
               onClick={() => {
                 setCompare(e);
               }}
-              key={e} 
-              size="small"
+              key={e}
             ></Chip>
           ))}
         </Stack>
@@ -898,7 +891,6 @@ function MongoTableListMenuFilter(props: {
 
       <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
         <Button
-          variant="contained"
           onClick={() => {
             setFilter(doc);
             handleClose();
@@ -1077,7 +1069,6 @@ function JsonEditor(props: {
               });
             }}
             loading={loading}
-            variant="contained"
           >
             {modifyOPName ? modifyOPName : 'set'}
           </Button>
@@ -1091,7 +1082,7 @@ function JsonEditor(props: {
               });
             }}
             loading={loading}
-            variant="contained"
+            variant="outlined"
             color="error"
           >
             delete
@@ -1184,7 +1175,7 @@ function MongoTableList(props: {
   } = props;
   const [page, setPage] = useState(0);
 
-  const [pageSize, setPageSize] = useState(savePageSize.get());
+  const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
   const { showNotification } = useContext(NotificationContext);
   const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
@@ -1200,7 +1191,7 @@ function MongoTableList(props: {
           e[keyNotInTable] = uuidV4();
         });
         r.fields.forEach((f) => {
-          let width = columnWidths.getWidth(f.field);
+          let width = ColumnWidth.instance.get(f.field);
           if (width) {
             f['width'] = width;
           }
@@ -1244,12 +1235,11 @@ function MongoTableList(props: {
       setPage(e.page);
       setPageSize(e.pageSize);
       if (reason.reason == 'setPaginationModel') {
-        savePageSize.save(pageSize);
+        SavePageSize.instance.save(pageSize);
       }
     },
     []
   );
-
   const onRowDoubleClick = useCallback((e) => {
     handleLoadOne(EJSON.parse(e.row[mongoID])).then((doc) => {
       setSelectModifyDoc(doc);
@@ -1344,7 +1334,7 @@ function MongoTableList(props: {
     return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
   }, []);
   const onColumnResize = useCallback(({ colDef, width }) => {
-    columnWidths.saveColumnWidths(colDef.field, width);
+    ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
   const [modalBox, setModalBox] = useState(null);

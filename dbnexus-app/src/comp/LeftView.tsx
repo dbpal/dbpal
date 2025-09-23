@@ -7,7 +7,6 @@ import {
   useState,
 } from 'react';
 import {
-  progressBarSizeSmall,
   tabsHasId,
   modalStyle,
   initMonacoLanguage,
@@ -44,7 +43,7 @@ import { TabContent } from './Tabs';
 import { ExportTableOrView } from './Export';
 import {
   calMenuStyle,
-  columnWidths,
+  ColumnWidth,
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
@@ -152,9 +151,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       >
         {icon}
         <span> {name} </span>
-        {loading && (
-          <CircularProgress size={progressBarSizeSmall}></CircularProgress>
-        )}
+        {loading && <CircularProgress></CircularProgress>}
       </Stack>
     >
       {views
@@ -227,7 +224,6 @@ function StatementStructure(props: {
       <Stack direction="row">
         <Button
           loading={loading}
-          variant="contained"
           onClick={() => {
             handleReload();
           }}
@@ -307,7 +303,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
   const onColumnResize = useCallback(({ colDef, width }) => {
-    columnWidths.saveColumnWidths(colDef.field, width);
+    ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
   const handleReload = () => {
@@ -334,7 +330,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
     return [{ field: 'field' }, { field: 'typ' }, ,] as GridColDef[];
   }, []);
   cols.forEach((e) => {
-    const width = columnWidths.getWidth(e.field);
+    const width = ColumnWidth.instance.get(e.field);
     if (width) {
       e.width = width;
     }
@@ -398,7 +394,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
-        <Button loading={loading} onClick={handleReload} variant="contained">
+        <Button loading={loading} onClick={handleReload}>
           reload
         </Button>
       </Stack>

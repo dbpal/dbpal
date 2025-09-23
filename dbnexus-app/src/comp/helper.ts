@@ -8,7 +8,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { BSON, EJSON } from "bson";
 import Database, { QueryResult } from '@tauri-apps/plugin-sql';
 const pageSizeOptions = [10, 20, 50, 100];
-
+const appStore = await load('store.json');
 import { fetch } from '@tauri-apps/plugin-http';
 
 const appDatabase = await Database.load('sqlite:dbpal.sqlite.db');
@@ -55,8 +55,6 @@ function setUpDatabase() {
 }
 
 setUpDatabase();
-
-
 
 function rustResultOk(x: any): boolean {
   if (x instanceof Array) {
@@ -365,14 +363,74 @@ function isTypeLargeText(s: string): boolean {
   const toUpper = s.toUpperCase();
   return toUpper.includes('TEXT') || toUpper.includes("LONG") || toUpper.includes("CLOB")
 }
-const appStore = await load('store.json');
+
 
 enum AppStoreKey {
-  UserSettings = 'user-settings',
+  UserSetting = 'user-settings',
   ConnectionConfig = 'connection-config',
   Zoom = "zoom",
   RedisShowDoc = "redis-show-doc",
   PageSize = "page-size",
+  Align = "align",
+  MatchPattern = "match-pattern",
+  LeftTopShow = "left-top-show",
+}
+class SaveLeftTopShow {
+  leftTopShow = true;
+  constructor() {
+    appStore.get<boolean>(AppStoreKey.LeftTopShow).then(x => {
+      if (typeof x == 'boolean') {
+        this.leftTopShow = x;
+      }
+    });
+  }
+  get() {
+    return this.leftTopShow;
+  }
+  save(x: boolean) {
+    this.leftTopShow = x;
+    appStore.set(AppStoreKey.LeftTopShow, this.leftTopShow)
+  }
+  static instance = new SaveLeftTopShow();
+}
+
+class SaveMatchPattern {
+  matchPattern = [];
+  constructor() {
+    appStore.get<string[]>(AppStoreKey.MatchPattern).then(x => {
+      if (x) {
+        this.matchPattern = x;
+      }
+    });
+  }
+  get() {
+    return this.matchPattern;
+  }
+  save(x: string[]) {
+    this.matchPattern = x;
+    appStore.set(AppStoreKey.MatchPattern, this.matchPattern);
+  }
+  static instance = new SaveMatchPattern();
+}
+
+class SaveAlign {
+  align = "center";
+  constructor() {
+    appStore.get<string>(AppStoreKey.Align).then(x => {
+      if (x) {
+        this.align = x;
+      }
+    });
+  }
+
+  get() {
+    return this.align;
+  }
+  save(a: string) {
+    this.align = a;
+    appStore.set(AppStoreKey.Align, this.align);
+  }
+  static instance = new SaveAlign();
 }
 
 class SaveDomSizes {
@@ -435,7 +493,7 @@ class FavoriteSql {
   }
 }
 
-class ColumnWidths {
+class ColumnWidth {
   width = {};
   constructor() {
     appDatabase.select("select * from column_width").then((xs) => {
@@ -444,12 +502,12 @@ class ColumnWidths {
       })
     })
   }
-  saveColumnWidths(name: string, width: number) {
+  save(name: string, width: number) {
     this.width[name] = width;
     appDatabase.execute("replace into column_width(name,width) values(?,?)", [name, Math.ceil(width)])
   }
 
-  getWidth(key): number {
+  get(key): number {
     return this.width[key];
   }
   reset(): Promise<void> {
@@ -459,8 +517,9 @@ class ColumnWidths {
     })
 
   }
+  static instance = new ColumnWidth();
 }
-var columnWidths = new ColumnWidths();
+
 const TabActiveContext = createContext(true);
 const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
   writeText(text)
@@ -622,7 +681,8 @@ class MongoTableHandler {
 }
 
 
-class UserSettings {
+
+class UserSetting {
   theme: string = 'light';
   fontSize: number = 15;
   fontWeight: string = 'normal';
@@ -633,6 +693,10 @@ class UserSettings {
   csvDelimiter: string = ',';
   includeCsvHeader: boolean = true;
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
+  logger = {
+    level: 'info',
+    max_size: 1,
+  }
   editorTheme(): string {
     return this.isDark() ? 'vs-dark' : 'light';
   }
@@ -644,26 +708,26 @@ class UserSettings {
   datagridRowHeightXXX() {
     return Math.ceil(this.fontSize * 1.9)
   }
-  static async get(): Promise<UserSettings> {
-    let x = await appStore.get<object>(AppStoreKey.UserSettings);
+  static async get(): Promise<UserSetting> {
+    let x = await appStore.get<object>(AppStoreKey.UserSetting);
     if (!x) {
       x = {};
     }
-    let r = new UserSettings();
+    let r = new UserSetting();
     for (const key in x) {
       r[key] = x[key];
     }
     return r;
   }
   static async set(x: object): Promise<void> {
-    let old = await UserSettings.get();
+    let old = await UserSetting.get();
     let s = { ...old, ...x };
 
-    return appStore.set(AppStoreKey.UserSettings, s);
+    return appStore.set(AppStoreKey.UserSetting, s);
   }
 }
 
-const SettingContext = createContext<UserSettings>(null);
+const SettingContext = createContext<UserSetting>(null);
 const windowFocusChangeEvent = "window-focus-change-event";
 const WindowFocusChangeContext = createContext(true);
 
@@ -800,9 +864,9 @@ class SavePageSize {
   get(key = "default", defaultSize = 100) {
     return this.sizes[key] || defaultSize;
   }
+  static instance = new SavePageSize();
 }
 
-const savePageSize = new SavePageSize();
 
 function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
   switch (kind) {
@@ -834,6 +898,15 @@ function generateDefaultFilename(name, extension) {
   const filename = `${name}_${timestamp}.${extension}`;
   return filename;
 }
+const textEllipsisStyle = {
+  width: '9rem',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  flex: 1,
+} as CSSProperties;
+
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -855,7 +928,7 @@ export {
   secondConfirm,
   appStore,
   AppStoreKey,
-  columnWidths,
+  ColumnWidth,
   handleCopyToClipboard,
   validJson,
   TabActiveContext,
@@ -867,7 +940,7 @@ export {
   SaveDomSizes,
   DocsAndCount,
   MongoTableHandler,
-  UserSettings,
+  UserSetting,
   SettingContext,
   SetCloseConfirmTextContext,
   windowFocusChangeEvent,
@@ -883,11 +956,15 @@ export {
   QueryLogHandler,
   ColorFn,
   getSupportExportKind,
-  savePageSize,
+  SavePageSize,
   rustResultOk,
   validURL,
   generateDefaultFilename,
-  pageSizeOptions
+  pageSizeOptions,
+  textEllipsisStyle,
+  SaveAlign,
+  SaveMatchPattern,
+  SaveLeftTopShow,
 };
 
 

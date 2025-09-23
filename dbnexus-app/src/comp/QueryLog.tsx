@@ -27,7 +27,7 @@ import { EscDownEvent, modalStyle } from './Common';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import {
-  columnWidths,
+  ColumnWidth,
   gridStyle,
   QueryLogHandler,
   saveAndSetSize,
@@ -44,13 +44,24 @@ const initialState: object = {
   sorting: { sortModel: [{ field: 'create_at', sort: 'desc' }] },
 };
 
+enum QueryLogKind {
+  Sql,
+  Redis,
+  Mongo,
+}
 function QueryLog(props: {
   uuid: string;
   showQueryLog;
   setShowQueryLog;
   executeTimes;
+  language?;
+  kind: QueryLogKind;
 }) {
-  let { uuid, showQueryLog, setShowQueryLog, executeTimes } = props;
+  let { uuid, showQueryLog, setShowQueryLog, executeTimes, language, kind } =
+    props;
+  if (!language) {
+    language = uuid;
+  }
   const [selectSql, setSelectSql] = useState('');
   const [page, setPage] = useState(0); // datagrid start with 0
   const [pageSize, setPagesize] = useState(10);
@@ -69,6 +80,16 @@ function QueryLog(props: {
     setPage(e.page);
     setPagesize(e.pageSize);
   }, []);
+
+  let sqlDesc = 'sql';
+  switch (kind) {
+    case QueryLogKind.Redis:
+      sqlDesc = 'command';
+      break;
+    case QueryLogKind.Mongo:
+      sqlDesc = 'code';
+      break;
+  }
   const { showNotification } = useContext(NotificationContext);
   const handleReload = async () => {
     try {
@@ -89,7 +110,7 @@ function QueryLog(props: {
   const columns = [
     {
       field: 'create_at',
-      width: columnWidths.getWidth('create_at'),
+      width: ColumnWidth.instance.get('create_at'),
       renderHeader: () => {
         return 'time';
       },
@@ -99,7 +120,7 @@ function QueryLog(props: {
       },
     },
     {
-      width: columnWidths.getWidth('success'),
+      width: ColumnWidth.instance.get('success'),
       field: 'success',
       renderCell: (p) => {
         let s = p.row.success;
@@ -111,7 +132,13 @@ function QueryLog(props: {
       },
       filterable: false,
     },
-    { field: 'sql', flex: 1 },
+    {
+      field: 'sql',
+      flex: 1,
+      renderHeader: () => {
+        return sqlDesc;
+      },
+    },
   ] as GridColDef[];
 
   useEffect(() => {
@@ -124,7 +151,7 @@ function QueryLog(props: {
   const onColumnResize = useCallback(({ colDef, width }) => {
     let field = colDef.field;
     if (field == 'create_at' || field == 'success') {
-      columnWidths.saveColumnWidths(field, width);
+      ColumnWidth.instance.save(field, width);
     }
   }, []);
   const onSortModelChange = useCallback((modal: GridSortModel) => {
@@ -167,9 +194,8 @@ function QueryLog(props: {
           <span>esc</span>
         </Tooltip>
         <div style={{ width: '20%' }}></div>
-        <Typography color="info">match sql: </Typography>
+        <Typography color="info">match {sqlDesc}: </Typography>
         <TextField
-          size="small"
           value={matchSql}
           onChange={(e) => {
             setMatchSql(e.target.value);
@@ -198,8 +224,6 @@ function QueryLog(props: {
                 return;
               }
             }}
-            size="small"
-            variant="contained"
           >
             delete
           </Button>
@@ -247,7 +271,7 @@ function QueryLog(props: {
             >
               <ModalHeader title="View SQL"></ModalHeader>
               <SimpleFlexEditor
-                language={uuid}
+                language={language}
                 value={selectSql}
               ></SimpleFlexEditor>
             </Box>
@@ -258,4 +282,4 @@ function QueryLog(props: {
   );
 }
 
-export { QueryLog };
+export { QueryLog, QueryLogKind };

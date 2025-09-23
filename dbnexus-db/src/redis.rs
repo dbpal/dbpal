@@ -38,8 +38,8 @@ impl RedisDB {
 
         let client = redis::Client::open(conn_str.as_str())?;
         let mut conn_config = ConnectionManagerConfig::default();
-        if let Some(x) = config.conn_timeout {
-            conn_config = conn_config.set_connection_timeout(Duration::from_millis(x as u64));
+        if let Some(timeout) = config.conn_timeout {
+            conn_config = conn_config.set_connection_timeout(Duration::from_millis(timeout as u64));
         }
         let m = redis::aio::ConnectionManager::new_with_config(client, conn_config).await?;
         anyhow::Ok(Self {

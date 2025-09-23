@@ -53,7 +53,7 @@ import {
   appStore,
   AppStoreKey,
   calMenuStyle,
-  columnWidths,
+  ColumnWidth,
   ContextMenuContext,
   DataSourceKind,
   editorSetPositionAndReveal,
@@ -67,9 +67,11 @@ import {
   maxTreeSize,
   pageSizeOptions,
   QueryLogHandler,
+  SaveAlign,
   saveAndSetSize,
   secondConfirm,
   SettingContext,
+  textEllipsisStyle,
 } from './helper';
 
 import { TbDatabasePlus } from 'react-icons/tb';
@@ -101,25 +103,34 @@ function SelectAlign(props: {
 }) {
   let theme = useTheme();
   const { align, handleChange } = props;
+  const handleChangeXXX = (a) => {
+    SaveAlign.instance.save(a);
+    handleChange(a);
+  };
+  let style = { cursor: 'pointer' };
+
   return (
     <Stack direction="row" fontSize="1.5rem" spacing={1}>
       <FaAlignLeft
-        color={align == 'left' && theme.palette.success.main}
+        color={align == 'left' && theme.palette.primary.main}
         onClick={() => {
-          handleChange('left');
+          handleChangeXXX('left');
         }}
+        style={style}
       />
       <FaAlignCenter
-        color={align == 'center' && theme.palette.success.main}
+        color={align == 'center' && theme.palette.primary.main}
         onClick={() => {
-          handleChange('center');
+          handleChangeXXX('center');
         }}
+        style={style}
       />
       <FaAlignRight
-        color={align == 'right' && theme.palette.success.main}
+        color={align == 'right' && theme.palette.primary.main}
         onClick={() => {
-          handleChange('right');
+          handleChangeXXX('right');
         }}
+        style={style}
       />
     </Stack>
   );
@@ -129,11 +140,10 @@ const LogLevelSelection = ({ handleChange, level }) => {
   let levels = ['trace', 'debug', 'info', 'warn', 'error'];
 
   return (
-    <Stack style={{ minWidth: '7rem' }}>
+    <Stack style={{ minWidth: '13rem' }}>
       <FormControl fullWidth>
         <InputLabel>logger level</InputLabel>
         <Select
-          size="small"
           value={level}
           label="logger level"
           onChange={(e) => handleChange(e.target.value)}
@@ -407,8 +417,8 @@ function MenuDeleteConfig({ name }) {
 function MetaValuesView({ values = [] as types.MetaValue[] }) {
   const setting = useContext(SettingContext);
   let columns = [
-    { field: 'name', width: columnWidths.getWidth('name') },
-    { field: 'value', width: columnWidths.getWidth('value') },
+    { field: 'name', width: ColumnWidth.instance.get('name') },
+    { field: 'value', width: ColumnWidth.instance.get('value') },
     { field: 'desc', flex: 1 },
   ] as GridColDef[];
 
@@ -501,7 +511,7 @@ function MetaValuesView({ values = [] as types.MetaValue[] }) {
   const onColumnResize = useCallback(({ colDef, width }) => {
     let f = colDef.field;
     if (f == 'name' || f == 'value') {
-      columnWidths.saveColumnWidths(f, width);
+      ColumnWidth.instance.save(f, width);
     }
   }, []);
   return (
@@ -529,7 +539,7 @@ function MenuResetColumnWidths(props: { reset: () => void }) {
   const { reset } = props;
 
   const handleReset = async () => {
-    columnWidths.reset();
+    ColumnWidth.instance.reset();
     reset();
     showNotification('success', 'reset column width successfully');
   };
@@ -650,16 +660,7 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
                 <Typography variant="body1"> auto increment </Typography>
               )}
               {isTable && f.default_value && (
-                <Typography
-                  variant="body1"
-                  style={{
-                    width: '100px',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    flex: 1,
-                  }}
-                >
+                <Typography variant="body1" style={textEllipsisStyle}>
                   default value({f.default_value})
                 </Typography>
               )}
@@ -721,13 +722,9 @@ function UdfNameAndParameters(props: {
         <Typography
           color="success"
           style={{
-            width: '100px',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            flex: 1,
             fontStyle: 'italic',
             fontSize: '0.8rem',
+            ...textEllipsisStyle,
           }}
         >
           ({parameter})
@@ -747,11 +744,7 @@ function PossibleParseError(props: {
       <Typography
         style={{
           cursor: parseErr.line && parseErr.column && 'pointer',
-          width: '100px',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          flex: 1,
+          ...textEllipsisStyle,
         }}
         onClick={() => {
           if (!parseErr) {
@@ -829,7 +822,6 @@ function ExecutingTime(props: { loading: boolean; disableTime?: boolean }) {
       <Tooltip title="execute time">
         <Chip
           color="success"
-          size="small"
           label={<span ref={executeTimeRef}> </span>}
           style={{ minWidth: '6rem' }}
           icon={<IoTimerOutline fontSize="1.2rem" />}
@@ -903,7 +895,6 @@ function SelectColumns(props: {
             onClick={() => {
               setIncludes((e) => e.filter((e) => e != x));
             }}
-            size="small"
             key={x}
             color="success"
             label={x}
@@ -931,7 +922,6 @@ function SelectColumns(props: {
           }}
           disabled={includes.length == fields.length}
           style={{ flex: 1 }}
-          size="small"
           label="match field name string"
           helperText="only for field candidate"
         ></TextField>
@@ -947,7 +937,6 @@ function SelectColumns(props: {
           .filter((f) => f.field.includes(matchStr))
           .map((x) => (
             <Chip
-              size="small"
               key={x.field}
               onClick={() => {
                 setIncludes((e) => [...e, x.field]);
@@ -1083,7 +1072,7 @@ function ExportMarkDownTable(props: {
           copy to clipboard
         </Button>
         <SelectAlign
-          align={align as 'center'}
+          align={SaveAlign.instance.get() as 'center'}
           handleChange={(e) => {
             setAlign(e);
           }}

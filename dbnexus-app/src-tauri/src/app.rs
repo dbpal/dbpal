@@ -235,7 +235,7 @@ impl DBConnectionConfig {
                 }
             }
             DBConnectionConfig::MsSql { conn, name: _ } => {
-                let o = Arc::new(dbnexus_db::mssql::MsSqlServerDB::new(conn.clone()).await?);
+                let o = Arc::new(dbnexus_db::mssql::SqlServerDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
                     return anyhow::Ok(Open::Catalog(o as Arc<dyn CatalogTrait>));
                 }
@@ -376,42 +376,43 @@ impl App {
                 let databases = catalog_trait.list_database().await?;
                 for database in databases.iter() {
                     let name = format!("{}/{}", name, database);
-                    let dbtrait = match self.get_opened(&name).await {
+                    let db_trait = match self.get_opened(&name).await {
                         Ok(x) => match x {
                             Open::DataBase(x) => x.clone(),
                             _ => unreachable!(),
                         },
                         Err(_) => {
                             log::info!("enter child named:{}", name);
-                            let dbtrait = catalog_trait.open_db(database).await?;
-                            self.insert_open(name.clone(), dbtrait.clone().into()).await;
-                            dbtrait.clone()
+                            let db_trait = catalog_trait.open_db(database).await?;
+                            self.insert_open(name.clone(), db_trait.clone().into())
+                                .await;
+                            db_trait.clone()
                         }
                     };
 
-                    let schemas = dbtrait.list_schema().await?;
+                    let schemas = db_trait.list_schema().await?;
                     for schema in schemas.iter() {
                         let name = format!("{}/{}", name, schema);
                         match self.get_opened(&name).await {
                             Ok(_) => {}
                             Err(_) => {
                                 log::info!("enter child named:{}", name);
-                                let s = dbtrait.open_schema(schema).await?;
+                                let s = db_trait.open_schema(schema).await?;
                                 self.insert_open(name, s.clone().into()).await;
                             }
                         }
                     }
                 }
             }
-            Open::DataBase(dbtrait) => {
-                let schemas = dbtrait.list_schema().await?;
+            Open::DataBase(db_trait) => {
+                let schemas = db_trait.list_schema().await?;
                 for schema in schemas.iter() {
                     let name = format!("{}/{}", name, schema);
                     match self.get_opened(&name).await {
                         Ok(_) => {}
                         Err(_) => {
                             log::info!("enter child named:{}", name);
-                            let s = dbtrait.open_schema(schema).await?;
+                            let s = db_trait.open_schema(schema).await?;
                             self.insert_open(name, s.clone().into()).await;
                         }
                     }
@@ -458,7 +459,6 @@ impl App {
                 v.push(k.clone());
             }
         }
-
         for k in v.into_iter() {
             self.opens.lock().await.remove(&k);
         }

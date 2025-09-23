@@ -181,7 +181,6 @@ function RedisQuery(props: {
         buttons={
           <>
             <Chip
-              size="small"
               onClick={() => {
                 setShowDoc((e) => !e);
               }}

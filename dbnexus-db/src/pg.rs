@@ -1777,7 +1777,7 @@ fn get_pg_type_base_on_data_type_and_udtname(
 
 async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Result<()> {
     sqlx::raw_sql(AssertSqlSafe(
-        format!("SET search_path TO {schema},public").as_str(),
+        format!("SET search_path TO {schema}").as_str(),
     ))
     .execute(conn)
     .await?;
@@ -2594,7 +2594,7 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-             CREATE TABLE test_commit (
+            CREATE TABLE test_commit (
                 ID INTEGER PRIMARY KEY,
                 NAME VARCHAR(50)
             );

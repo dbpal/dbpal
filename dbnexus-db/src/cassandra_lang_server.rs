@@ -445,7 +445,7 @@ impl AstCompletion {
         let key_space = self
             .need_key_space_identifier(table.keyspace.as_ref())
             .await
-            .map_err(|e| log::error!("{}", e))
+            .map_err(|e| log::error!("get key space failed:{}", e))
             .unwrap_or_default();
 
         let mut result: Vec<_> = if key_space.is_empty() {

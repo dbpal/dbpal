@@ -372,6 +372,9 @@ impl From<SqlEvent> for CompletionItem {
 #[async_trait::async_trait]
 
 pub trait LangServerCommon: GetBackendKind {
+    async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
     fn clickhouse_format_clause(&self) -> Vec<String> {
         vec![]
     }
@@ -896,10 +899,6 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
     async fn mysql_show_create_trigger(
         &self, _schema: Option<&str>,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        anyhow::Ok(vec![])
-    }
-
-    async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
 

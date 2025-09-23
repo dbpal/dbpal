@@ -25,7 +25,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dashmap::{DashMap, DashSet};
-use r2d2::PooledConnection;
+use r2d2::{Pool, PooledConnection};
 use rsfbclient::{Execute, FbError, Queryable, Row, SqlType, builder_pure_rust};
 use rsfbclient_rust::RustFbClient;
 use tokio::sync::Mutex;
@@ -483,7 +483,7 @@ impl QuerySql for FireBirdDB {
 #[derive(Clone)]
 pub struct FireBirdDB {
     config: FireBirdConfig,
-    pool: r2d2::Pool<PoolManager>,
+    pool: Pool<PoolManager>,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<PooledConnection<PoolManager>>>>>,
     query_connections_tx: Arc<DashSet<uuid::Uuid>>,
     pub(crate) key_words_completion: Arc<Mutex<Vec<CompletionItem>>>,

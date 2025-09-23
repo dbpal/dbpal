@@ -24,20 +24,23 @@ import {
 } from '@mui/material';
 import { HexColorPicker } from 'react-colorful';
 import { NotificationContext } from './Notification';
-import { appStore, AppStoreKey } from './Common';
+import { AppStoreKey } from './Common';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import {
   ErrAndLoc,
   ColorFn,
   SettingContext,
-  UserSettings,
+  UserSetting,
   validJson,
+  textEllipsisStyle,
+  appStore,
 } from './helper';
 import { Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
 import EditIcon from '@mui/icons-material/Edit';
 import ClearIcon from '@mui/icons-material/Clear';
 import { SimpleFlexEditor } from './CommonComp2';
+import { LogLevelSelection } from './CommonComp';
 function ModifySetting() {
   const { showNotification } = useContext(NotificationContext);
   const [fontWeight, setFontWeight] = useState('normal');
@@ -54,6 +57,8 @@ function ModifySetting() {
   const [csvDelimiter, setCsvDelimiter] = useState(',');
   const [csvHeader, setCsvHeader] = useState(true);
   const bgColorTextField = useRef<HTMLInputElement>(null);
+  const [loggerLevel, setLoggerLevel] = useState('info');
+  const [loggerMaxSize, setLoggerMaxSize] = useState('1');
   useEffect(() => {
     invoke<string[]>('fonts_all_families', {})
       .then((fonts) => {
@@ -66,7 +71,7 @@ function ModifySetting() {
 
   const reload = async () => {
     try {
-      const setting = await UserSettings.get();
+      const setting = await UserSetting.get();
       setFontWeight(setting.fontWeight);
       setFontSize(setting.fontSize);
       setFontFamily(setting.fontFamily);
@@ -76,6 +81,8 @@ function ModifySetting() {
       } else {
         setBgColor(setting.lightBgColor);
       }
+      setLoggerLevel(setting.logger.level);
+      setLoggerMaxSize(setting.logger.max_size + '');
       setCsvDelimiter(setting.csvDelimiter);
       setCsvHeader(setting.includeCsvHeader);
       const content = JSON.stringify(
@@ -83,7 +90,6 @@ function ModifySetting() {
         null,
         setting.tabSize
       );
-
       if (content) {
         setEditorOptions(content);
       }
@@ -119,13 +125,17 @@ function ModifySetting() {
       editorOption: JSON.parse(editorOptions),
       csvDelimiter: csvDelimiter,
       includeCsvHeader: csvHeader,
-    } as UserSettings;
+      logger: {
+        level: loggerLevel,
+        max_size: parseInt(loggerMaxSize),
+      },
+    } as UserSetting;
     if (theme == 'dark') {
       s.darkBgColor = bgColor;
     } else {
       s.lightBgColor = bgColor;
     }
-    UserSettings.set(s)
+    UserSetting.set(s)
       .then(() => {
         showNotification('success', 'Save Setting OK');
       })
@@ -166,7 +176,6 @@ function ModifySetting() {
         <Chip label={fontSize} style={{ fontSize }} />
         <Slider
           style={{ width: '30%' }}
-          size="small"
           value={fontSize}
           onChange={(_, value) => {
             setFontSize(value as number);
@@ -184,7 +193,6 @@ function ModifySetting() {
           onChange={(e) => {
             setFontWeight(e.target.value);
           }}
-          size="small"
           slotProps={{
             input: {
               endAdornment: fontWeight && (
@@ -194,7 +202,6 @@ function ModifySetting() {
                       setFontWeight('');
                     }}
                     edge="end"
-                    size="small"
                   >
                     <ClearIcon fontSize="small" />
                   </IconButton>
@@ -214,10 +221,9 @@ function ModifySetting() {
         </Typography>
 
         <Select
-          size="small"
           value={fontFamily}
           onChange={(e) => setFontFamily(e.target.value as string)}
-          style={{ fontFamily: fontFamily, width: '200px' }}
+          style={{ fontFamily: fontFamily, minWidth: '12rem' }}
         >
           <MenuItem style={{ fontFamily: undefined }} value="">
             default
@@ -239,10 +245,9 @@ function ModifySetting() {
             })}
         </Select>
         <TextField
-          size="small"
           label="match font"
           value={fontMatch}
-          style={{ fontFamily: fontFamily }}
+          style={{ fontFamily: fontFamily, width: '13rem' }}
           onChange={(e) => {
             setFontMatch(e.target.value);
           }}
@@ -255,7 +260,6 @@ function ModifySetting() {
                       setFontMatch('');
                     }}
                     edge="end"
-                    size="small"
                   >
                     <ClearIcon fontSize="small" />
                   </IconButton>
@@ -264,7 +268,10 @@ function ModifySetting() {
             },
           }}
         ></TextField>
-        <Typography color="success" style={{ fontFamily }}>
+        <Typography
+          color="success"
+          style={{ fontFamily, ...textEllipsisStyle }}
+        >
           select * from employees
         </Typography>
       </Stack>
@@ -275,7 +282,7 @@ function ModifySetting() {
         </Typography>
         <div style={{ position: 'relative' }}>
           <IconButton
-            color="primary"
+            color={showEditBgColor ? 'success' : 'primary'}
             onClick={() => {
               setShowEditBgColor((e) => !e);
             }}
@@ -300,7 +307,6 @@ function ModifySetting() {
           }}
           inputRef={bgColorTextField}
           style={{ width: '10rem' }}
-          size="small"
           error={!!bgColorErr}
           slotProps={{
             input: {
@@ -311,7 +317,6 @@ function ModifySetting() {
                       setBgColor('');
                     }}
                     edge="end"
-                    size="small"
                   >
                     <ClearIcon fontSize="small" />
                   </IconButton>
@@ -355,12 +360,12 @@ function ModifySetting() {
             </Typography>
           </Tooltip>
           <Stack style={{ flex: 1 }} spacing={1}>
-            <Stack direction="row">
+            <Stack direction="row" style={{ alignItems: 'center' }}>
               <IconButton
                 onClick={() => {
                   setShowEditorOptions((e) => !e);
                 }}
-                color="primary"
+                color={showEditorOptions ? 'success' : 'primary'}
               >
                 <EditIcon> </EditIcon>
               </IconButton>
@@ -396,7 +401,6 @@ function ModifySetting() {
           csv delimiter:
         </Typography>
         <TextField
-          size="small"
           value={csvDelimiter}
           onChange={(e) => setCsvDelimiter(e.target.value)}
           error={csvDelimiter.length > 1}
@@ -413,10 +417,33 @@ function ModifySetting() {
         />
       </Stack>
 
+      <Divider textAlign="left" style={{ marginTop: '20px' }}>
+        logger
+      </Divider>
+
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
+          logger level:
+        </Typography>
+
+        <LogLevelSelection
+          level={loggerLevel}
+          handleChange={(level) => {
+            setLoggerLevel(level);
+          }}
+        ></LogLevelSelection>
+        <TextField
+          value={loggerMaxSize}
+          label="max logger file size (MB)"
+          error={isNaN(parseInt(loggerMaxSize))}
+          onChange={(e) => {
+            setLoggerMaxSize(e.target.value);
+          }}
+        ></TextField>
+      </Stack>
       <Divider />
       <Stack direction="row">
         <Button
-          variant="contained"
           onClick={() => {
             handleSave();
           }}
@@ -490,7 +517,6 @@ function EditorOptions(props: {
       <Divider />
       <Stack direction="row" spacing={1}>
         <Button
-          variant="contained"
           onClick={async () => {
             try {
               await validJson(value);
@@ -513,6 +539,9 @@ function makeComponents(appFontWeight) {
   const components: Components<
     Omit<Theme, 'components' | 'palette'> & CssVarsTheme
   > = {
+    MuiCircularProgress: {
+      defaultProps: { size: '1.1rem' },
+    },
     MuiButton: {
       styleOverrides: {
         root: {
@@ -521,6 +550,9 @@ function makeComponents(appFontWeight) {
           textTransform: 'none',
           fontWeight: appFontWeight,
         },
+      },
+      defaultProps: {
+        variant: 'contained',
       },
     },
     MuiIconButton: {
@@ -594,13 +626,23 @@ function makeComponents(appFontWeight) {
           },
         },
       },
+      defaultProps: {
+        size: 'small',
+      },
     },
+    MuiSelect: {
+      defaultProps: { size: 'small' },
+    },
+
     MuiChip: {
       styleOverrides: {
         root: {
           fontSize: '1rem',
           fontWeight: appFontWeight,
         },
+      },
+      defaultProps: {
+        size: 'small',
       },
     },
     MuiTab: {
@@ -658,9 +700,9 @@ const darkTheme = (appFontWeight, fontFamily, bgColor) => {
 
 function SettingComp(props: { children }) {
   const { children } = props;
-  const [setting, setSetting] = useState<UserSettings>(new UserSettings());
+  const [setting, setSetting] = useState<UserSetting>(new UserSetting());
   const reload = async () => {
-    UserSettings.get()
+    UserSetting.get()
       .then((setting) => {
         setSetting(setting);
         document.documentElement.style.fontSize = setting.fontSize + 'px';
@@ -670,11 +712,19 @@ function SettingComp(props: { children }) {
         console.log('list user setting failed', e);
       });
   };
-  appStore.onChange((key) => {
-    if (key == AppStoreKey.UserSettings) {
-      reload();
-    }
-  });
+  useEffect(() => {
+    const unlisten = appStore.onKeyChange<UserSetting>(
+      AppStoreKey.UserSetting,
+      () => {
+        reload();
+      }
+    );
+    return () => {
+      unlisten.then((e) => {
+        e();
+      });
+    };
+  }, []);
   useEffect(() => {
     reload();
   }, []);

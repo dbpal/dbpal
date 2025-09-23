@@ -32,25 +32,25 @@ use crate::helper::create_csv;
 use crate::meta_value::MetaValue;
 
 #[derive(Clone)]
-pub struct MsSqlServerDB {
+pub struct SqlServerDB {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     pub(crate) config: SqlServerDBConfig,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
 }
 
-impl std::fmt::Debug for MsSqlServerDB {
+impl std::fmt::Debug for SqlServerDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "mssql on:{:?}", self.config)
     }
 }
 
-impl MsSqlServerDB {
+impl SqlServerDB {
     pub(crate) const DBO_SCHEMA: &str = "dbo";
     pub(crate) const SYS_SCHEMA: &str = "sys";
     pub(crate) const INFORMATION_SCHEMA_SCHEMA: &str = "INFORMATION_SCHEMA";
 }
 #[async_trait::async_trait]
-impl ServerMetas for MsSqlServerDB {
+impl ServerMetas for SqlServerDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         let mut conn = self.get_conn().await?;
         let mut ret = Vec::new();
@@ -166,7 +166,7 @@ impl ServerMetas for MsSqlServerDB {
     }
 }
 
-impl MsSqlServerDB {
+impl SqlServerDB {
     pub async fn new(c: SqlServerDBConfig) -> anyhow::Result<Self> {
         let manager = bb8_tiberius::ConnectionManager::new(make_config(&c));
         let mut builder = bb8::Pool::builder();
@@ -343,7 +343,7 @@ fn extract_trigger_event_base_on_lexer(sql: &str) -> anyhow::Result<TriggerEvent
 }
 
 #[async_trait::async_trait]
-impl CheckConn for MsSqlServerDB {
+impl CheckConn for SqlServerDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
         let mut conn = self.get_conn().await?;
@@ -353,7 +353,7 @@ impl CheckConn for MsSqlServerDB {
     }
 }
 
-impl MsSqlServerDB {
+impl SqlServerDB {
     async fn execute_simple_execute(&self, sql: &str) -> anyhow::Result<ExecuteResult> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -362,7 +362,7 @@ impl MsSqlServerDB {
     }
 }
 
-impl MsSqlServerDB {
+impl SqlServerDB {
     pub(crate) async fn list_table_impl(
         &self, db: &str, schema: &str,
     ) -> anyhow::Result<Vec<ListTable>> {
@@ -450,13 +450,13 @@ impl MsSqlServerDB {
     }
 }
 
-impl GetBackendKind for MsSqlServerDB {
+impl GetBackendKind for SqlServerDB {
     fn backend_name(&self) -> BackendKind {
         BackendKind::SqlServer
     }
 }
 
-impl MsSqlServerDB {
+impl SqlServerDB {
     pub(crate) async fn list_udf_impl(&self, schema: &str) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
             r#"
@@ -522,7 +522,7 @@ impl MsSqlServerDB {
     }
 }
 #[async_trait::async_trait]
-impl SchemaTrait for MsSqlServerDB {
+impl SchemaTrait for SqlServerDB {
     async fn export_table_or_view_as_xlsx(
         &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
     ) -> anyhow::Result<()> {
@@ -801,8 +801,7 @@ impl SchemaTrait for MsSqlServerDB {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let total =
-            MsSqlServerDB::query_count(conn, self.config.schema_str(), view_name, where_str)
-                .await?;
+            SqlServerDB::query_count(conn, self.config.schema_str(), view_name, where_str).await?;
         let sql = gen_select_sql(
             self.config.schema_str().as_str(),
             view_name,
@@ -905,9 +904,9 @@ impl SchemaTrait for MsSqlServerDB {
         }
         drop(stream);
         for f in ret.iter_mut() {
-            let is_primary = MsSqlServerDB::is_primary(conn, table_name, &f.field).await?;
+            let is_primary = SqlServerDB::is_primary(conn, table_name, &f.field).await?;
             let is_auto_increment =
-                MsSqlServerDB::is_auto_increment(conn, table_name, &f.field).await?;
+                SqlServerDB::is_auto_increment(conn, table_name, &f.field).await?;
             f.is_primary = is_primary;
             f.is_auto_increment = is_auto_increment;
         }
@@ -922,8 +921,7 @@ impl SchemaTrait for MsSqlServerDB {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let total =
-            MsSqlServerDB::query_count(conn, self.config.schema_str(), table_name, where_str)
-                .await?;
+            SqlServerDB::query_count(conn, self.config.schema_str(), table_name, where_str).await?;
         let sql = gen_select_sql(
             self.config.schema_str().as_str(),
             table_name,
@@ -1231,7 +1229,7 @@ pub const SQLSERVER_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_TIME",      //  14:36:07.123 （SQL Server 2022+ 支持）
     "CURRENT_USER",      //  dbo
 ];
-impl SqlBuilder for MsSqlServerDB {
+impl SqlBuilder for SqlServerDB {
     const CURRENT_VALUES: &'static [&'static str] = SQLSERVER_CURRENT_LITERALS;
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
@@ -1266,7 +1264,7 @@ impl SqlBuilder for MsSqlServerDB {
     }
 }
 
-impl MsSqlServerDB {
+impl SqlServerDB {
     async fn query_count(
         conn: &mut Connection, schema: &str, name: &str, where_str: Option<&str>,
     ) -> anyhow::Result<i32> {
@@ -1296,7 +1294,7 @@ impl MsSqlServerDB {
         anyhow::Ok(count.unwrap_or_default())
     }
 }
-impl MsSqlServerDB {
+impl SqlServerDB {
     async fn is_primary(
         conn: &mut Connection, table_name: &str, col_name: &str,
     ) -> anyhow::Result<bool> {
@@ -1432,7 +1430,7 @@ fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Map<String, serde
     anyhow::Ok(values)
 }
 
-impl MsSqlServerDB {
+impl SqlServerDB {
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -1616,7 +1614,7 @@ impl MsSqlServerDB {
     }
 }
 
-impl MsSqlServerDB {
+impl SqlServerDB {
     /// this fn create a `Connection` only use for query connection
     /// because `query_connections` use in `SqlServer`,
     /// we can't create self reference struct in rust.
@@ -1637,7 +1635,7 @@ impl MsSqlServerDB {
 type Connection = Client<Compat<TcpStream>>;
 
 #[async_trait::async_trait]
-impl ExportQueryResult for MsSqlServerDB {
+impl ExportQueryResult for SqlServerDB {
     async fn export_as_xlsx(
         &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
     ) -> anyhow::Result<()> {
@@ -1709,7 +1707,7 @@ impl ExportQueryResult for MsSqlServerDB {
 }
 
 #[async_trait::async_trait]
-impl QuerySql for MsSqlServerDB {
+impl QuerySql for SqlServerDB {
     async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
@@ -1895,7 +1893,7 @@ async fn set_current_schema(conn: &mut Connection, schema: &str) -> anyhow::Resu
     anyhow::Ok(())
 }
 
-impl MsSqlServerDB {
+impl SqlServerDB {
     pub(crate) async fn get_conn<'a>(
         &'a self,
     ) -> anyhow::Result<bb8::PooledConnection<'a, bb8_tiberius::ConnectionManager>> {
@@ -1917,7 +1915,7 @@ impl MsSqlServerDB {
 }
 
 #[async_trait::async_trait]
-impl crate::db::DBTrait for MsSqlServerDB {
+impl crate::db::DBTrait for SqlServerDB {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -1947,7 +1945,7 @@ impl crate::db::DBTrait for MsSqlServerDB {
 }
 
 #[async_trait::async_trait]
-impl CatalogTrait for MsSqlServerDB {
+impl CatalogTrait for SqlServerDB {
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let mut stream = conn
@@ -2004,8 +2002,8 @@ impl CatalogTrait for MsSqlServerDB {
 
 #[allow(dead_code)]
 #[cfg(test)]
-pub(crate) async fn make_test_object() -> MsSqlServerDB {
-    let ss = MsSqlServerDB::new(SqlServerDBConfig {
+pub(crate) async fn make_test_object() -> SqlServerDB {
+    let ss = SqlServerDB::new(SqlServerDBConfig {
         host: TEST_HOST.to_string(),
         conn_timeout: Some(1000),
         port: 1433,
@@ -2013,7 +2011,7 @@ pub(crate) async fn make_test_object() -> MsSqlServerDB {
         password: Some("sfdewRE123".to_string()),
         db: Some("test".to_string()),
         trust_cert: true,
-        schema: Some(MsSqlServerDB::DBO_SCHEMA.to_string()),
+        schema: Some(SqlServerDB::DBO_SCHEMA.to_string()),
         read_only: false,
         save_password: true,
     })
@@ -2021,7 +2019,7 @@ pub(crate) async fn make_test_object() -> MsSqlServerDB {
     .unwrap();
     ss
 }
-impl ReadOnlyTrait for MsSqlServerDB {
+impl ReadOnlyTrait for SqlServerDB {
     fn read_only(&self) -> bool {
         self.config.read_only
     }
@@ -2419,7 +2417,7 @@ mod tests {
         let db = &db as &dyn crate::db::DBTrait;
 
         let db_names = db.list_schema().await.unwrap();
-        assert_eq!(db_names, vec![MsSqlServerDB::DBO_SCHEMA]);
+        assert_eq!(db_names, vec![SqlServerDB::DBO_SCHEMA]);
         for db_name in db_names.iter() {
             db.open_schema(&db_name).await.unwrap();
         }

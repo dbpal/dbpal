@@ -1,7 +1,6 @@
 import { ReactNode, useContext, useEffect, useState } from 'react';
 import {
   modalStyle,
-  progressBarSizeSmall,
   tabsHasId,
   makeAutoComplete,
   EscDownEvent,
@@ -154,9 +153,7 @@ function TablesTree(props: { typ: TablesType }) {
       >
         <TableViewIcon></TableViewIcon>
         <span> {tablesText} </span>
-        {loading && (
-          <CircularProgress size={progressBarSizeSmall}></CircularProgress>
-        )}
+        {loading && <CircularProgress></CircularProgress>}
       </Stack>
     >
       {tables
@@ -286,12 +283,7 @@ function DropTable(props: {
         />
       )}
       <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="error"
-          variant="contained"
-          onClick={handleDrop}
-        >
+        <Button loading={loading} color="error" onClick={handleDrop}>
           drop
         </Button>
       </Stack>
@@ -1073,7 +1065,6 @@ function DupTable(props: {
   return (
     <Stack spacing={1}>
       <TextField
-        size="small"
         value={name}
         label="duplicate name"
         onChange={(e) => {
@@ -1081,12 +1072,7 @@ function DupTable(props: {
         }}
       ></TextField>
       <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleRename}
-        >
+        <Button loading={loading} color="primary" onClick={handleRename}>
           duplicate
         </Button>
       </Stack>
@@ -1135,7 +1121,6 @@ function RenameTable(props: {
   return (
     <Stack spacing={1}>
       <TextField
-        size="small"
         value={newName}
         label="New Name"
         onChange={(e) => {
@@ -1143,12 +1128,7 @@ function RenameTable(props: {
         }}
       ></TextField>
       <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleRename}
-        >
+        <Button loading={loading} color="primary" onClick={handleRename}>
           rename
         </Button>
       </Stack>
@@ -1291,7 +1271,6 @@ function RedisTables(props: { schema?: string }) {
           {tables && tables.has_more ? (
             <Tooltip title={`result exceed ${max},some result are omitted`}>
               <Chip
-                size="small"
                 color="error"
                 icon={<FilterAltIcon />}
                 label={`${filter}`}
@@ -1299,11 +1278,9 @@ function RedisTables(props: { schema?: string }) {
               />
             </Tooltip>
           ) : (
-            <Chip size="small" icon={<FilterAltIcon />} label={`${filter}`} />
+            <Chip icon={<FilterAltIcon />} label={`${filter}`} />
           )}
-          {loading && (
-            <CircularProgress size={progressBarSizeSmall}></CircularProgress>
-          )}
+          {loading && <CircularProgress></CircularProgress>}
         </Stack>
       ></TreeItem>
       {tables &&
@@ -1347,7 +1324,6 @@ function RedisTables(props: { schema?: string }) {
           <Box sx={modalStyle} width="45%">
             <ModalHeader title="Edit key match string"></ModalHeader>
             <TextField
-              size="small"
               value={filter}
               fullWidth
               label="filer"
@@ -1364,7 +1340,6 @@ function RedisTables(props: { schema?: string }) {
                           setFilter('');
                         }}
                         edge="end"
-                        size="small"
                       >
                         <ClearIcon fontSize="small" />
                       </IconButton>

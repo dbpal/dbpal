@@ -4,12 +4,13 @@
 mod app;
 mod handlers;
 use std::backtrace::Backtrace;
-use std::fs::File;
 use std::io::Write;
+use std::ops::DerefMut;
 use std::panic;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
+use crate::handlers::{log_file, truncate_file};
 use app::{App, DBConnectionConfig};
 use handlers::{
     PASSWORD_KEY, add_table_column, auto_completion, cassandra_drop_aggregate,
@@ -46,7 +47,7 @@ use handlers::{
     rename_sequence, rename_table, save_entered_password, save_password, server_metas,
     set_auto_completion_query_id, show_indexes, show_procedure, show_table, show_table_columns,
     show_trigger, show_udf, show_view, show_view_columns, sql_parse_error, table_delete,
-    table_insert, table_update, test_connection, truncate_table, valid_json,
+    table_insert, table_update, test_connection, truncate_log_file, truncate_table, valid_json,
 };
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager, Wry};
@@ -74,20 +75,29 @@ fn is_mac() -> bool {
 }
 
 pub struct AppLogger {
-    file: Mutex<File>,
     config: Arc<Store<Wry>>,
 }
 
 impl AppLogger {
-    const CONFIG_KEY: &str = "logger";
+    fn get_config(&self) -> Option<serde_json::Value> {
+        self.config
+            .get("user-settings")
+            .map(|x| match x {
+                serde_json::Value::Object(mut map) => map.remove("logger"),
+                _ => None,
+            })
+            .flatten()
+    }
 }
 
 #[allow(dead_code)]
 fn logger_test() {
     std::thread::spawn(|| {
         loop {
-            log::info!("this is info log");
             log::trace!("this is trace log");
+            log::debug!("this is debug log");
+            log::info!("this is info log");
+            log::warn!("this is warn log");
             log::error!("this is error log");
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
@@ -96,7 +106,7 @@ fn logger_test() {
 
 impl AppLogger {
     fn get_level(&self) -> log::Level {
-        let x = self.config.get(Self::CONFIG_KEY);
+        let x = self.get_config();
         x.as_ref()
             .map(|x| match x {
                 serde_json::Value::Object(map) => match map.get("level") {
@@ -118,19 +128,18 @@ impl AppLogger {
             .unwrap_or(log::Level::Info)
     }
     fn get_max_size(&self) -> u64 {
-        let x = self.config.get(Self::CONFIG_KEY);
-        x.as_ref()
-            .map(|x| match x {
-                serde_json::Value::Object(map) => match map.get("max_size") {
-                    Some(serde_json::Value::Number(max)) => {
-                        Some(max.as_u64().unwrap_or(5) * 1024 * 1024)
-                    }
-                    _ => None,
-                },
+        let x = self.get_config();
+        x.map(|x| match x {
+            serde_json::Value::Object(map) => match map.get("max_size") {
+                Some(serde_json::Value::Number(max)) => {
+                    Some(max.as_u64().unwrap_or(5) * 1024 * 1024)
+                }
                 _ => None,
-            })
-            .flatten()
-            .unwrap_or(5 * 1024 * 1024)
+            },
+            _ => None,
+        })
+        .flatten()
+        .unwrap_or(5 * 1024 * 1024)
     }
 }
 
@@ -142,11 +151,15 @@ impl log::Log for AppLogger {
         if !self.enabled(record.metadata()) {
             return;
         }
-        let mut f = self.file.lock().unwrap();
-        match f.metadata() {
+        let mut lock = log_file().lock().unwrap();
+        let file = match lock.deref_mut() {
+            Some(x) => x,
+            None => return,
+        };
+        match file.metadata() {
             Ok(meta) => {
                 if meta.len() > self.get_max_size() {
-                    match f.set_len(0) {
+                    match truncate_file(file) {
                         Ok(_) => {}
                         Err(err) => {
                             println!("truncate file failed,err:{}", err);
@@ -168,13 +181,18 @@ impl log::Log for AppLogger {
             record.level(),
             record.args()
         );
-        match f.write_all(s.as_bytes()) {
+        match file.write_all(s.as_bytes()) {
             Ok(_) => {}
             Err(err) => println!("write file failed,err:{:?}", err),
         }
     }
     fn flush(&self) {
-        match self.file.lock().unwrap().flush() {
+        let mut lock = log_file().lock().unwrap();
+        let file = match lock.deref_mut() {
+            Some(x) => x,
+            None => return,
+        };
+        match file.flush() {
             Ok(err) => println!("flush file failed,err:{:?}", err),
             Err(_) => {}
         }
@@ -182,7 +200,7 @@ impl log::Log for AppLogger {
 }
 
 fn main_() {
-    logger_test();
+    // logger_test();
     let app = App::new();
     let saved_password = app.saved_password.clone();
     let setup = |app: &mut tauri::App| {
@@ -194,7 +212,7 @@ fn main_() {
 
                 if let Err(err) = handler.emit("backend-crash", format!("{}\n{}", info, backtrace))
                 {
-                    log::error!("emit to frontend failed,err:{}", err);
+                    log::error!("emit backend crash to frontend failed,err:{}", err);
                 }
                 old(info);
             }));
@@ -215,8 +233,8 @@ fn main_() {
                     Ok(file) => {
                         let logger = AppLogger {
                             config: store.clone(),
-                            file: Mutex::new(file),
                         };
+                        *log_file().lock().unwrap() = Some(file);
                         log::set_boxed_logger(Box::new(logger)).unwrap();
                         log::set_max_level(log::LevelFilter::Trace);
                     }
@@ -408,7 +426,7 @@ fn main_() {
             )
         })
         .on_menu_event(|handle, event| {
-            log::info!("on_menu_event:{:?}", event);
+            log::info!("on menu event:{:?}", event);
             if event.id.0 == "add_config" {
                 handle.emit("add_config", "").unwrap();
             }
@@ -577,6 +595,7 @@ fn main_() {
             drop_created_type,
             list_event,
             drop_event,
+            truncate_log_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

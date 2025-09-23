@@ -1,4 +1,6 @@
 use std::collections::{HashMap, HashSet};
+use std::io::Seek;
+use std::ops::DerefMut;
 use std::time::Duration;
 
 use crate::app::{self, App, DBConnectionConfig, Open};
@@ -17,7 +19,7 @@ use dbnexus_db::language_server::{CompletionItem, ErrAndLoc};
 use dbnexus_db::libsql::LibSqlDB;
 use dbnexus_db::meta_value::MetaValue;
 use dbnexus_db::mongo::MongoDB;
-use dbnexus_db::mssql::MsSqlServerDB;
+use dbnexus_db::mssql::SqlServerDB;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
@@ -30,6 +32,28 @@ pub fn has_entered_password(
 ) -> Result<bool, ErrorFrontend> {
     let has = app.saved_password.get(&name).is_some();
     Ok(has)
+}
+
+pub(crate) fn log_file() -> &'static std::sync::Mutex<Option<std::fs::File>> {
+    static FILE: std::sync::Mutex<Option<std::fs::File>> = std::sync::Mutex::new(None);
+    &FILE
+}
+
+pub(crate) fn truncate_file(file: &mut std::fs::File) -> Result<(), std::io::Error> {
+    file.set_len(0)?;
+    file.seek(std::io::SeekFrom::Start(0)).map(|_| ())
+}
+
+#[tauri::command]
+pub fn truncate_log_file() -> Result<(), ErrorFrontend> {
+    let mut lock = log_file().lock().unwrap();
+    match lock.deref_mut() {
+        Some(file) => {
+            truncate_file(file).map_err(ErrorFrontend::from)?;
+            Ok(())
+        }
+        None => Ok(()),
+    }
 }
 
 #[tauri::command]
@@ -215,10 +239,9 @@ pub async fn create_schema(
 pub async fn open_conn(name: String, app: tauri::State<'_, App>) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    log::info!("open db:{}", name);
+    log::info!("open connection:{}", name);
     let secs = 10;
     let name_clone = name.clone();
-
     tokio::time::timeout(Duration::from_secs(secs), async move {
         app.open(name.as_str())
             .await
@@ -247,7 +270,6 @@ pub async fn list_table(
 ) -> Result<Vec<ListTable>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    log::info!("show table_name db:{}", name);
     let db = app.get_schema(&name).await?;
     db.list_table().await.map_err(ErrorFrontend::from)
 }
@@ -2474,7 +2496,7 @@ pub async fn put_value_in_sql(
     if let Ok(e) = xxx::<FireBirdDB>(a, &typ, value) {
         return Ok(e);
     }
-    if let Ok(e) = xxx::<MsSqlServerDB>(a, &typ, value) {
+    if let Ok(e) = xxx::<SqlServerDB>(a, &typ, value) {
         return Ok(e);
     }
     #[cfg(feature = "duckdb")]
@@ -2661,7 +2683,7 @@ impl From<tauri::Error> for ErrorFrontend {
             reason: format!("{}", value),
             detail: format!("{:?}", value),
         };
-        log::error!("msg:{}", x.reason);
+        log::error!("error:{}", x.reason);
         x
     }
 }
@@ -2671,7 +2693,18 @@ impl From<anyhow::Error> for ErrorFrontend {
             reason: format!("{}", value),
             detail: format!("{:?}", value),
         };
-        log::error!("msg:{}", x.reason);
+        log::error!("error:{}", x.reason);
+        x
+    }
+}
+
+impl From<std::io::Error> for ErrorFrontend {
+    fn from(value: std::io::Error) -> Self {
+        let x = Self {
+            reason: format!("{}", value),
+            detail: "".to_string(),
+        };
+        log::error!("error:{}", x.reason);
         x
     }
 }
@@ -2682,7 +2715,7 @@ impl From<hex::FromHexError> for ErrorFrontend {
             reason: format!("{}", value),
             detail: "".to_string(),
         };
-        log::error!("msg:{}", x.reason);
+        log::error!("error:{}", x.reason);
         x
     }
 }
@@ -2734,8 +2767,8 @@ async fn random_sleep() {
     {
         let duration = {
             use rand::Rng;
-            let mut rng = rand::rng();
-            let millis = rng.random_range(500..1700);
+            let mut rng = rand::thread_rng();
+            let millis = rng.gen_range(500, 1700);
             let duration = std::time::Duration::from_millis(millis);
             duration
         };
@@ -2750,7 +2783,7 @@ fn random_error() -> Result<(), ErrorFrontend> {
     {
         use rand::Rng;
         let mut rng = rand::thread_rng();
-        let x: i8 = rng.gen_range(1..100);
+        let x: i8 = rng.gen_range(1, 100);
         if x > 50 {
             Err(ErrorFrontend {
                 reason: format!("random error of {}", x),

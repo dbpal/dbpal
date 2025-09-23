@@ -122,7 +122,6 @@ function ExportView(props: {
           ></IncludeHeader>
           <Stack direction="row">
             <TextField
-              size="small"
               value={delimiter}
               onChange={(e) => {
                 setDelimiter(e.target.value);

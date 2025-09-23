@@ -44,7 +44,7 @@ import {
 import { BsFillLightbulbFill } from 'react-icons/bs';
 import {
   calMenuStyle,
-  columnWidths,
+  ColumnWidth,
   ContextMenuContext,
   handleCopyToClipboard,
   hexToString,
@@ -54,8 +54,8 @@ import {
   SettingContext,
   stringToHex,
   validJson,
-  savePageSize,
   gridStyle,
+  SavePageSize,
 } from './helper.ts';
 
 import {
@@ -134,12 +134,7 @@ function RedisAddList(props: {
         <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
 
         <Stack direction="row" spacing={1}>
-          <Button
-            loading={loading}
-            color="primary"
-            variant="contained"
-            onClick={handleAdd}
-          >
+          <Button loading={loading} color="primary" onClick={handleAdd}>
             push
           </Button>
         </Stack>
@@ -212,7 +207,6 @@ function RedisStringTable(props: {
         <Button
           loading={loading}
           color="primary"
-          variant="contained"
           onClick={() => {
             handleModify();
           }}
@@ -258,12 +252,7 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
         <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
 
         <Stack direction="row" spacing={1}>
-          <Button
-            color="primary"
-            variant="contained"
-            loading={loading}
-            onClick={handleAdd}
-          >
+          <Button color="primary" loading={loading} onClick={handleAdd}>
             add
           </Button>
         </Stack>
@@ -318,12 +307,7 @@ function RedisAddHash(props: {
         </div>
 
         <Stack direction="row" spacing={1}>
-          <Button
-            loading={loading}
-            color="primary"
-            variant="contained"
-            onClick={handleAdd}
-          >
+          <Button loading={loading} color="primary" onClick={handleAdd}>
             Add
           </Button>
         </Stack>
@@ -365,16 +349,10 @@ function RedisAddZset(props: {
       <Stack spacing={1} flex={1}>
         <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
         <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
-          <Button
-            loading={loading}
-            color="primary"
-            variant="contained"
-            onClick={handleAdd}
-          >
+          <Button loading={loading} color="primary" onClick={handleAdd}>
             Add
           </Button>
           <TextField
-            size="small"
             value={score}
             label="score"
             error={score ? isNaN(parseFloat(score)) : false}
@@ -391,7 +369,6 @@ function RedisAddZset(props: {
                         setScore('');
                       }}
                       edge="end"
-                      size="small"
                     >
                       <ClearIcon fontSize="small" />
                     </IconButton>
@@ -457,12 +434,7 @@ function RedisEditHash(props: {
       </div>
 
       <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleModify}
-        >
+        <Button loading={loading} color="primary" onClick={handleModify}>
           modify
         </Button>
       </Stack>
@@ -503,16 +475,10 @@ function RedisEditZset(props: {
     <Stack spacing={1} flex={1}>
       <RedisValueEditor value={oldKey} valueRef={newKey}></RedisValueEditor>
       <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleModify}
-        >
+        <Button loading={loading} color="primary" onClick={handleModify}>
           modify
         </Button>
         <TextField
-          size="small"
           value={newValue}
           label="score"
           error={newValue ? isNaN(parseFloat(newValue)) : false}
@@ -529,7 +495,6 @@ function RedisEditZset(props: {
                       setNewValue('');
                     }}
                     edge="end"
-                    size="small"
                   >
                     <ClearIcon fontSize="small" />
                   </IconButton>
@@ -559,7 +524,6 @@ function RedisEditModeSelect(props: {
               onClick={() => {
                 handleChange(e);
               }}
-              size="small"
               color={mode == e ? 'primary' : 'default'}
             ></Chip>
           );
@@ -663,7 +627,6 @@ function RedisValueEditor(props: {
               onClick={() => {
                 openUrl('https://hexed.it/');
               }}
-              size="small"
             ></Chip>
           </>
         )}
@@ -736,12 +699,7 @@ function RedisEditList(props: {
     <Stack spacing={1} flex={1}>
       <RedisValueEditor value={oldValue} valueRef={newValue}></RedisValueEditor>
       <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleModify}
-        >
+        <Button loading={loading} color="primary" onClick={handleModify}>
           modify
         </Button>
       </Stack>
@@ -778,12 +736,7 @@ function RedisEditSet(props: {
     <Stack spacing={1} flex={1}>
       <RedisValueEditor value={oldValue} valueRef={newValue}></RedisValueEditor>
       <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="primary"
-          variant="contained"
-          onClick={handleModify}
-        >
+        <Button loading={loading} color="primary" onClick={handleModify}>
           modify
         </Button>
       </Stack>
@@ -934,7 +887,6 @@ function RedisSetTable(props: {
           style={{ alignItems: 'center', width: '50%' }}
         >
           <TextField
-            size="small"
             label="key match could be *key,key*,*key*"
             variant="outlined"
             value={keyMatch}
@@ -951,7 +903,6 @@ function RedisSetTable(props: {
                         setKeyMatch('');
                       }}
                       edge="end"
-                      size="small"
                     >
                       <ClearIcon fontSize="small" />
                     </IconButton>
@@ -961,7 +912,6 @@ function RedisSetTable(props: {
             }}
           />
           <Button
-            variant="contained"
             color="primary"
             onClick={() => {
               handleReload(true);
@@ -1093,7 +1043,6 @@ function RedisListTableContextMenu(props: {
             <ModalHeader title="Delete Redis List"></ModalHeader>
             <Stack spacing={1}>
               <TextField
-                size="small"
                 value={count}
                 label="delete count"
                 onChange={(e) => {
@@ -1140,7 +1089,7 @@ function RedisListTable(props: {
   );
   const [selectRow, setSelectRow] = useState<any>(null);
   const { showNotification } = useContext(NotificationContext);
-  const [pageSize, setPageSize] = useState(savePageSize.get());
+  const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const setting = useContext(SettingContext);
@@ -1151,7 +1100,7 @@ function RedisListTable(props: {
         resp.data.forEach((e) => {
           e.id = uuidV4();
         });
-        const seqWidth = columnWidths.getWidth('seq');
+        const seqWidth = ColumnWidth.instance.get('seq');
         if (seqWidth) {
           resp.fields[0]['width'] = seqWidth;
         }
@@ -1196,7 +1145,7 @@ function RedisListTable(props: {
       setPage(e.page);
       setPageSize(e.pageSize);
       if (reason.reason == 'setPaginationModel') {
-        savePageSize.save(pageSize);
+        SavePageSize.instance.save(pageSize);
       }
     },
     []
@@ -1274,7 +1223,7 @@ function RedisListTable(props: {
   }, [modalBox]);
   const onColumnResize = useCallback(({ colDef, width }) => {
     if (colDef.field == 'seq') {
-      columnWidths.saveColumnWidths(colDef.field, width);
+      ColumnWidth.instance.save(colDef.field, width);
     }
   }, []);
   return (
@@ -1285,7 +1234,6 @@ function RedisListTable(props: {
       >
         <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
           <Button
-            variant="contained"
             color="primary"
             onClick={() => {
               handleReload(true);
@@ -1445,7 +1393,7 @@ function RedisZsetTable(props: {
           e.id = uuidV4();
         });
         resp.fields[1]['flex'] = 1;
-        const scoreWidth = columnWidths.getWidth('score');
+        const scoreWidth = ColumnWidth.instance.get('score');
 
         if (scoreWidth) {
           resp.fields[0]['width'] = scoreWidth;
@@ -1531,14 +1479,13 @@ function RedisZsetTable(props: {
   }, [modalBox]);
   const onColumnResize = useCallback(({ colDef, width }) => {
     if (colDef.field == 'score') {
-      columnWidths.saveColumnWidths(colDef.field, width);
+      ColumnWidth.instance.save(colDef.field, width);
     }
   }, []);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <TextField
-          size="small"
           label="key match could be *key,key*,*key*"
           variant="outlined"
           value={keyMatch}
@@ -1554,7 +1501,6 @@ function RedisZsetTable(props: {
                       setKeyMatch('');
                     }}
                     edge="end"
-                    size="small"
                   >
                     <ClearIcon fontSize="small" />
                   </IconButton>
@@ -1565,7 +1511,6 @@ function RedisZsetTable(props: {
           style={{ flex: 1 }}
         />
         <TextField
-          size="small"
           label="minimum value(float64)"
           variant="outlined"
           value={min}
@@ -1587,7 +1532,6 @@ function RedisZsetTable(props: {
                       setMin('');
                     }}
                     edge="end"
-                    size="small"
                   >
                     <ClearIcon fontSize="small" />
                   </IconButton>
@@ -1598,7 +1542,6 @@ function RedisZsetTable(props: {
           style={{ flex: 0.5 }}
         />
         <TextField
-          size="small"
           label="maximum value(float64)"
           variant="outlined"
           value={max}
@@ -1620,7 +1563,6 @@ function RedisZsetTable(props: {
                       setMax('');
                     }}
                     edge="end"
-                    size="small"
                   >
                     <ClearIcon fontSize="small" />
                   </IconButton>
@@ -1631,7 +1573,6 @@ function RedisZsetTable(props: {
           style={{ flex: 0.5 }}
         />
         <Button
-          variant="contained"
           color="primary"
           onClick={() => {
             handleReload(true);
@@ -1789,7 +1730,7 @@ function RedisHashTable(props: {
         resp.data.forEach((e) => {
           e.id = uuidV4();
         });
-        const keyWidth = columnWidths.getWidth('key');
+        const keyWidth = ColumnWidth.instance.get('key');
         resp.fields[0]['width'] = keyWidth;
         resp.fields[1]['flex'] = 1;
         resp.fields[0]['valueGetter'] = valueGetter;
@@ -1871,7 +1812,7 @@ function RedisHashTable(props: {
   }, [modalBox]);
   const onColumnResize = useCallback(({ colDef, width }) => {
     if (colDef.field == 'key') {
-      columnWidths.saveColumnWidths(colDef.field, width);
+      ColumnWidth.instance.save(colDef.field, width);
     }
   }, []);
   return (
@@ -1888,7 +1829,6 @@ function RedisHashTable(props: {
           style={{ width: '55%', alignItems: 'center' }}
         >
           <TextField
-            size="small"
             label="key match could be *key,key*,*key*"
             variant="outlined"
             value={keyMatch}
@@ -1904,7 +1844,6 @@ function RedisHashTable(props: {
                         setKeyMatch('');
                       }}
                       edge="end"
-                      size="small"
                     >
                       <ClearIcon fontSize="small" />
                     </IconButton>
@@ -1915,7 +1854,6 @@ function RedisHashTable(props: {
             style={{ flex: 1 }}
           />
           <Button
-            variant="contained"
             color="primary"
             onClick={() => {
               handleReload(true);

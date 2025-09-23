@@ -51,7 +51,7 @@ import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import { FaArrowsAltV } from 'react-icons/fa';
 import {
   calMenuStyle,
-  columnWidths,
+  ColumnWidth,
   ContextMenuContext,
   DataSourceKind,
   generateRandomString,
@@ -66,7 +66,8 @@ import {
   TabContent,
   TabsSetContext,
   validJson,
-  savePageSize,
+  SavePageSize,
+  textEllipsisStyle,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
@@ -210,7 +211,6 @@ function WhereSort(props: {
 
         <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
           <Button
-            variant="contained"
             onClick={() => {
               setValue(newValue);
               handleClose();
@@ -229,7 +229,12 @@ function WhereSort(props: {
             </Button>
           )}
           {label == 'filter' && newValue && (
-            <Typography color="success">
+            <Typography
+              color="success"
+              style={{
+                ...textEllipsisStyle,
+              }}
+            >
               {`select * from ${tableName} where ${newValue}`}
             </Typography>
           )}
@@ -283,7 +288,6 @@ function EditInModal(props: { content: string; handleModify }) {
             key={e.language}
             label={e.language}
             color={language == e.language ? 'primary' : 'default'}
-            size="small"
             onClick={() => {
               setLanguage(e.language);
               EditInModalLanguage = e.language;
@@ -322,7 +326,6 @@ function EditInModal(props: { content: string; handleModify }) {
           onClick={() => {
             handleModify(value);
           }}
-          variant="contained"
         >
           modify
         </Button>
@@ -382,7 +385,7 @@ function SqlTableView_(props: {
   const [page, setPage] = useState(0);
   const setting = useContext(SettingContext);
 
-  const [pageSize, setPageSize] = useState(savePageSize.get());
+  const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
   const [resp, setResp] = useState<types.MuiDataGridData>({
     sql: '',
     fields: [],
@@ -457,7 +460,7 @@ function SqlTableView_(props: {
       );
       await handleResp(resp);
       resp.fields.forEach((field) => {
-        const width = columnWidths.getWidth(field.field);
+        const width = ColumnWidth.instance.get(field.field);
         if (width) {
           field['width'] = width;
         }
@@ -564,7 +567,7 @@ function SqlTableView_(props: {
       setPage(e.page);
       setPageSize(e.pageSize);
       if (reason.reason == 'setPaginationModel') {
-        savePageSize.save(pageSize);
+        SavePageSize.instance.save(pageSize);
       }
     },
     []
@@ -591,7 +594,7 @@ function SqlTableView_(props: {
   }, []);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
-    columnWidths.saveColumnWidths(colDef.field, width);
+    ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
   const slotProps = useMemo(() => {
@@ -722,7 +725,6 @@ function SqlTableView_(props: {
       >
         <Button
           loading={loading}
-          variant="contained"
           color="primary"
           onClick={() => {
             handleReload(true);
@@ -730,7 +732,6 @@ function SqlTableView_(props: {
         >
           reload
         </Button>
-        {/* <Typography color="info"> select * from {tableName} where </Typography> */}
 
         <Tooltip title="filter something like 'age=18'">
           <Chip
@@ -738,6 +739,7 @@ function SqlTableView_(props: {
             onClick={() => {
               setShowSetWhere(true);
             }}
+            size="medium"
             color="primary"
             icon={<FilterAltIcon />}
           ></Chip>
@@ -749,6 +751,7 @@ function SqlTableView_(props: {
             onClick={() => {
               setShowSetSort(true);
             }}
+            size="medium"
             color="secondary"
             variant="outlined"
             icon={<FaArrowsAltV />}
@@ -759,7 +762,6 @@ function SqlTableView_(props: {
             <FormControlLabel
               control={
                 <Switch
-                  size="small"
                   checked={allowFiltering}
                   onChange={(e) => setAllowFiltering(e.target.checked)}
                 />
@@ -813,11 +815,7 @@ function SqlTableView_(props: {
             fontSize: '0.9rem',
             fontStyle: 'italic',
             color: 'success.main',
-            width: '100px',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            flex: 1,
+            ...textEllipsisStyle,
           }}
           variant="body1"
           onClick={() => {
@@ -1094,7 +1092,6 @@ function SqlTableViewData(props: {
                   inputDoms.current[f.field] = x;
                 }}
                 disabled={f.is_auto_increment}
-                size="small"
                 value={args[f.field]}
                 helperText={
                   f.data_type +
@@ -1122,12 +1119,11 @@ function SqlTableViewData(props: {
         })}
       <Divider />
       <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
-        <Button loading={loading} variant="contained" onClick={handleModify}>
+        <Button loading={loading} onClick={handleModify}>
           {buttonName}
         </Button>
 
         <TextField
-          size="small"
           value={filter}
           onChange={(e) => {
             setFilter(e.target.value);
@@ -1144,7 +1140,6 @@ function SqlTableViewData(props: {
                       setFilter('');
                     }}
                     edge="end"
-                    size="small"
                   >
                     <ClearIcon fontSize="small" />
                   </IconButton>
@@ -1444,7 +1439,6 @@ function FilterOnValue(props: {
             }}
             label={x}
             color={compare == x ? 'primary' : 'default'}
-            size="small"
             style={{ minWidth: '3rem' }}
           ></Chip>
         ))}
@@ -1458,7 +1452,6 @@ function FilterOnValue(props: {
               setCompare(e);
             }}
             key={e}
-            size="small"
           />
         ))}
       </Stack>
@@ -1472,7 +1465,6 @@ function FilterOnValue(props: {
                 setCompare(e);
               }}
               key={e}
-              size="small"
             />
           ))}
         </Stack>
@@ -1481,7 +1473,6 @@ function FilterOnValue(props: {
       <Divider />
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <Button
-          variant="contained"
           onClick={() => {
             setWhere(where());
             handleClose();
@@ -1489,14 +1480,7 @@ function FilterOnValue(props: {
         >
           set
         </Button>
-        <Typography
-          color="success"
-          style={{
-            whiteSpace: 'nowrap',
-            textOverflow: 'ellipsis',
-            overflow: 'hidden',
-          }}
-        >
+        <Typography color="success" style={textEllipsisStyle}>
           <em> {where()} </em>
         </Typography>
       </Stack>

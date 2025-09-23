@@ -28,7 +28,7 @@ use crate::oracle_lang_server::ORACLE_TYPES;
 
 #[derive(Clone)]
 pub struct OracleDB {
-    pool: Pool,
+    pool: Arc<Pool>,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
     pub(crate) config: OracleDBConfig,
     pub(crate) key_word_completion: Arc<Mutex<Vec<CompletionItem>>>,
@@ -74,7 +74,7 @@ impl OracleDB {
             .max_connections(POOL_MAX_CONNECTIONS);
         let pool = builder.build()?;
         anyhow::Ok(Self {
-            pool,
+            pool: Arc::new(pool),
             query_connections: Default::default(),
             config,
             key_word_completion: Default::default(),

@@ -6,6 +6,7 @@ import './style/react-split-pane.css';
 import {
   Box,
   Chip,
+  CircularProgress,
   IconButton,
   Modal,
   Stack,
@@ -39,7 +40,7 @@ import { FaBookmark } from 'react-icons/fa';
 import { FaUpload } from 'react-icons/fa';
 import { MdOutlineReply } from 'react-icons/md';
 import { NotificationContext } from './Notification.tsx';
-import { QueryLog } from './QueryLog.tsx';
+import { QueryLog, QueryLogKind } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import {
   DataSourceKind,
@@ -68,7 +69,6 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   const handleQueryCommit = async () => {
     try {
       let c = await conn.getAutoCommit();
-      console.log('commit:', c);
       setCommit(c);
     } catch (e) {
       showNotification('error', 'get commit modal failed', e);
@@ -140,7 +140,6 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
         <Chip
           onClick={reverseCommitMode}
           label={`${commit ? 'auto' : 'manual'}-commit`}
-          size="small"
           color={commit ? 'info' : 'success'}
           variant="outlined"
         ></Chip>
@@ -149,7 +148,7 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
       {!commit && (
         <>
           <Tooltip title="executes after begin transaction">
-            <Chip label={txCount} size="small" color="info"></Chip>
+            <Chip label={txCount} color="info"></Chip>
           </Tooltip>
 
           <Tooltip title="commit">
@@ -267,7 +266,6 @@ function SqlQuery(props: {
         });
     }
   };
-
   const warnDangerousSql = async (text): Promise<boolean> => {
     try {
       if (await conn.isDangerSql(text)) {
@@ -488,6 +486,9 @@ function SqlQuery(props: {
           setShowQueryLog={setShowQueryLog}
           uuid={uuid}
           executeTimes={executeTimes}
+          kind={
+            kind == DataSourceKind.Redis ? QueryLogKind.Redis : QueryLogKind.Sql
+          }
         ></QueryLog>
 
         <Stack
@@ -495,55 +496,59 @@ function SqlQuery(props: {
           spacing={1}
           sx={{ alignItems: 'center', flexWrap: 'wrap' }}
         >
-          <Tooltip title="execute">
-            <IconButton
-              loading={loading}
-              disabled={loading || conn == null}
-              onClick={() => {
-                handleQuery(false);
-              }}
-              color="primary"
-            >
-              <PlayArrowIcon />
-            </IconButton>
-          </Tooltip>
+          {conn && (
+            <>
+              <Tooltip title="query">
+                <IconButton
+                  loading={loading}
+                  disabled={loading || conn == null}
+                  onClick={() => {
+                    handleQuery(false);
+                  }}
+                  color="primary"
+                >
+                  <PlayArrowIcon />
+                </IconButton>
+              </Tooltip>
 
-          <Tooltip title="execute and append result to tabs">
-            <IconButton
-              loading={loading}
-              disabled={loading || conn == null}
-              onClick={() => {
-                handleQuery(true);
-              }}
-              color="primary"
-            >
-              <FastForwardIcon />
-            </IconButton>
-          </Tooltip>
+              <Tooltip title="query and append result to results tabs">
+                <IconButton
+                  loading={loading}
+                  disabled={loading || conn == null}
+                  onClick={() => {
+                    handleQuery(true);
+                  }}
+                  color="primary"
+                >
+                  <FastForwardIcon />
+                </IconButton>
+              </Tooltip>
 
-          <Tooltip title="execute sql not expecting result">
-            <IconButton
-              loading={loading}
-              disabled={loading || conn == null}
-              onClick={handleExecute}
-              color="primary"
-            >
-              <FaExclamation />
-            </IconButton>
-          </Tooltip>
-          {supportExplain && (
-            <Tooltip title="explain sql">
-              <IconButton
-                loading={loading}
-                disabled={loading || conn == null}
-                onClick={() => {
-                  handleQuery(false, true);
-                }}
-                color="primary"
-              >
-                <BsFillLightbulbFill />
-              </IconButton>
-            </Tooltip>
+              <Tooltip title="execute sql not expecting result">
+                <IconButton
+                  loading={loading}
+                  disabled={loading || conn == null}
+                  onClick={handleExecute}
+                  color="primary"
+                >
+                  <FaExclamation />
+                </IconButton>
+              </Tooltip>
+              {supportExplain && (
+                <Tooltip title="explain sql">
+                  <IconButton
+                    loading={loading}
+                    disabled={loading || conn == null}
+                    onClick={() => {
+                      handleQuery(false, true);
+                    }}
+                    color="primary"
+                  >
+                    <BsFillLightbulbFill />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </>
           )}
 
           {conn && conn.supportTransaction() && (
@@ -565,23 +570,25 @@ function SqlQuery(props: {
               <RefreshIcon color={showSuggestReconnect ? 'error' : 'inherit'} />
             </IconButton>
           </Tooltip>
+          {conn && (
+            <Tooltip title="export query result to a file,implemented it not using query connection,uncommit row may not be found">
+              <IconButton
+                loading={loading}
+                disabled={loading || conn == null}
+                onClick={() => {
+                  const value = getEditorText(editor.current, showNotification);
+                  if (!value) {
+                    return;
+                  }
+                  setShowExport(true);
+                }}
+                color="primary"
+              >
+                <ArrowCircleDownRoundedIcon />
+              </IconButton>
+            </Tooltip>
+          )}
 
-          <Tooltip title="export query result to a file,implemented it not using query connection,uncommit row may not be found">
-            <IconButton
-              loading={loading}
-              disabled={loading || conn == null}
-              onClick={() => {
-                const value = getEditorText(editor.current, showNotification);
-                if (!value) {
-                  return;
-                }
-                setShowExport(true);
-              }}
-              color="primary"
-            >
-              <ArrowCircleDownRoundedIcon />
-            </IconButton>
-          </Tooltip>
           <Tooltip
             title={
               !favoriteName
@@ -623,7 +630,6 @@ function SqlQuery(props: {
                 setShowQueryLog((prev) => !prev);
               }}
               color="primary"
-              disabled={conn == null}
             >
               <EventNoteIcon></EventNoteIcon>
             </IconButton>
@@ -631,6 +637,7 @@ function SqlQuery(props: {
           {buttons}
 
           <ExecutingTime loading={loading} disableTime></ExecutingTime>
+          {!conn && <CircularProgress></CircularProgress>}
         </Stack>
         <div
           style={{
@@ -717,7 +724,6 @@ function SqlQuery(props: {
                   onChange={(e) => {
                     setFavoriteName(e.target.value);
                   }}
-                  size="small"
                   required
                 ></TextField>
                 <Stack direction="row">

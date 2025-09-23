@@ -142,7 +142,6 @@ function TabsWithContent_(props: {
                     }}
                     style={{ padding: '0px', maxWidth: '14rem' }}
                     icon={tab.icon}
-                    size="small"
                     variant={index == selectIndex ? 'filled' : 'outlined'}
                     color={index == selectIndex ? 'primary' : 'default'}
                     onContextMenu={(e) => {

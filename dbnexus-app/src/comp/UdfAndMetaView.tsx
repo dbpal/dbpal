@@ -83,7 +83,6 @@ function DefAndMetasView(props: {
         {showReload && (
           <Button
             loading={loading}
-            variant="contained"
             color="primary"
             onClick={() => {
               handleReload(true);
@@ -102,7 +101,6 @@ function DefAndMetasView(props: {
             onClick={() => {
               handleExecute();
             }}
-            variant="contained"
           >
             execute!
           </Button>

@@ -25,8 +25,8 @@ import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
 import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
-import { appStore, AppStoreKey, extractBaseName, msgTimeout } from './Common';
-import { DataSourceKind } from './helper';
+import { AppStoreKey, extractBaseName, msgTimeout } from './Common';
+import { appStore, DataSourceKind } from './helper';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 async function selectOneFile() {
@@ -41,7 +41,6 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
   return (
     <Stack direction="row">
       <TextField
-        size="small"
         fullWidth
         label="Host"
         value={host}
@@ -57,7 +56,6 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
                     setHost('');
                   }}
                   edge="end"
-                  size="small"
                 >
                   <ClearIcon fontSize="small" />
                 </IconButton>
@@ -67,7 +65,6 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
         }}
       />
       <TextField
-        size="small"
         fullWidth
         label="port"
         onBlur={onBlur}
@@ -118,7 +115,6 @@ function UserAndPassword(props: {
   return (
     <Stack direction="row">
       <TextField
-        size="small"
         fullWidth
         label="User"
         value={user}
@@ -134,7 +130,6 @@ function UserAndPassword(props: {
                     setUser('');
                   }}
                   edge="end"
-                  size="small"
                 >
                   <ClearIcon fontSize="small" />
                 </IconButton>
@@ -144,7 +139,6 @@ function UserAndPassword(props: {
         }}
       />
       <TextField
-        size="small"
         fullWidth
         label="Password"
         onBlur={onBlur}
@@ -160,7 +154,6 @@ function UserAndPassword(props: {
                     setPasswordVisible(true);
                   }}
                   edge="end"
-                  size="small"
                 >
                   <VisibilityIcon fontSize="small" />
                 </IconButton>
@@ -234,7 +227,6 @@ function TrustCert(props: { trustCert; setTrustCert }) {
       />
       <Chip
         label="?"
-        size="small"
         onClick={() => {
           openUrl(
             'https://docs.rs/tiberius/0.12.3/tiberius/struct.Config.html#method.trust_cert'
@@ -296,7 +288,6 @@ function EnableSSlCert(props: {
               label={
                 'CA Cert(optional):' + (sslCa ? extractBaseName(sslCa) : '')
               }
-              size="small"
               variant="outlined"
             ></Chip>
           </Tooltip>
@@ -313,7 +304,6 @@ function EnableSSlCert(props: {
                 'Certificate(optional):' +
                 (sslCert ? extractBaseName(sslCert) : '')
               }
-              size="small"
             ></Chip>
           </Tooltip>
           <Tooltip title={sslKey}>
@@ -325,7 +315,6 @@ function EnableSSlCert(props: {
                   setSslKey(file);
                 }
               }}
-              size="small"
               label={
                 'Key File(optional):' + (sslKey ? extractBaseName(sslKey) : '')
               }
@@ -372,7 +361,6 @@ function Database(props: {
       <Stack direction="row">
         <TextField
           fullWidth
-          size="small"
           label={label}
           value={database}
           onBlur={onBlur}
@@ -386,7 +374,6 @@ function Database(props: {
                       setDatabase('');
                     }}
                     edge="end"
-                    size="small"
                   >
                     <ClearIcon fontSize="small" />
                   </IconButton>
@@ -425,7 +412,6 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
       )}
       <Stack direction="row">
         <TextField
-          size="small"
           label="schema"
           value={schema}
           onChange={(e) => setSchema(e.target.value)}
@@ -438,7 +424,6 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
                       setSchema('');
                     }}
                     edge="end"
-                    size="small"
                   >
                     <ClearIcon fontSize="small" />
                   </IconButton>
@@ -898,7 +883,6 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
       <FormControl fullWidth>
         <InputLabel>Connection Type</InputLabel>
         <Select
-          size="small"
           value={connectionType}
           label="Connection Type"
           onChange={(e) => setConnectionType(e.target.value as DataSourceKind)}
@@ -1243,7 +1227,6 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
 
       <Stack direction="row" style={{ alignItems: 'flex-start' }} spacing={2}>
         <TextField
-          size="small"
           label="Connection Name"
           value={connectionName}
           inputRef={connectionNameDom}
@@ -1258,7 +1241,6 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
                       setConnectionName('');
                     }}
                     edge="end"
-                    size="small"
                   >
                     <ClearIcon fontSize="small" />
                   </IconButton>
@@ -1270,7 +1252,6 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         />
 
         <TextField
-          size="small"
           label="connection timeout"
           value={connTimeout}
           style={{ flex: 1 }}
@@ -1284,7 +1265,6 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
                       setConnTimeout('');
                     }}
                     edge="end"
-                    size="small"
                   >
                     <ClearIcon fontSize="small" />
                   </IconButton>
@@ -1299,7 +1279,6 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           style={{ width: '180px' }}
           control={
             <Switch
-              size="small"
               checked={readOnly}
               onChange={(e) => setReadOnly(e.target.checked)}
             />
@@ -1310,7 +1289,6 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
       <Divider />
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <Button
-          variant="contained"
           color="primary"
           onClick={() => {
             handleSaveConnection();
@@ -1384,7 +1362,6 @@ function LibSql(props: {
                 setUrl(e.target.value);
               }}
               fullWidth
-              size="small"
               slotProps={{
                 input: {
                   endAdornment: url && (
@@ -1394,7 +1371,6 @@ function LibSql(props: {
                           setUrl('');
                         }}
                         edge="end"
-                        size="small"
                       >
                         <ClearIcon fontSize="small" />
                       </IconButton>
@@ -1406,7 +1382,6 @@ function LibSql(props: {
             <TextField
               fullWidth
               value={authToken}
-              size="small"
               label="auth token "
               onChange={(e) => {
                 setAuthToken(e.target.value);
@@ -1420,7 +1395,6 @@ function LibSql(props: {
                           setAuthToken('');
                         }}
                         edge="end"
-                        size="small"
                       >
                         <ClearIcon fontSize="small" />
                       </IconButton>

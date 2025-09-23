@@ -18,12 +18,12 @@ import { v4 as uuidV4 } from 'uuid';
 import {
   calMenuStyle,
   handleCopyToClipboard,
-  columnWidths,
   ContextMenuContext,
   resetMuiDataRespWidth,
   SettingContext,
   gridStyle,
   saveAndSetSize,
+  ColumnWidth,
 } from './helper.ts';
 import {
   DataGrid,
@@ -135,7 +135,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
       e[keyNotInTable] = uuidV4();
     });
     oldData.fields.forEach((field) => {
-      const width = columnWidths.getWidth(field.field);
+      const width = ColumnWidth.instance.get(field.field);
       if (width) {
         field['width'] = width;
       }
@@ -153,7 +153,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
   const [viewInModal, setViewInModal] = useState<object>(null);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
-    columnWidths.saveColumnWidths(colDef.field, width);
+    ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);

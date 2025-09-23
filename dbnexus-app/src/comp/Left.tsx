@@ -28,8 +28,6 @@ import {
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { GrConnect } from 'react-icons/gr';
 import {
-  progressBarSizeSmall,
-  appStore,
   AppStoreKey,
   OpenedContext,
   modalStyle,
@@ -55,8 +53,9 @@ import { TabContent } from './Tabs';
 import wcmatch from 'wildcard-match';
 
 import {
+  appStore,
   calMenuStyle,
-  columnWidths,
+  ColumnWidth,
   ConnTypeContext,
   connTypeToDataSourceKind,
   ContextMenuContext,
@@ -68,6 +67,8 @@ import {
   handleCopyToClipboard,
   makeGetParserErr,
   MatchPatternContext,
+  SaveLeftTopShow,
+  SaveMatchPattern,
   secondConfirm,
   SettingContext,
   TabsSetContext,
@@ -122,7 +123,11 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   const [showAddConnection, setShowAddConnection] = useState(false);
   const [copyConn, setCopyConn] = useState<types.DBConnectionConfig>(null);
   const [showCopyConn, setShowCopyConn] = useState(false);
-  const [show, setShow] = useState(false);
+  const [show, setShow] = useState(SaveLeftTopShow.instance.get());
+  useEffect(() => {
+    SaveLeftTopShow.instance.save(show);
+  }, [show]);
+
   useEffect(() => {
     let unlisten = listen('add_config', () => {
       setShowAddConnection(true);
@@ -232,7 +237,6 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
             <Chip
               key={index}
               label={e}
-              size="small"
               color="success"
               onDelete={() => {
                 setMatchPattern((arr) =>
@@ -246,7 +250,6 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
           <TextField
             fullWidth
             value={matchPatterInput}
-            size="small"
             label="match pattern"
             onChange={(e) => {
               setMatchPatternInput(e.target.value.trim());
@@ -260,7 +263,6 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
                         setMatchPatternInput('');
                       }}
                       edge="end"
-                      size="small"
                     >
                       <ClearIcon fontSize="small" />
                     </IconButton>
@@ -281,6 +283,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
               }
               setMatchPattern((e) => [...e, matchPatterInput]);
             }}
+            variant="outlined"
           >
             apply
           </Button>
@@ -337,7 +340,6 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
             if (reason === 'backdropClick') {
               return;
             }
-
             e.preventDefault();
             setCopyConn(null);
           }}
@@ -467,7 +469,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
       },
     ] as GridColDef[];
     cols.forEach((e) => {
-      const width = columnWidths.getWidth(e.field);
+      const width = ColumnWidth.instance.get(e.field);
       if (width) {
         e.width = width;
       }
@@ -476,7 +478,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   }, []);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
-    columnWidths.saveColumnWidths(colDef.field, width);
+    ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
   const onRowDoubleClick = useCallback((row) => {
@@ -539,7 +541,13 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
 function Left_() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const [matchPattern, setMatchPattern] = useState<string[]>([]);
+  const [matchPattern, setMatchPattern] = useState<string[]>(
+    SaveMatchPattern.instance.get()
+  );
+  useEffect(() => {
+    SaveMatchPattern.instance.save(matchPattern);
+  }, [matchPattern]);
+
   const handleReload = async () => {
     appStore
       .get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig)
@@ -808,7 +816,7 @@ function FavoriteSqlList(props: { handleClose }) {
       { field: 'lastModified' },
     ] as GridColDef[];
     cols.forEach((e) => {
-      let width = columnWidths.getWidth(e.field);
+      let width = ColumnWidth.instance.get(e.field);
       if (width) {
         e.width = width;
       }
@@ -816,7 +824,7 @@ function FavoriteSqlList(props: { handleClose }) {
     return cols;
   }, []);
   const onColumnResize = useCallback(({ colDef, width }) => {
-    columnWidths.saveColumnWidths(colDef.field, width);
+    ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
   const onRowDoubleClick = useCallback((row) => {
@@ -839,7 +847,6 @@ function FavoriteSqlList(props: { handleClose }) {
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <Button
-          variant="contained"
           onClick={() => {
             handleReload(true);
           }}
@@ -1031,7 +1038,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
         {schema && <LuDatabase></LuDatabase>}
         <span> {schema ? schema : uuid}</span>
         {!schema && opened && <ConnPingTime uuid={uuid}></ConnPingTime>}
-        {loading && <CircularProgress size={progressBarSizeSmall} />}
+        {loading && <CircularProgress />}
       </Stack>
     >
       {opened && kind == DataSourceKind.Sqlite && (
@@ -1561,7 +1568,7 @@ function CatalogTree(_props: {}) {
         }}
       >
         <span>{name} </span>
-        {loading && <CircularProgress size={progressBarSizeSmall} />}
+        {loading && <CircularProgress />}
         {opened && <ConnPingTime uuid={name}></ConnPingTime>}
       </Stack>
       key={name}
@@ -1648,7 +1655,7 @@ function DatabaseTree(props: {
       >
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>
-        {loading && <CircularProgress size={progressBarSizeSmall} />}
+        {loading && <CircularProgress />}
         {!database && opened && <ConnPingTime uuid={name}></ConnPingTime>}
       </Stack>
       key={name + database}

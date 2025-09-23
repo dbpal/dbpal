@@ -7,18 +7,18 @@ use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
     LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
-use crate::mssql::MsSqlServerDB;
+use crate::mssql::SqlServerDB;
 use crate::sqlparser_completion::TempTableColumn;
 use futures_util::StreamExt;
 use std::ops::DerefMut;
 use tiberius::QueryItem;
 #[async_trait::async_trait]
-impl LexerCompletionTrait for MsSqlServerDB {
+impl LexerCompletionTrait for SqlServerDB {
     const TYPES: &'static [&'static str] = SQLSERVER_TYPES;
 }
 
 #[async_trait::async_trait]
-impl LanguageServer for MsSqlServerDB {
+impl LanguageServer for SqlServerDB {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -33,7 +33,7 @@ impl LanguageServer for MsSqlServerDB {
     }
 }
 
-impl MsSqlServerDB {
+impl SqlServerDB {
     fn schema_merge_config(&self, schema: Option<&str>) -> Option<String> {
         if schema.is_some() {
             return schema.map(|x| x.to_string());
@@ -49,7 +49,7 @@ impl MsSqlServerDB {
 }
 
 #[async_trait::async_trait]
-impl LangServerCommon for MsSqlServerDB {
+impl LangServerCommon for SqlServerDB {
     async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let sql = r#"
         SELECT 
@@ -298,7 +298,7 @@ impl LangServerCommon for MsSqlServerDB {
 }
 
 #[async_trait::async_trait]
-impl AstCompletionHelper for MsSqlServerDB {
+impl AstCompletionHelper for SqlServerDB {
     async fn list_constraint(
         &self, _schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {

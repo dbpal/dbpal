@@ -70,7 +70,6 @@ function CreateDatabase({ uuid, handleClose }) {
     <Stack spacing={1}>
       <Stack>
         <TextField
-          size="small"
           inputRef={databaseDom}
           value={database}
           onChange={(e) => {
@@ -157,7 +156,6 @@ function CreateSchema(props: {
         </RadioGroup>
         <TextField
           type="number"
-          size="small"
           value={replicationFactor}
           onChange={(e) => {
             setReplicationFactor(e.target.value);
@@ -165,7 +163,6 @@ function CreateSchema(props: {
           label="replication factor"
         ></TextField>
         <TextField
-          size="small"
           value={schema}
           onChange={(e) => {
             setSchema(e.target.value);
@@ -209,7 +206,6 @@ function CreateSchema(props: {
         </Stack>
         <Stack>
           <TextField
-            size="small"
             value={schema}
             onChange={(e) => {
               setSchema(e.target.value);
@@ -235,7 +231,6 @@ function CreateSchema(props: {
     <Stack spacing={1}>
       <Stack>
         <TextField
-          size="small"
           value={schema}
           onChange={(e) => {
             setSchema(e.target.value);
@@ -455,7 +450,6 @@ function ConnConfigInfo(props: { uuid }) {
     <Stack spacing={1}>
       <Stack direction="row">
         <Button
-          variant="contained"
           color="primary"
           onClick={() => {
             handleInfo(true);

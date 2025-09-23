@@ -17,7 +17,6 @@ function BackendCrash(props: { msg: string }) {
             openUrl('https://github.com/dbpal/docs/issues');
           }}
           color="info"
-          variant="contained"
         >
           report
         </Button>

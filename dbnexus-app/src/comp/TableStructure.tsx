@@ -15,7 +15,7 @@ import {
 } from './Common';
 import {
   calMenuStyle,
-  columnWidths,
+  ColumnWidth,
   ContextMenuContext,
   DataSourceKind,
   gridStyle,
@@ -96,7 +96,7 @@ function ColumnsStructure(props: {
   ]).has(kind);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
-    columnWidths.saveColumnWidths(colDef.field, width);
+    ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
   const handleDrop = async (col: string) => {
@@ -190,7 +190,7 @@ function ColumnsStructure(props: {
     ] as GridColDef[];
   }, []);
   cols.forEach((e) => {
-    const width = columnWidths.getWidth(e.field);
+    const width = ColumnWidth.instance.get(e.field);
     if (width) {
       e.width = width;
     }
@@ -284,7 +284,7 @@ function ColumnsStructure(props: {
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
-        <Button loading={loading} onClick={handleReload} variant="contained">
+        <Button loading={loading} onClick={handleReload}>
           reload
         </Button>
 
@@ -293,7 +293,6 @@ function ColumnsStructure(props: {
             onClick={() => {
               setShowAdd(true);
             }}
-            variant="contained"
           >
             <AddIcon></AddIcon>
           </Button>
@@ -429,7 +428,6 @@ function RenameIndex(props: {
   return (
     <Stack spacing={1}>
       <TextField
-        size="small"
         label="new name"
         value={newName}
         onChange={(e) => {
@@ -437,12 +435,7 @@ function RenameIndex(props: {
         }}
       ></TextField>
       <Stack direction="row" spacing={1}>
-        <Button
-          color="primary"
-          variant="contained"
-          loading={loading}
-          onClick={handleRename}
-        >
+        <Button color="primary" loading={loading} onClick={handleRename}>
           rename
         </Button>
       </Stack>
@@ -464,7 +457,7 @@ function IndexesStructure(props: {
   const [showAdd, setShowAdd] = useState(false);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
-    columnWidths.saveColumnWidths(colDef.field, width);
+    ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
   const handleReload = () => {
@@ -518,7 +511,7 @@ function IndexesStructure(props: {
     ] as GridColDef[];
   }, []);
   cols.forEach((e) => {
-    const width = columnWidths.getWidth(e.field);
+    const width = ColumnWidth.instance.get(e.field);
     if (width) {
       e.width = width;
     }
@@ -616,7 +609,7 @@ function IndexesStructure(props: {
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1}>
-        <Button loading={loading} onClick={handleReload} variant="contained">
+        <Button loading={loading} onClick={handleReload}>
           reload
         </Button>
 
@@ -624,7 +617,6 @@ function IndexesStructure(props: {
           onClick={() => {
             setShowAdd(true);
           }}
-          variant="contained"
         >
           <AddIcon></AddIcon>
         </Button>
@@ -782,7 +774,6 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
         }}
         inputRef={indexNameDom}
         label="index name"
-        size="small"
         required
       ></TextField>
 
@@ -903,7 +894,6 @@ function AddIndex(props: {
         }}
         inputRef={indexNameDom}
         label="index name"
-        size="small"
         required
         slotProps={{
           input: {
@@ -914,7 +904,6 @@ function AddIndex(props: {
                     setIndexName('');
                   }}
                   edge="end"
-                  size="small"
                 >
                   <ClearIcon fontSize="small" />
                 </IconButton>
@@ -931,7 +920,7 @@ function AddIndex(props: {
       {indexTypeJsx}
       <Divider />
       <Stack direction="row">
-        <Button onClick={handleAdd} variant="contained" color="primary">
+        <Button onClick={handleAdd} color="primary">
           create
         </Button>
       </Stack>
@@ -1000,7 +989,6 @@ function TableAddColumn(props: {
   return (
     <Stack spacing={1}>
       <TextField
-        size="small"
         value={name}
         required
         inputRef={nameDom}
@@ -1016,7 +1004,6 @@ function TableAddColumn(props: {
                     setName('');
                   }}
                   edge="end"
-                  size="small"
                 >
                   <ClearIcon fontSize="small" />
                 </IconButton>
@@ -1037,7 +1024,6 @@ function TableAddColumn(props: {
       <Stack direction="row" spacing={1}>
         <TextField
           fullWidth
-          size="small"
           value={typ}
           onChange={(e) => setTyp(e.target.value)}
           label="type"
@@ -1051,7 +1037,6 @@ function TableAddColumn(props: {
                       setTyp('');
                     }}
                     edge="end"
-                    size="small"
                   >
                     <ClearIcon fontSize="small" />
                   </IconButton>
@@ -1082,7 +1067,6 @@ function TableAddColumn(props: {
         <FormControl style={{ minWidth: '180px' }}>
           <InputLabel>Select After Column</InputLabel>
           <Select
-            size="small"
             value={after}
             onChange={(e) => {
               setAfter(e.target.value);
@@ -1101,12 +1085,7 @@ function TableAddColumn(props: {
 
       <Divider />
       <Stack direction="row">
-        <Button
-          loading={loading}
-          variant="contained"
-          color="primary"
-          onClick={handleAdd}
-        >
+        <Button loading={loading} color="primary" onClick={handleAdd}>
           add
         </Button>
       </Stack>
@@ -1141,7 +1120,6 @@ function SqlDefaultValue(props: {
           setDefaultValue(e.target.value);
         }}
         style={{ flex: 1 }}
-        size="small"
         slotProps={{
           input: {
             endAdornment: defaultValue && (
@@ -1151,7 +1129,6 @@ function SqlDefaultValue(props: {
                     setDefaultValue('');
                   }}
                   edge="end"
-                  size="small"
                 >
                   <ClearIcon fontSize="small" />
                 </IconButton>
@@ -1163,7 +1140,6 @@ function SqlDefaultValue(props: {
       <FormControl style={{ flex: 1 }}>
         <InputLabel>current values </InputLabel>
         <Select
-          size="small"
           value={defaultValue}
           label="font family"
           onChange={(e) => setDefaultValue(e.target.value as string)}
@@ -1235,7 +1211,6 @@ function ModifyTableColumn(props: {
   return (
     <Stack spacing={1}>
       <TextField
-        size="small"
         fullWidth
         label="New Name"
         value={newName}
@@ -1252,7 +1227,6 @@ function ModifyTableColumn(props: {
                     setNewName('');
                   }}
                   edge="end"
-                  size="small"
                 >
                   <ClearIcon fontSize="small" />
                 </IconButton>
@@ -1289,7 +1263,6 @@ function ModifyTableColumn(props: {
 
           <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
             <TextField
-              size="small"
               label="Type"
               value={newTyp}
               onChange={(e) => {
@@ -1306,7 +1279,6 @@ function ModifyTableColumn(props: {
                           setNewTyp('');
                         }}
                         edge="end"
-                        size="small"
                       >
                         <ClearIcon fontSize="small" />
                       </IconButton>
@@ -1325,12 +1297,7 @@ function ModifyTableColumn(props: {
         </Stack>
       )}
       <Stack direction="row" spacing={1}>
-        <Button
-          loading={loading}
-          color="error"
-          variant="contained"
-          onClick={handleModify}
-        >
+        <Button loading={loading} color="error" onClick={handleModify}>
           modify
         </Button>
       </Stack>
@@ -1359,7 +1326,6 @@ function TableTypes(props: { handleChange; uuid; type }) {
       style={{ flexWrap: 'wrap', alignItems: 'center' }}
     >
       <TextField
-        size="small"
         style={{ width: '16rem' }}
         label="type match"
         value={match}
@@ -1375,7 +1341,6 @@ function TableTypes(props: { handleChange; uuid; type }) {
                     setMatch('');
                   }}
                   edge="end"
-                  size="small"
                 >
                   <ClearIcon fontSize="small" />
                 </IconButton>
@@ -1391,7 +1356,6 @@ function TableTypes(props: { handleChange; uuid; type }) {
           onChange={(e) => {
             handleChange(e.target.value as string);
           }}
-          size="small"
         >
           {types
             .filter((type) => {
@@ -1471,7 +1435,7 @@ function TriggersStructure(props: {
   const { showNotification } = useContext(NotificationContext);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
-    columnWidths.saveColumnWidths(colDef.field, width);
+    ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
   const handleReload = () => {
@@ -1547,7 +1511,7 @@ function TriggersStructure(props: {
     ] as GridColDef[];
   }, []);
   cols.forEach((e) => {
-    const width = columnWidths.getWidth(e.field);
+    const width = ColumnWidth.instance.get(e.field);
     if (width) {
       e.width = width;
     }
@@ -1656,7 +1620,7 @@ function TriggersStructure(props: {
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
-        <Button loading={loading} onClick={handleReload} variant="contained">
+        <Button loading={loading} onClick={handleReload}>
           reload
         </Button>
         {triggers.length > 0 && (

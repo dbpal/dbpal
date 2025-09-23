@@ -125,8 +125,6 @@ interface DefAndMetas {
   def: string;
   metas?: types.MetaValue[];
 }
-const progressBarSize = '1.8rem';
-const progressBarSizeSmall = '1.2rem';
 
 const OpenedContext = createContext<{ opened: boolean; setOpened }>(null);
 
@@ -649,9 +647,6 @@ export {
   modalStyle,
   tabsHasId,
   msgTimeout,
-  progressBarSize,
-  progressBarSizeSmall,
-  appStore,
   OpenedContext,
   getNamedConfig,
   dropDatabase,

@@ -18,9 +18,11 @@ import {
   MongoDBQuery,
   BsonExtraDataType,
 } from './MongoQueryBackend';
+import EventNoteIcon from '@mui/icons-material/EventNote';
 import {
   DataSourceKind,
   generateRandomString,
+  QueryLogHandler,
   saveAndSetSize,
   SettingContext,
 } from './helper';
@@ -30,6 +32,7 @@ import { LogLevelSelection, ModalHeader } from './CommonComp';
 import * as esprima from 'esprima';
 import { FaBookmark } from 'react-icons/fa';
 import { EditorBar, LoadStoreFileForQuery } from './CommonComp2';
+import { QueryLog, QueryLogKind } from './QueryLog';
 initMongoQueryGlobals();
 
 function makeLog(level, ...msg: any[]): string {
@@ -62,13 +65,13 @@ function MongoQuery(props: {
   const { uuid, favoriteName: oldFavoriteName, saveFavoriteSql, value } = props;
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
   const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
-
+  const [showQueryLog, setShowQueryLog] = useState(false);
   const [err, setErr] = useState(null);
   const [loggerEditor, setLoggerEditor] = useState(null);
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
   const [loggerPos, setLoggerPos] = useState<Position>(null);
-
+  const [executeTimes, setExecuteTimes] = useState(0);
   const [logger, _setLogger] = useState(
     loglevel.getLogger(generateRandomString(10))
   );
@@ -110,8 +113,8 @@ function MongoQuery(props: {
   };
   const setting = useContext(SettingContext);
   const handleExecute = () => {
-    let text = editor.current.getValue();
-    if (!text.trim()) {
+    let code = editor.current.getValue();
+    if (!code.trim()) {
       showNotification('error', "can't execute empty statement");
       return;
     }
@@ -120,19 +123,21 @@ function MongoQuery(props: {
 
     try {
       // capture some error from `esprima parser`.
-      esprima.parseScript(text);
+      esprima.parseScript(code);
     } catch (e) {
       setErr(`${e.lineNumber}:${e.column} ${e.description}`);
       return;
     }
-
+    setExecuteTimes((e) => e + 1);
     try {
-      eval(text);
+      eval(code);
     } catch (e) {
+      new QueryLogHandler(uuid).save(code, false, showNotification);
       setErr(e);
       console.log('mongo query error:', e);
       return;
     }
+    new QueryLogHandler(uuid).save(code, true);
     showNotification(
       'success',
       'execute ok,but somehow async function or timeout function ... etc may running in background'
@@ -161,7 +166,20 @@ function MongoQuery(props: {
 
   return (
     <Stack spacing={1}>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+      <Stack
+        direction="row"
+        sx={{ alignItems: 'center', position: 'relative' }}
+        spacing={1}
+      >
+        <QueryLog
+          showQueryLog={showQueryLog}
+          setShowQueryLog={setShowQueryLog}
+          uuid={uuid}
+          language={'javascript'}
+          kind={QueryLogKind.Mongo}
+          executeTimes={executeTimes}
+        ></QueryLog>
+
         <Tooltip title="execute">
           <IconButton
             onClick={() => {
@@ -214,6 +232,16 @@ function MongoQuery(props: {
             editor.current.setValue(text);
           }}
         ></LoadStoreFileForQuery>
+        <Tooltip title="query log">
+          <IconButton
+            onClick={() => {
+              setShowQueryLog((prev) => !prev);
+            }}
+            color="primary"
+          >
+            <EventNoteIcon></EventNoteIcon>
+          </IconButton>
+        </Tooltip>
       </Stack>
 
       <div
@@ -245,12 +273,7 @@ function MongoQuery(props: {
           pos={pos}
         ></EditorBar>
       </div>
-      <Chip
-        color="info"
-        label=" logger"
-        style={{ fontSize: '1.2rem' }}
-        size="small"
-      />
+      <Chip color="info" label=" logger" style={{ fontSize: '1.2rem' }} />
       <div
         style={{
           minHeight: '200px',
@@ -295,7 +318,6 @@ function MongoQuery(props: {
                 onChange={(e) => {
                   setFavoriteName(e.target.value);
                 }}
-                size="small"
                 required
               ></TextField>
               <Stack direction="row">

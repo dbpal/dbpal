@@ -275,7 +275,6 @@ function SequenceMenu(props: {
                   onClick={() => {
                     handleDrop();
                   }}
-                  variant="contained"
                   color="error"
                 >
                   Drop

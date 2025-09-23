@@ -11,7 +11,7 @@ import {
   appStore,
   AppStoreKey,
   secondConfirm,
-  UserSettings,
+  UserSetting,
   windowFocusChangeEvent,
 } from './comp/helper';
 import { emit, listen } from '@tauri-apps/api/event';
@@ -87,16 +87,16 @@ if (!import.meta.env.DEV) {
     if (!theme) {
       return;
     }
-    let set = await UserSettings.get();
+    let set = await UserSetting.get();
     set.theme = theme;
-    appStore.set(AppStoreKey.UserSettings, set);
+    appStore.set(AppStoreKey.UserSetting, set);
   });
 }
 
 currentWebview.onThemeChanged(async (msg) => {
-  let set = await UserSettings.get();
+  let set = await UserSetting.get();
   set.theme = msg.payload;
-  appStore.set(AppStoreKey.UserSettings, set);
+  appStore.set(AppStoreKey.UserSetting, set);
 });
 
 if (!import.meta.env.DEV) {

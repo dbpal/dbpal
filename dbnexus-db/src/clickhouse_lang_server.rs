@@ -41,6 +41,18 @@ impl ClickHouseDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for ClickHouseDB {
+    async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
+        let sql = r#"
+        SELECT
+            cluster 
+        FROM
+            system.clusters
+
+        "#;
+        let conn = self.get_conn()?;
+        let ret: Vec<String> = conn.query(sql).fetch_all().await?;
+        anyhow::Ok(ret)
+    }
     fn clickhouse_format_clause(&self) -> Vec<String> {
         CLICKHOUSE_FORMATS.iter().map(|x| x.to_string()).collect()
     }
@@ -140,18 +152,6 @@ impl LangServerCommon for ClickHouseDB {
 
 #[async_trait::async_trait]
 impl AstCompletionHelper for ClickHouseDB {
-    async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
-        let sql = r#"
-        SELECT
-            cluster 
-        FROM
-            system.clusters
-
-        "#;
-        let conn = self.get_conn()?;
-        let ret: Vec<String> = conn.query(sql).fetch_all().await?;
-        anyhow::Ok(ret)
-    }
     async fn list_clickhouse_table_projects(
         &self, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {

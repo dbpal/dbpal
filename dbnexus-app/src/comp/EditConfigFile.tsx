@@ -64,9 +64,7 @@ function EditConfigFile(props: { handleClose }) {
         }
       ></SimpleFlexEditor>
       <Stack direction="row">
-        <Button variant="contained" onClick={handleSave}>
-          save
-        </Button>
+        <Button onClick={handleSave}>save</Button>
       </Stack>
     </Stack>
   );
