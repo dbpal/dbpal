@@ -364,6 +364,9 @@ impl App {
 }
 type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;
 
+fn name_to_parts(name: &str) -> Vec<String> {
+    name.split("/").map(|x| x.to_string()).collect()
+}
 impl App {
     pub unsafe fn get_config_ref() -> &'static mut Option<GetConfigFN> {
         static mut GET_CONFIG_FN: Option<GetConfigFN> = None;
@@ -379,13 +382,16 @@ impl App {
     }
     pub async fn close_conn_has_prefix(&self, name: &str) {
         let mut v = Vec::new();
+        let name = name_to_parts(name);
         for k in self.backend.lock().await.keys() {
-            if k.starts_with(name) {
+            let k_parts = name_to_parts(k);
+            if k_parts.iter().zip(name.iter()).all(|(x, y)| x == y) {
                 v.push(k.clone());
             }
         }
-        for k in v.into_iter() {
-            self.backend.lock().await.remove(&k);
+        for conn in v {
+            log::info!("delete conn:{}", conn);
+            self.backend.lock().await.remove(&conn);
         }
     }
 
@@ -417,7 +423,7 @@ impl App {
         }
 
         // try open and enter
-        let name_parts: Vec<_> = name.split("/").map(|x| x.to_string()).collect();
+        let name_parts = name_to_parts(name);
         match name_parts.len() {
             2 => {
                 let backend = self.backend.lock().await.get(&name_parts[0]).cloned();
