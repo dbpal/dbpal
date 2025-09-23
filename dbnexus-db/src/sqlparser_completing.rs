@@ -610,7 +610,7 @@ impl<'a> CompletionStatement<'a> {
                             .into_iter()
                             .map(CompletionItem::from)
                             .collect::<Vec<_>>();
-                        if cs.len() > 0 {
+                        if !cs.is_empty() {
                             self.result = Some(cs);
                             return;
                         }
@@ -1095,7 +1095,6 @@ impl<'a> CompletionStatement<'a> {
                 }
                 if self.in_pos(&new_column_name.span) {
                     self.set_on_def();
-                    return;
                 }
             }
             AlterTableOperation::RenameTable { table_name } => {
@@ -3080,7 +3079,7 @@ impl<'a> CompletionStatement<'a> {
                 貌似只有postgres支持这种语法
                 */
                 self.helper
-                    .get_query_columns(&format!("select * from ({})", values.to_string()))
+                    .get_query_columns(&format!("select * from ({})", values))
                     .await
             }
             SetExpr::Insert(statement)
@@ -3096,7 +3095,7 @@ impl<'a> CompletionStatement<'a> {
             SetExpr::Table(table) => {
                 if let Some(t) = &table.table_name {
                     self.helper
-                        .list_column(table.schema_name.as_deref(), &t, None)
+                        .list_column(table.schema_name.as_deref(), t, None)
                         .await
                 } else {
                     anyhow::Ok(vec![])
@@ -3224,8 +3223,8 @@ impl<'a> CompletionStatement<'a> {
 
     pub(crate) async fn c_on_table_version(&mut self, ast: &TableVersion) {
         match ast {
-            TableVersion::ForSystemTimeAsOf(expr) => self.c_on_expr(&expr).await,
-            TableVersion::Function(expr) => self.c_on_expr(&expr).await,
+            TableVersion::ForSystemTimeAsOf(expr) => self.c_on_expr(expr).await,
+            TableVersion::Function(expr) => self.c_on_expr(expr).await,
         }
     }
     pub(crate) async fn c_on_table_factor(&mut self, ast: &TableFactor) {

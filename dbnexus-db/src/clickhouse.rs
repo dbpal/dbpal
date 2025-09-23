@@ -588,7 +588,7 @@ impl SchemaTrait for ClickHouseDB {
         let rows: Vec<String> = conn.query(sql).fetch_all().await?;
         anyhow::Ok(
             rows.into_iter()
-                .map(|name| NamedStaff::from(name))
+                .map(NamedStaff::from)
                 .collect(),
         )
     }
@@ -834,11 +834,8 @@ impl ClickHouseDB {
             .unwrap_or_default();
 
         for s in ss.iter() {
-            match s {
-                sqlparser::ast::Statement::Use(_) => {
-                    anyhow::bail!("due to internal reason, you can not switch database")
-                }
-                _ => {}
+            if let sqlparser::ast::Statement::Use(_) = s {
+                anyhow::bail!("due to internal reason, you can not switch database")
             }
         }
         anyhow::Ok(())

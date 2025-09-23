@@ -80,13 +80,10 @@ pub struct AppLogger {
 
 impl AppLogger {
     fn get_config(&self) -> Option<serde_json::Value> {
-        self.config
-            .get("user-settings")
-            .map(|x| match x {
-                serde_json::Value::Object(mut map) => map.remove("logger"),
-                _ => None,
-            })
-            .flatten()
+        self.config.get("user-settings").and_then(|x| match x {
+            serde_json::Value::Object(mut map) => map.remove("logger"),
+            _ => None,
+        })
     }
 }
 
@@ -108,7 +105,7 @@ impl AppLogger {
     fn get_level(&self) -> log::Level {
         let x = self.get_config();
         x.as_ref()
-            .map(|x| match x {
+            .and_then(|x| match x {
                 serde_json::Value::Object(map) => match map.get("level") {
                     Some(serde_json::Value::String(level)) => match log::Level::from_str(level) {
                         Ok(level) => Some(level),
@@ -124,12 +121,11 @@ impl AppLogger {
                 },
                 _ => None,
             })
-            .flatten()
             .unwrap_or(log::Level::Info)
     }
     fn get_max_size(&self) -> u64 {
         let x = self.get_config();
-        x.map(|x| match x {
+        x.and_then(|x| match x {
             serde_json::Value::Object(map) => match map.get("max_size") {
                 Some(serde_json::Value::Number(max)) => {
                     Some(max.as_u64().unwrap_or(5) * 1024 * 1024)
@@ -138,7 +134,6 @@ impl AppLogger {
             },
             _ => None,
         })
-        .flatten()
         .unwrap_or(5 * 1024 * 1024)
     }
 }
@@ -192,9 +187,8 @@ impl log::Log for AppLogger {
             Some(x) => x,
             None => return,
         };
-        match file.flush() {
-            Ok(err) => println!("flush file failed,err:{:?}", err),
-            Err(_) => {}
+        if let Ok(err) = file.flush() {
+            println!("flush file failed,err:{:?}", err)
         }
     }
 }

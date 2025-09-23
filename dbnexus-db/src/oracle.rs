@@ -321,7 +321,7 @@ fn infer_schema_by_result(rows: &Vec<oracle::Result<Row>>) -> anyhow::Result<Vec
 
     let x = match &rows[0] {
         Ok(x) => x,
-        Err(err) => anyhow::bail!(format!("{}", err.to_string())),
+        Err(err) => anyhow::bail!(format!("{}", err)),
     };
     infer_schema_by_row(x)
 }

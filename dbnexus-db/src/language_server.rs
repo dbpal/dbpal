@@ -956,10 +956,9 @@ pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletion
         try_parser_completion(sql, line, col, backend).await
     })
     .await
-    .map_err(|e| {
-        println!("ast completion not finished in reasonable time this maybe a bug,sql:{} line:{} col:{} backend:{}" ,
-        sql,line,col,backend.backend_name()) ;
-        e
+    .inspect_err(|_| {
+        log::error!("ast completion not finished in reasonable time this maybe a bug,sql:{} line:{} col:{} backend:{}" ,
+        sql,line,col,backend.backend_name());
     })?;
     match r {
         Ok(mut xs) => {

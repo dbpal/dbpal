@@ -2225,12 +2225,9 @@ impl<'a> CompletionStatement<'a> {
         self.c_on_expr(&ast.message).await;
     }
     async fn c_on_return_statement(&mut self, ast: &ReturnStatement) {
-        match &ast.value {
-            Some(expr) => match expr {
-                ReturnStatementValue::Expr(expr) => self.c_on_expr(expr).await,
-            },
-            None => {}
-        }
+        if let Some(expr) = &ast.value { match expr {
+            ReturnStatementValue::Expr(expr) => self.c_on_expr(expr).await,
+        } }
     }
 }
 

@@ -410,7 +410,7 @@ impl App {
                 self.backend
                     .lock()
                     .await
-                    .insert(name.to_string(), db.clone().into());
+                    .insert(name.to_string(), db.clone());
                 return anyhow::Ok(db);
             }
             Err(err) => log::error!("can't get config for {},err:{}", name, err),
