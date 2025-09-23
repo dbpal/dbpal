@@ -364,9 +364,17 @@ impl App {
 }
 type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;
 
-fn name_to_parts(name: &str) -> Vec<String> {
-    name.split("/").map(|x| x.to_string()).collect()
+fn name_to_parts(name: &str) -> Vec<&str> {
+    name.split("/").collect()
 }
+
+fn name_starts(name: &str, prefix: &str) -> bool {
+    let name = name_to_parts(name);
+    let prefix = name_to_parts(prefix);
+
+    name.len() >= prefix.len() && name.iter().zip(prefix.iter()).all(|(x, y)| *x == *y)
+}
+
 impl App {
     pub unsafe fn get_config_ref() -> &'static mut Option<GetConfigFN> {
         static mut GET_CONFIG_FN: Option<GetConfigFN> = None;
@@ -380,12 +388,11 @@ impl App {
             println!("!!!!!!!!!!!!!!!!!{}", k);
         }
     }
-    pub async fn close_conn_has_prefix(&self, name: &str) {
+
+    pub async fn close_conn_has_prefix(&self, prefix: &str) {
         let mut v = Vec::new();
-        let name = name_to_parts(name);
         for k in self.backend.lock().await.keys() {
-            let k_parts = name_to_parts(k);
-            if k_parts.iter().zip(name.iter()).all(|(x, y)| x == y) {
+            if name_starts(k, prefix) {
                 v.push(k.clone());
             }
         }
@@ -426,7 +433,12 @@ impl App {
         let name_parts = name_to_parts(name);
         match name_parts.len() {
             2 => {
-                let backend = self.backend.lock().await.get(&name_parts[0]).cloned();
+                let backend = self
+                    .backend
+                    .lock()
+                    .await
+                    .get(&name_parts[0].to_string())
+                    .cloned();
                 match backend {
                     Some(DatabaseBackend::DataBase(x)) => {
                         let schema = x.open_schema(&name_parts[1]).await?;
@@ -463,7 +475,12 @@ impl App {
                         }
                     },
                     None => {
-                        let c = self.backend.lock().await.get(&name_parts[0]).cloned();
+                        let c = self
+                            .backend
+                            .lock()
+                            .await
+                            .get(&name_parts[0].to_string())
+                            .cloned();
                         match c {
                             Some(x) => match x {
                                 DatabaseBackend::Catalog(x) => {
@@ -481,7 +498,6 @@ impl App {
                         }
                     }
                 };
-
                 let schema = db_trait.open_schema(&name_parts[2]).await?;
                 self.backend
                     .lock()
@@ -494,5 +510,19 @@ impl App {
                 anyhow::bail!("'{}' name part not right, this is a internal error", name);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+
+    fn test_name_starts() {
+        assert!(name_starts("pg/xxx", "pg"));
+        assert!(name_starts("pg/xxx/abc", "pg"));
+        //
+        assert!(!name_starts("pg", "pg/xxx"));
     }
 }
