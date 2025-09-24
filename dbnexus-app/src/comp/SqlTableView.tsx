@@ -45,6 +45,7 @@ import { v4 as uuidV4 } from 'uuid';
 import {
   EscDownEvent,
   keyNotInTable,
+  makeFormatFn,
   modalHandleClose,
   modalStyle,
   reloadOK,
@@ -171,11 +172,12 @@ function WhereSort(props: {
       >
         <ModalHeader title={`set ${label}`}></ModalHeader>
         <SimpleFlexEditor
-          value={
+          value={makeFormatFn(kind)(
             label == 'filter'
               ? `select * from ${tableName} where ${value}`
-              : `select * from ${tableName} order by ${value}`
-          }
+              : `select * from ${tableName} order by ${value}`,
+            { tabSize: 4, insertSpaces: true }
+          )}
           handleEditor={(e) => {
             editor.current = e;
           }}
@@ -184,6 +186,14 @@ function WhereSort(props: {
 
         <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
           <Button onClick={handleSet}>set {label}</Button>
+          <Button
+            onClick={() => {
+              editor.current.setValue(`select * from ${tableName}`);
+            }}
+            variant="outlined"
+          >
+            clear
+          </Button>
         </Stack>
       </Box>
     </Modal>
@@ -191,7 +201,6 @@ function WhereSort(props: {
 }
 
 var EditInModalLanguage = 'text';
-
 const editInModalLanguages = [
   { language: 'text' },
   { language: 'html' },

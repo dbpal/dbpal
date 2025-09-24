@@ -148,25 +148,19 @@ function initLanguageXXX(
     text: string,
     pos: Position
   ) => Promise<languages.CompletionList>,
-  format?: (
-    text: string,
-    options: languages.FormattingOptions
-  ) => Promise<string>
 ) {
   loader
     .init()
     .then((monaco) => {
       monaco.languages.register({ id: kind });
       monaco.languages.setMonarchTokensProvider(kind, ILanguage);
-      if (format) {
-        monaco.languages.registerDocumentFormattingEditProvider(kind, {
-          provideDocumentFormattingEdits(model, options, _token) {
-            return format(model.getValue(), options).then((text) => [
-              { range: model.getFullModelRange(), text },
-            ]);
-          },
-        });
-      }
+
+      monaco.languages.registerDocumentFormattingEditProvider(kind, {
+        provideDocumentFormattingEdits(model, options, _token) {
+          const text = makeFormatFn(kind)(model.getValue(), options);
+          return [{ range: model.getFullModelRange(), text }];
+        },
+      });
       monaco.languages.registerCompletionItemProvider(kind, {
         provideCompletionItems: (
           model: editor.ITextModel,
@@ -184,13 +178,9 @@ function initLanguageXXX(
       console.log('init monaco language error:', e);
     });
 }
-// uuid as language identifier.
-async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
-  if (registeredLanguage.has(kind)) {
-    return;
-  }
-  registeredLanguage.add(kind);
-  const formatFn = async (sql: string, opts: languages.FormattingOptions) => {
+
+function makeFormatFn(kind: DataSourceKind) {
+  return (sql: string, opts: languages.FormattingOptions) => {
     try {
       // https://github.com/sql-formatter-org/sql-formatter/blob/master/docs/language.md
       let language: SqlLanguage = 'sql';
@@ -228,8 +218,14 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
       console.log('completion server error:', e);
       throw e;
     }
-  };
-
+  }
+}
+// uuid as language identifier.
+async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
+  if (registeredLanguage.has(kind)) {
+    return;
+  }
+  registeredLanguage.add(kind);
   let keywordReg;
   try {
     const kw = await invoke<string[]>('key_words', { name: uuid });
@@ -268,7 +264,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ],
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatFn
+
       );
       break;
     case DataSourceKind.Mysql:
@@ -290,7 +286,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ],
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatFn
+
       );
       break;
     case DataSourceKind.ClickHouse:
@@ -312,7 +308,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ],
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatFn
+
       );
       break;
 
@@ -335,7 +331,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ],
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatFn
+
       );
       break;
     case DataSourceKind.Sqlite:
@@ -354,7 +350,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatFn
+
       );
       break;
     case DataSourceKind.FireBird:
@@ -372,7 +368,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatFn
+
       );
       break;
     case DataSourceKind.DuckDB:
@@ -390,7 +386,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatFn
+
       );
       break;
 
@@ -409,7 +405,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatFn
+
       );
       break;
     case DataSourceKind.Cockroach:
@@ -429,7 +425,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatFn
+
       );
       break;
     case DataSourceKind.MsSql:
@@ -448,7 +444,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatFn
+
       );
       break;
     case DataSourceKind.Redis:
@@ -479,7 +475,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatFn
       );
       break;
     case DataSourceKind.Cassandra:
@@ -497,7 +492,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-        formatFn
+
       );
       break;
     default:
@@ -687,7 +682,8 @@ export {
   modalHandleClose,
   setAutoCompletionName,
   makeExtractTableSelectWhere,
-  makeExtractTableSelectSort
+  makeExtractTableSelectSort,
+  makeFormatFn,
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent };
