@@ -1120,6 +1120,85 @@ function RenameTable(props: {
   );
 }
 
+function RedisOneTableKind(props: {
+  idPrefix: string;
+  tables: string[];
+  typ: RedisTableType;
+  kind: DataSourceKind;
+  handleReload;
+  uuid;
+}) {
+  const { idPrefix, tables, typ, kind, handleReload, uuid } = props;
+  let name;
+  switch (typ) {
+    case RedisTableType.String:
+      name = 'string';
+      break;
+    case RedisTableType.List:
+      name = 'list';
+      break;
+    case RedisTableType.Set:
+      name = 'set';
+      break;
+    case RedisTableType.Zset:
+      name = 'zset';
+      break;
+    case RedisTableType.Hash:
+      name = 'hash';
+      break;
+  }
+  let tablesID = useRef(generateRandomString());
+  let { setUpMenu } = useContext(ContextMenuContext);
+  return (
+    <TreeItem
+      itemId={tablesID.current}
+      label=<Stack
+        spacing={1}
+        direction="row"
+        sx={{ alignItems: 'center' }}
+        onContextMenu={(e) => {
+          setUpMenu({
+            content: (
+              <MenuList>
+                <MenuRefresh reload={handleReload}></MenuRefresh>
+              </MenuList>
+            ),
+            style: calMenuStyle(e),
+          });
+        }}
+      >
+        <span>{name}</span>
+      </Stack>
+    >
+      {tables.map((table) => (
+        <TreeItem
+          key={table}
+          itemId={idPrefix + table}
+          label=<Stack
+            direction="row"
+            onContextMenu={(e) => {
+              setUpMenu({
+                content: (
+                  <TableMenu
+                    kind={kind}
+                    reload={handleReload}
+                    table={table}
+                    uuid={uuid}
+                    redisTableType={typ}
+                  />
+                ),
+                style: calMenuStyle(e),
+              });
+            }}
+          >
+            <span> {table} </span>
+          </Stack>
+        ></TreeItem>
+      ))}
+    </TreeItem>
+  );
+}
+
 function RedisTables(props: { schema?: string }) {
   const { schema } = props;
 
@@ -1167,81 +1246,6 @@ function RedisTables(props: { schema?: string }) {
   let zsetTableTreePrefix = getPrefix() + '-table-zset-';
   let hashTableTreePrefix = getPrefix() + '-table-hash-';
 
-  const makeOneKind = (
-    idPrefix: string,
-    tables: string[],
-    typ: RedisTableType
-  ) => {
-    let name;
-    switch (typ) {
-      case RedisTableType.String:
-        name = 'string';
-        break;
-      case RedisTableType.List:
-        name = 'list';
-        break;
-      case RedisTableType.Set:
-        name = 'set';
-        break;
-      case RedisTableType.Zset:
-        name = 'zset';
-        break;
-      case RedisTableType.Hash:
-        name = 'hash';
-        break;
-    }
-    let tablesID = useRef(generateRandomString());
-    return (
-      <TreeItem
-        itemId={tablesID.current}
-        label=<Stack
-          spacing={1}
-          direction="row"
-          sx={{ alignItems: 'center' }}
-          onContextMenu={(e) => {
-            setUpMenu({
-              content: (
-                <MenuList>
-                  <MenuRefresh reload={handleReload}></MenuRefresh>
-                </MenuList>
-              ),
-              style: calMenuStyle(e),
-            });
-          }}
-        >
-          <span>{name}</span>
-        </Stack>
-      >
-        {tables.map((table) => (
-          <TreeItem
-            key={table}
-            itemId={idPrefix + table}
-            label=<Stack
-              direction="row"
-              onContextMenu={(e) => {
-                setUpMenu({
-                  content: (
-                    <TableMenu
-                      kind={kind}
-                      reload={handleReload}
-                      table={table}
-                      uuid={uuid}
-                      redisTableType={typ}
-                    />
-                  ),
-                  style: calMenuStyle(e),
-                });
-              }}
-            >
-              <span> {table} </span>
-            </Stack>
-          ></TreeItem>
-        ))}
-      </TreeItem>
-    );
-  };
-
-  let { setUpMenu } = useContext(ContextMenuContext);
   return (
     <>
       <TreeItem
@@ -1268,32 +1272,51 @@ function RedisTables(props: { schema?: string }) {
           {loading && <CircularProgress></CircularProgress>}
         </Stack>
       ></TreeItem>
-      {tables &&
-        makeOneKind(
-          stringTableTreePrefix,
-          tables.string_tables,
-          RedisTableType.String
-        )}
-      {tables &&
-        makeOneKind(
-          listTableTreePrefix,
-          tables.list_tables,
-          RedisTableType.List
-        )}
-      {tables &&
-        makeOneKind(setTableTreePrefix, tables.set_tables, RedisTableType.Set)}
-      {tables &&
-        makeOneKind(
-          zsetTableTreePrefix,
-          tables.zset_tables,
-          RedisTableType.Zset
-        )}
-      {tables &&
-        makeOneKind(
-          hashTableTreePrefix,
-          tables.hash_tables,
-          RedisTableType.Hash
-        )}
+      {tables && (
+        <>
+          <RedisOneTableKind
+            idPrefix={stringTableTreePrefix}
+            kind={kind}
+            typ={RedisTableType.String}
+            tables={tables.string_tables}
+            handleReload={handleReload}
+            uuid={uuid}
+          ></RedisOneTableKind>
+          <RedisOneTableKind
+            idPrefix={listTableTreePrefix}
+            kind={kind}
+            typ={RedisTableType.List}
+            tables={tables.list_tables}
+            handleReload={handleReload}
+            uuid={uuid}
+          ></RedisOneTableKind>
+          <RedisOneTableKind
+            idPrefix={setTableTreePrefix}
+            kind={kind}
+            typ={RedisTableType.Set}
+            tables={tables.string_tables}
+            handleReload={handleReload}
+            uuid={uuid}
+          ></RedisOneTableKind>
+          <RedisOneTableKind
+            idPrefix={zsetTableTreePrefix}
+            kind={kind}
+            typ={RedisTableType.Zset}
+            tables={tables.zset_tables}
+            handleReload={handleReload}
+            uuid={uuid}
+          ></RedisOneTableKind>
+          <RedisOneTableKind
+            idPrefix={hashTableTreePrefix}
+            kind={kind}
+            typ={RedisTableType.Hash}
+            tables={tables.hash_tables}
+            handleReload={handleReload}
+            uuid={uuid}
+          ></RedisOneTableKind>
+        </>
+      )}
+
       {showEditFilter && (
         <Modal
           open={showEditFilter}

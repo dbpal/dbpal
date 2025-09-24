@@ -435,7 +435,8 @@ impl LangServerCommon for PostGresDB {
             let sql = format!(
                 r#"
             SELECT  
-                p.proname AS function_name
+                p.proname AS function_name,
+                pg_catalog.pg_get_function_identity_arguments(p.oid) AS args  -- 参数列表
             FROM pg_catalog.pg_proc p
             JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
             WHERE n.nspname = '{}'  -- 替换为你的模式名
@@ -452,9 +453,10 @@ impl LangServerCommon for PostGresDB {
 
             for r in rows.iter() {
                 let name: String = r.try_get(0)?;
+                let args: Option<String> = r.try_get(1)?;
                 ret.push(CompletionItem {
                     item: name.into(),
-                    desc: None,
+                    desc: args.map(|x| x.into()),
                     kind: CompletionKind::Function,
                 });
             }
