@@ -27,7 +27,7 @@ import { invoke } from '@tauri-apps/api/core';
 function getLogFilePath(): Promise<string> {
   return appDataDir().then((e) => {
     let name = 'dbpal.log';
-    return platform() == 'windows' ? `e\\${name}` : `${e}/${name}`;
+    return platform() == 'windows' ? `${e}\\${name}` : `${e}/${name}`;
   });
 }
 

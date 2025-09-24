@@ -154,13 +154,14 @@ function initLanguageXXX(
     .then((monaco) => {
       monaco.languages.register({ id: kind });
       monaco.languages.setMonarchTokensProvider(kind, ILanguage);
-
-      monaco.languages.registerDocumentFormattingEditProvider(kind, {
-        provideDocumentFormattingEdits(model, options, _token) {
-          const text = makeFormatFn(kind)(model.getValue(), options);
-          return [{ range: model.getFullModelRange(), text }];
-        },
-      });
+      if (kind != DataSourceKind.Redis) {
+        monaco.languages.registerDocumentFormattingEditProvider(kind, {
+          provideDocumentFormattingEdits(model, options, _token) {
+            const text = makeFormatFn(kind)(model.getValue(), options);
+            return [{ range: model.getFullModelRange(), text }];
+          },
+        });
+      }
       monaco.languages.registerCompletionItemProvider(kind, {
         provideCompletionItems: (
           model: editor.ITextModel,
