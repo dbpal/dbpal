@@ -13,6 +13,7 @@ import {
   modalHandleClose,
   makeExtractTableSelectSort,
   makeExtractTableSelectWhere,
+  setAutoCompletionName,
 } from './Common';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification';
@@ -59,6 +60,7 @@ import {
   saveAndSetSize,
   secondConfirm,
   SettingContext,
+  TabActiveContext,
   TabsSetContext,
   UuidContext,
 } from './helper';
@@ -186,6 +188,12 @@ function StatementStructure(props: {
   const [sql, setSql] = useState('');
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
+  const vis = useContext(TabActiveContext);
+  useEffect(() => {
+    if (vis) {
+      setAutoCompletionName(uuid);
+    }
+  }, [vis]);
   const handleReload = () => {
     setLoading(true);
     invoke<string>('create_view_sql', {
