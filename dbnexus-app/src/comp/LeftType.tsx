@@ -152,7 +152,7 @@ function TypeMenu(props: {
                     def: createdType.sql,
                   } as DefAndMetas);
                 }}
-                language={kind}
+                kind={kind}
                 uuid={uuid}
               ></DefAndMetasView>
             ),

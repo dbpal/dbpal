@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 
 import { NotificationContext } from './Notification';
 import { Button, Stack, Tooltip, Typography } from '@mui/material';
-import { DefAndMetas, setAutoCompletionName } from './Common';
+import { DefAndMetas, makeFormatFn, setAutoCompletionName } from './Common';
 import { MetaValuesView, PossibleParseError } from './CommonComp';
 import {
   DataSourceKind,
@@ -21,11 +21,11 @@ import types from './ApiStruct';
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
   uuid: string;
-  language: string;
+  kind: DataSourceKind;
   showReload?: boolean;
   heightName?: string;
 }) {
-  let { reloadOP, language, showReload, heightName, uuid } = props;
+  let { reloadOP, kind, showReload, heightName, uuid } = props;
   const executeOP = makeExecuteSql(uuid);
   const getParseErr = makeGetParserErr(uuid);
   const titleVariant = 'h6';
@@ -134,8 +134,8 @@ function DefAndMetasView(props: {
           }}
         >
           <SimpleFlexEditor
-            language={language}
-            value={detail.def}
+            language={kind}
+            value={makeFormatFn(kind)(detail.def)}
             handleEditor={(ed) => {
               editor.current = ed;
             }}
@@ -204,7 +204,7 @@ function TriggerDetail(props: {
   return (
     <DefAndMetasView
       heightName="trigger-detail"
-      language={kind}
+      kind={kind}
       reloadOP={async () => {
         return reloadOP().then((detail) => {
           return {

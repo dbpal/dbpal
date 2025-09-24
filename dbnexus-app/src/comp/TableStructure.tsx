@@ -1411,7 +1411,7 @@ function TriggersStructure(props: {
   const setting = useContext(SettingContext);
   const [loading, setLoading] = useState(false);
   const [triggers, setTriggers] = useState<types.TriggerDetail[]>([]);
-  const [row, setRow] = useState(null);
+  const [row, setRow] = useState<types.TriggerDetail>(null);
   const { showNotification } = useContext(NotificationContext);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
@@ -1639,7 +1639,7 @@ function TriggersStructure(props: {
             <ModalHeader title={`Trigger Detail`}></ModalHeader>
             <TriggerDetail
               reloadOP={async () => {
-                return Promise.resolve(triggers.find(row));
+                return row;
               }}
               uuid={uuid}
               kind={kind}
@@ -1786,10 +1786,13 @@ function StatementStructure(props: {
               tableName: table,
             }
           ).then((e) => {
-            return { def: getValue(e), metas: [] } as DefAndMetas;
+            return {
+              def: getValue(e),
+              metas: [],
+            } as DefAndMetas;
           });
         }}
-        language={kind}
+        kind={kind}
         uuid={uuid}
       ></DefAndMetasView>
     </Stack>

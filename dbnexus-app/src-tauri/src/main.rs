@@ -316,6 +316,7 @@ fn main_() {
                                 true,
                                 Some(if is_mac() { "command+," } else { "control+," }),
                             )?,
+                            #[cfg(debug_assertions)]
                             &MenuItem::with_id(
                                 handle,
                                 "edit_config_file",

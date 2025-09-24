@@ -180,7 +180,13 @@ function initLanguageXXX(
 }
 
 function makeFormatFn(kind: DataSourceKind) {
-  return (sql: string, opts: languages.FormattingOptions) => {
+  return (sql: string, opts?: languages.FormattingOptions) => {
+    if (!opts) {
+      opts = {
+        tabSize: 2,
+        insertSpaces: true,
+      };
+    }
     try {
       // https://github.com/sql-formatter-org/sql-formatter/blob/master/docs/language.md
       let language: SqlLanguage = 'sql';

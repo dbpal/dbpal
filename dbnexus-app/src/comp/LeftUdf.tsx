@@ -175,7 +175,7 @@ function UdfMenu(props: {
                     arg,
                   });
                 }}
-                language={kind}
+                kind={kind}
                 uuid={uuid}
               ></DefAndMetasView>
             ),
@@ -272,7 +272,7 @@ function CassandraAggregateMenu(props: {
                   );
                 }}
                 uuid={uuid}
-                language={DataSourceKind.Cassandra}
+                kind={DataSourceKind.Cassandra}
               ></DefAndMetasView>
             ),
             <MdFunctions></MdFunctions>

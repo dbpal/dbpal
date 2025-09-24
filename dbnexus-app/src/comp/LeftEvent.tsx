@@ -154,7 +154,7 @@ function EventMenu(props: {
                     metas: event.metas,
                   } as DefAndMetas);
                 }}
-                language={kind}
+                kind={kind}
                 uuid={uuid}
               ></DefAndMetasView>
             ),

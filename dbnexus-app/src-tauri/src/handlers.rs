@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io::Seek;
 use std::ops::DerefMut;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use crate::app::{self, App, DBConnectionConfig, DatabaseBackend};
@@ -34,8 +35,8 @@ pub fn has_entered_password(
     Ok(has)
 }
 
-pub(crate) fn log_file() -> &'static std::sync::Mutex<Option<std::fs::File>> {
-    static FILE: std::sync::Mutex<Option<std::fs::File>> = std::sync::Mutex::new(None);
+pub(crate) fn log_file() -> &'static Mutex<Option<std::fs::File>> {
+    static FILE: Mutex<Option<std::fs::File>> = Mutex::new(None);
     &FILE
 }
 
@@ -1022,8 +1023,8 @@ pub async fn list_schema(
 pub struct AutoCompletionName;
 
 impl AutoCompletionName {
-    fn loc() -> &'static std::sync::Mutex<String> {
-        static X: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+    fn loc() -> &'static Mutex<String> {
+        static X: Mutex<String> = Mutex::new(String::new());
         &X
     }
     fn set(x: String) {

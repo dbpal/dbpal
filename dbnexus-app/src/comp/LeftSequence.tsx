@@ -185,7 +185,7 @@ function SequenceMenu(props: {
                 reloadOP={async () => {
                   return Promise.resolve(details2DefMetas(seq));
                 }}
-                language={kind}
+                kind={kind}
                 uuid={uuid}
               ></DefAndMetasView>
             ),

@@ -172,7 +172,7 @@ function ProcedureMenu(props: {
                     arg,
                   });
                 }}
-                language={kind}
+                kind={kind}
                 uuid={uuid}
               ></DefAndMetasView>
             ),
