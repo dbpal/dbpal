@@ -1282,7 +1282,7 @@ function RedisTables() {
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.Set}
-            tables={tables.string_tables}
+            tables={tables.set_tables}
             handleReload={handleReload}
             uuid={uuid}
           ></RedisOneTableKind>

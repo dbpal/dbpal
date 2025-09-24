@@ -114,21 +114,21 @@ function SelectAlign(props: {
   return (
     <Stack direction="row" fontSize="1.5rem" spacing={1}>
       <FaAlignLeft
-        color={align == 'left' && theme.palette.primary.main}
+        color={align == 'left' && theme.palette.success.main}
         onClick={() => {
           handleChangeXXX('left');
         }}
         style={style}
       />
       <FaAlignCenter
-        color={align == 'center' && theme.palette.primary.main}
+        color={align == 'center' && theme.palette.success.main}
         onClick={() => {
           handleChangeXXX('center');
         }}
         style={style}
       />
       <FaAlignRight
-        color={align == 'right' && theme.palette.primary.main}
+        color={align == 'right' && theme.palette.success.main}
         onClick={() => {
           handleChangeXXX('right');
         }}

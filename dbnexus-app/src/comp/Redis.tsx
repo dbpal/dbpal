@@ -425,7 +425,7 @@ function RedisEditHash(props: {
           header="key"
         ></RedisValueEditor>
       </div>
-      <div style={{ flex: 1.5, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1.6, display: 'flex', flexDirection: 'column' }}>
         <RedisValueEditor
           value={oldValue}
           valueRef={newValue}

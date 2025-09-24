@@ -217,7 +217,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
         }}
       >
         <Typography color="info">
-          match pattern for table,view,udf,procedure etc...
+          match pattern for table,view,udf,procedure etc
         </Typography>
         <Stack
           direction="row"
