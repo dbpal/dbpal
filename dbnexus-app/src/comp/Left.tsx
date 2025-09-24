@@ -1118,9 +1118,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
       {opened && kind == DataSourceKind.Cassandra && (
         <CassandraAggregatesTree />
       )}
-      {opened && kind == DataSourceKind.Redis && (
-        <RedisTables schema={schema} />
-      )}
+      {opened && kind == DataSourceKind.Redis && <RedisTables />}
       {opened && supportType && <TypesTree />}
       {opened && supportEvent && <EventsTree />}
     </TreeItem>

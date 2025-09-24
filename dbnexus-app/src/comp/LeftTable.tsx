@@ -1121,14 +1121,13 @@ function RenameTable(props: {
 }
 
 function RedisOneTableKind(props: {
-  idPrefix: string;
   tables: string[];
   typ: RedisTableType;
   kind: DataSourceKind;
   handleReload;
   uuid;
 }) {
-  const { idPrefix, tables, typ, kind, handleReload, uuid } = props;
+  const { tables, typ, kind, handleReload, uuid } = props;
   let name;
   switch (typ) {
     case RedisTableType.String:
@@ -1173,7 +1172,7 @@ function RedisOneTableKind(props: {
       {tables.map((table) => (
         <TreeItem
           key={table}
-          itemId={idPrefix + name + '-' + table}
+          itemId={uuid + '-key-' + name + '-' + table}
           label=<Stack
             direction="row"
             onContextMenu={(e) => {
@@ -1199,14 +1198,9 @@ function RedisOneTableKind(props: {
   );
 }
 
-function RedisTables(props: { schema?: string }) {
-  const { schema } = props;
-
+function RedisTables() {
   const { kind } = useContext(ConnTypeContext);
   const { uuid } = useContext(UuidContext);
-  const getPrefix = () => {
-    return uuid + schema + '-table-';
-  };
   const [filter, setFilter] = useState('');
   const [tables, setTables] = useState<types.RedisListTable>();
   const [loading, setLoading] = useState(false);
@@ -1238,11 +1232,11 @@ function RedisTables(props: { schema?: string }) {
   }, [filter]);
 
   const [showEditFilter, setShowEditFilter] = useState(false);
-  let filterTreeID = getPrefix() + '-filter-';
+  let filterTreeID = useRef(generateRandomString());
   return (
     <>
       <TreeItem
-        itemId={filterTreeID}
+        itemId={filterTreeID.current}
         label=<Stack
           direction="row"
           style={{ cursor: 'pointer' }}
@@ -1268,7 +1262,6 @@ function RedisTables(props: { schema?: string }) {
       {tables && (
         <>
           <RedisOneTableKind
-            idPrefix={getPrefix()}
             kind={kind}
             typ={RedisTableType.String}
             tables={tables.string_tables}
@@ -1276,7 +1269,6 @@ function RedisTables(props: { schema?: string }) {
             uuid={uuid}
           ></RedisOneTableKind>
           <RedisOneTableKind
-            idPrefix={getPrefix()}
             kind={kind}
             typ={RedisTableType.List}
             tables={tables.list_tables}
@@ -1284,7 +1276,6 @@ function RedisTables(props: { schema?: string }) {
             uuid={uuid}
           ></RedisOneTableKind>
           <RedisOneTableKind
-            idPrefix={getPrefix()}
             kind={kind}
             typ={RedisTableType.Set}
             tables={tables.string_tables}
@@ -1292,7 +1283,6 @@ function RedisTables(props: { schema?: string }) {
             uuid={uuid}
           ></RedisOneTableKind>
           <RedisOneTableKind
-            idPrefix={getPrefix()}
             kind={kind}
             typ={RedisTableType.Zset}
             tables={tables.zset_tables}
@@ -1300,7 +1290,6 @@ function RedisTables(props: { schema?: string }) {
             uuid={uuid}
           ></RedisOneTableKind>
           <RedisOneTableKind
-            idPrefix={getPrefix()}
             kind={kind}
             typ={RedisTableType.Hash}
             tables={tables.hash_tables}
