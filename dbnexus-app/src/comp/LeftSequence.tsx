@@ -17,7 +17,6 @@ import InfoIcon from '@mui/icons-material/Info';
 import {
   DefAndMetas,
   EscDownEvent,
-  initMonacoLanguage,
   modalHandleClose,
   modalStyle,
   tabsHasId,
@@ -34,8 +33,6 @@ import {
   ContextMenuContext,
   DataSourceKind,
   generateRandomString,
-  makeExecuteSql,
-  makeGetParserErr,
   MatchPatternContext,
   maxTreeSize,
   secondConfirm,
@@ -168,8 +165,6 @@ function SequenceMenu(props: {
   const supportCascade = [DataSourceKind.Postgres].includes(kind);
 
   const handleOpenDetails = () => {
-    initMonacoLanguage(uuid, kind);
-
     const id = uuid + '-' + '-sequence-' + seq.name;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
@@ -190,9 +185,8 @@ function SequenceMenu(props: {
                 reloadOP={async () => {
                   return Promise.resolve(details2DefMetas(seq));
                 }}
-                executeOP={makeExecuteSql(uuid)}
-                language={uuid}
-                getParseErr={makeGetParserErr(uuid)}
+                language={kind}
+                uuid={uuid}
               ></DefAndMetasView>
             ),
             <GiProgression></GiProgression>

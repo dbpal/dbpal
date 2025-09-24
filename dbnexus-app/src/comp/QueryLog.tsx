@@ -54,14 +54,11 @@ function QueryLog(props: {
   showQueryLog;
   setShowQueryLog;
   executeTimes;
-  language?;
+  language;
   kind: QueryLogKind;
 }) {
   let { uuid, showQueryLog, setShowQueryLog, executeTimes, language, kind } =
     props;
-  if (!language) {
-    language = uuid;
-  }
   const [selectSql, setSelectSql] = useState('');
   const [page, setPage] = useState(0); // datagrid start with 0
   const [pageSize, setPagesize] = useState(10);

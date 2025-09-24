@@ -23,6 +23,7 @@ pub trait LanguageServer: GetBackendKind {
         anyhow::Ok(None)
     }
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool>;
+    async fn key_words(&self) -> anyhow::Result<Vec<String>>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -32,6 +33,11 @@ pub struct CompletionItem {
     pub desc: Option<Cow<'static, str>>,
 }
 
+impl From<CompletionItem> for String {
+    fn from(value: CompletionItem) -> Self {
+        value.item.into()
+    }
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, TypeDef)]
 pub enum CompletionKind {
     Command, // command right now use by redis

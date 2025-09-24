@@ -565,6 +565,11 @@ impl LangServerCommon for PostGresDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for PostGresDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::key_words(self)
+            .await
+            .map(|x| x.into_iter().map(|x| x.into()).collect())
+    }
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -581,11 +586,11 @@ impl LanguageServer for PostGresDB {
 
 #[cfg(test)]
 mod tests {
-    use crate::db::{AutoCompletionQueryUuid, QuerySql, monaco_editor_keyword_regexp};
+    use crate::db::{AutoCompletionQueryUuid, QuerySql};
     use crate::enable_test_log;
     use crate::language_server::LangServerCommon;
     use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::pg::{PostGresDB, make_test_object};
+    use crate::pg::make_test_object;
     use std::path::Path;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -673,20 +678,6 @@ mod tests {
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
 
         test_file_auto_completion(&content, &db, false).await;
-    }
-
-    #[tokio::test]
-    async fn print_key_words() {
-        let db = make_test_object().await;
-        let keywords = <PostGresDB as LangServerCommon>::key_words(&db)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|x| x.item.to_string())
-            .collect::<Vec<_>>();
-        let keywords: Vec<&str> = keywords.iter().map(|x| x.as_str()).collect();
-        let s = monaco_editor_keyword_regexp(&keywords[..]);
-        println!("{}", s);
     }
 
     #[ignore = "手动跑跑的测试"]

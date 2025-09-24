@@ -1406,20 +1406,6 @@ pub enum TriggerTiming {
     String(String),
 }
 
-pub fn monaco_editor_keyword_regexp(keywords: &[&str]) -> String {
-    let mut ret = "/\\b(".to_string();
-    let last = keywords.len() - 1;
-    for (index, c) in keywords.iter().enumerate() {
-        ret.push_str(c);
-        if index != last {
-            ret.push('|');
-        }
-    }
-    ret.push_str(")\\b/");
-
-    ret
-}
-
 pub(crate) fn ty_is_int(x: &sqlparser::ast::DataType) -> bool {
     use sqlparser::ast::DataType;
 

@@ -33,7 +33,6 @@ import {
   modalStyle,
   dropDatabase,
   dropSchema,
-  initMonacoLanguage,
   QueryConn,
   EscDownEvent,
   modalHandleClose,
@@ -636,7 +635,6 @@ function FavoriteSqlList(props: { handleClose }) {
   };
   const { setTabs, setSelectTab } = useContext(TabsSetContext);
   const useRow = async (row: FavoriteSql) => {
-    initMonacoLanguage(row.uuid, row.kind);
     try {
       let connOpened = await invoke<boolean>('conn_opened', { name: row.uuid });
       if (!connOpened) {
@@ -668,7 +666,7 @@ function FavoriteSqlList(props: { handleClose }) {
           case DataSourceKind.Redis:
             content = (
               <RedisQuery
-                language={row.uuid}
+                language={row.kind}
                 makeConn={async () => {
                   return makeConn(row.uuid, row.kind);
                 }}
@@ -1328,8 +1326,6 @@ function openNewQuery(
   kind: DataSourceKind,
   showNotification
 ) {
-  initMonacoLanguage(uuid, kind);
-
   let id = uuid + '-query-' + generateRandomString();
   let content;
 
@@ -1367,7 +1363,7 @@ function openNewQuery(
     case DataSourceKind.Redis:
       content = (
         <RedisQuery
-          language={uuid}
+          language={kind}
           makeConn={async () => {
             return makeConn(uuid, kind);
           }}

@@ -280,7 +280,7 @@ const TYPES: &'static [&'static str] = &[
 mod tests {
     use std::path::Path;
 
-    use crate::db::{QuerySql, monaco_editor_keyword_regexp};
+    use crate::db::QuerySql;
     use crate::duckdb::make_test_object;
     use crate::enable_test_log;
     use crate::language_server::LexerCompletionTrait;
@@ -318,18 +318,5 @@ mod tests {
         file_path.push("duckdb_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
         test_file_auto_completion(&content, &db, false).await;
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn key_words() {
-        use std::borrow::Borrow;
-        let db = make_test_object(None);
-
-        let fs = LexerCompletionTrait::key_words(&db).await.unwrap();
-
-        let fs: Vec<&str> = fs.iter().map(|x| x.item.borrow()).collect();
-
-        let r = monaco_editor_keyword_regexp(&fs[..]);
-        println!("{}", r);
     }
 }

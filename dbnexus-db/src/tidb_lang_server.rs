@@ -14,6 +14,11 @@ use sqlx::Row;
 
 #[async_trait::async_trait]
 impl LanguageServer for TiDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::key_words(self)
+            .await
+            .map(|x| x.into_iter().map(|x| x.into()).collect())
+    }
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -85,11 +90,13 @@ impl LangServerCommon for TiDB {
         。
         你当前的 8.0.11-TiDB-v7.5.1 恰好是 7.5.1，版本号里前面只是伪装成 MySQL 8.0 的“兼容前缀”，实际内核仍是 7.5.1，因此 表不存在。
          */
-        let r = self.db.key_words().await.ok().unwrap_or_default();
-        if !r.is_empty() {
-            return anyhow::Ok(r);
+        let result = LangServerCommon::key_words(self.db.as_ref())
+            .await
+            .unwrap_or_default();
+        if !result.is_empty() {
+            return anyhow::Ok(result);
         }
-        let r = TIDB_KEYWORDS
+        let result = TIDB_KEYWORDS
             .iter()
             .map(|x| CompletionItem {
                 item: (*x).into(),
@@ -97,7 +104,7 @@ impl LangServerCommon for TiDB {
                 kind: CompletionKind::KeyWord,
             })
             .collect::<Vec<_>>();
-        anyhow::Ok(r)
+        anyhow::Ok(result)
     }
 
     async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {

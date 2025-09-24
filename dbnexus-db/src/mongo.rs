@@ -70,6 +70,9 @@ impl GetBackendKind for MongoDB {
 }
 #[async_trait::async_trait]
 impl LanguageServer for MongoDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        not_support_feature(self.backend_name())
+    }
     async fn auto_completion(
         &self, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {

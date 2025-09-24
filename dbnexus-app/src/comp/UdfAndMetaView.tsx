@@ -2,9 +2,17 @@ import { useContext, useEffect, useRef, useState } from 'react';
 
 import { NotificationContext } from './Notification';
 import { Button, Stack, Tooltip, Typography } from '@mui/material';
-import { DefAndMetas } from './Common';
+import { DefAndMetas, setAutoCompletionName } from './Common';
 import { MetaValuesView, PossibleParseError } from './CommonComp';
-import { ErrAndLoc, getEditorText, saveAndSetSize } from './helper';
+import {
+  DataSourceKind,
+  ErrAndLoc,
+  getEditorText,
+  makeExecuteSql,
+  makeGetParserErr,
+  saveAndSetSize,
+  TabActiveContext,
+} from './helper';
 import { MultiQueryResp } from './QueryResp';
 import { editor } from 'monaco-editor';
 import { SimpleFlexEditor } from './CommonComp2';
@@ -12,14 +20,14 @@ import types from './ApiStruct';
 
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
-  executeOP: (sql: string) => Promise<any>;
-  getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
+  uuid: string;
   language: string;
   showReload?: boolean;
   heightName?: string;
 }) {
-  let { reloadOP, language, showReload, heightName, executeOP, getParseErr } =
-    props;
+  let { reloadOP, language, showReload, heightName, uuid } = props;
+  const executeOP = makeExecuteSql(uuid);
+  const getParseErr = makeGetParserErr(uuid);
   const titleVariant = 'h6';
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas>({
@@ -65,6 +73,13 @@ function DefAndMetasView(props: {
   useEffect(() => {
     handleReload(false);
   }, []);
+  const active = useContext(TabActiveContext);
+
+  useEffect(() => {
+    if (active) {
+      setAutoCompletionName(uuid);
+    }
+  }, [active]);
 
   const [dom, setDom] = useState(null);
   useEffect(() => {
@@ -181,16 +196,15 @@ function triggerDetailsToMetas(x: types.TriggerDetail): types.MetaValue[] {
 
 function TriggerDetail(props: {
   reloadOP: () => Promise<types.TriggerDetail>;
-  executeOP: (sql: string) => Promise<any>;
   uuid: string;
-  getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
+  kind: DataSourceKind;
 }) {
-  const { reloadOP, uuid: language, executeOP, getParseErr } = props;
+  const { reloadOP, uuid, kind } = props;
 
   return (
     <DefAndMetasView
       heightName="trigger-detail"
-      language={language}
+      language={kind}
       reloadOP={async () => {
         return reloadOP().then((detail) => {
           return {
@@ -200,8 +214,7 @@ function TriggerDetail(props: {
           };
         });
       }}
-      getParseErr={getParseErr}
-      executeOP={executeOP}
+      uuid={uuid}
     ></DefAndMetasView>
   );
 }

@@ -9,7 +9,7 @@ import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { useContext, useEffect, useRef, useState } from 'react';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import InfoIcon from '@mui/icons-material/Info';
-import { initMonacoLanguage, tabsHasId } from './Common';
+import { tabsHasId } from './Common';
 import types from './ApiStruct';
 import { invoke } from '@tauri-apps/api/core';
 import { NotificationContext } from './Notification';
@@ -23,8 +23,6 @@ import {
   ContextMenuContext,
   DataSourceKind,
   generateRandomString,
-  makeExecuteSql,
-  makeGetParserErr,
   MatchPatternContext,
   maxTreeSize,
   secondConfirm,
@@ -149,7 +147,6 @@ function ProcedureMenu(props: {
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {
-    initMonacoLanguage(uuid, kind);
     const id = uuid + '-' + '-procedure-' + procedure;
     let index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
@@ -175,9 +172,8 @@ function ProcedureMenu(props: {
                     arg,
                   });
                 }}
-                executeOP={makeExecuteSql(uuid)}
-                language={uuid}
-                getParseErr={makeGetParserErr(uuid)}
+                language={kind}
+                uuid={uuid}
               ></DefAndMetasView>
             ),
             <SiProcessingfoundation></SiProcessingfoundation>

@@ -11,6 +11,11 @@ use std::ops::DerefMut;
 
 #[async_trait::async_trait]
 impl LanguageServer for MariaDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::key_words(self)
+            .await
+            .map(|x| x.into_iter().map(|x| x.into()).collect())
+    }
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -84,7 +89,7 @@ impl LangServerCommon for MariaDB {
         LangServerCommon::list_column(self.db.as_ref(), schema, name, is_call).await
     }
     async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        self.db.key_words().await
+        LangServerCommon::key_words(self.db.as_ref()).await
     }
     async fn list_function(
         &self, schema: Option<&str>, include_build_in: bool,

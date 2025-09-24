@@ -35,6 +35,7 @@ import {
   modalHandleClose,
   modalStyle,
   msgTimeout,
+  setAutoCompletionName,
 } from './Common.ts';
 import { BsFillLightbulbFill } from 'react-icons/bs';
 import { FaBookmark } from 'react-icons/fa';
@@ -424,6 +425,9 @@ function SqlQuery(props: {
           console.log('set auto completion id failed,err:{}', e);
         });
     }
+    if (vis) {
+      setAutoCompletionName(uuid);
+    }
   }, [vis, conn]);
 
   const keyEscCancelQueryLog = useCallback(
@@ -483,6 +487,7 @@ function SqlQuery(props: {
           kind={
             kind == DataSourceKind.Redis ? QueryLogKind.Redis : QueryLogKind.Sql
           }
+          language={kind}
         ></QueryLog>
 
         <Stack
@@ -643,7 +648,7 @@ function SqlQuery(props: {
           ref={editorDivDom}
         >
           <Editor
-            language={uuid}
+            language={kind}
             onMount={handleEditorDidMount}
             width="99%"
             height="99%"

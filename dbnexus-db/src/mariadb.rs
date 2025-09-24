@@ -454,9 +454,9 @@ pub(crate) async fn make_test_object_mariadb(config: MysqlDBConfig) -> MariaDB {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{AutoCompletionQueryUuid, QuerySql, SchemaTrait, monaco_editor_keyword_regexp};
+    use crate::db::{AutoCompletionQueryUuid, QuerySql, SchemaTrait};
     use crate::language_server::LangServerCommon;
-    use crate::mariadb::{MariaDB, make_config};
+    use crate::mariadb::make_config;
     use crate::mysql::test_fns::{self, make_test_object};
 
     #[tokio::test]
@@ -508,23 +508,6 @@ mod tests {
         let name2 = format!("{name}2");
         db.rename_sequence(name, &name2).await.unwrap();
         db.rename_sequence(&name2, name).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn print_key_words() {
-        let db = make_test_object_mariadb(make_config()).await;
-
-        let keywords = <MariaDB as LangServerCommon>::key_words(&db)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|x| x.item.to_string())
-            .collect::<Vec<_>>();
-
-        let keywords: Vec<&str> = keywords.iter().map(|x| x.as_str()).collect();
-
-        let s = monaco_editor_keyword_regexp(&keywords[..]);
-        println!("{}", s);
     }
 
     #[tokio::test]

@@ -226,6 +226,11 @@ impl LangServerCommon for OracleDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for OracleDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::key_words(self)
+            .await
+            .map(|x| x.into_iter().map(|x| x.into()).collect())
+    }
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -236,30 +241,6 @@ impl LanguageServer for OracleDB {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::{
-        db::monaco_editor_keyword_regexp,
-        language_server::LangServerCommon,
-        oracle::{OracleDB, make_test_object},
-    };
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn print_key_words() {
-        let db = make_test_object(None);
-        let keywords = <OracleDB as LangServerCommon>::key_words(&db)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|x| x.item.to_string())
-            .collect::<Vec<_>>();
-
-        let keywords: Vec<&str> = keywords.iter().map(|x| x.as_str()).collect();
-
-        let s = monaco_editor_keyword_regexp(&keywords[..]);
-        println!("{}", s);
-    }
-}
 pub(crate) const ORACLE_TYPES: &[&str] = &[
     "NUMBER",
     "BINARY_FLOAT",

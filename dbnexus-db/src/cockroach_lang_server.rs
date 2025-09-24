@@ -8,6 +8,11 @@ use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
 
 impl LanguageServer for CockRoachDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::key_words(self)
+            .await
+            .map(|x| x.into_iter().map(|x| x.into()).collect())
+    }
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -79,7 +84,7 @@ impl LangServerCommon for CockRoachDB {
     }
 
     async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        self.pg.key_words().await
+        LangServerCommon::key_words(self.pg.as_ref()).await
     }
     async fn list_column(
         &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
@@ -115,30 +120,4 @@ impl LangServerCommon for CockRoachDB {
 #[async_trait::async_trait]
 impl LexerCompletionTrait for CockRoachDB {
     const TYPES: &'static [&'static str] = COCKROACH_TYPES;
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{
-        cockroach::{CockRoachDB, make_test_object},
-        db::monaco_editor_keyword_regexp,
-        language_server::LangServerCommon,
-    };
-
-    #[tokio::test]
-    async fn print_key_words() {
-        let db = make_test_object().await;
-
-        let keywords = <CockRoachDB as LangServerCommon>::key_words(&db)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|x| x.item.to_string())
-            .collect::<Vec<_>>();
-
-        let keywords: Vec<&str> = keywords.iter().map(|x| x.as_str()).collect();
-
-        let s = monaco_editor_keyword_regexp(&keywords[..]);
-        println!("{}", s);
-    }
 }

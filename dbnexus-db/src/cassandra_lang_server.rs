@@ -23,6 +23,9 @@ use crate::sqlparser_completion::TempTableColumn;
 
 #[async_trait::async_trait]
 impl LanguageServer for CassandraDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(CASSANDRA_KEYWORDS.iter().map(|x| x.to_string()).collect())
+    }
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {

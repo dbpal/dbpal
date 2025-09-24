@@ -143,7 +143,7 @@ function TabsWithContent_(props: {
                     style={{ padding: '0px', maxWidth: '14rem' }}
                     icon={tab.icon}
                     variant={index == selectIndex ? 'filled' : 'outlined'}
-                    color={index == selectIndex ? 'primary' : 'default'}
+                    color={index == selectIndex ? 'success' : 'default'}
                     onContextMenu={(e) => {
                       setUpMenu({
                         content: (

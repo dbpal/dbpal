@@ -10,6 +10,11 @@ use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
 
 impl LanguageServer for ClickHouseDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::key_words(self)
+            .await
+            .map(|x| x.into_iter().map(|x| x.into()).collect())
+    }
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -226,13 +231,11 @@ const CLICKHOUSE_TYPES: &[&str] = &[
 #[cfg(test)]
 
 mod tests {
-    use std::collections::HashSet;
     use std::path::Path;
 
-    use crate::clickhouse::{ClickHouseDB, make_test_object};
-    use crate::db::{QuerySql, monaco_editor_keyword_regexp};
+    use crate::clickhouse::make_test_object;
+    use crate::db::QuerySql;
     use crate::enable_test_log;
-    use crate::language_server::LangServerCommon;
     use crate::language_server::completion_test::test_file_auto_completion;
 
     // partition test failed , sqlparser can't parse a valid partition statement.
@@ -292,34 +295,6 @@ mod tests {
         enable_test_log();
         let db = make_test_object();
         test_file_auto_completion(include_str!("./xxx.sql"), &db, false).await;
-    }
-
-    // clickhouse is a little different keyword can select from database
-    // but frontend still need this definition.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn print_key_words() {
-        let db = make_test_object();
-
-        let keywords = <ClickHouseDB as LangServerCommon>::key_words(&db)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|x| x.item.to_string())
-            .collect::<Vec<_>>();
-        // `ADMIN OPTION FOR` clickhouse can have this kind of result.
-
-        let keywords = keywords
-            .into_iter()
-            .map(|x| x.split(" ").map(|x| x.to_uppercase()).collect::<Vec<_>>())
-            .flat_map(|x| x.into_iter())
-            .collect::<HashSet<_>>();
-
-        let keywords = keywords.into_iter().collect::<Vec<_>>();
-
-        let keywords: Vec<&str> = keywords.iter().map(|x| x.as_str()).collect();
-
-        let s = monaco_editor_keyword_regexp(&keywords[..]);
-        println!("{}", s);
     }
 }
 

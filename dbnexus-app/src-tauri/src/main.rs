@@ -21,7 +21,7 @@ use handlers::{
     drop_materialized_view, drop_procedure, drop_schema, drop_sequence, drop_table,
     drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
     execute_sql, execute_sql_no_open_conn, export_query_result_to_file, export_table_or_view,
-    fonts_all_families, has_entered_password, is_dangerous_sql, list_created_types,
+    fonts_all_families, has_entered_password, is_dangerous_sql, key_words, list_created_types,
     list_data_types, list_database, list_event, list_materialized_view, list_procedure,
     list_schema, list_sequence, list_sql_current_values, list_table, list_udf, list_view,
     modify_table_column, mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id,
@@ -45,9 +45,10 @@ use handlers::{
     redis_list_table, redis_set_add, redis_set_del, redis_set_replace, redis_string_set,
     redis_zset_add, redis_zset_del, redis_zset_replace, redis_zset_show_table, rename_index,
     rename_sequence, rename_table, save_entered_password, save_password, server_metas,
-    set_auto_completion_query_id, show_indexes, show_procedure, show_table, show_table_columns,
-    show_trigger, show_udf, show_view, show_view_columns, sql_parse_error, table_delete,
-    table_insert, table_update, test_connection, truncate_log_file, truncate_table, valid_json,
+    set_auto_completion_name, set_auto_completion_query_id, show_indexes, show_procedure,
+    show_table, show_table_columns, show_trigger, show_udf, show_view, show_view_columns,
+    sql_parse_error, table_delete, table_insert, table_update, test_connection, truncate_log_file,
+    truncate_table, valid_json,
 };
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager, Wry};
@@ -589,7 +590,9 @@ fn main_() {
             drop_created_type,
             list_event,
             drop_event,
-            truncate_log_file
+            truncate_log_file,
+            key_words,
+            set_auto_completion_name,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

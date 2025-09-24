@@ -19,6 +19,11 @@ impl LexerCompletionTrait for SqlServerDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for SqlServerDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::key_words(self)
+            .await
+            .map(|x| x.into_iter().map(|x| x.into()).collect())
+    }
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {

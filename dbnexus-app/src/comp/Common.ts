@@ -29,22 +29,6 @@ const modalStyle: SxProps = {
 };
 
 import {
-  cassandraKeywords,
-  clickhouseKeyWords,
-  cockroachKeywords,
-  duckdbKeyWords,
-  firebirdKeywords,
-  mariadbKeyWords,
-  mssqlKeywords,
-  mysqlKeywords,
-  oracleKeywords,
-  postgresKeywords,
-  redisKeywords,
-  sqliteKeywords,
-  tidbKeywords,
-} from './keywords';
-
-import {
   appStore,
   AppStoreKey,
   backendCompletionItemToEditor,
@@ -131,10 +115,10 @@ const OpenedContext = createContext<{ opened: boolean; setOpened }>(null);
 function reloadOK(showNotification) {
   showNotification('success', 'data loaded.');
 }
-const registeredLanguage = new Set<string>();
+const registeredLanguage = new Set<DataSourceKind>();
 
 function makeAutoComplete(
-  uuid
+
 ): (sql: string, pos: Position) => Promise<languages.CompletionList> {
   const autoCompletion = async (
     sql: string,
@@ -144,7 +128,6 @@ function makeAutoComplete(
       let completionItem = await invoke<types.CompletionItem[]>(
         'auto_completion',
         {
-          name: uuid,
           sql,
           line: pos.lineNumber,
           col: pos.column,
@@ -160,13 +143,14 @@ function makeAutoComplete(
   return autoCompletion;
 }
 
+
 // uuid as language identifier.
-function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
-  if (registeredLanguage.has(uuid)) {
+async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
+  if (registeredLanguage.has(kind)) {
     return;
   }
-  registeredLanguage.add(uuid);
-  const autoCompletion = makeAutoComplete(uuid);
+  registeredLanguage.add(kind);
+  const autoCompletion = makeAutoComplete();
   const formatFn = async (sql: string, opts: languages.FormattingOptions) => {
     try {
       // https://github.com/sql-formatter-org/sql-formatter/blob/master/docs/language.md
@@ -207,6 +191,19 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
     }
   };
 
+  let keywordReg;
+  try {
+    const kw = await invoke<string[]>('key_words', { name: uuid });
+    // /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|int8_array|float32_array|user_define|true|false|null|undefined|code)\b/i 
+    keywordReg = new RegExp(
+      `\\b(${kw.join('|')})\\b`,
+      'i'
+    );
+  } catch (e) {
+    console.log('key words error:', e);
+    return;
+
+  }
   const singleLineCommentReg = /(--[^\n]*|#[^\n]*)/g;
   const stringReg = /\'(?:\\.|[^\\\'])*\'/;
   function initLanguageXXX(
@@ -261,7 +258,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ignoreCase: true,
           tokenizer: {
             root: [
-              [mariadbKeyWords, 'keyword'],
+              [keywordReg, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
               [stringReg, 'string'],
 
@@ -284,7 +281,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ignoreCase: true,
           tokenizer: {
             root: [
-              [mysqlKeywords, 'keyword'],
+              [keywordReg, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
               [stringReg, 'string'],
               [/(--[^\n]*|#[^\n]*)/g, 'comment'],
@@ -306,7 +303,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ignoreCase: true,
           tokenizer: {
             root: [
-              [clickhouseKeyWords, 'keyword'],
+              [keywordReg, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
               [stringReg, 'string'],
               [singleLineCommentReg, 'comment'],
@@ -329,7 +326,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ignoreCase: true,
           tokenizer: {
             root: [
-              [tidbKeywords, 'keyword'],
+              [keywordReg, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
               [stringReg, 'string'],
               [singleLineCommentReg, 'comment'],
@@ -352,7 +349,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ignoreCase: true,
           tokenizer: {
             root: [
-              [sqliteKeywords, 'keyword'],
+              [keywordReg, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [stringReg, 'string'],
               [singleLineCommentReg, 'comment'],
@@ -370,7 +367,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ignoreCase: true,
           tokenizer: {
             root: [
-              [firebirdKeywords, 'keyword'],
+              [keywordReg, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [stringReg, 'string'],
               [singleLineCommentReg, 'comment'],
@@ -388,7 +385,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ignoreCase: true,
           tokenizer: {
             root: [
-              [duckdbKeyWords, 'keyword'],
+              [keywordReg, 'keyword'],
               [/[_a-z\$][_a-z0-9\$]*/i, 'identifier'],
               [stringReg, 'string'],
               [singleLineCommentReg, 'comment'],
@@ -407,7 +404,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ignoreCase: true,
           tokenizer: {
             root: [
-              [postgresKeywords, 'keyword'],
+              [keywordReg, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
               [singleLineCommentReg, 'comment'],
@@ -425,7 +422,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ignoreCase: true,
           tokenizer: {
             root: [
-              [cockroachKeywords, 'keyword'],
+              [keywordReg, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\"(?:\\.|[^\"\"])*\"/, 'string'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
@@ -445,7 +442,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ignoreCase: true,
           tokenizer: {
             root: [
-              [mssqlKeywords, 'keyword'],
+              [keywordReg, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
               [/\"(?:\\.|[^\\\"])*\"/, 'string'],
@@ -462,7 +459,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
         uuid,
         {
           ignoreCase: true,
-          tokenizer: { root: [[redisKeywords, 'keyword']] },
+          tokenizer: { root: [[keywordReg, 'keyword']] },
         } as languages.IMonarchLanguage,
         autoCompletion
       );
@@ -477,7 +474,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ignoreCase: true,
           tokenizer: {
             root: [
-              [oracleKeywords, 'keyword'],
+              [keywordReg, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
               [singleLineCommentReg, 'comment'],
@@ -495,7 +492,7 @@ function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
           ignoreCase: true,
           tokenizer: {
             root: [
-              [cassandraKeywords, 'keyword'],
+              [keywordReg, 'keyword'],
               [/[_a-z][_a-z0-9]*/i, 'identifier'],
               [/\'(?:\\.|[^\'\'])*\'/, 'string'],
               [singleLineCommentReg, 'comment'],
@@ -654,7 +651,14 @@ type MakeIQueryConn = () => Promise<IQueryConn>;
 const keyNotInTable = 'KWfCwJ62hRf6TKuvMcsQ3eXGtD1tdg2J';
 
 type EscDownEvent = { preventDefault: () => void };
-
+function setAutoCompletionName(name: string) {
+  invoke('set_auto_completion_name', { name }).then(() => {
+    console.log('set auto completion name:', name, "ok");
+  }).catch((e) => {
+    alert("set auto completion name failed,err:" + e.toString());
+    console.log('set auto completion name failed,err:', e);
+  });
+}
 export {
   modalStyle,
   tabsHasId,
@@ -664,7 +668,6 @@ export {
   dropDatabase,
   dropSchema,
   reloadOK,
-  registeredLanguage,
   initMonacoLanguage,
   QueryConn,
   AppStoreKey,
@@ -672,6 +675,8 @@ export {
   extractBaseName,
   makeAutoComplete,
   modalHandleClose,
+  setAutoCompletionName,
+
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent };

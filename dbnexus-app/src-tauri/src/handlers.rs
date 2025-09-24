@@ -1018,15 +1018,37 @@ pub async fn list_schema(
     }
     .map_err(ErrorFrontend::from)
 }
+
+pub struct AutoCompletionName;
+
+impl AutoCompletionName {
+    fn loc() -> &'static std::sync::Mutex<String> {
+        static X: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+        &X
+    }
+    fn set(x: String) {
+        *Self::loc().lock().unwrap() = x;
+    }
+    fn get() -> String {
+        Self::loc().lock().unwrap().clone()
+    }
+}
+
+#[tauri::command]
+pub fn set_auto_completion_name(name: String) -> Result<(), ()> {
+    AutoCompletionName::set(name);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn auto_completion(
-    name: String, sql: String, line: u32, col: u32, app: tauri::State<'_, App>,
+    sql: String, line: u32, col: u32, app: tauri::State<'_, App>,
 ) -> Result<Vec<CompletionItem>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let use_lexer = true;
+    let name = AutoCompletionName::get();
     let db = app.get_backend(name.as_str()).await?;
-
     let ret = tokio::time::timeout(std::time::Duration::from_secs(4), async {
         match db {
             DatabaseBackend::Catalog(x) => x.auto_completion(&sql, line, col, use_lexer).await,
@@ -1036,6 +1058,22 @@ pub async fn auto_completion(
     })
     .await
     .map_err(|_| ErrorFrontend::from("auto completion timeout"))?
+    .map_err(ErrorFrontend::from)?;
+    Ok(ret)
+}
+
+#[tauri::command]
+pub async fn key_words(
+    name: String, app: tauri::State<'_, App>,
+) -> Result<Vec<String>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app.get_backend(name.as_str()).await?;
+    let ret = match db {
+        DatabaseBackend::Catalog(x) => x.key_words().await,
+        DatabaseBackend::DataBase(x) => x.key_words().await,
+        DatabaseBackend::Schema(x) => x.key_words().await,
+    }
     .map_err(ErrorFrontend::from)?;
     Ok(ret)
 }

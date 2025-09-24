@@ -1325,6 +1325,9 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for RedisDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(REDIS_COMMANDS.iter().map(|x| x.to_string()).collect())
+    }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         anyhow::Ok(get_command_from_sql(sql)?.iter().any(|x| {
             x.first()

@@ -99,7 +99,7 @@ enum MongoDataViewModel {
 const mongoID = '_id';
 
 const mongoBsonKeywords =
-  /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|int8_array|float32_array|user_define|true|false|null|undefined|code)\b/;
+  /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|int8_array|float32_array|user_define|true|false|null|undefined|code)\b/i;
 function mongoBsonAutoCompletion(): languages.CompletionList {
   let generateSubTypes = MongoBsonBinaryAllSubType.allValues().map((e) => {
     return {
@@ -194,7 +194,7 @@ function mongoBsonAutoCompletion(): languages.CompletionList {
     ],
   };
 }
-const languageXXX = 'mongoBson-7135637247';
+const languageXXX = 'mongoBson';
 
 function initMongoBsonLanguage() {
   loader

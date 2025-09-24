@@ -10,7 +10,6 @@ import types from './ApiStruct';
 import {
   DefAndMetas,
   EscDownEvent,
-  initMonacoLanguage,
   modalHandleClose,
   modalStyle,
 } from './Common';
@@ -21,8 +20,6 @@ import {
   DataSourceKind,
   gridStyle,
   handleCopyToClipboard,
-  makeExecuteSql,
-  makeGetParserErr,
   saveAndSetSize,
   secondConfirm,
   SettingContext,
@@ -1411,7 +1408,6 @@ function TriggersStructure(props: {
   table: string;
 }) {
   const { uuid, kind, table } = props;
-  initMonacoLanguage(uuid, kind);
   const setting = useContext(SettingContext);
   const [loading, setLoading] = useState(false);
   const [triggers, setTriggers] = useState<types.TriggerDetail[]>([]);
@@ -1643,11 +1639,10 @@ function TriggersStructure(props: {
             <ModalHeader title={`Trigger Detail`}></ModalHeader>
             <TriggerDetail
               reloadOP={async () => {
-                return Promise.resolve(row);
+                return Promise.resolve(triggers.find(row));
               }}
               uuid={uuid}
-              getParseErr={makeGetParserErr(uuid)}
-              executeOP={makeExecuteSql(uuid)}
+              kind={kind}
             ></TriggerDetail>
           </Box>
         </Modal>
@@ -1779,7 +1774,6 @@ function StatementStructure(props: {
     ret += indexes.join('');
     return ret;
   };
-  initMonacoLanguage(uuid, kind);
 
   return (
     <Stack>
@@ -1795,9 +1789,8 @@ function StatementStructure(props: {
             return { def: getValue(e), metas: [] } as DefAndMetas;
           });
         }}
-        executeOP={makeExecuteSql(uuid)}
-        language={uuid}
-        getParseErr={makeGetParserErr(uuid)}
+        language={kind}
+        uuid={uuid}
       ></DefAndMetasView>
     </Stack>
   );

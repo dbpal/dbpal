@@ -28,6 +28,11 @@ impl LexerCompletionTrait for MysqlDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for MysqlDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        LangServerCommon::key_words(self)
+            .await
+            .map(|x| x.into_iter().map(|x| x.into()).collect())
+    }
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -83,8 +88,8 @@ impl MysqlDB {
 #[async_trait::async_trait]
 impl LangServerCommon for MysqlDB {
     async fn list_event(&self, schema: Option<&str>) -> anyhow::Result<Vec<SqlEvent>> {
-        let shcema = self.not_allow_empty_schema(schema).await?;
-        self.list_event_impl(&shcema).await
+        let schema = self.not_allow_empty_schema(schema).await?;
+        self.list_event_impl(&schema).await
     }
 
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
@@ -444,7 +449,7 @@ mod tests {
     use std::path::Path;
 
     use crate::datasource_config::MysqlDBConfig;
-    use crate::db::{AutoCompletionQueryUuid, QuerySql, monaco_editor_keyword_regexp};
+    use crate::db::{AutoCompletionQueryUuid, QuerySql};
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::language_server::{LangServerCommon, LanguageServer};
     use crate::mysql::MysqlDB;
@@ -466,22 +471,6 @@ mod tests {
             save_password: true,
             ssl: Default::default(),
         }
-    }
-
-    #[tokio::test]
-    async fn print_key_words() {
-        let db = make_test_object(make_config()).await;
-        let keywords = <MysqlDB as LangServerCommon>::key_words(&db)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|x| x.item.to_string())
-            .collect::<Vec<_>>();
-
-        let keywords: Vec<&str> = keywords.iter().map(|x| x.as_str()).collect();
-
-        let s = monaco_editor_keyword_regexp(&keywords[..]);
-        println!("{}", s);
     }
 
     // partition test failed , sqlparser can't parse a valid partition statement.

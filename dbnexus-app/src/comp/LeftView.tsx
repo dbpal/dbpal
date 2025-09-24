@@ -9,7 +9,6 @@ import {
 import {
   tabsHasId,
   modalStyle,
-  initMonacoLanguage,
   makeAutoComplete,
   EscDownEvent,
   modalHandleClose,
@@ -206,7 +205,6 @@ function StatementStructure(props: {
   useEffect(() => {
     handleReload();
   }, []);
-  initMonacoLanguage(uuid, kind);
   const [dom, setDom] = useState(null);
   useEffect(() => {
     if (dom) {
@@ -235,7 +233,7 @@ function StatementStructure(props: {
       {sql && (
         <SimpleFlexEditor
           readOnly={true}
-          language={uuid}
+          language={kind}
           value={sql}
         ></SimpleFlexEditor>
       )}
@@ -537,7 +535,7 @@ function ViewMenu(props: {
               });
             }}
             quoteStyle={quoteStyle(kind)}
-            autoCompletion={makeAutoComplete(uuid)}
+            autoCompletion={makeAutoComplete()}
             tableName={view}
             kind={kind}
             notWarnPri={true}
