@@ -43,11 +43,13 @@ import {
 import ClearIcon from '@mui/icons-material/Clear';
 import { v4 as uuidV4 } from 'uuid';
 import {
+  autoCompletion,
   EscDownEvent,
   keyNotInTable,
   modalHandleClose,
   modalStyle,
   reloadOK,
+  setAutoCompletionName,
 } from './Common';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import KeyIcon from '@mui/icons-material/Key';
@@ -74,6 +76,7 @@ import {
   validJson,
   SavePageSize,
   textEllipsisStyle,
+  TabActiveContext,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
@@ -150,21 +153,9 @@ function WhereSort(props: {
   label;
   tableName;
   fields: types.Field[];
-  autoCompletion: (
-    sql: string,
-    pos: Position
-  ) => Promise<languages.CompletionList>;
 }) {
-  const {
-    open,
-    handleClose,
-    value,
-    setValue,
-    label,
-    tableName,
-    fields,
-    autoCompletion,
-  } = props;
+  const { open, handleClose, value, setValue, label, tableName, fields } =
+    props;
   const [newValue, setNewValue] = useState(value);
 
   whereAutoCompletion = async (sql, p) => {
@@ -360,11 +351,8 @@ function SqlTableView_(props: {
   notWarnPri?: boolean;
   kind: DataSourceKind;
   tableName: string;
-  autoCompletion?: (
-    sql: string,
-    pos: Position
-  ) => Promise<languages.CompletionList>;
   quoteStyle: string;
+  uuid;
   invalidCassandraTableViewCache?: () => Promise<void>;
 }) {
   let {
@@ -376,8 +364,8 @@ function SqlTableView_(props: {
     kind,
     tableName,
     addOP,
-    autoCompletion,
     quoteStyle,
+    uuid,
     invalidCassandraTableViewCache,
   } = props;
   const [loading, setLoading] = useState(false);
@@ -387,6 +375,12 @@ function SqlTableView_(props: {
   const [showSetSort, setShowSetSort] = useState(false);
   const [page, setPage] = useState(0);
   const setting = useContext(SettingContext);
+  const vis = useContext(TabActiveContext);
+  useEffect(() => {
+    if (vis) {
+      setAutoCompletionName(uuid);
+    }
+  }, [vis]);
 
   const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
   const [resp, setResp] = useState<types.MuiDataGridData>({
@@ -970,7 +964,6 @@ function SqlTableView_(props: {
           setValue={(v) => {
             setWhere(v);
           }}
-          autoCompletion={autoCompletion}
           handleClose={() => {
             setShowSetWhere(false);
           }}
@@ -981,7 +974,6 @@ function SqlTableView_(props: {
       {showSetSort && (
         <WhereSort
           tableName={tableName}
-          autoCompletion={autoCompletion}
           open={showSetSort}
           value={sort}
           setValue={(v) => {

@@ -2,7 +2,6 @@ import { ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import {
   modalStyle,
   tabsHasId,
-  makeAutoComplete,
   EscDownEvent,
   modalHandleClose,
 } from './Common';
@@ -322,8 +321,8 @@ function makeViewTable(
             });
           }}
           quoteStyle={quoteStyle(kind)}
-          autoCompletion={makeAutoComplete(uuid)}
           tableName={table}
+          uuid={uuid}
           kind={kind}
           reloadOP={async (
             where: string,

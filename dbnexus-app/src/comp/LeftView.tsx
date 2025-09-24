@@ -9,7 +9,6 @@ import {
 import {
   tabsHasId,
   modalStyle,
-  makeAutoComplete,
   EscDownEvent,
   modalHandleClose,
 } from './Common';
@@ -535,9 +534,9 @@ function ViewMenu(props: {
               });
             }}
             quoteStyle={quoteStyle(kind)}
-            autoCompletion={makeAutoComplete()}
             tableName={view}
             kind={kind}
+            uuid={uuid}
             notWarnPri={true}
             reloadOP={async (
               where: string,

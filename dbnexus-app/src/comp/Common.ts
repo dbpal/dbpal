@@ -117,32 +117,27 @@ function reloadOK(showNotification) {
 }
 const registeredLanguage = new Set<DataSourceKind>();
 
-function makeAutoComplete(
 
-): (sql: string, pos: Position) => Promise<languages.CompletionList> {
-  const autoCompletion = async (
-    sql: string,
-    pos: Position
-  ): Promise<languages.CompletionList> => {
-    try {
-      let completionItem = await invoke<types.CompletionItem[]>(
-        'auto_completion',
-        {
-          sql,
-          line: pos.lineNumber,
-          col: pos.column,
-        }
-      );
-      let suggestions = backendCompletionItemToEditor(completionItem);
-      return suggestions;
-    } catch (e) {
-      console.log('completion server error:', e);
-      throw e;
-    }
-  };
-  return autoCompletion;
-}
-
+const autoCompletion = async (
+  sql: string,
+  pos: Position
+): Promise<languages.CompletionList> => {
+  try {
+    let completionItem = await invoke<types.CompletionItem[]>(
+      'auto_completion',
+      {
+        sql,
+        line: pos.lineNumber,
+        col: pos.column,
+      }
+    );
+    let suggestions = backendCompletionItemToEditor(completionItem);
+    return suggestions;
+  } catch (e) {
+    console.log('completion server error:', e);
+    throw e;
+  }
+};
 
 // uuid as language identifier.
 async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
@@ -150,7 +145,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
     return;
   }
   registeredLanguage.add(kind);
-  const autoCompletion = makeAutoComplete();
   const formatFn = async (sql: string, opts: languages.FormattingOptions) => {
     try {
       // https://github.com/sql-formatter-org/sql-formatter/blob/master/docs/language.md
@@ -673,7 +667,7 @@ export {
   AppStoreKey,
   keyNotInTable,
   extractBaseName,
-  makeAutoComplete,
+  autoCompletion,
   modalHandleClose,
   setAutoCompletionName,
 
