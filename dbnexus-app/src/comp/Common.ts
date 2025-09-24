@@ -131,6 +131,7 @@ const autoCompletion = async (
         col: pos.column,
       }
     );
+    // console.log('completion', completionItem);
     let suggestions = backendCompletionItemToEditor(completionItem);
     return suggestions;
   } catch (e) {
@@ -139,6 +140,50 @@ const autoCompletion = async (
   }
 };
 
+
+function initLanguageXXX(
+  kind: DataSourceKind,
+  ILanguage: languages.IMonarchLanguage,
+  autoCompletion: (
+    text: string,
+    pos: Position
+  ) => Promise<languages.CompletionList>,
+  format?: (
+    text: string,
+    options: languages.FormattingOptions
+  ) => Promise<string>
+) {
+  loader
+    .init()
+    .then((monaco) => {
+      monaco.languages.register({ id: kind });
+      monaco.languages.setMonarchTokensProvider(kind, ILanguage);
+      if (format) {
+        monaco.languages.registerDocumentFormattingEditProvider(kind, {
+          provideDocumentFormattingEdits(model, options, _token) {
+            return format(model.getValue(), options).then((text) => [
+              { range: model.getFullModelRange(), text },
+            ]);
+          },
+        });
+      }
+      monaco.languages.registerCompletionItemProvider(kind, {
+        provideCompletionItems: (
+          model: editor.ITextModel,
+          position: Position,
+          _context: any,
+          _token: CancellationToken
+        ) => {
+          let text = model.getValue();
+          return autoCompletion(text, position);
+        },
+        triggerCharacters: ['.'],
+      });
+    })
+    .catch((e) => {
+      console.log('init monaco language error:', e);
+    });
+}
 // uuid as language identifier.
 async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
   if (registeredLanguage.has(kind)) {
@@ -200,54 +245,12 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
   }
   const singleLineCommentReg = /(--[^\n]*|#[^\n]*)/g;
   const stringReg = /\'(?:\\.|[^\\\'])*\'/;
-  function initLanguageXXX(
-    uuid: string,
-    ILanguage: languages.IMonarchLanguage,
-    autoCompletion: (
-      text: string,
-      pos: Position
-    ) => Promise<languages.CompletionList>,
-    format?: (
-      text: string,
-      options: languages.FormattingOptions
-    ) => Promise<string>
-  ) {
-    loader
-      .init()
-      .then((monaco) => {
-        monaco.languages.register({ id: uuid });
-        monaco.languages.setMonarchTokensProvider(uuid, ILanguage);
-        if (format) {
-          monaco.languages.registerDocumentFormattingEditProvider(uuid, {
-            provideDocumentFormattingEdits(model, options, _token) {
-              return format(model.getValue(), options).then((text) => [
-                { range: model.getFullModelRange(), text },
-              ]);
-            },
-          });
-        }
-        monaco.languages.registerCompletionItemProvider(uuid, {
-          provideCompletionItems: (
-            model: editor.ITextModel,
-            position: Position,
-            _context: any,
-            _token: CancellationToken
-          ) => {
-            let text = model.getValue();
-            return autoCompletion(text, position);
-          },
-          triggerCharacters: ['.'],
-        });
-      })
-      .catch((e) => {
-        console.log('init monaco language error:', e);
-      });
-  }
+
 
   switch (kind) {
     case DataSourceKind.MariaDB:
       initLanguageXXX(
-        uuid,
+        kind,
         {
           ignoreCase: true,
           tokenizer: {
@@ -270,7 +273,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
       break;
     case DataSourceKind.Mysql:
       initLanguageXXX(
-        uuid,
+        kind,
         {
           ignoreCase: true,
           tokenizer: {
@@ -292,7 +295,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
       break;
     case DataSourceKind.ClickHouse:
       initLanguageXXX(
-        uuid,
+        kind,
         {
           ignoreCase: true,
           tokenizer: {
@@ -315,7 +318,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
 
     case DataSourceKind.TiDB:
       initLanguageXXX(
-        uuid,
+        kind,
         {
           ignoreCase: true,
           tokenizer: {
@@ -338,7 +341,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
     case DataSourceKind.Sqlite:
     case DataSourceKind.LibSql:
       initLanguageXXX(
-        uuid,
+        kind,
         {
           ignoreCase: true,
           tokenizer: {
@@ -356,7 +359,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
       break;
     case DataSourceKind.FireBird:
       initLanguageXXX(
-        uuid,
+        kind,
         {
           ignoreCase: true,
           tokenizer: {
@@ -374,7 +377,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
       break;
     case DataSourceKind.DuckDB:
       initLanguageXXX(
-        uuid,
+        kind,
         {
           ignoreCase: true,
           tokenizer: {
@@ -393,7 +396,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
 
     case DataSourceKind.Postgres:
       initLanguageXXX(
-        uuid,
+        kind,
         {
           ignoreCase: true,
           tokenizer: {
@@ -411,7 +414,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
       break;
     case DataSourceKind.Cockroach:
       initLanguageXXX(
-        uuid,
+        kind,
         {
           ignoreCase: true,
           tokenizer: {
@@ -431,7 +434,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
       break;
     case DataSourceKind.MsSql:
       initLanguageXXX(
-        uuid,
+        kind,
         {
           ignoreCase: true,
           tokenizer: {
@@ -450,7 +453,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
       break;
     case DataSourceKind.Redis:
       initLanguageXXX(
-        uuid,
+        kind,
         {
           ignoreCase: true,
           tokenizer: { root: [[keywordReg, 'keyword']] },
@@ -463,7 +466,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
       break;
     case DataSourceKind.Oracle:
       initLanguageXXX(
-        uuid,
+        kind,
         {
           ignoreCase: true,
           tokenizer: {
@@ -481,7 +484,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
       break;
     case DataSourceKind.Cassandra:
       initLanguageXXX(
-        uuid,
+        kind,
         {
           ignoreCase: true,
           tokenizer: {

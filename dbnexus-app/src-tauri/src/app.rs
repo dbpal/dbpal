@@ -415,10 +415,10 @@ impl App {
             return anyhow::Ok(db.unwrap());
         }
         let config = unsafe { Self::get_config_ref().as_ref().map(|x| x(name)) }.unwrap();
-        #[cfg(debug_assertions)]
-        println!("open config:{:?}", config);
         match config {
             Ok(config) => {
+                #[cfg(debug_assertions)]
+                println!("open config:{:?}", config);
                 let db = config.open().await?;
                 self.backend
                     .lock()
