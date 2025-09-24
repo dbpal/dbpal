@@ -43,7 +43,6 @@ import {
 import ClearIcon from '@mui/icons-material/Clear';
 import { v4 as uuidV4 } from 'uuid';
 import {
-  autoCompletion,
   EscDownEvent,
   keyNotInTable,
   modalHandleClose,
@@ -90,8 +89,7 @@ import {
   pageSizeOptions,
   ViewRowInModal,
 } from './CommonComp';
-import { CancellationToken, editor, languages, Position } from 'monaco-editor';
-import { loader } from '@monaco-editor/react';
+import { editor, Position } from 'monaco-editor';
 import wcmatch from 'wildcard-match';
 import { MdEditNote } from 'react-icons/md';
 import { SimpleFlexEditor } from './CommonComp2';
@@ -114,65 +112,28 @@ const confirmAboutPrimary = async (
 };
 
 const getRowId = (e) => e[keyNotInTable];
-const whereLanguage = 'ckqQtTcQDmO3e2fiBMB4QOvmhalfk-1221';
-let whereAutoCompletion: (
-  sql: string,
-  pos: Position
-) => Promise<languages.CompletionList> = null;
 
-loader
-  .init()
-  .then((monaco) => {
-    monaco.languages.register({ id: whereLanguage });
-    monaco.languages.setMonarchTokensProvider(whereLanguage, {
-      ignoreCase: true,
-      tokenizer: {
-        root: [[/\'(?:\\.|[^\\\'])*\'/, 'string']],
-      },
-    });
-
-    monaco.languages.registerCompletionItemProvider(whereLanguage, {
-      provideCompletionItems: (
-        model: editor.ITextModel,
-        position: Position,
-        _context: any,
-        _token: CancellationToken
-      ) => {
-        return whereAutoCompletion(model.getValue(), position);
-      },
-    });
-  })
-  .catch((e) => {
-    console.log('init monaco language error:', e);
-  });
 function WhereSort(props: {
   open: boolean;
   handleClose;
   value: string;
   setValue;
-  label;
+  label: 'filter' | 'sort';
   tableName;
-  fields: types.Field[];
+  kind: DataSourceKind;
+  extractFn: (sql: string) => Promise<String | null>;
 }) {
-  const { open, handleClose, value, setValue, label, tableName, fields } =
-    props;
-  const [newValue, setNewValue] = useState(value);
-
-  whereAutoCompletion = async (sql, p) => {
-    return autoCompletion(sql, p).then((list) => {
-      fields.forEach((e) => {
-        list.suggestions.push({
-          label: e.field,
-          kind: languages.CompletionItemKind.Field,
-          insertText: e.field,
-          range: undefined,
-          detail: e.data_type,
-          documentation: e.data_type,
-        });
-      });
-      return list;
-    });
-  };
+  const {
+    open,
+    handleClose,
+    value,
+    setValue,
+    label,
+    tableName,
+    kind,
+    extractFn,
+  } = props;
+  const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [modalBox, setModalBox] = useState(null);
   useEffect(() => {
     if (modalBox) {
@@ -180,6 +141,20 @@ function WhereSort(props: {
       return c;
     }
   }, [modalBox]);
+  const { showNotification } = useContext(NotificationContext);
+  const handleSet = async () => {
+    try {
+      let value = await extractFn(editor.current.getValue());
+      if (value == null) {
+        value = '';
+      }
+      setValue(value);
+      handleClose();
+    } catch (e) {
+      showNotification('error', 'extract sql error.', e);
+      return;
+    }
+  };
   return (
     <Modal
       open={open}
@@ -196,47 +171,19 @@ function WhereSort(props: {
       >
         <ModalHeader title={`set ${label}`}></ModalHeader>
         <SimpleFlexEditor
-          value={newValue}
-          handleValue={(v) => {
-            setNewValue(v);
+          value={
+            label == 'filter'
+              ? `select * from ${tableName} where ${value}`
+              : `select * from ${tableName} order by ${value}`
+          }
+          handleEditor={(e) => {
+            editor.current = e;
           }}
-          language={whereLanguage}
+          language={kind}
         ></SimpleFlexEditor>
 
         <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
-          <Button
-            onClick={() => {
-              setValue(newValue);
-              handleClose();
-            }}
-          >
-            set {label}
-          </Button>
-          {newValue && (
-            <Button
-              variant="outlined"
-              onClick={() => {
-                setNewValue('');
-              }}
-            >
-              clear
-            </Button>
-          )}
-          {label == 'filter' && newValue && (
-            <Typography
-              color="success"
-              style={{
-                ...textEllipsisStyle,
-              }}
-            >
-              {`select * from ${tableName} where ${newValue}`}
-            </Typography>
-          )}
-          {label == 'sort' && newValue && (
-            <Typography color="success">
-              {`select * from ${tableName} order by ${newValue}`}
-            </Typography>
-          )}
+          <Button onClick={handleSet}>set {label}</Button>
         </Stack>
       </Box>
     </Modal>
@@ -354,6 +301,8 @@ function SqlTableView_(props: {
   quoteStyle: string;
   uuid;
   invalidCassandraTableViewCache?: () => Promise<void>;
+  extractTableSelectWhere: (sql: string) => Promise<String | null>;
+  extractTableSelectSort: (sql: string) => Promise<String | null>;
 }) {
   let {
     reloadOP,
@@ -367,6 +316,8 @@ function SqlTableView_(props: {
     quoteStyle,
     uuid,
     invalidCassandraTableViewCache,
+    extractTableSelectSort,
+    extractTableSelectWhere,
   } = props;
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
@@ -967,10 +918,12 @@ function SqlTableView_(props: {
           handleClose={() => {
             setShowSetWhere(false);
           }}
+          extractFn={extractTableSelectWhere}
           label="filter"
-          fields={resp.fields}
+          kind={kind}
         ></WhereSort>
       )}
+
       {showSetSort && (
         <WhereSort
           tableName={tableName}
@@ -979,11 +932,12 @@ function SqlTableView_(props: {
           setValue={(v) => {
             setSort(v);
           }}
-          fields={resp.fields}
+          kind={kind}
           handleClose={() => {
             setShowSetSort(false);
           }}
           label="sort"
+          extractFn={extractTableSelectSort}
         ></WhereSort>
       )}
     </Stack>

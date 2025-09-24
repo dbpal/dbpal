@@ -1041,6 +1041,40 @@ pub fn set_auto_completion_name(name: String) -> Result<(), ()> {
 }
 
 #[tauri::command]
+pub async fn extract_table_select_selection(
+    sql: String, app: tauri::State<'_, App>,
+) -> Result<Option<String>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let name = AutoCompletionName::get();
+    let db = app.get_backend(name.as_str()).await?;
+    let ret = match db {
+        DatabaseBackend::Catalog(x) => x.extract_table_select_selection(&sql),
+        DatabaseBackend::DataBase(x) => x.extract_table_select_selection(&sql),
+        DatabaseBackend::Schema(x) => x.extract_table_select_selection(&sql),
+    }
+    .map_err(ErrorFrontend::from)?;
+    Ok(ret)
+}
+
+#[tauri::command]
+pub async fn extract_table_select_sort(
+    sql: String, app: tauri::State<'_, App>,
+) -> Result<Option<String>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let name = AutoCompletionName::get();
+    let db = app.get_backend(name.as_str()).await?;
+    let ret = match db {
+        DatabaseBackend::Catalog(x) => x.extract_table_select_sort(&sql),
+        DatabaseBackend::DataBase(x) => x.extract_table_select_sort(&sql),
+        DatabaseBackend::Schema(x) => x.extract_table_select_sort(&sql),
+    }
+    .map_err(ErrorFrontend::from)?;
+    Ok(ret)
+}
+
+#[tauri::command]
 pub async fn auto_completion(
     sql: String, line: u32, col: u32, app: tauri::State<'_, App>,
 ) -> Result<Vec<CompletionItem>, ErrorFrontend> {

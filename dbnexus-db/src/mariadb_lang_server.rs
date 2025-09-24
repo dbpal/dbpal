@@ -11,6 +11,12 @@ use std::ops::DerefMut;
 
 #[async_trait::async_trait]
 impl LanguageServer for MariaDB {
+    fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        LangServerCommon::extract_table_select_selection(self.db.as_ref(), sql)
+    }
+    fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        LangServerCommon::extract_table_select_sort(self.db.as_ref(), sql)
+    }
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
         LangServerCommon::key_words(self)
             .await

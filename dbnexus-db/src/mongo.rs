@@ -70,6 +70,12 @@ impl GetBackendKind for MongoDB {
 }
 #[async_trait::async_trait]
 impl LanguageServer for MongoDB {
+    fn extract_table_select_selection(&self, _sql: &str) -> anyhow::Result<Option<String>> {
+        not_support_feature(self.backend_name())
+    }
+    fn extract_table_select_sort(&self, _sql: &str) -> anyhow::Result<Option<String>> {
+        not_support_feature(self.backend_name())
+    }
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }

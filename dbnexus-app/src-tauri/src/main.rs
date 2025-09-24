@@ -21,11 +21,12 @@ use handlers::{
     drop_materialized_view, drop_procedure, drop_schema, drop_sequence, drop_table,
     drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
     execute_sql, execute_sql_no_open_conn, export_query_result_to_file, export_table_or_view,
-    fonts_all_families, has_entered_password, is_dangerous_sql, key_words, list_created_types,
-    list_data_types, list_database, list_event, list_materialized_view, list_procedure,
-    list_schema, list_sequence, list_sql_current_values, list_table, list_udf, list_view,
-    modify_table_column, mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id,
-    mongo_insert, mongo_list_time_serial_collection, mongo_query_collection_count_docs,
+    extract_table_select_selection, extract_table_select_sort, fonts_all_families,
+    has_entered_password, is_dangerous_sql, key_words, list_created_types, list_data_types,
+    list_database, list_event, list_materialized_view, list_procedure, list_schema, list_sequence,
+    list_sql_current_values, list_table, list_udf, list_view, modify_table_column,
+    mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id, mongo_insert,
+    mongo_list_time_serial_collection, mongo_query_collection_count_docs,
     mongo_query_collection_create_index, mongo_query_collection_create_search_index,
     mongo_query_collection_delete_many, mongo_query_collection_delete_one,
     mongo_query_collection_distinct, mongo_query_collection_drop,
@@ -593,6 +594,8 @@ fn main_() {
             truncate_log_file,
             key_words,
             set_auto_completion_name,
+            extract_table_select_selection,
+            extract_table_select_sort,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

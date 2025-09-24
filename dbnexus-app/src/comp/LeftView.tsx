@@ -11,6 +11,8 @@ import {
   modalStyle,
   EscDownEvent,
   modalHandleClose,
+  makeExtractTableSelectSort,
+  makeExtractTableSelectWhere,
 } from './Common';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification';
@@ -533,6 +535,8 @@ function ViewMenu(props: {
                 tableName: view,
               });
             }}
+            extractTableSelectSort={makeExtractTableSelectSort(uuid)}
+            extractTableSelectWhere={makeExtractTableSelectWhere(uuid)}
             quoteStyle={quoteStyle(kind)}
             tableName={view}
             kind={kind}

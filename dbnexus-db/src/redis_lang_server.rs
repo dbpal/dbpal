@@ -10,7 +10,7 @@ use redis::aio::MultiplexedConnection;
 use redis::{AsyncCommands, AsyncIter};
 use tokio::sync::Mutex;
 
-use crate::db::AutoCompletionQueryUuid;
+use crate::db::{AutoCompletionQueryUuid, GetBackendKind, not_support_feature};
 use crate::language_server::{CompletionItem, CompletionKind, LanguageServer, in_pos};
 use crate::redis::{RedisDB, RedisToken, RedisType, get_command_from_sql};
 impl RedisDB {
@@ -1325,6 +1325,12 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for RedisDB {
+    fn extract_table_select_selection(&self, _sql: &str) -> anyhow::Result<Option<String>> {
+        not_support_feature(self.backend_name())
+    }
+    fn extract_table_select_sort(&self, _sql: &str) -> anyhow::Result<Option<String>> {
+        not_support_feature(self.backend_name())
+    }
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(REDIS_COMMANDS.iter().map(|x| x.to_string()).collect())
     }

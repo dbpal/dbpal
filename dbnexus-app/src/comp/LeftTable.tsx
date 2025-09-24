@@ -4,6 +4,8 @@ import {
   tabsHasId,
   EscDownEvent,
   modalHandleClose,
+  makeExtractTableSelectSort,
+  makeExtractTableSelectWhere,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -314,6 +316,8 @@ function makeViewTable(
     case DataSourceKind.Cockroach:
       tableList = (
         <SqlTableView
+          extractTableSelectSort={makeExtractTableSelectSort(uuid)}
+          extractTableSelectWhere={makeExtractTableSelectWhere(uuid)}
           invalidCassandraTableViewCache={async () => {
             return invoke<void>('cassandra_invalid_table_or_view_caching', {
               name: uuid,

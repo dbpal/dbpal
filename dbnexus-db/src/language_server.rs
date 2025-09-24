@@ -2,7 +2,8 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::time::Duration;
 
-use sqlparser::ast::Statement;
+use sqlparser::ast::{SetExpr, Statement};
+use sqlparser::keywords::Keyword;
 use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
 use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
@@ -24,6 +25,9 @@ pub trait LanguageServer: GetBackendKind {
     }
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool>;
     async fn key_words(&self) -> anyhow::Result<Vec<String>>;
+    // if possible
+    fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>>;
+    fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -835,6 +839,88 @@ pub trait LangServerCommon: GetBackendKind {
                 desc: None,
             })
             .collect()
+    }
+
+    fn tokenize(&self, sql: &str) -> anyhow::Result<Vec<Token>> {
+        let d = self.dialect();
+        let tokens = sqlparser::tokenizer::Tokenizer::new(d.as_ref(), sql).tokenize()?;
+        anyhow::Ok(tokens)
+    }
+
+    // extract where condition from `select * from table where a =1`;
+    // if possible
+    fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        let ss = self.parse_statements(sql)?;
+        if let Some(statement) = ss.get(0) {
+            match statement {
+                Statement::Query(query) => match query.body.as_ref() {
+                    SetExpr::Select(x) => {
+                        return anyhow::Ok(x.selection.as_ref().map(|x| x.to_string()));
+                    }
+                    _ => {
+                        anyhow::bail!(format!(
+                            "should be a select statement,but ${:?}",
+                            query.body.as_ref()
+                        ))
+                    }
+                },
+                _ => {
+                    anyhow::bail!(format!("should be a query statement ,but:{:?}", ss[0]))
+                }
+            }
+        }
+        // if parse failed
+        let tokens: Vec<_> = self
+            .tokenize(sql)?
+            .into_iter()
+            .filter(|x| !matches!(x, Token::Whitespace(_)))
+            .collect();
+        if let Some(index) = tokens.iter().position(|x| match x {
+            Token::Word(x) => x.keyword == Keyword::WHERE,
+            _ => false,
+        }) {
+            let token_slice = &tokens[index + 1..];
+            anyhow::Ok(Some(
+                token_slice
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            ))
+        } else {
+            anyhow::Ok(None)
+        }
+    }
+
+    fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        // if parse failed
+        let tokens: Vec<_> = self
+            .tokenize(sql)?
+            .into_iter()
+            .filter(|x| !matches!(x, Token::Whitespace(_)))
+            .collect();
+        if let Some(index) = tokens.iter().position(|x| match x {
+            Token::Word(x) => x.keyword == Keyword::ORDER,
+            _ => false,
+        }) {
+            if tokens.get(index + 1).is_none() {
+                anyhow::bail!("order by without 'by' keyword");
+            }
+            // skip order by
+            let token_slice = &tokens[index + 2..];
+            if token_slice.len() == 0 {
+                return anyhow::Ok(None);
+            }
+            anyhow::Ok(Some(
+                token_slice
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            ))
+        } else {
+            anyhow::Ok(None)
+        }
     }
 }
 

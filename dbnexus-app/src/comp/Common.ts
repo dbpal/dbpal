@@ -656,6 +656,19 @@ function setAutoCompletionName(name: string) {
     console.log('set auto completion name failed,err:', e);
   });
 }
+
+function makeExtractTableSelectWhere(uuid) {
+  return (sql: string) => {
+    return invoke<string | null>('extract_table_select_selection', { name: uuid, sql })
+  }
+}
+
+function makeExtractTableSelectSort(uuid) {
+  return (sql: string) => {
+    return invoke<string | null>('extract_table_select_sort', { name: uuid, sql })
+  }
+}
+
 export {
   modalStyle,
   tabsHasId,
@@ -673,7 +686,8 @@ export {
   autoCompletion,
   modalHandleClose,
   setAutoCompletionName,
-
+  makeExtractTableSelectWhere,
+  makeExtractTableSelectSort
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent };

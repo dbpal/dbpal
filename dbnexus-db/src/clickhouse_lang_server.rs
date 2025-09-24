@@ -10,6 +10,13 @@ use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
 
 impl LanguageServer for ClickHouseDB {
+    fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        LangServerCommon::extract_table_select_selection(self, sql)
+    }
+    fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        LangServerCommon::extract_table_select_sort(self, sql)
+    }
+
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
         LangServerCommon::key_words(self)
             .await
