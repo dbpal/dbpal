@@ -74,7 +74,7 @@ impl r2d2::ManageConnection for PoolManage {
 pub struct DuckDB {
     pub(crate) config: DuckDBConfig,
     pool: r2d2::Pool<PoolManage>,
-    query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<duckdb::Connection>>>>,
+    query_connections: Arc<DashMap<u32, Arc<Mutex<duckdb::Connection>>>>,
     query_logs: QueryLogMap,
 }
 
@@ -427,7 +427,7 @@ impl QuerySql for DuckDB {
     }
 
     async fn query_sql(
-        &self, query_id: uuid::UUID, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut _log_guard = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
@@ -464,7 +464,7 @@ impl QuerySql for DuckDB {
     }
 
     async fn execute_sql(
-        &self, query_id: uuid::UUID, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let mut _log_guard = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connections.get(&query_id) {
@@ -481,7 +481,7 @@ impl QuerySql for DuckDB {
         anyhow::Ok(resp)
     }
 
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
+    async fn open_connection(&self) -> anyhow::Result<u32> {
         let uuid = uuid::Uuid::new_v4();
         let conn = make_conn(&self.config.path)?;
         self.query_connections
@@ -489,14 +489,14 @@ impl QuerySql for DuckDB {
         anyhow::Ok(uuid)
     }
 
-    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
         let conn = make_conn(&self.config.path)?;
         self.query_connections
             .insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }
@@ -1438,12 +1438,7 @@ impl SchemaTrait for DuckDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = self.insert_sql(
-            self.config.schema.as_deref(),
-            table_name,
-            &fs,
-            &values,
-        )?;
+        let sql = self.insert_sql(self.config.schema.as_deref(), table_name, &fs, &values)?;
         log::info!("sql:{}", sql);
 
         let conn = self.get_conn()?;
@@ -1481,12 +1476,7 @@ impl SchemaTrait for DuckDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
 
-        let sql = self.delete_sql(
-            self.config.schema.as_deref(),
-            table_name,
-            &fs,
-            &wheres,
-        )?;
+        let sql = self.delete_sql(self.config.schema.as_deref(), table_name, &fs, &wheres)?;
 
         let conn = self.get_conn()?;
         let changes = block_in_place(|| conn.execute(&sql, []))?;

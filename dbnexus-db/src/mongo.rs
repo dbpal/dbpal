@@ -822,13 +822,13 @@ impl SchemaTrait for MongoDB {
 #[async_trait::async_trait]
 impl QuerySql for MongoDB {
     async fn query_sql(
-        &self, _id: uuid::Uuid, _sql: &str,
+        &self, _id: u32, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         not_support_feature(self.backend_name())
     }
 
     async fn execute_sql(
-        &self, _query_id: uuid::Uuid, _sql: &str,
+        &self, _query_id: u32, _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         not_support_feature(self.backend_name())
     }
@@ -837,15 +837,15 @@ impl QuerySql for MongoDB {
     ) -> anyhow::Result<Result<QueryResp, String>> {
         not_support_feature(self.backend_name())
     }
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
+    async fn open_connection(&self) -> anyhow::Result<u32> {
         not_support_feature(self.backend_name())
     }
 
-    async fn re_connect(&self, _id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn re_connect(&self, _id: u32) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
 
-    async fn close_connection(&self, _id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn close_connection(&self, _id: u32) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
 }

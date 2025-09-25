@@ -80,7 +80,7 @@ pub async fn save_entered_password(
     Ok(())
 }
 #[tauri::command]
-pub fn set_auto_completion_query_id(query_id: uuid::Uuid) {
+pub fn set_auto_completion_query_id(query_id: u32) {
     AutoCompletionQueryUuid::set(query_id);
 }
 
@@ -755,7 +755,7 @@ pub async fn is_dangerous_sql(
 }
 #[tauri::command]
 pub async fn query_sql(
-    name: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
+    name: String, query_id: u32, sql: String, app: tauri::State<'_, App>,
 ) -> Result<Vec<Result<MuiDataGridData, String>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -803,7 +803,7 @@ pub async fn execute_sql_no_open_conn(
 }
 #[tauri::command]
 pub async fn execute_sql(
-    name: String, query_id: uuid::Uuid, sql: String, app: tauri::State<'_, App>,
+    name: String, query_id: u32, sql: String, app: tauri::State<'_, App>,
 ) -> Result<Result<MuiDataGridData, String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -825,7 +825,7 @@ pub async fn execute_sql(
 #[tauri::command]
 pub async fn query_sql_open_connection(
     name: String, app: tauri::State<'_, App>,
-) -> Result<uuid::Uuid, ErrorFrontend> {
+) -> Result<u32, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
@@ -842,7 +842,7 @@ pub async fn query_sql_open_connection(
 
 #[tauri::command]
 pub async fn query_sql_re_connection(
-    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
+    name: String, query_id: u32, app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -860,7 +860,7 @@ pub async fn query_sql_re_connection(
 
 #[tauri::command]
 pub async fn query_sql_close_connection(
-    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
+    name: String, query_id: u32, app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1131,7 +1131,7 @@ pub async fn sql_parse_error(
 
 #[tauri::command]
 pub async fn query_set_autocommit(
-    name: String, query_id: uuid::Uuid, commit: bool, app: tauri::State<'_, App>,
+    name: String, query_id: u32, commit: bool, app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1150,7 +1150,7 @@ pub async fn query_set_autocommit(
 
 #[tauri::command]
 pub async fn query_get_commit(
-    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
+    name: String, query_id: u32, app: tauri::State<'_, App>,
 ) -> Result<bool, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1168,7 +1168,7 @@ pub async fn query_get_commit(
 
 #[tauri::command]
 pub async fn query_commit(
-    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
+    name: String, query_id: u32, app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1186,7 +1186,7 @@ pub async fn query_commit(
 
 #[tauri::command]
 pub async fn query_rollback(
-    name: String, query_id: uuid::Uuid, app: tauri::State<'_, App>,
+    name: String, query_id: u32, app: tauri::State<'_, App>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;

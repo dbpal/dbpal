@@ -608,7 +608,7 @@ function Left_() {
 }
 
 const makeConn = async (uuid: string, kind: DataSourceKind) => {
-  const queryId = await invoke<string>('query_sql_open_connection', {
+  const queryId = await invoke<number>('query_sql_open_connection', {
     name: uuid,
   });
   console.log('open connection:', queryId);

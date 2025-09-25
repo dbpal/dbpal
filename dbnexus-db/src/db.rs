@@ -939,35 +939,35 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
 }
 #[async_trait::async_trait]
 pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
-    async fn get_auto_commit(&self, _query_id: uuid::Uuid) -> anyhow::Result<bool> {
+    async fn get_auto_commit(&self, _query_id: u32) -> anyhow::Result<bool> {
         not_support_feature(self.backend_name())
     }
-    async fn set_auto_commit(&self, _query_id: uuid::Uuid, _commit: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, _query_id: u32, _commit: bool) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
-    async fn commit(&self, _query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn commit(&self, _query_id: u32) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
-    async fn rollback(&self, _query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn rollback(&self, _query_id: u32) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
 
     async fn query_sql(
-        &self, query_id: uuid::Uuid, _sql: &str,
+        &self, query_id: u32, _sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>>;
 
     async fn execute_sql(
-        &self, query_id: uuid::Uuid, _sql: &str,
+        &self, query_id: u32, _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>>;
     async fn execute_sql_no_open_conn(
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>>;
 
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid>;
+    async fn open_connection(&self) -> anyhow::Result<u32>;
 
-    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()>;
+    async fn re_connect(&self, id: u32) -> anyhow::Result<()>;
 
-    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()>;
+    async fn close_connection(&self, id: u32) -> anyhow::Result<()>;
 }
 
 #[derive(Debug, serde::Serialize, TypeDef)]
@@ -1481,9 +1481,9 @@ pub(crate) fn name_start_ascii_alphabetic(name: &str) -> bool {
 pub struct AutoCompletionQueryUuid {}
 
 impl AutoCompletionQueryUuid {
-    fn loc() -> &'static std::sync::Mutex<uuid::Uuid> {
-        static X: std::sync::LazyLock<std::sync::Mutex<uuid::Uuid>> =
-            std::sync::LazyLock::new(|| std::sync::Mutex::new(uuid::Uuid::new_v4()));
+    fn loc() -> &'static std::sync::Mutex<u32> {
+        static X: std::sync::LazyLock<std::sync::Mutex<u32>> =
+            std::sync::LazyLock::new(|| std::sync::Mutex::new(0));
         &X
     }
 
@@ -1492,10 +1492,10 @@ impl AutoCompletionQueryUuid {
         static X: std::sync::Mutex<()> = std::sync::Mutex::new(());
         &X
     }
-    pub(crate) fn get() -> uuid::Uuid {
+    pub(crate) fn get() -> u32 {
         *Self::loc().lock().unwrap()
     }
-    pub fn set(x: uuid::Uuid) {
+    pub fn set(x: u32) {
         *Self::loc().lock().unwrap() = x;
     }
 }

@@ -703,6 +703,7 @@ class UserSetting {
   csvDelimiter: string = ',';
   includeHeader: boolean = true;
   datagridRowHeightFactor = 2;
+  maxTreeSize: number = 50;
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
   logger = {
     level: 'info',
@@ -748,7 +749,7 @@ function editorSetPositionAndReveal(editor: editor.IStandaloneCodeEditor, pos: P
   editor.revealLines(pos.lineNumber, pos.lineNumber);
 
 }
-const maxTreeSize = 50;
+
 
 function postgresLike(x: DataSourceKind) {
   switch (x) {
@@ -920,7 +921,7 @@ const textEllipsisStyle = {
 
 export type MuiDataGridData = {
   "fields": types.Field[];
-  "data": object[];
+  "data": any[];
   "sql": string | null;
   "total": types.Usize;
   "cache_time": types.U64 | null;
@@ -967,7 +968,6 @@ export {
   WindowFocusChangeContext,
   gridStyle,
   editorSetPositionAndReveal,
-  maxTreeSize,
   postgresLike,
   udfIdGenerate,
   getEditorText,

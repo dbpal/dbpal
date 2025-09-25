@@ -65,7 +65,6 @@ import {
   generateRandomString,
   gridStyle,
   handleCopyToClipboard,
-  maxTreeSize,
   pageSizeOptions,
   QueryLogHandler,
   SaveAlign,
@@ -419,7 +418,7 @@ function MenuDeleteConfig({ name }) {
     </MenuItem>
   );
 }
-function MetaValuesView({ values = [] as types.MetaValue[] }) {
+function MetaValueView({ values = [] as types.MetaValue[] }) {
   const setting = useContext(SettingContext);
   let columns = [
     { field: 'name', width: ColumnWidth.instance.get('name') },
@@ -428,10 +427,9 @@ function MetaValuesView({ values = [] as types.MetaValue[] }) {
   ] as GridColDef[];
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
-  values.forEach((e) => {
+  values.forEach((e, index) => {
     if (!('id' in e)) {
-      //@ts-ignore
-      e.id = uuidV4();
+      e['id'] = index;
     }
   });
 
@@ -690,8 +688,8 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
   );
 }
 
-function ExceedMaxTreeItem(props: { exceed: number }) {
-  const { exceed } = props;
+function ExceedMaxTreeItem(props: { exceed: number; maxTreeSize: number }) {
+  const { exceed, maxTreeSize } = props;
   let id = useRef(generateRandomString());
   return (
     <TreeItem
@@ -1088,7 +1086,7 @@ function ExportMarkDownTable(props: {
 }
 export {
   LogLevelSelection,
-  MetaValuesView,
+  MetaValueView,
   MenuNewQuery,
   MenuCreateDatabase,
   MenuRefresh,

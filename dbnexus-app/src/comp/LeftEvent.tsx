@@ -23,8 +23,8 @@ import {
   DataSourceKind,
   generateRandomString,
   MatchPatternContext,
-  maxTreeSize,
   secondConfirm,
+  SettingContext,
   TabsSetContext,
   UuidContext,
 } from './helper';
@@ -34,6 +34,7 @@ function EventsTree() {
   const { kind } = useContext(ConnTypeContext);
   const [evens, setEvents] = useState<types.SqlEvent[]>([]);
   const { showNotification } = useContext(NotificationContext);
+  const setting = useContext(SettingContext);
   const reload = () => {
     invoke<types.SqlEvent[]>('list_event', { name: uuid })
       .then((ts) => {
@@ -84,7 +85,7 @@ function EventsTree() {
       {evens
         .filter((event) => matchPattern(event.name))
         .map((event, index) => {
-          if (index >= maxTreeSize) {
+          if (index >= setting.maxTreeSize) {
             return;
           }
           return (
@@ -116,7 +117,10 @@ function EventsTree() {
             ></TreeItem>
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed}></ExceedMaxTreeItem>
+      <ExceedMaxTreeItem
+        exceed={exceed}
+        maxTreeSize={setting.maxTreeSize}
+      ></ExceedMaxTreeItem>
     </TreeItem>
   );
 }

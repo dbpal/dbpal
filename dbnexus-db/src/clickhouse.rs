@@ -851,7 +851,7 @@ impl QuerySql for ClickHouseDB {
         anyhow::Ok(ret)
     }
     async fn execute_sql(
-        &self, _query_id: uuid::Uuid, sql: &str,
+        &self, _query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.not_allow_switch_db(sql)?;
         let conn = self.get_conn()?;
@@ -863,7 +863,7 @@ impl QuerySql for ClickHouseDB {
     }
 
     async fn query_sql(
-        &self, _query_id: uuid::Uuid, sql: &str,
+        &self, _query_id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         self.not_allow_switch_db(sql)?;
         let dialect = sqlparser::dialect::ClickHouseDialect {};
@@ -895,15 +895,15 @@ impl QuerySql for ClickHouseDB {
         anyhow::Ok(ret)
     }
 
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
-        anyhow::Ok(uuid::Uuid::new_v4())
+    async fn open_connection(&self) -> anyhow::Result<u32> {
+        anyhow::Ok(1)
     }
 
-    async fn re_connect(&self, _id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn re_connect(&self, _id: u32) -> anyhow::Result<()> {
         anyhow::Ok(())
     }
 
-    async fn close_connection(&self, _id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn close_connection(&self, _id: u32) -> anyhow::Result<()> {
         anyhow::Ok(())
     }
 }
@@ -923,7 +923,7 @@ pub struct ClickHouseDB {
     pub(crate) config: ClickHouseConfig,
     pool: r2d2::Pool<PoolManager>,
     client: reqwest::Client,
-    pub(crate) key_word_completion: Arc<tokio::sync::Mutex<Vec<String>>>,
+    pub(crate) key_words_cache: Arc<tokio::sync::Mutex<Vec<String>>>,
 }
 
 impl ReadOnlyTrait for ClickHouseDB {
@@ -961,7 +961,7 @@ impl ClickHouseDB {
             config,
             pool,
             client,
-            key_word_completion: Default::default(),
+            key_words_cache: Default::default(),
         })
     }
 

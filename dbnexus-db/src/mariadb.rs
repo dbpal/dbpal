@@ -120,16 +120,16 @@ impl ExportQueryResult for MariaDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MariaDB {
-    async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
+    async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
         self.db.get_auto_commit(query_id).await
     }
-    async fn set_auto_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: u32, commit: bool) -> anyhow::Result<()> {
         self.db.set_auto_commit(query_id, commit).await
     }
-    async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
         self.db.commit(query_id).await
     }
-    async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
         self.db.rollback(query_id).await
     }
 
@@ -139,26 +139,26 @@ impl QuerySql for MariaDB {
         self.db.execute_sql_no_open_conn(sql).await
     }
     async fn execute_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.db.execute_sql(query_id, sql).await
     }
 
     async fn query_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         self.db.query_sql(query_id, sql).await
     }
 
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
+    async fn open_connection(&self) -> anyhow::Result<u32> {
         self.db.open_connection().await
     }
 
-    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
         self.db.re_connect(id).await
     }
 
-    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
         self.db.close_connection(id).await
     }
 }

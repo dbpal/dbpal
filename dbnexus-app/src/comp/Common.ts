@@ -522,15 +522,15 @@ interface IQueryConn {
   commit: () => Promise<void>;
   rollback: () => Promise<void>;
   supportTransaction: () => boolean;
-  queryId: string;
+  queryId: number;
 }
 
 class QueryConn implements IQueryConn {
-  queryId: string;
+  queryId: number;
   uuid: string;
   kind: DataSourceKind;
 
-  constructor(uuid, queryId: string, kind: DataSourceKind) {
+  constructor(uuid, queryId: number, kind: DataSourceKind) {
     this.queryId = queryId;
     this.uuid = uuid;
     this.kind = kind;

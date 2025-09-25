@@ -72,9 +72,9 @@ import {
   UuidContext,
   handleCopyToClipboard,
   MongoTableHandler,
-  maxTreeSize,
   getSupportExportKind,
   MuiDataGridData,
+  SettingContext,
 } from './helper';
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from './CommonComp';
 import { TableStructure } from './TableStructure';
@@ -92,6 +92,7 @@ function TablesTree(props: { typ: TableType }) {
   const [loading, setLoading] = useState(false);
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
+  const setting = useContext(SettingContext);
   useEffect(() => {
     setExceed(tables.filter((e) => matchPattern(e.name)).length);
   }, [tables, matchPattern]);
@@ -160,7 +161,7 @@ function TablesTree(props: { typ: TableType }) {
       {tables
         .filter((e) => matchPattern(e.name))
         .map((e, index) => {
-          if (index >= maxTreeSize) {
+          if (index >= setting.maxTreeSize) {
             return;
           }
           return (
@@ -172,7 +173,10 @@ function TablesTree(props: { typ: TableType }) {
             ></TableTree>
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed}></ExceedMaxTreeItem>
+      <ExceedMaxTreeItem
+        exceed={exceed}
+        maxTreeSize={setting.maxTreeSize}
+      ></ExceedMaxTreeItem>
     </TreeItem>
   );
 }

@@ -12,6 +12,7 @@ import {
   Stack,
   TextField,
   Tooltip,
+  Typography,
 } from '@mui/material';
 
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -136,7 +137,7 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
           onClick={reverseCommitMode}
           label={`${commit ? 'auto' : 'manual'}-commit`}
           color={commit ? 'info' : 'success'}
-          variant="outlined"
+          variant={commit ? 'outlined' : 'filled'}
         ></Chip>
       </Tooltip>
 
@@ -637,6 +638,11 @@ function SqlQuery(props: {
 
           <ExecutingTime loading={loading} disableTime></ExecutingTime>
           {!conn && <CircularProgress></CircularProgress>}
+          {conn && (
+            <Tooltip title="connection id">
+              <Typography> #{conn.queryId} </Typography>
+            </Tooltip>
+          )}
         </Stack>
         <div
           style={{

@@ -11,7 +11,7 @@ use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
 impl GetKeyWords for ClickHouseDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let mut lock = self.key_word_completion.lock().await;
+        let mut lock = self.key_words_cache.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }

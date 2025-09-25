@@ -54,7 +54,6 @@ import {
   gridStyle,
   handleCopyToClipboard,
   MatchPatternContext,
-  maxTreeSize,
   MongoTableHandler,
   MuiDataGridData,
   saveAndSetSize,
@@ -83,6 +82,8 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const [views, setViews] = useState<types.ListTable[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
+  const setting = useContext(SettingContext);
+
   let invokeName = '';
   switch (viewKind) {
     case ViewKind.Normal:
@@ -160,7 +161,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       {views
         .filter((e) => matchPattern(e.name))
         .map((e, index) => {
-          if (index >= maxTreeSize) {
+          if (index >= setting.maxTreeSize) {
             return;
           }
           return (
@@ -173,7 +174,10 @@ function ViewsTree(props: { viewKind: ViewKind }) {
             ></ViewTree>
           );
         })}
-      <ExceedMaxTreeItem exceed={exceed}></ExceedMaxTreeItem>
+      <ExceedMaxTreeItem
+        exceed={exceed}
+        maxTreeSize={setting.maxTreeSize}
+      ></ExceedMaxTreeItem>
     </TreeItem>
   );
 }

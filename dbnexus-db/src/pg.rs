@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 
 use dashmap::DashMap;
@@ -30,9 +31,9 @@ use crate::pg_lang_server::POSTGRES_TYPES;
 pub struct PostGresDB {
     pool: sqlx::PgPool,
     pub(crate) config: PGDBConfig,
-    pub(crate) query_connection:
-        Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
-    pub(crate) key_word_completion: Arc<Mutex<Vec<String>>>,
+    pub(crate) query_connection: Arc<DashMap<u32, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
+    pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
+    query_id: Arc<AtomicU32>,
 }
 
 #[async_trait::async_trait]
@@ -1681,7 +1682,8 @@ impl PostGresDB {
             pool,
             config,
             query_connection: Default::default(),
-            key_word_completion: Default::default(),
+            key_words_cache: Default::default(),
+            query_id: Default::default(),
         })
     }
 
@@ -1847,7 +1849,7 @@ impl ExportQueryResult for PostGresDB {
 
 #[async_trait::async_trait]
 impl QuerySql for PostGresDB {
-    async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
+    async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
         use sqlx_core::any::AnyConnectionBackend;
 
         let conn = self.query_connection.get(&query_id);
@@ -1864,7 +1866,7 @@ impl QuerySql for PostGresDB {
         anyhow::Ok(d == 0)
     }
 
-    async fn set_auto_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: u32, commit: bool) -> anyhow::Result<()> {
         if commit {
             anyhow::bail!("sqlite use  commit or rollback to end transaction");
         }
@@ -1881,7 +1883,7 @@ impl QuerySql for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
         use sqlx_core::any::AnyConnectionBackend;
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
@@ -1895,7 +1897,7 @@ impl QuerySql for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
         use sqlx_core::any::AnyConnectionBackend;
         let conn = self.query_connection.get(&query_id);
         let conn = match conn {
@@ -1909,22 +1911,24 @@ impl QuerySql for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
-        let id = uuid::Uuid::new_v4();
+    async fn open_connection(&self) -> anyhow::Result<u32> {
+        let id = self
+            .query_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let conn = self.get_conn().await?;
 
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
 
         anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
         self.query_connection.remove(&id);
 
         anyhow::Ok(())
@@ -1941,7 +1945,7 @@ impl QuerySql for PostGresDB {
     }
 
     async fn execute_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let conn = self.query_connection.get(&query_id);
@@ -1960,7 +1964,7 @@ impl QuerySql for PostGresDB {
     }
 
     async fn query_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let conn = self.query_connection.get(&query_id);

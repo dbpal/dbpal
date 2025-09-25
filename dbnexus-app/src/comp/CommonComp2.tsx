@@ -40,7 +40,7 @@ import { editor, Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
 import { extractBaseName, getNamedConfig, reloadOK, tabsHasId } from './Common';
 import types from './ApiStruct';
-import { MetaValuesView } from './CommonComp';
+import { MetaValueView } from './CommonComp';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { save, SaveDialogOptions, open } from '@tauri-apps/plugin-dialog';
 
@@ -459,7 +459,7 @@ function ConnConfigInfo(props: { uuid }) {
         </Button>
       </Stack>
 
-      <MetaValuesView values={metas}></MetaValuesView>
+      <MetaValueView values={metas}></MetaValueView>
     </Stack>
   );
 }

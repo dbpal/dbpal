@@ -117,9 +117,13 @@ if (!import.meta.env.DEV) {
 }
 
 if (import.meta.env.DEV) {
-  window.addEventListener('load', (_event) => {
-    invoke('page_init_callback');
-  });
+  invoke('page_init_callback')
+    .then(() => {
+      console.log('page init callback successfully');
+    })
+    .catch((e) => {
+      console.log('call page init failed', e);
+    });
 }
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(

@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 
 use dashmap::DashMap;
@@ -31,10 +32,11 @@ pub struct SqliteDB {
     pool: sqlx::SqlitePool,
     read_only: bool,
     path: String,
-    pub(crate) query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
+    pub(crate) query_connection: Arc<DashMap<u32, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
     pub(crate) build_in_fn_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<String>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
+    query_id: Arc<AtomicU32>,
 }
 
 impl SqliteDB {
@@ -1194,6 +1196,7 @@ impl SqliteDB {
             build_in_fn_completion: Default::default(),
             keywords_completion: Default::default(),
             pragma_completion: Default::default(),
+            query_id: Default::default(),
         })
     }
 
@@ -1288,7 +1291,7 @@ impl ExportQueryResult for SqliteDB {
 
 #[async_trait::async_trait]
 impl QuerySql for SqliteDB {
-    async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
+    async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
         use sqlx_core::any::AnyConnectionBackend;
 
         let conn = self.query_connection.get(&query_id);
@@ -1302,7 +1305,7 @@ impl QuerySql for SqliteDB {
         anyhow::Ok(d == 0)
     }
 
-    async fn set_auto_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: u32, commit: bool) -> anyhow::Result<()> {
         if commit {
             anyhow::bail!("sqlite use  commit or rollback to end transaction");
         }
@@ -1320,7 +1323,7 @@ impl QuerySql for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
         use sqlx_core::any::AnyConnectionBackend;
 
         let conn = self.query_connection.get(&query_id);
@@ -1335,7 +1338,7 @@ impl QuerySql for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
         use sqlx_core::any::AnyConnectionBackend;
 
         let conn = self.query_connection.get(&query_id);
@@ -1363,7 +1366,7 @@ impl QuerySql for SqliteDB {
     }
 
     async fn execute_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let conn = self.query_connection.get(&query_id);
@@ -1384,7 +1387,7 @@ impl QuerySql for SqliteDB {
     }
 
     async fn query_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let conn = self.query_connection.get(&query_id);
@@ -1450,14 +1453,16 @@ impl QuerySql for SqliteDB {
         anyhow::Ok(ret)
     }
 
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
-        let id = uuid::Uuid::new_v4();
+    async fn open_connection(&self) -> anyhow::Result<u32> {
+        let id = self
+            .query_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let conn = self.get_conn().await?;
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
         if let Some((_, _x)) = self.query_connection.remove(&id) {}
         let conn = self.get_conn().await?;
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
@@ -1465,7 +1470,7 @@ impl QuerySql for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
         if let Some((_, _x)) = self.query_connection.remove(&id) {}
         anyhow::Ok(())
     }

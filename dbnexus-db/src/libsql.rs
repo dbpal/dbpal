@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 
 use bb8::ManageConnection;
@@ -30,8 +31,9 @@ use crate::sqlite::{
 pub struct LibSqlDB {
     config: LibSqlDBConfig,
     pool: bb8::Pool<PoolManager>,
-    pub(crate) query_connections: Arc<DashMap<uuid::Uuid, Connection>>,
-    query_connections_transaction: Arc<DashMap<uuid::Uuid, libsql::Transaction>>,
+    pub(crate) query_connections: Arc<DashMap<u32, Connection>>,
+    query_id: Arc<AtomicU32>,
+    query_connections_transaction: Arc<DashMap<u32, libsql::Transaction>>,
 
     pub(crate) build_in_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<String>>>,
@@ -115,11 +117,11 @@ impl ExportQueryResult for LibSqlDB {
 #[async_trait::async_trait]
 
 impl QuerySql for LibSqlDB {
-    async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
+    async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
         anyhow::Ok(self.query_connections_transaction.get(&query_id).is_none())
     }
 
-    async fn set_auto_commit(&self, query_id: uuid::Uuid, c: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: u32, c: bool) -> anyhow::Result<()> {
         if c {
             anyhow::bail!("libsql use commit or rollback to end transaction");
         }
@@ -133,7 +135,7 @@ impl QuerySql for LibSqlDB {
         anyhow::Ok(())
     }
 
-    async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
         let t = self.query_connections_transaction.remove(&query_id);
         match t {
             Some(x) => {
@@ -147,7 +149,7 @@ impl QuerySql for LibSqlDB {
         }
     }
 
-    async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
         let t = self.query_connections_transaction.remove(&query_id);
         match t {
             Some(x) => {
@@ -171,7 +173,7 @@ impl QuerySql for LibSqlDB {
         anyhow::Ok(ret)
     }
     async fn execute_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let tr = self.query_connections_transaction.get(&query_id);
         let conn = self.query_connections.get(&query_id);
@@ -191,7 +193,7 @@ impl QuerySql for LibSqlDB {
     }
 
     async fn query_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let tr = self.query_connections_transaction.get(&query_id);
         let conn = self.query_connections.get(&query_id);
@@ -231,14 +233,16 @@ impl QuerySql for LibSqlDB {
         anyhow::Ok(ret)
     }
 
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
+    async fn open_connection(&self) -> anyhow::Result<u32> {
         let conn = self.connect().await?;
-        let id = uuid::Uuid::new_v4();
+        let id = self
+            .query_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         self.query_connections.insert(id, conn);
         anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
         let conn = self.connect().await?;
         self.query_connections.insert(id, conn);
         self.query_connections_transaction.remove(&id);
@@ -246,7 +250,7 @@ impl QuerySql for LibSqlDB {
         anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
         self.query_connections_transaction.remove(&id);
         self.query_connections.remove(&id);
         anyhow::Ok(())
@@ -358,6 +362,7 @@ impl LibSqlDB {
             build_in_fn_cache: Default::default(),
             keywords_completion: Default::default(),
             pragma_completion: Default::default(),
+            query_id: Default::default(),
         })
     }
 

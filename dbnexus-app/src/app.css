@@ -1,6 +1,6 @@
 @keyframes modalAnimation {
   from {
-    opacity: 0; /* 动画开始时的透明度 */
+    opacity: 0.5; /* 动画开始时的透明度 */
     bottom: 0;
     right: 0;
   }

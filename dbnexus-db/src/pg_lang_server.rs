@@ -18,7 +18,7 @@ impl LexerCompletionTrait for PostGresDB {
 #[async_trait::async_trait]
 impl GetKeyWords for PostGresDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let mut lock = self.key_word_completion.lock().await;
+        let mut lock = self.key_words_cache.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }

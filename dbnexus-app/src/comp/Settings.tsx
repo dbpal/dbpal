@@ -60,7 +60,7 @@ function ModifySetting() {
   const [loggerLevel, setLoggerLevel] = useState('info');
   const [loggerMaxSize, setLoggerMaxSize] = useState('1');
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState('2');
-
+  const [maxTreeSize, setMaxTreeSize] = useState('50');
   useEffect(() => {
     invoke<string[]>('fonts_all_families', {})
       .then((fonts) => {
@@ -87,6 +87,7 @@ function ModifySetting() {
       setLoggerMaxSize(setting.logger.max_size + '');
       setCsvDelimiter(setting.csvDelimiter);
       setIncludeHeader(setting.includeHeader);
+      setMaxTreeSize(setting.maxTreeSize.toString());
       setDatagridRowHeightFactor(setting.datagridRowHeightFactor.toString());
       const content = JSON.stringify(
         setting.editorOption ? setting.editorOption : {},
@@ -114,6 +115,10 @@ function ModifySetting() {
       showNotification('error', 'datagrid row height factor must be a number');
       return;
     }
+    if (isNaN(parseInt(maxTreeSize))) {
+      showNotification('error', 'max tree size must be a number');
+      return;
+    }
     try {
       const e = await validJson(editorOptions);
       if (e) {
@@ -137,6 +142,7 @@ function ModifySetting() {
         max_size: parseInt(loggerMaxSize),
       },
       datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
+      maxTreeSize: parseInt(maxTreeSize),
     } as UserSetting;
     if (theme == 'dark') {
       s.darkBgColor = bgColor;
@@ -301,7 +307,6 @@ function ModifySetting() {
           helperText="a float value,this parameter multiply font size as the table row height"
         ></TextField>
       </Stack>
-
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           background color:
@@ -355,6 +360,23 @@ function ModifySetting() {
         {bgColorErr && <Typography color="error"> {bgColorErr} </Typography>}
       </Stack>
 
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography
+          width={headerSize}
+          style={{ fontFamily: fontFamily }}
+          textAlign="right"
+        >
+          max tree size:
+        </Typography>
+        <TextField
+          value={maxTreeSize}
+          onChange={(e) => {
+            setMaxTreeSize(e.target.value);
+          }}
+          label="max tree item size"
+          error={isNaN(parseInt(maxTreeSize))}
+        ></TextField>
+      </Stack>
       <Divider textAlign="left" style={{ marginTop: '20px' }}>
         editor
       </Divider>

@@ -62,14 +62,16 @@ use num_bigint::{BigInt, ToBigInt};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 
 #[derive(Clone)]
 pub struct CassandraDB {
     session: Arc<AppSession>,
-    pub(crate) query_connection: Arc<DashMap<uuid::Uuid, Arc<AppSession>>>,
+    pub(crate) query_connection: Arc<DashMap<u32, Arc<AppSession>>>,
     pub(crate) config: CassandraDBConfig,
     paging_cache: Arc<DashMap<String, Arc<PageCache>>>,
+    query_id: Arc<AtomicU32>,
 }
 
 #[derive(Clone, Debug)]
@@ -170,6 +172,7 @@ impl CassandraDB {
             config,
             paging_cache: Default::default(),
             query_connection: Default::default(),
+            query_id: Default::default(),
         })
     }
 }
@@ -839,7 +842,7 @@ impl QuerySql for CassandraDB {
         anyhow::Ok(ret)
     }
     async fn execute_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.invalid_table_or_view_caching(None);
         let conn = match self.query_connection.get(&query_id) {
@@ -854,7 +857,7 @@ impl QuerySql for CassandraDB {
     }
 
     async fn query_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         self.invalid_table_or_view_caching(None);
         let mut ret = vec![];
@@ -893,20 +896,22 @@ impl QuerySql for CassandraDB {
         anyhow::Ok(ret)
     }
 
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
-        let id = uuid::Uuid::new_v4();
+    async fn open_connection(&self) -> anyhow::Result<u32> {
+        let id = self
+            .query_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let session = make_session(&self.config, 1).await?;
         self.query_connection.insert(id, Arc::new(session));
         anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
         let session = make_session(&self.config, 1).await?;
         self.query_connection.insert(id, Arc::new(session));
         anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
         self.query_connection.remove(&id);
         anyhow::Ok(())
     }

@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 use std::vec;
 
@@ -28,9 +29,10 @@ use crate::oracle_lang_server::ORACLE_TYPES;
 #[derive(Clone)]
 pub struct OracleDB {
     pool: Arc<Pool>,
-    query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
+    query_connections: Arc<DashMap<u32, Arc<Mutex<Connection>>>>,
     pub(crate) config: OracleDBConfig,
-    pub(crate) key_word_completion: Arc<Mutex<Vec<String>>>,
+    pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
+    query_id: Arc<AtomicU32>,
 }
 
 #[async_trait::async_trait]
@@ -76,14 +78,15 @@ impl OracleDB {
             pool: Arc::new(pool),
             query_connections: Default::default(),
             config,
-            key_word_completion: Default::default(),
+            key_words_cache: Default::default(),
+            query_id: Default::default(),
         })
     }
 }
 
 impl OracleDB {
     async fn with_query_connection<R>(
-        &self, id: uuid::Uuid, f: impl FnOnce(&mut Connection) -> anyhow::Result<R>,
+        &self, id: u32, f: impl FnOnce(&mut Connection) -> anyhow::Result<R>,
     ) -> anyhow::Result<R> {
         let conn = match self.query_connections.get(&id) {
             Some(x) => x.clone(),
@@ -157,14 +160,14 @@ impl ExportQueryResult for OracleDB {
 
 #[async_trait::async_trait]
 impl QuerySql for OracleDB {
-    async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
+    async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
         self.with_query_connection(query_id, |x| -> anyhow::Result<bool> {
             anyhow::Ok(x.autocommit())
         })
         .await
     }
 
-    async fn set_auto_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: u32, commit: bool) -> anyhow::Result<()> {
         self.with_query_connection(query_id, |x| -> anyhow::Result<()> {
             x.set_autocommit(commit);
             anyhow::Ok(())
@@ -172,7 +175,7 @@ impl QuerySql for OracleDB {
         .await
     }
 
-    async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
         self.with_query_connection(query_id, |f| -> anyhow::Result<()> {
             f.commit()?;
             anyhow::Ok(())
@@ -182,7 +185,7 @@ impl QuerySql for OracleDB {
         anyhow::Ok(())
     }
 
-    async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
         self.with_query_connection(query_id, |f| -> anyhow::Result<()> {
             f.rollback()?;
             anyhow::Ok(())
@@ -192,8 +195,10 @@ impl QuerySql for OracleDB {
         anyhow::Ok(())
     }
 
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
-        let id = uuid::Uuid::new_v4();
+    async fn open_connection(&self) -> anyhow::Result<u32> {
+        let id = self
+            .query_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let mut conn = self.get_conn().await?;
         conn.set_autocommit(QUERY_AUTO_COMMIT);
         self.query_connections
@@ -201,7 +206,7 @@ impl QuerySql for OracleDB {
         anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
         if let Some((_, conn)) = self.query_connections.remove(&id) {
             tokio::spawn(async move { conn.lock().await.close() });
         }
@@ -213,7 +218,7 @@ impl QuerySql for OracleDB {
         anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
         if let Some((_, x)) = self.query_connections.remove(&id) {
             tokio::spawn(async move { x.lock().await.close() });
         }
@@ -230,7 +235,7 @@ impl QuerySql for OracleDB {
         anyhow::Ok(ret)
     }
     async fn execute_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
@@ -246,7 +251,7 @@ impl QuerySql for OracleDB {
     }
 
     async fn query_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),

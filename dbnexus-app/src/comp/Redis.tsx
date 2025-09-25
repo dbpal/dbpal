@@ -814,10 +814,8 @@ function RedisSetTable(props: {
   }, []);
 
   const handleDel = async (id: string) => {
-    //@ts-ignore
     let del = resp.data.find((e) => e['id'] == id);
     try {
-      //@ts-ignore
       await delOP(del.value);
       showNotification('success', 'Delete OK');
     } catch (e) {

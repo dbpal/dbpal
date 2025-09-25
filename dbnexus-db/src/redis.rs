@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::str::{FromStr, from_utf8};
 use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 use std::vec;
 
@@ -27,8 +28,9 @@ use crate::meta_value::MetaValue;
 pub struct RedisDB {
     config: RedisDBConfig,
     conn_manager: ConnectionManager,
-    pub(crate) query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<MultiplexedConnection>>>>,
+    pub(crate) query_connections: Arc<DashMap<u32, Arc<Mutex<MultiplexedConnection>>>>,
     created_database: Arc<DashSet<String>>,
+    query_id: Arc<AtomicU32>,
 }
 
 impl RedisDB {
@@ -47,6 +49,7 @@ impl RedisDB {
             conn_manager: m,
             query_connections: Default::default(),
             created_database: Default::default(),
+            query_id: Default::default(),
         })
     }
 }
@@ -1512,8 +1515,10 @@ impl RedisDB {
 impl QuerySql for RedisDB {
     /// redis have no transaction any connection is fine
     /// so connection management for redis is dummy
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
-        let id = uuid::Uuid::new_v4();
+    async fn open_connection(&self) -> anyhow::Result<u32> {
+        let id = self
+            .query_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let client: redis::Client = self.get_client().await?;
         let conn = client.get_multiplexed_async_connection().await?;
         self.query_connections
@@ -1521,7 +1526,7 @@ impl QuerySql for RedisDB {
         anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
         let client = self.get_client().await?;
         let conn = client.get_multiplexed_async_connection().await?;
         self.query_connections
@@ -1529,7 +1534,7 @@ impl QuerySql for RedisDB {
         anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
         self.query_connections.remove(&id);
         anyhow::Ok(())
     }
@@ -1539,7 +1544,7 @@ impl QuerySql for RedisDB {
         anyhow::bail!("the frontend will not use the api for now.")
     }
     async fn execute_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let ret = QuerySql::query_sql(self, query_id, sql).await?;
         match ret.len() {
@@ -1555,7 +1560,7 @@ impl QuerySql for RedisDB {
     }
 
     async fn query_sql(
-        &self, id: uuid::Uuid, sql: &str,
+        &self, id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let conn = match self.query_connections.get(&id) {
             Some(x) => x.clone(),

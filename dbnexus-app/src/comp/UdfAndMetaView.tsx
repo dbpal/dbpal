@@ -3,7 +3,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { NotificationContext } from './Notification';
 import { Button, Stack, Tooltip, Typography } from '@mui/material';
 import { DefAndMetas, setAutoCompletionName } from './Common';
-import { MetaValuesView, PossibleParseError } from './CommonComp';
+import { MetaValueView, PossibleParseError } from './CommonComp';
 import {
   DataSourceKind,
   ErrAndLoc,
@@ -159,7 +159,7 @@ function DefAndMetasView(props: {
       {detail.metas && detail.metas.length > 0 && (
         <>
           <Typography variant={titleVariant}> Some Metas </Typography>
-          <MetaValuesView values={detail.metas}></MetaValuesView>
+          <MetaValueView values={detail.metas}></MetaValueView>
         </>
       )}
     </Stack>

@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 
 use chrono::FixedOffset;
@@ -35,7 +36,8 @@ use crate::meta_value::MetaValue;
 pub struct SqlServerDB {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     pub(crate) config: SqlServerDBConfig,
-    query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
+    query_connections: Arc<DashMap<u32, Arc<Mutex<Connection>>>>,
+    query_id: Arc<AtomicU32>,
 }
 
 impl std::fmt::Debug for SqlServerDB {
@@ -182,6 +184,7 @@ impl SqlServerDB {
             config: c,
             pool,
             query_connections: Default::default(),
+            query_id: Default::default(),
         })
     }
 }
@@ -1708,7 +1711,7 @@ impl ExportQueryResult for SqlServerDB {
 
 #[async_trait::async_trait]
 impl QuerySql for SqlServerDB {
-    async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
+    async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
@@ -1734,7 +1737,7 @@ impl QuerySql for SqlServerDB {
         anyhow::Ok(true)
     }
 
-    async fn set_auto_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: u32, commit: bool) -> anyhow::Result<()> {
         if commit {
             anyhow::bail!("mssql use commit or rollback to end transaction");
         }
@@ -1748,7 +1751,7 @@ impl QuerySql for SqlServerDB {
         anyhow::Ok(())
     }
 
-    async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
@@ -1760,7 +1763,7 @@ impl QuerySql for SqlServerDB {
         anyhow::Ok(())
     }
 
-    async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
@@ -1772,16 +1775,18 @@ impl QuerySql for SqlServerDB {
         anyhow::Ok(())
     }
 
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
+    async fn open_connection(&self) -> anyhow::Result<u32> {
         let conn = self.new_tcp_conn().await?;
 
-        let id = uuid::Uuid::new_v4();
+        let id = self
+            .query_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         self.query_connections
             .insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
         let conn = self.new_tcp_conn().await?;
         self.query_connections
             .insert(id, Arc::new(Mutex::new(conn)));
@@ -1789,7 +1794,7 @@ impl QuerySql for SqlServerDB {
         anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
         self.query_connections.remove(&id);
 
         anyhow::Ok(())
@@ -1806,7 +1811,7 @@ impl QuerySql for SqlServerDB {
     }
 
     async fn execute_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
@@ -1823,7 +1828,7 @@ impl QuerySql for SqlServerDB {
     }
 
     async fn query_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),

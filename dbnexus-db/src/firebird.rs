@@ -22,6 +22,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use dashmap::{DashMap, DashSet};
@@ -349,12 +350,12 @@ impl ExportQueryResult for FireBirdDB {
 
 #[async_trait::async_trait]
 impl QuerySql for FireBirdDB {
-    async fn get_auto_commit(&self, query_id: uuid::Uuid) -> anyhow::Result<bool> {
+    async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
         let tx = self.query_connections_tx.contains(&query_id);
         anyhow::Ok(!tx)
     }
 
-    async fn set_auto_commit(&self, query_id: uuid::Uuid, commit: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: u32, commit: bool) -> anyhow::Result<()> {
         if commit {
             anyhow::bail!("firebird use commit or rollback to end transaction");
         }
@@ -369,7 +370,7 @@ impl QuerySql for FireBirdDB {
         anyhow::Ok(())
     }
 
-    async fn commit(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -382,7 +383,7 @@ impl QuerySql for FireBirdDB {
         anyhow::Ok(())
     }
 
-    async fn rollback(&self, query_id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -396,7 +397,7 @@ impl QuerySql for FireBirdDB {
     }
 
     async fn query_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
 
@@ -440,7 +441,7 @@ impl QuerySql for FireBirdDB {
         anyhow::Ok(resp)
     }
     async fn execute_sql(
-        &self, query_id: uuid::Uuid, sql: &str,
+        &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let conn = match self.query_connections.get(&query_id) {
@@ -457,15 +458,15 @@ impl QuerySql for FireBirdDB {
         anyhow::Ok(resp)
     }
 
-    async fn open_connection(&self) -> anyhow::Result<uuid::Uuid> {
-        let id = uuid::Uuid::new_v4();
+    async fn open_connection(&self) -> anyhow::Result<u32> {
+        let id = self.query_id.fetch_add(1, Ordering::Relaxed);
         let conn = self.get_conn()?;
         self.query_connections
             .insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
         let conn = self.get_conn()?;
         self.query_connections
             .insert(id, Arc::new(Mutex::new(conn)));
@@ -474,7 +475,7 @@ impl QuerySql for FireBirdDB {
         anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
         self.query_connections.remove(&id);
 
         anyhow::Ok(())
@@ -485,9 +486,10 @@ impl QuerySql for FireBirdDB {
 pub struct FireBirdDB {
     config: FireBirdConfig,
     pool: Pool<PoolManager>,
-    query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<PooledConnection<PoolManager>>>>>,
-    query_connections_tx: Arc<DashSet<uuid::Uuid>>,
+    query_connections: Arc<DashMap<u32, Arc<Mutex<PooledConnection<PoolManager>>>>>,
+    query_connections_tx: Arc<DashSet<u32>>,
     pub(crate) key_words_completion: Arc<Mutex<Vec<String>>>,
+    query_id: Arc<AtomicU32>,
 }
 
 impl std::fmt::Debug for FireBirdDB {
@@ -1069,6 +1071,7 @@ impl FireBirdDB {
             query_connections: Default::default(),
             query_connections_tx: Default::default(),
             key_words_completion: Default::default(),
+            query_id: Default::default(),
         })
     }
 
