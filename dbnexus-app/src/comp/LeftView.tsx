@@ -56,6 +56,7 @@ import {
   MatchPatternContext,
   maxTreeSize,
   MongoTableHandler,
+  MuiDataGridData,
   saveAndSetSize,
   secondConfirm,
   SettingContext,
@@ -388,7 +389,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
       toolbar: {
         csvOptions: {
           delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeCsvHeader,
+          includeHeaders: setting.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -557,7 +558,7 @@ function ViewMenu(props: {
             ) => {
               let where_null = where ? where : null;
               let orderBy_null = orderBy ? orderBy : null;
-              return await invoke<types.MuiDataGridData>('show_view', {
+              return await invoke<MuiDataGridData>('show_view', {
                 name: uuid,
                 viewName: view,
                 whereStr: where_null,

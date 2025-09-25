@@ -33,7 +33,7 @@ pub struct SqliteDB {
     path: String,
     pub(crate) query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
     pub(crate) build_in_fn_completion: Arc<Mutex<Vec<CompletionItem>>>,
-    pub(crate) keywords_completion: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) keywords_completion: Arc<Mutex<Vec<String>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
 }
 

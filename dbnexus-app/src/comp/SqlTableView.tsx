@@ -41,7 +41,6 @@ import {
   GridSortModel,
 } from '@mui/x-data-grid';
 import ClearIcon from '@mui/icons-material/Clear';
-import { v4 as uuidV4 } from 'uuid';
 import {
   EscDownEvent,
   keyNotInTable,
@@ -78,6 +77,7 @@ import {
   textEllipsisStyle,
   TabActiveContext,
   quoteIdentifier,
+  MuiDataGridData,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
@@ -302,7 +302,7 @@ function SqlTableView_(props: {
     page: number,
     pageSize: number,
     extra: types.ShowExtraArgs
-  ) => Promise<types.MuiDataGridData>;
+  ) => Promise<MuiDataGridData>;
   updateOP?: (wheres: object, values: object) => Promise<types.SqlExecuteRet>;
   deleteOP?: (wheres: object) => Promise<types.SqlExecuteRet>;
   put_value_in_sql: (typ: string, value?: string) => Promise<string>;
@@ -344,7 +344,7 @@ function SqlTableView_(props: {
   }, [vis]);
 
   const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
-  const [resp, setResp] = useState<types.MuiDataGridData>({
+  const [resp, setResp] = useState<MuiDataGridData>({
     sql: '',
     fields: [],
     data: [],
@@ -360,9 +360,9 @@ function SqlTableView_(props: {
   const [editInModalRow, setEditInModalRow] = useState<object>(null);
   const [viewInModal, setViewInModal] = useState<object>(null);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
-  const handleResp = (resp: types.MuiDataGridData) => {
-    resp.data.forEach((data) => {
-      data[keyNotInTable] = uuidV4();
+  const handleResp = (resp: MuiDataGridData) => {
+    resp.data.forEach((data, index) => {
+      data[keyNotInTable] = index;
     });
     for (let i = 0; i < resp.fields.length; i++) {
       let field = resp.fields[i];
@@ -635,7 +635,7 @@ function SqlTableView_(props: {
       toolbar: {
         csvOptions: {
           delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeCsvHeader,
+          includeHeaders: setting.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;

@@ -22,7 +22,6 @@ use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
 use crate::helper::create_csv;
-use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
 
@@ -31,7 +30,7 @@ pub struct OracleDB {
     pool: Arc<Pool>,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<Connection>>>>,
     pub(crate) config: OracleDBConfig,
-    pub(crate) key_word_completion: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) key_word_completion: Arc<Mutex<Vec<String>>>,
 }
 
 #[async_trait::async_trait]
@@ -336,7 +335,6 @@ fn infer_schema_by_row(x: &oracle::Row) -> anyhow::Result<Vec<Field>> {
     anyhow::Ok(ret)
 }
 
-/// some query will auto include a ROWNUM column
 fn encode_rows(rows: Vec<oracle::Result<Row>>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
     let mut data = vec![];
     for r in rows {

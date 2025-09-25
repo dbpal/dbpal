@@ -1,10 +1,20 @@
 use crate::cockroach::{COCKROACH_TYPES, CockRoachDB};
 
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, DBExecutable, ErrAndLoc, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, PostGresExtension, try_parser_dot_lexer,
+    AstCompletionHelper, CompletionItem, DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon,
+    LanguageServer, LexerCompletionTrait, PostGresExtension, try_parser_dot_lexer,
 };
 use crate::sqlparser_completion::TempTableColumn;
+
+#[async_trait::async_trait]
+impl GetKeyWords for CockRoachDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        GetKeyWords::key_words(self.db.as_ref())
+            .await
+            .map(|x| x.into_iter().map(|x| x.into()).collect())
+    }
+}
+
 #[async_trait::async_trait]
 
 impl LanguageServer for CockRoachDB {
@@ -14,11 +24,7 @@ impl LanguageServer for CockRoachDB {
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_sort(self.db.as_ref(), sql)
     }
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::key_words(self)
-            .await
-            .map(|x| x.into_iter().map(|x| x.into()).collect())
-    }
+
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -89,9 +95,6 @@ impl LangServerCommon for CockRoachDB {
         LangServerCommon::list_database(self.db.as_ref()).await
     }
 
-    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        LangServerCommon::key_words(self.db.as_ref()).await
-    }
     async fn list_column(
         &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {

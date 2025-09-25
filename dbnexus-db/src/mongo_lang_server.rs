@@ -124,6 +124,16 @@ impl MongoDB {
         &self, col: &str, projection: Option<Document>, filter: Document, sort: Option<Document>,
         max: Option<Document>, min: Option<Document>, limit: Option<i64>, skip: Option<u64>,
     ) -> anyhow::Result<Vec<Document>> {
+        log::info!(
+            "find parameter project:{:?} filter:{:?} sort:{:?} max:{:?} min:{:?} limit:{:?} skip:{:?}",
+            projection,
+            filter,
+            sort,
+            max,
+            min,
+            limit,
+            skip
+        );
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
         let mut f = col.find(filter);
@@ -158,6 +168,15 @@ impl MongoDB {
         &self, col: &str, projection: Option<Document>, filter: Document, sort: Option<Document>,
         max: Option<Document>, min: Option<Document>, skip: Option<u64>,
     ) -> anyhow::Result<Option<Document>> {
+        log::info!(
+            "find parameter project:{:?} filter:{:?} sort:{:?} max:{:?} min:{:?} skip:{:?}",
+            projection,
+            filter,
+            sort,
+            max,
+            min,
+            skip
+        );
         let db = self.get_db().await?;
         let col = db.collection::<Document>(col);
         let mut f = col.find_one(filter);

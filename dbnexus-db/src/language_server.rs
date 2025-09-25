@@ -15,7 +15,7 @@ use crate::helper::try_remove_one_at;
 use crate::sqlparser_completion::{CompletionStatement, TempTableColumn};
 
 #[async_trait::async_trait]
-pub trait LanguageServer: GetBackendKind {
+pub trait LanguageServer: GetBackendKind + GetKeyWords {
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
@@ -24,7 +24,7 @@ pub trait LanguageServer: GetBackendKind {
         anyhow::Ok(None)
     }
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool>;
-    async fn key_words(&self) -> anyhow::Result<Vec<String>>;
+
     // if possible
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>>;
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>>;
@@ -75,6 +75,7 @@ pub enum CompletionKind {
     Prepare,
     Module,
     Domain,
+    Stream,
 }
 
 impl std::fmt::Display for CompletionKind {
@@ -380,8 +381,13 @@ impl From<SqlEvent> for CompletionItem {
 }
 
 #[async_trait::async_trait]
+pub trait GetKeyWords {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>>;
+}
 
-pub trait LangServerCommon: GetBackendKind {
+#[async_trait::async_trait]
+
+pub trait LangServerCommon: GetBackendKind + GetKeyWords {
     async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
@@ -489,9 +495,6 @@ pub trait LangServerCommon: GetBackendKind {
         let ss = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql)?;
         anyhow::Ok(ss)
     }
-
-    // some backend can use a query to query this.
-    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>>;
 
     // list user created types.
     async fn list_created_type(
@@ -729,6 +732,13 @@ pub trait LangServerCommon: GetBackendKind {
             .await
             .map_err(|e| log::error!("get keywords failed,e:{}", e))
             .unwrap_or_default()
+            .into_iter()
+            .map(|name| CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::KeyWord,
+                desc: None,
+            })
+            .collect()
     }
     async fn list_role_completion(&self) -> Vec<CompletionItem> {
         self.list_role()
@@ -782,6 +792,12 @@ pub trait LangServerCommon: GetBackendKind {
                 desc: None,
             })
             .collect()
+    }
+
+    async fn list_database_schema_completion(&self) -> Vec<CompletionItem> {
+        let mut results = self.list_schema_completion().await;
+        results.extend(self.list_database_completion().await);
+        results
     }
     async fn list_variable_completion(&self) -> Vec<CompletionItem> {
         self.list_variable()

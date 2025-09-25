@@ -1,6 +1,6 @@
 use crate::db::{AutoCompletionQueryUuid, name_start_ascii_alphabetic};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc, LangServerCommon,
+    AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc, GetKeyWords, LangServerCommon,
     LanguageServer, try_parser_dot_lexer,
 };
 use crate::libsql::LibSqlDB;
@@ -10,6 +10,24 @@ use crate::sqlparser_completion::TempTableColumn;
 use libsql::params;
 
 #[async_trait::async_trait]
+impl GetKeyWords for LibSqlDB {
+    // some backend can use a query to query this.
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        let mut lock = self.keywords_completion.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+        lock.extend(
+            SQLITE_KEY_WORDS
+                .iter()
+                .map(|x| x.to_string())
+                .collect::<Vec<_>>(),
+        );
+        return anyhow::Ok(lock.clone());
+    }
+}
+
+#[async_trait::async_trait]
 impl LanguageServer for LibSqlDB {
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_selection(self, sql)
@@ -17,11 +35,7 @@ impl LanguageServer for LibSqlDB {
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_sort(self, sql)
     }
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::key_words(self)
-            .await
-            .map(|x| x.into_iter().map(|x| x.into()).collect())
-    }
+
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -96,24 +110,7 @@ impl LangServerCommon for LibSqlDB {
         );
         self.get_query_columns(&sql).await
     }
-    // some backend can use a query to query this.
-    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.keywords_completion.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
-        lock.extend(
-            SQLITE_KEY_WORDS
-                .iter()
-                .map(|x| CompletionItem {
-                    item: x.to_string().into(),
-                    kind: CompletionKind::KeyWord,
-                    desc: None,
-                })
-                .collect::<Vec<_>>(),
-        );
-        return anyhow::Ok(lock.clone());
-    }
+
     async fn list_function(
         &self, _schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {

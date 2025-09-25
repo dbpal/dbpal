@@ -34,7 +34,7 @@ pub struct LibSqlDB {
     query_connections_transaction: Arc<DashMap<uuid::Uuid, libsql::Transaction>>,
 
     pub(crate) build_in_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
-    pub(crate) keywords_completion: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) keywords_completion: Arc<Mutex<Vec<String>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
 }
 

@@ -19,7 +19,7 @@ use crate::db::{
     GetBackendKind, Index, IndexKind, ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
     ServerMetas, ShowExtraArgs, SqlExecuteRet, XlsxEdit, not_support_feature,
 };
-use crate::language_server::{CompletionItem, LanguageServer};
+use crate::language_server::{CompletionItem, GetKeyWords, LanguageServer};
 use crate::meta_value::MetaValue;
 #[derive(Clone)]
 pub struct MongoDB {
@@ -68,6 +68,14 @@ impl GetBackendKind for MongoDB {
         BackendKind::Mongo
     }
 }
+
+#[async_trait::async_trait]
+impl GetKeyWords for MongoDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        not_support_feature(self.backend_name())
+    }
+}
+
 #[async_trait::async_trait]
 impl LanguageServer for MongoDB {
     fn extract_table_select_selection(&self, _sql: &str) -> anyhow::Result<Option<String>> {
@@ -76,9 +84,7 @@ impl LanguageServer for MongoDB {
     fn extract_table_select_sort(&self, _sql: &str) -> anyhow::Result<Option<String>> {
         not_support_feature(self.backend_name())
     }
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
-    }
+
     async fn auto_completion(
         &self, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {

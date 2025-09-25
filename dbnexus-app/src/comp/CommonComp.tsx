@@ -39,7 +39,6 @@ import {
 } from '@mui/x-data-grid';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
-import { v4 as uuidV4 } from 'uuid';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import { BsDatabaseAdd } from 'react-icons/bs';
@@ -504,7 +503,7 @@ function MetaValuesView({ values = [] as types.MetaValue[] }) {
       toolbar: {
         csvOptions: {
           delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeCsvHeader,
+          includeHeaders: setting.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -929,7 +928,7 @@ function SelectColumns(props: {
           disabled={includes.length == fields.length}
           style={{ flex: 1 }}
           label="match field name string"
-          helperText="only for field candidate"
+          helperText="only for candidate field"
         ></TextField>
       </Stack>
       <Stack

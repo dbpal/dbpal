@@ -171,10 +171,17 @@ impl log::Log for AppLogger {
             }
         }
         let s = format!(
-            "{} {}:{} {}-{}\n",
+            "{} {} {}-{}\n",
             chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-            record.file().unwrap_or_default(),
-            record.line().unwrap_or_default(),
+            if cfg!(debug_assertions) {
+                format!(
+                    "{}:{}",
+                    record.file().unwrap_or_default(),
+                    record.line().unwrap_or_default(),
+                )
+            } else {
+                "".to_string()
+            },
             record.level(),
             record.args()
         );

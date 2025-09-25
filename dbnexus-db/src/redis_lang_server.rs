@@ -11,7 +11,7 @@ use redis::{AsyncCommands, AsyncIter};
 use tokio::sync::Mutex;
 
 use crate::db::{AutoCompletionQueryUuid, GetBackendKind, not_support_feature};
-use crate::language_server::{CompletionItem, CompletionKind, LanguageServer, in_pos};
+use crate::language_server::{CompletionItem, CompletionKind, GetKeyWords, LanguageServer, in_pos};
 use crate::redis::{RedisDB, RedisToken, RedisType, get_command_from_sql};
 impl RedisDB {
     fn get_query_conn(&self) -> anyhow::Result<Arc<Mutex<MultiplexedConnection>>> {
@@ -1324,6 +1324,14 @@ impl RedisDB {
 }
 
 #[async_trait::async_trait]
+
+impl GetKeyWords for RedisDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(REDIS_COMMANDS.iter().map(|x| x.to_string()).collect())
+    }
+}
+
+#[async_trait::async_trait]
 impl LanguageServer for RedisDB {
     fn extract_table_select_selection(&self, _sql: &str) -> anyhow::Result<Option<String>> {
         not_support_feature(self.backend_name())
@@ -1331,9 +1339,7 @@ impl LanguageServer for RedisDB {
     fn extract_table_select_sort(&self, _sql: &str) -> anyhow::Result<Option<String>> {
         not_support_feature(self.backend_name())
     }
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(REDIS_COMMANDS.iter().map(|x| x.to_string()).collect())
-    }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         anyhow::Ok(get_command_from_sql(sql)?.iter().any(|x| {
             x.first()

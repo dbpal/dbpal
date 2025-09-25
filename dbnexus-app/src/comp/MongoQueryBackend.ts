@@ -152,10 +152,18 @@ class MongoDBQueryFindCommon {
   }
   makeCommonArg(): Record<string, unknown> {
     return {
-      name: this.uuid, col: this.col, query: BSON.serialize(this.filter),
+      name: this.uuid,
+      col: this.col,
+      query: BSON.serialize(this.filter),
+      projection: BSON.serialize(this._projection),
+      sort: BSON.serialize(this._sort),
+      min: BSON.serialize(this._min),
+      max: BSON.serialize(this._max),
+      skip: this._skip,
     }
   }
 }
+
 
 class MongoDBQueryFind extends MongoDBQueryFindCommon implements IFind {
   _limit: number | undefined = undefined;

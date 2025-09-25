@@ -431,7 +431,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
       toolbar: {
         csvOptions: {
           delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeCsvHeader,
+          includeHeaders: setting.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -780,7 +780,7 @@ function FavoriteSqlList(props: { handleClose }) {
       toolbar: {
         csvOptions: {
           delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeCsvHeader,
+          includeHeaders: setting.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;

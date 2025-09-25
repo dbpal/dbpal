@@ -21,7 +21,6 @@ use crate::db::{
     UdfOrProcedureExtraParameter, XlsxEdit, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
-use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::pg_format::*;
 use crate::pg_lang_server::POSTGRES_TYPES;
@@ -33,7 +32,7 @@ pub struct PostGresDB {
     pub(crate) config: PGDBConfig,
     pub(crate) query_connection:
         Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
-    pub(crate) key_word_completion: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) key_word_completion: Arc<Mutex<Vec<String>>>,
 }
 
 #[async_trait::async_trait]

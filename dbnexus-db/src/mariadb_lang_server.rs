@@ -1,13 +1,21 @@
 use crate::db::{DBTrait, SequenceDetail, SqlEvent};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
-    LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, GetKeyWords,
+    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::mariadb::MariaDB;
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
 use sqlx::{AssertSqlSafe, Row};
 use std::ops::DerefMut;
+
+#[async_trait::async_trait]
+
+impl GetKeyWords for MariaDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        GetKeyWords::key_words(self.db.as_ref()).await
+    }
+}
 
 #[async_trait::async_trait]
 impl LanguageServer for MariaDB {
@@ -17,11 +25,7 @@ impl LanguageServer for MariaDB {
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_sort(self.db.as_ref(), sql)
     }
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::key_words(self)
-            .await
-            .map(|x| x.into_iter().map(|x| x.into()).collect())
-    }
+
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -94,9 +98,7 @@ impl LangServerCommon for MariaDB {
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         LangServerCommon::list_column(self.db.as_ref(), schema, name, is_call).await
     }
-    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        LangServerCommon::key_words(self.db.as_ref()).await
-    }
+
     async fn list_function(
         &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {

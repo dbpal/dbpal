@@ -306,14 +306,7 @@ export namespace types {
         "metas": (types.MetaValue)[];
     };
     export type Usize = number;
-    export type MuiDataGridData = {
-        "fields": (types.Field)[];
-        "data": (Record<string, string>)[];
-        "sql": (string | null);
-        "total": types.Usize;
-        "cache_time": (types.U64 | null);
-        "has_more": boolean;
-    };
+
 
     /**
      * create table and all index sql.
@@ -332,14 +325,6 @@ export namespace types {
         "nullness": (string | null);
         "after": (string | null);
         "default_value": (string | null);
-    };
-    export type QueryResp = {
-        "fields": (types.Field)[];
-        "total": types.Usize;
-        "data": (((string | null))[])[];
-        "sql": (string | null);
-        "cache_time": (types.U64 | null);
-        "has_more": boolean;
     };
     export type SequenceDetail = {
         "start_value": string;

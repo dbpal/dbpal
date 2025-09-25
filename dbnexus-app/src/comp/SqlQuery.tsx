@@ -640,8 +640,7 @@ function SqlQuery(props: {
         </Stack>
         <div
           style={{
-            flexGrow: 1,
-            flexShrink: 1,
+            flex: 1,
             minHeight: 0,
             height: '400px',
           }}

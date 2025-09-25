@@ -38,7 +38,6 @@ const shortCuts = {
 
       if (e.metaKey && e.key == 'w') {
         shortCuts.closeCurrentTab(e);
-        e.preventDefault();
       }
     }
     if (['windows', 'linux'].includes(platform())) {

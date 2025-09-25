@@ -489,6 +489,7 @@ impl<'a> CompletionStatement<'a> {
                 selection,
                 returning,
                 or: _,
+                limit,
             } => {
                 let mut joins = vec![table.clone()];
                 if let Some(kind) = from.as_ref() {
@@ -515,6 +516,9 @@ impl<'a> CompletionStatement<'a> {
                 }
                 if let Some(p) = returning {
                     self.c_on_select_items(p).await;
+                }
+                if let Some(limit) = limit {
+                    self.c_on_expr(limit).await;
                 }
             }
             Statement::Delete(delete) => {
@@ -863,7 +867,6 @@ impl<'a> CompletionStatement<'a> {
                 }
                 self.c_on_table_policy(table_name, name).await;
             }
-
             Statement::AttachDatabase {
                 schema_name,
                 database_file_name,
@@ -1035,9 +1038,7 @@ impl<'a> CompletionStatement<'a> {
                     | Use::Schema(object_name)
                     | Use::Database(object_name) => {
                         if self.in_pos(&object_name.span()) {
-                            let mut results = self.helper.list_schema_completion().await;
-                            results
-                                .extend(self.helper.list_database_completion().await.into_iter());
+                            let results = self.helper.list_database_schema_completion().await;
                             self.result = Some(results)
                         }
                     }
@@ -1217,42 +1218,33 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            Statement::CreateTrigger {
-                name,
-                table_name,
-                events,
-                referenced_table_name,
-                referencing,
-                condition,
-                exec_body,
-                statements,
-                ..
-            } => {
-                if self.in_pos(&name.span()) {
+            Statement::CreateTrigger(create_trigger) => {
+                if self.in_pos(&create_trigger.name.span()) {
                     self.set_on_def();
                     return;
                 }
-                self.c_on_table(table_name).await;
+                self.c_on_table(&create_trigger.table_name).await;
                 if self.finished() {
                     return;
                 }
-                for e in events.iter() {
+                for e in create_trigger.events.iter() {
                     if let TriggerEvent::Update(fields) = e {
                         for field in fields.iter() {
-                            self.c_on_column(table_name, field, false).await;
+                            self.c_on_column(&create_trigger.table_name, field, false)
+                                .await;
                             if self.finished() {
                                 return;
                             }
                         }
                     }
                 }
-                if let Some(r) = referenced_table_name {
+                if let Some(r) = create_trigger.referenced_table_name.as_ref() {
                     self.c_on_table(r).await;
                     if self.finished() {
                         return;
                     }
                 }
-                for r in referencing.iter() {
+                for r in create_trigger.referencing.iter() {
                     self.c_on_table(&r.transition_relation_name).await;
                     self.scopes
                         .current_scope(|s| s.enter_table(None, r.transition_relation_name.clone()));
@@ -1263,35 +1255,36 @@ impl<'a> CompletionStatement<'a> {
                 */
                 if self.helper.backend_name() == BackendKind::SqlServer {
                     // 	没有 NEW/OLD，而是使用 inserted.col 和 deleted.col 两张“伪表”
-                    scope.enter_table(Some(Ident::new("inserted")), table_name.clone());
-                    scope.enter_table(Some(Ident::new("deleted")), table_name.clone());
+                    scope.enter_table(
+                        Some(Ident::new("inserted")),
+                        create_trigger.table_name.clone(),
+                    );
+                    scope.enter_table(
+                        Some(Ident::new("deleted")),
+                        create_trigger.table_name.clone(),
+                    );
                 } else {
-                    scope.enter_table(Some(Ident::new("NEW")), table_name.clone());
-                    scope.enter_table(Some(Ident::new("OLD")), table_name.clone());
+                    scope.enter_table(Some(Ident::new("NEW")), create_trigger.table_name.clone());
+                    scope.enter_table(Some(Ident::new("OLD")), create_trigger.table_name.clone());
                 }
                 let _guard = self.scopes.enter(scope);
-                if let Some(c) = condition {
+                if let Some(c) = create_trigger.condition.as_ref() {
                     self.c_on_expr(c).await;
                     if self.finished() {
                         return;
                     }
                 }
-                if let Some(exec_body) = exec_body {
+                if let Some(exec_body) = &create_trigger.exec_body {
                     self.c_on_trigger_exec_body(exec_body).await;
                 }
-                if let Some(ss) = statements.as_ref() {
+                if let Some(ss) = &create_trigger.statements.as_ref() {
                     self.c_on_conditional_statements(ss).await;
                 }
             }
-
-            Statement::DropTrigger {
-                trigger_name,
-                table_name,
-                ..
-            } => {
-                if let Some(table_name) = table_name {
-                    if trigger_name.0.len() > 1 {
-                        log::error!("multi part trigger name:{:?}", trigger_name);
+            Statement::DropTrigger(drop_trigger) => {
+                if let Some(table_name) = drop_trigger.table_name.as_ref() {
+                    if drop_trigger.trigger_name.0.len() > 1 {
+                        log::error!("multi part trigger name:{:?}", drop_trigger.trigger_name);
                     }
                     self.c_on_table(table_name).await;
                     if self.finished() {
@@ -1299,7 +1292,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                     self.c_on_table_trigger(
                         table_name,
-                        match &trigger_name.0[0] {
+                        match &drop_trigger.trigger_name.0[0] {
                             ObjectNamePart::Identifier(ident) => ident,
                             ObjectNamePart::Function(object_name_part_function) => {
                                 &object_name_part_function.name
@@ -1309,7 +1302,6 @@ impl<'a> CompletionStatement<'a> {
                     .await;
                 }
             }
-
             Statement::CreateProcedure {
                 name, params, body, ..
             } => {
@@ -1530,11 +1522,9 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
                 if let Some(output) = output {
-                    self.c_on_select_items(&output.select_items[..]).await;
-                    self.c_on_table(&output.into_table.name).await;
+                    self.c_on_output_clause(output).await;
                 }
             }
-
             Statement::Cache { .. } => {
                 // Spark SQL
             }
@@ -1615,7 +1605,9 @@ impl<'a> CompletionStatement<'a> {
             }
             Statement::UnlockTables => {}
             Statement::Unload { query, with, .. } => {
-                let _ = self.c_on_query(query).await;
+                if let Some(q) = query.as_ref() {
+                    let _ = self.c_on_query(q).await;
+                }
                 for w in with.iter() {
                     self.c_on_sql_option(w).await;
                     if self.finished() {
@@ -1762,6 +1754,71 @@ impl<'a> CompletionStatement<'a> {
                 self.c_on_create_server_statement(create_server_statement)
                     .await;
             }
+            Statement::AlterSchema(alter_schema) => self.c_on_alter_schema(alter_schema).await,
+            Statement::ShowCharset(show_charset) => {
+                if let Some(filter) = show_charset.filter.as_ref() {
+                    self.c_on_show_statement_filter(filter).await;
+                }
+            }
+            Statement::ExportData(export_data) => self.c_on_export_data(export_data).await,
+            Statement::CreateUser(..) => {
+                // fallback to lexer
+            }
+            Statement::Vacuum(..) => {
+                // redshift not support right now
+            }
+        }
+    }
+
+    pub(crate) async fn c_on_export_data(&mut self, _export_data: &ExportData) {
+        // bigquery not support
+    }
+
+    pub(crate) async fn c_on_alter_schema(&mut self, alter_schema: &AlterSchema) {
+        if self.in_pos(&alter_schema.name.span()) {
+            self.result = Some(self.helper.list_database_schema_completion().await);
+            return;
+        }
+        for op in alter_schema.operations.iter() {
+            self.c_on_alter_schema_operation(op).await;
+            if self.finished() {
+                return;
+            }
+        }
+    }
+    pub(crate) async fn c_on_alter_schema_operation(&mut self, op: &AlterSchemaOperation) {
+        match op {
+            AlterSchemaOperation::SetDefaultCollate { collate } => {
+                self.c_on_expr(collate).await;
+            }
+            AlterSchemaOperation::AddReplica { options, .. } => {
+                if let Some(options) = options {
+                    for option in options.iter() {
+                        self.c_on_sql_option(option).await;
+                        if self.finished() {
+                            return;
+                        }
+                    }
+                }
+            }
+            AlterSchemaOperation::DropReplica { .. } => {}
+            AlterSchemaOperation::SetOptionsParens { options } => {
+                for option in options.iter() {
+                    self.c_on_sql_option(option).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
+            }
+            AlterSchemaOperation::Rename { name } => {
+                if self.in_pos(&name.span()) {
+                    self.set_on_def();
+                    return;
+                }
+            }
+            AlterSchemaOperation::OwnerTo { owner } => {
+                self.c_on_owner(owner).await;
+            }
         }
     }
     pub(crate) async fn c_on_sequence_options(&mut self, op: &SequenceOptions) {
@@ -1900,10 +1957,7 @@ impl<'a> CompletionStatement<'a> {
             }
         }
         if let Some(like) = create_table.like.as_ref() {
-            self.c_on_table(like).await;
-            if self.finished() {
-                return;
-            }
+            self.c_on_create_table_like_kind(like).await;
         }
         if let Some(clone) = create_table.clone.as_ref() {
             self.c_on_table(clone).await;
@@ -1912,6 +1966,22 @@ impl<'a> CompletionStatement<'a> {
 
         // 其他都可以fallback 到lexer的实现
     }
+
+    pub(crate) async fn c_on_create_table_like_kind(&mut self, ast: &CreateTableLikeKind) {
+        match ast {
+            CreateTableLikeKind::Parenthesized(create_table_like) => {
+                self.c_on_create_table_like(create_table_like).await;
+            }
+            CreateTableLikeKind::Plain(create_table_like) => {
+                self.c_on_create_table_like(create_table_like).await;
+            }
+        }
+    }
+
+    pub(crate) async fn c_on_create_table_like(&mut self, ast: &CreateTableLike) {
+        self.c_on_table_or_view(&ast.name).await;
+    }
+
     async fn c_on_grant_objects(
         &mut self, objects: &GrantObjects, tables_or_views: &mut Option<Vec<ObjectName>>,
     ) {
@@ -1926,10 +1996,10 @@ impl<'a> CompletionStatement<'a> {
             | GrantObjects::AllExternalTablesInSchema { schemas }
             | GrantObjects::AllSequencesInSchema { schemas }
             | GrantObjects::AllTablesInSchema { schemas }
+            | GrantObjects::AllFunctionsInSchema { schemas }
             | GrantObjects::Schemas(schemas) => {
                 if schemas.iter().any(|x| self.in_pos(&x.span())) {
-                    let mut result = self.helper.list_schema_completion().await;
-                    result.extend(self.helper.list_database_completion().await.into_iter());
+                    let result = self.helper.list_database_schema_completion().await;
                     self.result = Some(result);
                 }
             }
@@ -1953,7 +2023,7 @@ impl<'a> CompletionStatement<'a> {
             GrantObjects::Databases(databases)
             | GrantObjects::FutureSchemasInDatabase { databases } => {
                 if databases.iter().any(|x| self.in_pos(&x.span())) {
-                    self.result = Some(self.helper.list_database_completion().await);
+                    self.result = Some(self.helper.list_database_schema_completion().await);
                 }
             }
             GrantObjects::Views(views) => {
@@ -1965,7 +2035,6 @@ impl<'a> CompletionStatement<'a> {
                 }
                 *tables_or_views = Some(views.clone());
             }
-
             GrantObjects::Warehouses(..) => {
                 // TODO
             }
@@ -2225,9 +2294,11 @@ impl<'a> CompletionStatement<'a> {
         self.c_on_expr(&ast.message).await;
     }
     async fn c_on_return_statement(&mut self, ast: &ReturnStatement) {
-        if let Some(expr) = &ast.value { match expr {
-            ReturnStatementValue::Expr(expr) => self.c_on_expr(expr).await,
-        } }
+        if let Some(expr) = &ast.value {
+            match expr {
+                ReturnStatementValue::Expr(expr) => self.c_on_expr(expr).await,
+            }
+        }
     }
 }
 

@@ -2,8 +2,8 @@ use tokio::task::block_in_place;
 
 use crate::db::{DBTrait, name_start_ascii_alphabetic};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_parser_dot_lexer,
+    AstCompletionHelper, CompletionItem, CompletionKind, GetKeyWords, LangServerCommon,
+    LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::oracle::OracleDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -11,6 +11,40 @@ use crate::sqlparser_completion::TempTableColumn;
 #[async_trait::async_trait]
 impl LexerCompletionTrait for OracleDB {
     const TYPES: &'static [&'static str] = ORACLE_TYPES;
+}
+
+#[async_trait::async_trait]
+
+impl GetKeyWords for OracleDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        let mut lock = self.key_word_completion.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+        let conn = self.get_conn().await?;
+        let sql = r#"
+            SELECT  keyword 
+                FROM V$RESERVED_WORDS
+        "#;
+        let result = block_in_place(|| conn.query(sql, &[]))?;
+        let mut ret = Vec::new();
+        for r in result {
+            let r = r?;
+            let name: Option<String> = r.get(0)?;
+            if let Some(name) = name {
+                let name = name.trim().to_string();
+                if name.is_empty() {
+                    continue;
+                }
+                if !name_start_ascii_alphabetic(&name) {
+                    continue;
+                }
+                ret.push(name);
+            }
+        }
+        *lock = ret;
+        return anyhow::Ok(lock.clone());
+    }
 }
 
 impl OracleDB {
@@ -105,42 +139,6 @@ impl LangServerCommon for OracleDB {
         log::info!("sql:{}", sql);
         self.get_query_columns(&sql).await
     }
-    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.key_word_completion.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
-        let conn = self.get_conn().await?;
-        let sql = r#"
-            SELECT  keyword 
-                FROM V$RESERVED_WORDS
-        "#;
-        let result = block_in_place(|| conn.query(sql, &[]))?;
-        let mut ret = Vec::new();
-        for r in result {
-            let r = r?;
-            let name: Option<String> = r.get(0)?;
-            if let Some(name) = name {
-                let name = name.trim().to_string();
-                if name.is_empty() {
-                    continue;
-                }
-                if !name_start_ascii_alphabetic(&name) {
-                    continue;
-                }
-                ret.push(name);
-            }
-        }
-        *lock = ret
-            .into_iter()
-            .map(|x| CompletionItem {
-                item: x.into(),
-                kind: CompletionKind::KeyWord,
-                desc: None,
-            })
-            .collect();
-        return anyhow::Ok(lock.clone());
-    }
 
     async fn list_function(
         &self, schema: Option<&str>, include_build_in: bool,
@@ -233,11 +231,6 @@ impl LanguageServer for OracleDB {
         LangServerCommon::extract_table_select_sort(self, sql)
     }
 
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::key_words(self)
-            .await
-            .map(|x| x.into_iter().map(|x| x.into()).collect())
-    }
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {

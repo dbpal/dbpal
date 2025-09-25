@@ -26,12 +26,10 @@ import {
   InputAdornment,
   IconButton,
 } from '@mui/material';
-import { v4 as uuidV4 } from 'uuid';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from './Common';
 import ClearIcon from '@mui/icons-material/Clear';
-import { types } from './ApiStruct.ts';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { NotificationContext } from './Notification';
 import {
@@ -56,6 +54,7 @@ import {
   validJson,
   gridStyle,
   SavePageSize,
+  MuiDataGridData,
 } from './helper.ts';
 
 import {
@@ -777,14 +776,14 @@ function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
 }
 
 function RedisSetTable(props: {
-  reloadOP: (keyMatch: string) => Promise<types.MuiDataGridData>;
+  reloadOP: (keyMatch: string) => Promise<MuiDataGridData>;
   modifyOP: (oldValue: string, newValue: string) => Promise<void>;
 
   delOP: (value: string) => Promise<void>;
 }) {
   const { reloadOP, modifyOP, delOP } = props;
   const [keyMatch, setKeyMatch] = useState('');
-  const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
+  const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState<{ id; value }>(null);
   const [loading, setLoading] = useState(false);
@@ -792,8 +791,8 @@ function RedisSetTable(props: {
     setLoading(true);
     reloadOP(keyMatch)
       .then((resp) => {
-        resp.data.forEach((e) => {
-          e.id = uuidV4();
+        resp.data.forEach((e, index) => {
+          e['id'] = index;
         });
         resp.fields[0]['flex'] = 1;
         resp.fields[0]['valueGetter'] = valueGetter;
@@ -815,8 +814,10 @@ function RedisSetTable(props: {
   }, []);
 
   const handleDel = async (id: string) => {
+    //@ts-ignore
     let del = resp.data.find((e) => e['id'] == id);
     try {
+      //@ts-ignore
       await delOP(del.value);
       showNotification('success', 'Delete OK');
     } catch (e) {
@@ -859,7 +860,7 @@ function RedisSetTable(props: {
       toolbar: {
         csvOptions: {
           delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeCsvHeader,
+          includeHeaders: setting.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -1071,15 +1072,13 @@ function RedisListTableContextMenu(props: {
 }
 
 function RedisListTable(props: {
-  reloadOP: () => Promise<types.MuiDataGridData>;
+  reloadOP: () => Promise<MuiDataGridData>;
   modifyOP: (index: number, newValue: string) => Promise<void>;
   delOP: (count: number, value: string) => Promise<void>;
 }) {
   const { reloadOP, modifyOP, delOP } = props;
-  const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
-  const [respOrigin, setRespOrigin] = useState<types.MuiDataGridData | null>(
-    null
-  );
+  const [resp, setResp] = useState<MuiDataGridData | null>(null);
+  const [respOrigin, setRespOrigin] = useState<MuiDataGridData | null>(null);
   const [selectRow, setSelectRow] = useState<any>(null);
   const { showNotification } = useContext(NotificationContext);
   const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
@@ -1090,8 +1089,8 @@ function RedisListTable(props: {
     setLoading(true);
     reloadOP()
       .then((resp) => {
-        resp.data.forEach((e) => {
-          e.id = uuidV4();
+        resp.data.forEach((e, index) => {
+          e['id'] = index;
         });
         const seqWidth = ColumnWidth.instance.get('seq');
         if (seqWidth) {
@@ -1119,8 +1118,10 @@ function RedisListTable(props: {
   }, []);
 
   const handleDel = async (id, deleteCount: number) => {
+    //@ts-ignore
     let del = resp.data.find((e) => e.id == id);
     try {
+      //@ts-ignore
       await delOP(deleteCount, del.value);
       showNotification('success', 'Delete OK');
     } catch (e) {
@@ -1167,7 +1168,7 @@ function RedisListTable(props: {
         total: respOrigin.total,
         fields: respOrigin.fields,
         data: respOrigin.data.slice().reverse(),
-      } as types.MuiDataGridData);
+      } as MuiDataGridData);
     },
     [respOrigin]
   );
@@ -1201,7 +1202,7 @@ function RedisListTable(props: {
       toolbar: {
         csvOptions: {
           delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeCsvHeader,
+          includeHeaders: setting.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -1347,7 +1348,7 @@ function RedisZsetTable(props: {
     keyMatch: string,
     min: number | null,
     max: number | null
-  ) => Promise<types.MuiDataGridData>;
+  ) => Promise<MuiDataGridData>;
 
   modifyOP: (
     oldMember: string,
@@ -1359,7 +1360,7 @@ function RedisZsetTable(props: {
 }) {
   const { reloadOP, modifyOP, delOP } = props;
   const [keyMatch, setKeyMatch] = useState('');
-  const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
+  const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const [selectRow, setSelectRow] = useState<any>();
 
   const [min, setMin] = useState('');
@@ -1378,8 +1379,8 @@ function RedisZsetTable(props: {
     setLoading(true);
     reloadOP(keyMatch, minValue, maxValue)
       .then((resp) => {
-        resp.data.forEach((e) => {
-          e.id = uuidV4();
+        resp.data.forEach((e, index) => {
+          e['id'] = index;
         });
         resp.fields[1]['flex'] = 1;
         const scoreWidth = ColumnWidth.instance.get('score');
@@ -1412,6 +1413,7 @@ function RedisZsetTable(props: {
   const handleDel = async (id: string) => {
     let del = resp.data.find((e) => e['id'] == id);
     try {
+      //@ts-ignore
       await delOP(del.key);
       showNotification('success', 'Delete OK');
     } catch (e) {
@@ -1453,7 +1455,7 @@ function RedisZsetTable(props: {
       toolbar: {
         csvOptions: {
           delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeCsvHeader,
+          includeHeaders: setting.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -1692,7 +1694,7 @@ const valueGetter = (value) => {
   }
 };
 function RedisHashTable(props: {
-  reloadOP: (keyMatch: string) => Promise<types.MuiDataGridData>;
+  reloadOP: (keyMatch: string) => Promise<MuiDataGridData>;
   modifyOP: (
     oldMember: string,
     newMember: string,
@@ -1703,7 +1705,7 @@ function RedisHashTable(props: {
 }) {
   const { reloadOP, modifyOP, delOP } = props;
   const [keyMatch, setKeyMatch] = useState('');
-  const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
+  const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -1712,8 +1714,8 @@ function RedisHashTable(props: {
     setLoading(true);
     reloadOP(keyMatch)
       .then((resp) => {
-        resp.data.forEach((e) => {
-          e.id = uuidV4();
+        resp.data.forEach((e, index) => {
+          e['id'] = index;
         });
         const keyWidth = ColumnWidth.instance.get('key');
         resp.fields[0]['width'] = keyWidth;
@@ -1741,6 +1743,7 @@ function RedisHashTable(props: {
   const handleDel = async (id: string) => {
     let del = resp.data.find((e) => e['id'] == id);
     try {
+      //@ts-ignore
       await delOP(del.key);
       showNotification('success', 'Delete OK');
     } catch (e) {
@@ -1782,7 +1785,7 @@ function RedisHashTable(props: {
       toolbar: {
         csvOptions: {
           delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeCsvHeader,
+          includeHeaders: setting.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;

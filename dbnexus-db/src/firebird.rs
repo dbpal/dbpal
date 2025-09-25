@@ -40,7 +40,6 @@ use crate::db::{
     export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
 use crate::helper::create_csv;
-use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 pub struct PoolManager {
     config: FireBirdConfig,
@@ -488,7 +487,7 @@ pub struct FireBirdDB {
     pool: Pool<PoolManager>,
     query_connections: Arc<DashMap<uuid::Uuid, Arc<Mutex<PooledConnection<PoolManager>>>>>,
     query_connections_tx: Arc<DashSet<uuid::Uuid>>,
-    pub(crate) key_words_completion: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) key_words_completion: Arc<Mutex<Vec<String>>>,
 }
 
 impl std::fmt::Debug for FireBirdDB {

@@ -591,7 +591,7 @@ function validJson(s: string): Promise<ErrAndLoc | null> {
   return invoke<ErrAndLoc | null>("valid_json", { jsonStr: s })
 }
 
-function resetMuiDataRespWidth(old: types.MuiDataGridData): types.MuiDataGridData {
+function resetMuiDataRespWidth(old: MuiDataGridData): MuiDataGridData {
   return {
     sql: old.sql,
     data: old.data,
@@ -641,7 +641,7 @@ class DocsAndCount {
 
 class MongoTableHandler {
   static reloadTableList(uuid: string, table) {
-    return async (filter, sort, page, pageSize): Promise<types.MuiDataGridData> => {
+    return async (filter, sort, page, pageSize): Promise<MuiDataGridData> => {
       return await invoke('mongo_show_collection_table_list', {
         name: uuid,
         tableName: table,
@@ -701,7 +701,8 @@ class UserSetting {
   lightBgColor: string = undefined;
   darkBgColor: string = undefined;
   csvDelimiter: string = ',';
-  includeCsvHeader: boolean = true;
+  includeHeader: boolean = true;
+  datagridRowHeightFactor = 2;
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
   logger = {
     level: 'info',
@@ -716,7 +717,7 @@ class UserSetting {
   }
   // 可能和以前的设置冲突
   datagridRowHeightXXX() {
-    return Math.ceil(this.fontSize * 1.9)
+    return Math.ceil(this.fontSize * this.datagridRowHeightFactor)
   }
   static async get(): Promise<UserSetting> {
     let x = await appStore.get<object>(AppStoreKey.UserSetting);
@@ -916,6 +917,15 @@ const textEllipsisStyle = {
   flex: 1,
 } as CSSProperties;
 
+
+export type MuiDataGridData = {
+  "fields": types.Field[];
+  "data": object[];
+  "sql": string | null;
+  "total": types.Usize;
+  "cache_time": types.U64 | null;
+  "has_more": boolean;
+};
 
 export {
   TabsSetContext,

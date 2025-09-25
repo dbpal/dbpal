@@ -11,8 +11,8 @@ MySQL 只允许省略 sys. 前缀直接调用“函数”，对“存储过程�
 
 use crate::db::{AutoCompletionQueryUuid, SqlEvent, name_start_ascii_alphabetic};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
-    LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, GetKeyWords,
+    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -27,6 +27,32 @@ impl LexerCompletionTrait for MysqlDB {
 }
 
 #[async_trait::async_trait]
+impl GetKeyWords for MysqlDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        let mut lock = self.key_word_completion.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql("SELECT  * from information_schema.KEYWORDS")
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = vec![];
+        for row in rows.iter() {
+            let name: Option<String> = row.try_get(0)?;
+            if let Some(name) = name {
+                if !name_start_ascii_alphabetic(&name) {
+                    continue;
+                }
+                ret.push(name);
+            }
+        }
+        *lock = ret;
+        return anyhow::Ok(lock.clone());
+    }
+}
+
+#[async_trait::async_trait]
 impl LanguageServer for MysqlDB {
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_selection(self, sql)
@@ -34,11 +60,7 @@ impl LanguageServer for MysqlDB {
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_sort(self, sql)
     }
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::key_words(self)
-            .await
-            .map(|x| x.into_iter().map(|x| x.into()).collect())
-    }
+
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -195,32 +217,7 @@ impl LangServerCommon for MysqlDB {
         log::info!("sql:{}", sql);
         self.get_query_columns(&sql).await
     }
-    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.key_word_completion.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql("SELECT  * from information_schema.KEYWORDS")
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = vec![];
-        for row in rows.iter() {
-            let name: Option<String> = row.try_get(0)?;
-            if let Some(name) = name {
-                if !name_start_ascii_alphabetic(&name) {
-                    continue;
-                }
-                ret.push(CompletionItem {
-                    item: name.into(),
-                    kind: CompletionKind::KeyWord,
-                    desc: None,
-                });
-            }
-        }
-        *lock = ret;
-        return anyhow::Ok(lock.clone());
-    }
+
     async fn list_function(
         &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {

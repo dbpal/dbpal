@@ -18,6 +18,7 @@ impl From<ObjectType> for CompletionKind {
             ObjectType::Type => CompletionKind::Type,
             ObjectType::MaterializedView => CompletionKind::View,
             ObjectType::User => CompletionKind::Role,
+            ObjectType::Stream => CompletionKind::Stream,
         }
     }
 }
@@ -83,8 +84,27 @@ impl<'a> CompletionStatement<'a> {
             }
         }
     }
-    pub(crate) async fn c_on_show_statement_filter(&mut self, expr: &ShowStatementFilter) {
-        match expr {
+    pub(crate) async fn c_on_output_clause(&mut self, output: &OutputClause) {
+        match output {
+            OutputClause::Output {
+                select_items,
+                into_table,
+            } => {
+                self.c_on_select_items(&select_items[..]).await;
+                if let Some(into_table) = into_table {
+                    self.c_on_select_into(into_table).await;
+                }
+            }
+            OutputClause::Returning { select_items } => {
+                self.c_on_select_items(&select_items[..]).await;
+            }
+        }
+    }
+    pub(crate) async fn c_on_select_into(&mut self, select_into: &SelectInto) {
+        self.c_on_table(&select_into.name).await;
+    }
+    pub(crate) async fn c_on_show_statement_filter(&mut self, filter: &ShowStatementFilter) {
+        match filter {
             ShowStatementFilter::Like(..) => {}
             ShowStatementFilter::ILike(..) => {}
             ShowStatementFilter::Where(expr) => self.c_on_expr(expr).await,
@@ -540,8 +560,7 @@ impl<'a> CompletionStatement<'a> {
             ObjectType::Index => self.c_on_index(name).await,
             ObjectType::Schema | ObjectType::Database => {
                 //  我不知道这里指的是schema还是database所以返回全部的结果
-                let mut results = self.helper.list_schema_completion().await;
-                results.extend(self.helper.list_database_completion().await.into_iter());
+                let results = self.helper.list_database_schema_completion().await;
                 self.result = Some(results);
             }
             ObjectType::Role => self.c_on_role_objectname(name).await,
@@ -561,6 +580,9 @@ impl<'a> CompletionStatement<'a> {
                         ObjectNamePart::Function(..) => {}
                     }
                 }
+            }
+            ObjectType::Stream => {
+                // TODO
             }
         }
     }
@@ -620,7 +642,7 @@ impl<'a> CompletionStatement<'a> {
             Action::DatabaseRole { role } => self.c_on_role_objectname(role).await,
 
             Action::Role { role } => {
-                self.c_on_role(role).await;
+                self.c_on_role_objectname(role).await;
             }
             _ => {}
         }
@@ -635,8 +657,7 @@ impl<'a> CompletionStatement<'a> {
         match object_type {
             CommentObject::Table => self.c_on_table(name).await,
             CommentObject::Schema | CommentObject::Database => {
-                let mut results = self.helper.list_schema_completion().await;
-                results.extend(self.helper.list_database_completion().await.into_iter());
+                let results = self.helper.list_database_schema_completion().await;
                 self.result = Some(results);
             }
             CommentObject::Role => self.c_on_role_objectname(name).await,
@@ -1031,7 +1052,7 @@ impl<'a> CompletionStatement<'a> {
             AlterTableOperation::UnfreezePartition { partition, .. } => {
                 self.c_on_clickhouse_partition(table_name, partition).await;
             }
-            AlterTableOperation::DropPrimaryKey => {
+            AlterTableOperation::DropPrimaryKey { .. } => {
                 // nothing to here
             }
             AlterTableOperation::EnableAlwaysRule { name } => {
@@ -1202,6 +1223,14 @@ impl<'a> CompletionStatement<'a> {
             }
             AlterTableOperation::ValidateConstraint { name } => {
                 self.c_on_constraint(table_name, name).await;
+            }
+            AlterTableOperation::SetOptionsParens { options } => {
+                for op in options.iter() {
+                    self.c_on_sql_option(op).await;
+                    if self.finished() {
+                        return;
+                    }
+                }
             }
         }
     }
@@ -1951,9 +1980,9 @@ impl<'a> CompletionStatement<'a> {
                 // literal value
                 // nothing to completion
             }
-            Expr::TypedString { data_type, .. } => {
+            Expr::TypedString(ty) => {
                 // literal value
-                Box::pin(self.c_on_data_type(data_type)).await;
+                Box::pin(self.c_on_data_type(&ty.data_type)).await;
             }
             Expr::Function(function) => Box::pin(self.c_on_function_call(function)).await,
             Expr::Case {
@@ -2375,7 +2404,9 @@ impl<'a> CompletionStatement<'a> {
                 }
                 self.c_on_expr(match_condition).await;
             }
-            JoinOperator::CrossJoin => {}
+            JoinOperator::CrossJoin(join_constraint) => {
+                self.c_on_join_constraint(join_constraint).await
+            }
             JoinOperator::Join(join_constraint) => self.c_on_join_constraint(join_constraint).await,
             JoinOperator::Left(join_constraint) => self.c_on_join_constraint(join_constraint).await,
             JoinOperator::Right(join_constraint) => {
@@ -3084,7 +3115,8 @@ impl<'a> CompletionStatement<'a> {
             }
             SetExpr::Insert(statement)
             | SetExpr::Update(statement)
-            | SetExpr::Delete(statement) => {
+            | SetExpr::Delete(statement)
+            | SetExpr::Merge(statement) => {
                 self.completion_on_statement(statement).await;
                 anyhow::Ok(
                     std::mem::take(&mut self.select_item_columns)
@@ -3640,6 +3672,9 @@ impl<'a> CompletionStatement<'a> {
                         },
                     )
                 });
+            }
+            TableFactor::SemanticView { .. } => {
+                // snowflake not support
             }
         }
     }

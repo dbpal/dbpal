@@ -33,21 +33,27 @@ function IncludeHeader({ includeHeader, setIncludeHeader }) {
     />
   );
 }
+
+let lastExportKind = 'csv';
 function ExportView(props: {
   name: string;
   exportOP: (kind: types.ExportKind, file: string) => Promise<void>;
   supportKind: string[];
 }) {
   const { exportOP, supportKind, name } = props;
-  const [kind, setKind] = useState(supportKind[0]);
+  let lastKind = supportKind.find((k) => k === lastExportKind);
+  const [kind, setKind] = useState(lastExportKind ? lastKind : supportKind[0]);
   const setting = useContext(SettingContext);
-  const [includeHeader, setIncludeHeader] = useState(setting.includeCsvHeader);
+  const [includeHeader, setIncludeHeader] = useState(setting.includeHeader);
   const [delimiter, setDelimiter] = useState(setting.csvDelimiter);
   const [pretty, setPretty] = useState(true);
   const [includeTableSchema, setIncludeTableSchema] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<string | null>(null);
+  useEffect(() => {
+    lastExportKind = kind;
+  }, [kind]);
 
   const makeConfig = (): types.ExportKind | null => {
     switch (kind) {

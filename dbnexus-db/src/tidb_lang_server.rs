@@ -4,13 +4,38 @@ use std::ops::DerefMut;
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::DBTrait;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
-    LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, GetKeyWords,
+    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
 use crate::tidb::TiDB;
 use sqlx::Row;
+#[async_trait::async_trait]
+
+impl GetKeyWords for TiDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        /*
+            原因一句话：TiDB v7.5.1 还没有 information_schema.keywords 这张表，所以你查不到。
+
+            该表是 v7.5.3（2024-08-05 发布的 LTS）才正式加入的
+
+        。
+        你当前的 8.0.11-TiDB-v7.5.1 恰好是 7.5.1，版本号里前面只是伪装成 MySQL 8.0 的“兼容前缀”，实际内核仍是 7.5.1，因此 表不存在。
+         */
+        let result = GetKeyWords::key_words(self.db.as_ref())
+            .await
+            .unwrap_or_default();
+        if !result.is_empty() {
+            return anyhow::Ok(result);
+        }
+        let result = TIDB_KEYWORDS
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>();
+        anyhow::Ok(result)
+    }
+}
 
 #[async_trait::async_trait]
 impl LanguageServer for TiDB {
@@ -20,11 +45,7 @@ impl LanguageServer for TiDB {
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_sort(self.db.as_ref(), sql)
     }
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::key_words(self)
-            .await
-            .map(|x| x.into_iter().map(|x| x.into()).collect())
-    }
+
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -87,31 +108,6 @@ impl LangServerCommon for TiDB {
         LangServerCommon::list_column(self.db.as_ref(), schema, name, is_call).await
     }
     // some backend can use a query to query this.
-    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        /*
-            原因一句话：TiDB v7.5.1 还没有 information_schema.keywords 这张表，所以你查不到。
-
-            该表是 v7.5.3（2024-08-05 发布的 LTS）才正式加入的
-
-        。
-        你当前的 8.0.11-TiDB-v7.5.1 恰好是 7.5.1，版本号里前面只是伪装成 MySQL 8.0 的“兼容前缀”，实际内核仍是 7.5.1，因此 表不存在。
-         */
-        let result = LangServerCommon::key_words(self.db.as_ref())
-            .await
-            .unwrap_or_default();
-        if !result.is_empty() {
-            return anyhow::Ok(result);
-        }
-        let result = TIDB_KEYWORDS
-            .iter()
-            .map(|x| CompletionItem {
-                item: (*x).into(),
-                desc: None,
-                kind: CompletionKind::KeyWord,
-            })
-            .collect::<Vec<_>>();
-        anyhow::Ok(result)
-    }
 
     async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         LangServerCommon::list_procedure(self.db.as_ref(), schema).await

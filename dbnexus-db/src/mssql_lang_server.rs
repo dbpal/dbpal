@@ -4,8 +4,8 @@
 
 use crate::db::{CatalogTrait, CreatedTypeDef};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
-    LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, GetKeyWords,
+    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::mssql::SqlServerDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -18,6 +18,13 @@ impl LexerCompletionTrait for SqlServerDB {
 }
 
 #[async_trait::async_trait]
+impl GetKeyWords for SqlServerDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(SQLSERVER_KEYWORDS.iter().map(|x| x.to_string()).collect())
+    }
+}
+
+#[async_trait::async_trait]
 impl LanguageServer for SqlServerDB {
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_selection(self, sql)
@@ -26,11 +33,6 @@ impl LanguageServer for SqlServerDB {
         LangServerCommon::extract_table_select_sort(self, sql)
     }
 
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::key_words(self)
-            .await
-            .map(|x| x.into_iter().map(|x| x.into()).collect())
-    }
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -201,18 +203,7 @@ impl LangServerCommon for SqlServerDB {
         };
         self.get_query_columns(&sql).await
     }
-    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        anyhow::Ok(
-            SQLSERVER_KEYWORDS
-                .iter()
-                .map(|x| CompletionItem {
-                    item: (*x).into(),
-                    desc: None,
-                    kind: CompletionKind::KeyWord,
-                })
-                .collect(),
-        )
-    }
+
     async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         LangServerCommon::list_execute(self, schema)
             .await

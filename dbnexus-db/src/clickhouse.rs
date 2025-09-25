@@ -18,7 +18,6 @@ use crate::db::{
     escape_sql_str, ty_is_float, ty_is_int,
 };
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
-use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 
 impl GetBackendKind for ClickHouseDB {
@@ -924,7 +923,7 @@ pub struct ClickHouseDB {
     pub(crate) config: ClickHouseConfig,
     pool: r2d2::Pool<PoolManager>,
     client: reqwest::Client,
-    pub(crate) key_word_completion: Arc<tokio::sync::Mutex<Vec<CompletionItem>>>,
+    pub(crate) key_word_completion: Arc<tokio::sync::Mutex<Vec<String>>>,
 }
 
 impl ReadOnlyTrait for ClickHouseDB {

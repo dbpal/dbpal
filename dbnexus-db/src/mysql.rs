@@ -23,7 +23,6 @@ use crate::db::{
     TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_data,
 };
-use crate::language_server::CompletionItem;
 
 use crate::helper::create_csv;
 use crate::meta_value::MetaValue;
@@ -33,7 +32,7 @@ pub struct MysqlDB {
     pool: sqlx::MySqlPool,
     pub(crate) config: MysqlDBConfig,
     pub(crate) query_connection: Arc<DashMap<uuid::Uuid, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
-    pub(crate) key_word_completion: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) key_word_completion: Arc<Mutex<Vec<String>>>,
 }
 
 fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {

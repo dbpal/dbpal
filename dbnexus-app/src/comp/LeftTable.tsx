@@ -74,6 +74,7 @@ import {
   MongoTableHandler,
   maxTreeSize,
   getSupportExportKind,
+  MuiDataGridData,
 } from './helper';
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from './CommonComp';
 import { TableStructure } from './TableStructure';
@@ -334,7 +335,7 @@ function makeViewTable(
           ) => {
             let where_null = where ? where : null;
             let orderBy_null = orderBy ? orderBy : null;
-            return await invoke<types.MuiDataGridData>('show_table', {
+            return await invoke<MuiDataGridData>('show_table', {
               name: uuid,
               tableName: table,
               whereStr: where_null,
@@ -389,7 +390,7 @@ function makeViewTable(
                 });
               }}
               loadContent={async () => {
-                return invoke<types.MuiDataGridData>('show_table', {
+                return invoke<MuiDataGridData>('show_table', {
                   name: uuid,
                   tableName: table,
                   whereStr: null,

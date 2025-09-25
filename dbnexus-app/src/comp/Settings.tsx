@@ -55,10 +55,12 @@ function ModifySetting() {
   const [bgColor, setBgColor] = useState('');
   const [bgColorErr, setBgColorErr] = useState('');
   const [csvDelimiter, setCsvDelimiter] = useState(',');
-  const [csvHeader, setCsvHeader] = useState(true);
+  const [includeHeader, setIncludeHeader] = useState(true);
   const bgColorTextField = useRef<HTMLInputElement>(null);
   const [loggerLevel, setLoggerLevel] = useState('info');
   const [loggerMaxSize, setLoggerMaxSize] = useState('1');
+  const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState('2');
+
   useEffect(() => {
     invoke<string[]>('fonts_all_families', {})
       .then((fonts) => {
@@ -84,7 +86,8 @@ function ModifySetting() {
       setLoggerLevel(setting.logger.level);
       setLoggerMaxSize(setting.logger.max_size + '');
       setCsvDelimiter(setting.csvDelimiter);
-      setCsvHeader(setting.includeCsvHeader);
+      setIncludeHeader(setting.includeHeader);
+      setDatagridRowHeightFactor(setting.datagridRowHeightFactor.toString());
       const content = JSON.stringify(
         setting.editorOption ? setting.editorOption : {},
         null,
@@ -107,6 +110,10 @@ function ModifySetting() {
       bgColorTextField.current.focus();
       return;
     }
+    if (isNaN(parseFloat(datagridRowHeightFactor))) {
+      showNotification('error', 'datagrid row height factor must be a number');
+      return;
+    }
     try {
       const e = await validJson(editorOptions);
       if (e) {
@@ -124,11 +131,12 @@ function ModifySetting() {
       tabSize,
       editorOption: JSON.parse(editorOptions),
       csvDelimiter: csvDelimiter,
-      includeCsvHeader: csvHeader,
+      includeHeader: includeHeader,
       logger: {
         level: loggerLevel,
         max_size: parseInt(loggerMaxSize),
       },
+      datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
     } as UserSetting;
     if (theme == 'dark') {
       s.darkBgColor = bgColor;
@@ -277,6 +285,24 @@ function ModifySetting() {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography
+          width={headerSize}
+          style={{ fontFamily: fontFamily }}
+          textAlign="right"
+        >
+          table row height factor:
+        </Typography>
+        <TextField
+          value={datagridRowHeightFactor}
+          onChange={(e) => {
+            setDatagridRowHeightFactor(e.target.value);
+          }}
+          error={isNaN(parseFloat(datagridRowHeightFactor))}
+          helperText="a float value,this parameter multiply font size as the table row height"
+        ></TextField>
+      </Stack>
+
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           background color:
         </Typography>
@@ -406,14 +432,19 @@ function ModifySetting() {
           error={csvDelimiter.length > 1}
           helperText="only accept one character"
         ></TextField>
+      </Stack>
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
+          include header:
+        </Typography>
         <FormControlLabel
           control={
             <Switch
-              checked={csvHeader}
-              onChange={(e) => setCsvHeader(e.target.checked)}
+              checked={includeHeader}
+              onChange={(e) => setIncludeHeader(e.target.checked)}
             />
           }
-          label="include csv header"
+          label="include header"
         />
       </Stack>
 
@@ -535,7 +566,7 @@ function EditorOptions(props: {
   );
 }
 
-function makeComponents(appFontWeight) {
+function makeComponents(fontWeight) {
   const components: Components<
     Omit<Theme, 'components' | 'palette'> & CssVarsTheme
   > = {
@@ -548,7 +579,7 @@ function makeComponents(appFontWeight) {
           fontSize: '1rem',
           padding: '2px  4px',
           textTransform: 'none',
-          fontWeight: appFontWeight,
+          fontWeight,
         },
       },
       defaultProps: {
@@ -575,7 +606,7 @@ function makeComponents(appFontWeight) {
     MuiAlert: {
       styleOverrides: {
         root: {
-          fontWeight: appFontWeight,
+          fontWeight,
         },
       },
     },
@@ -590,7 +621,7 @@ function makeComponents(appFontWeight) {
     MuiAlertTitle: {
       styleOverrides: {
         root: {
-          fontWeight: appFontWeight,
+          fontWeight,
         },
       },
     },
@@ -599,14 +630,14 @@ function makeComponents(appFontWeight) {
       styleOverrides: {
         root: {
           '& .MuiDataGrid-columnHeaderTitle': {
-            fontWeight: appFontWeight,
+            fontWeight,
           },
         },
         cell: {
           fontSize: '1rem',
         },
         columnHeaders: {
-          fontSize: '0.9rem',
+          fontSize: '0.8rem',
           boxShadow: '0 2px 4px',
         },
       },
@@ -622,7 +653,7 @@ function makeComponents(appFontWeight) {
       styleOverrides: {
         root: {
           '& .MuiInputBase-input': {
-            fontWeight: appFontWeight,
+            fontWeight,
           },
         },
       },
@@ -638,7 +669,7 @@ function makeComponents(appFontWeight) {
       styleOverrides: {
         root: {
           fontSize: '1rem',
-          fontWeight: appFontWeight,
+          fontWeight,
         },
       },
       defaultProps: {

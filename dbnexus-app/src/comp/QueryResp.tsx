@@ -14,7 +14,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { v4 as uuidV4 } from 'uuid';
 import {
   calMenuStyle,
   handleCopyToClipboard,
@@ -24,6 +23,7 @@ import {
   gridStyle,
   saveAndSetSize,
   ColumnWidth,
+  MuiDataGridData,
 } from './helper.ts';
 import {
   DataGrid,
@@ -130,14 +130,15 @@ function RespContextMenu(props: {
   );
 }
 
-function QueryResp_(props: { data: types.MuiDataGridData }) {
+function QueryResp_(props: { data: MuiDataGridData }) {
   let { data: oldData } = props;
-  const [data, setData] = useState<types.MuiDataGridData>(null);
+  const [data, setData] = useState<MuiDataGridData>(null);
   const setting = useContext(SettingContext);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
   useEffect(() => {
-    oldData.data.forEach((e) => {
-      e[keyNotInTable] = uuidV4();
+    oldData.data.forEach((e, index) => {
+      //@ts-ignore
+      e[keyNotInTable] = index;
     });
     oldData.fields.forEach((field) => {
       const width = ColumnWidth.instance.get(field.field);
@@ -203,7 +204,7 @@ function QueryResp_(props: { data: types.MuiDataGridData }) {
       toolbar: {
         csvOptions: {
           delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeCsvHeader,
+          includeHeaders: setting.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;

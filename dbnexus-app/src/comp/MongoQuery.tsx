@@ -1,18 +1,27 @@
 import { Editor, Monaco } from '@monaco-editor/react';
 import {
   Box,
-  Chip,
+  Button,
   IconButton,
   Modal,
+  Paper,
   Stack,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { editor, Position, Range } from 'monaco-editor';
 import * as loglevel from 'loglevel';
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   initMongoQueryGlobals,
   MongoDBQuery,
@@ -23,8 +32,8 @@ import {
   DataSourceKind,
   generateRandomString,
   QueryLogHandler,
-  saveAndSetSize,
   SettingContext,
+  TabActiveContext,
 } from './helper';
 import { EscDownEvent, modalHandleClose, modalStyle } from './Common';
 import { NotificationContext } from './Notification';
@@ -66,6 +75,7 @@ function MongoQuery(props: {
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
   const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
   const [showQueryLog, setShowQueryLog] = useState(false);
+  const [showLog, setShowLog] = useState(false);
   const [err, setErr] = useState(null);
   const [loggerEditor, setLoggerEditor] = useState(null);
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
@@ -75,7 +85,8 @@ function MongoQuery(props: {
   const [logger, _setLogger] = useState(
     loglevel.getLogger(generateRandomString(10))
   );
-  const [loggerLevel, setLoggerLevel] = useState('trace');
+  let setting = useContext(SettingContext);
+  const [loggerLevel, setLoggerLevel] = useState(setting.logger.level);
   const [db, _] = useState(new MongoDBQuery(uuid));
   const [bsonExtraDataType, _setBsonExtraDataTypes] = useState(
     new BsonExtraDataType()
@@ -111,7 +122,6 @@ function MongoQuery(props: {
       setPos(ed.getPosition());
     });
   };
-  const setting = useContext(SettingContext);
   const handleExecute = () => {
     let code = editor.current.getValue();
     if (!code.trim()) {
@@ -153,24 +163,42 @@ function MongoQuery(props: {
       ...setting.editorOption,
     };
   }, [setting]);
-  const editorDom = useRef(null);
-  const loggerDom = useRef(null);
+  const vis = useContext(TabActiveContext);
+  const keyEscCancelQueryLog = useCallback(
+    (e) => {
+      if (e.key === 'Escape' && vis && showQueryLog) {
+        setShowQueryLog(false);
+        e.preventDefault();
+      }
+    },
+    [vis, showQueryLog]
+  );
   useEffect(() => {
-    const x1 = saveAndSetSize(editorDom.current, 'mongo-query', 'height');
-    const x2 = saveAndSetSize(loggerDom.current, 'mongo-logger', 'height');
+    document.addEventListener('keydown', keyEscCancelQueryLog);
     return () => {
-      x1();
-      x2();
+      document.removeEventListener('keydown', keyEscCancelQueryLog);
     };
-  }, []);
+  }, [keyEscCancelQueryLog]);
+
+  const keyEscCancelLog = useCallback(
+    (e) => {
+      if (e.key === 'Escape' && vis && showLog) {
+        setShowLog(false);
+        e.preventDefault();
+      }
+    },
+    [vis, showLog]
+  );
+  useEffect(() => {
+    document.addEventListener('keydown', keyEscCancelLog);
+    return () => {
+      document.removeEventListener('keydown', keyEscCancelLog);
+    };
+  }, [keyEscCancelLog]);
 
   return (
-    <Stack spacing={1}>
-      <Stack
-        direction="row"
-        sx={{ alignItems: 'center', position: 'relative' }}
-        spacing={1}
-      >
+    <Stack spacing={1} style={{ position: 'relative' }}>
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <QueryLog
           showQueryLog={showQueryLog}
           setShowQueryLog={setShowQueryLog}
@@ -232,6 +260,15 @@ function MongoQuery(props: {
             editor.current.setValue(text);
           }}
         ></LoadStoreFileForQuery>
+        <Button
+          onClick={() => {
+            setShowLog((e) => !e);
+          }}
+          variant="outlined"
+          color={showLog ? 'primary' : 'secondary'}
+        >
+          show log
+        </Button>
         <Tooltip title="query log">
           <IconButton
             onClick={() => {
@@ -246,17 +283,14 @@ function MongoQuery(props: {
 
       <div
         style={{
-          minHeight: '200px',
-          height: '60vh',
-          resize: 'vertical',
+          height: '80vh',
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'hidden',
           width: '100%',
+          // border: '1px solid red',
         }}
-        ref={editorDom}
       >
-        <div style={{ height: '100px', flexGrow: 1, flexShrink: 1 }}>
+        <div style={{ height: '100px', flex: 1 }}>
           <Editor
             width="99%"
             height="99%"
@@ -273,30 +307,45 @@ function MongoQuery(props: {
           pos={pos}
         ></EditorBar>
       </div>
-      <Chip color="info" label=" logger" style={{ fontSize: '1.2rem' }} />
-      <div
+      <Paper
         style={{
-          minHeight: '200px',
-          height: '500px',
-          resize: 'vertical',
-          display: 'flex',
+          width: '80%',
+          position: 'absolute',
+          height: '75vh',
+          top: 0,
+          right: 0,
+          display: showLog ? 'flex' : 'none',
           flexDirection: 'column',
-          overflow: 'hidden',
+          zIndex: 14,
         }}
-        ref={loggerDom}
+        elevation={16}
       >
-        <div style={{ height: '100px', flexGrow: 1, flexShrink: 1 }}>
+        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+          <IconButton
+            onClick={() => {
+              setShowLog(false);
+            }}
+          >
+            <CloseIcon> </CloseIcon>
+          </IconButton>
+
+          <Tooltip title="esc can close log too">
+            <span>esc</span>
+          </Tooltip>
+        </Stack>
+        <div style={{ height: '100px', flex: 1 }}>
           <Editor
             options={options}
-            width="99.5%"
+            width="99%"
             height="99%"
             language="log"
             theme={setting.editorTheme()}
             onMount={logEditorOnMount}
           ></Editor>
         </div>
+
         <EditorBar pos={loggerPos}></EditorBar>
-      </div>
+      </Paper>
       {showSetFavoriteName && (
         <Modal
           open={showSetFavoriteName}
@@ -345,8 +394,7 @@ function MongoQuery(props: {
 
 function modifyEditorContent(
   editor: editor.IStandaloneCodeEditor,
-  // means clean text
-  text = undefined
+  text = undefined //undefined  means clean text
 ) {
   if (!text) {
     editor.setValue('');
@@ -356,16 +404,13 @@ function modifyEditorContent(
   if (model) {
     const lastLine = model.getLineCount();
     const lastColumn = model.getLineLength(lastLine) + 1;
-
     const range = new Range(lastLine, lastColumn, lastLine, lastColumn);
-
     const editOperation = {
       identifier: { major: 1, minor: 1 },
       range: range,
       text: text,
       forceMoveMarkers: true,
     } as editor.IIdentifiedSingleEditOperation;
-
     editor.executeEdits('appendContent', [editOperation]);
     // 滚动到最后一行
     editor.setPosition({ lineNumber: lastLine + 1, column: 1 });

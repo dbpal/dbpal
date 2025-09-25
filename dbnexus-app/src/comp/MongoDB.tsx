@@ -16,7 +16,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { v4 as uuidV4 } from 'uuid';
 import ListIcon from '@mui/icons-material/List';
 import { loader } from '@monaco-editor/react';
 import { CancellationToken, editor, languages, Position } from 'monaco-editor';
@@ -41,7 +40,6 @@ import {
 } from 'react';
 
 import { BSON, EJSON } from 'bson';
-import types from './ApiStruct';
 import { NotificationContext } from './Notification';
 import { TbJson } from 'react-icons/tb';
 import {
@@ -87,6 +85,7 @@ import {
   SettingContext,
   validJson,
   SavePageSize,
+  MuiDataGridData,
 } from './helper';
 import { EditorBar, SimpleFlexEditor } from './CommonComp2';
 
@@ -1146,7 +1145,7 @@ function MongoTableList(props: {
     sort: BSON.Document,
     page: number,
     pageSize: number
-  ) => Promise<types.MuiDataGridData>;
+  ) => Promise<MuiDataGridData>;
   setSort;
   setFilter;
   loadOne: (id: any) => Promise<BSON.Document>;
@@ -1173,7 +1172,7 @@ function MongoTableList(props: {
 
   const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
   const { showNotification } = useContext(NotificationContext);
-  const [resp, setResp] = useState<types.MuiDataGridData | null>(null);
+  const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(
     null
   );
@@ -1183,8 +1182,9 @@ function MongoTableList(props: {
     setLoading(true);
     reloadOP(filter, sort, page + 1, pageSize)
       .then((r) => {
-        r.data.forEach((e) => {
-          e[keyNotInTable] = uuidV4();
+        r.data.forEach((e, index) => {
+          //@ts-ignore
+          e[keyNotInTable] = index;
         });
         r.fields.forEach((f) => {
           let width = ColumnWidth.instance.get(f.field);
@@ -1321,7 +1321,7 @@ function MongoTableList(props: {
       toolbar: {
         csvOptions: {
           delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeCsvHeader,
+          includeHeaders: setting.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -1543,7 +1543,7 @@ function MongoTable(props: {
     sort: BSON.Document,
     page: number,
     pageSize: number
-  ) => Promise<types.MuiDataGridData>;
+  ) => Promise<MuiDataGridData>;
   reloadOPDocs: (
     filter: BSON.Document,
     sort: BSON.Document,

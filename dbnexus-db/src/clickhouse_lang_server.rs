@@ -3,10 +3,26 @@ use std::vec;
 use crate::clickhouse::{ClickHouseDB, JsonRespMeta};
 use crate::db::DBTrait;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc, LangServerCommon,
+    AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc, GetKeyWords, LangServerCommon,
     LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::sqlparser_completion::TempTableColumn;
+
+#[async_trait::async_trait]
+impl GetKeyWords for ClickHouseDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        let mut lock = self.key_word_completion.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+        let sql = "select * from system.keywords";
+        let conn = self.get_conn()?;
+        let ret: Vec<String> = conn.query(sql).fetch_all().await?;
+        *lock = ret;
+        return anyhow::Ok(lock.clone());
+    }
+}
+
 #[async_trait::async_trait]
 
 impl LanguageServer for ClickHouseDB {
@@ -17,11 +33,6 @@ impl LanguageServer for ClickHouseDB {
         LangServerCommon::extract_table_select_sort(self, sql)
     }
 
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::key_words(self)
-            .await
-            .map(|x| x.into_iter().map(|x| x.into()).collect())
-    }
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -96,22 +107,6 @@ impl LangServerCommon for ClickHouseDB {
             )
         };
         self.get_query_columns(&sql).await
-    }
-    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.key_word_completion.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
-
-        let sql = "select * from system.keywords";
-        let conn = self.get_conn()?;
-        let ret: Vec<String> = conn.query(sql).fetch_all().await?;
-        lock.extend(ret.into_iter().map(|x| CompletionItem {
-            item: x.into(),
-            kind: CompletionKind::KeyWord,
-            desc: None,
-        }));
-        return anyhow::Ok(lock.clone());
     }
 
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {

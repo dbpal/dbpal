@@ -1,7 +1,8 @@
 use crate::db::{AutoCompletionQueryUuid, CatalogTrait, CreatedTypeDef, SequenceDetail};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, LangServerCommon,
-    LanguageServer, LexerCompletionTrait, PostGresExtension, try_parser_dot_lexer,
+    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, GetKeyWords,
+    LangServerCommon, LanguageServer, LexerCompletionTrait, PostGresExtension,
+    try_parser_dot_lexer,
 };
 
 use crate::pg::PostGresDB;
@@ -12,6 +13,27 @@ use std::ops::DerefMut;
 #[async_trait::async_trait]
 impl LexerCompletionTrait for PostGresDB {
     const TYPES: &'static [&'static str] = POSTGRES_TYPES;
+}
+
+#[async_trait::async_trait]
+impl GetKeyWords for PostGresDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        let mut lock = self.key_word_completion.lock().await;
+        if !lock.is_empty() {
+            return anyhow::Ok(lock.clone());
+        }
+        let mut conn = self.get_conn().await?;
+        let rows = sqlx::raw_sql("select word from pg_get_keywords()")
+            .fetch_all(conn.deref_mut())
+            .await?;
+        let mut ret = vec![];
+        for row in rows.iter() {
+            let c: String = row.try_get(0)?;
+            ret.push(c);
+        }
+        *lock = ret;
+        return anyhow::Ok(lock.clone());
+    }
 }
 
 impl PostGresDB {
@@ -371,27 +393,7 @@ impl LangServerCommon for PostGresDB {
         log::info!("sql:{}", sql);
         self.get_query_columns(&sql).await
     }
-    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut lock = self.key_word_completion.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
-        }
-        let mut conn = self.get_conn().await?;
-        let rows = sqlx::raw_sql("select word from pg_get_keywords()")
-            .fetch_all(conn.deref_mut())
-            .await?;
-        let mut ret = vec![];
-        for row in rows.iter() {
-            let c: String = row.try_get(0)?;
-            ret.push(CompletionItem {
-                item: c.to_uppercase().into(),
-                kind: CompletionKind::KeyWord,
-                desc: None,
-            });
-        }
-        *lock = ret;
-        return anyhow::Ok(lock.clone());
-    }
+
     async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schemas = self.get_search_path(schema, true).await;
         let mut conn = self.get_conn().await?;
@@ -573,11 +575,7 @@ impl LanguageServer for PostGresDB {
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_sort(self, sql)
     }
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::key_words(self)
-            .await
-            .map(|x| x.into_iter().map(|x| x.into()).collect())
-    }
+
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {

@@ -16,7 +16,7 @@ async function testCol() {
         //
         const collection = db.collection('yyy');
     }
-    const isnertRet = await collection.insertOne({
+    const insertRet = await collection.insertOne({
         a: 100,
         y: 10000,
         c: 'ssss',
@@ -31,7 +31,7 @@ async function testCol() {
         bValue4: bsonExtraDataType.binaryFromInt8Array(new Int8Array([1, 2, 3, 4])),
         bValue5: bsonExtraDataType.binaryFromFloat32Array(new Float32Array([1, 2, 3, 4]))
     });
-    logger.info('insert ret is:', isnertRet);
+    logger.info('insert ret is:', insertRet);
     const count = await collection.cuntDocuments();
     logger.info('count document is :', count);
     const createIndexRet = await collection.createIndex({ a: 1 });
@@ -81,3 +81,20 @@ async function testCol() {
 }
 
 testCol();
+
+
+async function testLimitOffsetPara() {
+    let name = "test_limit_offset";
+    let col = db.collection(name);
+    await col.find({ filter: 1 }).max({ max: 1 })
+        .min({ min: 1 }).projection({ projection: 3 })
+        .limit(10).skip(1).sort({ sort: 1 }).find();
+
+    await col.findOne({ filter: 1 }).max({ max: 1 })
+        .min({ min: 1 }).projection({ projection: 3 })
+        .skip(10).sort({ sort: 1 }).find();
+
+    await col.drop();
+}
+
+testLimitOffsetPara();

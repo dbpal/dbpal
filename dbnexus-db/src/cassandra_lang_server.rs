@@ -15,11 +15,18 @@ use cql3_parser::select::SelectElement;
 use crate::cassandra::{AppSession, CassandraDB};
 use crate::db::{AutoCompletionQueryUuid, CreatedTypeDef, DBTrait};
 use crate::language_server::{
-    CompletionItem, CompletionKind, ErrAndLoc, LangServerCommon, LanguageServer,
+    CompletionItem, CompletionKind, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer,
     LexerCompletionTrait, remove_duplicate,
 };
 
 use crate::sqlparser_completion::TempTableColumn;
+
+#[async_trait::async_trait]
+impl GetKeyWords for CassandraDB {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(CASSANDRA_KEYWORDS.iter().map(|x| x.to_string()).collect())
+    }
+}
 
 #[async_trait::async_trait]
 impl LanguageServer for CassandraDB {
@@ -30,9 +37,6 @@ impl LanguageServer for CassandraDB {
         LangServerCommon::extract_table_select_sort(self, sql)
     }
 
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(CASSANDRA_KEYWORDS.iter().map(|x| x.to_string()).collect())
-    }
     async fn auto_completion(
         &self, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
@@ -180,17 +184,6 @@ impl LangServerCommon for CassandraDB {
             }
         }
         anyhow::Ok(result)
-    }
-    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let r = CASSANDRA_KEYWORDS
-            .iter()
-            .map(|x| CompletionItem {
-                item: x.to_string().into(),
-                kind: CompletionKind::KeyWord,
-                desc: None,
-            })
-            .collect::<Vec<_>>();
-        anyhow::Ok(r)
     }
     async fn list_function(
         &self, key_space: Option<&str>, include_build_in: bool,
