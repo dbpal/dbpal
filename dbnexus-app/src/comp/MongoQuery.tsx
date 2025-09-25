@@ -403,18 +403,15 @@ function modifyEditorContent(
   const model = editor.getModel();
   if (model) {
     const lastLine = model.getLineCount();
-    const lastColumn = model.getLineLength(lastLine) + 1;
-    const range = new Range(lastLine, lastColumn, lastLine, lastColumn);
-    const editOperation = {
-      identifier: { major: 1, minor: 1 },
-      range: range,
-      text: text,
-      forceMoveMarkers: true,
-    } as editor.IIdentifiedSingleEditOperation;
-    editor.executeEdits('appendContent', [editOperation]);
-    // 滚动到最后一行
-    editor.setPosition({ lineNumber: lastLine + 1, column: 1 });
-    editor.revealLine(lastLine + 1);
+    const lastCol = model.getLineMaxColumn(lastLine);
+    const edits: editor.IIdentifiedSingleEditOperation[] = [
+      {
+        range: new Range(lastLine, lastCol, lastLine, lastCol),
+        text: (lastCol > 1 ? '\n' : '') + text,
+        forceMoveMarkers: true, // 关键：保证光标、选区、标记跟着走
+      },
+    ];
+    model.applyEdits(edits);
   } else {
     editor.setValue(text);
   }
