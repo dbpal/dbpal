@@ -178,7 +178,7 @@ function EventMenu(props: {
         reload();
       })
       .catch((e) => {
-        showNotification('error', 'Drop event Failure', e);
+        showNotification('error', 'Drop event failed', e);
       });
   };
   return (

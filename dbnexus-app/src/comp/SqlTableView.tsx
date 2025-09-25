@@ -77,6 +77,7 @@ import {
   SavePageSize,
   textEllipsisStyle,
   TabActiveContext,
+  quoteIdentifier,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
@@ -114,7 +115,7 @@ const confirmAboutPrimary = async (
 
 const getRowId = (e) => e[keyNotInTable];
 
-function WhereSort(props: {
+function SetFilterSort(props: {
   open: boolean;
   handleClose;
   value: string;
@@ -124,7 +125,7 @@ function WhereSort(props: {
   kind: DataSourceKind;
   extractFn: (sql: string) => Promise<String | null>;
 }) {
-  const {
+  let {
     open,
     handleClose,
     value,
@@ -134,8 +135,10 @@ function WhereSort(props: {
     kind,
     extractFn,
   } = props;
+  tableName = quoteIdentifier(kind)(tableName);
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [modalBox, setModalBox] = useState(null);
+
   useEffect(() => {
     if (modalBox) {
       let c = saveAndSetSize(modalBox, 'where-sort');
@@ -200,7 +203,7 @@ function WhereSort(props: {
   );
 }
 
-var EditInModalLanguage = 'text';
+let EditInModalLanguage = 'text';
 const editInModalLanguages = [
   { language: 'text' },
   { language: 'html' },
@@ -237,7 +240,7 @@ function EditInModal(props: { content: string; handleModify }) {
           <Chip
             key={e.language}
             label={e.language}
-            color={language == e.language ? 'primary' : 'default'}
+            color={language == e.language ? 'success' : 'default'}
             onClick={() => {
               setLanguage(e.language);
               EditInModalLanguage = e.language;
@@ -307,7 +310,6 @@ function SqlTableView_(props: {
   notWarnPri?: boolean;
   kind: DataSourceKind;
   tableName: string;
-  quoteStyle: string;
   uuid;
   invalidCassandraTableViewCache?: () => Promise<void>;
   extractTableSelectWhere: (sql: string) => Promise<String | null>;
@@ -322,7 +324,6 @@ function SqlTableView_(props: {
     kind,
     tableName,
     addOP,
-    quoteStyle,
     uuid,
     invalidCassandraTableViewCache,
     extractTableSelectSort,
@@ -540,10 +541,7 @@ function SqlTableView_(props: {
       setSort('');
       return;
     }
-
-    setSort(
-      `${quoteStyle}${sort.field}${quoteStyle} ${sort.sort.toUpperCase()}`
-    );
+    setSort(`${quoteIdentifier(kind)(sort.field)} ${sort.sort.toUpperCase()}`);
   }, []);
 
   const onProcessRowUpdateError = useCallback((e) => {
@@ -571,6 +569,7 @@ function SqlTableView_(props: {
           setUpMenu({
             content: (
               <Menu
+                kind={kind}
                 showExportMarkDown={() => {
                   setShowExportMarkDown(true);
                 }}
@@ -600,7 +599,6 @@ function SqlTableView_(props: {
                     value
                   );
                 }}
-                quoteStyle={quoteStyle}
                 setNull={
                   updateOP
                     ? async () => {
@@ -917,7 +915,7 @@ function SqlTableView_(props: {
       )}
 
       {showSetWhere && (
-        <WhereSort
+        <SetFilterSort
           tableName={tableName}
           open={showSetWhere}
           value={where}
@@ -930,11 +928,11 @@ function SqlTableView_(props: {
           extractFn={extractTableSelectWhere}
           label="filter"
           kind={kind}
-        ></WhereSort>
+        ></SetFilterSort>
       )}
 
       {showSetSort && (
-        <WhereSort
+        <SetFilterSort
           tableName={tableName}
           open={showSetSort}
           value={sort}
@@ -947,7 +945,7 @@ function SqlTableView_(props: {
           }}
           label="sort"
           extractFn={extractTableSelectSort}
-        ></WhereSort>
+        ></SetFilterSort>
       )}
     </Stack>
   );
@@ -1115,7 +1113,7 @@ function Menu(props: {
   editCellInModal;
   editRowInModal;
   resetColumnWidthCallBack;
-  quoteStyle;
+  kind: DataSourceKind;
   viewInModal;
   showExportMarkDown;
 }) {
@@ -1135,13 +1133,14 @@ function Menu(props: {
     editCellInModal,
     editRowInModal,
     resetColumnWidthCallBack,
-    quoteStyle,
+    kind,
     viewInModal,
     showExportMarkDown,
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showFilter, setShowFilter] = useState(false);
   const { setTabs, setSelectTab } = useContext(TabsSetContext);
+  const quoteFn = quoteIdentifier(kind);
   const handleClone = () => {
     setTabs((tabs) => {
       let t = (
@@ -1167,7 +1166,7 @@ function Menu(props: {
       ];
     });
   };
-  let quoteField = `${quoteStyle}${field}${quoteStyle}`;
+  let quoteField = quoteFn(field);
   return (
     <div>
       <MenuList>
@@ -1302,10 +1301,10 @@ function Menu(props: {
           <Box sx={modalStyle} width="50%">
             <ModalHeader title="Quick Filter"></ModalHeader>
             <FilterOnValue
-              quoteStyle={quoteStyle}
               content={content}
               setWhere={setWhere}
               field={field}
+              kind={kind}
               handleClose={() => {
                 setShowFilter(false);
               }}
@@ -1320,27 +1319,24 @@ function Menu(props: {
   );
 }
 
+let lastCompare = '=';
 function FilterOnValue(props: {
   content: string;
   setWhere;
   field: string;
   handleClose;
-  quoteStyle: string;
+  kind: DataSourceKind;
   put_value_in_sql: (x: string) => Promise<string>;
 }) {
-  const {
-    content,
-    setWhere,
-    field,
-    handleClose,
-    put_value_in_sql,
-    quoteStyle,
-  } = props;
+  const { content, setWhere, field, handleClose, put_value_in_sql, kind } =
+    props;
   const compares = ['=', '<>', '>', '>=', '<', '<='];
-  const [compare, setCompare] = useState(compares[0]);
+  const [compare, setCompare] = useState(lastCompare);
   const { showNotification } = useContext(NotificationContext);
   const [formatValue, setFormatValue] = useState('');
-
+  useEffect(() => {
+    lastCompare = compare;
+  }, [compare]);
   useEffect(() => {
     put_value_in_sql(content)
       .then((value) => {
@@ -1352,7 +1348,7 @@ function FilterOnValue(props: {
   }, []);
 
   const where = () => {
-    let quoteField = `${quoteStyle}${field}${quoteStyle}`;
+    let quoteField = quoteIdentifier(kind)(field);
     if (compare == 'null') {
       return `${quoteField} IS NULL`;
     }

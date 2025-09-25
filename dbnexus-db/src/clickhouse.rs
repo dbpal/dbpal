@@ -586,11 +586,7 @@ impl SchemaTrait for ClickHouseDB {
         let sql = "SELECT name  from system.functions where origin = 'SQLUserDefined'";
         let conn = self.get_conn()?;
         let rows: Vec<String> = conn.query(sql).fetch_all().await?;
-        anyhow::Ok(
-            rows.into_iter()
-                .map(NamedStaff::from)
-                .collect(),
-        )
+        anyhow::Ok(rows.into_iter().map(NamedStaff::from).collect())
     }
 
     async fn show_udf(
@@ -984,7 +980,7 @@ impl DBTrait for ClickHouseDB {
 
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.get_conn()?;
-        let databases: Vec<String> = conn.query("show databases").fetch_all().await.unwrap();
+        let databases: Vec<String> = conn.query("show databases").fetch_all().await?;
         anyhow::Ok(databases)
     }
 

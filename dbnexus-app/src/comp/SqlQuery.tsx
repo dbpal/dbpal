@@ -224,7 +224,6 @@ function SqlQuery(props: {
   );
 
   const handleReconnect = async () => {
-    setLoading(false);
     if (conn) {
       const confirm = await secondConfirm({
         title: 'reconnection',
@@ -245,7 +244,8 @@ function SqlQuery(props: {
           showNotification('error', 'Reconnect Failure', e);
         })
         .finally(() => {
-          setLoading(false);
+          // trigger some reload like sqltransaction
+          setExecuteTimes((e) => e + 1);
         });
     } else {
       makeConn()
@@ -257,7 +257,7 @@ function SqlQuery(props: {
           showNotification('error', 'Reconnect Failure', e);
         })
         .finally(() => {
-          setLoading(false);
+          setExecuteTimes((e) => e + 1);
         });
     }
   };

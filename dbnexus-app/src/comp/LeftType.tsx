@@ -50,7 +50,7 @@ function TypesTree() {
   }, [types, matchPattern]);
 
   const getItemId = (x: types.CreatedTypeDef) => {
-    return `${uuid}-types-${x.name}`;
+    return `${uuid}-type-${x.name}`;
   };
   let { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {

@@ -344,16 +344,24 @@ enum DataSourceKind {
   Cockroach = "cockroach"
 }
 
-function quoteStyle(x: DataSourceKind): string {
-  switch (x) {
-    case DataSourceKind.MariaDB:
-    case DataSourceKind.TiDB:
-    case DataSourceKind.Mysql:
-    case DataSourceKind.ClickHouse:
-      return '`'
-    default:
-      return '"'
+function quoteIdentifier(x: DataSourceKind) {
+
+  return (identifier: string) => {
+    let q = "";
+    switch (x) {
+      case DataSourceKind.MariaDB:
+      case DataSourceKind.TiDB:
+      case DataSourceKind.Mysql:
+      case DataSourceKind.ClickHouse:
+        q = '`';
+        break;
+      default:
+        q = '"';
+        break;
+    }
+    return q + identifier + q;
   }
+
 }
 
 function connTypeToDataSourceKind(name: string): DataSourceKind {
@@ -375,6 +383,8 @@ enum AppStoreKey {
   MatchPattern = "match-pattern",
   LeftTopShow = "left-top-show",
 }
+
+
 class SaveLeftTopShow {
   leftTopShow = true;
   constructor() {
@@ -935,7 +945,7 @@ export {
   FavoriteSql,
   MatchPatternContext,
   resetMuiDataRespWidth,
-  quoteStyle,
+  quoteIdentifier,
   saveAndSetSize,
   SaveDomSizes,
   DocsAndCount,

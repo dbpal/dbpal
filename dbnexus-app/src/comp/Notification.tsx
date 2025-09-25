@@ -121,6 +121,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
                         }
                       );
                     }}
+                    variant="text"
                     color={copied ? 'success' : 'primary'}
                   >
                     {copied ? 'copied' : 'copy'}

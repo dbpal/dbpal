@@ -23,6 +23,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -93,7 +94,7 @@ import {
 } from './CommonComp.tsx';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
-import { RedisTables, TablesTree, TablesType } from './LeftTable.tsx';
+import { RedisTables, TablesTree, TableType } from './LeftTable.tsx';
 import { ViewKind, ViewsTree } from './LeftView.tsx';
 import { CassandraAggregatesTree, UdfsTree } from './LeftUdf.tsx';
 import { ProceduresTree } from './LeftProcedure.tsx';
@@ -555,7 +556,7 @@ function Left_() {
   appStore.onKeyChange(AppStoreKey.ConnectionConfig, () => {
     handleReload();
   });
-  const m = useCallback(
+  const matchFN = useCallback(
     (x: string) => {
       if (matchPattern.length == 0) {
         return true;
@@ -582,11 +583,10 @@ function Left_() {
         matchPattern={matchPattern}
         setMatchPattern={setMatchPattern}
       ></LeftTop>
-      <Divider />
       <Stack spacing={0.3}>
         {configs.map((e) => {
           return (
-            <MatchPatternContext.Provider value={m} key={e.name}>
+            <MatchPatternContext.Provider value={matchFN} key={e.name}>
               <ConnTypeContext.Provider
                 value={{ kind: connTypeToDataSourceKind(e.conn_type) }}
               >
@@ -617,14 +617,15 @@ const makeConn = async (uuid: string, kind: DataSourceKind) => {
 function FavoriteSqlList(props: { handleClose }) {
   const { handleClose } = props;
   const { showNotification } = useContext(NotificationContext);
-  const [sql, setSql] = useState<FavoriteSql[]>([]);
+  const [fs, setFs] = useState<FavoriteSql[]>([]);
   const [sortModel, setSortModel] = useState<GridSortModel>([
     { field: 'lastModified', sort: 'desc' },
   ]);
+  const setting = useContext(SettingContext);
   const handleReload = async (showOK) => {
     try {
       const x = await FavoriteSql.getAll();
-      setSql(x);
+      setFs(x);
     } catch (e) {
       showNotification('error', 'list all favorite sql failed', e);
       return;
@@ -640,11 +641,10 @@ function FavoriteSqlList(props: { handleClose }) {
       if (!connOpened) {
         showNotification(
           'error',
-          `connection ${extractConfigNameFromUuid(row.uuid)} not opened????`
+          `connection '${extractConfigNameFromUuid(row.uuid)}' not opened????`
         );
         return;
       }
-
       setTabs((tabs) => {
         let content;
         switch (row.kind) {
@@ -666,7 +666,6 @@ function FavoriteSqlList(props: { handleClose }) {
           case DataSourceKind.Redis:
             content = (
               <RedisQuery
-                language={row.kind}
                 makeConn={async () => {
                   return makeConn(row.uuid, row.kind);
                 }}
@@ -787,7 +786,6 @@ function FavoriteSqlList(props: { handleClose }) {
     } as GridSlotsComponentsProps;
   }, []);
 
-  const setting = useContext(SettingContext);
   const columns = useMemo(() => {
     let cols = [
       {
@@ -839,7 +837,7 @@ function FavoriteSqlList(props: { handleClose }) {
         >
           reload
         </Button>
-        {sql.length > 0 && (
+        {fs.length > 0 && (
           <Tooltip title="delete all sql">
             <IconButton
               onClick={() => {
@@ -850,7 +848,7 @@ function FavoriteSqlList(props: { handleClose }) {
             </IconButton>
           </Tooltip>
         )}
-        {sql.length > 0 && (
+        {fs.length > 0 && (
           <Tooltip title="double click a row to use sql.">
             <Typography color="info">use</Typography>
           </Tooltip>
@@ -868,7 +866,7 @@ function FavoriteSqlList(props: { handleClose }) {
           rowHeight={setting.datagridRowHeightXXX()}
           columnHeaderHeight={setting.datagridRowHeightXXX()}
           columns={columns}
-          rows={sql}
+          rows={fs}
           onColumnResize={onColumnResize}
           onRowDoubleClick={onRowDoubleClick}
         ></DataGrid>
@@ -880,7 +878,7 @@ function FavoriteSqlList(props: { handleClose }) {
 const OneConnection = memo(OneConfig_);
 function OneConfig_(props: { config: types.DBConnectionConfig }) {
   let { config } = props;
-  const [opened, setOpened] = useState();
+  const [opened, setOpened] = useState(false);
 
   const makeTree = () => {
     switch (config.conn_type) {
@@ -948,9 +946,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
   const { kind } = useContext(ConnTypeContext);
   const { uuid } = useContext(UuidContext);
   const { schema, reloadSchemas } = props;
-  const getPrefix = () => {
-    return uuid + schema;
-  };
+
   const { opened, setOpened } = useContext(OpenedContext);
   const SUPPORTED_PROCEDURE_KINDS = new Set([
     DataSourceKind.MariaDB,
@@ -989,9 +985,10 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
 
   let { setUpMenu } = useContext(ContextMenuContext);
   const [loading, setLoading] = useState(false);
+  let idForTree = useRef(generateRandomString());
   return (
     <TreeItem
-      itemId={getPrefix()}
+      itemId={idForTree.current}
       label=<Stack
         spacing={1}
         direction="row"
@@ -1029,38 +1026,38 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     >
       {opened && kind == DataSourceKind.Sqlite && (
         <>
-          <TablesTree typ={TablesType.Normal} />
+          <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.Normal} />
         </>
       )}
       {opened && kind == DataSourceKind.DuckDB && (
         <>
-          <TablesTree typ={TablesType.Normal} />
+          <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.Normal} />
         </>
       )}
       {opened && kind == DataSourceKind.FireBird && (
         <>
-          <TablesTree typ={TablesType.Normal} />
+          <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.Normal} />
         </>
       )}
       {opened && kind == DataSourceKind.LibSql && (
         <>
-          <TablesTree typ={TablesType.Normal} />
+          <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.Normal} />
         </>
       )}
       {opened && kind == DataSourceKind.Cassandra && (
         <>
-          <TablesTree typ={TablesType.Normal} />
+          <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.Materialized}></ViewsTree>
         </>
       )}
       {opened && kind == DataSourceKind.Mongo && (
         <>
-          <TablesTree typ={TablesType.Normal} />
-          <TablesTree typ={TablesType.MongoTimeSerial} />
+          <TablesTree typ={TableType.Normal} />
+          <TablesTree typ={TableType.MongoTimeSerial} />
           <ViewsTree viewKind={ViewKind.Normal} />
         </>
       )}
@@ -1069,41 +1066,41 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
           kind == DataSourceKind.MariaDB ||
           kind == DataSourceKind.TiDB) && (
           <>
-            <TablesTree typ={TablesType.Normal} />
+            <TablesTree typ={TableType.Normal} />
             <ViewsTree viewKind={ViewKind.Normal} />
           </>
         )}
       {opened && kind == DataSourceKind.ClickHouse && (
         <>
-          <TablesTree typ={TablesType.Normal} />
+          <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.Normal} />
           <ViewsTree viewKind={ViewKind.Materialized} />
         </>
       )}
       {opened && kind == DataSourceKind.Postgres && (
         <>
-          <TablesTree typ={TablesType.Normal} />
+          <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.Normal} />
           <ViewsTree viewKind={ViewKind.Materialized} />
         </>
       )}
       {opened && kind == DataSourceKind.Cockroach && (
         <>
-          <TablesTree typ={TablesType.Normal} />
+          <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.Normal} />
           <ViewsTree viewKind={ViewKind.Materialized} />
         </>
       )}
       {opened && kind == DataSourceKind.Oracle && (
         <>
-          <TablesTree typ={TablesType.Normal} />
+          <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.Normal} />
           <ViewsTree viewKind={ViewKind.Materialized} />
         </>
       )}
       {opened && kind == DataSourceKind.MsSql && (
         <>
-          <TablesTree typ={TablesType.Normal} />
+          <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.Normal} />
         </>
       )}
@@ -1361,7 +1358,6 @@ function openNewQuery(
     case DataSourceKind.Redis:
       content = (
         <RedisQuery
-          language={kind}
           makeConn={async () => {
             return makeConn(uuid, kind);
           }}

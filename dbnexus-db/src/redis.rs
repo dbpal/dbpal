@@ -1655,6 +1655,12 @@ pub enum RedisToken {
         value: String,
     },
 }
+
+impl From<String> for RedisToken {
+    fn from(s: String) -> Self {
+        RedisToken::String(s)
+    }
+}
 impl std::fmt::Display for RedisToken {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -1670,14 +1676,14 @@ impl std::fmt::Display for RedisToken {
 
 impl RedisToken {
     pub(crate) fn tokenize(line: &str, line_number: u64) -> anyhow::Result<Vec<RedisToken>> {
-        let mut buf = vec![];
+        let mut buf: Vec<char> = vec![];
         let mut tokens = vec![];
         let mut state = RedisTokenState::default();
 
         fn push_token(
             index: usize, // 这个时候我已经处理完了 要添加到结果集了 所以这个index是加了1的
             tokens: &mut Vec<RedisToken>,
-            buf: &mut Vec<u8>,
+            buf: &mut Vec<char>,
             line_number: u64,
         ) -> anyhow::Result<()> {
             if buf.is_empty() {
@@ -1689,24 +1695,19 @@ impl RedisToken {
                 start_column: end_column - (buf.len() as u64),
                 end_column,
                 line: line_number,
-                value: match String::from_utf8(std::mem::take(buf)) {
-                    Ok(x) => x,
-                    Err(_) => {
-                        anyhow::bail!(format!("not a valid utf8 near:{}:{}", line_number, index))
-                    }
-                },
+                value: std::mem::take(buf).into_iter().collect(),
             });
             anyhow::Ok(())
         }
-        let as_bytes = line.as_bytes();
-        for (index, c) in as_bytes.iter().enumerate() {
+        let as_chars: Vec<_> = line.chars().collect();
+        for (index, c) in as_chars.iter().enumerate() {
             match state {
                 RedisTokenState::Init => match c {
-                    b'\'' => {
+                    '\'' => {
                         state = RedisTokenState::SingleQuote;
                         push_token(index, &mut tokens, &mut buf, line_number)?;
                     }
-                    b'"' => {
+                    '"' => {
                         state = RedisTokenState::DoubleQuote;
                         push_token(index, &mut tokens, &mut buf, line_number)?;
                     }
@@ -1719,25 +1720,23 @@ impl RedisToken {
                     }
                 },
                 RedisTokenState::SingleQuote => match c {
-                    b'\'' => {
-                        tokens.push(RedisToken::String(
-                            String::from_utf8_lossy(&buf).to_string(),
-                        ));
-                        buf.clear();
+                    '\'' => {
+                        tokens.push(
+                            std::mem::take(&mut buf)
+                                .into_iter()
+                                .collect::<String>()
+                                .into(),
+                        );
+
                         state = RedisTokenState::Init;
                     }
                     // try match \n
-                    b'\\' if as_bytes.get(index + 1).map(|x| *x == b'n').unwrap_or(false) => {
-                        buf.push(b'\n');
+                    '\\' if as_chars.get(index + 1).map(|x| *x == 'n').unwrap_or(false) => {
+                        buf.push('\n');
                         state = state.trans(1);
                     }
-                    b'\\'
-                        if as_bytes
-                            .get(index + 1)
-                            .map(|x| *x == b'\'')
-                            .unwrap_or(false) =>
-                    {
-                        buf.push(b'\'');
+                    '\\' if as_chars.get(index + 1).map(|x| *x == '\'').unwrap_or(false) => {
+                        buf.push('\'');
                         state = state.trans(1);
                     }
                     _ => {
@@ -1746,20 +1745,22 @@ impl RedisToken {
                 },
                 RedisTokenState::DoubleQuote => {
                     match c {
-                        b'\"' => {
-                            tokens.push(RedisToken::String(
-                                String::from_utf8_lossy(&buf).to_string(),
-                            ));
-                            buf.clear();
+                        '\"' => {
+                            tokens.push(
+                                std::mem::take(&mut buf)
+                                    .into_iter()
+                                    .collect::<String>()
+                                    .into(),
+                            );
                             state = RedisTokenState::Init;
                         }
                         // try match \n
-                        b'\\' if as_bytes.get(index + 1).map(|x| *x == b'n').unwrap_or(false) => {
-                            buf.push(b'\n');
+                        '\\' if as_chars.get(index + 1).map(|x| *x == 'n').unwrap_or(false) => {
+                            buf.push('\n');
                             state = state.trans(1);
                         }
-                        b'\\' if as_bytes.get(index + 1).map(|x| *x == b'"').unwrap_or(false) => {
-                            buf.push(b'\"');
+                        '\\' if as_chars.get(index + 1).map(|x| *x == '"').unwrap_or(false) => {
+                            buf.push('\"');
                             state = state.trans(1);
                         }
                         _ => {
@@ -1778,9 +1779,9 @@ impl RedisToken {
                 RedisTokenState::Whitespace => {
                     if c.is_ascii_whitespace() {
                         // nothing here
-                    } else if *c == b'\'' {
+                    } else if *c == '\'' {
                         state = RedisTokenState::SingleQuote;
-                    } else if *c == b'"' {
+                    } else if *c == '"' {
                         state = RedisTokenState::DoubleQuote;
                     } else {
                         buf.push(*c);
@@ -1791,7 +1792,7 @@ impl RedisToken {
         }
         match state {
             RedisTokenState::Init => {
-                push_token(as_bytes.len(), &mut tokens, &mut buf, line_number)?;
+                push_token(as_chars.len(), &mut tokens, &mut buf, line_number)?;
             }
             RedisTokenState::SingleQuote => anyhow::bail!("unclose single quote"),
             RedisTokenState::DoubleQuote => anyhow::bail!("unclose double quote"),

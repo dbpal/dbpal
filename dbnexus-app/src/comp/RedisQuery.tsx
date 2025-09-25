@@ -42,20 +42,12 @@ const getURL = (command: string) => {
 
 function RedisQuery(props: {
   makeConn: MakeIQueryConn;
-  language;
   saveFavoriteSql: (name, sql: string) => void;
   favoriteName?: string;
   value?: string;
   getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
 }) {
-  const {
-    language,
-    makeConn,
-    saveFavoriteSql,
-    favoriteName,
-    value,
-    getParseErr,
-  } = props;
+  const { makeConn, saveFavoriteSql, favoriteName, value, getParseErr } = props;
   const [command, setCommand] = useState('get');
   const [isDragging, setIsDragging] = useState(false);
   const iframeRef = useRef(null);
@@ -172,7 +164,7 @@ function RedisQuery(props: {
       <SqlQuery
         editorRef={editorRef}
         getParseErr={getParseErr}
-        uuid={language}
+        uuid={DataSourceKind.Redis}
         makeConn={makeConn}
         favoriteName={favoriteName}
         saveFavoriteSql={saveFavoriteSql}
@@ -184,7 +176,7 @@ function RedisQuery(props: {
               onClick={() => {
                 setShowDoc((e) => !e);
               }}
-              color="primary"
+              color={showDoc ? 'success' : 'primary'}
               label={`${showDoc ? 'hidden' : 'show'} doc`}
             ></Chip>
           </>

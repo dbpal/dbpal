@@ -967,7 +967,7 @@ pub async fn config_list_database_or_schema(
 pub async fn conn_opened(name: String, app: tauri::State<'_, App>) -> Result<bool, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let opened = app.get_backend(name.as_str()).await.is_ok();
+    let opened = app.conn_opened(&name).await;
     Ok(opened)
 }
 

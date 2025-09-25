@@ -228,7 +228,7 @@ function makeFormatFn(kind: DataSourceKind) {
   }
 }
 // uuid as language identifier.
-async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
+async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showNotification) {
   if (registeredLanguage.has(kind)) {
     return;
   }
@@ -242,9 +242,8 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind) {
       'i'
     );
   } catch (e) {
-    console.log('key words error:', e);
+    showNotification('error', "get keyword error", e);
     return;
-
   }
   const singleLineCommentReg = /(--[^\n]*|#[^\n]*)/g;
   const stringReg = /\'(?:\\.|[^\\\'])*\'/;
@@ -638,8 +637,6 @@ function modalHandleClose(callback: (e: EscDownEvent, reason: 'backdropClick' | 
     callback(e, reason)
   }
 }
-
-
 
 function extractBaseName(file) {
   const fileName = file.match(/[^\\/]+$/)[0];

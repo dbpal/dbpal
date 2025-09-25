@@ -841,16 +841,23 @@ pub trait LangServerCommon: GetBackendKind {
             .collect()
     }
 
-    fn tokenize(&self, sql: &str) -> anyhow::Result<Vec<Token>> {
+    fn tokenize(&self, sql: &str, remove_white_space: bool) -> anyhow::Result<Vec<Token>> {
         let d = self.dialect();
         let tokens = sqlparser::tokenizer::Tokenizer::new(d.as_ref(), sql).tokenize()?;
-        anyhow::Ok(tokens)
+        anyhow::Ok(if remove_white_space {
+            tokens
+                .into_iter()
+                .filter(|x| !matches!(x, Token::Whitespace(_)))
+                .collect()
+        } else {
+            tokens
+        })
     }
 
     // extract where condition from `select * from table where a =1`;
     // if possible
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
-        let ss = self.parse_statements(sql)?;
+        let ss = self.parse_statements(sql).unwrap_or_default();
         if let Some(statement) = ss.get(0) {
             match statement {
                 Statement::Query(query) => match query.body.as_ref() {
@@ -871,7 +878,7 @@ pub trait LangServerCommon: GetBackendKind {
         }
         // if parse failed
         let tokens: Vec<_> = self
-            .tokenize(sql)?
+            .tokenize(sql, true)?
             .into_iter()
             .filter(|x| !matches!(x, Token::Whitespace(_)))
             .collect();
@@ -893,9 +900,8 @@ pub trait LangServerCommon: GetBackendKind {
     }
 
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
-        // if parse failed
         let tokens: Vec<_> = self
-            .tokenize(sql)?
+            .tokenize(sql, true)?
             .into_iter()
             .filter(|x| !matches!(x, Token::Whitespace(_)))
             .collect();
@@ -922,19 +928,22 @@ pub trait LangServerCommon: GetBackendKind {
             anyhow::Ok(None)
         }
     }
-}
 
-#[allow(dead_code)]
-impl dyn LangServerCommon {
-    fn contains_tx_operation(&self, sql: &str) -> bool {
+    // https://github.com/launchbadge/sqlx/issues/4031
+    // due to this issue , somebackend only allow use commit or rollback on ui
+    fn contains_tx_operation_error(&self, sql: &str) -> anyhow::Result<()> {
         let ss = self.parse_statements(sql).unwrap();
-
-        ss.iter().any(|x| match x {
-            Statement::Commit { .. }
-            | Statement::Rollback { .. }
-            | Statement::StartTransaction { .. } => true,
-            _ => false,
-        })
+        for s in ss.iter() {
+            match s {
+                Statement::Commit { .. }
+                | Statement::Rollback { .. }
+                | Statement::StartTransaction { .. } => {
+                    anyhow::bail!("please use commit or rollback on UI")
+                }
+                _ => {}
+            }
+        }
+        anyhow::Ok(())
     }
 }
 

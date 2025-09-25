@@ -332,7 +332,7 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
       await invoke('open_conn', { name });
       const kind = connTypeToDataSourceKind(config.conn_type);
       if (kind != DataSourceKind.Mongo) {
-        await initMonacoLanguage(name, kind);
+        await initMonacoLanguage(name, kind, showNotification);
       }
     } catch (e) {
       showNotification('error', 'open connection failed', e);

@@ -399,6 +399,8 @@ impl QuerySql for FireBirdDB {
     async fn query_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
+
         let mut ret = vec![];
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
@@ -441,6 +443,7 @@ impl QuerySql for FireBirdDB {
     async fn execute_sql(
         &self, query_id: uuid::Uuid, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
+        crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -452,7 +455,6 @@ impl QuerySql for FireBirdDB {
         let resp = block_in_place(|| conn.execute(sql, ()))
             .map(|x| QueryResp::row_affected(x as u64, sql.to_owned()))
             .map_err(|e| e.to_string());
-
         anyhow::Ok(resp)
     }
 

@@ -56,7 +56,6 @@ import {
   MatchPatternContext,
   maxTreeSize,
   MongoTableHandler,
-  quoteStyle,
   saveAndSetSize,
   secondConfirm,
   SettingContext,
@@ -545,7 +544,6 @@ function ViewMenu(props: {
             }}
             extractTableSelectSort={makeExtractTableSelectSort(uuid)}
             extractTableSelectWhere={makeExtractTableSelectWhere(uuid)}
-            quoteStyle={quoteStyle(kind)}
             tableName={view}
             kind={kind}
             uuid={uuid}

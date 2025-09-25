@@ -71,7 +71,6 @@ import {
   TabsSetContext,
   UuidContext,
   handleCopyToClipboard,
-  quoteStyle,
   MongoTableHandler,
   maxTreeSize,
   getSupportExportKind,
@@ -79,14 +78,13 @@ import {
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from './CommonComp';
 import { TableStructure } from './TableStructure';
 
-enum TablesType {
+enum TableType {
   Normal,
   MongoTimeSerial,
 }
 
-function TablesTree(props: { typ: TablesType }) {
+function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
-
   const { uuid } = useContext(UuidContext);
   const [tables, setTables] = useState<types.ListTable[]>([]);
   const { showNotification } = useContext(NotificationContext);
@@ -100,10 +98,10 @@ function TablesTree(props: { typ: TablesType }) {
     setLoading(true);
     let invokeName;
     switch (typ) {
-      case TablesType.Normal:
+      case TableType.Normal:
         invokeName = 'list_table';
         break;
-      case TablesType.MongoTimeSerial:
+      case TableType.MongoTimeSerial:
         invokeName = 'mongo_list_time_serial_collection';
         break;
     }
@@ -127,10 +125,10 @@ function TablesTree(props: { typ: TablesType }) {
 
   let tablesText;
   switch (typ) {
-    case TablesType.Normal:
+    case TableType.Normal:
       tablesText = 'tables';
       break;
-    case TablesType.MongoTimeSerial:
+    case TableType.MongoTimeSerial:
       tablesText = 'time serial';
       break;
   }
@@ -210,7 +208,7 @@ function TableTree(props: {
             });
           }}
         >
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
             <TableViewIcon> </TableViewIcon> <span>{table}</span>
           </Stack>
           <span> {size} </span>
@@ -261,8 +259,8 @@ function DropTable(props: {
       case DataSourceKind.MariaDB:
       case DataSourceKind.TiDB:
       case DataSourceKind.Postgres:
-      case DataSourceKind.Sqlite:
       case DataSourceKind.Cockroach:
+      case DataSourceKind.Sqlite:
       case DataSourceKind.LibSql:
       case DataSourceKind.Oracle:
         return true;
@@ -324,7 +322,6 @@ function makeViewTable(
               tableName: table,
             });
           }}
-          quoteStyle={quoteStyle(kind)}
           tableName={table}
           uuid={uuid}
           kind={kind}
@@ -729,7 +726,7 @@ function TableMenu(props: {
 
   const handleTruncateTable = async () => {
     const confirm = await secondConfirm({
-      title: `Truncate ${table}`,
+      title: `Truncate '${table}'`,
       confirmText: 'Truncate',
       content: '',
     });
@@ -1353,4 +1350,4 @@ enum RedisTableType {
   Hash,
 }
 
-export { TablesTree, TablesType, RedisTables };
+export { TablesTree, TableType, RedisTables };

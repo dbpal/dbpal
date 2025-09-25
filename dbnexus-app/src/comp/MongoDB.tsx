@@ -786,6 +786,7 @@ function MongoTableListContextMenu(props: {
   );
 }
 
+let lastCompare = '$eq';
 function MongoTableListMenuFilter(props: {
   handleClose;
   loadValue: () => Promise<any>;
@@ -794,7 +795,7 @@ function MongoTableListMenuFilter(props: {
 }) {
   const { handleClose, loadValue, setFilter, field } = props;
   const compares = ['$eq', '$ne', '$gt', '$gte', '$lt', '$lte'];
-  const [compare, setCompare] = useState(compares[0]);
+  const [compare, setCompare] = useState(lastCompare);
   const { showNotification } = useContext(NotificationContext);
   const [value, setValue] = useState(null);
   const [doc, setDoc] = useState({});
@@ -807,6 +808,9 @@ function MongoTableListMenuFilter(props: {
         showNotification('error', 'get field value failed', e);
       });
   }, []);
+  useEffect(() => {
+    lastCompare = compare;
+  }, [compare]);
   useEffect(() => {
     let c = {};
     if (compare == 'starts') {

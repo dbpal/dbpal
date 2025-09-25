@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 
 import { NotificationContext } from './Notification';
 import { Button, Stack, Tooltip, Typography } from '@mui/material';
-import { DefAndMetas, makeFormatFn, setAutoCompletionName } from './Common';
+import { DefAndMetas, setAutoCompletionName } from './Common';
 import { MetaValuesView, PossibleParseError } from './CommonComp';
 import {
   DataSourceKind,
@@ -135,7 +135,7 @@ function DefAndMetasView(props: {
         >
           <SimpleFlexEditor
             language={kind}
-            value={makeFormatFn(kind)(detail.def)}
+            value={detail.def}
             handleEditor={(ed) => {
               editor.current = ed;
             }}

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use dashmap::DashMap;
 use dbnexus_db::datasource_config::{
@@ -333,6 +334,16 @@ pub enum DatabaseBackend {
     Schema(Arc<dyn dbnexus_db::db::SchemaTrait>),
 }
 
+impl DatabaseBackend {
+    pub(crate) async fn check_conn(&self) -> anyhow::Result<Duration> {
+        match self {
+            DatabaseBackend::Catalog(x) => x.check_conn().await,
+            DatabaseBackend::DataBase(x) => x.check_conn().await,
+            DatabaseBackend::Schema(x) => x.check_conn().await,
+        }
+    }
+}
+
 impl From<Arc<dyn dbnexus_db::db::CatalogTrait>> for DatabaseBackend {
     fn from(value: Arc<dyn dbnexus_db::db::CatalogTrait>) -> Self {
         Self::Catalog(value)
@@ -420,6 +431,8 @@ impl App {
                 #[cfg(debug_assertions)]
                 println!("open config:{:?}", config);
                 let db = config.open().await?;
+                // make sure connection is ok
+                db.check_conn().await?;
                 self.backend
                     .lock()
                     .await
@@ -510,6 +523,11 @@ impl App {
                 anyhow::bail!("'{}' name part not right, this is a internal error", name);
             }
         }
+    }
+
+    pub async fn conn_opened(&self, name: &str) -> bool {
+        let x = name_to_parts(name);
+        self.backend.lock().await.contains_key(&x[0].to_string())
     }
 }
 
