@@ -1542,7 +1542,7 @@ mod tests {
     use std::path::Path;
 
     use crate::{
-        db::{QuerySql, SchemaTrait},
+        db::{AutoCompletionQueryUuid, QuerySql, SchemaTrait},
         enable_test_log,
         language_server::completion_test::test_file_auto_completion,
         redis::make_test_object,
@@ -1550,16 +1550,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_auto_completion() {
-        enable_test_log();
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");
         file_path.push("redis_auto_completion_test.txt");
+        let _gurad = AutoCompletionQueryUuid::test_mutex().lock().unwrap();
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
         let db = make_test_object().await;
         // set up environment
         let query_id = db.open_connection().await.unwrap();
-
+        AutoCompletionQueryUuid::set(query_id);
         let _ = db.drop_table("value_string", false).await;
         let _ = db.drop_table("value_hash", false).await;
         let _ = db.drop_table("value_set", false).await;

@@ -227,7 +227,7 @@ function MenuCloseConn({ handleClose, name }) {
 }
 
 function ConnPingTime({ uuid }) {
-  const [status, setStatus] = useState('');
+  const [pingTime, setStatus] = useState('');
   const [err, setErr] = useState('');
   const reloadStatus = () => {
     invoke<string>('check_conn', { name: uuid })
@@ -252,10 +252,10 @@ function ConnPingTime({ uuid }) {
   }, []);
 
   return (
-    (status || err) &&
-    (status ? (
+    (pingTime || err) &&
+    (pingTime ? (
       <Tooltip title="ping time">
-        <Typography color="green"> {status} </Typography>
+        <Typography color="green"> {pingTime} </Typography>
       </Tooltip>
     ) : (
       <Tooltip title={err}>
