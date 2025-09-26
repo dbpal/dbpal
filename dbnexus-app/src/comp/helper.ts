@@ -706,7 +706,7 @@ class UserSetting {
   maxTreeSize: number = 50;
   loggerLevel: string = 'info';
   loggerMaxSize: number = 1;
-  saveQueryLog: boolean = false;
+  saveQueryLog: boolean = true;
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
   editorTheme(): string {
     return this.isDark() ? 'vs-dark' : 'light';
