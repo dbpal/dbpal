@@ -365,7 +365,7 @@ function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
             handleChange(e);
           }}
           key={e}
-          color={e == pageSize ? 'primary' : 'default'}
+          color={e == pageSize ? 'success' : 'default'}
         ></Chip>
       ))}
     </Stack>

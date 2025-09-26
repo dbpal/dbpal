@@ -523,7 +523,7 @@ function RedisEditModeSelect(props: {
               onClick={() => {
                 handleChange(e);
               }}
-              color={mode == e ? 'primary' : 'default'}
+              color={mode == e ? 'success' : 'default'}
             ></Chip>
           );
         }

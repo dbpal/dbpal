@@ -286,7 +286,7 @@ function ViewStructure(props: {
             onClick={() => {
               setStructure(e.name);
             }}
-            color={structure == e.name ? 'primary' : 'default'}
+            color={structure == e.name ? 'success' : 'default'}
             key={e.name}
             label={e.name}
           ></Chip>

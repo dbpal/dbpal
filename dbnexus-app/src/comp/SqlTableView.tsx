@@ -1376,7 +1376,7 @@ function FilterOnValue(props: {
               setCompare(x);
             }}
             label={x}
-            color={compare == x ? 'primary' : 'default'}
+            color={compare == x ? 'success' : 'default'}
             style={{ minWidth: '3rem' }}
           ></Chip>
         ))}
@@ -1385,7 +1385,7 @@ function FilterOnValue(props: {
         {['null', 'not null'].map((e) => (
           <Chip
             label={e}
-            color={compare == e ? 'primary' : 'default'}
+            color={compare == e ? 'success' : 'default'}
             onClick={() => {
               setCompare(e);
             }}
@@ -1398,7 +1398,7 @@ function FilterOnValue(props: {
           {['starts', 'ends', 'contains'].map((e) => (
             <Chip
               label={e}
-              color={compare == e ? 'primary' : 'default'}
+              color={compare == e ? 'success' : 'default'}
               onClick={() => {
                 setCompare(e);
               }}

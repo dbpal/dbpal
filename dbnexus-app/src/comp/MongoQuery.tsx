@@ -269,7 +269,7 @@ function MongoQuery(props: {
             setShowLog((e) => !e);
           }}
           variant="outlined"
-          color={showLog ? 'primary' : 'secondary'}
+          color={showLog ? 'success' : 'secondary'}
         >
           show log
         </Button>

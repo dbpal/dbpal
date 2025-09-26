@@ -116,7 +116,7 @@ function ExportView(props: {
             }}
             key={e}
             label={e}
-            color={e == kind ? 'primary' : 'default'}
+            color={e == kind ? 'success' : 'default'}
           ></Chip>
         ))}
       </Stack>

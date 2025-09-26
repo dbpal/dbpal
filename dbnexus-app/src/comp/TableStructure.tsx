@@ -1715,7 +1715,7 @@ function TableStructure(props: {
               setStructure(e.name);
             }}
             key={e.name}
-            color={e.name == structure ? 'primary' : 'default'}
+            color={e.name == structure ? 'success' : 'default'}
             label={e.name}
             size="medium"
           ></Chip>

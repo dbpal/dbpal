@@ -390,7 +390,7 @@ function ModifySetting() {
         {[2, 4, 8].map((e) => (
           <Chip
             label={e}
-            color={e == tabSize ? 'primary' : 'default'}
+            color={e == tabSize ? 'success' : 'default'}
             onClick={() => {
               setTabSize(e);
             }}

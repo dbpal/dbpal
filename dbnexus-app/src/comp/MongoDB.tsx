@@ -854,7 +854,7 @@ function MongoTableListMenuFilter(props: {
               setCompare(x);
             }}
             label={x}
-            color={compare === x ? 'primary' : 'default'}
+            color={compare === x ? 'success' : 'default'}
           ></Chip>
         ))}
       </Stack>
@@ -862,7 +862,7 @@ function MongoTableListMenuFilter(props: {
         {['null', 'not null'].map((e) => (
           <Chip
             label={e}
-            color={compare === e ? 'primary' : 'default'}
+            color={compare === e ? 'success' : 'default'}
             onClick={() => {
               setCompare(e);
             }}
@@ -874,7 +874,7 @@ function MongoTableListMenuFilter(props: {
           {['starts', 'contains', 'ends'].map((e) => (
             <Chip
               label={e}
-              color={compare === e ? 'primary' : 'default'}
+              color={compare === e ? 'success' : 'default'}
               onClick={() => {
                 setCompare(e);
               }}
