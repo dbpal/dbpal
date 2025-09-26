@@ -1688,7 +1688,7 @@ const valueGetter = (value) => {
   if (typeof x === 'string') {
     return x;
   } else {
-    return 'binary value of' + value;
+    return 'binary value of ' + value;
   }
 };
 function RedisHashTable(props: {

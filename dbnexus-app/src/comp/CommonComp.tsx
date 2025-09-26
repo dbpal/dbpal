@@ -831,7 +831,9 @@ function ExecutingTime(props: { loading: boolean; disableTime?: boolean }) {
         ></Chip>
       </Tooltip>
       {!disableTime && (
-        <Typography>loaded at:{lastLoadTime.toLocaleString()}</Typography>
+        <Tooltip title="loaded at">
+          <Typography>{lastLoadTime.toLocaleString()}</Typography>
+        </Tooltip>
       )}
     </>
   );

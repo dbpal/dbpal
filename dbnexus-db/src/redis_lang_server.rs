@@ -1554,7 +1554,7 @@ mod tests {
         let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");
         file_path.push("redis_auto_completion_test.txt");
-        let _gurad = AutoCompletionQueryUuid::test_mutex().lock().unwrap();
+        let _guard = AutoCompletionQueryUuid::test_mutex().lock().unwrap();
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
         let db = make_test_object().await;
         // set up environment
