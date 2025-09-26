@@ -82,10 +82,7 @@ pub struct AppLogger {
 
 impl AppLogger {
     fn get_config(&self) -> Option<serde_json::Value> {
-        self.config.get("user-settings").and_then(|x| match x {
-            serde_json::Value::Object(mut map) => map.remove("logger"),
-            _ => None,
-        })
+        self.config.get("user-settings")
     }
 }
 
@@ -108,7 +105,7 @@ impl AppLogger {
         let x = self.get_config();
         x.as_ref()
             .and_then(|x| match x {
-                serde_json::Value::Object(map) => match map.get("level") {
+                serde_json::Value::Object(map) => match map.get("loggerLevel") {
                     Some(serde_json::Value::String(level)) => match log::Level::from_str(level) {
                         Ok(level) => Some(level),
                         Err(err) => {
@@ -128,7 +125,7 @@ impl AppLogger {
     fn get_max_size(&self) -> u64 {
         let x = self.get_config();
         x.and_then(|x| match x {
-            serde_json::Value::Object(map) => match map.get("max_size") {
+            serde_json::Value::Object(map) => match map.get("loggerMaxSize") {
                 Some(serde_json::Value::Number(max)) => {
                     Some(max.as_u64().unwrap_or(5) * 1024 * 1024)
                 }

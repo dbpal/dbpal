@@ -709,7 +709,7 @@ function FavoriteSqlList(props: { handleClose }) {
           ...tabs,
           new TabContent(
             generateRandomString(10),
-            `q@${row.uuid}`,
+            `${row.uuid}`,
             content,
             <TbDatabaseSearch> </TbDatabaseSearch>
           ),
@@ -1399,7 +1399,7 @@ function openNewQuery(
       ...e,
       new TabContent(
         id,
-        `q@${uuid}`,
+        `${uuid}`,
         content,
         <TbDatabaseSearch> </TbDatabaseSearch>
       ),

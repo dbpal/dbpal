@@ -704,11 +704,10 @@ class UserSetting {
   includeHeader: boolean = true;
   datagridRowHeightFactor = 2;
   maxTreeSize: number = 50;
+  loggerLevel: string = 'info';
+  loggerMaxSize: number = 1;
+  saveQueryLog: boolean = false;
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
-  logger = {
-    level: 'info',
-    max_size: 1,
-  }
   editorTheme(): string {
     return this.isDark() ? 'vs-dark' : 'light';
   }
@@ -813,13 +812,15 @@ function makeGetParserErr(uuid) {
     });
   };
 }
-function makeExecuteSql(uuid) {
+function makeExecuteSql(uuid, saveQueryLog: boolean) {
   return (sql: string): Promise<any> => {
     return invoke<any>('execute_sql_no_open_conn', {
       name: uuid,
       sql,
     }).then(e => {
-      new QueryLogHandler(uuid,).save(sql, rustResultOk(e));
+      if (saveQueryLog) {
+        new QueryLogHandler(uuid,).save(sql, rustResultOk(e));
+      }
       return e
     });
   };

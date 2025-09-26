@@ -61,6 +61,7 @@ function ModifySetting() {
   const [loggerMaxSize, setLoggerMaxSize] = useState('1');
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState('2');
   const [maxTreeSize, setMaxTreeSize] = useState('50');
+  const [saveQueryLog, setSaveQueryLog] = useState(true);
   useEffect(() => {
     invoke<string[]>('fonts_all_families', {})
       .then((fonts) => {
@@ -83,12 +84,13 @@ function ModifySetting() {
       } else {
         setBgColor(setting.lightBgColor);
       }
-      setLoggerLevel(setting.logger.level);
-      setLoggerMaxSize(setting.logger.max_size + '');
+      setLoggerLevel(setting.loggerLevel);
+      setLoggerMaxSize(setting.loggerMaxSize + '');
       setCsvDelimiter(setting.csvDelimiter);
       setIncludeHeader(setting.includeHeader);
       setMaxTreeSize(setting.maxTreeSize.toString());
       setDatagridRowHeightFactor(setting.datagridRowHeightFactor.toString());
+      setSaveQueryLog(setting.saveQueryLog);
       const content = JSON.stringify(
         setting.editorOption ? setting.editorOption : {},
         null,
@@ -137,12 +139,12 @@ function ModifySetting() {
       editorOption: JSON.parse(editorOptions),
       csvDelimiter: csvDelimiter,
       includeHeader: includeHeader,
-      logger: {
-        level: loggerLevel,
-        max_size: parseInt(loggerMaxSize),
-      },
+      loggerLevel: loggerLevel,
+      loggerMaxSize: parseInt(loggerMaxSize),
       datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
       maxTreeSize: parseInt(maxTreeSize),
+      saveQueryLog: saveQueryLog,
+      theme,
     } as UserSetting;
     if (theme == 'dark') {
       s.darkBgColor = bgColor;
@@ -494,6 +496,19 @@ function ModifySetting() {
           }}
         ></TextField>
       </Stack>
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
+          auto save query log:
+        </Typography>
+
+        <Switch
+          checked={saveQueryLog}
+          onChange={(e) => {
+            setSaveQueryLog(e.target.checked);
+          }}
+        ></Switch>
+      </Stack>
+
       <Divider />
       <Stack direction="row">
         <Button

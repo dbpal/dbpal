@@ -11,6 +11,7 @@ import {
   makeExecuteSql,
   makeGetParserErr,
   saveAndSetSize,
+  SettingContext,
   TabActiveContext,
 } from './helper';
 import { MultiQueryResp } from './QueryResp';
@@ -26,7 +27,8 @@ function DefAndMetasView(props: {
   heightName?: string;
 }) {
   let { reloadOP, kind, showReload, heightName, uuid } = props;
-  const executeOP = makeExecuteSql(uuid);
+  const setting = useContext(SettingContext);
+  const executeOP = makeExecuteSql(uuid, setting.saveQueryLog);
   const getParseErr = makeGetParserErr(uuid);
   const titleVariant = 'h6';
   const [loading, setLoading] = useState(false);

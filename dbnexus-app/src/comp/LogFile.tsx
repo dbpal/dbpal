@@ -16,12 +16,7 @@ import { readFile, stat } from '@tauri-apps/plugin-fs';
 import { editor, Position } from 'monaco-editor';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import {
-  appStore,
-  AppStoreKey,
-  editorSetPositionAndReveal,
-  UserSetting,
-} from './helper';
+import { editorSetPositionAndReveal, SettingContext } from './helper';
 import { invoke } from '@tauri-apps/api/core';
 
 function getLogFilePath(): Promise<string> {
@@ -36,10 +31,7 @@ function LogFile() {
   const { showNotification } = useContext(NotificationContext);
   const [modifyDate, setModifyDate] = useState<string>('');
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
-  const [loggerConfig, setLoggerConfig] = useState<{
-    level: string;
-    max_size: number;
-  }>(null);
+  const setting = useContext(SettingContext);
   const [pinToBotton, setPinToBotton] = useState(false);
   const handleReload = async () => {
     let path;
@@ -62,28 +54,6 @@ function LogFile() {
       return;
     }
   };
-
-  useEffect(() => {
-    appStore.get<UserSetting>(AppStoreKey.UserSetting).then((s) => {
-      if (s) {
-        setLoggerConfig(s.logger);
-      }
-    });
-    let unlisten = appStore.onKeyChange<UserSetting>(
-      AppStoreKey.UserSetting,
-      (s) => {
-        if (s) {
-          setLoggerConfig(s.logger);
-        }
-      }
-    );
-    return () => {
-      unlisten.then((e) => {
-        e();
-      });
-    };
-  }, []);
-
   useEffect(() => {
     handleReload();
   }, [modifyDate]);
@@ -155,14 +125,8 @@ function LogFile() {
           />
         ></FormControlLabel>
 
-        {loggerConfig && (
-          <>
-            <Chip color="info" label={loggerConfig.level}></Chip>
-            <Typography color="info">
-              max size:{loggerConfig.max_size}MB
-            </Typography>
-          </>
-        )}
+        <Chip color="info" label={setting.loggerLevel}></Chip>
+        <Typography color="info">max size:{setting.loggerMaxSize}MB</Typography>
         <span> loaded at:{modifyDate} </span>
       </Stack>
 

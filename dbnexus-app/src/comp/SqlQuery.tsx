@@ -304,7 +304,9 @@ function SqlQuery(props: {
     conn
       .executeOP(text)
       .then((e) => {
-        queryLogHandler.current.save(text, rustResultOk(e), showNotification);
+        if (setting.saveQueryLog) {
+          queryLogHandler.current.save(text, rustResultOk(e), showNotification);
+        }
         setResp([e]);
         suggestReconnect(now);
       })
@@ -334,11 +336,14 @@ function SqlQuery(props: {
     conn
       .queryOP(text)
       .then((resp) => {
-        queryLogHandler.current.save(
-          text,
-          rustResultOk(resp),
-          showNotification
-        );
+        if (setting.saveQueryLog) {
+          queryLogHandler.current.save(
+            text,
+            rustResultOk(resp),
+            showNotification
+          );
+        }
+
         if (append) {
           setResp((p) => [...p, ...resp]);
         } else {

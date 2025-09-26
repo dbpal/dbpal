@@ -86,7 +86,7 @@ function MongoQuery(props: {
     loglevel.getLogger(generateRandomString(10))
   );
   let setting = useContext(SettingContext);
-  const [loggerLevel, setLoggerLevel] = useState(setting.logger.level);
+  const [loggerLevel, setLoggerLevel] = useState(setting.loggerLevel);
   const [db, _] = useState(new MongoDBQuery(uuid));
   const [bsonExtraDataType, _setBsonExtraDataTypes] = useState(
     new BsonExtraDataType()
@@ -142,12 +142,16 @@ function MongoQuery(props: {
     try {
       eval(code);
     } catch (e) {
-      new QueryLogHandler(uuid).save(code, false, showNotification);
+      if (setting.saveQueryLog) {
+        new QueryLogHandler(uuid).save(code, false, showNotification);
+      }
       setErr(e);
       console.log('mongo query error:', e);
       return;
     }
-    new QueryLogHandler(uuid).save(code, true);
+    if (setting.saveQueryLog) {
+      new QueryLogHandler(uuid).save(code, true);
+    }
     showNotification(
       'success',
       'execute ok,but somehow async function or timeout function ... etc may running in background'
