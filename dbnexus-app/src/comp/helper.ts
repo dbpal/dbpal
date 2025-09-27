@@ -387,13 +387,6 @@ enum AppStoreKey {
 
 class SaveLeftTopShow {
   leftTopShow = true;
-  constructor() {
-    appStore.get<boolean>(AppStoreKey.LeftTopShow).then(x => {
-      if (typeof x == 'boolean') {
-        this.leftTopShow = x;
-      }
-    });
-  }
   get() {
     return this.leftTopShow;
   }
@@ -403,16 +396,17 @@ class SaveLeftTopShow {
   }
   static instance = new SaveLeftTopShow();
 }
+{
+  let x = await appStore.get(AppStoreKey.LeftTopShow);
+  if (typeof x == 'boolean') {
+    SaveLeftTopShow.instance.leftTopShow = x;
+  }
+}
+
 
 class SaveMatchPattern {
   matchPattern = [];
-  constructor() {
-    appStore.get<string[]>(AppStoreKey.MatchPattern).then(x => {
-      if (x) {
-        this.matchPattern = x;
-      }
-    });
-  }
+
   get() {
     return this.matchPattern;
   }
@@ -422,6 +416,11 @@ class SaveMatchPattern {
   }
   static instance = new SaveMatchPattern();
 }
+{
+  let x = await appStore.get<string[]>(AppStoreKey.MatchPattern);
+  SaveMatchPattern.instance.matchPattern = x;
+}
+
 
 class SaveAlign {
   align = "center";
@@ -474,6 +473,7 @@ class FavoriteSql {
   static getAll(): Promise<FavoriteSql[]> {
     return appDatabase.select("select * from favorite_sql");
   }
+
   static async delete(id: number, showNotification) {
     try {
       await appDatabase.execute("delete from favorite_sql where id=?", [id]);

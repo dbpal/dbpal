@@ -10,7 +10,7 @@ import {
 import { SimpleFlexEditor } from './CommonComp2';
 import { useContext, useEffect, useRef, useState } from 'react';
 import { appDataDir } from '@tauri-apps/api/path';
-import { platform } from '@tauri-apps/plugin-os';
+import { family } from '@tauri-apps/plugin-os';
 import { NotificationContext } from './Notification';
 import { readFile, stat } from '@tauri-apps/plugin-fs';
 import { editor, Position } from 'monaco-editor';
@@ -22,7 +22,7 @@ import { invoke } from '@tauri-apps/api/core';
 function getLogFilePath(): Promise<string> {
   return appDataDir().then((e) => {
     let name = 'dbpal.log';
-    return platform() == 'windows' ? `${e}\\${name}` : `${e}/${name}`;
+    return family() == 'windows' ? `${e}\\${name}` : `${e}/${name}`;
   });
 }
 
@@ -42,10 +42,6 @@ function LogFile() {
       return;
     }
     try {
-      let info = await stat(path);
-      if (info.mtime) {
-        setModifyDate(info.mtime.toLocaleString());
-      }
       const content = await readFile(path);
       const str = new TextDecoder().decode(content);
       setValue(str);
