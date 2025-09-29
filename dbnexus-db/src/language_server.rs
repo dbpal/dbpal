@@ -30,7 +30,7 @@ pub trait LanguageServer: GetBackendKind + GetKeyWords {
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Hash)]
 pub struct CompletionItem {
     pub item: Cow<'static, str>,
     pub kind: CompletionKind,
@@ -42,7 +42,7 @@ impl From<CompletionItem> for String {
         value.item.into()
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, TypeDef)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, TypeDef, Hash)]
 pub enum CompletionKind {
     Command, // command right now use by redis
     KeyWord,
@@ -94,38 +94,9 @@ pub fn in_pos(
 pub(crate) fn remove_duplicate(items: Vec<CompletionItem>) -> Vec<CompletionItem> {
     items
         .into_iter()
-        .map(CompletionItemNameHasher::from)
         .collect::<HashSet<_>>()
         .into_iter()
-        .map(|x| x.into())
         .collect::<Vec<_>>()
-}
-
-pub struct CompletionItemNameHasher {
-    pub(crate) item: CompletionItem,
-}
-impl From<CompletionItemNameHasher> for CompletionItem {
-    fn from(value: CompletionItemNameHasher) -> Self {
-        value.item
-    }
-}
-impl std::hash::Hash for CompletionItemNameHasher {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.item.item.hash(state);
-    }
-}
-
-impl std::cmp::Eq for CompletionItemNameHasher {}
-impl std::cmp::PartialEq for CompletionItemNameHasher {
-    fn eq(&self, other: &Self) -> bool {
-        self.item.item == other.item.item
-    }
-}
-
-impl From<CompletionItem> for CompletionItemNameHasher {
-    fn from(item: CompletionItem) -> Self {
-        Self { item }
-    }
 }
 
 #[async_trait::async_trait]
