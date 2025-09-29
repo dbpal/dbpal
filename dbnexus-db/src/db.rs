@@ -1482,8 +1482,7 @@ pub struct AutoCompletionQueryUuid {}
 
 impl AutoCompletionQueryUuid {
     fn loc() -> &'static std::sync::Mutex<u32> {
-        static X: std::sync::LazyLock<std::sync::Mutex<u32>> =
-            std::sync::LazyLock::new(|| std::sync::Mutex::new(0));
+        static X: std::sync::Mutex<u32> = std::sync::Mutex::new(0);
         &X
     }
 

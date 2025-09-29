@@ -11,12 +11,12 @@ pub struct CompletionStatement<'a> {
     pub(crate) loc: Location,
     pub(crate) result: Option<Vec<CompletionItem>>,
     pub(crate) helper: &'a dyn AstCompletionHelper,
-    pub(crate) scopes: Scopes,
+    pub(crate) scopes: &'a Scopes,
     pub(crate) on_def: bool,
     pub(crate) select_item_columns: HashSet<TempTableColumn>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Scopes {
     pub(crate) scopes: Arc<Mutex<Vec<Scope>>>,
 }
@@ -47,7 +47,9 @@ impl Scopes {
         }
     }
     pub(crate) fn new() -> Self {
-        Self::default()
+        Self {
+            scopes: Arc::new(Mutex::new(vec![Scope::default()])),
+        }
     }
 
     pub(crate) fn current_scope<R>(&self, f: impl FnOnce(&mut Scope) -> R) -> R {
@@ -252,12 +254,14 @@ impl Scope {
 }
 
 impl<'a> CompletionStatement<'a> {
-    pub(crate) fn new(loc: Location, helper: &'a dyn AstCompletionHelper) -> Self {
+    pub(crate) fn new(
+        loc: Location, helper: &'a dyn AstCompletionHelper, scopes: &'a Scopes,
+    ) -> Self {
         Self {
             loc,
             helper,
             result: None,
-            scopes: Scopes::new(),
+            scopes,
             on_def: false,
             select_item_columns: Default::default(),
         }

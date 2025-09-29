@@ -12,7 +12,7 @@ use crate::db::{
     BackendKind, CreatedTypeDef, GetBackendKind, SequenceDetail, SqlEvent, not_support_feature,
 };
 use crate::helper::try_remove_one_at;
-use crate::sqlparser_completion::{CompletionStatement, TempTableColumn};
+use crate::sqlparser_completion::{CompletionStatement, Scopes, TempTableColumn};
 
 #[async_trait::async_trait]
 pub trait LanguageServer: GetBackendKind + GetKeyWords {
@@ -1134,9 +1134,11 @@ pub(crate) async fn try_parser_completion(
         anyhow::Ok(statements)
     })?;
 
+    let scopes = Scopes::new();
+
     for statement in statements {
         log::trace!("completion on ast:{:?}", statement);
-        let mut c = CompletionStatement::new(loc, helper);
+        let mut c = CompletionStatement::new(loc, helper, &scopes);
         c.completion_on_statement(&statement).await;
         if c.finished() {
             let m = c.result.unwrap_or_default();
