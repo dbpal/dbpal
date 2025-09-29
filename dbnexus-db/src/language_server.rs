@@ -180,7 +180,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 }
             }
         }
-        return anyhow::Ok(all_item);
+        return anyhow::Ok(remove_duplicate(all_item));
     }
 
     async fn all_completion_items(&self) -> Vec<CompletionItem> {
