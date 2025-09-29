@@ -1,7 +1,7 @@
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 use std::ops::DerefMut;
 
-use crate::db::{AutoCompletionQueryUuid, name_start_ascii_alphabetic};
+use crate::db::{AutoCompletionQueryId, name_start_ascii_alphabetic};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc, GetKeyWords, LangServerCommon,
     LanguageServer, try_parser_dot_lexer,
@@ -139,7 +139,7 @@ impl LangServerCommon for SqliteDB {
         let sql = "PRAGMA database_list";
         log::info!("sql:{}", sql);
 
-        let rows = match self.query_connection.get(&AutoCompletionQueryUuid::get()) {
+        let rows = match self.query_connection.get(&AutoCompletionQueryId::get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
                 let conn = conn.deref_mut();
@@ -202,7 +202,7 @@ impl SqliteDB {
         );
         log::info!("sql:{}", sql);
 
-        let rows = match self.query_connection.get(&AutoCompletionQueryUuid::get()) {
+        let rows = match self.query_connection.get(&AutoCompletionQueryId::get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
                 sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -238,7 +238,7 @@ impl SqliteDB {
 #[async_trait::async_trait]
 impl AstCompletionHelper for SqliteDB {
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        let s = match self.query_connection.get(&AutoCompletionQueryUuid::get()) {
+        let s = match self.query_connection.get(&AutoCompletionQueryId::get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
                 let conn = conn.deref_mut();

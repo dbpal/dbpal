@@ -1,4 +1,4 @@
-use crate::db::{AutoCompletionQueryUuid, CatalogTrait, CreatedTypeDef, SequenceDetail};
+use crate::db::{AutoCompletionQueryId, CatalogTrait, CreatedTypeDef, SequenceDetail};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, GetKeyWords,
     LangServerCommon, LanguageServer, LexerCompletionTrait, PostGresExtension,
@@ -45,7 +45,7 @@ impl PostGresDB {
             m.insert(schema.unwrap().to_string());
             return m;
         }
-        let ret = match self.query_connection.get(&AutoCompletionQueryUuid::get()) {
+        let ret = match self.query_connection.get(&AutoCompletionQueryId::get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
                 let conn = conn.deref_mut();
@@ -541,7 +541,7 @@ impl LangServerCommon for PostGresDB {
     }
 
     async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
-        let conn = self.query_connection.get(&AutoCompletionQueryUuid::get());
+        let conn = self.query_connection.get(&AutoCompletionQueryId::get());
         if conn.is_none() {
             anyhow::bail!("query_id should get connection")
         }
@@ -592,7 +592,7 @@ impl LanguageServer for PostGresDB {
 
 #[cfg(test)]
 mod tests {
-    use crate::db::{AutoCompletionQueryUuid, QuerySql};
+    use crate::db::QuerySql;
     use crate::enable_test_log;
     use crate::language_server::LangServerCommon;
     use crate::language_server::completion_test::test_file_auto_completion;
@@ -696,10 +696,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_prepare() {
-        let _guard = AutoCompletionQueryUuid::test_mutex().lock().unwrap();
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
-        AutoCompletionQueryUuid::set(query_id.clone());
         db.execute_sql(
             query_id,
             r#"

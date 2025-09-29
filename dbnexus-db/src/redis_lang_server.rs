@@ -10,12 +10,12 @@ use redis::aio::MultiplexedConnection;
 use redis::{AsyncCommands, AsyncIter};
 use tokio::sync::Mutex;
 
-use crate::db::{AutoCompletionQueryUuid, GetBackendKind, not_support_feature};
+use crate::db::{AutoCompletionQueryId, GetBackendKind, not_support_feature};
 use crate::language_server::{CompletionItem, CompletionKind, GetKeyWords, LanguageServer, in_pos};
 use crate::redis::{RedisDB, RedisToken, RedisType, get_command_from_sql};
 impl RedisDB {
     fn get_query_conn(&self) -> anyhow::Result<Arc<Mutex<MultiplexedConnection>>> {
-        let conn = self.query_connections.get(&AutoCompletionQueryUuid::get());
+        let conn = self.query_connections.get(&AutoCompletionQueryId::get());
         match conn {
             Some(x) => anyhow::Ok(x.clone()),
             None => anyhow::bail!("should be able get connection"),
@@ -1542,7 +1542,7 @@ mod tests {
     use std::path::Path;
 
     use crate::{
-        db::{AutoCompletionQueryUuid, QuerySql, SchemaTrait},
+        db::{QuerySql, SchemaTrait},
         enable_test_log,
         language_server::completion_test::test_file_auto_completion,
         redis::make_test_object,
@@ -1554,12 +1554,10 @@ mod tests {
         let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");
         file_path.push("redis_auto_completion_test.txt");
-        let _guard = AutoCompletionQueryUuid::test_mutex().lock().unwrap();
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
         let db = make_test_object().await;
         // set up environment
         let query_id = db.open_connection().await.unwrap();
-        AutoCompletionQueryUuid::set(query_id);
         let _ = db.drop_table("value_string", false).await;
         let _ = db.drop_table("value_hash", false).await;
         let _ = db.drop_table("value_set", false).await;

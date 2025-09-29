@@ -1478,19 +1478,14 @@ pub(crate) fn name_start_ascii_alphabetic(name: &str) -> bool {
         .unwrap_or(false)
 }
 
-pub struct AutoCompletionQueryUuid {}
+pub struct AutoCompletionQueryId {}
 
-impl AutoCompletionQueryUuid {
+impl AutoCompletionQueryId {
     fn loc() -> &'static std::sync::Mutex<u32> {
         static X: std::sync::Mutex<u32> = std::sync::Mutex::new(0);
         &X
     }
 
-    #[cfg(test)]
-    pub(crate) fn test_mutex() -> &'static std::sync::Mutex<()> {
-        static X: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        &X
-    }
     pub(crate) fn get() -> u32 {
         *Self::loc().lock().unwrap()
     }

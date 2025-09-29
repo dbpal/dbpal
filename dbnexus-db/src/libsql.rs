@@ -13,8 +13,8 @@ use tokio::sync::Mutex;
 use crate::MemoryLimit;
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
 use crate::db::{
-    AutoCompletionQueryUuid, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql,
-    ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
+    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
+    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_data,
@@ -400,17 +400,17 @@ impl LibSqlDB {
         let sql =
             format!(r#"SELECT name FROM "{db}".sqlite_master WHERE type='table' ORDER BY name "#);
         log::info!("sql:{}", sql);
-        let mut rows: libsql::Rows =
-            match self.query_connections.get(&AutoCompletionQueryUuid::get()) {
-                Some(conn) => {
-                    let conn = conn.deref();
-                    conn.query(&sql, params!()).await?
-                }
-                None => {
-                    let conn = self.get_conn().await?;
-                    conn.query(&sql, params!()).await?
-                }
-            };
+        let mut rows: libsql::Rows = match self.query_connections.get(&AutoCompletionQueryId::get())
+        {
+            Some(conn) => {
+                let conn = conn.deref();
+                conn.query(&sql, params!()).await?
+            }
+            None => {
+                let conn = self.get_conn().await?;
+                conn.query(&sql, params!()).await?
+            }
+        };
 
         let mut ret = Vec::new();
         while let Some(r) = rows.next().await? {
@@ -429,7 +429,7 @@ impl LibSqlDB {
             WHERE type = 'view'; "#
         );
         log::info!("sql:{}", sql);
-        let mut rows = match self.query_connections.get(&AutoCompletionQueryUuid::get()) {
+        let mut rows = match self.query_connections.get(&AutoCompletionQueryId::get()) {
             Some(conn) => {
                 let conn = conn.deref();
                 conn.query(&sql, params!()).await?

@@ -10,7 +10,7 @@ use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::cockroach::CockRoachDB;
 use dbnexus_db::db::{
-    AutoCompletionQueryUuid, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
+    AutoCompletionQueryId, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedTypeDef, DefAndMetas, ExportKind, Field, Index, IndexKind,
     ListTable, NamedStaff, ProcedureDetail, QueryResp, SequenceDetail, ShowExtraArgs, SqlEvent,
     SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
@@ -81,7 +81,7 @@ pub async fn save_entered_password(
 }
 #[tauri::command]
 pub fn set_auto_completion_query_id(query_id: u32) {
-    AutoCompletionQueryUuid::set(query_id);
+    AutoCompletionQueryId::set(query_id);
 }
 
 #[tauri::command]
