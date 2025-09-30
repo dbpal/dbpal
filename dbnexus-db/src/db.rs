@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset};
@@ -1478,19 +1478,22 @@ pub(crate) fn name_start_ascii_alphabetic(name: &str) -> bool {
         .unwrap_or(false)
 }
 
-pub struct AutoCompletionQueryId {}
+#[derive(Clone, Default)]
+pub struct AutoCompletionQueryId {
+    query_id: Arc<Mutex<u32>>,
+}
 
 impl AutoCompletionQueryId {
-    fn loc() -> &'static std::sync::Mutex<u32> {
-        static X: std::sync::Mutex<u32> = std::sync::Mutex::new(0);
-        &X
+    pub(crate) fn get(&self) -> u32 {
+        self.query_id.lock().unwrap().clone()
     }
-
-    pub(crate) fn get() -> u32 {
-        *Self::loc().lock().unwrap()
+    pub fn set(&self, x: u32) {
+        *self.query_id.lock().unwrap() = x;
     }
-    pub fn set(x: u32) {
-        *Self::loc().lock().unwrap() = x;
+    pub fn set_optional(&self, x: Option<u32>) {
+        if let Some(x) = x {
+            self.set(x);
+        }
     }
 }
 

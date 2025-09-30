@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Arc;
-use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 
 use chrono::Utc;
@@ -17,15 +16,15 @@ use tokio::sync::Mutex;
 use crate::MemoryLimit;
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
-    BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
-    NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlEvent, SqlExecuteRet,
-    TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
-    escape_sql_str, export_query_as_xlsx_send_data,
+    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
+    CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field,
+    GetBackendKind, Index, IndexKind, ListTable, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder,
+    SqlEvent, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data,
 };
 
-use crate::helper::create_csv;
+use crate::helper::{NextQueryId, create_csv};
 use crate::meta_value::MetaValue;
 
 #[derive(Clone)]
@@ -34,7 +33,8 @@ pub struct MysqlDB {
     pub(crate) config: MysqlDBConfig,
     pub(crate) query_connection: Arc<DashMap<u32, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
-    query_id: Arc<AtomicU32>,
+    query_id: NextQueryId,
+    pub(crate) completion_id: AutoCompletionQueryId,
 }
 
 fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
@@ -1489,6 +1489,7 @@ impl MysqlDB {
             query_connection: Default::default(),
             query_id: Default::default(),
             key_words_cache: Default::default(),
+            completion_id: Default::default(),
         })
     }
 
@@ -1700,9 +1701,7 @@ impl QuerySql for MysqlDB {
     }
 
     async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self
-            .query_id
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let id = self.query_id.next();
         let conn = self.get_conn().await?;
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)

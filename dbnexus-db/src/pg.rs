@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
 use std::sync::Arc;
-use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 
 use dashmap::DashMap;
@@ -14,14 +13,15 @@ use tokio::sync::Mutex;
 
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
-    BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, POOL_MAX_CONNECTIONS,
-    ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas,
-    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, XlsxEdit, export_query_as_xlsx_send_data,
+    AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
+    CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind,
+    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
+    POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    SequenceDetail, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    export_query_as_xlsx_send_data,
 };
-use crate::helper::create_csv;
+use crate::helper::{NextQueryId, create_csv};
 use crate::meta_value::MetaValue;
 use crate::pg_format::*;
 use crate::pg_lang_server::POSTGRES_TYPES;
@@ -33,7 +33,8 @@ pub struct PostGresDB {
     pub(crate) config: PGDBConfig,
     pub(crate) query_connection: Arc<DashMap<u32, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
-    query_id: Arc<AtomicU32>,
+    query_id: NextQueryId,
+    pub(crate) completion_id: AutoCompletionQueryId,
 }
 
 #[async_trait::async_trait]
@@ -1684,6 +1685,7 @@ impl PostGresDB {
             query_connection: Default::default(),
             key_words_cache: Default::default(),
             query_id: Default::default(),
+            completion_id: Default::default(),
         })
     }
 
@@ -1912,9 +1914,7 @@ impl QuerySql for PostGresDB {
     }
 
     async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self
-            .query_id
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let id = self.query_id.next();
         let conn = self.get_conn().await?;
 
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));

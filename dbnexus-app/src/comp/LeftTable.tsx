@@ -489,6 +489,7 @@ function makeViewTable(
     case DataSourceKind.Cockroach:
       tableList = (
         <SqlTableView
+          isTable
           extractTableSelectSort={makeExtractTableSelectSort(uuid)}
           extractTableSelectWhere={makeExtractTableSelectWhere(uuid)}
           invalidCassandraTableViewCache={makeInvalidCassandraTableCache(

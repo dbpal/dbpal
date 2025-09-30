@@ -118,18 +118,25 @@ function reloadOK(showNotification) {
 }
 const registeredLanguage = new Set<DataSourceKind>();
 
-
 const autoCompletion = async (
-  sql: string,
+  modal: editor.ITextModel,
   pos: Position
 ): Promise<languages.CompletionList> => {
   try {
+    let sql = modal.getValue();
+    let name = SetAutoCompletionName.get(modal.id);
+    if (!name) {
+      alert("auto completion name is null this is a bug");
+      return;
+    }
     let completionItem = await invoke<types.CompletionItem[]>(
       'auto_completion',
       {
         sql,
         line: pos.lineNumber,
         col: pos.column,
+        name: name.name,
+        queryId: name.queryId
       }
     );
     console.log('completion', completionItem);
@@ -145,10 +152,6 @@ const autoCompletion = async (
 function initLanguageXXX(
   kind: DataSourceKind,
   ILanguage: languages.IMonarchLanguage,
-  autoCompletion: (
-    text: string,
-    pos: Position
-  ) => Promise<languages.CompletionList>,
 ) {
   loader
     .init()
@@ -170,8 +173,8 @@ function initLanguageXXX(
           _context: any,
           _token: CancellationToken
         ) => {
-          let text = model.getValue();
-          return autoCompletion(text, position);
+          console.log('autoCompletion', _context, model.id);
+          return autoCompletion(model, position);
         },
         triggerCharacters: ['.'],
       });
@@ -274,8 +277,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
             { open: '[', close: ']', token: 'delimiter.square' },
           ],
         } as languages.IMonarchLanguage,
-        autoCompletion,
-
       );
       break;
     case DataSourceKind.Mysql:
@@ -296,8 +297,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
             { open: '[', close: ']', token: 'delimiter.square' },
           ],
         } as languages.IMonarchLanguage,
-        autoCompletion,
-
       );
       break;
     case DataSourceKind.ClickHouse:
@@ -318,8 +317,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
             { open: '[', close: ']', token: 'delimiter.square' },
           ],
         } as languages.IMonarchLanguage,
-        autoCompletion,
-
       );
       break;
 
@@ -341,8 +338,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
             { open: '[', close: ']', token: 'delimiter.square' },
           ],
         } as languages.IMonarchLanguage,
-        autoCompletion,
-
       );
       break;
     case DataSourceKind.Sqlite:
@@ -360,8 +355,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
             ],
           },
         } as languages.IMonarchLanguage,
-        autoCompletion,
-
       );
       break;
     case DataSourceKind.FireBird:
@@ -378,8 +371,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
             ],
           },
         } as languages.IMonarchLanguage,
-        autoCompletion,
-
       );
       break;
     case DataSourceKind.DuckDB:
@@ -396,8 +387,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
             ],
           },
         } as languages.IMonarchLanguage,
-        autoCompletion,
-
       );
       break;
 
@@ -415,8 +404,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
             ],
           },
         } as languages.IMonarchLanguage,
-        autoCompletion,
-
       );
       break;
     case DataSourceKind.Cockroach:
@@ -435,8 +422,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
             ],
           },
         } as languages.IMonarchLanguage,
-        autoCompletion,
-
       );
       break;
     case DataSourceKind.MsSql:
@@ -454,7 +439,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
             ],
           },
         } as languages.IMonarchLanguage,
-        autoCompletion,
       );
       break;
     case DataSourceKind.Redis:
@@ -464,7 +448,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
           ignoreCase: true,
           tokenizer: { root: [[keywordReg, 'keyword']] },
         } as languages.IMonarchLanguage,
-        autoCompletion
       );
       break;
     case DataSourceKind.Oracle:
@@ -481,7 +464,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
             ],
           },
         } as languages.IMonarchLanguage,
-        autoCompletion,
+
       );
       break;
     case DataSourceKind.Cassandra:
@@ -498,8 +481,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
             ],
           },
         } as languages.IMonarchLanguage,
-        autoCompletion,
-
       );
       break;
     default:
@@ -648,14 +629,8 @@ type MakeIQueryConn = () => Promise<IQueryConn>;
 const keyNotInTable = 'KWfCwJ62hRf6TKuvMcsQ3eXGtD1tdg2J';
 
 type EscDownEvent = { preventDefault: () => void };
-function setAutoCompletionName(name: string) {
-  invoke('set_auto_completion_name', { name }).then(() => {
-    console.log('set auto completion name:', name, "ok");
-  }).catch((e) => {
-    alert("set auto completion name failed,err:" + e.toString());
-    console.log('set auto completion name failed,err:', e);
-  });
-}
+
+
 
 function makeExtractTableSelectWhere(uuid) {
   return (sql: string) => {
@@ -756,6 +731,25 @@ function makePutValueInSql(uuid) {
     });
   }
 }
+
+class NameAndqueryId {
+  constructor(public name: string, public queryId?: number) {
+  }
+}
+class SetAutoCompletionName {
+
+  id2Name = new Map<string, NameAndqueryId>();
+
+  static set(editorId: string, x: NameAndqueryId) {
+    SetAutoCompletionName.instance.id2Name.set(editorId, x)
+  }
+
+  static get(editorId: string): NameAndqueryId | null {
+    return SetAutoCompletionName.instance.id2Name.get(editorId)
+  }
+  static instance = new SetAutoCompletionName();
+
+}
 export {
   modalStyle,
   tabsHasId,
@@ -772,7 +766,8 @@ export {
   extractBaseName,
   autoCompletion,
   modalHandleClose,
-  setAutoCompletionName,
+  SetAutoCompletionName,
+  NameAndqueryId,
   makeExtractTableSelectWhere,
   makeExtractTableSelectSort,
   makeFormatFn,

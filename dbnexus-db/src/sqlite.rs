@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Arc;
-use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 
 use dashmap::DashMap;
@@ -20,10 +19,10 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
-    escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
+    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
+    XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
 };
-use crate::helper::create_csv;
+use crate::helper::{NextQueryId, create_csv};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 
@@ -36,7 +35,8 @@ pub struct SqliteDB {
     pub(crate) build_in_fn_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<String>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
-    query_id: Arc<AtomicU32>,
+    query_id: NextQueryId,
+    pub(crate) completion_id: AutoCompletionQueryId,
 }
 
 impl SqliteDB {
@@ -356,7 +356,7 @@ impl SqliteDB {
     pub(crate) async fn list_table_impl(&self, db: &str) -> anyhow::Result<Vec<ListTable>> {
         let sql =
             format!(r#"SELECT name FROM "{db}".sqlite_master WHERE type='table' ORDER BY name "#);
-        let rows = match self.query_connection.get(&AutoCompletionQueryId::get()) {
+        let rows = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
                 sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -386,7 +386,7 @@ impl SqliteDB {
             WHERE type = 'view'; 
         "#
         );
-        let rows = match self.query_connection.get(&AutoCompletionQueryId::get()) {
+        let rows = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
                 sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -1197,6 +1197,7 @@ impl SqliteDB {
             keywords_completion: Default::default(),
             pragma_completion: Default::default(),
             query_id: Default::default(),
+            completion_id: Default::default(),
         })
     }
 
@@ -1449,14 +1450,11 @@ impl QuerySql for SqliteDB {
                 .unwrap_or_default();
             ret = vec![Ok(QueryResp::new(fields, 0, vec![], sql.to_owned())?)];
         }
-
         anyhow::Ok(ret)
     }
 
     async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self
-            .query_id
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let id = self.query_id.next();
         let conn = self.get_conn().await?;
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)

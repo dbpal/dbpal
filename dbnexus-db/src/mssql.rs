@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Arc;
-use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 
 use chrono::FixedOffset;
@@ -28,7 +27,7 @@ use crate::db::{
     XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset,
     not_support_feature,
 };
-use crate::helper::create_csv;
+use crate::helper::{NextQueryId, create_csv};
 
 use crate::meta_value::MetaValue;
 
@@ -37,7 +36,7 @@ pub struct SqlServerDB {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     pub(crate) config: SqlServerDBConfig,
     query_connections: Arc<DashMap<u32, Arc<Mutex<Connection>>>>,
-    query_id: Arc<AtomicU32>,
+    query_id: NextQueryId,
 }
 
 impl std::fmt::Debug for SqlServerDB {
@@ -1778,9 +1777,7 @@ impl QuerySql for SqlServerDB {
     async fn open_connection(&self) -> anyhow::Result<u32> {
         let conn = self.new_tcp_conn().await?;
 
-        let id = self
-            .query_id
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let id = self.query_id.next();
         self.query_connections
             .insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)

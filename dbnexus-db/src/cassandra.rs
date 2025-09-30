@@ -29,13 +29,14 @@
 use crate::MemoryLimit;
 use crate::datasource_config::CassandraDBConfig;
 use crate::db::{
-    BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef,
-    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
-    ListTable, NamedStaff, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
-    escape_sql_str, export_query_as_xlsx_send_data,
+    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
+    CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
+    Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, POOL_MAX_CONNECTIONS,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder,
+    SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit, escape_sql_str,
+    export_query_as_xlsx_send_data,
 };
-use crate::helper::{create_csv, current_timestamp};
+use crate::helper::{NextQueryId, create_csv, current_timestamp};
 use crate::language_server::LexerCompletionTrait;
 use crate::meta_value::MetaValue;
 use cdrs_tokio::authenticators::StaticPasswordAuthenticatorProvider;
@@ -62,7 +63,6 @@ use num_bigint::{BigInt, ToBigInt};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 
 #[derive(Clone)]
@@ -71,7 +71,8 @@ pub struct CassandraDB {
     pub(crate) query_connection: Arc<DashMap<u32, Arc<AppSession>>>,
     pub(crate) config: CassandraDBConfig,
     paging_cache: Arc<DashMap<String, Arc<PageCache>>>,
-    query_id: Arc<AtomicU32>,
+    query_id: NextQueryId,
+    pub(crate) completion_id: AutoCompletionQueryId,
 }
 
 #[derive(Clone, Debug)]
@@ -180,6 +181,7 @@ impl CassandraDB {
             paging_cache: Default::default(),
             query_connection: Default::default(),
             query_id: Default::default(),
+            completion_id: Default::default(),
         })
     }
 }
@@ -904,9 +906,7 @@ impl QuerySql for CassandraDB {
     }
 
     async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self
-            .query_id
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let id = self.query_id.next();
         let session = make_session(&self.config, 1).await?;
         self.query_connection.insert(id, Arc::new(session));
         anyhow::Ok(id)

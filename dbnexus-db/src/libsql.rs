@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 
 use bb8::ManageConnection;
@@ -19,7 +18,7 @@ use crate::db::{
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_data,
 };
-use crate::helper::create_csv;
+use crate::helper::{NextQueryId, create_csv};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::sqlite::{
@@ -32,12 +31,13 @@ pub struct LibSqlDB {
     config: LibSqlDBConfig,
     pool: bb8::Pool<PoolManager>,
     pub(crate) query_connections: Arc<DashMap<u32, Connection>>,
-    query_id: Arc<AtomicU32>,
+    query_id: NextQueryId,
     query_connections_transaction: Arc<DashMap<u32, libsql::Transaction>>,
 
     pub(crate) build_in_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<String>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
+    pub(crate) completion_id: AutoCompletionQueryId,
 }
 
 impl GetBackendKind for LibSqlDB {
@@ -235,9 +235,7 @@ impl QuerySql for LibSqlDB {
 
     async fn open_connection(&self) -> anyhow::Result<u32> {
         let conn = self.connect().await?;
-        let id = self
-            .query_id
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let id = self.query_id.next();
         self.query_connections.insert(id, conn);
         anyhow::Ok(id)
     }
@@ -363,6 +361,7 @@ impl LibSqlDB {
             keywords_completion: Default::default(),
             pragma_completion: Default::default(),
             query_id: Default::default(),
+            completion_id: Default::default(),
         })
     }
 
@@ -400,8 +399,7 @@ impl LibSqlDB {
         let sql =
             format!(r#"SELECT name FROM "{db}".sqlite_master WHERE type='table' ORDER BY name "#);
         log::info!("sql:{}", sql);
-        let mut rows: libsql::Rows = match self.query_connections.get(&AutoCompletionQueryId::get())
-        {
+        let mut rows: libsql::Rows = match self.query_connections.get(&self.completion_id.get()) {
             Some(conn) => {
                 let conn = conn.deref();
                 conn.query(&sql, params!()).await?
@@ -429,7 +427,7 @@ impl LibSqlDB {
             WHERE type = 'view'; "#
         );
         log::info!("sql:{}", sql);
-        let mut rows = match self.query_connections.get(&AutoCompletionQueryId::get()) {
+        let mut rows = match self.query_connections.get(&self.completion_id.get()) {
             Some(conn) => {
                 let conn = conn.deref();
                 conn.query(&sql, params!()).await?

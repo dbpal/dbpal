@@ -9,7 +9,7 @@ MySQL 只允许省略 sys. 前缀直接调用“函数”，对“存储过程�
 过程（procedure）、表（table）、视图（view）：一律没有特权，想跨库访问就老老实实加前缀或切换默认库。
 */
 
-use crate::db::{AutoCompletionQueryId, SqlEvent, name_start_ascii_alphabetic};
+use crate::db::{SqlEvent, name_start_ascii_alphabetic};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, GetKeyWords,
     LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
@@ -62,8 +62,9 @@ impl LanguageServer for MysqlDB {
     }
 
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
@@ -81,7 +82,7 @@ impl MysqlDB {
             return schema.map(|x| x.to_string());
         }
         // check if user use `use` to select database
-        let used_db = match self.query_connection.get(&AutoCompletionQueryId::get()) {
+        let used_db = match self.query_connection.get(&self.completion_id.get()) {
             Some(x) => {
                 let mut conn = x.lock().await;
                 let conn = conn.deref_mut();
@@ -142,7 +143,7 @@ impl LangServerCommon for MysqlDB {
         anyhow::Ok(ret)
     }
     async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
-        let conn = match self.query_connection.get(&AutoCompletionQueryId::get()) {
+        let conn = match self.query_connection.get(&self.completion_id.get()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("should be able to get query connection"),
         };
@@ -298,7 +299,7 @@ impl LangServerCommon for MysqlDB {
             SELECT statement_id, sql_text ,statement_name   FROM performance_schema.prepared_statements_instances WHERE owner_thread_id = connection_id() and  statement_name is not null;
         */
 
-        let conn = self.query_connection.get(&AutoCompletionQueryId::get());
+        let conn = self.query_connection.get(&self.completion_id.get());
         if conn.is_none() {
             anyhow::bail!("should be able to get connection")
         }
@@ -585,7 +586,7 @@ mod tests {
         let sql = include_str!("../tests/mysql_at_var_lexer.sql");
         let db = make_test_object(make_config()).await;
 
-        let item = LanguageServer::auto_completion(&db, sql, 2, 11, true)
+        let item = LanguageServer::auto_completion(&db, None, sql, 2, 11, true)
             .await
             .unwrap();
         item.iter().for_each(|x| {

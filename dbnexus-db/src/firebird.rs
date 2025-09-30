@@ -22,7 +22,6 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use dashmap::{DashMap, DashSet};
@@ -40,7 +39,7 @@ use crate::db::{
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
-use crate::helper::create_csv;
+use crate::helper::{NextQueryId, create_csv};
 use crate::meta_value::MetaValue;
 pub struct PoolManager {
     config: FireBirdConfig,
@@ -459,7 +458,7 @@ impl QuerySql for FireBirdDB {
     }
 
     async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self.query_id.fetch_add(1, Ordering::Relaxed);
+        let id = self.query_id.next();
         let conn = self.get_conn()?;
         self.query_connections
             .insert(id, Arc::new(Mutex::new(conn)));
@@ -489,7 +488,7 @@ pub struct FireBirdDB {
     query_connections: Arc<DashMap<u32, Arc<Mutex<PooledConnection<PoolManager>>>>>,
     query_connections_tx: Arc<DashSet<u32>>,
     pub(crate) key_words_completion: Arc<Mutex<Vec<String>>>,
-    query_id: Arc<AtomicU32>,
+    query_id: NextQueryId,
 }
 
 impl std::fmt::Debug for FireBirdDB {

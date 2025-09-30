@@ -46,10 +46,9 @@ use handlers::{
     redis_list_table, redis_set_add, redis_set_del, redis_set_replace, redis_string_set,
     redis_zset_add, redis_zset_del, redis_zset_replace, redis_zset_show_table, rename_index,
     rename_sequence, rename_table, save_entered_password, save_password, server_metas,
-    set_auto_completion_name, set_auto_completion_query_id, show_indexes, show_procedure,
-    show_table, show_table_columns, show_trigger, show_udf, show_view, show_view_columns,
-    sql_parse_error, table_delete, table_insert, table_update, test_connection, truncate_log_file,
-    truncate_table, valid_json,
+    show_indexes, show_procedure, show_table, show_table_columns, show_trigger, show_udf,
+    show_view, show_view_columns, sql_parse_error, table_delete, table_insert, table_update,
+    test_connection, truncate_log_file, truncate_table, valid_json,
 };
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager, Wry};
@@ -589,7 +588,6 @@ fn main_() {
             drop_sequence,
             rename_sequence,
             command_panic,
-            set_auto_completion_query_id,
             cassandra_invalid_table_or_view_caching,
             fonts_all_families,
             list_sql_current_values,
@@ -600,7 +598,6 @@ fn main_() {
             drop_event,
             truncate_log_file,
             key_words,
-            set_auto_completion_name,
             extract_table_select_selection,
             extract_table_select_sort,
         ])

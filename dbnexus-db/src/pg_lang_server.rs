@@ -1,4 +1,4 @@
-use crate::db::{AutoCompletionQueryId, CatalogTrait, CreatedTypeDef, SequenceDetail};
+use crate::db::{CatalogTrait, CreatedTypeDef, SequenceDetail};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, GetKeyWords,
     LangServerCommon, LanguageServer, LexerCompletionTrait, PostGresExtension,
@@ -45,7 +45,7 @@ impl PostGresDB {
             m.insert(schema.unwrap().to_string());
             return m;
         }
-        let ret = match self.query_connection.get(&AutoCompletionQueryId::get()) {
+        let ret = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
                 let conn = conn.deref_mut();
@@ -541,7 +541,7 @@ impl LangServerCommon for PostGresDB {
     }
 
     async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
-        let conn = self.query_connection.get(&AutoCompletionQueryId::get());
+        let conn = self.query_connection.get(&self.completion_id.get());
         if conn.is_none() {
             anyhow::bail!("query_id should get connection")
         }
@@ -577,8 +577,9 @@ impl LanguageServer for PostGresDB {
     }
 
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 

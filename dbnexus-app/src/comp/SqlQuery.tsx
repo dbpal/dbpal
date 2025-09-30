@@ -12,7 +12,6 @@ import {
   Stack,
   TextField,
   Tooltip,
-  Typography,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { FaExclamation } from 'react-icons/fa';
@@ -35,7 +34,8 @@ import {
   modalHandleClose,
   modalStyle,
   msgTimeout,
-  setAutoCompletionName,
+  NameAndqueryId,
+  SetAutoCompletionName,
 } from './Common.ts';
 import { BsFillLightbulbFill } from 'react-icons/bs';
 import { FaBookmark } from 'react-icons/fa';
@@ -55,11 +55,9 @@ import {
   SetCloseConfirmTextContext,
   SettingContext,
   TabActiveContext,
-  WindowFocusContext,
 } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
-import { invoke } from '@tauri-apps/api/core';
 import { ExecutingTime, PossibleParseError } from './CommonComp.tsx';
 import { EditorBar, LoadStoreFileForQuery } from './CommonComp2.tsx';
 function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
@@ -189,7 +187,7 @@ function SqlQuery(props: {
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
   const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
   const [parseErr, setParseErr] = useState<ErrAndLoc | null>(null);
-  let editor = useRef<editor.IStandaloneCodeEditor>(null);
+  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position | null>(null);
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
@@ -205,10 +203,11 @@ function SqlQuery(props: {
 
   const handleEditorDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor, _monaco) => {
-      editor.current = ed;
+      setEditor(ed);
       if (editorRef) {
         editorRef.current = ed;
       }
+
       ed.onDidChangeModelContent((_event) => {
         let text = ed.getValue();
         getParseErr(text).then((e) => {
@@ -291,7 +290,7 @@ function SqlQuery(props: {
   };
 
   const handleExecute = async () => {
-    const text = getEditorText(editor.current, showNotification);
+    const text = getEditorText(editor, showNotification);
     if (!text) {
       return;
     }
@@ -320,7 +319,7 @@ function SqlQuery(props: {
       });
   };
   const handleQuery = async (append: boolean, explain: boolean = false) => {
-    let text = getEditorText(editor.current, showNotification);
+    let text = getEditorText(editor, showNotification);
     if (!text) {
       return;
     }
@@ -393,6 +392,7 @@ function SqlQuery(props: {
         fontWeight: setting.fontWeight,
         fontFamily: setting.fontFamily,
         tabSize: setting.tabSize,
+
         ...setting.editorOption,
       };
     }, [setting]);
@@ -421,22 +421,15 @@ function SqlQuery(props: {
       }
     });
   }, []);
-  const vis = useContext(TabActiveContext);
-  const focus = useContext(WindowFocusContext);
   useEffect(() => {
-    if (vis && conn && focus) {
-      console.log('SqlQuery setQueryId', conn.queryId);
-      invoke('set_auto_completion_query_id', { queryId: conn.queryId })
-        .then(() => {})
-        .catch((e) => {
-          console.log('set auto completion id failed,err:{}', e);
-        });
+    if (conn && editor) {
+      SetAutoCompletionName.set(
+        editor.getModel().id,
+        new NameAndqueryId(uuid, conn.queryId)
+      );
     }
-    if (vis && focus) {
-      setAutoCompletionName(uuid);
-    }
-  }, [vis, conn, focus]);
-
+  }, [conn, editor]);
+  const vis = useContext(TabActiveContext);
   const keyEscCancelQueryLog = useCallback(
     (e) => {
       if (e.key === 'Escape' && vis && showQueryLog) {
@@ -582,7 +575,7 @@ function SqlQuery(props: {
                 loading={loading}
                 disabled={loading || conn == null}
                 onClick={() => {
-                  const value = getEditorText(editor.current, showNotification);
+                  const value = getEditorText(editor, showNotification);
                   if (!value) {
                     return;
                   }
@@ -604,7 +597,7 @@ function SqlQuery(props: {
           >
             <IconButton
               onClick={() => {
-                const value = editor.current.getValue();
+                const value = editor.getValue();
                 if (!value) {
                   showNotification('error', "can't save empty statement.");
                   return;
@@ -623,10 +616,10 @@ function SqlQuery(props: {
 
           <LoadStoreFileForQuery
             getQuery={() => {
-              return editor.current.getValue();
+              return editor.getValue();
             }}
             handleChange={(content) => {
-              editor.current.setValue(content);
+              editor.setValue(content);
             }}
             kind={kind}
           ></LoadStoreFileForQuery>
@@ -644,11 +637,6 @@ function SqlQuery(props: {
 
           <ExecutingTime loading={loading} disableTime></ExecutingTime>
           {!conn && <CircularProgress></CircularProgress>}
-          {conn && (
-            <Tooltip title="connection id">
-              <Typography> #{conn.queryId} </Typography>
-            </Tooltip>
-          )}
         </Stack>
         <div
           style={{
@@ -679,7 +667,7 @@ function SqlQuery(props: {
               {parseErr && (
                 <PossibleParseError
                   parseErr={parseErr}
-                  editor={editor.current}
+                  editor={editor}
                 ></PossibleParseError>
               )}
             </Stack>
@@ -702,7 +690,7 @@ function SqlQuery(props: {
               <ExportView
                 supportKind={['csv', 'json', 'jsonline', 'xlsx']}
                 exportOP={async (kind, file) => {
-                  const sql = getEditorText(editor.current, showNotification);
+                  const sql = getEditorText(editor, showNotification);
                   return conn.exportQueryResult(sql, kind, file);
                 }}
                 name="export_query_result"
@@ -737,7 +725,7 @@ function SqlQuery(props: {
                         showNotification('error', "name can't be empty");
                         return;
                       }
-                      saveFavoriteSql(favoriteName, editor.current.getValue());
+                      saveFavoriteSql(favoriteName, editor.getValue());
                       setShowFavoriteName(false);
                     }}
                   >

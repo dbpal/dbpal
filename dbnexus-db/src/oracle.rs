@@ -3,7 +3,6 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
 use std::sync::Arc;
-use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 use std::vec;
 
@@ -22,7 +21,7 @@ use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
-use crate::helper::create_csv;
+use crate::helper::{NextQueryId, create_csv};
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
 
@@ -32,7 +31,7 @@ pub struct OracleDB {
     query_connections: Arc<DashMap<u32, Arc<Mutex<Connection>>>>,
     pub(crate) config: OracleDBConfig,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
-    query_id: Arc<AtomicU32>,
+    query_id: NextQueryId,
 }
 
 #[async_trait::async_trait]
@@ -196,9 +195,7 @@ impl QuerySql for OracleDB {
     }
 
     async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self
-            .query_id
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let id = self.query_id.next();
         let mut conn = self.get_conn().await?;
         conn.set_autocommit(QUERY_AUTO_COMMIT);
         self.query_connections

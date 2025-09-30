@@ -375,7 +375,7 @@ impl App {
 }
 type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;
 
-fn name_to_parts(name: &str) -> Vec<&str> {
+pub(crate) fn name_to_parts(name: &str) -> Vec<&str> {
     name.split("/").collect()
 }
 

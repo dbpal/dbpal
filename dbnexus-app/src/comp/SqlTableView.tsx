@@ -47,8 +47,9 @@ import {
   makeFormatFn,
   modalHandleClose,
   modalStyle,
+  NameAndqueryId,
   reloadOK,
-  setAutoCompletionName,
+  SetAutoCompletionName,
 } from './Common';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import KeyIcon from '@mui/icons-material/Key';
@@ -75,10 +76,8 @@ import {
   validJson,
   SavePageSize,
   textEllipsisStyle,
-  TabActiveContext,
   quoteIdentifier,
   MuiDataGridData,
-  WindowFocusContext,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
@@ -124,6 +123,7 @@ function SetFilterSort(props: {
   label: 'filter' | 'sort';
   tableName;
   kind: DataSourceKind;
+  uuid: string;
   extractFn: (sql: string) => Promise<String | null>;
 }) {
   let {
@@ -135,6 +135,7 @@ function SetFilterSort(props: {
     tableName,
     kind,
     extractFn,
+    uuid,
   } = props;
   tableName = quoteIdentifier(kind)(tableName);
   console.log('language:', kind);
@@ -185,6 +186,10 @@ function SetFilterSort(props: {
           )}
           handleEditor={(e) => {
             editor.current = e;
+            SetAutoCompletionName.set(
+              e.getModel().id,
+              new NameAndqueryId(uuid)
+            );
           }}
           language={kind}
         ></SimpleFlexEditor>
@@ -316,6 +321,7 @@ function SqlTableView_(props: {
   invalidCassandraTableViewCache?: () => Promise<void>;
   extractTableSelectWhere: (sql: string) => Promise<String | null>;
   extractTableSelectSort: (sql: string) => Promise<String | null>;
+  isTable: boolean;
 }) {
   let {
     reloadOP,
@@ -330,6 +336,7 @@ function SqlTableView_(props: {
     invalidCassandraTableViewCache,
     extractTableSelectSort,
     extractTableSelectWhere,
+    isTable,
   } = props;
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState('');
@@ -338,13 +345,6 @@ function SqlTableView_(props: {
   const [showSetSort, setShowSetSort] = useState(false);
   const [page, setPage] = useState(0);
   const setting = useContext(SettingContext);
-  const vis = useContext(TabActiveContext);
-  const focus = useContext(WindowFocusContext);
-  useEffect(() => {
-    if (vis && focus) {
-      setAutoCompletionName(uuid);
-    }
-  }, [vis, focus]);
 
   const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
   const [resp, setResp] = useState<MuiDataGridData>({
@@ -840,7 +840,7 @@ function SqlTableView_(props: {
             <ViewRowInModal
               fields={resp.fields}
               x={viewInModal}
-              isTable={!!addOP}
+              isTable={isTable}
             ></ViewRowInModal>
           </Box>
         </Modal>
@@ -931,6 +931,7 @@ function SqlTableView_(props: {
           extractFn={extractTableSelectWhere}
           label="filter"
           kind={kind}
+          uuid={uuid}
         ></SetFilterSort>
       )}
 
@@ -947,6 +948,7 @@ function SqlTableView_(props: {
             setShowSetSort(false);
           }}
           label="sort"
+          uuid={uuid}
           extractFn={extractTableSelectSort}
         ></SetFilterSort>
       )}

@@ -10,10 +10,10 @@ use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::cockroach::CockRoachDB;
 use dbnexus_db::db::{
-    AutoCompletionQueryId, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    CreateTableAndIndexSql, CreatedTypeDef, DefAndMetas, ExportKind, Field, Index, IndexKind,
-    ListTable, NamedStaff, ProcedureDetail, QueryResp, SequenceDetail, ShowTableExtraArgs, SqlEvent,
-    SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
+    ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef,
+    DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, NamedStaff, ProcedureDetail,
+    QueryResp, SequenceDetail, ShowTableExtraArgs, SqlEvent, SqlExecuteRet, TriggerDetail,
+    UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionItem, ErrAndLoc};
@@ -78,10 +78,6 @@ pub async fn save_entered_password(
     .map_err(ErrorFrontend::from)?;
     app.saved_password.insert(name, pass);
     Ok(())
-}
-#[tauri::command]
-pub fn set_auto_completion_query_id(query_id: u32) {
-    AutoCompletionQueryId::set(query_id);
 }
 
 #[tauri::command]
@@ -1020,34 +1016,12 @@ pub async fn list_schema(
     .map_err(ErrorFrontend::from)
 }
 
-pub struct AutoCompletionName;
-
-impl AutoCompletionName {
-    fn loc() -> &'static Mutex<String> {
-        static X: Mutex<String> = Mutex::new(String::new());
-        &X
-    }
-    fn set(x: String) {
-        *Self::loc().lock().unwrap() = x;
-    }
-    fn get() -> String {
-        Self::loc().lock().unwrap().clone()
-    }
-}
-
-#[tauri::command]
-pub fn set_auto_completion_name(name: String) -> Result<(), ()> {
-    AutoCompletionName::set(name);
-    Ok(())
-}
-
 #[tauri::command]
 pub async fn extract_table_select_selection(
-    sql: String, app: tauri::State<'_, App>,
+    name: String, sql: String, app: tauri::State<'_, App>,
 ) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let name = AutoCompletionName::get();
     let db = app.get_backend(name.as_str()).await?;
     let ret = match db {
         DatabaseBackend::Catalog(x) => x.extract_table_select_selection(&sql),
@@ -1060,11 +1034,10 @@ pub async fn extract_table_select_selection(
 
 #[tauri::command]
 pub async fn extract_table_select_sort(
-    sql: String, app: tauri::State<'_, App>,
+    name: String, sql: String, app: tauri::State<'_, App>,
 ) -> Result<Option<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let name = AutoCompletionName::get();
     let db = app.get_backend(name.as_str()).await?;
     let ret = match db {
         DatabaseBackend::Catalog(x) => x.extract_table_select_sort(&sql),
@@ -1077,18 +1050,27 @@ pub async fn extract_table_select_sort(
 
 #[tauri::command]
 pub async fn auto_completion(
-    sql: String, line: u32, col: u32, app: tauri::State<'_, App>,
+    name: String, query_id: Option<u32>, sql: String, line: u32, col: u32,
+    app: tauri::State<'_, App>,
 ) -> Result<Vec<CompletionItem>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let use_lexer = true;
-    let name = AutoCompletionName::get();
     let db = app.get_backend(name.as_str()).await?;
     let ret = tokio::time::timeout(std::time::Duration::from_secs(4), async {
         match db {
-            DatabaseBackend::Catalog(x) => x.auto_completion(&sql, line, col, use_lexer).await,
-            DatabaseBackend::DataBase(x) => x.auto_completion(&sql, line, col, use_lexer).await,
-            DatabaseBackend::Schema(x) => x.auto_completion(&sql, line, col, use_lexer).await,
+            DatabaseBackend::Catalog(x) => {
+                x.auto_completion(query_id, &sql, line, col, use_lexer)
+                    .await
+            }
+            DatabaseBackend::DataBase(x) => {
+                x.auto_completion(query_id, &sql, line, col, use_lexer)
+                    .await
+            }
+            DatabaseBackend::Schema(x) => {
+                x.auto_completion(query_id, &sql, line, col, use_lexer)
+                    .await
+            }
         }
     })
     .await

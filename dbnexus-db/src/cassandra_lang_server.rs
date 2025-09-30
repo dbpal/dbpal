@@ -13,7 +13,7 @@ use cql3_parser::insert::InsertValues;
 use cql3_parser::select::SelectElement;
 
 use crate::cassandra::{AppSession, CassandraDB};
-use crate::db::{AutoCompletionQueryId, CreatedTypeDef, DBTrait};
+use crate::db::{CreatedTypeDef, DBTrait};
 use crate::language_server::{
     CompletionItem, CompletionKind, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer,
     LexerCompletionTrait, remove_duplicate,
@@ -38,8 +38,9 @@ impl LanguageServer for CassandraDB {
     }
 
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        self.completion_id.set_optional(query_id);
         //
         let dot = self.try_completion_dot(sql, line, col).await;
 
@@ -125,7 +126,7 @@ impl LexerCompletionTrait for CassandraDB {
 
 impl CassandraDB {
     fn get_query_session(&self) -> anyhow::Result<Arc<AppSession>> {
-        match self.query_connection.get(&AutoCompletionQueryId::get()) {
+        match self.query_connection.get(&self.completion_id.get()) {
             Some(x) => anyhow::Ok(x.clone()),
             None => anyhow::bail!("connection closed???"),
         }

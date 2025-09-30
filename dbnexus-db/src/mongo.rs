@@ -86,7 +86,7 @@ impl LanguageServer for MongoDB {
     }
 
     async fn auto_completion(
-        &self, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
+        &self, _query_id: Option<u32>, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         not_support_feature(self.backend_name())
     }

@@ -10,12 +10,12 @@ use redis::aio::MultiplexedConnection;
 use redis::{AsyncCommands, AsyncIter};
 use tokio::sync::Mutex;
 
-use crate::db::{AutoCompletionQueryId, GetBackendKind, not_support_feature};
+use crate::db::{GetBackendKind, not_support_feature};
 use crate::language_server::{CompletionItem, CompletionKind, GetKeyWords, LanguageServer, in_pos};
 use crate::redis::{RedisDB, RedisToken, RedisType, get_command_from_sql};
 impl RedisDB {
     fn get_query_conn(&self) -> anyhow::Result<Arc<Mutex<MultiplexedConnection>>> {
-        let conn = self.query_connections.get(&AutoCompletionQueryId::get());
+        let conn = self.query_connections.get(&self.completion_id.get());
         match conn {
             Some(x) => anyhow::Ok(x.clone()),
             None => anyhow::bail!("should be able get connection"),
@@ -1360,8 +1360,9 @@ impl LanguageServer for RedisDB {
     }
 
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, _use_lexer: bool,
+        &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, _use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        self.completion_id.set_optional(query_id);
         let pos = sqlparser::tokenizer::Location {
             line: line as u64,
             column: col as u64,

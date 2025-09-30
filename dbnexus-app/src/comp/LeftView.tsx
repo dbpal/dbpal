@@ -13,7 +13,6 @@ import {
   modalHandleClose,
   makeExtractTableSelectSort,
   makeExtractTableSelectWhere,
-  setAutoCompletionName,
   makeShowViewFn,
   makeInvalidCassandraTableCache,
   makePutValueInSql,
@@ -61,10 +60,8 @@ import {
   saveAndSetSize,
   secondConfirm,
   SettingContext,
-  TabActiveContext,
   TabsSetContext,
   UuidContext,
-  WindowFocusContext,
 } from './helper';
 import { ExceedMaxTreeItem, MenuRefresh } from './CommonComp';
 import { MongoTable } from './MongoDB';
@@ -196,13 +193,6 @@ function StatementStructure(props: {
   const [sql, setSql] = useState('');
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
-  const vis = useContext(TabActiveContext);
-  const focus = useContext(WindowFocusContext);
-  useEffect(() => {
-    if (vis && focus) {
-      setAutoCompletionName(uuid);
-    }
-  }, [vis, focus]);
   const handleReload = () => {
     setLoading(true);
     invoke<string>('create_view_sql', {
@@ -559,6 +549,7 @@ function ViewMenu(props: {
               uuid,
               view
             )}
+            isTable={false}
             extractTableSelectSort={makeExtractTableSelectSort(uuid)}
             extractTableSelectWhere={makeExtractTableSelectWhere(uuid)}
             tableName={view}

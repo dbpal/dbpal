@@ -1,7 +1,7 @@
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
 use std::ops::DerefMut;
 
-use crate::db::{AutoCompletionQueryId, name_start_ascii_alphabetic};
+use crate::db::name_start_ascii_alphabetic;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc, GetKeyWords, LangServerCommon,
     LanguageServer, try_parser_dot_lexer,
@@ -139,7 +139,7 @@ impl LangServerCommon for SqliteDB {
         let sql = "PRAGMA database_list";
         log::info!("sql:{}", sql);
 
-        let rows = match self.query_connection.get(&AutoCompletionQueryId::get()) {
+        let rows = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
                 let conn = conn.deref_mut();
@@ -179,8 +179,9 @@ impl LanguageServer for SqliteDB {
     }
 
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
@@ -202,7 +203,7 @@ impl SqliteDB {
         );
         log::info!("sql:{}", sql);
 
-        let rows = match self.query_connection.get(&AutoCompletionQueryId::get()) {
+        let rows = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
                 sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -238,7 +239,7 @@ impl SqliteDB {
 #[async_trait::async_trait]
 impl AstCompletionHelper for SqliteDB {
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        let s = match self.query_connection.get(&AutoCompletionQueryId::get()) {
+        let s = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
                 let conn = conn.deref_mut();

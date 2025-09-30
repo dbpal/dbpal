@@ -5,7 +5,7 @@ use crate::datasource_config::MysqlDBConfig;
 use crate::db::DBTrait;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, GetKeyWords,
-    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -47,9 +47,9 @@ impl LanguageServer for TiDB {
     }
 
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+        LanguageServer::auto_completion(self.db.as_ref(), query_id, sql, line, col, use_lexer).await
     }
     fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         LanguageServer::parse_error(self.db.as_ref(), sql)

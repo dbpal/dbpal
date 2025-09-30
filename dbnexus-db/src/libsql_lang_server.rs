@@ -1,4 +1,4 @@
-use crate::db::{AutoCompletionQueryId, name_start_ascii_alphabetic};
+use crate::db::name_start_ascii_alphabetic;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc, GetKeyWords, LangServerCommon,
     LanguageServer, try_parser_dot_lexer,
@@ -37,8 +37,9 @@ impl LanguageServer for LibSqlDB {
     }
 
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
     fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
@@ -162,7 +163,7 @@ impl LangServerCommon for LibSqlDB {
     }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let sql = "PRAGMA database_list";
-        let mut rows = match self.query_connections.get(&AutoCompletionQueryId::get()) {
+        let mut rows = match self.query_connections.get(&self.completion_id.get()) {
             Some(conn) => conn.query(sql, params!()).await?,
             None => {
                 let conn = self.get_conn().await?;

@@ -2,7 +2,7 @@ use crate::cockroach::{COCKROACH_TYPES, CockRoachDB};
 
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, DBExecutable, ErrAndLoc, GetKeyWords, LangServerCommon,
-    LanguageServer, LexerCompletionTrait, PostGresExtension, try_parser_dot_lexer,
+    LanguageServer, LexerCompletionTrait, PostGresExtension,
 };
 use crate::sqlparser_completion::TempTableColumn;
 
@@ -26,9 +26,9 @@ impl LanguageServer for CockRoachDB {
     }
 
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+        LanguageServer::auto_completion(self.db.as_ref(), query_id, sql, line, col, use_lexer).await
     }
 
     fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {

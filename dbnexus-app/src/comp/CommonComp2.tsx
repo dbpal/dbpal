@@ -343,7 +343,11 @@ function EditorBar(props: { left?: any; pos: Position }) {
     <Stack justifyContent="space-between" direction="row" alignItems="center">
       {left ? left : <span></span>}
 
-      <Stack direction="row" spacing={1}>
+      <Stack
+        direction="row"
+        spacing={1}
+        style={{ paddingLeft: '1rem', paddingRight: '1rem' }}
+      >
         <span>Ln {pos ? pos.lineNumber : ''}</span>
         <span>Col {pos ? pos.column : ''}</span>
       </Stack>

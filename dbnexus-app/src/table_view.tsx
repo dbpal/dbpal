@@ -69,6 +69,7 @@ switch (kind) {
         reloadOP={
           isTable ? makeShowTableFn(uuid, table) : makeShowViewFn(uuid, table)
         }
+        isTable={isTable}
         updateOP={isTable ? makeTableUpdate(uuid, table) : undefined}
         deleteOP={isTable ? makeTableDelete(uuid, table) : undefined}
         put_value_in_sql={makePutValueInSql(uuid)}

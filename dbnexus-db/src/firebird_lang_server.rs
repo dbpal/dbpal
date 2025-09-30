@@ -30,7 +30,7 @@ impl LanguageServer for FireBirdDB {
     }
 
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, _query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }

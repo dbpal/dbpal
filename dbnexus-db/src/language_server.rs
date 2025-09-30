@@ -17,7 +17,7 @@ use crate::sqlparser_completion::{CompletionStatement, Scopes, TempTableColumn};
 #[async_trait::async_trait]
 pub trait LanguageServer: GetBackendKind + GetKeyWords {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<Vec<CompletionItem>>;
 
     fn parse_error(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
@@ -1237,7 +1237,7 @@ select xxxx
             for i in item.tests.iter() {
                 log::trace!("on pos:{}:{}", item.line, i.0);
                 let items = db
-                    .auto_completion(&item.sql, 1, i.0 as u32, use_lexer)
+                    .auto_completion(None, &item.sql, 1, i.0 as u32, use_lexer)
                     .await
                     .unwrap();
                 for should in i.1.iter() {

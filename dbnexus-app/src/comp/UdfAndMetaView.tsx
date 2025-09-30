@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 
 import { NotificationContext } from './Notification';
 import { Button, Stack, Tooltip, Typography } from '@mui/material';
-import { DefAndMetas, setAutoCompletionName } from './Common';
+import { DefAndMetas, NameAndqueryId, SetAutoCompletionName } from './Common';
 import { MetaValueView, PossibleParseError } from './CommonComp';
 import {
   DataSourceKind,
@@ -12,8 +12,6 @@ import {
   makeGetParserErr,
   saveAndSetSize,
   SettingContext,
-  TabActiveContext,
-  WindowFocusContext,
 } from './helper';
 import { MultiQueryResp } from './QueryResp';
 import { editor } from 'monaco-editor';
@@ -76,13 +74,6 @@ function DefAndMetasView(props: {
   useEffect(() => {
     handleReload(false);
   }, []);
-  const active = useContext(TabActiveContext);
-  const focus = useContext(WindowFocusContext);
-  useEffect(() => {
-    if (active && focus) {
-      setAutoCompletionName(uuid);
-    }
-  }, [active, focus]);
   const [dom, setDom] = useState(null);
   useEffect(() => {
     if (dom) {
@@ -140,6 +131,10 @@ function DefAndMetasView(props: {
             value={detail.def}
             handleEditor={(ed) => {
               editor.current = ed;
+              SetAutoCompletionName.set(
+                ed.getModel().id,
+                new NameAndqueryId(uuid)
+              );
             }}
             handleValue={(sql) => {
               getParseErr(sql).then((e) => {
