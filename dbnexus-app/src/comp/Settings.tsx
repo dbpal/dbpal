@@ -306,8 +306,11 @@ function ModifySetting() {
             setDatagridRowHeightFactor(e.target.value);
           }}
           error={isNaN(parseFloat(datagridRowHeightFactor))}
-          helperText="a float value,this parameter multiply font size as the table row height"
+          helperText=""
         ></TextField>
+        <Tooltip title="a float value,this parameter multiply font size as the table row height">
+          <Typography> ?? </Typography>
+        </Tooltip>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">

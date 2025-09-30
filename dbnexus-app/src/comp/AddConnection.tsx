@@ -28,6 +28,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { AppStoreKey, extractBaseName, msgTimeout } from './Common';
 import { appStore, DataSourceKind } from './helper';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { platform } from '@tauri-apps/plugin-os';
 
 async function selectOneFile() {
   const selected = await open({
@@ -147,18 +148,20 @@ function UserAndPassword(props: {
         onChange={(e) => setPassword(e.target.value)}
         slotProps={{
           input: {
-            endAdornment: !passwordVisible && password != '' && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setPasswordVisible(true);
-                  }}
-                  edge="end"
-                >
-                  <VisibilityIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
+            endAdornment: !passwordVisible &&
+              password != '' &&
+              platform() != 'windows' && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setPasswordVisible(true);
+                    }}
+                    edge="end"
+                  >
+                    <VisibilityIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
           },
         }}
       />

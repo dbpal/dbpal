@@ -7,7 +7,7 @@ pub struct MongoDBConfig {
     pub username: Option<String>,
     pub password: Option<String>,
     pub save_password: bool,
-    #[serde(default)]
+
     pub conn_timeout: Option<u64>,
     pub db: Option<String>,
     pub read_only: bool,
@@ -24,7 +24,7 @@ pub struct MysqlDBConfig {
     pub read_only: bool,
     #[serde(flatten)]
     pub ssl: EnableSsl,
-    #[serde(default)]
+
     pub conn_timeout: Option<u32>,
 }
 
@@ -40,7 +40,7 @@ pub struct LibSqlDBConfig {
     #[serde(flatten)]
     pub source: LibSqlDBConfigSource,
     pub read_only: bool,
-    #[serde(default)]
+
     pub conn_timeout: Option<u32>,
 }
 #[derive(Clone, serde::Deserialize, serde::Serialize, TypeDef)]
@@ -78,7 +78,7 @@ pub struct ClickHouseConfig {
     pub db: Option<String>,
     pub read_only: bool,
     pub https: bool,
-    #[serde(default)]
+
     pub conn_timeout: Option<u32>,
 }
 
@@ -92,7 +92,7 @@ impl ClickHouseConfig {
 pub struct SqliteDBConfig {
     pub path: String,
     pub read_only: bool,
-    #[serde(default)]
+
     pub conn_timeout: Option<u32>,
 }
 
@@ -113,7 +113,7 @@ pub struct FireBirdConfig {
     pub save_password: bool,
     pub db: String,
     pub read_only: bool,
-    #[serde(default)]
+
     pub conn_timeout: Option<u32>,
 }
 
@@ -138,7 +138,7 @@ pub struct RedisDBConfig {
     pub save_password: bool,
     pub db: Option<String>,
     pub read_only: bool,
-    #[serde(default)]
+
     pub conn_timeout: Option<u32>,
 }
 
@@ -246,19 +246,15 @@ pub struct PGDBConfig {
     pub read_only: bool,
     #[serde(flatten)]
     pub ssl: EnableSsl,
-    #[serde(default)]
+
     pub conn_timeout: Option<u32>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef, Default)]
 pub struct EnableSsl {
-    #[serde(default)]
     pub ssl_enable: bool,
-    #[serde(default)]
     pub ssl_ca: Option<String>,
-    #[serde(default)]
     pub ssl_cert: Option<String>,
-    #[serde(default)]
     pub ssl_key: Option<String>,
 }
 
@@ -283,7 +279,7 @@ pub struct SqlServerDBConfig {
     pub trust_cert: bool,
     pub schema: Option<String>,
     pub read_only: bool,
-    #[serde(default)]
+
     pub conn_timeout: Option<u32>,
 }
 
@@ -305,7 +301,7 @@ pub struct OracleDBConfig {
     pub host: String,
     pub port: u16,
     pub schema: Option<String>,
-    #[serde(default)]
+
     pub conn_timeout: Option<u32>,
     pub read_only: bool,
     pub db: String,
@@ -320,7 +316,7 @@ pub struct CassandraDBConfig {
     pub save_password: bool,
     pub db: Option<String>,
     pub read_only: bool,
-    #[serde(default)]
+
     pub conn_timeout: Option<u32>,
 }
 

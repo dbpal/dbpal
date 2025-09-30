@@ -18,7 +18,7 @@ use crate::db::{
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
     Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, POOL_MAX_CONNECTIONS,
     ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
+    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
     UdfOrProcedureExtraParameter, XlsxEdit, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
@@ -1144,7 +1144,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowExtraArgs>,
+        page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(view_name, where_str).await?;
 
@@ -1438,7 +1438,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowExtraArgs>,
+        page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str).await?;
         let sql = gen_show_sql(
@@ -2140,7 +2140,7 @@ pub(crate) async fn make_test_object() -> PostGresDB {
         read_only: false,
         save_password: true,
         ssl: Default::default(),
-        conn_timeout: Some(1000),
+        conn_timeout: Some(500),
     })
     .await
     .unwrap();

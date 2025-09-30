@@ -3,7 +3,7 @@ use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
     NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail,
-    ServerMetas, ShowExtraArgs, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
+    ServerMetas, ShowTableExtraArgs, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
     XlsxEdit,
 };
 
@@ -188,7 +188,7 @@ impl SchemaTrait for MariaDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, extra: Option<ShowExtraArgs>,
+        page_size: usize, extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         self.db
             .show_table(table_name, where_str, order_by, page, page_size, extra)
@@ -274,7 +274,7 @@ impl SchemaTrait for MariaDB {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowExtraArgs>,
+        page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         self.db
             .show_view(view_name, where_str, order_by, page, page_size, None)
@@ -433,7 +433,7 @@ impl ServerMetas for MariaDB {
 #[cfg(test)]
 pub(crate) fn make_config() -> MysqlDBConfig {
     MysqlDBConfig {
-        conn_timeout: Some(1000),
+        conn_timeout: Some(500),
         host: crate::TEST_HOST.to_string(),
         username: "root".to_string(),
         password: Some("root".to_string()),

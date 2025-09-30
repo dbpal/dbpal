@@ -339,7 +339,16 @@ function ColumnsContent(props: { uuid: string; view: string }) {
     handleReload();
   }, []);
   let cols = useMemo(() => {
-    return [{ field: 'field' }, { field: 'typ' }, ,] as GridColDef[];
+    return [
+      { field: 'field' },
+      {
+        field: 'data_type',
+        renderHeader: () => {
+          return 'data type';
+        },
+      },
+      ,
+    ] as GridColDef[];
   }, []);
   cols.forEach((e) => {
     const width = ColumnWidth.instance.get(e.field);

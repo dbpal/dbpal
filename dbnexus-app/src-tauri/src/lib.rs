@@ -5,7 +5,7 @@ pub mod handlers;
 mod tests {
     use dbnexus_db::datasource_config::{CassandraDBConfig, EnableSsl, LibSqlDBConfigSource};
     use dbnexus_db::db::{
-        ColumnType, CreateTableAndIndexSql, CreatedTypeDef, SequenceDetail, ShowExtraArgs, SqlEvent,
+        ColumnType, CreateTableAndIndexSql, CreatedTypeDef, SequenceDetail, ShowTableExtraArgs, SqlEvent,
     };
 
     #[test]
@@ -61,7 +61,7 @@ mod tests {
                 &ColumnType::INFO,
                 &SequenceDetail::INFO,
                 &CreatedTypeDef::INFO,
-                &ShowExtraArgs::INFO,
+                &ShowTableExtraArgs::INFO,
                 &SqlEvent::INFO,
             ];
 

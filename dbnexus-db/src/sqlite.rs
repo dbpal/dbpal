@@ -20,7 +20,7 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
+    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
     escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
 };
 use crate::helper::create_csv;
@@ -802,7 +802,7 @@ impl SchemaTrait for SqliteDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowExtraArgs>,
+        page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         log::trace!("begin to show table");
         let total = self.query_count(table_name, where_str).await?;
@@ -825,7 +825,7 @@ impl SchemaTrait for SqliteDB {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowExtraArgs>,
+        page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let total = self.query_count(view_name, where_str).await?;
@@ -1502,7 +1502,7 @@ pub(crate) async fn make_test_object() -> SqliteDB {
         SqliteDBConfig {
             path,
             read_only: false,
-            conn_timeout: Some(1000),
+            conn_timeout: Some(500),
         },
         false,
     )

@@ -12,7 +12,7 @@ use dbnexus_db::cockroach::CockRoachDB;
 use dbnexus_db::db::{
     AutoCompletionQueryId, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedTypeDef, DefAndMetas, ExportKind, Field, Index, IndexKind,
-    ListTable, NamedStaff, ProcedureDetail, QueryResp, SequenceDetail, ShowExtraArgs, SqlEvent,
+    ListTable, NamedStaff, ProcedureDetail, QueryResp, SequenceDetail, ShowTableExtraArgs, SqlEvent,
     SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use dbnexus_db::firebird::FireBirdDB;
@@ -329,7 +329,7 @@ pub async fn show_table_columns(
 #[tauri::command]
 pub async fn show_table(
     name: String, table_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize, extra: Option<ShowExtraArgs>, app: tauri::State<'_, App>,
+    page_size: usize, extra: Option<ShowTableExtraArgs>, app: tauri::State<'_, App>,
 ) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -638,7 +638,7 @@ pub async fn drop_table(
 #[tauri::command]
 pub async fn show_view(
     name: String, view_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize, extra: Option<ShowExtraArgs>, app: tauri::State<'_, App>,
+    page_size: usize, extra: Option<ShowTableExtraArgs>, app: tauri::State<'_, App>,
 ) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;

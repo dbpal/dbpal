@@ -17,7 +17,7 @@ use crate::datasource_config::RedisDBConfig;
 use crate::db::{
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
     GetBackendKind, ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlExecuteRet, XlsxEdit,
+    ShowTableExtraArgs, SqlExecuteRet, XlsxEdit,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 use crate::meta_value::MetaValue;
@@ -1247,7 +1247,7 @@ impl SchemaTrait for RedisDB {
 
     async fn show_table(
         &self, key: &str, where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize, _extra: Option<ShowExtraArgs>,
+        _page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
         let typ = Self::get_key_type(&mut conn, key).await?;
@@ -2026,7 +2026,7 @@ pub(crate) async fn make_test_object() -> RedisDB {
         password: None,
         db: Some("db0".to_string()),
         read_only: false,
-        conn_timeout: Some(1000),
+        conn_timeout: Some(500),
         save_password: true,
     })
     .await

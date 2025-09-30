@@ -16,7 +16,7 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit, escape_sql_str,
+    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
@@ -775,7 +775,7 @@ impl SchemaTrait for LibSqlDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowExtraArgs>,
+        page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str).await?;
         let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
@@ -793,7 +793,7 @@ impl SchemaTrait for LibSqlDB {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowExtraArgs>,
+        page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         let conn = self.get_conn().await?;
         let total = self.query_count(view_name, where_str).await?;
@@ -1162,7 +1162,7 @@ fn encode_row_as_json(r: &Row) -> anyhow::Result<serde_json::Value> {
 // this test no need clean up, we use memory sqlite db.
 pub(crate) async fn make_test_object() -> LibSqlDB {
     LibSqlDB::new(LibSqlDBConfig {
-        conn_timeout: None,
+        conn_timeout: Some(500),
         replica: false,
         source: LibSqlDBConfigSource::Remote {
             url: "http://localhost:8080".to_string(),

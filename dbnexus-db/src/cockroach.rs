@@ -12,7 +12,7 @@ use crate::db::{
     BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind,
     Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet,
+    SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
     UdfOrProcedureExtraParameter, XlsxEdit,
 };
 use crate::meta_value::MetaValue;
@@ -50,7 +50,7 @@ pub(crate) async fn make_test_object() -> CockRoachDB {
         read_only: false,
         save_password: true,
         ssl: Default::default(),
-        conn_timeout: Some(1000),
+        conn_timeout: Some(500),
     })
     .await
     .unwrap();
@@ -289,7 +289,7 @@ impl SchemaTrait for CockRoachDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowExtraArgs>,
+        page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         let fields = self.show_table_columns(table_name).await?;
         let cols = fields.iter().map(|x| x.field.as_str()).collect::<Vec<_>>();
@@ -402,7 +402,7 @@ impl SchemaTrait for CockRoachDB {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, extra: Option<ShowExtraArgs>,
+        page_size: usize, extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         self.db
             .show_view(view_name, where_str, order_by, page, page_size, extra)

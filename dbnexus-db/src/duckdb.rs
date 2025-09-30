@@ -18,7 +18,7 @@ use crate::db::{
     CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
     IndexKind, ListTable, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, not_support_features,
+    ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
 use crate::meta_value::MetaValue;
@@ -1218,7 +1218,7 @@ impl SchemaTrait for DuckDB {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _duckdb_extracted_statementsextra: Option<ShowExtraArgs>,
+        page_size: usize, _duckdb_extracted_statementsextra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(view_name, where_str.clone())?;
         let sql = gen_show_sql(
@@ -1402,7 +1402,7 @@ impl SchemaTrait for DuckDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowExtraArgs>,
+        page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str.clone())?;
         let sql = gen_show_sql(

@@ -120,7 +120,7 @@ pub trait SchemaTrait:
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, extra: Option<ShowExtraArgs>,
+        page_size: usize, extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp>;
 
     async fn table_insert(
@@ -206,7 +206,7 @@ pub trait SchemaTrait:
 
     async fn show_view(
         &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize, _extra: Option<ShowExtraArgs>,
+        _page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         not_support_feature(self.backend_name())
     }
@@ -1339,7 +1339,7 @@ impl PartialEq for TriggerDetail {
     Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq, typescript_type_def::TypeDef,
 )]
 #[serde(tag = "extra", rename_all = "lowercase")]
-pub enum ShowExtraArgs {
+pub enum ShowTableExtraArgs {
     Cassandra { allow_filtering: bool },
 }
 

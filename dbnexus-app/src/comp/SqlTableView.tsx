@@ -301,7 +301,7 @@ function SqlTableView_(props: {
     orderBy: string,
     page: number,
     pageSize: number,
-    extra: types.ShowExtraArgs
+    extra: types.ShowTableExtraArgs
   ) => Promise<MuiDataGridData>;
   updateOP?: (wheres: object, values: object) => Promise<types.SqlExecuteRet>;
   deleteOP?: (wheres: object) => Promise<types.SqlExecuteRet>;
@@ -403,7 +403,7 @@ function SqlTableView_(props: {
   const handleReload = async (showOK: boolean) => {
     setLoading(true);
     try {
-      let extra = null as types.ShowExtraArgs;
+      let extra = null as types.ShowTableExtraArgs;
       switch (kind) {
         case DataSourceKind.Cassandra:
           extra = { extra: 'cassandra', allow_filtering: allowFiltering };

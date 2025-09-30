@@ -78,6 +78,7 @@ import {
 } from './helper';
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from './CommonComp';
 import { TableStructure } from './TableStructure';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 enum TableType {
   Normal,
@@ -747,14 +748,20 @@ function TableMenu(props: {
       });
   };
 
-  const handleViewData = async () => {
+  const handleviewDataNewWindow = () => {
+    const webview = new WebviewWindow('1111111', {
+      title: 'xxx',
+      url: 'TableView.html',
+      width: 800,
+      height: 600,
+    });
+    webview.once('tauri://created', () => console.log('创建成功'));
+    webview.once('tauri://error', (e) => console.error('创建失败', e));
+  };
+
+  const handleViewData = () => {
     const id = uuid + '-table-' + generateRandomString(10);
-    let tableList: ReactNode = await makeViewTable(
-      uuid,
-      table,
-      kind,
-      redisTableType
-    );
+    let tableList: ReactNode = makeViewTable(uuid, table, kind, redisTableType);
     setTabs((e) => {
       setTimeout(() => {
         setSelectTab(tabs.length);
@@ -822,6 +829,16 @@ function TableMenu(props: {
   return (
     <div>
       <MenuList>
+        <MenuItem
+          onClick={() => {
+            handleviewDataNewWindow();
+          }}
+        >
+          <ListItemIcon>
+            <ListIcon></ListIcon>
+          </ListItemIcon>
+          <ListItemText> View Data(window)</ListItemText>
+        </MenuItem>
         <MenuItem
           onClick={() => {
             handleViewData();

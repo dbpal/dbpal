@@ -17,7 +17,7 @@ use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
     GetBackendKind, Index, IndexKind, ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlExecuteRet, XlsxEdit, not_support_feature,
+    ServerMetas, ShowTableExtraArgs, SqlExecuteRet, XlsxEdit, not_support_feature,
 };
 use crate::language_server::{CompletionItem, GetKeyWords, LanguageServer};
 use crate::meta_value::MetaValue;
@@ -662,7 +662,7 @@ impl SchemaTrait for MongoDB {
 
     async fn show_view(
         &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize, _extra: Option<ShowExtraArgs>,
+        _page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         anyhow::bail!("use mongo special method")
     }
@@ -750,7 +750,7 @@ impl SchemaTrait for MongoDB {
 
     async fn show_table(
         &self, _table_name: &str, _filter: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize, _extra: Option<ShowExtraArgs>,
+        _page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         anyhow::bail!("use mongo special method")
     }
@@ -865,7 +865,7 @@ impl MongoDB {
 #[allow(unused)]
 pub(crate) fn make_test_object() -> MongoDB {
     let x = MongoDB::new(MongoDBConfig {
-        conn_timeout: Some(1000),
+        conn_timeout: Some(500),
         host: TEST_HOST.to_string(),
         port: 27017,
         username: None,

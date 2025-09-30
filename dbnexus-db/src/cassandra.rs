@@ -32,7 +32,7 @@ use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef,
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
     ListTable, NamedStaff, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
+    ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
     escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::{create_csv, current_timestamp};
@@ -86,7 +86,7 @@ struct PageCache {
 struct PageCacheCondition {
     where_str: Option<String>,
     order_by: Option<String>,
-    extra: Option<ShowExtraArgs>,
+    extra: Option<ShowTableExtraArgs>,
 }
 
 impl PageCache {
@@ -166,7 +166,14 @@ async fn make_session(
 }
 impl CassandraDB {
     pub async fn new(config: CassandraDBConfig) -> anyhow::Result<Self> {
-        let session = make_session(&config, POOL_MAX_CONNECTIONS as usize).await?;
+        let session = tokio::time::timeout(
+            config
+                .conn_timeout
+                .map(|x| Duration::from_millis(x as u64))
+                .unwrap_or(Duration::from_secs(3)),
+            async { make_session(&config, POOL_MAX_CONNECTIONS as usize).await },
+        )
+        .await??;
         anyhow::Ok(Self {
             session: Arc::new(session),
             config,
@@ -963,7 +970,7 @@ impl CassandraDB {
 
     async fn page_caching_show(
         &self, name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, extra: Option<ShowExtraArgs>,
+        page_size: usize, extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         // try get value from cache
         let condition: PageCacheCondition = PageCacheCondition {
@@ -996,7 +1003,7 @@ impl CassandraDB {
         );
         let allow_filtering = match &extra {
             Some(x) => match x {
-                ShowExtraArgs::Cassandra { allow_filtering } => *allow_filtering,
+                ShowTableExtraArgs::Cassandra { allow_filtering } => *allow_filtering,
             },
             None => false,
         };
@@ -1522,7 +1529,7 @@ impl SchemaTrait for CassandraDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, extra: Option<ShowExtraArgs>,
+        page_size: usize, extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         let mut ret = self
             .page_caching_show(table_name, where_str, order_by, page, page_size, extra)
@@ -1688,7 +1695,7 @@ impl SchemaTrait for CassandraDB {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, extra: Option<ShowExtraArgs>,
+        page_size: usize, extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         self.show_table(view_name, where_str, order_by, page, page_size, extra)
             .await
@@ -1984,7 +1991,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         password: Some("cassandra".to_string()),
         read_only: false,
         db,
-        conn_timeout: Some(1000),
+        conn_timeout: Some(500),
         save_password: true,
     })
     .await
@@ -3085,7 +3092,7 @@ mod tests {
                 None,
                 1,
                 100,
-                Some(ShowExtraArgs::Cassandra {
+                Some(ShowTableExtraArgs::Cassandra {
                     allow_filtering: true,
                 }),
             )

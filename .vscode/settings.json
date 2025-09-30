@@ -200,6 +200,7 @@
     "LASTNAME",
     "LASTSAVE",
     "LCASE",
+    "libduckdb",
     "libsql",
     "LINDEX",
     "LINSERT",

@@ -919,7 +919,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
     // https://github.com/launchbadge/sqlx/issues/4031
     // due to this issue , somebackend only allow use commit or rollback on ui
     fn contains_tx_operation_error(&self, sql: &str) -> anyhow::Result<()> {
-        let ss = self.parse_statements(sql).unwrap();
+        let ss = self.parse_statements(sql).unwrap_or_default();
         for s in ss.iter() {
             match s {
                 Statement::Commit { .. }

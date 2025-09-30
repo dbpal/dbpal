@@ -37,7 +37,7 @@ use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     BackendKind, CheckConn, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
     ListTable, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowExtraArgs, SqlBuilder, SqlExecuteRet, XlsxEdit, escape_sql_str,
+    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
 use crate::helper::create_csv;
@@ -726,7 +726,7 @@ impl SchemaTrait for FireBirdDB {
 
     async fn show_table(
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowExtraArgs>,
+        page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
         log::info!("sql:{}", sql);
@@ -936,7 +936,7 @@ impl SchemaTrait for FireBirdDB {
 
     async fn show_view(
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowExtraArgs>,
+        page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
         log::info!("sql:{}", sql);
@@ -1106,7 +1106,7 @@ pub(crate) fn make_test_object() -> FireBirdDB {
         password: "root".to_string(),
         db: "/var/lib/firebird/data/test.fdb".to_string(),
         read_only: false,
-        conn_timeout: Some(1000),
+        conn_timeout: Some(500),
         save_password: true,
     })
     .unwrap()

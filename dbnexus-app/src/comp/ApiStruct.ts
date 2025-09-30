@@ -340,7 +340,7 @@ export namespace types {
         "name": string;
         "sql": (string | null);
     };
-    export type ShowExtraArgs = ({
+    export type ShowTableExtraArgs = ({
         "extra": "cassandra";
     } & {
         "allow_filtering": boolean;

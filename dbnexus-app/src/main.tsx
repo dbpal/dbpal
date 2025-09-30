@@ -6,67 +6,14 @@ import './comp/MainPage';
 import MainPage from './comp/MainPage';
 import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
-import { platform } from '@tauri-apps/plugin-os';
-import {
-  appStore,
-  AppStoreKey,
-  secondConfirm,
-  UserSetting,
-  windowFocusChangeEvent,
-} from './comp/helper';
-import { emit, listen } from '@tauri-apps/api/event';
+import {} from '@tauri-apps/plugin-os';
+import { secondConfirm, windowInit } from './comp/helper';
+
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-const currentWebview = WebviewWindow.getCurrent();
-async function setZoom(out: boolean) {
-  let zoom = await appStore.get<number>(AppStoreKey.Zoom);
-  if (!zoom) {
-    zoom = 1;
-  }
-  const min = 0.5;
-  const max = 1.5;
-  if (out) {
-    zoom += 0.1;
-    if (zoom > max) {
-      zoom = max;
-    }
-  } else {
-    zoom -= 0.1;
-    if (zoom < min) {
-      zoom = min;
-    }
-  }
-  currentWebview.setZoom(zoom);
-  await appStore.set(AppStoreKey.Zoom, zoom);
-}
 
-listen('zoom_in', async (_) => {
-  await setZoom(false);
-});
+windowInit();
 
-listen('zoom_out', async (_) => {
-  await setZoom(true);
-});
-listen('zoom_reset', async (_) => {
-  currentWebview.setZoom(1);
-  appStore.set(AppStoreKey.Zoom, 1);
-});
-
-appStore.get<number>(AppStoreKey.Zoom).then(async (zoom) => {
-  if (zoom) {
-    await currentWebview.setZoom(zoom);
-  }
-});
-
-if (['windows', 'linux'].includes(platform())) {
-  document.addEventListener('keydown', function (event) {
-    if (event.key === 'F11') {
-      currentWebview.isFullscreen().then((isFull) => {
-        currentWebview.setFullscreen(!isFull);
-      });
-    }
-  });
-}
-
+const currentWebview = await WebviewWindow.getCurrent();
 currentWebview.onCloseRequested(async (event) => {
   let confirm = await secondConfirm({
     title: 'close the window',
@@ -77,44 +24,6 @@ currentWebview.onCloseRequested(async (event) => {
     event.preventDefault();
   }
 });
-
-currentWebview.onFocusChanged((x) => {
-  emit(windowFocusChangeEvent, x.payload);
-});
-
-if (!import.meta.env.DEV) {
-  currentWebview.theme().then(async (theme) => {
-    if (!theme) {
-      return;
-    }
-    let set = await UserSetting.get();
-    set.theme = theme;
-    appStore.set(AppStoreKey.UserSetting, set);
-  });
-}
-
-currentWebview.onThemeChanged(async (msg) => {
-  let set = await UserSetting.get();
-  set.theme = msg.payload;
-  appStore.set(AppStoreKey.UserSetting, set);
-});
-
-if (!import.meta.env.DEV) {
-  document.addEventListener('contextmenu', function (event) {
-    event.preventDefault();
-  });
-
-  document.addEventListener('keydown', function (event) {
-    // Prevent F5 or Ctrl+R (Windows/Linux) and Command+R (Mac) from refreshing the page
-    if (
-      event.key === 'F5' ||
-      (event.ctrlKey && event.key === 'r') ||
-      (event.metaKey && event.key === 'r')
-    ) {
-      event.preventDefault();
-    }
-  });
-}
 
 if (import.meta.env.DEV) {
   invoke('page_init_callback')
