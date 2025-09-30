@@ -443,7 +443,9 @@ fn main_() {
             if event.id.0 == "open_dev_tools" {
                 let windows = handle.webview_windows();
                 for w in windows.values() {
-                    w.open_devtools();
+                    if w.is_focused().unwrap_or_default() {
+                        w.open_devtools();
+                    }
                 }
             }
             if event.id.0 == "zoom_in" {

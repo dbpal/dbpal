@@ -171,10 +171,26 @@ function MenuNewQuery({ handleNew }) {
       <ListItemIcon>
         <AddIcon></AddIcon>
       </ListItemIcon>
-      <ListItemText> New Query </ListItemText>
+      <ListItemText>New Query </ListItemText>
     </MenuItem>
   );
 }
+
+function MenuNewQueryWindow({ handleNew }) {
+  return (
+    <MenuItem
+      onClick={() => {
+        handleNew();
+      }}
+    >
+      <ListItemIcon>
+        <AddIcon></AddIcon>
+      </ListItemIcon>
+      <ListItemText>New Query(new window) </ListItemText>
+    </MenuItem>
+  );
+}
+
 function MenuCreateDatabase({ handleCreate }) {
   return (
     <MenuItem
@@ -329,9 +345,9 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
     try {
       await invoke('open_conn', { name });
       const kind = connTypeToDataSourceKind(config.conn_type);
-      if (kind != DataSourceKind.Mongo) {
-        await initMonacoLanguage(name, kind, showNotification);
-      }
+      await initMonacoLanguage(name, kind, (msg) => {
+        showNotification('error', msg);
+      });
     } catch (e) {
       showNotification('error', 'open connection failed', e);
       return;
@@ -1113,4 +1129,5 @@ export {
   SelectColumns,
   OpenFileWithDefaultApp,
   MenuExportMarkDownTable,
+  MenuNewQueryWindow,
 };

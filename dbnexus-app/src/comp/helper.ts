@@ -694,6 +694,29 @@ class MongoTableHandler {
       }
     }
   }
+
+
+  static modifyOP(uuid, table) {
+    return async (doc) => {
+      return invoke<void>('mongo_update_one', {
+        name: uuid,
+        tableName: table,
+        doc: BSON.serialize(doc),
+      });
+    }
+  }
+  static deleteOP(uuid, table) {
+    return async (ids) => {
+      if (!Array.isArray(ids)) {
+        ids = [ids];
+      }
+      return invoke<void>('mongo_delete_ids', {
+        name: uuid,
+        tableName: table,
+        ids: JSON.stringify(EJSON.serialize(ids)),
+      });
+    }
+  }
 }
 
 
@@ -746,7 +769,7 @@ class UserSetting {
 
 const SettingContext = createContext<UserSetting>(null);
 const windowFocusChangeEvent = "window-focus-change-event";
-const WindowFocusChangeContext = createContext(true);
+const WindowFocusContext = createContext(true);
 
 function editorSetPositionAndReveal(editor: editor.IStandaloneCodeEditor, pos: Position) {
   editor.setPosition(pos);
@@ -960,7 +983,7 @@ async function setZoom(out: boolean) {
 
 
 
-async function windowInit() {
+async function windowInit(isMain: boolean) {
   const currentWebview = await WebviewWindow.getCurrent();
   listen('zoom_in', async (_) => {
     await setZoom(false);
@@ -993,22 +1016,25 @@ async function windowInit() {
     emit(windowFocusChangeEvent, x.payload);
   });
 
-  if (!import.meta.env.DEV) {
-    currentWebview.theme().then(async (theme) => {
-      if (!theme) {
-        return;
-      }
+
+  if (isMain) {
+    if (!import.meta.env.DEV) {
+      currentWebview.theme().then(async (theme) => {
+        if (!theme) {
+          return;
+        }
+        let set = await UserSetting.get();
+        set.theme = theme;
+        appStore.set(AppStoreKey.UserSetting, set);
+      });
+    }
+
+    currentWebview.onThemeChanged(async (msg) => {
       let set = await UserSetting.get();
-      set.theme = theme;
+      set.theme = msg.payload;
       appStore.set(AppStoreKey.UserSetting, set);
     });
   }
-
-  currentWebview.onThemeChanged(async (msg) => {
-    let set = await UserSetting.get();
-    set.theme = msg.payload;
-    appStore.set(AppStoreKey.UserSetting, set);
-  });
 
   if (!import.meta.env.DEV) {
     document.addEventListener('contextmenu', function (event) {
@@ -1029,11 +1055,16 @@ async function windowInit() {
 }
 
 
-
-function abc() {
-  console.log("!!!!!!!!!!!!!!!!", abc);
-
+enum RedisTableType {
+  String = 'string',
+  List = 'list',
+  Set = 'set',
+  Zset = 'zset',
+  Hash = 'hash',
 }
+
+
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -1071,7 +1102,7 @@ export {
   SettingContext,
   SetCloseConfirmTextContext,
   windowFocusChangeEvent,
-  WindowFocusChangeContext,
+  WindowFocusContext,
   gridStyle,
   editorSetPositionAndReveal,
   postgresLike,
@@ -1093,7 +1124,7 @@ export {
   SaveLeftTopShow,
   setZoom,
   windowInit,
-  abc
+  RedisTableType,
 };
 
 

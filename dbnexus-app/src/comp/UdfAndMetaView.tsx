@@ -13,6 +13,7 @@ import {
   saveAndSetSize,
   SettingContext,
   TabActiveContext,
+  WindowFocusContext,
 } from './helper';
 import { MultiQueryResp } from './QueryResp';
 import { editor } from 'monaco-editor';
@@ -76,13 +77,12 @@ function DefAndMetasView(props: {
     handleReload(false);
   }, []);
   const active = useContext(TabActiveContext);
-
+  const focus = useContext(WindowFocusContext);
   useEffect(() => {
-    if (active) {
+    if (active && focus) {
       setAutoCompletionName(uuid);
     }
-  }, [active]);
-
+  }, [active, focus]);
   const [dom, setDom] = useState(null);
   useEffect(() => {
     if (dom) {

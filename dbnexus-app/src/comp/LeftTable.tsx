@@ -6,6 +6,11 @@ import {
   modalHandleClose,
   makeExtractTableSelectSort,
   makeExtractTableSelectWhere,
+  makeShowTableFn,
+  makeTableUpdate,
+  makeTableDelete,
+  makeInvalidCassandraTableCache,
+  makePutValueInSql,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -59,7 +64,7 @@ import {
   RedisZsetTable,
 } from './Redis';
 import { MongoTable, MongoTableAdd } from './MongoDB';
-import { BSON, EJSON } from 'bson';
+import { BSON } from 'bson';
 import {
   calMenuStyle,
   ConnTypeContext,
@@ -75,6 +80,7 @@ import {
   getSupportExportKind,
   MuiDataGridData,
   SettingContext,
+  RedisTableType,
 } from './helper';
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from './CommonComp';
 import { TableStructure } from './TableStructure';
@@ -297,6 +303,169 @@ function DropTable(props: {
   );
 }
 
+function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
+  let tableList;
+  switch (redisType) {
+    case RedisTableType.String:
+      tableList = (
+        <RedisStringTable
+          modifyOP={async (value) => {
+            return await invoke('redis_string_set', {
+              name: uuid,
+              key: table,
+              value,
+            });
+          }}
+          loadContent={async () => {
+            return invoke<MuiDataGridData>('show_table', {
+              name: uuid,
+              tableName: table,
+              whereStr: null,
+              orderBy: null,
+              page: 0,
+              pageSize: 0,
+            }).then((x) => {
+              return x.data[0]['result'];
+            });
+          }}
+        ></RedisStringTable>
+      );
+      break;
+    case RedisTableType.List:
+      tableList = (
+        <RedisListTable
+          reloadOP={async () => {
+            return await invoke('show_table', {
+              name: uuid,
+              tableName: table,
+              page: 0,
+              pageSize: 0,
+              whereStr: null,
+              orderBy: null,
+            });
+          }}
+          modifyOP={async (index, value) => {
+            return await invoke('redis_list_set', {
+              name: uuid,
+              key: table,
+              value,
+              index,
+            });
+          }}
+          delOP={async (count, value) => {
+            return await invoke('redis_list_remove', {
+              name: uuid,
+              key: table,
+              value,
+              count,
+            });
+          }}
+        ></RedisListTable>
+      );
+      break;
+
+    case RedisTableType.Set:
+      tableList = (
+        <RedisSetTable
+          reloadOP={async (keyMatch) => {
+            return await invoke('show_table', {
+              name: uuid,
+              tableName: table,
+              page: 0,
+              pageSize: 0,
+              whereStr: keyMatch ? keyMatch : null,
+              orderBy: null,
+            });
+          }}
+          modifyOP={async (old, newValue) => {
+            return await invoke('redis_set_replace', {
+              name: uuid,
+              key: table,
+              old,
+              new: newValue,
+            });
+          }}
+          delOP={async (member) => {
+            return await invoke('redis_set_del', {
+              name: uuid,
+              key: table,
+              member,
+            });
+          }}
+        ></RedisSetTable>
+      );
+      break;
+    case RedisTableType.Zset:
+      tableList = (
+        <RedisZsetTable
+          reloadOP={async (keyMatch, min, max) => {
+            return await invoke('redis_zset_show_table', {
+              name: uuid,
+              key: table,
+              min: typeof min == 'number' ? min : null,
+              max: typeof max == 'number' ? max : null,
+              whereStr: keyMatch ? keyMatch : null,
+            });
+          }}
+          modifyOP={async (
+            oldMember: string,
+            newKey: string,
+            newValue: number
+          ) => {
+            return await invoke('redis_zset_replace', {
+              name: uuid,
+              key: table,
+              oldMember: oldMember,
+              newMember: newKey,
+              newValue,
+            });
+          }}
+          delOP={async (member) => {
+            return await invoke('redis_zset_del', {
+              name: uuid,
+              key: table,
+              member,
+            });
+          }}
+        ></RedisZsetTable>
+      );
+      break;
+    case RedisTableType.Hash:
+      tableList = (
+        <RedisHashTable
+          reloadOP={async (keyMatch) => {
+            return await invoke('show_table', {
+              name: uuid,
+              tableName: table,
+              page: 0,
+              pageSize: 0,
+              whereStr: keyMatch ? keyMatch : null,
+              orderBy: null,
+            });
+          }}
+          delOP={async (member) => {
+            return await invoke('redis_hash_del', {
+              name: uuid,
+              key: table,
+              member,
+            });
+          }}
+          modifyOP={async (oldMember, newMember, newValue) => {
+            return await invoke('redis_hash_replace', {
+              name: uuid,
+              key: table,
+              oldMember,
+              newMember,
+              newValue,
+            });
+          }}
+        ></RedisHashTable>
+      );
+      break;
+  }
+  return tableList;
+}
+
 function makeViewTable(
   uuid,
   table: string,
@@ -322,56 +491,17 @@ function makeViewTable(
         <SqlTableView
           extractTableSelectSort={makeExtractTableSelectSort(uuid)}
           extractTableSelectWhere={makeExtractTableSelectWhere(uuid)}
-          invalidCassandraTableViewCache={async () => {
-            return invoke<void>('cassandra_invalid_table_or_view_caching', {
-              name: uuid,
-              tableName: table,
-            });
-          }}
+          invalidCassandraTableViewCache={makeInvalidCassandraTableCache(
+            uuid,
+            table
+          )}
           tableName={table}
           uuid={uuid}
           kind={kind}
-          reloadOP={async (
-            where: string,
-            orderBy: string,
-            page: number,
-            pageSize: number,
-            extra
-          ) => {
-            let where_null = where ? where : null;
-            let orderBy_null = orderBy ? orderBy : null;
-            return await invoke<MuiDataGridData>('show_table', {
-              name: uuid,
-              tableName: table,
-              whereStr: where_null,
-              orderBy: orderBy_null,
-              page,
-              pageSize,
-              extra,
-            });
-          }}
-          updateOP={async (wheres, values) => {
-            return await invoke<types.SqlExecuteRet>('table_update', {
-              name: uuid,
-              tableName: table,
-              values,
-              wheres,
-            });
-          }}
-          deleteOP={async (wheres) => {
-            return await invoke<types.SqlExecuteRet>('table_delete', {
-              name: uuid,
-              tableName: table,
-              wheres,
-            });
-          }}
-          put_value_in_sql={async (typ, value) => {
-            return invoke('put_value_in_sql', {
-              name: uuid,
-              typ,
-              value: value ? value : null,
-            });
-          }}
+          reloadOP={makeShowTableFn(uuid, table)}
+          updateOP={makeTableUpdate(uuid, table)}
+          deleteOP={makeTableDelete(uuid, table)}
+          put_value_in_sql={makePutValueInSql(uuid)}
           addOP={async (values) => {
             return invoke('table_insert', {
               name: uuid,
@@ -383,189 +513,16 @@ function makeViewTable(
       );
       break;
     case DataSourceKind.Redis:
-      switch (redisTableType) {
-        case RedisTableType.String:
-          tableList = (
-            <RedisStringTable
-              modifyOP={async (value) => {
-                return await invoke('redis_string_set', {
-                  name: uuid,
-                  key: table,
-                  value,
-                });
-              }}
-              loadContent={async () => {
-                return invoke<MuiDataGridData>('show_table', {
-                  name: uuid,
-                  tableName: table,
-                  whereStr: null,
-                  orderBy: null,
-                  page: 0,
-                  pageSize: 0,
-                }).then((x) => {
-                  return x.data[0]['result'];
-                });
-              }}
-            ></RedisStringTable>
-          );
-          break;
-        case RedisTableType.List:
-          tableList = (
-            <RedisListTable
-              reloadOP={async () => {
-                return await invoke('show_table', {
-                  name: uuid,
-                  tableName: table,
-                  page: 0,
-                  pageSize: 0,
-                  whereStr: null,
-                  orderBy: null,
-                });
-              }}
-              modifyOP={async (index, value) => {
-                return await invoke('redis_list_set', {
-                  name: uuid,
-                  key: table,
-                  value,
-                  index,
-                });
-              }}
-              delOP={async (count, value) => {
-                return await invoke('redis_list_remove', {
-                  name: uuid,
-                  key: table,
-                  value,
-                  count,
-                });
-              }}
-            ></RedisListTable>
-          );
-          break;
-
-        case RedisTableType.Set:
-          tableList = (
-            <RedisSetTable
-              reloadOP={async (keyMatch) => {
-                return await invoke('show_table', {
-                  name: uuid,
-                  tableName: table,
-                  page: 0,
-                  pageSize: 0,
-                  whereStr: keyMatch ? keyMatch : null,
-                  orderBy: null,
-                });
-              }}
-              modifyOP={async (old, newValue) => {
-                return await invoke('redis_set_replace', {
-                  name: uuid,
-                  key: table,
-                  old,
-                  new: newValue,
-                });
-              }}
-              delOP={async (member) => {
-                return await invoke('redis_set_del', {
-                  name: uuid,
-                  key: table,
-                  member,
-                });
-              }}
-            ></RedisSetTable>
-          );
-          break;
-        case RedisTableType.Zset:
-          tableList = (
-            <RedisZsetTable
-              reloadOP={async (keyMatch, min, max) => {
-                return await invoke('redis_zset_show_table', {
-                  name: uuid,
-                  key: table,
-                  min: typeof min == 'number' ? min : null,
-                  max: typeof max == 'number' ? max : null,
-                  whereStr: keyMatch ? keyMatch : null,
-                });
-              }}
-              modifyOP={async (
-                oldMember: string,
-                newKey: string,
-                newValue: number
-              ) => {
-                return await invoke('redis_zset_replace', {
-                  name: uuid,
-                  key: table,
-                  oldMember: oldMember,
-                  newMember: newKey,
-                  newValue,
-                });
-              }}
-              delOP={async (member) => {
-                return await invoke('redis_zset_del', {
-                  name: uuid,
-                  key: table,
-                  member,
-                });
-              }}
-            ></RedisZsetTable>
-          );
-          break;
-        case RedisTableType.Hash:
-          tableList = (
-            <RedisHashTable
-              reloadOP={async (keyMatch) => {
-                return await invoke('show_table', {
-                  name: uuid,
-                  tableName: table,
-                  page: 0,
-                  pageSize: 0,
-                  whereStr: keyMatch ? keyMatch : null,
-                  orderBy: null,
-                });
-              }}
-              delOP={async (member) => {
-                return await invoke('redis_hash_del', {
-                  name: uuid,
-                  key: table,
-                  member,
-                });
-              }}
-              modifyOP={async (oldMember, newMember, newValue) => {
-                return await invoke('redis_hash_replace', {
-                  name: uuid,
-                  key: table,
-                  oldMember,
-                  newMember,
-                  newValue,
-                });
-              }}
-            ></RedisHashTable>
-          );
-          break;
-      }
-
+      tableList = makeRedisViewTable(uuid, table, redisTableType);
       break;
     case DataSourceKind.Mongo:
       tableList = (
         <MongoTable
           reloadOPTableList={MongoTableHandler.reloadTableList(uuid, table)}
           reloadOPDocs={MongoTableHandler.reloadDocs(uuid, table)}
-          modifyOP={async (doc) => {
-            return invoke('mongo_update_one', {
-              name: uuid,
-              tableName: table,
-              doc: BSON.serialize(doc),
-            });
-          }}
+          modifyOP={MongoTableHandler.modifyOP(uuid, table)}
           loadOne={MongoTableHandler.loadOne(uuid, table)}
-          deleteOP={async (ids) => {
-            if (!Array.isArray(ids)) {
-              ids = [ids];
-            }
-            return invoke('mongo_delete_ids', {
-              name: uuid,
-              tableName: table,
-              ids: JSON.stringify(EJSON.serialize(ids)),
-            });
-          }}
+          deleteOP={MongoTableHandler.deleteOP(uuid, table)}
         ></MongoTable>
       );
       break;
@@ -749,14 +706,28 @@ function TableMenu(props: {
   };
 
   const handleviewDataNewWindow = () => {
-    const webview = new WebviewWindow('1111111', {
-      title: 'xxx',
-      url: 'TableView.html',
+    const webview = new WebviewWindow(generateRandomString(), {
+      title: table,
+      url:
+        'table_view.html?uuid=' +
+        uuid +
+        '&table=' +
+        table +
+        '&kind=' +
+        kind +
+        '&isTable=true' +
+        '&redisType=' +
+        redisTableType,
       width: 800,
       height: 600,
+      maximized: true,
     });
-    webview.once('tauri://created', () => console.log('创建成功'));
-    webview.once('tauri://error', (e) => console.error('创建失败', e));
+    webview.once('tauri://created', () =>
+      console.log('create table view successfully')
+    );
+    webview.once('tauri://error', (e) => {
+      showNotification('error', 'create webview failed', e.event.toString());
+    });
   };
 
   const handleViewData = () => {
@@ -831,16 +802,6 @@ function TableMenu(props: {
       <MenuList>
         <MenuItem
           onClick={() => {
-            handleviewDataNewWindow();
-          }}
-        >
-          <ListItemIcon>
-            <ListIcon></ListIcon>
-          </ListItemIcon>
-          <ListItemText> View Data(window)</ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
             handleViewData();
           }}
         >
@@ -849,6 +810,18 @@ function TableMenu(props: {
           </ListItemIcon>
           <ListItemText> View Data</ListItemText>
         </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            handleviewDataNewWindow();
+          }}
+        >
+          <ListItemIcon>
+            <ListIcon></ListIcon>
+          </ListItemIcon>
+          <ListItemText> View Data(window)</ListItemText>
+        </MenuItem>
+
         {kind != DataSourceKind.Redis && (
           <MenuItem
             onClick={() => {
@@ -1364,12 +1337,4 @@ function RedisTables() {
   );
 }
 
-enum RedisTableType {
-  String,
-  List,
-  Set,
-  Zset,
-  Hash,
-}
-
-export { TablesTree, TableType, RedisTables };
+export { TablesTree, TableType, RedisTables, makeRedisViewTable };

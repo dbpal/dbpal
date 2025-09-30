@@ -9,7 +9,6 @@ import {
   useEffect,
   useState,
 } from 'react';
-import { IoMdSettings } from 'react-icons/io';
 import { MdError } from 'react-icons/md';
 import { TabContent, TabsWithContent } from './Tabs';
 import {
@@ -22,6 +21,17 @@ import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
 import { event } from '@tauri-apps/api';
 import { RiBloggerLine } from 'react-icons/ri';
+import { SettingComp } from './Settings.tsx';
+import {
+  ContextMenuContext,
+  generateRandomString,
+  SaveDomSizes,
+  secondConfirm,
+  TabsSetContext,
+  WindowFocusContext,
+  windowFocusChangeEvent,
+} from './helper.ts';
+
 const shortCuts = {
   callback: (e: KeyboardEvent) => {
     if (platform() == 'macos') {
@@ -65,26 +75,17 @@ const shortCuts = {
   closeCurrentTab: (_: KeyboardEvent) => void;
 };
 
-import { ModifySetting, SettingComp } from './Settings.tsx';
-import {
-  ContextMenuContext,
-  generateRandomString,
-  SaveDomSizes,
-  secondConfirm,
-  TabsSetContext,
-  WindowFocusChangeContext,
-  windowFocusChangeEvent,
-} from './helper.ts';
-
 import { Box, Modal, Paper } from '@mui/material';
 import { BackendCrash } from './BackendCrash.tsx';
 import { EditConfigFile } from './EditConfigFile.tsx';
 import { ModalHeader } from './CommonComp.tsx';
 import { LogFile } from './LogFile.tsx';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+//@ts-ignore
 const showSettingID = generateRandomString();
 const openLogFileId = generateRandomString();
 
-export default function MainPage() {
+function MainPage() {
   let [tabs, setTabs] = useState<TabContent[]>([]);
   const [tab, setTab] = useState(0);
 
@@ -110,26 +111,30 @@ export default function MainPage() {
     [tabs]
   );
   const showSetting = useCallback(() => {
-    setTabs((tabs) => {
-      let hasId = tabsHasId(tabs, showSettingID);
-      if (typeof hasId === 'number') {
-        setTab(hasId);
-        return tabs;
-      } else {
-        setTimeout(() => {
-          setTab(tabs.length);
-        }, 100);
-        return [
-          ...tabs,
-          new TabContent(
-            showSettingID,
-            'setting',
-            <ModifySetting />,
-            <IoMdSettings> </IoMdSettings>
-          ),
-        ];
-      }
+    // const webview = WebviewWindow.getByLabel(showSettingID);
+    // if (webview) {
+    //   webview.setFocus().catch((e) => {
+    //     console.log('set setting focus failed', e);
+    //   });
+    // } else {
+
+    //  https://github.com/tauri-apps/wry/pull/1531
+    //  due to this issue we should check if webview exists
+    const webview = new WebviewWindow(generateRandomString(), {
+      title: `setting`,
+      url: 'setting.html',
+      width: 800,
+      height: 600,
+      center: true,
     });
+
+    webview.once('tauri://created', () =>
+      console.log('create table view successfully')
+    );
+    webview.once('tauri://error', (e) => {
+      alert('create webview failed' + e.payload.toString());
+    });
+    // }
   }, []);
 
   shortCuts.prev = () => {
@@ -328,7 +333,7 @@ export default function MainPage() {
           value={{ setTabs, tabs, setSelectTab: setTab }}
         >
           <NotificationProvider>
-            <WindowFocusChangeContext value={windowFocus}>
+            <WindowFocusContext value={windowFocus}>
               <div>{mainContent}</div>
               <div
                 id="menu-div"
@@ -364,10 +369,76 @@ export default function MainPage() {
                   </Box>
                 </Modal>
               )}
-            </WindowFocusChangeContext>
+            </WindowFocusContext>
           </NotificationProvider>
         </TabsSetContext.Provider>
       </ContextMenuContext.Provider>
     </SettingComp>
   );
 }
+
+function SeparateWindow(props: { children }) {
+  useEffect(() => {
+    window.addEventListener('click', () => {
+      const customMenu = document.getElementById('menu-div');
+      if (customMenu.style) {
+        customMenu.style.display = 'none';
+      }
+    });
+  }, []);
+
+  const { children } = props;
+  const [menu, setUpMenu] = useState<{
+    content: ReactNode;
+    style: CSSProperties;
+  }>();
+  const [windowFocus, setWindowsFocus] = useState(true);
+  useEffect(() => {
+    let unlisten = listen<boolean>(
+      windowFocusChangeEvent,
+      (msg: event.Event<boolean>) => {
+        setWindowsFocus(msg.payload);
+      }
+    );
+    return () => {
+      unlisten.then((e) => {
+        e();
+      });
+    };
+  }, []);
+  return (
+    <TabsSetContext.Provider
+      value={{
+        setTabs: () => {
+          alert('should not be called this is a bug');
+        },
+        tabs: [],
+        setSelectTab: 0,
+      }}
+    >
+      <SettingComp>
+        <ContextMenuContext.Provider value={{ setUpMenu }}>
+          <NotificationProvider>
+            <WindowFocusContext value={windowFocus}>
+              <div style={{ padding: '0.5rem' }}> {children} </div>
+              <div
+                id="menu-div"
+                style={{
+                  position: 'fixed',
+                  zIndex: 10000,
+                  height: 'fit-content',
+                  ...(menu && menu.style),
+                }}
+              >
+                <Paper elevation={24}>{menu && menu.content}</Paper>
+              </div>
+              <div style={{ minHeight: '300px' }}> </div>
+            </WindowFocusContext>
+          </NotificationProvider>
+        </ContextMenuContext.Provider>
+      </SettingComp>
+    </TabsSetContext.Provider>
+  );
+}
+
+export { MainPage, SeparateWindow };

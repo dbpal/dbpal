@@ -14,7 +14,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { FaExclamation } from 'react-icons/fa';
 import {
@@ -56,6 +55,7 @@ import {
   SetCloseConfirmTextContext,
   SettingContext,
   TabActiveContext,
+  WindowFocusContext,
 } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
@@ -422,8 +422,9 @@ function SqlQuery(props: {
     });
   }, []);
   const vis = useContext(TabActiveContext);
+  const focus = useContext(WindowFocusContext);
   useEffect(() => {
-    if (vis && conn) {
+    if (vis && conn && focus) {
       console.log('SqlQuery setQueryId', conn.queryId);
       invoke('set_auto_completion_query_id', { queryId: conn.queryId })
         .then(() => {})
@@ -431,10 +432,10 @@ function SqlQuery(props: {
           console.log('set auto completion id failed,err:{}', e);
         });
     }
-    if (vis) {
+    if (vis && focus) {
       setAutoCompletionName(uuid);
     }
-  }, [vis, conn]);
+  }, [vis, conn, focus]);
 
   const keyEscCancelQueryLog = useCallback(
     (e) => {

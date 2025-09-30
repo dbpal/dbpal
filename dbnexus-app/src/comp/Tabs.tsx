@@ -16,7 +16,7 @@ import {
   SetCloseConfirmTextContext,
   TabContent,
   TabActiveContext,
-  WindowFocusChangeContext,
+  WindowFocusContext,
 } from './helper';
 
 function TabsMenu(props: {
@@ -110,7 +110,7 @@ function TabsWithContent_(props: {
 }) {
   let { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
   const { setUpMenu } = useContext(ContextMenuContext);
-  const windowFocus = useContext(WindowFocusChangeContext);
+  const windowFocus = useContext(WindowFocusContext);
   return (
     <Stack spacing={1} style={{ width: '100%' }}>
       <div style={{ display: 'grid' }}>

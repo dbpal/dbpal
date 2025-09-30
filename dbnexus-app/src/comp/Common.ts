@@ -33,6 +33,7 @@ import {
   AppStoreKey,
   backendCompletionItemToEditor,
   DataSourceKind,
+  MuiDataGridData,
   secondConfirm,
 } from './helper';
 
@@ -131,7 +132,7 @@ const autoCompletion = async (
         col: pos.column,
       }
     );
-    // console.log('completion', completionItem);
+    console.log('completion', completionItem);
     let suggestions = backendCompletionItemToEditor(completionItem);
     return suggestions;
   } catch (e) {
@@ -228,7 +229,11 @@ function makeFormatFn(kind: DataSourceKind) {
   }
 }
 // uuid as language identifier.
-async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showNotification) {
+async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (x: string) => void) {
+  // mongodb don't need this
+  if (kind == DataSourceKind.Mongo) {
+    return;
+  }
   if (registeredLanguage.has(kind)) {
     return;
   }
@@ -242,7 +247,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showNotifi
       'i'
     );
   } catch (e) {
-    showNotification('error', "get keyword error", e);
+    showErr("get keyword error:" + e.toString());
     return;
   }
   const singleLineCommentReg = /(--[^\n]*|#[^\n]*)/g;
@@ -450,7 +455,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showNotifi
           },
         } as languages.IMonarchLanguage,
         autoCompletion,
-
       );
       break;
     case DataSourceKind.Redis:
@@ -462,9 +466,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showNotifi
         } as languages.IMonarchLanguage,
         autoCompletion
       );
-      break;
-    case DataSourceKind.Mongo:
-      // here is no-op mongo use frontend to execute query
       break;
     case DataSourceKind.Oracle:
       initLanguageXXX(
@@ -668,6 +669,93 @@ function makeExtractTableSelectSort(uuid) {
   }
 }
 
+
+
+function makeShowTableFn(uuid: string, table: string) {
+  return async (
+    where: string,
+    orderBy: string,
+    page: number,
+    pageSize: number,
+    extra
+  ) => {
+    let where_null = where ? where : null;
+    let orderBy_null = orderBy ? orderBy : null;
+    return await invoke<MuiDataGridData>('show_table', {
+      name: uuid,
+      tableName: table,
+      whereStr: where_null,
+      orderBy: orderBy_null,
+      page,
+      pageSize,
+      extra,
+    });
+  }
+}
+
+
+function makeShowViewFn(uuid: string, view: string) {
+  return async (
+    where: string,
+    orderBy: string,
+    page: number,
+    pageSize: number,
+    extra
+  ) => {
+    let where_null = where ? where : null;
+    let orderBy_null = orderBy ? orderBy : null;
+    return await invoke<MuiDataGridData>('show_view', {
+      name: uuid,
+      viewName: view,
+      whereStr: where_null,
+      orderBy: orderBy_null,
+      page,
+      pageSize,
+      extra,
+    });
+  }
+}
+
+function makeTableUpdate(uuid, table) {
+  return async (wheres, values) => {
+    return await invoke<types.SqlExecuteRet>('table_update', {
+      name: uuid,
+      tableName: table,
+      values,
+      wheres,
+    });
+  }
+}
+
+function makeTableDelete(uuid, table) {
+  return async (wheres) => {
+    return await invoke<types.SqlExecuteRet>('table_delete', {
+      name: uuid,
+      tableName: table,
+      wheres,
+    });
+  }
+}
+
+function makeInvalidCassandraTableCache(uuid, table) {
+  return async () => {
+    return invoke<void>('cassandra_invalid_table_or_view_caching', {
+      name: uuid,
+      tableName: table,
+    });
+  }
+}
+
+
+function makePutValueInSql(uuid) {
+  return async (typ, value) => {
+    return invoke<string>('put_value_in_sql', {
+      name: uuid,
+      typ,
+      value: value ? value : null,
+    });
+  }
+}
 export {
   modalStyle,
   tabsHasId,
@@ -688,6 +776,12 @@ export {
   makeExtractTableSelectWhere,
   makeExtractTableSelectSort,
   makeFormatFn,
+  makeShowTableFn,
+  makeShowViewFn,
+  makeTableUpdate,
+  makeTableDelete,
+  makeInvalidCassandraTableCache,
+  makePutValueInSql,
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent };

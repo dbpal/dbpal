@@ -78,6 +78,7 @@ import {
   TabActiveContext,
   quoteIdentifier,
   MuiDataGridData,
+  WindowFocusContext,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
@@ -136,6 +137,7 @@ function SetFilterSort(props: {
     extractFn,
   } = props;
   tableName = quoteIdentifier(kind)(tableName);
+  console.log('language:', kind);
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [modalBox, setModalBox] = useState(null);
 
@@ -337,11 +339,12 @@ function SqlTableView_(props: {
   const [page, setPage] = useState(0);
   const setting = useContext(SettingContext);
   const vis = useContext(TabActiveContext);
+  const focus = useContext(WindowFocusContext);
   useEffect(() => {
-    if (vis) {
+    if (vis && focus) {
       setAutoCompletionName(uuid);
     }
-  }, [vis]);
+  }, [vis, focus]);
 
   const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
   const [resp, setResp] = useState<MuiDataGridData>({

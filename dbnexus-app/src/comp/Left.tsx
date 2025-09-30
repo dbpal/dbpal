@@ -15,10 +15,12 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useTheme,
 } from '@mui/material';
 import ClearIcon from '@mui/icons-material/Clear';
 import {
   memo,
+  ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -74,7 +76,7 @@ import {
   SettingContext,
   TabsSetContext,
   UuidContext,
-  WindowFocusChangeContext,
+  WindowFocusContext,
 } from './helper';
 import { TbDatabaseSearch } from 'react-icons/tb';
 import { SqlQuery } from './SqlQuery';
@@ -88,6 +90,7 @@ import {
   MenuCreateSchema,
   MenuDeleteConfig,
   MenuNewQuery,
+  MenuNewQueryWindow,
   MenuOpenConn,
   MenuRefresh,
   ModalHeader,
@@ -116,6 +119,7 @@ import {
   MenuConnectionInfo,
 } from './CommonComp2.tsx';
 import { EventsTree } from './LeftEvent.tsx';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   const { matchPattern, setMatchPattern } = props;
@@ -143,7 +147,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   const toggleShow = () => {
     setShow((e) => !e);
   };
-
+  const theme = useTheme();
   return (
     <Stack spacing={1} style={{ padding: '2px' }}>
       <Stack>
@@ -212,7 +216,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
         spacing={1}
         style={{
           display: show ? 'flex' : 'none',
-          border: '2px solid green',
+          border: '2px solid ' + theme.palette.success.main,
           borderRadius: '0.5rem',
           padding: '2px 0.5rem',
         }}
@@ -571,7 +575,7 @@ function Left_() {
     },
     [matchPattern]
   );
-  const windowFocus = useContext(WindowFocusChangeContext);
+  const windowFocus = useContext(WindowFocusContext);
   return (
     <Stack
       style={{
@@ -1155,9 +1159,30 @@ function DatabaseMenu(props: {
         {opened && kind != DataSourceKind.Mongo && (
           <MenuNewQuery
             handleNew={() => {
-              openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification);
+              openNewQuery(
+                setSelectTab,
+                setTabs,
+                uuid,
+                kind,
+                showNotification,
+                false
+              );
             }}
           ></MenuNewQuery>
+        )}
+        {opened && kind != DataSourceKind.Mongo && (
+          <MenuNewQueryWindow
+            handleNew={() => {
+              openNewQuery(
+                setSelectTab,
+                setTabs,
+                uuid,
+                kind,
+                showNotification,
+                true
+              );
+            }}
+          ></MenuNewQueryWindow>
         )}
 
         {opened && kind != DataSourceKind.Oracle && (
@@ -1314,16 +1339,12 @@ function CatalogMenu(props: {
   );
 }
 
-function openNewQuery(
-  setSelectTab,
-  setTabs,
-  uuid: string,
+function makeQueryComponet(
   kind: DataSourceKind,
+  uuid: string,
   showNotification
-) {
-  let id = uuid + '-query-' + generateRandomString();
+): ReactNode {
   let content;
-
   switch (kind) {
     case DataSourceKind.MsSql:
     case DataSourceKind.Sqlite:
@@ -1370,7 +1391,6 @@ function openNewQuery(
           getParseErr={makeGetParserErr(uuid)}
         ></RedisQuery>
       );
-
       break;
 
     case DataSourceKind.Mongo:
@@ -1390,11 +1410,40 @@ function openNewQuery(
       console.log(`impl this ${kind}`);
   }
 
+  return content;
+}
+
+function openNewQuery(
+  setSelectTab,
+  setTabs,
+  uuid: string,
+  kind: DataSourceKind,
+  showNotification,
+  newWindow: boolean
+) {
+  if (newWindow) {
+    const webview = new WebviewWindow(generateRandomString(), {
+      title: `query of ${uuid}`,
+      url: 'query.html?uuid=' + uuid + '&kind=' + kind,
+      width: 800,
+      height: 600,
+      maximized: true,
+    });
+    webview.once('tauri://created', () =>
+      console.log('create table view successfully')
+    );
+    webview.once('tauri://error', (e) => {
+      showNotification('error', 'create webview failed', e.event.toString());
+    });
+    return;
+  }
+
+  let id = uuid + '-query-' + generateRandomString();
+  let content = makeQueryComponet(kind, uuid, showNotification);
   setTabs((e: TabContent[]) => {
     setTimeout(() => {
       setSelectTab(e.length);
     }, 100);
-
     return [
       ...e,
       new TabContent(
@@ -1441,10 +1490,33 @@ function SchemaMenu(props: {
       {opened && (
         <MenuNewQuery
           handleNew={() => {
-            openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification);
+            openNewQuery(
+              setSelectTab,
+              setTabs,
+              uuid,
+              kind,
+              showNotification,
+              false
+            );
           }}
         ></MenuNewQuery>
       )}
+
+      {opened && (
+        <MenuNewQueryWindow
+          handleNew={() => {
+            openNewQuery(
+              setSelectTab,
+              setTabs,
+              uuid,
+              kind,
+              showNotification,
+              true
+            );
+          }}
+        ></MenuNewQueryWindow>
+      )}
+
       {opened && !schema && (
         <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>
       )}
@@ -1647,4 +1719,4 @@ function DatabaseTree(props: {
 }
 const Left = React.memo(Left_);
 
-export { Left };
+export { Left, makeQueryComponet };

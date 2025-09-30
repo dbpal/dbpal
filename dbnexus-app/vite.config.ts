@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { internalIpV4 } from 'internal-ip';
+import { resolve } from 'path';
 
 const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 
@@ -12,6 +13,14 @@ export default defineConfig(async ({ command }) => {
     ],
     build: {
       target: 'esnext',
+      rollupOptions: {
+        input: {
+          main: resolve(__dirname, 'index.html'),
+          second: resolve(__dirname, 'query.html'),
+          third: resolve(__dirname, 'table_view.html'),
+          setting: resolve(__dirname, 'setting.html'),
+        }
+      }
     },
     // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
     //

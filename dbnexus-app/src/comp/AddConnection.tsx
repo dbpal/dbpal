@@ -354,6 +354,7 @@ function Database(props: {
               onClick={() => {
                 setDatabase(e);
               }}
+              variant="text"
             >
               {e}
             </Button>

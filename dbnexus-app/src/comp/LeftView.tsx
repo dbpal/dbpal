@@ -14,6 +14,9 @@ import {
   makeExtractTableSelectSort,
   makeExtractTableSelectWhere,
   setAutoCompletionName,
+  makeShowViewFn,
+  makeInvalidCassandraTableCache,
+  makePutValueInSql,
 } from './Common';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification';
@@ -55,13 +58,13 @@ import {
   handleCopyToClipboard,
   MatchPatternContext,
   MongoTableHandler,
-  MuiDataGridData,
   saveAndSetSize,
   secondConfirm,
   SettingContext,
   TabActiveContext,
   TabsSetContext,
   UuidContext,
+  WindowFocusContext,
 } from './helper';
 import { ExceedMaxTreeItem, MenuRefresh } from './CommonComp';
 import { MongoTable } from './MongoDB';
@@ -76,6 +79,7 @@ import {
   GridSlotsComponentsProps,
 } from '@mui/x-data-grid';
 import { SimpleFlexEditor } from './CommonComp2';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);
@@ -193,11 +197,12 @@ function StatementStructure(props: {
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const vis = useContext(TabActiveContext);
+  const focus = useContext(WindowFocusContext);
   useEffect(() => {
-    if (vis) {
+    if (vis && focus) {
       setAutoCompletionName(uuid);
     }
-  }, [vis]);
+  }, [vis, focus]);
   const handleReload = () => {
     setLoading(true);
     invoke<string>('create_view_sql', {
@@ -550,44 +555,18 @@ function ViewMenu(props: {
       case DataSourceKind.Cockroach:
         list = (
           <SqlTableView
-            invalidCassandraTableViewCache={async () => {
-              return invoke<void>('cassandra_invalid_table_or_view_caching', {
-                name: uuid,
-                tableName: view,
-              });
-            }}
+            invalidCassandraTableViewCache={makeInvalidCassandraTableCache(
+              uuid,
+              view
+            )}
             extractTableSelectSort={makeExtractTableSelectSort(uuid)}
             extractTableSelectWhere={makeExtractTableSelectWhere(uuid)}
             tableName={view}
             kind={kind}
             uuid={uuid}
             notWarnPri={true}
-            reloadOP={async (
-              where: string,
-              orderBy: string,
-              page: number,
-              pageSize: number,
-              extra
-            ) => {
-              let where_null = where ? where : null;
-              let orderBy_null = orderBy ? orderBy : null;
-              return await invoke<MuiDataGridData>('show_view', {
-                name: uuid,
-                viewName: view,
-                whereStr: where_null,
-                orderBy: orderBy_null,
-                page,
-                pageSize,
-                extra,
-              });
-            }}
-            put_value_in_sql={async (typ, value) => {
-              return invoke('put_value_in_sql', {
-                name: uuid,
-                typ,
-                value: value ? value : null,
-              });
-            }}
+            reloadOP={makeShowViewFn(uuid, view)}
+            put_value_in_sql={makePutValueInSql(uuid)}
           ></SqlTableView>
         );
         break;
@@ -614,6 +593,22 @@ function ViewMenu(props: {
         ...e,
         new TabContent(id, view, list, <VisibilityIcon> </VisibilityIcon>),
       ];
+    });
+  };
+
+  const handleviewDataNewWindow = () => {
+    const webview = new WebviewWindow(generateRandomString(), {
+      title: view,
+      url: 'table_view.html?uuid=' + uuid + '&table=' + view + '&kind=' + kind,
+      maximized: true,
+      width: 800,
+      height: 600,
+    });
+    webview.once('tauri://created', () =>
+      console.log('create table view successfully')
+    );
+    webview.once('tauri://error', (e) => {
+      showNotification('error', 'create webview failed', e.payload.toString());
     });
   };
 
@@ -660,6 +655,16 @@ function ViewMenu(props: {
             variant="body2"
             sx={{ color: 'text.secondary' }}
           ></Typography>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            handleviewDataNewWindow();
+          }}
+        >
+          <ListItemIcon>
+            <ListIcon></ListIcon>
+          </ListItemIcon>
+          <ListItemText> View Data(window)</ListItemText>
         </MenuItem>
 
         <MenuItem onClick={handleStructure}>
