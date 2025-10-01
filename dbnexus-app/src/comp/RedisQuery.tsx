@@ -46,8 +46,10 @@ function RedisQuery(props: {
   favoriteName?: string;
   value?: string;
   getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
+  uuid: string;
 }) {
-  const { makeConn, saveFavoriteSql, favoriteName, value, getParseErr } = props;
+  const { makeConn, saveFavoriteSql, favoriteName, value, getParseErr, uuid } =
+    props;
   const [command, setCommand] = useState('get');
   const [isDragging, setIsDragging] = useState(false);
   const iframeRef = useRef(null);
@@ -164,7 +166,7 @@ function RedisQuery(props: {
       <SqlQuery
         editorRef={editorRef}
         getParseErr={getParseErr}
-        uuid={DataSourceKind.Redis}
+        uuid={uuid}
         makeConn={makeConn}
         favoriteName={favoriteName}
         saveFavoriteSql={saveFavoriteSql}

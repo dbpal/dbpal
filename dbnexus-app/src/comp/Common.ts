@@ -129,6 +129,7 @@ const autoCompletion = async (
       alert("auto completion name is null this is a bug");
       return;
     }
+    console.log("auto completion name is:", name.name);
     let completionItem = await invoke<types.CompletionItem[]>(
       'auto_completion',
       {

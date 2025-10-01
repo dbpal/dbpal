@@ -18,7 +18,16 @@ impl RedisDB {
         let conn = self.query_connections.get(&self.completion_id.get());
         match conn {
             Some(x) => anyhow::Ok(x.clone()),
-            None => anyhow::bail!("should be able get connection"),
+            None => {
+                // self.query_connections
+                //     .iter()
+                //     .for_each(|x| println!("connection id:{}", x.key()));
+
+                anyhow::bail!(format!(
+                    "should be able get connection,connection id:{}",
+                    self.completion_id.get()
+                ));
+            }
         }
     }
     async fn completion_keys(

@@ -679,6 +679,7 @@ function FavoriteSqlList(props: { handleClose }) {
                     showNotification
                   );
                 }}
+                uuid={row.uuid}
                 value={row.sql}
                 getParseErr={makeGetParserErr(row.uuid)}
                 favoriteName={row.name}
@@ -1382,6 +1383,7 @@ function makeQueryComponet(
           makeConn={async () => {
             return makeConn(uuid, kind);
           }}
+          uuid={uuid}
           saveFavoriteSql={async (name, sql) => {
             await FavoriteSql.save(
               new FavoriteSql(uuid, name, kind, sql),
@@ -1437,7 +1439,7 @@ function openNewQuery(
     });
     return;
   }
-
+  console.log('open new query uuid:', uuid);
   let id = uuid + '-query-' + generateRandomString();
   let content = makeQueryComponet(kind, uuid, showNotification);
   setTabs((e: TabContent[]) => {

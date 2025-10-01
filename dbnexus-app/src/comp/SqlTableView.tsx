@@ -572,6 +572,7 @@ function SqlTableView_(props: {
           setUpMenu({
             content: (
               <Menu
+                updateOP={updateOP}
                 kind={kind}
                 showExportMarkDown={() => {
                   setShowExportMarkDown(true);
@@ -588,9 +589,13 @@ function SqlTableView_(props: {
                 fields={resp.fields}
                 field={field}
                 content={content}
-                handleDelete={() => {
-                  handleDelete(id);
-                }}
+                handleDelete={
+                  deleteOP
+                    ? () => {
+                        handleDelete(id);
+                      }
+                    : undefined
+                }
                 row={row}
                 tableName={tableName}
                 addOP={addOP}
@@ -609,6 +614,7 @@ function SqlTableView_(props: {
                         try {
                           let values = {};
                           values[field] = null;
+                          delete x[keyNotInTable];
                           await updateOP(x, values);
                         } catch (e) {
                           showNotification('error', 'update failed', e);
@@ -1105,22 +1111,23 @@ function SqlTableViewData(props: {
 function Menu(props: {
   field: string;
   content: string;
-  handleDelete;
+  handleDelete?;
   setSort;
   setWhere;
   put_value_in_sql: (value?: string) => Promise<string>;
   setNull?: () => void;
   addOP?: (x: object) => Promise<void>;
+  updateOP?;
   tableName: string;
   row: object;
-  fields;
+  fields: types.Field[];
   nullable: boolean;
-  editCellInModal;
-  editRowInModal;
-  resetColumnWidthCallBack;
+  editCellInModal: () => void;
+  editRowInModal: () => void;
+  resetColumnWidthCallBack: () => void;
   kind: DataSourceKind;
-  viewInModal;
-  showExportMarkDown;
+  viewInModal: () => void;
+  showExportMarkDown: () => void;
 }) {
   const {
     field,
@@ -1132,6 +1139,7 @@ function Menu(props: {
     setNull,
     tableName,
     addOP,
+    updateOP,
     row,
     fields,
     nullable,
@@ -1175,7 +1183,7 @@ function Menu(props: {
   return (
     <div>
       <MenuList>
-        {addOP && (
+        {updateOP && (
           <MenuItem
             onClick={() => {
               editCellInModal();
@@ -1188,7 +1196,7 @@ function Menu(props: {
           </MenuItem>
         )}
 
-        {addOP && (
+        {updateOP && (
           <MenuItem
             onClick={() => {
               editRowInModal();
@@ -1278,7 +1286,7 @@ function Menu(props: {
             <ListItemText> Clone Row </ListItemText>
           </MenuItem>
         )}
-        {addOP && (
+        {handleDelete && (
           <MenuItem onClick={handleDelete}>
             <ListItemIcon>
               <DeleteForeverIcon></DeleteForeverIcon>
