@@ -228,18 +228,14 @@ function ModifySetting() {
         ></TextField>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography
-          width={headerSize}
-          style={{ fontFamily: fontFamily }}
-          textAlign="right"
-        >
+        <Typography width={headerSize} textAlign="right" style={{ fontFamily }}>
           font family:
         </Typography>
 
         <Select
-          value={fontFamily}
           onChange={(e) => setFontFamily(e.target.value as string)}
-          style={{ fontFamily: fontFamily, minWidth: '12rem' }}
+          style={{ minWidth: '12rem' }}
+          value={fontFamily}
         >
           <MenuItem style={{ fontFamily: undefined }} value="">
             default
@@ -263,7 +259,7 @@ function ModifySetting() {
         <TextField
           label="match font"
           value={fontMatch}
-          style={{ fontFamily: fontFamily, width: '13rem' }}
+          style={{ width: '13rem', fontFamily }}
           onChange={(e) => {
             setFontMatch(e.target.value);
           }}
@@ -286,18 +282,14 @@ function ModifySetting() {
         ></TextField>
         <Typography
           color="success"
-          style={{ fontFamily, ...textEllipsisStyle }}
+          style={{ ...textEllipsisStyle, fontFamily }}
         >
           select * from employees
         </Typography>
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography
-          width={headerSize}
-          style={{ fontFamily: fontFamily }}
-          textAlign="right"
-        >
+        <Typography width={headerSize} textAlign="right">
           table row height factor:
         </Typography>
         <TextField
@@ -366,11 +358,7 @@ function ModifySetting() {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography
-          width={headerSize}
-          style={{ fontFamily: fontFamily }}
-          textAlign="right"
-        >
+        <Typography width={headerSize} textAlign="right">
           max tree size:
         </Typography>
         <TextField

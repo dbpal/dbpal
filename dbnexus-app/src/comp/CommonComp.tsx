@@ -985,6 +985,7 @@ function OpenFileWithDefaultApp({ file }) {
                 showNotification('error', 'open export file failed', e);
               });
           }}
+          variant="text"
         >
           open with default app (if applicable)
         </Button>
