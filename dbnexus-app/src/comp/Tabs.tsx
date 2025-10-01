@@ -166,11 +166,7 @@ function TabsWithContent_(props: {
           })}
         </Tabs>
       </div>
-      <div
-        style={{
-          paddingRight: '1.8rem',
-        }}
-      >
+      <div>
         {tabs.map((tab, index) => (
           <TabActiveContext.Provider key={tab.id} value={selectIndex == index}>
             <SetCloseConfirmTextContext

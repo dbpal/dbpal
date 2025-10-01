@@ -282,10 +282,10 @@ function MainPage() {
       minSize={200}
       defaultSize={leftSize}
       style={{
-        minHeight: '100vh',
-        height: 'auto',
+        height: '100vh',
         width: '100vw',
         overflow: 'auto',
+        padding: '0px 0.6rem',
       }}
       maxSize={800}
       onChange={(newSize) => {
@@ -295,12 +295,12 @@ function MainPage() {
       <div
         style={{
           overflow: 'auto',
-          height: '100vh',
+          height: '100%',
         }}
       >
         <Left></Left>
       </div>
-      <div style={{ overflow: 'auto', height: '100vh' }}>
+      <div style={{ overflow: 'auto', height: '100%' }}>
         <TabsWithContent
           handleClose={closeTab}
           tabs={tabs}
@@ -404,7 +404,7 @@ function SeparateWindow(props: { children }) {
       <SettingComp>
         <ContextMenuContext.Provider value={{ setUpMenu }}>
           <NotificationProvider>
-            <div style={{ padding: '0.5rem' }}> {children} </div>
+            <div style={{ padding: '0px 0.6rem' }}> {children} </div>
             <div
               id="menu-div"
               style={{
