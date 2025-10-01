@@ -11,7 +11,7 @@ import { secondConfirm, windowInit } from './comp/helper';
 
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 
-windowInit(true);
+windowInit(true, true);
 
 const currentWebview = await WebviewWindow.getCurrent();
 currentWebview.onCloseRequested(async (event) => {

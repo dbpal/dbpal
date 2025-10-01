@@ -5,7 +5,7 @@ import { windowInit } from './comp/helper.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
 import { ModifySetting } from './comp/Settings.tsx';
 
-windowInit(false);
+windowInit(false, false);
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

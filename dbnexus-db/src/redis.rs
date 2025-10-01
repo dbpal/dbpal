@@ -8,7 +8,7 @@ use std::vec;
 use dashmap::{DashMap, DashSet};
 use futures_util::StreamExt;
 use redis::aio::{ConnectionManager, ConnectionManagerConfig, MultiplexedConnection};
-use redis::{AsyncCommands, AsyncIter, Value};
+use redis::{AsyncCommands, AsyncIter, Commands, Value};
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
@@ -1498,16 +1498,16 @@ impl DBTrait for RedisDB {
         let mut config = self.config.clone();
         config.db = Some(name.to_owned());
         let db = Self::new(config).await?;
-        db.drop_all_keys().await?;
+        db.flush_db().await?;
         self.created_database.remove(&name.to_owned());
         anyhow::Ok(())
     }
 }
 
 impl RedisDB {
-    async fn drop_all_keys(&self) -> anyhow::Result<()> {
+    async fn flush_db(&self) -> anyhow::Result<()> {
         let mut conn = self.get_client().await?;
-        redis::cmd("flushdb").exec(&mut conn)?;
+        let _: () = conn.flushdb()?;
         anyhow::Ok(())
     }
 }

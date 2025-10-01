@@ -983,7 +983,7 @@ async function setZoom(out: boolean) {
 
 
 
-async function windowInit(isMain: boolean) {
+async function windowInit(isMain: boolean, emitFocus: boolean) {
   const currentWebview = await WebviewWindow.getCurrent();
   listen('zoom_in', async (_) => {
     await setZoom(false);
@@ -1012,9 +1012,12 @@ async function windowInit(isMain: boolean) {
       }
     });
   }
-  currentWebview.onFocusChanged((x) => {
-    emit(windowFocusChangeEvent, x.payload);
-  });
+  if (emitFocus) {
+    currentWebview.onFocusChanged((x) => {
+      emit(windowFocusChangeEvent, x.payload);
+    });
+  }
+
 
 
   if (isMain) {

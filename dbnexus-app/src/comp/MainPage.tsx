@@ -386,26 +386,11 @@ function SeparateWindow(props: { children }) {
       }
     });
   }, []);
-
   const { children } = props;
   const [menu, setUpMenu] = useState<{
     content: ReactNode;
     style: CSSProperties;
   }>();
-  const [windowFocus, setWindowsFocus] = useState(true);
-  useEffect(() => {
-    let unlisten = listen<boolean>(
-      windowFocusChangeEvent,
-      (msg: event.Event<boolean>) => {
-        setWindowsFocus(msg.payload);
-      }
-    );
-    return () => {
-      unlisten.then((e) => {
-        e();
-      });
-    };
-  }, []);
   return (
     <TabsSetContext.Provider
       value={{
@@ -419,21 +404,19 @@ function SeparateWindow(props: { children }) {
       <SettingComp>
         <ContextMenuContext.Provider value={{ setUpMenu }}>
           <NotificationProvider>
-            <WindowFocusContext value={windowFocus}>
-              <div style={{ padding: '0.5rem' }}> {children} </div>
-              <div
-                id="menu-div"
-                style={{
-                  position: 'fixed',
-                  zIndex: 10000,
-                  height: 'fit-content',
-                  ...(menu && menu.style),
-                }}
-              >
-                <Paper elevation={24}>{menu && menu.content}</Paper>
-              </div>
-              <div style={{ minHeight: '300px' }}> </div>
-            </WindowFocusContext>
+            <div style={{ padding: '0.5rem' }}> {children} </div>
+            <div
+              id="menu-div"
+              style={{
+                position: 'fixed',
+                zIndex: 10000,
+                height: 'fit-content',
+                ...(menu && menu.style),
+              }}
+            >
+              <Paper elevation={24}>{menu && menu.content}</Paper>
+            </div>
+            <div style={{ minHeight: '300px' }}> </div>
           </NotificationProvider>
         </ContextMenuContext.Provider>
       </SettingComp>

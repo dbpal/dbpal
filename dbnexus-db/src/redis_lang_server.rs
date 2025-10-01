@@ -1459,7 +1459,6 @@ pub const REDIS_SPECIAL_ARGS: &[&str] = &[
     "EXAT",    // 绝对 Unix 时间戳（秒）
     "PXAT",    // 绝对 Unix 时间戳（毫秒）
     "KEEPTTL", // 保留原 TTL（覆盖时不重置过期时间）
-    "GET",     // SET 时返回旧值
     // SORT 命令
     "ASC",
     "DESC",
@@ -1510,12 +1509,10 @@ pub const REDIS_SPECIAL_ARGS: &[&str] = &[
     "OFF",
     "SKIP",
     // CONFIG GET/SET
-    "GET",
     "SET",
     "RESETSTAT",
     "REWRITE",
     // SLOWLOG
-    "GET",
     "LEN",
     "RESET",
     // MIGRATE

@@ -1,11 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::io::Seek;
 use std::ops::DerefMut;
-use std::sync::Mutex;
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
-use crate::app::{self, App, DBConnectionConfig, DatabaseBackend};
+use crate::app::{self, App, DBConnectionConfig, DatabaseBackend, name_to_parts};
 use bson::{Document, doc};
+use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::cockroach::CockRoachDB;
@@ -1048,6 +1049,21 @@ pub async fn extract_table_select_sort(
     Ok(ret)
 }
 
+fn auto_completion_mutex(name: &str) -> Arc<tokio::sync::Mutex<()>> {
+    static LOCKS: LazyLock<Arc<DashMap<String, Arc<tokio::sync::Mutex<()>>>>> =
+        LazyLock::new(|| Arc::new(DashMap::new()));
+    let name = name.to_owned();
+
+    match LOCKS.get(&name) {
+        Some(x) => x.clone(),
+        None => {
+            let x = Arc::new(tokio::sync::Mutex::new(()));
+            LOCKS.insert(name, x.clone());
+            x.clone()
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn auto_completion(
     name: String, query_id: Option<u32>, sql: String, line: u32, col: u32,
@@ -1056,6 +1072,11 @@ pub async fn auto_completion(
     random_sleep().await;
     random_error()?;
     let use_lexer = true;
+    // 避免多个线程同时访问
+    // 主要是后端实现更简单了比如可以把 completion——id缓存起来
+    let lock = auto_completion_mutex(&name_to_parts(&name)[0]);
+    let _guard = lock.lock().await;
+
     let db = app.get_backend(name.as_str()).await?;
     let ret = tokio::time::timeout(std::time::Duration::from_secs(4), async {
         match db {

@@ -23,7 +23,7 @@ import { SeparateWindow } from './comp/MainPage.tsx';
 import { MongoTable } from './comp/MongoDB.tsx';
 import { makeRedisViewTable } from './comp/LeftTable.tsx';
 
-windowInit(false);
+windowInit(false, false);
 const params = new URLSearchParams(location.search);
 
 const uuid = params.get('uuid');

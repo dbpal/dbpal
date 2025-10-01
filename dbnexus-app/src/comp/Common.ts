@@ -252,6 +252,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
     );
   } catch (e) {
     showErr("get keyword error:" + e.toString());
+    console.log('get keyword error:', e);
     return;
   }
   const singleLineCommentReg = /(--[^\n]*|#[^\n]*)/g;

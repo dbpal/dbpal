@@ -906,7 +906,7 @@ function SelectColumns(props: {
             onClick={() => {
               setIncludes([]);
             }}
-            color="error"
+            color="primary"
           >
             <CloseIcon></CloseIcon>
           </IconButton>

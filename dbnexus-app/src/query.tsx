@@ -14,7 +14,7 @@ import { makeQueryComponet } from './comp/Left.tsx';
 import { NotificationContext } from './comp/Notification.tsx';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 
-windowInit(false);
+windowInit(false, false);
 const params = new URLSearchParams(location.search);
 
 const uuid = params.get('uuid');
