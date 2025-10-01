@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 
 import { NotificationContext } from './Notification';
 import { Button, Stack, Tooltip, Typography } from '@mui/material';
-import { DefAndMetas, NameAndqueryId, SetAutoCompletionName } from './Common';
+import { DefAndMetas, NameAndQueryId, SetAutoCompletionName } from './Common';
 import { MetaValueView, PossibleParseError } from './CommonComp';
 import {
   DataSourceKind,
@@ -133,7 +133,7 @@ function DefAndMetasView(props: {
               editor.current = ed;
               SetAutoCompletionName.set(
                 ed.getModel().id,
-                new NameAndqueryId(uuid)
+                new NameAndQueryId(uuid)
               );
             }}
             handleValue={(sql) => {

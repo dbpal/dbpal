@@ -34,7 +34,7 @@ import {
   modalHandleClose,
   modalStyle,
   msgTimeout,
-  NameAndqueryId,
+  NameAndQueryId,
   SetAutoCompletionName,
 } from './Common.ts';
 import { BsFillLightbulbFill } from 'react-icons/bs';
@@ -425,7 +425,7 @@ function SqlQuery(props: {
     if (conn && editor) {
       SetAutoCompletionName.set(
         editor.getModel().id,
-        new NameAndqueryId(uuid, conn.queryId)
+        new NameAndQueryId(uuid, conn.queryId)
       );
     }
   }, [conn, editor]);

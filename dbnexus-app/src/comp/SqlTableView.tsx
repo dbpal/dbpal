@@ -47,7 +47,7 @@ import {
   makeFormatFn,
   modalHandleClose,
   modalStyle,
-  NameAndqueryId,
+  NameAndQueryId,
   reloadOK,
   SetAutoCompletionName,
 } from './Common';
@@ -188,7 +188,7 @@ function SetFilterSort(props: {
             editor.current = e;
             SetAutoCompletionName.set(
               e.getModel().id,
-              new NameAndqueryId(uuid)
+              new NameAndQueryId(uuid)
             );
           }}
           language={kind}

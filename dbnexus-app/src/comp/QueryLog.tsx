@@ -23,7 +23,13 @@ import {
   useRef,
   useState,
 } from 'react';
-import { EscDownEvent, modalHandleClose, modalStyle } from './Common';
+import {
+  EscDownEvent,
+  modalHandleClose,
+  modalStyle,
+  NameAndQueryId,
+  SetAutoCompletionName,
+} from './Common';
 import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import {
@@ -267,6 +273,12 @@ function QueryLog(props: {
               <SimpleFlexEditor
                 language={language}
                 value={selectSql}
+                handleEditor={(e) => {
+                  SetAutoCompletionName.set(
+                    e.getModel().id,
+                    new NameAndQueryId(uuid)
+                  );
+                }}
               ></SimpleFlexEditor>
             </Box>
           </Modal>

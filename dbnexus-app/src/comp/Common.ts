@@ -734,23 +734,20 @@ function makePutValueInSql(uuid) {
   }
 }
 
-class NameAndqueryId {
+class NameAndQueryId {
   constructor(public name: string, public queryId?: number) {
   }
 }
 class SetAutoCompletionName {
 
-  id2Name = new Map<string, NameAndqueryId>();
-
-  static set(editorId: string, x: NameAndqueryId) {
-    SetAutoCompletionName.instance.id2Name.set(editorId, x)
+  static id2Name = new Map<string, NameAndQueryId>();
+  static set(editorId: string, x: NameAndQueryId) {
+    SetAutoCompletionName.id2Name.set(editorId, x)
   }
 
-  static get(editorId: string): NameAndqueryId | null {
-    return SetAutoCompletionName.instance.id2Name.get(editorId)
+  static get(editorId: string): NameAndQueryId | null {
+    return SetAutoCompletionName.id2Name.get(editorId)
   }
-  static instance = new SetAutoCompletionName();
-
 }
 export {
   modalStyle,
@@ -769,7 +766,7 @@ export {
   autoCompletion,
   modalHandleClose,
   SetAutoCompletionName,
-  NameAndqueryId,
+  NameAndQueryId,
   makeExtractTableSelectWhere,
   makeExtractTableSelectSort,
   makeFormatFn,

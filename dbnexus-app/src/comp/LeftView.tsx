@@ -16,6 +16,8 @@ import {
   makeShowViewFn,
   makeInvalidCassandraTableCache,
   makePutValueInSql,
+  SetAutoCompletionName,
+  NameAndQueryId,
 } from './Common';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { NotificationContext } from './Notification';
@@ -243,6 +245,12 @@ function StatementStructure(props: {
           readOnly={true}
           language={kind}
           value={sql}
+          handleEditor={(editor) => {
+            SetAutoCompletionName.set(
+              editor.getModel().id,
+              new NameAndQueryId(uuid)
+            );
+          }}
         ></SimpleFlexEditor>
       )}
     </Stack>
