@@ -226,7 +226,7 @@ pub async fn open_conn(name: String, app: tauri::State<'_, App>) -> Result<(), E
     let secs = 10;
     let name_clone = name.clone();
     tokio::time::timeout(Duration::from_secs(secs), async move {
-        app.get_backend(name.as_str())
+        app.open_conn(name.as_str())
             .await
             .map_err(ErrorFrontend::from)
             .map(|_| ())

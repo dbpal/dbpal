@@ -420,31 +420,31 @@ impl App {
         }
     }
 
+    pub async fn open_conn(&self, name: &str) -> anyhow::Result<DatabaseBackend> {
+        let config = unsafe { Self::get_config_ref().as_ref().map(|x| x(name)) }.unwrap()?;
+        #[cfg(debug_assertions)]
+        println!("open config:{:?}", config);
+        let db = config.open().await?;
+        // make sure connection is ok
+        db.check_conn().await?;
+        self.backend
+            .lock()
+            .await
+            .insert(name.to_string(), db.clone());
+        return anyhow::Ok(db);
+    }
+
     pub async fn get_backend(&self, name: &str) -> anyhow::Result<DatabaseBackend> {
         let db = self.backend.lock().await.get(name).cloned();
         if db.is_some() {
             return anyhow::Ok(db.unwrap());
         }
-        let config = unsafe { Self::get_config_ref().as_ref().map(|x| x(name)) }.unwrap();
-        match config {
-            Ok(config) => {
-                #[cfg(debug_assertions)]
-                println!("open config:{:?}", config);
-                let db = config.open().await?;
-                // make sure connection is ok
-                db.check_conn().await?;
-                self.backend
-                    .lock()
-                    .await
-                    .insert(name.to_string(), db.clone());
-                return anyhow::Ok(db);
-            }
-            Err(err) => log::error!("can't get config for {},err:{}", name, err),
-        }
-
         // try open and enter
         let name_parts = name_to_parts(name);
         match name_parts.len() {
+            1 => {
+                anyhow::bail!(format!("connection '{}' not open", name))
+            }
             2 => {
                 let backend = self
                     .backend
