@@ -470,10 +470,12 @@ impl App {
                         anyhow::Ok(DatabaseBackend::DataBase(db))
                     }
                     _ => {
-                        anyhow::bail!(format!(
+                        log::error!(
                             "'{}' not found ,should be catalog or database trait but:{:?}",
-                            name_parts[0], backend
-                        ));
+                            name_parts[0],
+                            backend
+                        );
+                        anyhow::bail!(format!("connection '{}' not open", name))
                     }
                 }
             }
@@ -502,11 +504,13 @@ impl App {
                                     db
                                 }
                                 _ => {
-                                    anyhow::bail!("internal error,catalog must been entered ")
+                                    log::error!("internal error,catalog must been entered ");
+                                    anyhow::bail!(format!("connection '{}' not open", name))
                                 }
                             },
                             None => {
-                                anyhow::bail!("internal error,catalog must been entered")
+                                log::error!("internal error,catalog must been entered");
+                                anyhow::bail!(format!("connection '{}' not open", name))
                             }
                         }
                     }
@@ -520,7 +524,8 @@ impl App {
             }
             _ => {
                 // nothing to do here
-                anyhow::bail!("'{}' name part not right, this is a internal error", name);
+                log::error!("'{}' name part not right, this is a internal error", name);
+                anyhow::bail!(format!("connection '{}' not open", name))
             }
         }
     }
