@@ -33,6 +33,13 @@ import {
   windowFocusChangeEvent,
 } from './helper.ts';
 
+import { Box, Modal, Paper } from '@mui/material';
+import { BackendCrash } from './BackendCrash.tsx';
+import { EditConfigFile } from './EditConfigFile.tsx';
+import { ModalHeader } from './CommonComp.tsx';
+import { LogFile } from './LogFile.tsx';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+
 const shortCuts = {
   callback: (e: KeyboardEvent) => {
     if (platform() == 'macos') {
@@ -75,13 +82,6 @@ const shortCuts = {
   showSetting: () => void;
   closeCurrentTab: (_: KeyboardEvent) => void;
 };
-
-import { Box, Modal, Paper } from '@mui/material';
-import { BackendCrash } from './BackendCrash.tsx';
-import { EditConfigFile } from './EditConfigFile.tsx';
-import { ModalHeader } from './CommonComp.tsx';
-import { LogFile } from './LogFile.tsx';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 const settingWindowID = generateRandomString();
 const openLogFileId = generateRandomString();

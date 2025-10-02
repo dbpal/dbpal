@@ -1,16 +1,17 @@
 'use strict';
 import ReactDOM from 'react-dom/client';
-
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import './app.css';
-import './comp/MainPage';
 import { MainPage } from './comp/MainPage';
 import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
 import { secondConfirm, windowInit } from './comp/helper';
 
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+// console.log('before error');
+// xxxx + 1;
+// console.log('after error');
 
-windowInit(true, true);
+await windowInit(true, true);
 
 const currentWebview = await WebviewWindow.getCurrent();
 currentWebview.onCloseRequested(async (event) => {
@@ -23,8 +24,6 @@ currentWebview.onCloseRequested(async (event) => {
     event.preventDefault();
   }
 });
-
-JSON.parse('{123');
 
 if (import.meta.env.DEV) {
   invoke('page_init_callback')
