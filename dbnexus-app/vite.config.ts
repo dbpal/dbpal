@@ -19,6 +19,7 @@ export default defineConfig(async ({ command }) => {
           second: resolve(__dirname, 'query.html'),
           third: resolve(__dirname, 'table_view.html'),
           setting: resolve(__dirname, 'setting.html'),
+          add_connection: resolve(__dirname, 'add_connection.html'),
         }
       }
     },

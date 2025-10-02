@@ -81,14 +81,13 @@ import { EditConfigFile } from './EditConfigFile.tsx';
 import { ModalHeader } from './CommonComp.tsx';
 import { LogFile } from './LogFile.tsx';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-//@ts-ignore
-const showSettingID = generateRandomString();
+
+const settingWindowID = generateRandomString();
 const openLogFileId = generateRandomString();
 
 function MainPage() {
   let [tabs, setTabs] = useState<TabContent[]>([]);
   const [tab, setTab] = useState(0);
-
   const closeTab = useCallback(
     (index: number) => {
       (async () => {
@@ -111,30 +110,30 @@ function MainPage() {
     [tabs]
   );
   const showSetting = useCallback(() => {
-    // const webview = WebviewWindow.getByLabel(showSettingID);
-    // if (webview) {
-    //   webview.setFocus().catch((e) => {
-    //     console.log('set setting focus failed', e);
-    //   });
-    // } else {
+    (async () => {
+      const webview = await WebviewWindow.getByLabel(settingWindowID);
+      if (webview) {
+        webview.setFocus().catch((e) => {
+          console.log('show setting failed', e);
+        });
+      } else {
+        const webview = new WebviewWindow(settingWindowID, {
+          title: `setting`,
+          url: 'setting.html',
+          width: 800,
+          height: 600,
+          center: true,
+        });
+        webview.once('tauri://created', () =>
+          console.log('create table view successfully')
+        );
+        webview.once('tauri://error', (e) => {
+          alert('create webview failed' + e.payload.toString());
+        });
+      }
+    })();
 
-    //  https://github.com/tauri-apps/wry/pull/1531
-    //  due to this issue we should check if webview exists
-    const webview = new WebviewWindow(generateRandomString(), {
-      title: `setting`,
-      url: 'setting.html',
-      width: 800,
-      height: 600,
-      center: true,
-    });
-
-    webview.once('tauri://created', () =>
-      console.log('create table view successfully')
-    );
-    webview.once('tauri://error', (e) => {
-      alert('create webview failed' + e.payload.toString());
-    });
-    // }
+    // // }
   }, []);
 
   shortCuts.prev = () => {
@@ -285,7 +284,7 @@ function MainPage() {
         height: '100vh',
         width: '100vw',
         overflow: 'auto',
-        padding: '0px 0.6rem',
+        padding: '0px 0.9rem',
       }}
       maxSize={800}
       onChange={(newSize) => {
@@ -404,7 +403,7 @@ function SeparateWindow(props: { children }) {
       <SettingComp>
         <ContextMenuContext.Provider value={{ setUpMenu }}>
           <NotificationProvider>
-            <div style={{ padding: '0px 0.6rem' }}> {children} </div>
+            <div style={{ padding: '0.5rem 0.9rem' }}> {children} </div>
             <div
               id="menu-div"
               style={{

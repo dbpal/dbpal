@@ -108,7 +108,6 @@ import {
   GridSortModel,
 } from '@mui/x-data-grid';
 import { listen } from '@tauri-apps/api/event';
-import { AddConnection } from './AddConnection.tsx';
 import { FaBookmark } from 'react-icons/fa';
 import { SequenceTree } from './LeftSequence.tsx';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -121,21 +120,40 @@ import {
 import { EventsTree } from './LeftEvent.tsx';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 
+const addConnectionID = generateRandomString();
 function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   const { matchPattern, setMatchPattern } = props;
   const [matchPatterInput, setMatchPatternInput] = useState('');
   const [showFavoriteSql, setShowFavoriteSql] = useState(false);
-  const [showAddConnection, setShowAddConnection] = useState(false);
-  const [copyConn, setCopyConn] = useState<types.DBConnectionConfig>(null);
   const [showCopyConn, setShowCopyConn] = useState(false);
   const [show, setShow] = useState(SaveLeftTopShow.instance.get());
   useEffect(() => {
     SaveLeftTopShow.instance.save(show);
   }, [show]);
 
+  const showAddConnection = async (conn?: types.DBConnectionConfig) => {
+    let webview = await WebviewWindow.getByLabel(addConnectionID);
+    if (webview) {
+      await webview.setFocus();
+    } else {
+      const webview = new WebviewWindow(addConnectionID, {
+        title: 'add connection',
+        url: 'add_connection.html?config=' + (conn ? JSON.stringify(conn) : ''),
+        width: 800,
+        height: 600,
+      });
+      webview.once('tauri://created', () =>
+        console.log('create table view successfully')
+      );
+      webview.once('tauri://error', (e) => {
+        showNotification('error', 'create webview failed', e.event.toString());
+      });
+    }
+  };
+
   useEffect(() => {
     let unlisten = listen('add_config', () => {
-      setShowAddConnection(true);
+      showAddConnection();
     });
     return () => {
       unlisten.then((e) => {
@@ -184,7 +202,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
         <Tooltip title="make a connection">
           <IconButton
             onClick={() => {
-              setShowAddConnection(true);
+              showAddConnection();
             }}
           >
             <GrConnect style={{ fontSize: '2.1rem' }}> </GrConnect>
@@ -313,44 +331,6 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
           </Box>
         </Modal>
       )}
-
-      {showAddConnection && (
-        <Modal
-          open={showAddConnection}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowAddConnection(false);
-          })}
-        >
-          <Box sx={{ ...modalStyle, maxWidth: '1000px' }} width="65%">
-            <ModalHeader title="Add Connection"></ModalHeader>
-            <AddConnection
-              handleClose={() => {
-                setShowAddConnection(false);
-              }}
-            ></AddConnection>
-          </Box>
-        </Modal>
-      )}
-      {copyConn && (
-        <Modal
-          open={!!copyConn}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setCopyConn(null);
-          })}
-        >
-          <Box sx={{ ...modalStyle, maxWidth: '1000px' }} width="65%">
-            <ModalHeader title="Copy Connection"></ModalHeader>
-            <AddConnection
-              handleClose={() => {
-                setCopyConn(null);
-              }}
-              config={copyConn}
-            ></AddConnection>
-          </Box>
-        </Modal>
-      )}
       {showCopyConn && (
         <Modal
           open={showCopyConn}
@@ -366,7 +346,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
                 setShowCopyConn(false);
               }}
               setCopyConn={(conn) => {
-                setCopyConn(conn);
+                showAddConnection(conn);
               }}
             ></CopyConnection>
           </Box>
@@ -619,8 +599,13 @@ const makeConn = async (uuid: string, kind: DataSourceKind) => {
   return new QueryConn(uuid, queryId, kind);
 };
 
-function FavoriteSqlMenu(props: { content: string; id: number; handleReload }) {
-  const { content, id, handleReload } = props;
+function FavoriteSqlMenu(props: {
+  content: string;
+  id: number;
+  handleReload;
+  openInNewWindow: () => void;
+}) {
+  const { content, id, handleReload, openInNewWindow } = props;
   const { showNotification } = useContext(NotificationContext);
   return (
     <MenuList>
@@ -636,6 +621,13 @@ function FavoriteSqlMenu(props: { content: string; id: number; handleReload }) {
           <ListItemText> Copy </ListItemText>
         </MenuItem>
       )}
+
+      <MenuItem onClick={openInNewWindow}>
+        <ListItemIcon>
+          <DeleteForeverIcon></DeleteForeverIcon>
+        </ListItemIcon>
+        <ListItemText> open query in new window </ListItemText>
+      </MenuItem>
 
       <MenuItem
         onClick={async () => {
@@ -673,14 +665,22 @@ function FavoriteSqlList(props: { handleClose }) {
     }
   };
   const { setTabs, setSelectTab } = useContext(TabsSetContext);
+
+  const checkConnOpened = async (uuid: string) => {
+    let connOpened = await invoke<boolean>('conn_opened', { name: uuid });
+    if (!connOpened) {
+      showNotification(
+        'error',
+        `connection '${extractConfigNameFromUuid(uuid)}' not opened????`
+      );
+      return false;
+    } else {
+      return true;
+    }
+  };
   const useRow = async (row: FavoriteSql) => {
     try {
-      let connOpened = await invoke<boolean>('conn_opened', { name: row.uuid });
-      if (!connOpened) {
-        showNotification(
-          'error',
-          `connection '${extractConfigNameFromUuid(row.uuid)}' not opened????`
-        );
+      if (!(await checkConnOpened(row.uuid))) {
         return;
       }
       setTabs((tabs) => {
@@ -713,23 +713,46 @@ function FavoriteSqlList(props: { handleClose }) {
     handleReload(false);
   }, []);
   const { setUpMenu } = useContext(ContextMenuContext);
+  const openInNewWindow = async (row: FavoriteSql) => {
+    if (!(await checkConnOpened(row.uuid))) {
+      return;
+    }
+    const webview = new WebviewWindow(generateRandomString(), {
+      title: `query of ${row.uuid}`,
+      url: 'query.html?uuid=' + row.uuid + '&kind=' + row.kind,
+      width: 800,
+      height: 600,
+      maximized: true,
+    });
+    webview.once('tauri://created', () =>
+      console.log('create table view successfully')
+    );
+    webview.once('tauri://error', (e) => {
+      showNotification('error', 'create webview failed', e.event.toString());
+    });
+    return;
+  };
 
   const slotProps = useMemo(() => {
     return {
       row: {
         onContextMenu: (e) => {
           const { target } = e;
-          let content = (target as HTMLDivElement).innerHTML;
+          const content = (target as HTMLDivElement).innerHTML;
           let { field, id } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
+          const row = fs.find((e) => e.id === parseInt(id));
           setUpMenu({
             content: (
               <FavoriteSqlMenu
                 content={content}
                 id={parseInt(id)}
                 handleReload={handleReload}
+                openInNewWindow={() => {
+                  openInNewWindow(row);
+                }}
               ></FavoriteSqlMenu>
             ),
             style: calMenuStyle(e),
@@ -744,7 +767,7 @@ function FavoriteSqlList(props: { handleClose }) {
         },
       },
     } as GridSlotsComponentsProps;
-  }, []);
+  }, [fs]);
 
   const columns = useMemo(() => {
     let cols = [
