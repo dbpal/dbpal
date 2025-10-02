@@ -946,14 +946,12 @@ pub(crate) fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result
         "BYTEA" => single_quote_str,
 
         "NAME" => single_quote_str,
+        "\"CHAR\"" => single_quote_str,
 
         "INT8" | "BIGINT" => default_str,
         "INT2" | "SMALLINT" => default_str,
         "INT4" | "INTEGER" => default_str,
         "TEXT" => single_quote_str,
-        "\"CHAR\"" => {
-            return err;
-        }
         "CHAR" | "CHARACTER" => single_quote_str,
         _ if typ.starts_with("CHAR") || typ.starts_with("CHARACTER") => single_quote_str,
         "OID" => default_str,
@@ -1012,14 +1010,18 @@ pub(crate) fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result
         "NUMERIC[]" => single_quote_str,
         "TIMETZ" | "TIME WITH TIME ZONE" => single_quote_str,
         "TIMETZ[]" => single_quote_str,
-        "BIT" => value
-            .map(|x| format!("B'{x}'"))
-            .unwrap_or("null".to_string()),
+        "BIT" => {
+            value
+                .map(|x| format!("B'{x}'"))
+                .unwrap_or("null".to_string())
+        }
 
         "BIT[]" => single_quote_str,
-        "VARBIT" | "BIT VARYING" => value
-            .map(|x| format!("B'{x}'"))
-            .unwrap_or("null".to_string()),
+        "VARBIT" | "BIT VARYING" => {
+            value
+                .map(|x| format!("B'{x}'"))
+                .unwrap_or("null".to_string())
+        }
         "VARBIT[]" => single_quote_str,
         "NUMERIC" => default_str,
         "RECORD" => default_str,

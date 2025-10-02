@@ -5,7 +5,8 @@ pub mod handlers;
 mod tests {
     use dbnexus_db::datasource_config::{CassandraDBConfig, EnableSsl, LibSqlDBConfigSource};
     use dbnexus_db::db::{
-        ColumnType, CreateTableAndIndexSql, CreatedTypeDef, SequenceDetail, ShowTableExtraArgs, SqlEvent,
+        ColumnType, CreateTableAndIndexSql, CreatedTypeDef, SequenceDetail, ShowTableExtraArgs,
+        SqlEvent,
     };
 
     #[test]
@@ -13,7 +14,6 @@ mod tests {
         use std::io::prelude::*;
         use std::path::Path;
 
-        use crate::app::{self};
         use dbnexus_db::datasource_config::{
             MongoDBConfig, MysqlDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
         };
@@ -26,6 +26,8 @@ mod tests {
         use typescript_type_def::{
             DefinitionFileOptions, TypeDef, write_definition_file_from_type_infos,
         };
+
+        use crate::app::{self};
         let dir = env!("CARGO_MANIFEST_DIR");
         let filepath = Path::new(&dir)
             .to_path_buf()

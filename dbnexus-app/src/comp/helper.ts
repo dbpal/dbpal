@@ -721,8 +721,6 @@ class MongoTableHandler {
   }
 }
 
-
-
 class UserSetting {
   theme: string = 'light';
   fontSize: number = 15;
@@ -734,7 +732,7 @@ class UserSetting {
   csvDelimiter: string = ',';
   includeHeader: boolean = true;
   datagridRowHeightFactor = 2;
-  maxTreeSize: number = 50;
+  maxTreeSize: number = 150;
   loggerLevel: string = 'info';
   loggerMaxSize: number = 1;
   saveQueryLog: boolean = true;

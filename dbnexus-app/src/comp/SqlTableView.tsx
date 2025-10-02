@@ -138,7 +138,7 @@ function SetFilterSort(props: {
     uuid,
   } = props;
   tableName = quoteIdentifier(kind)(tableName);
-  console.log('language:', kind);
+
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [modalBox, setModalBox] = useState(null);
 

@@ -6,6 +6,12 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
+use dashmap::DashMap;
+use oracle::pool::Pool;
+use oracle::{Connection, Row};
+use tokio::sync::Mutex;
+use tokio::task::block_in_place;
+
 use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
@@ -15,12 +21,6 @@ use crate::db::{
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
     XlsxEdit, escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
-use dashmap::DashMap;
-use oracle::pool::Pool;
-use oracle::{Connection, Row};
-use tokio::sync::Mutex;
-use tokio::task::block_in_place;
-
 use crate::helper::{NextQueryId, create_csv};
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
@@ -130,6 +130,7 @@ impl ExportQueryResult for OracleDB {
         })
         .await?
     }
+
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -221,6 +222,7 @@ impl QuerySql for OracleDB {
         }
         anyhow::Ok(())
     }
+
     async fn execute_sql_no_open_conn(
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -231,6 +233,7 @@ impl QuerySql for OracleDB {
         };
         anyhow::Ok(ret)
     }
+
     async fn execute_sql(
         &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -455,82 +458,118 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     let typ = typ.to_string().to_uppercase();
 
     match typ.as_str() {
-        "VARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", escape_sql_str(x)),
-            None => null_string,
-        }),
-        _ if typ.starts_with("VARCHAR2") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", escape_sql_str(x)),
-            None => null_string,
-        }),
-        "NVARCHAR2" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", escape_sql_str(x)),
-            None => null_string,
-        }),
-        _ if typ.starts_with("NVARCHAR2") => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", escape_sql_str(x)),
-            None => null_string,
-        }),
+        "VARCHAR2" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", escape_sql_str(x)),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("VARCHAR2") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", escape_sql_str(x)),
+                None => null_string,
+            })
+        }
+        "NVARCHAR2" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", escape_sql_str(x)),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("NVARCHAR2") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", escape_sql_str(x)),
+                None => null_string,
+            })
+        }
 
-        "CHAR" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("CHAR") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", escape_sql_str(x)),
-            None => null_string,
-        }),
-        "NCHAR" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", escape_sql_str(x)),
-            None => null_string,
-        }),
-        _ if typ.starts_with("NCHAR") => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", escape_sql_str(x)),
-            None => null_string,
-        }),
-        "RAW" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("RAW") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
+        "CHAR" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("CHAR") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", escape_sql_str(x)),
+                None => null_string,
+            })
+        }
+        "NCHAR" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", escape_sql_str(x)),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("NCHAR") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", escape_sql_str(x)),
+                None => null_string,
+            })
+        }
+        "RAW" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("RAW") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
 
-        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(match value {
-            Some(x) => x.to_string(),
-            None => null_string,
-        }),
+        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => {
+            anyhow::Ok(match value {
+                Some(x) => x.to_string(),
+                None => null_string,
+            })
+        }
 
-        _ if typ.starts_with("FLOAT") || typ.starts_with("NUMBER") => anyhow::Ok(match value {
-            Some(x) => x.to_string(),
-            None => null_string,
-        }),
+        _ if typ.starts_with("FLOAT") || typ.starts_with("NUMBER") => {
+            anyhow::Ok(match value {
+                Some(x) => x.to_string(),
+                None => null_string,
+            })
+        }
 
-        "CLOB" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "NCLOB" => anyhow::Ok(match value {
-            Some(x) => format!("N'{}'", x),
-            None => null_string,
-        }),
-        "BLOB" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "LONG" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        "TIMESTAMP" => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
-        _ if typ.starts_with("TIMESTAMP") => anyhow::Ok(match value {
-            Some(x) => format!("'{}'", x),
-            None => null_string,
-        }),
+        "CLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "NCLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("N'{}'", x),
+                None => null_string,
+            })
+        }
+        "BLOB" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "LONG" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        "TIMESTAMP" => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
+        _ if typ.starts_with("TIMESTAMP") => {
+            anyhow::Ok(match value {
+                Some(x) => format!("'{}'", x),
+                None => null_string,
+            })
+        }
         // "BFILE" => {
         //     anyhow::Ok(match value {
         //         Some(x) => format!("'{}'", x),
@@ -781,6 +820,7 @@ impl OracleDB {
         })
         .await?
     }
+
     async fn export_table_as_json_line(
         &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -823,6 +863,7 @@ impl OracleDB {
         })
         .await?
     }
+
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -861,6 +902,7 @@ impl OracleDB {
         })
         .await?
     }
+
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -941,11 +983,13 @@ impl OracleDB {
 
         anyhow::Ok(
             ret.into_iter()
-                .map(|x| ListTable {
-                    size: sizes
-                        .get(&x)
-                        .and_then(|x| (*x).map(|x| HumanSize(Box::new(x)))),
-                    name: x,
+                .map(|x| {
+                    ListTable {
+                        size: sizes
+                            .get(&x)
+                            .and_then(|x| (*x).map(|x| HumanSize(Box::new(x)))),
+                        name: x,
+                    }
                 })
                 .collect(),
         )
@@ -984,9 +1028,11 @@ impl SchemaTrait for OracleDB {
         let sql = format!(r#"SELECT * from "{}"."{}""#, self.schema_str(), name);
         ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
     }
+
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
+
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             "SELECT MVIEW_NAME FROM USER_MVIEWS  WHERE OWNER='{}' ",
@@ -1008,11 +1054,13 @@ impl SchemaTrait for OracleDB {
 
         anyhow::Ok(
             ret.into_iter()
-                .map(|x| ListTable {
-                    size: sizes
-                        .get(&x)
-                        .and_then(|x| (*x).map(|x| HumanSize(Box::new(x)))),
-                    name: x,
+                .map(|x| {
+                    ListTable {
+                        size: sizes
+                            .get(&x)
+                            .and_then(|x| (*x).map(|x| HumanSize(Box::new(x)))),
+                        name: x,
+                    }
                 })
                 .collect(),
         )
@@ -1635,12 +1683,14 @@ impl OracleDB {
 /// Oracle 里可直接写在 SQL 语句中的 CURRENT_* 无括号字面量
 pub const ORACLE_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_DATE", // 2025-08-25 14:36:07   （会话时区）
-    "CURRENT_TIMESTAMP", //  2025-08-25 14:36:07.123456   （会话时区，带微秒）
-                    //   "CURRENT_TIMESTAMP(n)", //  同上，精度可调；裸写 CURRENT_TIMESTAMP 默认为 6
+    "CURRENT_TIMESTAMP", /*  2025-08-25 14:36:07.123456   （会话时区，带微秒）
+                     *   "CURRENT_TIMESTAMP(n)", //  同上，精度可调；裸写 CURRENT_TIMESTAMP
+                     * 默认为 6 */
 ];
 
 impl SqlBuilder for OracleDB {
     const CURRENT_VALUES: &'static [&'static str] = ORACLE_CURRENT_LITERALS;
+
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
     fn put_value_in_sql(
@@ -1743,6 +1793,8 @@ impl OracleDB {
     }
 }
 
+// docker container create    -it    --name oracle-test  -p 1521:1521   -e
+// ORACLE_PWD=welcome123   container-registry.oracle.com/database/express:latest
 #[cfg(test)]
 pub(crate) fn make_test_object(schema: Option<String>) -> OracleDB {
     let x = OracleDB::new(

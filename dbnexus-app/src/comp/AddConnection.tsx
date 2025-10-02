@@ -333,59 +333,50 @@ function Database(props: {
   setDatabase;
   candidates: string[];
   onBlur?;
-  label?: string;
 }) {
-  let { database, setDatabase, candidates, onBlur, label } = props;
-
-  if (!label) {
-    label = 'database';
-  }
+  let { database, setDatabase, candidates, onBlur } = props;
+  const label = 'database';
   return (
-    <Stack>
+    <Stack direction="row">
       {candidates.length > 0 && (
-        <Stack
-          direction="row"
-          style={{ flexWrap: 'wrap', alignItems: 'center' }}
-        >
-          <Typography color="success"> candidates:</Typography>
-          {candidates.map((e) => (
-            <Button
-              key={e}
-              onClick={() => {
-                setDatabase(e);
-              }}
-              variant="text"
-            >
-              {e}
-            </Button>
-          ))}
-        </Stack>
+        <FormControl style={{ flex: 1 }}>
+          <InputLabel> candidates </InputLabel>
+          <Select
+            value={database}
+            label="candidates"
+            onChange={(e) => setDatabase(e.target.value)}
+          >
+            {candidates.map((e) => (
+              <MenuItem value={e} key={e}>
+                {e}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
       )}
-      <Stack direction="row">
-        <TextField
-          fullWidth
-          label={label}
-          value={database}
-          onBlur={onBlur}
-          onChange={(e) => setDatabase(e.target.value)}
-          slotProps={{
-            input: {
-              endAdornment: database && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setDatabase('');
-                    }}
-                    edge="end"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-      </Stack>
+      <TextField
+        label={label}
+        style={{ flex: 1 }}
+        value={database}
+        onBlur={onBlur}
+        onChange={(e) => setDatabase(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: database && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setDatabase('');
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+      />
     </Stack>
   );
 }
@@ -394,48 +385,45 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
   let { schema, setSchema, candidates } = props;
 
   return (
-    <Stack>
+    <Stack direction="row">
       {candidates.length > 0 && (
-        <Stack
-          direction="row"
-          style={{ flexWrap: 'wrap', alignItems: 'center' }}
-        >
-          <Typography color="success"> candidates:</Typography>
-          {candidates.map((e) => (
-            <Button
-              key={e}
-              onClick={() => {
-                setSchema(e);
-              }}
-            >
-              {e}
-            </Button>
-          ))}
-        </Stack>
+        <FormControl style={{ flex: 1 }}>
+          <InputLabel>candidates</InputLabel>
+          <Select
+            value={schema}
+            label="databs"
+            onChange={(e) => setSchema(e.target.value)}
+          >
+            {candidates.map((e) => (
+              <MenuItem key={e} value={e}>
+                {e}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
       )}
-      <Stack direction="row">
-        <TextField
-          label="schema"
-          value={schema}
-          onChange={(e) => setSchema(e.target.value)}
-          slotProps={{
-            input: {
-              endAdornment: schema && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setSchema('');
-                    }}
-                    edge="end"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-      </Stack>
+      <TextField
+        style={{ width: '16rem', flex: 1 }}
+        label="schema"
+        value={schema}
+        onChange={(e) => setSchema(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: schema && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setSchema('');
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+      />
     </Stack>
   );
 }
@@ -1015,6 +1003,13 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             setDatabase={setDatabase}
             onBlur={toggleTriggerReload}
           ></Database>
+          {database && (
+            <Schema
+              schema={schema}
+              setSchema={setSchema}
+              candidates={schemaCandidates}
+            ></Schema>
+          )}
           <EnableSSlCert
             enableSsl={sslEnable}
             setEnableSsl={setSslEnable}
@@ -1025,14 +1020,6 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             sslKey={sslKey}
             setSslKey={setSslKey}
           ></EnableSSlCert>
-
-          {database && (
-            <Schema
-              schema={schema}
-              setSchema={setSchema}
-              candidates={schemaCandidates}
-            ></Schema>
-          )}
         </>
       )}
       {connectionType === DataSourceKind.ClickHouse && (
@@ -1086,7 +1073,6 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             database={database}
             setDatabase={setDatabase}
             onBlur={toggleTriggerReload}
-            label="key space"
           ></Database>
         </>
       )}
