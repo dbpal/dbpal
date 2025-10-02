@@ -11,13 +11,6 @@ const params = new URLSearchParams(location.search);
 let config = params.get('config');
 const currentWebview = WebviewWindow.getCurrent();
 
-window.onerror = function (message, source, lineno, colno, error) {
-  console.error('Global error:', message, error);
-};
-
-con;
-console.log('!!!!!!!!!!!!!', config);
-
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <SeparateWindow>

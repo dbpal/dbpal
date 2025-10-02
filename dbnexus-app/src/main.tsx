@@ -1,7 +1,5 @@
 'use strict';
 
-JSON.parse('{111');
-
 import ReactDOM from 'react-dom/client';
 
 import './app.css';
