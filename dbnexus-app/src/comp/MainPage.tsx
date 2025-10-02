@@ -1,3 +1,4 @@
+'use strict';
 import { NotificationProvider } from './Notification';
 import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';

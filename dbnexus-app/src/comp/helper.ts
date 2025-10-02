@@ -1,3 +1,4 @@
+'use strict';
 import { editor, languages, Position } from "monaco-editor";
 import types from "./ApiStruct";
 import { createContext, CSSProperties, MouseEvent, ReactElement, ReactNode } from "react";

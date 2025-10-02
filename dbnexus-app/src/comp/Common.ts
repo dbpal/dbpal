@@ -1,3 +1,4 @@
+'use strict';
 import { SxProps } from '@mui/material';
 
 import { languages, editor, Position, CancellationToken } from 'monaco-editor';

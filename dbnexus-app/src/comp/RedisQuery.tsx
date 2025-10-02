@@ -1,3 +1,4 @@
+'use strict';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import SplitPane from 'react-split-pane';
 import './style/react-split-pane.css';

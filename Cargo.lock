@@ -1822,7 +1822,6 @@ dependencies = [
  "tokio",
  "typescript-type-def",
  "uuid",
- "wry 0.53.3 (git+https://github.com/tauri-apps/wry?branch=dev)",
 ]
 
 [[package]]
@@ -8272,7 +8271,7 @@ dependencies = [
  "webkit2gtk",
  "webview2-com",
  "windows",
- "wry 0.53.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wry",
 ]
 
 [[package]]
@@ -10081,50 +10080,6 @@ name = "wry"
 version = "0.53.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31f0e9642a0d061f6236c54ccae64c2722a7879ad4ec7dff59bd376d446d8e90"
-dependencies = [
- "base64 0.22.1",
- "block2 0.6.1",
- "cookie",
- "crossbeam-channel",
- "dirs",
- "dpi",
- "dunce",
- "gdkx11",
- "gtk",
- "html5ever",
- "http 1.2.0",
- "javascriptcore-rs",
- "jni",
- "kuchikiki",
- "libc",
- "ndk",
- "objc2 0.6.1",
- "objc2-app-kit 0.3.1",
- "objc2-core-foundation",
- "objc2-foundation 0.3.1",
- "objc2-ui-kit",
- "objc2-web-kit",
- "once_cell",
- "percent-encoding",
- "raw-window-handle",
- "sha2 0.10.8",
- "soup3",
- "tao-macros",
- "thiserror 2.0.8",
- "url",
- "webkit2gtk",
- "webkit2gtk-sys",
- "webview2-com",
- "windows",
- "windows-core 0.61.2",
- "windows-version",
- "x11-dl",
-]
-
-[[package]]
-name = "wry"
-version = "0.53.3"
-source = "git+https://github.com/tauri-apps/wry?branch=dev#0f51d67485d84fd9c72391379a67567eea3cbbfe"
 dependencies = [
  "base64 0.22.1",
  "block2 0.6.1",

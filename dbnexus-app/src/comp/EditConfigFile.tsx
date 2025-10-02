@@ -1,3 +1,4 @@
+'use strict';
 import { Button, Stack, Typography } from '@mui/material';
 import { useContext, useEffect, useState } from 'react';
 

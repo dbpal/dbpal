@@ -1,3 +1,4 @@
+'use strict';
 import { useContext, useEffect, useRef, useState } from 'react';
 import ClearIcon from '@mui/icons-material/Clear';
 import {

@@ -1,3 +1,4 @@
+'use strict';
 import { types } from './ApiStruct.ts';
 import {
   Alert,

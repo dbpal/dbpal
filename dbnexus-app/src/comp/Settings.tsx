@@ -1,3 +1,4 @@
+'use strict';
 import { CSSProperties, useContext, useEffect, useRef, useState } from 'react';
 
 import {

@@ -1,5 +1,4 @@
 'use strict';
-
 import ReactDOM from 'react-dom/client';
 
 import './app.css';
@@ -24,6 +23,8 @@ currentWebview.onCloseRequested(async (event) => {
     event.preventDefault();
   }
 });
+
+JSON.parse('{123');
 
 if (import.meta.env.DEV) {
   invoke('page_init_callback')

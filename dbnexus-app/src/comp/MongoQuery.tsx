@@ -1,3 +1,4 @@
+'use strict';
 import { Editor, Monaco } from '@monaco-editor/react';
 import {
   Box,

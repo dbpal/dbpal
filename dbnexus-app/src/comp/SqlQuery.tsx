@@ -1,3 +1,4 @@
+'use strict';
 import { Editor } from '@monaco-editor/react';
 import SplitPane from 'react-split-pane';
 import { MultiQueryResp } from './QueryResp';
