@@ -60,6 +60,7 @@ import {
   editorSetPositionAndReveal,
   ErrAndLoc,
   errToString,
+  extractFieldAndIDFromMouseEvent,
   FavoriteSql,
   generateDefaultFilename,
   generateRandomString,
@@ -496,7 +497,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
         onContextMenu: (e) => {
           const { target } = e;
           let content = (target as HTMLDivElement).innerHTML;
-          let field = (target as HTMLDivElement).getAttribute('data-field');
+          let field = extractFieldAndIDFromMouseEvent(e).field;
 
           if (!field) {
             return;

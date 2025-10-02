@@ -78,6 +78,7 @@ import {
   textEllipsisStyle,
   quoteIdentifier,
   MuiDataGridData,
+  extractFieldAndIDFromMouseEvent,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
@@ -559,12 +560,10 @@ function SqlTableView_(props: {
     return {
       row: {
         onContextMenu: (e) => {
-          const { currentTarget, target } = e;
-          let field = (target as HTMLDivElement).getAttribute('data-field');
+          const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
-          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
           let row = { ...resp.data.find((e) => e[keyNotInTable] == id) };
           let content = row[field];
           delete row[keyNotInTable];

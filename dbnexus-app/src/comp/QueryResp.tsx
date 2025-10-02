@@ -24,6 +24,7 @@ import {
   saveAndSetSize,
   ColumnWidth,
   MuiDataGridData,
+  extractFieldAndIDFromMouseEvent,
 } from './helper.ts';
 import {
   DataGrid,
@@ -168,12 +169,10 @@ function QueryResp_(props: { data: MuiDataGridData }) {
     return {
       row: {
         onContextMenu: (e) => {
-          const { target, currentTarget } = e;
-          let field = (target as HTMLDivElement).getAttribute('data-field');
+          const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
-          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
           let row = { ...data.data.find((e) => e[keyNotInTable] == id) };
           delete row[keyNotInTable];
           let content = row[field];

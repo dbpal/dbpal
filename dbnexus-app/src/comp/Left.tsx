@@ -20,7 +20,6 @@ import {
 import ClearIcon from '@mui/icons-material/Clear';
 import {
   memo,
-  ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -64,6 +63,7 @@ import {
   ContextMenuContext,
   DataSourceKind,
   extractConfigNameFromUuid,
+  extractFieldAndIDFromMouseEvent,
   FavoriteSql,
   generateRandomString,
   gridStyle,
@@ -421,7 +421,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
         onContextMenu: (e) => {
           const { target } = e;
           let content = (target as HTMLDivElement).innerHTML;
-          let field = (target as HTMLDivElement).getAttribute('data-field');
+          let field = extractFieldAndIDFromMouseEvent(e).field;
           if (!field) {
             return;
           }
@@ -618,6 +618,40 @@ const makeConn = async (uuid: string, kind: DataSourceKind) => {
   console.log('open connection:', queryId);
   return new QueryConn(uuid, queryId, kind);
 };
+
+function FavoriteSqlMenu(props: { content: string; id: number; handleReload }) {
+  const { content, id, handleReload } = props;
+  const { showNotification } = useContext(NotificationContext);
+  return (
+    <MenuList>
+      {content && (
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> Copy </ListItemText>
+        </MenuItem>
+      )}
+
+      <MenuItem
+        onClick={async () => {
+          await FavoriteSql.delete(id, showNotification);
+          handleReload(false);
+        }}
+      >
+        <ListItemIcon>
+          <DeleteForeverIcon></DeleteForeverIcon>
+        </ListItemIcon>
+        <ListItemText> delete </ListItemText>
+      </MenuItem>
+    </MenuList>
+  );
+}
+
 function FavoriteSqlList(props: { handleClose }) {
   const { handleClose } = props;
   const { showNotification } = useContext(NotificationContext);
@@ -650,62 +684,9 @@ function FavoriteSqlList(props: { handleClose }) {
         return;
       }
       setTabs((tabs) => {
-        let content;
-        switch (row.kind) {
-          case DataSourceKind.Mongo:
-            content = (
-              <MongoQuery
-                favoriteName={row.name}
-                value={row.sql}
-                uuid={row.uuid}
-                saveFavoriteSql={(_name, sql) => {
-                  FavoriteSql.save(
-                    new FavoriteSql(row.uuid, row.name, row.kind, sql),
-                    showNotification
-                  );
-                }}
-              ></MongoQuery>
-            );
-            break;
-          case DataSourceKind.Redis:
-            content = (
-              <RedisQuery
-                makeConn={async () => {
-                  return makeConn(row.uuid, row.kind);
-                }}
-                saveFavoriteSql={(_name, sql) => {
-                  FavoriteSql.save(
-                    new FavoriteSql(row.uuid, row.name, row.kind, sql),
-                    showNotification
-                  );
-                }}
-                uuid={row.uuid}
-                value={row.sql}
-                getParseErr={makeGetParserErr(row.uuid)}
-                favoriteName={row.name}
-              ></RedisQuery>
-            );
-            break;
-          default:
-            content = (
-              <SqlQuery
-                getParseErr={makeGetParserErr(row.uuid)}
-                uuid={row.uuid}
-                makeConn={async () => {
-                  return makeConn(row.uuid, row.kind);
-                }}
-                value={row.sql}
-                saveFavoriteSql={(_name, sql) => {
-                  FavoriteSql.save(
-                    new FavoriteSql(row.uuid, row.name, row.kind, sql),
-                    showNotification
-                  );
-                }}
-                favoriteName={row.name}
-                kind={row.kind}
-              ></SqlQuery>
-            );
-        }
+        let content = (
+          <AllKindQuery kind={row.kind} uuid={row.uuid} value={row.sql} />
+        );
         handleClose();
         setTimeout(() => {
           setSelectTab(tabs.length);
@@ -732,51 +713,25 @@ function FavoriteSqlList(props: { handleClose }) {
     handleReload(false);
   }, []);
   const { setUpMenu } = useContext(ContextMenuContext);
-  function Menu(props: { content: string; id: number }) {
-    const { content, id } = props;
-    return (
-      <MenuList>
-        {content && (
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}
-          >
-            <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-        )}
 
-        <MenuItem
-          onClick={async () => {
-            await FavoriteSql.delete(id, showNotification);
-            handleReload(false);
-          }}
-        >
-          <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
-          </ListItemIcon>
-          <ListItemText> delete </ListItemText>
-        </MenuItem>
-      </MenuList>
-    );
-  }
   const slotProps = useMemo(() => {
     return {
       row: {
         onContextMenu: (e) => {
-          const { target, currentTarget } = e;
+          const { target } = e;
           let content = (target as HTMLDivElement).innerHTML;
-          let field = (target as HTMLDivElement).getAttribute('data-field');
+          let { field, id } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
-          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
-
           setUpMenu({
-            content: <Menu content={content} id={parseInt(id)}></Menu>,
+            content: (
+              <FavoriteSqlMenu
+                content={content}
+                id={parseInt(id)}
+                handleReload={handleReload}
+              ></FavoriteSqlMenu>
+            ),
             style: calMenuStyle(e),
           });
         },
@@ -1340,12 +1295,14 @@ function CatalogMenu(props: {
   );
 }
 
-function makeQueryComponet(
-  kind: DataSourceKind,
-  uuid: string,
-  showNotification
-): ReactNode {
+function AllKindQuery(props: {
+  kind: DataSourceKind;
+  uuid: string;
+  value?: string;
+}) {
+  const { kind, uuid, value } = props;
   let content;
+  const { showNotification } = useContext(NotificationContext);
   switch (kind) {
     case DataSourceKind.MsSql:
     case DataSourceKind.Sqlite:
@@ -1372,6 +1329,7 @@ function makeQueryComponet(
               showNotification
             );
           }}
+          value={value}
           getParseErr={makeGetParserErr(uuid)}
           kind={kind}
         ></SqlQuery>
@@ -1390,6 +1348,7 @@ function makeQueryComponet(
               showNotification
             );
           }}
+          value={value}
           getParseErr={makeGetParserErr(uuid)}
         ></RedisQuery>
       );
@@ -1405,14 +1364,14 @@ function makeQueryComponet(
               showNotification
             );
           }}
+          value={value}
         ></MongoQuery>
       );
       break;
     default:
       console.log(`impl this ${kind}`);
   }
-
-  return content;
+  return <div> {content}</div>;
 }
 
 function openNewQuery(
@@ -1441,7 +1400,7 @@ function openNewQuery(
   }
   console.log('open new query uuid:', uuid);
   let id = uuid + '-query-' + generateRandomString();
-  let content = makeQueryComponet(kind, uuid, showNotification);
+  let content = <AllKindQuery kind={kind} uuid={uuid} />;
   setTabs((e: TabContent[]) => {
     setTimeout(() => {
       setSelectTab(e.length);
@@ -1721,4 +1680,4 @@ function DatabaseTree(props: {
 }
 const Left = React.memo(Left_);
 
-export { Left, makeQueryComponet };
+export { Left, AllKindQuery };

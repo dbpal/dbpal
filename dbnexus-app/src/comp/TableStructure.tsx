@@ -18,6 +18,7 @@ import {
   ColumnWidth,
   ContextMenuContext,
   DataSourceKind,
+  extractFieldAndIDFromMouseEvent,
   gridStyle,
   handleCopyToClipboard,
   saveAndSetSize,
@@ -231,17 +232,14 @@ function ColumnsStructure(props: {
     return {
       row: {
         onContextMenu: (e) => {
-          const { currentTarget, target } = e;
-          {
-            const field = (target as HTMLDivElement).getAttribute('data-field');
-            if (!field) {
-              return;
-            }
+          const { target } = e;
+          const { id, field } = extractFieldAndIDFromMouseEvent(e);
+          if (!field) {
+            return;
           }
           let content = (target as HTMLDivElement).innerHTML;
-          const col = (currentTarget as HTMLDivElement).getAttribute('data-id');
           setUpMenu({
-            content: <Menu col={col} content={content}></Menu>,
+            content: <Menu col={id} content={content}></Menu>,
             style: calMenuStyle(e),
           });
         },
@@ -557,7 +555,7 @@ function IndexesStructure(props: {
         onContextMenu: (e) => {
           const { currentTarget, target } = e;
           {
-            const field = (target as HTMLDivElement).getAttribute('data-field');
+            const { field } = extractFieldAndIDFromMouseEvent(e);
             if (!field) {
               return;
             }
@@ -1564,7 +1562,7 @@ function TriggersStructure(props: {
         onContextMenu: (e) => {
           const { currentTarget, target } = e;
           {
-            const field = (target as HTMLDivElement).getAttribute('data-field');
+            const { field } = extractFieldAndIDFromMouseEvent(e);
             if (!field) {
               return;
             }

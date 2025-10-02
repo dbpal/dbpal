@@ -55,6 +55,7 @@ import {
   gridStyle,
   SavePageSize,
   MuiDataGridData,
+  extractFieldAndIDFromMouseEvent,
 } from './helper.ts';
 
 import {
@@ -834,13 +835,13 @@ function RedisSetTable(props: {
     return {
       row: {
         onContextMenu: (e) => {
-          const { currentTarget, target } = e;
-          let content = (target as HTMLDivElement).innerHTML;
-          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
-          let field = (target as HTMLDivElement).getAttribute('data-field');
-          if (!field) {
+          const { target } = e;
+          const { field, id } = extractFieldAndIDFromMouseEvent(e);
+          if (field) {
             return;
           }
+          //@ts-ignore
+          const content = target.innerHTML;
           setUpMenu({
             content: (
               <RedisSetTableContextMenu
@@ -1176,10 +1177,9 @@ function RedisListTable(props: {
     return {
       row: {
         onContextMenu: (e) => {
-          const { currentTarget, target } = e;
+          const { target } = e;
           let content = (target as HTMLDivElement).innerHTML;
-          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
-          let field = (target as HTMLDivElement).getAttribute('data-field');
+          const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
@@ -1429,10 +1429,9 @@ function RedisZsetTable(props: {
     return {
       row: {
         onContextMenu: (e) => {
-          const { currentTarget, target } = e;
+          const { target } = e;
           let content = (target as HTMLDivElement).innerHTML;
-          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
-          let field = (target as HTMLDivElement).getAttribute('data-field');
+          const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
@@ -1759,10 +1758,9 @@ function RedisHashTable(props: {
     return {
       row: {
         onContextMenu: (e) => {
-          const { currentTarget, target } = e;
+          const { target } = e;
           let content = (target as HTMLDivElement).innerHTML;
-          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
-          let field = (target as HTMLDivElement).getAttribute('data-field');
+          const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }

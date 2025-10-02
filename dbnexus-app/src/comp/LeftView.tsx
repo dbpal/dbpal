@@ -53,6 +53,7 @@ import {
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
+  extractFieldAndIDFromMouseEvent,
   generateRandomString,
   getSupportExportKind,
   gridStyle,
@@ -389,7 +390,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
         onContextMenu: (e) => {
           const { target } = e;
           {
-            const field = (target as HTMLDivElement).getAttribute('data-field');
+            const field = extractFieldAndIDFromMouseEvent(e).field;
             if (!field) {
               return;
             }

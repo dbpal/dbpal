@@ -1754,7 +1754,6 @@ mod tests {
         assert!(db.get_auto_commit(query_id).await.unwrap());
     }
 
-    #[ignore = "this test run by hand"]
     #[tokio::test]
     async fn test_do_has_data() {
         let db = make_test_object().await;

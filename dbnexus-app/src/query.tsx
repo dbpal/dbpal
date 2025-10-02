@@ -1,6 +1,6 @@
 import ReactDOM from 'react-dom/client';
 import './app.css';
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   connTypeToDataSourceKind,
   DataSourceKind,
@@ -10,9 +10,8 @@ import {
 } from './comp/helper.ts';
 import { initMonacoLanguage } from './comp/Common.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
-import { makeQueryComponet } from './comp/Left.tsx';
-import { NotificationContext } from './comp/Notification.tsx';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { AllKindQuery } from './comp/Left.tsx';
 
 windowInit(false, false);
 const params = new URLSearchParams(location.search);
@@ -30,19 +29,17 @@ let cc;
 
 function Query(props: { uuid: string; kind: DataSourceKind }) {
   const { uuid, kind } = props;
-  const { showNotification } = useContext(NotificationContext);
   const [closeConfirm, setCloseConfirm] = useState('');
   useEffect(() => {
     cc = closeConfirm;
   }, [closeConfirm]);
-  let x = makeQueryComponet(kind, uuid, showNotification);
   return (
     <SetCloseConfirmTextContext
       value={(msg) => {
         setCloseConfirm(msg);
       }}
     >
-      {x}
+      <AllKindQuery uuid={uuid} kind={kind} />
     </SetCloseConfirmTextContext>
   );
 }

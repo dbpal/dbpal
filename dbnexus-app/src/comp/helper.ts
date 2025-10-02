@@ -1066,7 +1066,13 @@ enum RedisTableType {
   Hash = 'hash',
 }
 
+function extractFieldAndIDFromMouseEvent(e: MouseEvent) {
 
+  const { currentTarget, target } = e;
+  let field = (target as HTMLDivElement).getAttribute('data-field');
+  let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+  return { field, id };
+}
 
 export {
   TabsSetContext,
@@ -1128,6 +1134,7 @@ export {
   setZoom,
   windowInit,
   RedisTableType,
+  extractFieldAndIDFromMouseEvent,
 };
 
 
