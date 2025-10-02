@@ -424,7 +424,9 @@ class SaveMatchPattern {
 }
 {
   let x = await appStore.get<string[]>(AppStoreKey.MatchPattern);
-  SaveMatchPattern.instance.matchPattern = x;
+  if (x) {
+    SaveMatchPattern.instance.matchPattern = x;
+  }
 }
 
 
