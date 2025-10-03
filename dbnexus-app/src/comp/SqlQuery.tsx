@@ -212,9 +212,9 @@ function SqlQuery(props: {
 
       ed.onDidChangeModelContent((_event) => {
         let text = ed.getValue();
-        getParseErr(text).then((e) => {
-          setParseErr(e);
-        });
+        // getParseErr(text).then((e) => {
+        //   setParseErr(e);
+        // });
       });
 
       ed.onDidChangeCursorPosition((_event) => {
