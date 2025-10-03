@@ -21,7 +21,7 @@ use handlers::{
     drop_materialized_view, drop_procedure, drop_schema, drop_sequence, drop_table,
     drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
     execute_sql, execute_sql_no_open_conn, export_query_result_to_file, export_table_or_view,
-    extract_table_select_selection, extract_table_select_sort, fonts_all_families,
+    extract_table_select_selection, extract_table_select_sort, fonts_all_families, get_password,
     has_entered_password, is_dangerous_sql, key_words, list_created_types, list_data_types,
     list_database, list_event, list_materialized_view, list_procedure, list_schema, list_sequence,
     list_sql_current_values, list_table, list_udf, list_view, modify_table_column,
@@ -66,7 +66,7 @@ fn main() {
     })
 }
 
-// is this a macbook computer
+// is this macbook computer
 #[inline(always)]
 fn is_mac() -> bool {
     #[cfg(target_os = "macos")]
@@ -237,10 +237,10 @@ fn main_() {
                         log::set_boxed_logger(Box::new(logger)).unwrap();
                         log::set_max_level(log::LevelFilter::Trace);
                     }
-                    Err(err) => println!("can't open file for write,err:{:?}", err),
+                    Err(err) => println!("can't open file for write,err:{}", err),
                 }
             }
-            Err(err) => println!("can't get app data dir,err:{:?}", err),
+            Err(err) => println!("can't get app data dir,err:{}", err),
         }
 
         *unsafe { App::get_config_ref() } = Some(Box::new(move |name| {
@@ -278,7 +278,6 @@ fn main_() {
             }
             anyhow::bail!(format!("config named '{}' not found", name))
         }));
-
         Ok(())
     };
 
@@ -364,6 +363,10 @@ fn main_() {
                             &PredefinedMenuItem::minimize(handle, None)?,
                             #[cfg(any(target_os = "macos"))]
                             &PredefinedMenuItem::fullscreen(handle, None)?,
+                            // #[cfg(any(target_os = "macos"))]
+                            // &PredefinedMenuItem::show_all(handle, None)?,
+                            #[cfg(any(target_os = "macos", target_os = "windows",))]
+                            &PredefinedMenuItem::hide(handle, None)?,
                             &MenuItem::with_id(
                                 handle,
                                 "zoom_in",
@@ -413,7 +416,10 @@ fn main_() {
                                     let mut meta = AboutMetadata::default();
                                     meta.website = Some("https://dbpal.site".to_string());
                                     meta.name = Some("dbpal".to_string());
-                                    meta.authors = Some(vec!["756445638@qq.com".to_string()]);
+                                    meta.authors = Some(vec![
+                                        "756445638@qq.com".to_string(),
+                                        "yuyangxxxmail@gmail.com".to_string(),
+                                    ]);
                                     meta.copyright = Some(
                                         "Copyright © yuyang 2025 All rights reserved.".to_string(),
                                     );
@@ -440,13 +446,14 @@ fn main_() {
                 handle.restart();
             }
             if event.id.0 == "open_dev_tools" {
-                let windows = handle.webview_windows();
-                for w in windows.values() {
-                    if w.is_focused().unwrap_or_default() {
-                        w.open_devtools();
+                let views = handle.webview_windows();
+                for view in views.values() {
+                    if view.is_focused().unwrap_or_default() {
+                        view.open_devtools();
                     }
                 }
             }
+
             if event.id.0 == "zoom_in" {
                 handle.emit("zoom_in", "").unwrap();
             }
@@ -600,6 +607,7 @@ fn main_() {
             key_words,
             extract_table_select_selection,
             extract_table_select_sort,
+            get_password,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

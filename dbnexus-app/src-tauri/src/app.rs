@@ -10,6 +10,7 @@ use dbnexus_db::datasource_config::{
 };
 use dbnexus_db::db::{CatalogTrait, DBTrait, SchemaTrait};
 use dbnexus_db::mongo::MongoDB;
+use rand::Rng;
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
@@ -534,6 +535,15 @@ impl App {
         let x = name_to_parts(name);
         self.backend.lock().await.contains_key(&x[0].to_string())
     }
+}
+
+#[allow(unused)]
+pub(crate) fn generate_random_string(len: usize) -> String {
+    rand::thread_rng()
+        .sample_iter(&rand::distributions::Alphanumeric)
+        .take(len)
+        .map(char::from)
+        .collect()
 }
 
 #[cfg(test)]

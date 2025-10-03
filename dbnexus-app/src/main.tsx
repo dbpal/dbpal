@@ -2,14 +2,10 @@
 import ReactDOM from 'react-dom/client';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import './app.css';
-import { MainPage } from './comp/MainPage';
+import { App } from './comp/MainPage';
 import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
 import { secondConfirm, windowInit } from './comp/helper';
-
-// console.log('before error');
-// xxxx + 1;
-// console.log('after error');
 
 await windowInit(true, true);
 
@@ -37,6 +33,6 @@ if (import.meta.env.DEV) {
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <MainPage></MainPage>
+    <App></App>
   </React.StrictMode>
 );

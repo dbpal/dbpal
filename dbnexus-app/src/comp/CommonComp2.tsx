@@ -33,6 +33,7 @@ import {
   editorSetPositionAndReveal,
   secondConfirm,
   SettingContext,
+  TabActiveContext,
   TabContent,
   TabsSetContext,
 } from './helper';
@@ -44,6 +45,7 @@ import types from './ApiStruct';
 import { MetaValueView } from './CommonComp';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { save, SaveDialogOptions, open } from '@tauri-apps/plugin-dialog';
+import { platform } from '@tauri-apps/plugin-os';
 
 function CreateDatabase({ uuid, handleClose }) {
   const { showNotification } = useContext(NotificationContext);
@@ -477,7 +479,7 @@ function LoadStoreFileForQuery(props: {
   const { getQuery, handleChange, kind } = props;
   const [file, setFile] = useState('');
   const { showNotification } = useContext(NotificationContext);
-
+  const active = useContext(TabActiveContext);
   const loadFile = async () => {
     // ok to load
     try {
@@ -569,6 +571,27 @@ function LoadStoreFileForQuery(props: {
       showNotification('error', 'close file failed', e);
     }
   };
+
+  useEffect(() => {
+    const callback = (e: KeyboardEvent) => {
+      if (!active) {
+        return;
+      }
+      let p = platform();
+      if (
+        (p == 'macos' && e.metaKey && e.key == 's') ||
+        (p == 'windows' && e.ctrlKey && e.key == 's') ||
+        (p == 'linux' && e.ctrlKey && e.key == 's')
+      ) {
+        handleSave();
+        e.preventDefault();
+      }
+    };
+    document.addEventListener('keydown', callback);
+    return () => {
+      document.removeEventListener('keydown', callback);
+    };
+  }, [active]);
 
   return (
     <>

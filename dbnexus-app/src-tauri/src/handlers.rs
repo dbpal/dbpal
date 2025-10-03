@@ -91,6 +91,20 @@ pub async fn delete_password(
     entry.delete_credential()?;
     Ok(())
 }
+
+#[tauri::command]
+pub fn get_password(name: String, app: tauri::State<'_, App>) -> Result<String, ErrorFrontend> {
+    if let Some(x) = app.saved_password.get(&name) {
+        return Ok(x.clone());
+    }
+    let passwd = keyring::Entry::new(PASSWORD_KEY, &name)
+        .ok()
+        .map(|x| x.get_password().ok())
+        .flatten()
+        .unwrap_or_default();
+    Ok(passwd)
+}
+
 #[tauri::command]
 pub async fn save_password(name: String, pass: String) -> Result<(), ErrorFrontend> {
     let entry = keyring::Entry::new(PASSWORD_KEY, &name)?;

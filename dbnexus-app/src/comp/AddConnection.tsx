@@ -21,6 +21,7 @@ import {
   InputAdornment,
   IconButton,
 } from '@mui/material';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
@@ -78,19 +79,44 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
   );
 }
 
-function SelectPath(props: { path; setPath }) {
-  let { path, setPath } = props;
+function SelectPath(props: { path; setPath; label: string }) {
+  let { path, setPath, label } = props;
   return (
     <Stack direction="row" sx={{ alignItems: 'center' }}>
-      <Chip
-        label={`path:` + (path ? path : '')}
+      <TextField
+        value={path}
+        onChange={(e) => {
+          setPath(e.target.value);
+        }}
+        style={{ flex: 1 }}
+        label={label}
+        slotProps={{
+          input: {
+            endAdornment: path && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setPath('');
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+      ></TextField>
+      <IconButton
         onClick={() => {
           selectOneFile().then((e) => {
             setPath(e);
           });
         }}
         color="primary"
-      ></Chip>
+      >
+        <AttachFileIcon></AttachFileIcon>
+      </IconButton>
     </Stack>
   );
 }
@@ -453,7 +479,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   const [host, setHost] = useState(getConfig('host'));
   const [port, setPort] = useState('' + getConfig('port', 0));
   const [user, setUser] = useState(getConfig('username'));
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState(getConfig('password', ''));
   const [database, setDatabase] = useState(getConfig('db'));
   const [readOnly, setReadOnly] = useState(getConfig('read_only', false));
 
@@ -1201,11 +1227,19 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         </>
       )}
       {connectionType === DataSourceKind.Sqlite && (
-        <SelectPath path={path} setPath={setPath}></SelectPath>
+        <SelectPath
+          path={path}
+          setPath={setPath}
+          label="sqlite database file"
+        ></SelectPath>
       )}
       {connectionType === DataSourceKind.DuckDB && (
         <>
-          <SelectPath path={path} setPath={setPath}></SelectPath>
+          <SelectPath
+            path={path}
+            setPath={setPath}
+            label="duckdb database file"
+          ></SelectPath>
           <Database
             database={database}
             candidates={databaseCandidates}
@@ -1340,7 +1374,11 @@ function LibSql(props: {
       </RadioGroup>
 
       {libSqlModel === 'local' && (
-        <SelectPath path={path} setPath={setPath}></SelectPath>
+        <SelectPath
+          path={path}
+          setPath={setPath}
+          label="libsql database file"
+        ></SelectPath>
       )}
       {libSqlModel === 'remote' && (
         <>
@@ -1402,7 +1440,13 @@ function LibSql(props: {
               }}
             ></Checkbox>
             replica
-            {replica && <SelectPath path={path} setPath={setPath}></SelectPath>}
+            {replica && (
+              <SelectPath
+                label="replica"
+                path={path}
+                setPath={setPath}
+              ></SelectPath>
+            )}
           </Stack>
         </>
       )}

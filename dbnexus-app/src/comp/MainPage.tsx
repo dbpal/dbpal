@@ -12,16 +12,10 @@ import {
 } from 'react';
 import { MdError } from 'react-icons/md';
 import { TabContent, TabsWithContent } from './Tabs';
-import {
-  EscDownEvent,
-  modalHandleClose,
-  modalStyle,
-  tabsHasId,
-} from './Common';
+import { EscDownEvent, modalHandleClose, modalStyle } from './Common';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
 import { event } from '@tauri-apps/api';
-import { RiBloggerLine } from 'react-icons/ri';
 import { SettingComp } from './Settings.tsx';
 import {
   ContextMenuContext,
@@ -31,13 +25,13 @@ import {
   TabsSetContext,
   WindowFocusContext,
   windowFocusChangeEvent,
+  menuDivID,
 } from './helper.ts';
 
 import { Box, Modal, Paper } from '@mui/material';
 import { BackendCrash } from './BackendCrash.tsx';
 import { EditConfigFile } from './EditConfigFile.tsx';
 import { ModalHeader } from './CommonComp.tsx';
-import { LogFile } from './LogFile.tsx';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 const shortCuts = {
@@ -86,7 +80,7 @@ const shortCuts = {
 const settingWindowID = generateRandomString();
 const openLogFileId = generateRandomString();
 
-function MainPage() {
+function App() {
   let [tabs, setTabs] = useState<TabContent[]>([]);
   const [tab, setTab] = useState(0);
   const closeTab = useCallback(
@@ -187,28 +181,29 @@ function MainPage() {
       });
     };
   }, []);
+
   useEffect(() => {
     let unlisten = listen<string>('open_log_file', () => {
-      setTabs((tabs) => {
-        let index = tabsHasId(tabs, openLogFileId);
-        if (typeof index === 'number') {
-          setTab(index);
-          return tabs;
+      (async () => {
+        let webview = await WebviewWindow.getByLabel(openLogFileId);
+        if (webview) {
+          webview.setFocus();
         } else {
-          setTimeout(() => {
-            setTab(tabs.length);
-          }, 100);
-          return [
-            ...tabs,
-            new TabContent(
-              openLogFileId,
-              'log file',
-              <LogFile />,
-              <RiBloggerLine />
-            ),
-          ];
+          const webview = new WebviewWindow(openLogFileId, {
+            title: 'log file',
+            url: 'log_file.html',
+            width: 800,
+            height: 600,
+            maximized: true,
+          });
+          webview.once('tauri://created', () =>
+            console.log('create table view successfully')
+          );
+          webview.once('tauri://error', (e) => {
+            console.log('error', 'create webview failed', e.event.toString());
+          });
         }
-      });
+      })();
     });
     return () => {
       unlisten.then((e) => {
@@ -245,12 +240,7 @@ function MainPage() {
     style: CSSProperties;
   }>();
   useEffect(() => {
-    window.addEventListener('click', () => {
-      const customMenu = document.getElementById('menu-div');
-      if (customMenu.style) {
-        customMenu.style.display = 'none';
-      }
-    });
+    window.addEventListener('click', hiddenMenu);
   }, []);
 
   useEffect(() => {
@@ -265,14 +255,13 @@ function MainPage() {
   const leftSizeKey = 'left-size';
   const [leftSize, setLeftSize] = useState(300);
   useEffect(() => {
-    let a = async () => {
+    async () => {
       SaveDomSizes.getSize(leftSizeKey).then((size) => {
         if (size && size.width) {
           setLeftSize(size.width);
         }
       });
     };
-    a();
   }, []);
 
   let mainContent = (
@@ -336,11 +325,9 @@ function MainPage() {
             <WindowFocusContext value={windowFocus}>
               <div>{mainContent}</div>
               <div
-                id="menu-div"
+                id={menuDivID}
                 style={{
-                  position: 'fixed',
-                  zIndex: 10000,
-                  height: 'fit-content',
+                  ...menuBasicStyle,
                   ...(menu && menu.style),
                 }}
               >
@@ -377,14 +364,24 @@ function MainPage() {
   );
 }
 
+const menuBasicStyle = {
+  position: 'fixed',
+  zIndex: 10000,
+  height: 'fit-content',
+  maxHeight: '48vh',
+  overflow: 'auto',
+} as CSSProperties;
+
+function hiddenMenu() {
+  const customMenu = document.getElementById(menuDivID);
+  if (customMenu.style) {
+    customMenu.style.display = 'none';
+  }
+}
+
 function SeparateWindow(props: { children }) {
   useEffect(() => {
-    window.addEventListener('click', () => {
-      const customMenu = document.getElementById('menu-div');
-      if (customMenu.style) {
-        customMenu.style.display = 'none';
-      }
-    });
+    window.addEventListener('click', hiddenMenu);
   }, []);
   const { children } = props;
   const [menu, setUpMenu] = useState<{
@@ -406,17 +403,14 @@ function SeparateWindow(props: { children }) {
           <NotificationProvider>
             <div style={{ padding: '0.5rem 0.9rem' }}> {children} </div>
             <div
-              id="menu-div"
+              id={menuDivID}
               style={{
-                position: 'fixed',
-                zIndex: 10000,
-                height: 'fit-content',
+                ...menuBasicStyle,
                 ...(menu && menu.style),
               }}
             >
               <Paper elevation={24}>{menu && menu.content}</Paper>
             </div>
-            <div style={{ minHeight: '300px' }}> </div>
           </NotificationProvider>
         </ContextMenuContext.Provider>
       </SettingComp>
@@ -424,4 +418,4 @@ function SeparateWindow(props: { children }) {
   );
 }
 
-export { MainPage, SeparateWindow };
+export { App, SeparateWindow };

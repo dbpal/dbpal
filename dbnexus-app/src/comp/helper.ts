@@ -290,19 +290,21 @@ function getViewportSize() {
   return { width, height }; // 返回一个对象，包含宽度和高度
 }
 
+
+const menuDivID = "menu-div";
 function calMenuStyle(e: MouseEvent): CSSProperties {
   e.preventDefault();
   const x = e.clientX;
   const y = e.clientY;
   let ret: CSSProperties = {};
-  const menuDiv = document.getElementById('menu-div');
+  const menuDiv = document.getElementById(menuDivID);
   menuDiv.style.display = 'block';
   const { height, width } = getViewportSize();
   ret.top = 'auto';
   ret.bottom = 'auto';
   ret.left = 'auto';
   ret.right = 'auto';
-  if (width - x > 300) {
+  if (width - x > (width / 2)) {
     // this is click have a lot of space on the right
     ret.left =
       x -
@@ -312,7 +314,7 @@ function calMenuStyle(e: MouseEvent): CSSProperties {
     ret.right = width - x - 10 + 'px';
   }
 
-  if ((height - y) > 350) {
+  if ((height - y) > (height / 2)) {
     // 这个是点击的位置下面有很大的空间
     ret.top = y - 10 + 'px';
   } else {
@@ -478,10 +480,19 @@ class FavoriteSql {
     }
   }
 
-  // todo performance issue????
-  static getAll(): Promise<FavoriteSql[]> {
-    return appDatabase.select("select * from favorite_sql");
+  static async getDistinctUuid() {
+    return appDatabase.select<{ uuid: string }[]>("SELECT DISTINCT  uuid from favorite_sql").then(x => x.map(y => y.uuid))
   }
+
+  // todo performance issue????
+  static getByUuid(uuid: string): Promise<FavoriteSql[]> {
+    let sql = "select * from favorite_sql";
+    if (uuid) {
+      sql += " where uuid=?";
+    }
+    return appDatabase.select(sql, uuid ? [uuid] : []);
+  }
+
 
   static async delete(id: number, showNotification) {
     try {
@@ -1136,6 +1147,7 @@ export {
   windowInit,
   RedisTableType,
   extractFieldAndIDFromMouseEvent,
+  menuDivID,
 };
 
 

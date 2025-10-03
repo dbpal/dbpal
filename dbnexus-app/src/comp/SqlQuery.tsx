@@ -393,7 +393,6 @@ function SqlQuery(props: {
         fontWeight: setting.fontWeight,
         fontFamily: setting.fontFamily,
         tabSize: setting.tabSize,
-
         ...setting.editorOption,
       };
     }, [setting]);
@@ -614,16 +613,18 @@ function SqlQuery(props: {
               <FaBookmark style={{ fontSize: '1.2rem' }} />
             </IconButton>
           </Tooltip>
+          {editor && (
+            <LoadStoreFileForQuery
+              getQuery={() => {
+                return editor.getValue();
+              }}
+              handleChange={(content) => {
+                editor.setValue(content);
+              }}
+              kind={kind}
+            ></LoadStoreFileForQuery>
+          )}
 
-          <LoadStoreFileForQuery
-            getQuery={() => {
-              return editor.getValue();
-            }}
-            handleChange={(content) => {
-              editor.setValue(content);
-            }}
-            kind={kind}
-          ></LoadStoreFileForQuery>
           <Tooltip title="query log">
             <IconButton
               onClick={() => {

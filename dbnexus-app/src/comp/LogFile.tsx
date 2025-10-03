@@ -87,44 +87,51 @@ function LogFile() {
     }
   }, [value, pinToBotton]);
   return (
-    <Stack spacing={1} style={{ height: '87vh' }}>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
-        <IconButton
-          onClick={() => {
-            editorSetPositionAndReveal(editor.current, new Position(1, 1));
-          }}
-          color="primary"
-          disabled={pinToBotton}
-        >
-          <ArrowUpwardIcon></ArrowUpwardIcon>
-        </IconButton>
-        <IconButton
-          onClick={() => {
-            let lines = value.split('\n');
-            editorSetPositionAndReveal(
-              editor.current,
-              new Position(lines.length + 1, 1)
-            );
-          }}
-          color="primary"
-          disabled={pinToBotton}
-        >
-          <ArrowDownwardIcon></ArrowDownwardIcon>
-        </IconButton>
-        <Button onClick={handleTruncate} variant="outlined">
-          truncate
-        </Button>
-        <FormControlLabel
-          label="pin to bottom"
-          control=<Switch
-            checked={pinToBotton}
-            onChange={(e) => setPinToBotton(e.target.checked)}
-          />
-        ></FormControlLabel>
-
-        <Chip color="info" label={setting.loggerLevel}></Chip>
-        <Typography color="info">max size:{setting.loggerMaxSize}MB</Typography>
-        <span> loaded at:{modifyDate} </span>
+    <Stack spacing={1} flex={1} height="95vh">
+      <Stack
+        direction="row"
+        spacing={1}
+        style={{ alignItems: 'center', justifyContent: 'space-between' }}
+      >
+        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+          <IconButton
+            onClick={() => {
+              editorSetPositionAndReveal(editor.current, new Position(1, 1));
+            }}
+            color="primary"
+            disabled={pinToBotton}
+          >
+            <ArrowUpwardIcon></ArrowUpwardIcon>
+          </IconButton>
+          <IconButton
+            onClick={() => {
+              let lines = value.split('\n');
+              editorSetPositionAndReveal(
+                editor.current,
+                new Position(lines.length + 1, 1)
+              );
+            }}
+            color="primary"
+            disabled={pinToBotton}
+          >
+            <ArrowDownwardIcon></ArrowDownwardIcon>
+          </IconButton>
+          <Button onClick={handleTruncate} variant="outlined">
+            truncate
+          </Button>
+          <FormControlLabel
+            label="pin to bottom"
+            control=<Switch
+              checked={pinToBotton}
+              onChange={(e) => setPinToBotton(e.target.checked)}
+            />
+          ></FormControlLabel>
+          <Chip color="info" label={setting.loggerLevel}></Chip>
+          <Typography color="info">
+            max size:{setting.loggerMaxSize}MB
+          </Typography>
+        </Stack>
+        <Typography color="info"> loaded at:{modifyDate} </Typography>
       </Stack>
 
       <SimpleFlexEditor

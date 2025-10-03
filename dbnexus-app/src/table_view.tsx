@@ -80,6 +80,6 @@ switch (kind) {
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <SeparateWindow> {content} </SeparateWindow>
+    <SeparateWindow>{content}</SeparateWindow>
   </React.StrictMode>
 );

@@ -180,8 +180,6 @@ function TabsWithContent_(props: {
           </TabActiveContext.Provider>
         ))}
       </div>
-
-      <div style={{ minHeight: '300px' }}></div>
     </Stack>
   );
 }

@@ -20,6 +20,7 @@ export default defineConfig(async ({ command }) => {
           third: resolve(__dirname, 'table_view.html'),
           setting: resolve(__dirname, 'setting.html'),
           add_connection: resolve(__dirname, 'add_connection.html'),
+          log_file: resolve(__dirname, 'log_file.html'),
         }
       }
     },

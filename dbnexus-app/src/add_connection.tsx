@@ -11,17 +11,15 @@ import { Stack, Typography } from '@mui/material';
 windowInit(false, false);
 const params = new URLSearchParams(location.search);
 let c = params.get('config');
-
 const currentWebview = WebviewWindow.getCurrent();
-
-let config = {};
+let config = null;
 let err = '';
 if (c) {
   try {
     let x = JSON.parse(decodeURIComponent(c));
     config = x;
   } catch (e) {
-    err = 'parse config to json error ' + c + ' this is a internal error';
+    err = 'parse config to object error :' + c + ' :this is a internal error';
   }
 }
 

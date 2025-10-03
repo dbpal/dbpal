@@ -5,13 +5,16 @@ import {
   Chip,
   CircularProgress,
   Divider,
+  FormControl,
   IconButton,
   InputAdornment,
+  InputLabel,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
   Modal,
+  Select,
   Stack,
   TextField,
   Tooltip,
@@ -133,11 +136,12 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   }, [show]);
 
   const showAddConnection = async (conn?: types.DBConnectionConfig) => {
-    let webview = await WebviewWindow.getByLabel(addConnectionID);
+    let id = addConnectionID + (conn ? conn.name : '');
+    let webview = await WebviewWindow.getByLabel(id);
     if (webview) {
       await webview.setFocus();
     } else {
-      const webview = new WebviewWindow(addConnectionID, {
+      const webview = new WebviewWindow(id, {
         title: 'add connection',
         url: 'add_connection.html?config=' + (conn ? JSON.stringify(conn) : ''),
         width: 800,
@@ -392,8 +396,11 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
     );
   }
 
-  const useRow = (conn) => {
-    setCopyConn(conn);
+  const useRow = async (conn) => {
+    const password = await invoke<string>('get_password', { name: conn.name });
+    let x = { ...conn };
+    x['password'] = password;
+    setCopyConn(x);
     handleClose();
   };
   const slotProps = useMemo(() => {
@@ -587,7 +594,6 @@ function Left_() {
           );
         })}
       </Stack>
-      <div style={{ minHeight: '300px' }}></div>
     </Stack>
   );
 }
@@ -652,11 +658,15 @@ function FavoriteSqlList(props: { handleClose }) {
   const [sortModel, setSortModel] = useState<GridSortModel>([
     { field: 'lastModified', sort: 'desc' },
   ]);
+  const [uuidFilter, setUuidFilter] = useState('');
+  const [distinctUuid, setDistinctUuid] = useState<string[]>([]);
   const setting = useContext(SettingContext);
   const handleReload = async (showOK) => {
     try {
-      const x = await FavoriteSql.getAll();
-      setFs(x);
+      const us = await FavoriteSql.getDistinctUuid();
+      setDistinctUuid(us);
+      const fs = await FavoriteSql.getByUuid(uuidFilter);
+      setFs(fs);
     } catch (e) {
       showNotification('error', 'list all favorite sql failed', e);
       return;
@@ -665,6 +675,7 @@ function FavoriteSqlList(props: { handleClose }) {
       showNotification('success', 'fetch favorite sql ok');
     }
   };
+
   const { setTabs, setSelectTab } = useContext(TabsSetContext);
 
   const checkConnOpened = async (uuid: string) => {
@@ -712,14 +723,14 @@ function FavoriteSqlList(props: { handleClose }) {
 
   useEffect(() => {
     handleReload(false);
-  }, []);
+  }, [uuidFilter]);
   const { setUpMenu } = useContext(ContextMenuContext);
   const openInNewWindow = async (row: FavoriteSql) => {
     if (!(await checkConnOpened(row.uuid))) {
       return;
     }
     const webview = new WebviewWindow(generateRandomString(), {
-      title: `query of ${row.uuid}`,
+      title: `query window of '${row.uuid}'`,
       url: 'query.html?uuid=' + row.uuid + '&kind=' + row.kind,
       width: 800,
       height: 600,
@@ -814,6 +825,21 @@ function FavoriteSqlList(props: { handleClose }) {
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+        <FormControl style={{ width: '15rem' }}>
+          <InputLabel> connection name </InputLabel>
+          <Select
+            value={uuidFilter}
+            onChange={(e) => setUuidFilter(e.target.value)}
+          >
+            <MenuItem value=""></MenuItem>
+            {distinctUuid.map((e) => (
+              <MenuItem value={e} key={e}>
+                {e}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
         <Button
           onClick={() => {
             handleReload(true);
@@ -1408,7 +1434,7 @@ function openNewQuery(
 ) {
   if (newWindow) {
     const webview = new WebviewWindow(generateRandomString(), {
-      title: `query of ${uuid}`,
+      title: `query window of '${uuid}'`,
       url: 'query.html?uuid=' + uuid + '&kind=' + kind,
       width: 800,
       height: 600,
