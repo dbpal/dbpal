@@ -253,7 +253,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
               display: 'grid',
               height: '100px',
               flexGrow: 1,
-              flexShrink: 1,
+              flexShrink: 1, // 写flex 1 会有问题 好像不能缩小原因不清楚
             }}
           >
             <DataGrid
