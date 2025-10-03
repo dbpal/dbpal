@@ -29,7 +29,6 @@
     "@tauri-apps/plugin-shell": "^2.3.1",
     "@tauri-apps/plugin-sql": "~2.3.0",
     "@tauri-apps/plugin-store": "~2.4",
-    "@types/vscode": "^1.104.0",
     "bson": "^6.10.4",
     "esprima": "^4.0.1",
     "loglevel": "^1.9.2",

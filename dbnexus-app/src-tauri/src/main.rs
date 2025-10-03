@@ -182,9 +182,7 @@ impl log::Log for AppLogger {
             record.args()
         );
         match file.write_all(s.as_bytes()) {
-            Ok(_) => {
-                self.flush();
-            }
+            Ok(_) => {}
             Err(err) => println!("write file failed,err:{:?}", err),
         }
     }
