@@ -248,18 +248,15 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 }),
         );
 
-        // here mssql list_procedure and list_execute will have the same result.
-        // will make duplicate object.
-        if self.backend_name() != BackendKind::SqlServer {
-            ret.extend(
-                self.list_execute(None)
-                    .await
-                    .map_err(|err| log::error!("list execute failed,err:{}", err))
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(CompletionItem::from),
-            );
-        }
+        ret.extend(
+            self.list_execute(None)
+                .await
+                .map_err(|err| log::error!("list execute failed,err:{}", err))
+                .unwrap_or_default()
+                .into_iter()
+                .map(CompletionItem::from),
+        );
+
         ret.extend(self.user_and_role().await);
         ret.extend(self.list_database_completion().await);
         ret.extend(self.list_sequence_completion(None).await);
@@ -644,23 +641,20 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
                                 desc: None,
                             }),
                     );
-                    // sql server will have the same result
-                    if self.backend_name() != BackendKind::SqlServer {
-                        ret.extend(
-                            self.list_execute(Some(schema))
-                                .await
-                                .map_err(|e| log::error!("list procedure failed,err:{}", e))
-                                .unwrap_or_default()
-                                .into_iter()
-                                .map(|x| CompletionItem {
-                                    item: x.name.into(),
-                                    kind: CompletionKind::Function,
-                                    desc: x.statement.map(|x| x.into()),
-                                }),
-                        );
-                    }
 
-                    return anyhow::Ok(ret);
+                    ret.extend(
+                        self.list_execute(Some(schema))
+                            .await
+                            .map_err(|e| log::error!("list procedure failed,err:{}", e))
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|x| CompletionItem {
+                                item: x.name.into(),
+                                kind: CompletionKind::Function,
+                                desc: x.statement.map(|x| x.into()),
+                            }),
+                    );
+                    return anyhow::Ok(remove_duplicate(ret));
                 }
 
                 {

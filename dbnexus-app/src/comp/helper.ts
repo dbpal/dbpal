@@ -640,10 +640,15 @@ function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "bo
     if (size) {
       let div = (dom as HTMLDivElement);
       if (set == "height" || set == "both") {
-        div.style.height = size.height + 'px';
+        if (size.height) {
+          div.style.height = size.height + 'px';
+        }
+
       }
       if (set == "width" || set == "both") {
-        div.style.width = size.width + 'px';
+        if (size.width) {
+          div.style.width = size.width + 'px';
+        }
       }
     }
   });

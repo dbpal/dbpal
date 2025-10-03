@@ -452,7 +452,6 @@ function SqlQuery(props: {
 
   const wholeDiv = useRef(null);
   useEffect(() => {
-    console.log('panelGroupDom', wholeDiv.current);
     let c = saveAndSetSize(wholeDiv.current, 'query', 'height');
     return c;
   }, []);
