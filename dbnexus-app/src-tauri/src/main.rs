@@ -182,7 +182,9 @@ impl log::Log for AppLogger {
             record.args()
         );
         match file.write_all(s.as_bytes()) {
-            Ok(_) => {}
+            Ok(_) => {
+                self.flush();
+            }
             Err(err) => println!("write file failed,err:{:?}", err),
         }
     }
@@ -192,14 +194,14 @@ impl log::Log for AppLogger {
             Some(x) => x,
             None => return,
         };
-        if let Ok(err) = file.flush() {
+        if let Err(err) = file.flush() {
             println!("flush file failed,err:{:?}", err)
         }
     }
 }
 
 fn main_() {
-    // logger_test();
+    logger_test();
     let app = App::new();
     let saved_password = app.saved_password.clone();
     let setup = |app: &mut tauri::App| {

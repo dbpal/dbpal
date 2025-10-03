@@ -26,14 +26,7 @@
     "opener:allow-default-urls",
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text",
-    "fs:default",
-    "fs:read-all",
-    "fs:write-all",
-    "fs:allow-rename",
-    "fs:allow-mkdir",
-    "fs:allow-exists",
-    "fs:allow-watch",
-    "fs:read-dirs",
+
     "core:window:allow-destroy",
     "core:window:allow-set-fullscreen",
     "core:webview:allow-set-webview-zoom",
@@ -46,9 +39,17 @@
         }
       ]
     },
+    "fs:default",
+    "fs:read-all",
+    "fs:write-all",
+    "fs:allow-rename",
+    "fs:allow-mkdir",
+    "fs:allow-exists",
+    "fs:allow-watch",
+    "fs:read-dirs",
     {
       "identifier": "fs:scope",
-      "allow": ["**/*"]
+      "allow": ["**/*", "$APPDATA/*"]
     },
     "opener:default",
     "os:default",
