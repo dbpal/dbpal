@@ -199,7 +199,7 @@ impl log::Log for AppLogger {
 }
 
 fn main_() {
-    logger_test();
+    // logger_test();
     let app = App::new();
     let saved_password = app.saved_password.clone();
     let setup = |app: &mut tauri::App| {

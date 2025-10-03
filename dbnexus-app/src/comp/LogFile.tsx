@@ -34,6 +34,7 @@ function LogFile() {
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const setting = useContext(SettingContext);
   const [pinToBotton, setPinToBotton] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date().toLocaleString());
   const handleReload = async () => {
     let path;
     try {
@@ -71,6 +72,7 @@ function LogFile() {
         if (info.mtime) {
           setModifyDate(info.mtime.toLocaleString());
         }
+        setCurrentTime(new Date().toLocaleString());
       })();
     }, 1000);
     return () => {
@@ -131,7 +133,10 @@ function LogFile() {
             max size:{setting.loggerMaxSize}MB
           </Typography>
         </Stack>
-        <Typography color="info"> loaded at:{modifyDate} </Typography>
+        <Stack direction="row" spacing={1}>
+          <Typography color="info"> current time:{currentTime} </Typography>
+          <Typography color="info"> loaded at:{modifyDate} </Typography>
+        </Stack>
       </Stack>
 
       <SimpleFlexEditor
