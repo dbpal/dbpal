@@ -1,9 +1,7 @@
 'use strict';
 import { Editor } from '@monaco-editor/react';
-import SplitPane from 'react-split-pane';
 import { MultiQueryResp } from './QueryResp';
 import EventNoteIcon from '@mui/icons-material/EventNote';
-import './style/react-split-pane.css';
 import {
   Box,
   Chip,
@@ -14,6 +12,8 @@ import {
   TextField,
   Tooltip,
 } from '@mui/material';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { FaExclamation } from 'react-icons/fa';
 import {
@@ -51,7 +51,6 @@ import {
   getEditorText,
   QueryLogHandler,
   rustResultOk,
-  SaveDomSizes,
   secondConfirm,
   SetCloseConfirmTextContext,
   SettingContext,
@@ -172,6 +171,7 @@ function SqlQuery(props: {
   buttons?: ReactNode;
   getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
   editorRef?: RefObject<editor.IStandaloneCodeEditor>;
+  height?: string;
 }) {
   let {
     uuid,
@@ -183,6 +183,7 @@ function SqlQuery(props: {
     buttons,
     getParseErr,
     editorRef,
+    height,
   } = props;
   const [resp, setResp] = useState([]);
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
@@ -411,16 +412,6 @@ function SqlQuery(props: {
       );
     }
   }, [conn]);
-
-  const [size, setSize] = useState(400);
-  const sizeKey = 'query-size';
-  useEffect(() => {
-    SaveDomSizes.getSize(sizeKey).then((s) => {
-      if (s && s.height) {
-        setSize(s.height);
-      }
-    });
-  }, []);
   useEffect(() => {
     if (conn && editor) {
       SetAutoCompletionName.set(
@@ -460,19 +451,20 @@ function SqlQuery(props: {
     DataSourceKind.FireBird,
   ].includes(kind);
 
-  let main = (
-    //@ts-ignore
-    <SplitPane
-      split="horizontal"
-      defaultSize={500}
-      minSize={200}
-      size={size}
-      onChange={(newValue) => {
-        SaveDomSizes.saveSize(sizeKey, { height: newValue });
+  return (
+    <PanelGroup
+      direction="vertical"
+      style={{
+        position: 'relative',
+        height: height ? height : '90vh',
+        overflow: 'auto',
       }}
-      style={{ height: 'fit-content' }}
+      autoSaveId="sql-query"
     >
-      <div
+      <Panel
+        minSize={10}
+        maxSize={70}
+        defaultSize={40}
         style={{
           display: 'flex',
           flexDirection: 'column',
@@ -676,72 +668,73 @@ function SqlQuery(props: {
           }
           pos={pos}
         ></EditorBar>
-      </div>
-
-      <div style={{ minHeight: '300px' }}>
-        <MultiQueryResp data={resp}></MultiQueryResp>
-        {showExport && (
-          <Modal
-            open={showExport}
-            onClose={modalHandleClose((e: EscDownEvent) => {
-              e.preventDefault();
-              setShowExport(false);
-            })}
-          >
-            <Box sx={modalStyle} width="45%">
-              <ExportView
-                supportKind={['csv', 'json', 'jsonline', 'xlsx']}
-                exportOP={async (kind, file) => {
-                  const sql = getEditorText(editor, showNotification);
-                  return conn.exportQueryResult(sql, kind, file);
-                }}
-                name="export_query_result"
-              ></ExportView>
-            </Box>
-          </Modal>
-        )}
-        {showSetFavoriteName && (
-          <Modal
-            open={showSetFavoriteName}
-            onClose={modalHandleClose((e: EscDownEvent) => {
-              e.preventDefault();
-              setShowFavoriteName(false);
-            })}
-          >
-            <Box sx={modalStyle} width="40%">
-              <Stack spacing={1}>
-                <TextField
-                  fullWidth
-                  label="name"
-                  value={favoriteName}
-                  onChange={(e) => {
-                    setFavoriteName(e.target.value);
+      </Panel>
+      <PanelResizeHandle style={{ height: 4 }} className="resize-handle" />
+      <Panel style={{ overflow: 'auto' }}>
+        <div style={{ height: '100%' }}>
+          <MultiQueryResp data={resp}></MultiQueryResp>
+          {showExport && (
+            <Modal
+              open={showExport}
+              onClose={modalHandleClose((e: EscDownEvent) => {
+                e.preventDefault();
+                setShowExport(false);
+              })}
+            >
+              <Box sx={modalStyle} width="45%">
+                <ExportView
+                  supportKind={['csv', 'json', 'jsonline', 'xlsx']}
+                  exportOP={async (kind, file) => {
+                    const sql = getEditorText(editor, showNotification);
+                    return conn.exportQueryResult(sql, kind, file);
                   }}
-                  required
-                ></TextField>
-                <Stack direction="row">
-                  <IconButton
-                    color="primary"
-                    onClick={() => {
-                      if (!favoriteName) {
-                        showNotification('error', "name can't be empty");
-                        return;
-                      }
-                      saveFavoriteSql(favoriteName, editor.getValue());
-                      setShowFavoriteName(false);
+                  name="export_query_result"
+                ></ExportView>
+              </Box>
+            </Modal>
+          )}
+          {showSetFavoriteName && (
+            <Modal
+              open={showSetFavoriteName}
+              onClose={modalHandleClose((e: EscDownEvent) => {
+                e.preventDefault();
+                setShowFavoriteName(false);
+              })}
+            >
+              <Box sx={modalStyle} width="40%">
+                <Stack spacing={1}>
+                  <TextField
+                    fullWidth
+                    label="name"
+                    value={favoriteName}
+                    onChange={(e) => {
+                      setFavoriteName(e.target.value);
                     }}
-                  >
-                    <FaBookmark> </FaBookmark>
-                  </IconButton>
+                    required
+                  ></TextField>
+                  <Stack direction="row">
+                    <IconButton
+                      color="primary"
+                      onClick={() => {
+                        if (!favoriteName) {
+                          showNotification('error', "name can't be empty");
+                          return;
+                        }
+                        saveFavoriteSql(favoriteName, editor.getValue());
+                        setShowFavoriteName(false);
+                      }}
+                    >
+                      <FaBookmark> </FaBookmark>
+                    </IconButton>
+                  </Stack>
                 </Stack>
-              </Stack>
-            </Box>
-          </Modal>
-        )}
-      </div>
-    </SplitPane>
+              </Box>
+            </Modal>
+          )}
+        </div>
+      </Panel>
+    </PanelGroup>
   );
-  return <div style={{ position: 'relative' }}>{main}</div>;
 }
 
 export { SqlQuery };

@@ -657,7 +657,6 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
         return (
           <Stack
             style={{
-              border: '2px solid',
               borderRadius: '10px',
               padding: '8px',
             }}

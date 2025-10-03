@@ -1,8 +1,7 @@
 'use strict';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import SplitPane from 'react-split-pane';
-import './style/react-split-pane.css';
 import { editor } from 'monaco-editor';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 import { SqlQuery } from './SqlQuery.tsx';
 import { MakeIQueryConn } from './Common.ts';
@@ -11,7 +10,6 @@ import {
   AppStoreKey,
   DataSourceKind,
   ErrAndLoc,
-  SaveDomSizes,
   validURL,
 } from './helper.ts';
 import { Chip } from '@mui/material';
@@ -48,9 +46,17 @@ function RedisQuery(props: {
   value?: string;
   getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
   uuid: string;
+  height?: string;
 }) {
-  const { makeConn, saveFavoriteSql, favoriteName, value, getParseErr, uuid } =
-    props;
+  const {
+    makeConn,
+    saveFavoriteSql,
+    favoriteName,
+    value,
+    getParseErr,
+    uuid,
+    height,
+  } = props;
   const [command, setCommand] = useState('get');
   const [isDragging, setIsDragging] = useState(false);
   const iframeRef = useRef(null);
@@ -63,6 +69,10 @@ function RedisQuery(props: {
     }
   };
   const [showDoc, setShowDoc] = useState(SaveShowDoc.instance.get());
+
+  useEffect(() => {
+    SaveShowDoc.instance.save(showDoc);
+  }, [showDoc]);
 
   // 启用 iframe 的鼠标事件
   const enableIframe = () => {
@@ -127,80 +137,61 @@ function RedisQuery(props: {
       clearInterval(int);
     };
   }, [tryUpdateCommand]);
-  const [size, setSize] = useState<string | number>('40vw');
-
-  const sizeKey = 'reids-query-size';
-  useEffect(() => {
-    SaveDomSizes.getSize(sizeKey).then((e) => {
-      if (e && e.width && showDoc) {
-        setSize(e.width + 'px');
-      }
-    });
-  }, []);
-  useEffect(() => {
-    if (showDoc) {
-      setSize('40vw');
-    } else {
-      setSize('100%');
-    }
-    SaveShowDoc.instance.save(showDoc);
-  }, [showDoc]);
 
   return (
-    //@ts-ignore
-    <SplitPane
-      split="vertical"
-      minSize={200}
-      size={size}
-      step={5}
-      onDragStarted={() => {
-        setIsDragging(true);
-      }} // 拖动开始
-      onDragFinished={(_: number): void => {
-        setIsDragging(false);
-      }} // 拖动结束
-      onChange={(newSize) => {
-        SaveDomSizes.saveSize(sizeKey, { width: newSize });
-      }}
-      style={{ width: '99%' }}
-    >
-      <SqlQuery
-        editorRef={editorRef}
-        getParseErr={getParseErr}
-        uuid={uuid}
-        makeConn={makeConn}
-        favoriteName={favoriteName}
-        saveFavoriteSql={saveFavoriteSql}
-        value={value}
-        kind={DataSourceKind.Redis}
-        buttons={
-          <>
-            <Chip
-              onClick={() => {
-                setShowDoc((e) => !e);
-              }}
-              color={showDoc ? 'success' : 'primary'}
-              label={`${showDoc ? 'hidden' : 'show'} doc`}
-            ></Chip>
-          </>
-        }
-      ></SqlQuery>
-
-      <div style={{ height: '100vh' }}>
-        {showDoc && (
-          <iframe
-            ref={iframeRef} // 绑定 iframe 引用
-            src={getURL(command)}
-            style={{
-              width: '100%',
-              height: '100%',
-              border: 'none', // 去掉边框
-            }}
-            title="Full Size Iframe"
-          />
-        )}
-      </div>
-    </SplitPane>
+    <PanelGroup direction="horizontal" autoSaveId="redis-query">
+      <Panel defaultSize={40}>
+        <SqlQuery
+          editorRef={editorRef}
+          getParseErr={getParseErr}
+          uuid={uuid}
+          makeConn={makeConn}
+          favoriteName={favoriteName}
+          saveFavoriteSql={saveFavoriteSql}
+          value={value}
+          kind={DataSourceKind.Redis}
+          buttons={
+            <>
+              <Chip
+                onClick={() => {
+                  setShowDoc((e) => !e);
+                }}
+                color={showDoc ? 'success' : 'primary'}
+                label={`${showDoc ? 'hidden' : 'show'} doc`}
+              ></Chip>
+            </>
+          }
+          height={height}
+        ></SqlQuery>
+      </Panel>
+      {showDoc && (
+        <PanelResizeHandle
+          onDragging={(is) => {
+            setIsDragging(is);
+          }}
+          style={{ width: 4 }}
+          className="resize-handle"
+        />
+      )}
+      {showDoc && (
+        <Panel>
+          <div style={{ height: '100vh' }}>
+            {showDoc && (
+              <iframe
+                ref={iframeRef} // 绑定 iframe 引用
+                src={getURL(command)}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  border: 'none', // 去掉边框
+                }}
+                title="Full Size Iframe"
+              />
+            )}
+          </div>
+        </Panel>
+      )}
+    </PanelGroup>
   );
 }
 

@@ -197,8 +197,8 @@ function ModifySetting() {
           onChange={(_, value) => {
             setFontSize(value as number);
           }}
-          min={12}
-          max={25}
+          min={10}
+          max={30}
         ></Slider>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>

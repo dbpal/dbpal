@@ -1349,8 +1349,9 @@ function AllKindQuery(props: {
   kind: DataSourceKind;
   uuid: string;
   value?: string;
+  height?: string;
 }) {
-  const { kind, uuid, value } = props;
+  const { kind, uuid, value, height } = props;
   let content;
   const { showNotification } = useContext(NotificationContext);
   switch (kind) {
@@ -1382,6 +1383,7 @@ function AllKindQuery(props: {
           value={value}
           getParseErr={makeGetParserErr(uuid)}
           kind={kind}
+          height={height}
         ></SqlQuery>
       );
       break;
@@ -1400,6 +1402,7 @@ function AllKindQuery(props: {
           }}
           value={value}
           getParseErr={makeGetParserErr(uuid)}
+          height={height}
         ></RedisQuery>
       );
       break;

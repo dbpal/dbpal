@@ -1,7 +1,6 @@
 'use strict';
 import { NotificationProvider } from './Notification';
-import SplitPane from 'react-split-pane';
-import './style/react-split-pane.css';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { platform } from '@tauri-apps/plugin-os';
 import {
   CSSProperties,
@@ -20,7 +19,6 @@ import { SettingComp } from './Settings.tsx';
 import {
   ContextMenuContext,
   generateRandomString,
-  SaveDomSizes,
   secondConfirm,
   TabsSetContext,
   WindowFocusContext,
@@ -252,54 +250,7 @@ function App() {
   const changeTab = useCallback((index) => {
     setTab(index as number);
   }, []);
-  const leftSizeKey = 'left-size';
-  const [leftSize, setLeftSize] = useState(300);
-  useEffect(() => {
-    async () => {
-      SaveDomSizes.getSize(leftSizeKey).then((size) => {
-        if (size && size.width) {
-          setLeftSize(size.width);
-        }
-      });
-    };
-  }, []);
 
-  let mainContent = (
-    //@ts-ignore
-    <SplitPane
-      split="vertical"
-      minSize={200}
-      defaultSize={leftSize}
-      style={{
-        height: '100vh',
-        width: '100vw',
-        overflow: 'auto',
-        padding: '0px 0.9rem',
-      }}
-      maxSize={800}
-      onChange={(newSize) => {
-        SaveDomSizes.saveSize(leftSizeKey, { width: newSize });
-      }}
-    >
-      <div
-        style={{
-          overflow: 'auto',
-          height: '100%',
-        }}
-      >
-        <Left></Left>
-      </div>
-      <div style={{ overflow: 'auto', height: '100%' }}>
-        <TabsWithContent
-          handleClose={closeTab}
-          tabs={tabs}
-          selectIndex={tab}
-          changeTab={changeTab}
-          setTabs={setTabs}
-        ></TabsWithContent>
-      </div>
-    </SplitPane>
-  );
   const [windowFocus, setWindowsFocus] = useState(true);
   useEffect(() => {
     let unlisten = listen<boolean>(
@@ -323,9 +274,48 @@ function App() {
         >
           <NotificationProvider>
             <WindowFocusContext value={windowFocus}>
-              <div>{mainContent}</div>
+              <div>
+                <PanelGroup
+                  direction="horizontal"
+                  style={{
+                    height: '100vh',
+                    width: '100vw',
+                    padding: '0.7rem',
+                  }}
+                  autoSaveId="main"
+                >
+                  <Panel
+                    style={{
+                      overflow: 'auto',
+                      height: '100%',
+                    }}
+                    minSize={10}
+                    maxSize={45}
+                  >
+                    <Left></Left>
+                  </Panel>
+                  <PanelResizeHandle
+                    style={{ width: 4 }}
+                    className="resize-handle"
+                  />
+                  <Panel
+                    style={{
+                      overflow: 'auto',
+                      height: '100%',
+                    }}
+                  >
+                    <TabsWithContent
+                      handleClose={closeTab}
+                      tabs={tabs}
+                      selectIndex={tab}
+                      changeTab={changeTab}
+                      setTabs={setTabs}
+                    ></TabsWithContent>
+                  </Panel>
+                </PanelGroup>
+              </div>
               <div
-                id={menuDivID}
+                id="menu-div"
                 style={{
                   ...menuBasicStyle,
                   ...(menu && menu.style),

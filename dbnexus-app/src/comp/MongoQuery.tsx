@@ -292,7 +292,6 @@ function MongoQuery(props: {
           display: 'flex',
           flexDirection: 'column',
           width: '100%',
-          // border: '1px solid red',
         }}
       >
         <div style={{ height: '100px', flex: 1 }}>

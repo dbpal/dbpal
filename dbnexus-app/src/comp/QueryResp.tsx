@@ -227,27 +227,32 @@ function QueryResp_(props: { data: MuiDataGridData }) {
     return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
   }, []);
   return (
-    <Stack>
+    <Stack
+      style={{
+        height: '100%',
+      }}
+    >
       {data && (
-        <Stack spacing={1}>
-          <Stack direction="row">
-            {data.sql && (
-              <Typography
-                color="info"
-                style={{
-                  whiteSpace: 'nowrap',
-                  textOverflow: 'ellipsis',
-                  overflow: 'hidden',
-                  width: '100px',
-                  flex: 1,
-                }}
-              >
-                sql: {data.sql}
-              </Typography>
-            )}
-          </Stack>
-
-          <div style={{ display: 'grid' }}>
+        <Stack spacing={1} flex={1}>
+          {data.sql && (
+            <Typography
+              color="info"
+              style={{
+                whiteSpace: 'nowrap',
+                textOverflow: 'ellipsis',
+                overflow: 'hidden',
+              }}
+            >
+              sql: {data.sql}
+            </Typography>
+          )}
+          <div
+            style={{
+              display: 'grid',
+              height: '100px',
+              flex: 1,
+            }}
+          >
             <DataGrid
               showToolbar
               getRowId={getRowId}
@@ -354,7 +359,15 @@ function MultiQueryResp_(props: { data: any[] }) {
         {data[0].Err}
       </Alert>
     ) : (
-      <div style={{ top, opacity, left: top, ...styleForTrans }}>
+      <div
+        style={{
+          top,
+          opacity,
+          left: top,
+          ...styleForTrans,
+          height: '100%',
+        }}
+      >
         <QueryResp data={data[0].Ok}></QueryResp>
       </div>
     );
@@ -365,7 +378,17 @@ function MultiQueryResp_(props: { data: any[] }) {
   };
 
   return (
-    <div style={{ top, opacity, left: top, ...styleForTrans }}>
+    <div
+      style={{
+        top,
+        opacity,
+        left: top,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        ...styleForTrans,
+      }}
+    >
       <div style={{ display: 'grid' }}>
         <Tabs
           value={value}
@@ -379,17 +402,19 @@ function MultiQueryResp_(props: { data: any[] }) {
         </Tabs>
       </div>
 
-      {data.map((e, index) => {
-        return (
-          <div hidden={value != index} key={index}>
-            {e.Err ? (
-              <Alert severity="error">{e.Err}</Alert>
-            ) : (
-              <QueryResp data={e.Ok}></QueryResp>
-            )}
-          </div>
-        );
-      })}
+      <div style={{ height: '100px', flex: 1 }}>
+        {data.map((e, index) => {
+          return (
+            <div hidden={value != index} key={index} style={{ height: '100%' }}>
+              {e.Err ? (
+                <Alert severity="error">{e.Err}</Alert>
+              ) : (
+                <QueryResp data={e.Ok}></QueryResp>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

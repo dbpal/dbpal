@@ -14,3 +14,7 @@
 ::-webkit-resizer {
   background: linear-gradient(to bottom right, transparent 50%, gray 50%);
 }
+
+.resize-handle {
+  background-color: gray;
+}
