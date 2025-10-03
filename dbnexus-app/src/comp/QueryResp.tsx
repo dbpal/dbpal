@@ -139,7 +139,6 @@ function QueryResp_(props: { data: MuiDataGridData }) {
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
   useEffect(() => {
     oldData.data.forEach((e, index) => {
-      //@ts-ignore
       e[keyNotInTable] = index;
     });
     oldData.fields.forEach((field) => {
@@ -227,9 +226,12 @@ function QueryResp_(props: { data: MuiDataGridData }) {
     return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
   }, []);
   return (
-    <Stack
+    <div
       style={{
         height: '100%',
+
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       {data && (
@@ -250,7 +252,8 @@ function QueryResp_(props: { data: MuiDataGridData }) {
             style={{
               display: 'grid',
               height: '100px',
-              flex: 1,
+              flexGrow: 1,
+              flexShrink: 1,
             }}
           >
             <DataGrid
@@ -310,7 +313,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
           </Box>
         </Modal>
       )}
-    </Stack>
+    </div>
   );
 }
 

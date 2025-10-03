@@ -468,7 +468,6 @@ function SqlQuery(props: {
         style={{
           display: 'flex',
           flexDirection: 'column',
-          width: '100%',
         }}
       >
         <QueryLog
@@ -636,7 +635,7 @@ function SqlQuery(props: {
           style={{
             flex: 1,
             minHeight: 0,
-            height: '400px',
+            height: '100px',
           }}
           ref={editorDivDom}
         >
