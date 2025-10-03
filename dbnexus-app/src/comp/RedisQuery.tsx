@@ -48,15 +48,8 @@ function RedisQuery(props: {
   uuid: string;
   height?: string;
 }) {
-  const {
-    makeConn,
-    saveFavoriteSql,
-    favoriteName,
-    value,
-    getParseErr,
-    uuid,
-    height,
-  } = props;
+  const { makeConn, saveFavoriteSql, favoriteName, value, getParseErr, uuid } =
+    props;
   const [command, setCommand] = useState('get');
   const [isDragging, setIsDragging] = useState(false);
   const iframeRef = useRef(null);
@@ -161,7 +154,6 @@ function RedisQuery(props: {
               ></Chip>
             </>
           }
-          height={height}
         ></SqlQuery>
       </Panel>
       {showDoc && (

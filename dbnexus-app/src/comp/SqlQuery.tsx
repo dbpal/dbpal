@@ -51,6 +51,7 @@ import {
   getEditorText,
   QueryLogHandler,
   rustResultOk,
+  saveAndSetSize,
   secondConfirm,
   SetCloseConfirmTextContext,
   SettingContext,
@@ -171,7 +172,6 @@ function SqlQuery(props: {
   buttons?: ReactNode;
   getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
   editorRef?: RefObject<editor.IStandaloneCodeEditor>;
-  height?: string;
 }) {
   let {
     uuid,
@@ -183,7 +183,6 @@ function SqlQuery(props: {
     buttons,
     getParseErr,
     editorRef,
-    height,
   } = props;
   const [resp, setResp] = useState([]);
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
@@ -451,288 +450,307 @@ function SqlQuery(props: {
     DataSourceKind.FireBird,
   ].includes(kind);
 
+  const wholeDiv = useRef(null);
+  useEffect(() => {
+    console.log('panelGroupDom', wholeDiv.current);
+    let c = saveAndSetSize(wholeDiv.current, 'query', 'height');
+    return c;
+  }, []);
   return (
-    <PanelGroup
-      direction="vertical"
+    <div
       style={{
-        position: 'relative',
-        height: height ? height : '90vh',
+        height: '90vh',
         overflow: 'auto',
+        resize: 'vertical',
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        marginBottom: '300px',
       }}
-      autoSaveId="sql-query"
+      ref={wholeDiv}
     >
-      <Panel
-        minSize={10}
-        maxSize={70}
-        defaultSize={40}
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-        }}
+      <PanelGroup
+        direction="vertical"
+        style={{ flex: 1 }}
+        autoSaveId="sql-query"
       >
-        <QueryLog
-          showQueryLog={showQueryLog}
-          setShowQueryLog={setShowQueryLog}
-          uuid={uuid}
-          executeTimes={executeTimes}
-          kind={
-            kind == DataSourceKind.Redis ? QueryLogKind.Redis : QueryLogKind.Sql
-          }
-          language={kind}
-        ></QueryLog>
-
-        <Stack
-          direction="row"
-          spacing={1}
-          sx={{ alignItems: 'center', flexWrap: 'wrap' }}
+        <Panel
+          minSize={10}
+          maxSize={70}
+          defaultSize={40}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+          }}
         >
-          {conn && (
-            <>
-              <Tooltip title="query">
-                <IconButton
-                  loading={loading}
-                  disabled={loading || conn == null}
-                  onClick={() => {
-                    handleQuery(false);
-                  }}
-                  color="primary"
-                >
-                  <PlayArrowIcon />
-                </IconButton>
-              </Tooltip>
+          <QueryLog
+            showQueryLog={showQueryLog}
+            setShowQueryLog={setShowQueryLog}
+            uuid={uuid}
+            executeTimes={executeTimes}
+            kind={
+              kind == DataSourceKind.Redis
+                ? QueryLogKind.Redis
+                : QueryLogKind.Sql
+            }
+            language={kind}
+          ></QueryLog>
 
-              <Tooltip title="query and append result to results tabs">
-                <IconButton
-                  loading={loading}
-                  disabled={loading || conn == null}
-                  onClick={() => {
-                    handleQuery(true);
-                  }}
-                  color="primary"
-                >
-                  <FastForwardIcon />
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip title="execute sql not expecting result">
-                <IconButton
-                  loading={loading}
-                  disabled={loading || conn == null}
-                  onClick={handleExecute}
-                  color="primary"
-                >
-                  <FaExclamation />
-                </IconButton>
-              </Tooltip>
-              {supportExplain && (
-                <Tooltip title="explain sql">
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: 'center', flexWrap: 'wrap' }}
+          >
+            {conn && (
+              <>
+                <Tooltip title="query">
                   <IconButton
                     loading={loading}
                     disabled={loading || conn == null}
                     onClick={() => {
-                      handleQuery(false, true);
+                      handleQuery(false);
                     }}
                     color="primary"
                   >
-                    <BsFillLightbulbFill />
+                    <PlayArrowIcon />
                   </IconButton>
                 </Tooltip>
-              )}
-            </>
-          )}
 
-          {conn && conn.supportTransaction() && (
-            <SqlTransaction executeTimes={executeTimes} conn={conn} />
-          )}
-          <Tooltip
-            title={
-              showSuggestReconnect
-                ? `query used ${showSuggestReconnect}ms,try reconnect?`
-                : 'reconnect'
-            }
-          >
-            <IconButton
-              onClick={() => {
-                handleReconnect();
-              }}
-              color="primary"
+                <Tooltip title="query and append result to results tabs">
+                  <IconButton
+                    loading={loading}
+                    disabled={loading || conn == null}
+                    onClick={() => {
+                      handleQuery(true);
+                    }}
+                    color="primary"
+                  >
+                    <FastForwardIcon />
+                  </IconButton>
+                </Tooltip>
+
+                <Tooltip title="execute sql not expecting result">
+                  <IconButton
+                    loading={loading}
+                    disabled={loading || conn == null}
+                    onClick={handleExecute}
+                    color="primary"
+                  >
+                    <FaExclamation />
+                  </IconButton>
+                </Tooltip>
+                {supportExplain && (
+                  <Tooltip title="explain sql">
+                    <IconButton
+                      loading={loading}
+                      disabled={loading || conn == null}
+                      onClick={() => {
+                        handleQuery(false, true);
+                      }}
+                      color="primary"
+                    >
+                      <BsFillLightbulbFill />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </>
+            )}
+
+            {conn && conn.supportTransaction() && (
+              <SqlTransaction executeTimes={executeTimes} conn={conn} />
+            )}
+            <Tooltip
+              title={
+                showSuggestReconnect
+                  ? `query used ${showSuggestReconnect}ms,try reconnect?`
+                  : 'reconnect'
+              }
             >
-              <RefreshIcon color={showSuggestReconnect ? 'error' : 'inherit'} />
-            </IconButton>
-          </Tooltip>
-          {conn && (
-            <Tooltip title="export query result to a file,implemented it not using query connection,uncommit row may not be found">
               <IconButton
-                loading={loading}
-                disabled={loading || conn == null}
                 onClick={() => {
-                  const value = getEditorText(editor, showNotification);
-                  if (!value) {
-                    return;
-                  }
-                  setShowExport(true);
+                  handleReconnect();
                 }}
                 color="primary"
               >
-                <ArrowCircleDownRoundedIcon />
+                <RefreshIcon
+                  color={showSuggestReconnect ? 'error' : 'inherit'}
+                />
               </IconButton>
             </Tooltip>
-          )}
-
-          <Tooltip
-            title={
-              !favoriteName
-                ? 'save sql to favorite.'
-                : `save favorite sql as named '${favoriteName}'`
-            }
-          >
-            <IconButton
-              onClick={() => {
-                const value = editor.getValue();
-                if (!value) {
-                  showNotification('error', "can't save empty statement.");
-                  return;
-                }
-                if (favoriteName) {
-                  saveFavoriteSql(favoriteName, value);
-                } else {
-                  setShowFavoriteName(true);
-                }
-              }}
-              color="primary"
-            >
-              <FaBookmark style={{ fontSize: '1.2rem' }} />
-            </IconButton>
-          </Tooltip>
-          {editor && (
-            <LoadStoreFileForQuery
-              getQuery={() => {
-                return editor.getValue();
-              }}
-              handleChange={(content) => {
-                editor.setValue(content);
-              }}
-              kind={kind}
-            ></LoadStoreFileForQuery>
-          )}
-
-          <Tooltip title="query log">
-            <IconButton
-              onClick={() => {
-                setShowQueryLog((prev) => !prev);
-              }}
-              color="primary"
-            >
-              <EventNoteIcon></EventNoteIcon>
-            </IconButton>
-          </Tooltip>
-          {buttons}
-
-          <ExecutingTime loading={loading} disableTime></ExecutingTime>
-          {!conn && <CircularProgress></CircularProgress>}
-        </Stack>
-        <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            height: '100px',
-          }}
-          ref={editorDivDom}
-        >
-          <Editor
-            language={kind}
-            onMount={handleEditorDidMount}
-            width="99%"
-            height="99%"
-            value={value}
-            options={editorOptions}
-            theme={setting.editorTheme()}
-          ></Editor>
-        </div>
-        <EditorBar
-          left={
-            <Stack
-              style={{
-                flex: 1,
-              }}
-              direction="row"
-            >
-              {parseErr && (
-                <PossibleParseError
-                  parseErr={parseErr}
-                  editor={editor}
-                ></PossibleParseError>
-              )}
-            </Stack>
-          }
-          pos={pos}
-        ></EditorBar>
-      </Panel>
-      <PanelResizeHandle style={{ height: 4 }} className="resize-handle" />
-      <Panel style={{ overflow: 'auto' }}>
-        <div style={{ height: '100%' }}>
-          <MultiQueryResp data={resp}></MultiQueryResp>
-          {showExport && (
-            <Modal
-              open={showExport}
-              onClose={modalHandleClose((e: EscDownEvent) => {
-                e.preventDefault();
-                setShowExport(false);
-              })}
-            >
-              <Box sx={modalStyle} width="45%">
-                <ExportView
-                  supportKind={['csv', 'json', 'jsonline', 'xlsx']}
-                  exportOP={async (kind, file) => {
-                    const sql = getEditorText(editor, showNotification);
-                    return conn.exportQueryResult(sql, kind, file);
+            {conn && (
+              <Tooltip title="export query result to a file,implemented it not using query connection,uncommit row may not be found">
+                <IconButton
+                  loading={loading}
+                  disabled={loading || conn == null}
+                  onClick={() => {
+                    const value = getEditorText(editor, showNotification);
+                    if (!value) {
+                      return;
+                    }
+                    setShowExport(true);
                   }}
-                  name="export_query_result"
-                ></ExportView>
-              </Box>
-            </Modal>
-          )}
-          {showSetFavoriteName && (
-            <Modal
-              open={showSetFavoriteName}
-              onClose={modalHandleClose((e: EscDownEvent) => {
-                e.preventDefault();
-                setShowFavoriteName(false);
-              })}
+                  color="primary"
+                >
+                  <ArrowCircleDownRoundedIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+
+            <Tooltip
+              title={
+                !favoriteName
+                  ? 'save sql to favorite.'
+                  : `save favorite sql as named '${favoriteName}'`
+              }
             >
-              <Box sx={modalStyle} width="40%">
-                <Stack spacing={1}>
-                  <TextField
-                    fullWidth
-                    label="name"
-                    value={favoriteName}
-                    onChange={(e) => {
-                      setFavoriteName(e.target.value);
+              <IconButton
+                onClick={() => {
+                  const value = editor.getValue();
+                  if (!value) {
+                    showNotification('error', "can't save empty statement.");
+                    return;
+                  }
+                  if (favoriteName) {
+                    saveFavoriteSql(favoriteName, value);
+                  } else {
+                    setShowFavoriteName(true);
+                  }
+                }}
+                color="primary"
+              >
+                <FaBookmark style={{ fontSize: '1.2rem' }} />
+              </IconButton>
+            </Tooltip>
+            {editor && (
+              <LoadStoreFileForQuery
+                getQuery={() => {
+                  return editor.getValue();
+                }}
+                handleChange={(content) => {
+                  editor.setValue(content);
+                }}
+                kind={kind}
+              ></LoadStoreFileForQuery>
+            )}
+
+            <Tooltip title="query log">
+              <IconButton
+                onClick={() => {
+                  setShowQueryLog((prev) => !prev);
+                }}
+                color="primary"
+              >
+                <EventNoteIcon></EventNoteIcon>
+              </IconButton>
+            </Tooltip>
+            {buttons}
+
+            <ExecutingTime loading={loading} disableTime></ExecutingTime>
+            {!conn && <CircularProgress></CircularProgress>}
+          </Stack>
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              height: '100px',
+            }}
+            ref={editorDivDom}
+          >
+            <Editor
+              language={kind}
+              onMount={handleEditorDidMount}
+              width="99%"
+              height="99%"
+              value={value}
+              options={editorOptions}
+              theme={setting.editorTheme()}
+            ></Editor>
+          </div>
+          <EditorBar
+            left={
+              <Stack
+                style={{
+                  flex: 1,
+                }}
+                direction="row"
+              >
+                {parseErr && (
+                  <PossibleParseError
+                    parseErr={parseErr}
+                    editor={editor}
+                  ></PossibleParseError>
+                )}
+              </Stack>
+            }
+            pos={pos}
+          ></EditorBar>
+        </Panel>
+        <PanelResizeHandle style={{ height: 4 }} className="resize-handle" />
+        <Panel style={{ overflow: 'auto' }}>
+          <div style={{ height: '95%' }}>
+            <MultiQueryResp data={resp}></MultiQueryResp>
+            {showExport && (
+              <Modal
+                open={showExport}
+                onClose={modalHandleClose((e: EscDownEvent) => {
+                  e.preventDefault();
+                  setShowExport(false);
+                })}
+              >
+                <Box sx={modalStyle} width="45%">
+                  <ExportView
+                    supportKind={['csv', 'json', 'jsonline', 'xlsx']}
+                    exportOP={async (kind, file) => {
+                      const sql = getEditorText(editor, showNotification);
+                      return conn.exportQueryResult(sql, kind, file);
                     }}
-                    required
-                  ></TextField>
-                  <Stack direction="row">
-                    <IconButton
-                      color="primary"
-                      onClick={() => {
-                        if (!favoriteName) {
-                          showNotification('error', "name can't be empty");
-                          return;
-                        }
-                        saveFavoriteSql(favoriteName, editor.getValue());
-                        setShowFavoriteName(false);
+                    name="export_query_result"
+                  ></ExportView>
+                </Box>
+              </Modal>
+            )}
+            {showSetFavoriteName && (
+              <Modal
+                open={showSetFavoriteName}
+                onClose={modalHandleClose((e: EscDownEvent) => {
+                  e.preventDefault();
+                  setShowFavoriteName(false);
+                })}
+              >
+                <Box sx={modalStyle} width="40%">
+                  <Stack spacing={1}>
+                    <TextField
+                      fullWidth
+                      label="name"
+                      value={favoriteName}
+                      onChange={(e) => {
+                        setFavoriteName(e.target.value);
                       }}
-                    >
-                      <FaBookmark> </FaBookmark>
-                    </IconButton>
+                      required
+                    ></TextField>
+                    <Stack direction="row">
+                      <IconButton
+                        color="primary"
+                        onClick={() => {
+                          if (!favoriteName) {
+                            showNotification('error', "name can't be empty");
+                            return;
+                          }
+                          saveFavoriteSql(favoriteName, editor.getValue());
+                          setShowFavoriteName(false);
+                        }}
+                      >
+                        <FaBookmark> </FaBookmark>
+                      </IconButton>
+                    </Stack>
                   </Stack>
-                </Stack>
-              </Box>
-            </Modal>
-          )}
-        </div>
-      </Panel>
-    </PanelGroup>
+                </Box>
+              </Modal>
+            )}
+          </div>
+        </Panel>
+      </PanelGroup>
+    </div>
   );
 }
 

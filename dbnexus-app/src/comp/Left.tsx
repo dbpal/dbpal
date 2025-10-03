@@ -1383,7 +1383,6 @@ function AllKindQuery(props: {
           value={value}
           getParseErr={makeGetParserErr(uuid)}
           kind={kind}
-          height={height}
         ></SqlQuery>
       );
       break;

@@ -748,6 +748,7 @@ class UserSetting {
   loggerLevel: string = 'info';
   loggerMaxSize: number = 1;
   saveQueryLog: boolean = true;
+  maxTabTitleLength: number = 12;
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
   editorTheme(): string {
     return this.isDark() ? 'vs-dark' : 'light';
