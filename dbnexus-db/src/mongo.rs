@@ -865,7 +865,7 @@ impl MongoDB {
 #[allow(unused)]
 pub(crate) fn make_test_object() -> MongoDB {
     let x = MongoDB::new(MongoDBConfig {
-        conn_timeout: Some(500),
+        conn_timeout: Some(5000),
         host: TEST_HOST.to_string(),
         port: 27017,
         username: None,

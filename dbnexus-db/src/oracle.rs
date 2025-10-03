@@ -458,118 +458,82 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     let typ = typ.to_string().to_uppercase();
 
     match typ.as_str() {
-        "VARCHAR2" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", escape_sql_str(x)),
-                None => null_string,
-            })
-        }
-        _ if typ.starts_with("VARCHAR2") => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", escape_sql_str(x)),
-                None => null_string,
-            })
-        }
-        "NVARCHAR2" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", escape_sql_str(x)),
-                None => null_string,
-            })
-        }
-        _ if typ.starts_with("NVARCHAR2") => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", escape_sql_str(x)),
-                None => null_string,
-            })
-        }
+        "VARCHAR2" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", escape_sql_str(x)),
+            None => null_string,
+        }),
+        _ if typ.starts_with("VARCHAR2") => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", escape_sql_str(x)),
+            None => null_string,
+        }),
+        "NVARCHAR2" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", escape_sql_str(x)),
+            None => null_string,
+        }),
+        _ if typ.starts_with("NVARCHAR2") => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", escape_sql_str(x)),
+            None => null_string,
+        }),
 
-        "CHAR" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        _ if typ.starts_with("CHAR") => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", escape_sql_str(x)),
-                None => null_string,
-            })
-        }
-        "NCHAR" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", escape_sql_str(x)),
-                None => null_string,
-            })
-        }
-        _ if typ.starts_with("NCHAR") => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", escape_sql_str(x)),
-                None => null_string,
-            })
-        }
-        "RAW" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        _ if typ.starts_with("RAW") => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
+        "CHAR" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        _ if typ.starts_with("CHAR") => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", escape_sql_str(x)),
+            None => null_string,
+        }),
+        "NCHAR" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", escape_sql_str(x)),
+            None => null_string,
+        }),
+        _ if typ.starts_with("NCHAR") => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", escape_sql_str(x)),
+            None => null_string,
+        }),
+        "RAW" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        _ if typ.starts_with("RAW") => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
 
-        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => {
-            anyhow::Ok(match value {
-                Some(x) => x.to_string(),
-                None => null_string,
-            })
-        }
+        "BINARY_FLOAT" | "BINARY_DOUBLE" | "NUMBER" | "FLOAT" => anyhow::Ok(match value {
+            Some(x) => x.to_string(),
+            None => null_string,
+        }),
 
-        _ if typ.starts_with("FLOAT") || typ.starts_with("NUMBER") => {
-            anyhow::Ok(match value {
-                Some(x) => x.to_string(),
-                None => null_string,
-            })
-        }
+        _ if typ.starts_with("FLOAT") || typ.starts_with("NUMBER") => anyhow::Ok(match value {
+            Some(x) => x.to_string(),
+            None => null_string,
+        }),
 
-        "CLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "NCLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("N'{}'", x),
-                None => null_string,
-            })
-        }
-        "BLOB" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "LONG" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        "TIMESTAMP" => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
-        _ if typ.starts_with("TIMESTAMP") => {
-            anyhow::Ok(match value {
-                Some(x) => format!("'{}'", x),
-                None => null_string,
-            })
-        }
+        "CLOB" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "NCLOB" => anyhow::Ok(match value {
+            Some(x) => format!("N'{}'", x),
+            None => null_string,
+        }),
+        "BLOB" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "LONG" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        "TIMESTAMP" => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
+        _ if typ.starts_with("TIMESTAMP") => anyhow::Ok(match value {
+            Some(x) => format!("'{}'", x),
+            None => null_string,
+        }),
         // "BFILE" => {
         //     anyhow::Ok(match value {
         //         Some(x) => format!("'{}'", x),
@@ -983,13 +947,11 @@ impl OracleDB {
 
         anyhow::Ok(
             ret.into_iter()
-                .map(|x| {
-                    ListTable {
-                        size: sizes
-                            .get(&x)
-                            .and_then(|x| (*x).map(|x| HumanSize(Box::new(x)))),
-                        name: x,
-                    }
+                .map(|x| ListTable {
+                    size: sizes
+                        .get(&x)
+                        .and_then(|x| (*x).map(|x| HumanSize(Box::new(x)))),
+                    name: x,
                 })
                 .collect(),
         )
@@ -1054,13 +1016,11 @@ impl SchemaTrait for OracleDB {
 
         anyhow::Ok(
             ret.into_iter()
-                .map(|x| {
-                    ListTable {
-                        size: sizes
-                            .get(&x)
-                            .and_then(|x| (*x).map(|x| HumanSize(Box::new(x)))),
-                        name: x,
-                    }
+                .map(|x| ListTable {
+                    size: sizes
+                        .get(&x)
+                        .and_then(|x| (*x).map(|x| HumanSize(Box::new(x)))),
+                    name: x,
                 })
                 .collect(),
         )
@@ -1799,7 +1759,7 @@ impl OracleDB {
 pub(crate) fn make_test_object(schema: Option<String>) -> OracleDB {
     let x = OracleDB::new(
         OracleDBConfig {
-            conn_timeout: Some(500),
+            conn_timeout: Some(5000),
             username: "system".to_string(),
             password: "welcome123".to_string(),
             schema,

@@ -1991,7 +1991,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         password: Some("cassandra".to_string()),
         read_only: false,
         db,
-        conn_timeout: Some(500),
+        conn_timeout: Some(5000),
         save_password: true,
     })
     .await

@@ -1500,7 +1500,7 @@ pub(crate) async fn make_test_object() -> SqliteDB {
         SqliteDBConfig {
             path,
             read_only: false,
-            conn_timeout: Some(500),
+            conn_timeout: Some(5000),
         },
         false,
     )

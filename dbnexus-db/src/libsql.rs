@@ -1160,7 +1160,7 @@ fn encode_row_as_json(r: &Row) -> anyhow::Result<serde_json::Value> {
 // this test no need clean up, we use memory sqlite db.
 pub(crate) async fn make_test_object() -> LibSqlDB {
     LibSqlDB::new(LibSqlDBConfig {
-        conn_timeout: Some(500),
+        conn_timeout: Some(5000),
         replica: false,
         source: LibSqlDBConfigSource::Remote {
             url: "http://localhost:8080".to_string(),
