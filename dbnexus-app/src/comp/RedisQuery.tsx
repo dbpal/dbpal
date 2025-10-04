@@ -59,7 +59,7 @@ function RedisQuery(props: {
   } = props;
   const [command, setCommand] = useState('get');
   const [isDragging, setIsDragging] = useState(false);
-  const iframeRef = useRef(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
 
   // 禁用 iframe 的鼠标事件
