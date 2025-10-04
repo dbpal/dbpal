@@ -972,7 +972,7 @@ export type MuiDataGridData = {
   "fields": types.Field[];
   "data": any[];
   "sql": string | null;
-  "total": types.Usize;
+  "total": number | null;
   "cache_time": types.U64 | null;
   "has_more": boolean;
 };

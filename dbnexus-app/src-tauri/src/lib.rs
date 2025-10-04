@@ -11,7 +11,6 @@ mod tests {
 
     #[test]
     fn generate_ts_def() {
-        use std::io::prelude::*;
         use std::path::Path;
 
         use dbnexus_db::datasource_config::{
@@ -33,52 +32,48 @@ mod tests {
             .to_path_buf()
             .join("../src/comp/ApiStruct.ts");
 
-        let ts_module = {
-            let api = vec![
-                &app::DBConnectionConfig::INFO,
-                &PGDBConfig::INFO,
-                &SqlServerDBConfig::INFO,
-                &ListTable::INFO,
-                &Field::INFO,
-                &Index::INFO,
-                &SqlExecuteRet::INFO,
-                &NamedStaff::INFO,
-                &ExportKind::INFO,
-                &RedisListTable::INFO,
-                &TriggerDetail::INFO,
-                &TriggerEvent::INFO,
-                &TriggerTiming::INFO,
-                &TriggerEnable::INFO,
-                &CompletionItem::INFO,
-                &CompletionKind::INFO,
-                &DefAndMetas::INFO,
-                &ProcedureDetail::INFO,
-                &RedisDBConfig::INFO,
-                &MysqlDBConfig::INFO,
-                &MongoDBConfig::INFO,
-                &CassandraDBConfig::INFO,
-                &LibSqlDBConfigSource::INFO,
-                &CreateTableAndIndexSql::INFO,
-                &EnableSsl::INFO,
-                &ColumnType::INFO,
-                &SequenceDetail::INFO,
-                &CreatedTypeDef::INFO,
-                &ShowTableExtraArgs::INFO,
-                &SqlEvent::INFO,
-            ];
-
-            let mut buf = Vec::new();
-            let options: DefinitionFileOptions = DefinitionFileOptions::default();
-            write_definition_file_from_type_infos(&mut buf, options, &api).unwrap();
-            buf
-        };
         let mut ops = std::fs::OpenOptions::new();
         ops.write(true);
         ops.truncate(true);
         ops.create(true);
 
         let mut file = ops.open(filepath.as_path()).unwrap();
-        file.write_all(&ts_module).unwrap();
+
+        let api = vec![
+            &app::DBConnectionConfig::INFO,
+            &PGDBConfig::INFO,
+            &SqlServerDBConfig::INFO,
+            &ListTable::INFO,
+            &Field::INFO,
+            &Index::INFO,
+            &SqlExecuteRet::INFO,
+            &NamedStaff::INFO,
+            &ExportKind::INFO,
+            &RedisListTable::INFO,
+            &TriggerDetail::INFO,
+            &TriggerEvent::INFO,
+            &TriggerTiming::INFO,
+            &TriggerEnable::INFO,
+            &CompletionItem::INFO,
+            &CompletionKind::INFO,
+            &DefAndMetas::INFO,
+            &ProcedureDetail::INFO,
+            &RedisDBConfig::INFO,
+            &MysqlDBConfig::INFO,
+            &MongoDBConfig::INFO,
+            &CassandraDBConfig::INFO,
+            &LibSqlDBConfigSource::INFO,
+            &CreateTableAndIndexSql::INFO,
+            &EnableSsl::INFO,
+            &ColumnType::INFO,
+            &SequenceDetail::INFO,
+            &CreatedTypeDef::INFO,
+            &ShowTableExtraArgs::INFO,
+            &SqlEvent::INFO,
+        ];
+
+        let options: DefinitionFileOptions = DefinitionFileOptions::default();
+        write_definition_file_from_type_infos(&mut file, options, &api).unwrap();
         println!("generate OK.")
     }
 }

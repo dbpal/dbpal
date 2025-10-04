@@ -6,13 +6,13 @@ export namespace types {
     export type SqliteDBConfig = {
         "path": string;
         "read_only": boolean;
-        "conn_timeout"?: (types.U32 | null);
+        "conn_timeout": (types.U32 | null);
     };
     export type EnableSsl = {
-        "ssl_enable"?: boolean;
-        "ssl_ca"?: (string | null);
-        "ssl_cert"?: (string | null);
-        "ssl_key"?: (string | null);
+        "ssl_enable": boolean;
+        "ssl_ca": (string | null);
+        "ssl_cert": (string | null);
+        "ssl_key": (string | null);
     };
     export type U16 = number;
     export type MysqlDBConfig = (types.EnableSsl & {
@@ -23,7 +23,7 @@ export namespace types {
         "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
-        "conn_timeout"?: (types.U32 | null);
+        "conn_timeout": (types.U32 | null);
     });
     export type PGDBConfig = (types.EnableSsl & {
         "host": string;
@@ -34,7 +34,7 @@ export namespace types {
         "db": (string | null);
         "schema": (string | null);
         "read_only": boolean;
-        "conn_timeout"?: (types.U32 | null);
+        "conn_timeout": (types.U32 | null);
     });
     export type SqlServerDBConfig = {
         "host": string;
@@ -46,7 +46,7 @@ export namespace types {
         "trust_cert": boolean;
         "schema": (string | null);
         "read_only": boolean;
-        "conn_timeout"?: (types.U32 | null);
+        "conn_timeout": (types.U32 | null);
     };
     export type U64 = number;
     export type MongoDBConfig = {
@@ -55,7 +55,7 @@ export namespace types {
         "username": (string | null);
         "password": (string | null);
         "save_password": boolean;
-        "conn_timeout"?: (types.U64 | null);
+        "conn_timeout": (types.U64 | null);
         "db": (string | null);
         "read_only": boolean;
     };
@@ -67,7 +67,7 @@ export namespace types {
         "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
-        "conn_timeout"?: (types.U32 | null);
+        "conn_timeout": (types.U32 | null);
     };
     export type OracleDBConfig = {
         "username": string;
@@ -76,7 +76,7 @@ export namespace types {
         "host": string;
         "port": types.U16;
         "schema": (string | null);
-        "conn_timeout"?: (types.U32 | null);
+        "conn_timeout": (types.U32 | null);
         "read_only": boolean;
         "db": string;
     };
@@ -88,7 +88,7 @@ export namespace types {
         "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
-        "conn_timeout"?: (types.U32 | null);
+        "conn_timeout": (types.U32 | null);
     };
     export type ClickHouseConfig = {
         "host": string;
@@ -99,7 +99,7 @@ export namespace types {
         "db": (string | null);
         "read_only": boolean;
         "https": boolean;
-        "conn_timeout"?: (types.U32 | null);
+        "conn_timeout": (types.U32 | null);
     };
     export type LibSqlDBConfigSource = (({
         "source": "local";
@@ -115,7 +115,7 @@ export namespace types {
     export type LibSqlDBConfig = (types.LibSqlDBConfigSource & {
         "replica": boolean;
         "read_only": boolean;
-        "conn_timeout"?: (types.U32 | null);
+        "conn_timeout": (types.U32 | null);
     });
     export type FireBirdConfig = {
         "host": string;
@@ -125,7 +125,7 @@ export namespace types {
         "save_password": boolean;
         "db": string;
         "read_only": boolean;
-        "conn_timeout"?: (types.U32 | null);
+        "conn_timeout": (types.U32 | null);
     };
     export type DuckDBConfig = {
         "path": string;
@@ -296,7 +296,7 @@ export namespace types {
         "kind": CompletionKind;
         "desc"?: (string | null);
     };
-    export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma" | "Policy" | "Variable" | "Rule" | "Cluster" | "ClickHouseTableProjection" | "Prepare" | "Module" | "Domain");
+    export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma" | "Policy" | "Variable" | "Rule" | "Cluster" | "ClickHouseTableProjection" | "Prepare" | "Module" | "Domain" | "Stream");
     export type DefAndMetas = {
         "def": string;
         "metas": (types.MetaValue)[];
@@ -305,8 +305,6 @@ export namespace types {
         "def": string;
         "metas": (types.MetaValue)[];
     };
-    export type Usize = number;
-
 
     /**
      * create table and all index sql.
