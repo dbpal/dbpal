@@ -187,7 +187,7 @@ function ModifySetting() {
     >
       <Divider textAlign="left">appearance</Divider>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
+        <Typography width={headerSize} textAlign="right" style={{ fontSize }}>
           font size:
         </Typography>
         <Chip label={fontSize} style={{ fontSize }} />

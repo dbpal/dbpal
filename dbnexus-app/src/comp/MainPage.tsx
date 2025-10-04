@@ -280,7 +280,7 @@ function App() {
                   style={{
                     height: '100vh',
                     width: '100vw',
-                    padding: '0.7rem',
+                    padding: '0.5rem 1rem',
                   }}
                   autoSaveId="main"
                 >
@@ -391,7 +391,7 @@ function SeparateWindow(props: { children }) {
       <SettingComp>
         <ContextMenuContext.Provider value={{ setUpMenu }}>
           <NotificationProvider>
-            <div style={{ padding: '0.5rem 0.9rem' }}> {children} </div>
+            <div style={{ padding: '0.5rem 1rem' }}> {children} </div>
             <div
               id={menuDivID}
               style={{
