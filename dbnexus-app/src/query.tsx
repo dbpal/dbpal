@@ -13,15 +13,16 @@ import { initMonacoLanguage } from './comp/Common.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { AllKindQuery } from './comp/Left.tsx';
+import { Typography } from '@mui/material';
 
 windowInit(false, false);
 const params = new URLSearchParams(location.search);
 
 const uuid = params.get('uuid');
 const kind = connTypeToDataSourceKind(params.get('kind'));
-
+let err;
 await initMonacoLanguage(uuid, kind, (msg) => {
-  alert(msg);
+  err = msg;
 });
 
 // close confirm message
@@ -40,6 +41,7 @@ function Query(props: { uuid: string; kind: DataSourceKind }) {
         setCloseConfirm(msg);
       }}
     >
+      {err && <Typography color="error">{err}</Typography>}
       <AllKindQuery
         heightName="query-new-window"
         uuid={uuid}
