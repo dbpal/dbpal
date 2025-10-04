@@ -483,6 +483,8 @@ function SqlQuery(props: {
             display: 'flex',
             flexDirection: 'column',
           }}
+          collapsible
+          collapsedSize={0}
         >
           <QueryLog
             showQueryLog={showQueryLog}

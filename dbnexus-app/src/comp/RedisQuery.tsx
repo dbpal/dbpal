@@ -173,7 +173,7 @@ function RedisQuery(props: {
             style={{ width: 4 }}
             className="resize-handle"
           />
-          <Panel>
+          <Panel collapsible collapsedSize={0} minSize={15}>
             <div style={{ height: '100vh' }}>
               {showDoc && (
                 <iframe

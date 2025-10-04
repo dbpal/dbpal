@@ -291,6 +291,8 @@ function App() {
                     }}
                     minSize={10}
                     maxSize={45}
+                    collapsible
+                    collapsedSize={0}
                   >
                     <Left></Left>
                   </Panel>
