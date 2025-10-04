@@ -165,31 +165,31 @@ function RedisQuery(props: {
         ></SqlQuery>
       </Panel>
       {showDoc && (
-        <PanelResizeHandle
-          onDragging={(is) => {
-            setIsDragging(is);
-          }}
-          style={{ width: 4 }}
-          className="resize-handle"
-        />
-      )}
-      {showDoc && (
-        <Panel>
-          <div style={{ height: '100vh' }}>
-            {showDoc && (
-              <iframe
-                ref={iframeRef} // 绑定 iframe 引用
-                src={getURL(command)}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  border: 'none', // 去掉边框
-                }}
-                title="Full Size Iframe"
-              />
-            )}
-          </div>
-        </Panel>
+        <>
+          <PanelResizeHandle
+            onDragging={(is) => {
+              setIsDragging(is);
+            }}
+            style={{ width: 4 }}
+            className="resize-handle"
+          />
+          <Panel>
+            <div style={{ height: '100vh' }}>
+              {showDoc && (
+                <iframe
+                  ref={iframeRef} // 绑定 iframe 引用
+                  src={getURL(command)}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none', // 去掉边框
+                  }}
+                  title="Full Size Iframe"
+                />
+              )}
+            </div>
+          </Panel>
+        </>
       )}
     </PanelGroup>
   );
