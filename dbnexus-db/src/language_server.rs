@@ -8,9 +8,7 @@ use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
 use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
 
-use crate::db::{
-    BackendKind, CreatedTypeDef, GetBackendKind, SequenceDetail, SqlEvent, not_support_feature,
-};
+use crate::db::{CreatedTypeDef, GetBackendKind, SequenceDetail, SqlEvent, not_support_feature};
 use crate::helper::try_remove_one_at;
 use crate::sqlparser_completion::{CompletionStatement, Scopes, TempTableColumn};
 

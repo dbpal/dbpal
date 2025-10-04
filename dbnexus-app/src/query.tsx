@@ -40,7 +40,12 @@ function Query(props: { uuid: string; kind: DataSourceKind }) {
         setCloseConfirm(msg);
       }}
     >
-      <AllKindQuery uuid={uuid} kind={kind} height="100vh" />
+      <AllKindQuery
+        heightName="query-new-window"
+        uuid={uuid}
+        kind={kind}
+        height="100vh"
+      />
     </SetCloseConfirmTextContext>
   );
 }

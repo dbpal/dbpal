@@ -697,7 +697,12 @@ function FavoriteSqlList(props: { handleClose }) {
       }
       setTabs((tabs) => {
         let content = (
-          <AllKindQuery kind={row.kind} uuid={row.uuid} value={row.sql} />
+          <AllKindQuery
+            heightName="tab-query"
+            kind={row.kind}
+            uuid={row.uuid}
+            value={row.sql}
+          />
         );
         handleClose();
         setTimeout(() => {
@@ -1350,8 +1355,9 @@ function AllKindQuery(props: {
   uuid: string;
   value?: string;
   height?: string;
+  heightName: string;
 }) {
-  const { kind, uuid, value, height } = props;
+  const { kind, uuid, value, heightName } = props;
   let content;
   const { showNotification } = useContext(NotificationContext);
   switch (kind) {
@@ -1374,6 +1380,7 @@ function AllKindQuery(props: {
           makeConn={async () => {
             return makeConn(uuid, kind);
           }}
+          heightName={heightName}
           saveFavoriteSql={async (name, sql) => {
             await FavoriteSql.save(
               new FavoriteSql(uuid, name, kind, sql),
@@ -1401,7 +1408,7 @@ function AllKindQuery(props: {
           }}
           value={value}
           getParseErr={makeGetParserErr(uuid)}
-          height={height}
+          heightName={heightName}
         ></RedisQuery>
       );
       break;
@@ -1452,7 +1459,9 @@ function openNewQuery(
   }
   console.log('open new query uuid:', uuid);
   let id = uuid + '-query-' + generateRandomString();
-  let content = <AllKindQuery kind={kind} uuid={uuid} />;
+  let content = (
+    <AllKindQuery heightName="query-new-window" kind={kind} uuid={uuid} />
+  );
   setTabs((e: TabContent[]) => {
     setTimeout(() => {
       setSelectTab(e.length);

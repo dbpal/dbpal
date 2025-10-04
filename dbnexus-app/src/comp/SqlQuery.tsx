@@ -172,6 +172,7 @@ function SqlQuery(props: {
   buttons?: ReactNode;
   getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
   editorRef?: RefObject<editor.IStandaloneCodeEditor>;
+  heightName: string;
 }) {
   let {
     uuid,
@@ -183,6 +184,7 @@ function SqlQuery(props: {
     buttons,
     getParseErr,
     editorRef,
+    heightName,
   } = props;
   const [resp, setResp] = useState([]);
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
@@ -452,7 +454,7 @@ function SqlQuery(props: {
 
   const wholeDiv = useRef(null);
   useEffect(() => {
-    let c = saveAndSetSize(wholeDiv.current, 'query', 'height');
+    let c = saveAndSetSize(wholeDiv.current, heightName, 'height');
     return c;
   }, []);
   return (
@@ -686,7 +688,7 @@ function SqlQuery(props: {
         </Panel>
         <PanelResizeHandle style={{ height: 4 }} className="resize-handle" />
         <Panel style={{ overflow: 'auto' }}>
-          <div style={{ height: '95%' }}>
+          <div style={{ height: '100%' }}>
             <MultiQueryResp data={resp}></MultiQueryResp>
             {showExport && (
               <Modal
@@ -749,6 +751,10 @@ function SqlQuery(props: {
           </div>
         </Panel>
       </PanelGroup>
+
+      <div style={{ height: '0.7rem' }}>
+        {/* this div for resize handle last view element can shadow resize handle*/}
+      </div>
     </div>
   );
 }

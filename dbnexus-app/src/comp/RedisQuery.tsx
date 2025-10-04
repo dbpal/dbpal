@@ -46,10 +46,17 @@ function RedisQuery(props: {
   value?: string;
   getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
   uuid: string;
-  height?: string;
+  heightName: string;
 }) {
-  const { makeConn, saveFavoriteSql, favoriteName, value, getParseErr, uuid } =
-    props;
+  const {
+    makeConn,
+    saveFavoriteSql,
+    favoriteName,
+    value,
+    getParseErr,
+    uuid,
+    heightName,
+  } = props;
   const [command, setCommand] = useState('get');
   const [isDragging, setIsDragging] = useState(false);
   const iframeRef = useRef(null);
@@ -135,6 +142,7 @@ function RedisQuery(props: {
     <PanelGroup direction="horizontal" autoSaveId="redis-query">
       <Panel defaultSize={40}>
         <SqlQuery
+          heightName={heightName}
           editorRef={editorRef}
           getParseErr={getParseErr}
           uuid={uuid}
