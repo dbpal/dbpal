@@ -1459,9 +1459,7 @@ function openNewQuery(
   }
   console.log('open new query uuid:', uuid);
   let id = uuid + '-query-' + generateRandomString();
-  let content = (
-    <AllKindQuery heightName="query-new-window" kind={kind} uuid={uuid} />
-  );
+  let content = <AllKindQuery heightName="tab-query" kind={kind} uuid={uuid} />;
   setTabs((e: TabContent[]) => {
     setTimeout(() => {
       setSelectTab(e.length);

@@ -634,7 +634,9 @@ function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "bo
   let e = new ResizeObserver((en) => {
     const height = en[0].target.clientHeight;
     const width = en[0].target.clientWidth;
-    SaveDomSizes.saveSize(key, { width, height });
+    if (width && height) {
+      SaveDomSizes.saveSize(key, { width, height });
+    }
   });
   SaveDomSizes.getSize(key).then(size => {
     if (size) {
@@ -643,7 +645,6 @@ function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "bo
         if (size.height) {
           div.style.height = size.height + 'px';
         }
-
       }
       if (set == "width" || set == "both") {
         if (size.width) {
