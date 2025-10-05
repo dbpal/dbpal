@@ -1747,7 +1747,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "base64 0.22.1",
+ "base64 0.13.1",
  "bb8",
  "bb8-tiberius",
  "bit-vec",
@@ -1776,7 +1776,7 @@ dependencies = [
  "oracle",
  "pg_interval",
  "r2d2",
- "rand 0.9.0",
+ "rand 0.7.3",
  "redis",
  "regex",
  "reqwest",
@@ -1815,7 +1815,7 @@ dependencies = [
  "lazy_static",
  "log",
  "mongodb",
- "rand 0.9.0",
+ "rand 0.7.3",
  "serde",
  "serde_json",
  "tauri",
@@ -2075,7 +2075,7 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330c60081dcc4c72131f8eb70510f1ac07223e5d4163db481a04a0befcffa412"
 dependencies = [
- "libloading 0.8.6",
+ "libloading 0.7.4",
 ]
 
 [[package]]
@@ -3399,7 +3399,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2",
+ "socket2 0.5.8",
  "tokio",
  "tower-service",
  "tracing",
@@ -3503,7 +3503,7 @@ dependencies = [
  "http-body 1.0.1",
  "hyper 1.5.2",
  "pin-project-lite",
- "socket2",
+ "socket2 0.5.8",
  "tokio",
  "tower-service",
  "tracing",
@@ -3764,7 +3764,7 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b58db92f96b720de98181bbbe63c831e87005ab460c1bf306eb2622b4707997f"
 dependencies = [
- "socket2",
+ "socket2 0.5.8",
  "widestring",
  "windows-sys 0.48.0",
  "winreg 0.50.0",
@@ -4068,9 +4068,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.168"
+version = "0.2.176"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5aaeb2981e0606ca11d79718f8bb01164f1d6ed75080182d3abf017e6d244b6d"
+checksum = "58f929b4d672ea937a23a1ab494143d968337a5f47e56d0815df1e0890ddf174"
 
 [[package]]
 name = "libdbus-sys"
@@ -4600,7 +4600,7 @@ dependencies = [
  "serde_with",
  "sha1",
  "sha2 0.10.8",
- "socket2",
+ "socket2 0.5.8",
  "stringprep",
  "strsim 0.11.1",
  "take_mut",
@@ -5961,7 +5961,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.0",
  "rustls 0.23.31",
- "socket2",
+ "socket2 0.5.8",
  "thiserror 2.0.8",
  "tokio",
  "tracing",
@@ -5996,7 +5996,7 @@ dependencies = [
  "cfg_aliases 0.2.1",
  "libc",
  "once_cell",
- "socket2",
+ "socket2 0.5.8",
  "tracing",
  "windows-sys 0.59.0",
 ]
@@ -6183,7 +6183,7 @@ dependencies = [
  "pin-project-lite",
  "ryu",
  "sha1_smol",
- "socket2",
+ "socket2 0.5.8",
  "tokio",
  "tokio-util",
  "url",
@@ -6857,9 +6857,9 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.226"
+version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0dca6411025b24b60bfa7ec1fe1f8e710ac09782dca409ee8237ba74b51295fd"
+checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 dependencies = [
  "serde_core",
  "serde_derive",
@@ -6887,18 +6887,18 @@ dependencies = [
 
 [[package]]
 name = "serde_core"
-version = "1.0.226"
+version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba2ba63999edb9dac981fb34b3e5c0d111a69b0924e253ed29d83f7c99e966a4"
+checksum = "41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.226"
+version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8db53ae22f34573731bafa1db20f04027b2d25e02d8205921b569171699cdb33"
+checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7186,6 +7186,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "socket2"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "233504af464074f9d066d7b5416c5f9b894a5862a6506e306f7b816cdd6f1807"
+dependencies = [
+ "libc",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "softbuffer"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7279,7 +7289,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#c01f51330abc50dca6714bd73eff0313aa353b8c"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#064d649abdfd1742e5fdcc20176a6b415b9c25d3"
 dependencies = [
  "sqlx-core 0.9.0-alpha.1",
  "sqlx-macros 0.9.0-alpha.1",
@@ -7326,12 +7336,13 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#c01f51330abc50dca6714bd73eff0313aa353b8c"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#064d649abdfd1742e5fdcc20176a6b415b9c25d3"
 dependencies = [
  "base64 0.22.1",
  "bigdecimal",
  "bit-vec",
  "bytes",
+ "cfg-if",
  "chrono",
  "crc",
  "crossbeam-queue",
@@ -7379,7 +7390,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#c01f51330abc50dca6714bd73eff0313aa353b8c"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#064d649abdfd1742e5fdcc20176a6b415b9c25d3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7416,8 +7427,9 @@ dependencies = [
 [[package]]
 name = "sqlx-macros-core"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#c01f51330abc50dca6714bd73eff0313aa353b8c"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#064d649abdfd1742e5fdcc20176a6b415b9c25d3"
 dependencies = [
+ "cfg-if",
  "dotenvy",
  "either",
  "heck 0.5.0",
@@ -7482,7 +7494,7 @@ dependencies = [
 [[package]]
 name = "sqlx-mysql"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#c01f51330abc50dca6714bd73eff0313aa353b8c"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#064d649abdfd1742e5fdcc20176a6b415b9c25d3"
 dependencies = [
  "atoi",
  "base64 0.22.1",
@@ -7563,7 +7575,7 @@ dependencies = [
 [[package]]
 name = "sqlx-postgres"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#c01f51330abc50dca6714bd73eff0313aa353b8c"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#064d649abdfd1742e5fdcc20176a6b415b9c25d3"
 dependencies = [
  "atoi",
  "base64 0.22.1",
@@ -7630,7 +7642,7 @@ dependencies = [
 [[package]]
 name = "sqlx-sqlite"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#c01f51330abc50dca6714bd73eff0313aa353b8c"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#064d649abdfd1742e5fdcc20176a6b415b9c25d3"
 dependencies = [
  "atoi",
  "chrono",
@@ -8553,9 +8565,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.46.1"
+version = "1.47.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cc3a2344dafbe23a245241fe8b09735b521110d30fcefbbd5feb1797ca35d17"
+checksum = "89e49afdadebb872d3145a5638b59eb0691ea23e46ca484037cfab3b76b95038"
 dependencies = [
  "backtrace",
  "bytes",
@@ -8566,10 +8578,10 @@ dependencies = [
  "pin-project-lite",
  "signal-hook-registry",
  "slab",
- "socket2",
+ "socket2 0.6.0",
  "tokio-macros",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -9565,7 +9577,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

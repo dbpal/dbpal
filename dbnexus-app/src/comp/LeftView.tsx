@@ -508,10 +508,11 @@ function ViewMenu(props: {
   const [showExport, setShowExport] = useState(false);
   const handleDrop = async () => {
     let confirm = await secondConfirm({
-      title: 'Drop view',
+      title: `Drop view '${view}'`,
       content: '',
       confirmText: 'Drop',
     });
+    ``;
     if (!confirm) {
       return;
     }

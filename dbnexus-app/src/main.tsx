@@ -13,7 +13,7 @@ const currentWebview = await WebviewWindow.getCurrent();
 currentWebview.onCloseRequested(async (event) => {
   let confirm = await secondConfirm({
     title: 'close the window',
-    content: 'are u sure to exit the app',
+    content: 'exit the app',
     confirmText: 'close',
   });
   if (!confirm) {

@@ -246,7 +246,7 @@ function DropTable(props: {
   const handleDrop = async () => {
     const confirm = await secondConfirm({
       confirmText: 'Drop',
-      title: `are u sure to drop table '${table}'`,
+      title: `drop table '${table}'`,
     });
     if (!confirm) {
       return;
@@ -1079,7 +1079,7 @@ function RenameTable(props: {
     }
     const confirm = await secondConfirm({
       title: 'rename table',
-      content: `are u sure going to rename table '${table}'`,
+      content: `rename table '${table}'`,
       confirmText: 'Rename',
     });
     if (!confirm) {

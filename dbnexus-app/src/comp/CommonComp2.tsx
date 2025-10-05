@@ -559,7 +559,7 @@ function LoadStoreFileForQuery(props: {
       if (fileContent != getQuery()) {
         const confirm = await secondConfirm({
           title: 'file not saved',
-          content: 'are u sure to discard the content',
+          content: 'discard the content',
         });
         if (!confirm) {
           return;
