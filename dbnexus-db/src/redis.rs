@@ -18,7 +18,7 @@ use crate::db::{
     ExportQueryResult, Field, GetBackendKind, ListTable, QueryResp, QuerySql, ReadOnlyTrait,
     SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlExecuteRet, XlsxEdit,
 };
-use crate::helper::{NextQueryId, OffsetLimitIter, create_csv};
+use crate::helper::{NextId, OffsetLimitIter, create_csv};
 use crate::meta_value::MetaValue;
 
 /// https://stackoverflow.com/questions/30611215/redis-how-to-limit-the-return-number-of-keys-command
@@ -29,7 +29,7 @@ pub struct RedisDB {
     conn_manager: ConnectionManager,
     pub(crate) query_connections: Arc<DashMap<u32, Arc<Mutex<MultiplexedConnection>>>>,
     created_database: Arc<DashSet<String>>,
-    query_id: NextQueryId,
+    query_id: NextId,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 

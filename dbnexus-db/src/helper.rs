@@ -125,12 +125,12 @@ impl Drop for TimeSome {
 }
 
 #[derive(Default, Clone)]
-pub struct NextQueryId {
+pub struct NextId {
     next_id: Arc<AtomicU32>,
 }
 
-impl NextQueryId {
-    pub(crate) fn next(&self) -> u32 {
+impl NextId {
+    pub fn next(&self) -> u32 {
         self.next_id
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     }

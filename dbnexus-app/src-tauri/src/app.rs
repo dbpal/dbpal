@@ -9,6 +9,7 @@ use dbnexus_db::datasource_config::{
     SqliteDBConfig,
 };
 use dbnexus_db::db::{CatalogTrait, DBTrait, SchemaTrait};
+use dbnexus_db::helper::NextId;
 use dbnexus_db::mongo::MongoDB;
 use rand::Rng;
 use tokio::sync::Mutex;
@@ -364,14 +365,22 @@ impl From<Arc<dyn dbnexus_db::db::SchemaTrait>> for DatabaseBackend {
 
 /// all the databases
 #[derive(Clone, Default)]
-pub struct App {
+pub struct DBPal {
     pub backend: Arc<Mutex<HashMap<String, DatabaseBackend>>>,
     pub saved_password: Arc<DashMap<String, String>>,
+    pub backend_crash_msg: Arc<DashMap<u32, String>>,
+    pub backend_crash_next_id: NextId,
 }
 
-impl App {
+impl DBPal {
     pub fn new() -> Self {
         Default::default()
+    }
+
+    pub(crate) fn set_backend_crash_msg(&self, msg: String) -> u32 {
+        let id = self.backend_crash_next_id.next();
+        self.backend_crash_msg.insert(id, msg);
+        id
     }
 }
 type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;
@@ -387,7 +396,7 @@ fn name_starts(name: &str, prefix: &str) -> bool {
     name.len() >= prefix.len() && name.iter().zip(prefix.iter()).all(|(x, y)| *x == *y)
 }
 
-impl App {
+impl DBPal {
     pub unsafe fn get_config_ref() -> &'static mut Option<GetConfigFN> {
         static mut GET_CONFIG_FN: Option<GetConfigFN> = None;
         #[allow(static_mut_refs)] // this var will init once by main
@@ -537,7 +546,6 @@ impl App {
     }
 }
 
-#[allow(unused)]
 pub(crate) fn generate_random_string(len: usize) -> String {
     rand::thread_rng()
         .sample_iter(&rand::distributions::Alphanumeric)

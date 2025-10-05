@@ -1004,18 +1004,6 @@ async function setZoom(out: boolean) {
 
 async function windowInit(isMain: boolean, emitFocus: boolean) {
   const currentWebview = await WebviewWindow.getCurrent();
-  listen('zoom_in', async (_) => {
-    await setZoom(false);
-  });
-
-  listen('zoom_out', async (_) => {
-    await setZoom(true);
-  });
-  listen('zoom_reset', async (_) => {
-    currentWebview.setZoom(1);
-    appStore.set(AppStoreKey.Zoom, 1);
-  });
-
   appStore.get<number>(AppStoreKey.Zoom).then(async (zoom) => {
     if (zoom) {
       await currentWebview.setZoom(zoom);

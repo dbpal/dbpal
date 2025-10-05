@@ -39,7 +39,7 @@ use crate::db::{
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
-use crate::helper::{NextQueryId, create_csv};
+use crate::helper::{NextId, create_csv};
 use crate::meta_value::MetaValue;
 pub struct PoolManager {
     config: FireBirdConfig,
@@ -488,7 +488,7 @@ pub struct FireBirdDB {
     query_connections: Arc<DashMap<u32, Arc<Mutex<PooledConnection<PoolManager>>>>>,
     query_connections_tx: Arc<DashSet<u32>>,
     pub(crate) key_words_completion: Arc<Mutex<Vec<String>>>,
-    query_id: NextQueryId,
+    query_id: NextId,
 }
 
 impl std::fmt::Debug for FireBirdDB {

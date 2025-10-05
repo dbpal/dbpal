@@ -692,8 +692,6 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
                 overflow: 'auto',
                 opacity: 0.9,
                 color: theme.palette.success.main,
-                fontFamily: setting.fontFamily,
-                fontWeight: setting.fontWeight,
               }}
             >
               {x[f.field]}

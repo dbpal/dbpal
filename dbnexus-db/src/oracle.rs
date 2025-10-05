@@ -21,7 +21,7 @@ use crate::db::{
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
     XlsxEdit, escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
-use crate::helper::{NextQueryId, create_csv};
+use crate::helper::{NextId, create_csv};
 use crate::meta_value::MetaValue;
 use crate::oracle_lang_server::ORACLE_TYPES;
 
@@ -31,7 +31,7 @@ pub struct OracleDB {
     query_connections: Arc<DashMap<u32, Arc<Mutex<Connection>>>>,
     pub(crate) config: OracleDBConfig,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
-    query_id: NextQueryId,
+    query_id: NextId,
 }
 
 #[async_trait::async_trait]

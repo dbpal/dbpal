@@ -10,8 +10,9 @@ use std::panic;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use crate::app::generate_random_string;
 use crate::handlers::{log_file, truncate_file};
-use app::{App, DBConnectionConfig};
+use app::{DBConnectionConfig, DBPal};
 use handlers::{
     PASSWORD_KEY, add_table_column, auto_completion, cassandra_drop_aggregate,
     cassandra_invalid_table_or_view_caching, cassandra_list_aggregate, cassandra_show_aggregate,
@@ -21,37 +22,37 @@ use handlers::{
     drop_materialized_view, drop_procedure, drop_schema, drop_sequence, drop_table,
     drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
     execute_sql, execute_sql_no_open_conn, export_query_result_to_file, export_table_or_view,
-    extract_table_select_selection, extract_table_select_sort, fonts_all_families, get_password,
-    has_entered_password, is_dangerous_sql, key_words, list_created_types, list_data_types,
-    list_database, list_event, list_materialized_view, list_procedure, list_schema, list_sequence,
-    list_sql_current_values, list_table, list_udf, list_view, modify_table_column,
-    mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id, mongo_insert,
-    mongo_list_time_serial_collection, mongo_query_collection_count_docs,
-    mongo_query_collection_create_index, mongo_query_collection_create_search_index,
-    mongo_query_collection_delete_many, mongo_query_collection_delete_one,
-    mongo_query_collection_distinct, mongo_query_collection_drop,
-    mongo_query_collection_drop_index, mongo_query_collection_drop_indexes,
-    mongo_query_collection_drop_search_index, mongo_query_collection_find,
-    mongo_query_collection_find_one, mongo_query_collection_find_one_and_delete,
-    mongo_query_collection_find_one_and_replace, mongo_query_collection_insert_many,
-    mongo_query_collection_insert_one, mongo_query_collection_list_index_names,
-    mongo_query_collection_list_indexes, mongo_query_collection_list_search_indexes,
-    mongo_query_collection_replace_one, mongo_query_collection_update_many,
-    mongo_query_collection_update_one, mongo_query_db_drop, mongo_query_db_list_collection_names,
-    mongo_query_db_run_command, mongo_show_collection_docs, mongo_show_collection_table_list,
-    mongo_update_one, open_conn, page_init_callback, put_value_in_sql, query_commit,
-    query_get_commit, query_rollback, query_set_autocommit, query_sql, query_sql_close_connection,
-    query_sql_open_connection, query_sql_re_connection, redis_hash_add, redis_hash_del,
-    redis_hash_replace, redis_list_lpush, redis_list_remove, redis_list_rpush, redis_list_set,
-    redis_list_table, redis_set_add, redis_set_del, redis_set_replace, redis_string_set,
-    redis_zset_add, redis_zset_del, redis_zset_replace, redis_zset_show_table, rename_index,
-    rename_sequence, rename_table, save_entered_password, save_password, server_metas,
-    show_indexes, show_procedure, show_table, show_table_columns, show_trigger, show_udf,
-    show_view, show_view_columns, sql_parse_error, table_delete, table_insert, table_update,
-    test_connection, truncate_log_file, truncate_table, valid_json,
+    extract_table_select_selection, extract_table_select_sort, fonts_all_families,
+    get_backend_crash, get_password, has_entered_password, is_dangerous_sql, key_words,
+    list_created_types, list_data_types, list_database, list_event, list_materialized_view,
+    list_procedure, list_schema, list_sequence, list_sql_current_values, list_table, list_udf,
+    list_view, modify_table_column, mongo_create_index, mongo_delete_ids,
+    mongo_get_one_document_by_id, mongo_insert, mongo_list_time_serial_collection,
+    mongo_query_collection_count_docs, mongo_query_collection_create_index,
+    mongo_query_collection_create_search_index, mongo_query_collection_delete_many,
+    mongo_query_collection_delete_one, mongo_query_collection_distinct,
+    mongo_query_collection_drop, mongo_query_collection_drop_index,
+    mongo_query_collection_drop_indexes, mongo_query_collection_drop_search_index,
+    mongo_query_collection_find, mongo_query_collection_find_one,
+    mongo_query_collection_find_one_and_delete, mongo_query_collection_find_one_and_replace,
+    mongo_query_collection_insert_many, mongo_query_collection_insert_one,
+    mongo_query_collection_list_index_names, mongo_query_collection_list_indexes,
+    mongo_query_collection_list_search_indexes, mongo_query_collection_replace_one,
+    mongo_query_collection_update_many, mongo_query_collection_update_one, mongo_query_db_drop,
+    mongo_query_db_list_collection_names, mongo_query_db_run_command, mongo_show_collection_docs,
+    mongo_show_collection_table_list, mongo_update_one, open_conn, page_init_callback,
+    put_value_in_sql, query_commit, query_get_commit, query_rollback, query_set_autocommit,
+    query_sql, query_sql_close_connection, query_sql_open_connection, query_sql_re_connection,
+    redis_hash_add, redis_hash_del, redis_hash_replace, redis_list_lpush, redis_list_remove,
+    redis_list_rpush, redis_list_set, redis_list_table, redis_set_add, redis_set_del,
+    redis_set_replace, redis_string_set, redis_zset_add, redis_zset_del, redis_zset_replace,
+    redis_zset_show_table, rename_index, rename_sequence, rename_table, save_entered_password,
+    save_password, server_metas, show_indexes, show_procedure, show_table, show_table_columns,
+    show_trigger, show_udf, show_view, show_view_columns, sql_parse_error, table_delete,
+    table_insert, table_update, test_connection, truncate_log_file, truncate_table, valid_json,
 };
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{Emitter, Manager, Wry};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Wry};
 use tauri_plugin_store::{Store, StoreExt};
 
 fn main() {
@@ -198,20 +199,47 @@ impl log::Log for AppLogger {
     }
 }
 
+const STORE_FILE: &str = "store.json";
+
+fn get_zoom(handle: &AppHandle) -> anyhow::Result<f64> {
+    let x = handle
+        .get_store(STORE_FILE)
+        .map(|store| store.get("zoom").and_then(|x| x.as_f64()));
+    Ok(x.flatten().unwrap_or(1.0))
+}
+
+fn set_zoom(handle: &AppHandle, zoom: f64) -> anyhow::Result<()> {
+    let store = handle.get_store(STORE_FILE);
+    if let Some(store) = store {
+        store.set("zoom", zoom);
+    }
+    Ok(())
+}
+
 fn main_() {
     // logger_test();
-    let app = App::new();
-    let saved_password = app.saved_password.clone();
-    let setup = |app: &mut tauri::App| {
+    let dbpal = DBPal::new();
+    let dbpal_clone = dbpal.clone();
+
+    let setup = move |app: &mut tauri::App| {
         {
+            let dbpal_clone = dbpal_clone.clone();
             let handler = app.handle().clone();
             let old = panic::take_hook();
             panic::set_hook(Box::new(move |info| {
                 let backtrace = Backtrace::capture();
-
-                if let Err(err) = handler.emit("backend-crash", format!("{}\n{}", info, backtrace))
+                let id = dbpal_clone.set_backend_crash_msg(format!("{}\n{}", info, backtrace));
+                if let Err(err) = WebviewWindowBuilder::new(
+                    &handler,
+                    generate_random_string(10),
+                    WebviewUrl::App(format!("backend-crash.html?id={id}").into()),
+                )
+                .title("Backend Crash")
+                .inner_size(800f64, 600f64)
+                .maximized(true)
+                .build()
                 {
-                    log::error!("emit backend crash to frontend failed,err:{}", err);
+                    log::error!("create backend crash window failed:{}", err);
                 }
                 old(info);
             }));
@@ -221,7 +249,7 @@ fn main_() {
             let window = app.get_webview_window("main").unwrap();
             window.open_devtools();
         }
-        let store = app.store("store.json").unwrap();
+        let store = app.store(STORE_FILE).unwrap();
         match app.path().app_data_dir() {
             Ok(mut f_path) => {
                 f_path.push("dbpal.log");
@@ -243,7 +271,7 @@ fn main_() {
             Err(err) => println!("can't get app data dir,err:{}", err),
         }
 
-        *unsafe { App::get_config_ref() } = Some(Box::new(move |name| {
+        *unsafe { DBPal::get_config_ref() } = Some(Box::new(move |name| {
             let configs: Vec<DBConnectionConfig> = serde_json::from_value(
                 store
                     .get("connection-config")
@@ -255,7 +283,7 @@ fn main_() {
                     continue;
                 }
                 if c.need_password() {
-                    if let Some(pass) = saved_password.get(&c.get_name().to_string()) {
+                    if let Some(pass) = dbpal_clone.saved_password.get(&c.get_name().to_string()) {
                         c.set_password(pass.clone());
                     } else {
                         match keyring::Entry::new(PASSWORD_KEY, name) {
@@ -293,7 +321,7 @@ fn main_() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(app)
+        .manage(dbpal)
         .setup(setup)
         .menu(|handle| {
             Menu::with_items(
@@ -455,13 +483,54 @@ fn main_() {
             }
 
             if event.id.0 == "zoom_in" {
-                handle.emit("zoom_in", "").unwrap();
+                match get_zoom(handle) {
+                    Ok(x) => {
+                        let zoom = x - 0.1;
+                        let views = handle.webview_windows();
+                        for view in views.values() {
+                            if let Err(err) = view.set_zoom(zoom) {
+                                log::error!("set view  zoom failed:{}", err);
+                            }
+                        }
+                        if let Err(err) = set_zoom(handle, zoom) {
+                            log::error!("set zoom failed:{}", err);
+                        }
+                    }
+                    Err(err) => {
+                        log::error!("get zoom failed,err{}", err);
+                    }
+                }
             }
             if event.id.0 == "zoom_out" {
-                handle.emit("zoom_out", "").unwrap();
+                match get_zoom(handle) {
+                    Ok(x) => {
+                        let zoom = x + 0.1;
+                        let views = handle.webview_windows();
+                        for view in views.values() {
+                            if let Err(err) = view.set_zoom(zoom) {
+                                log::error!("set view  zoom failed:{}", err);
+                            }
+                        }
+                        if let Err(err) = set_zoom(handle, zoom) {
+                            log::error!("set zoom failed:{}", err);
+                        }
+                    }
+                    Err(err) => {
+                        log::error!("get zoom failed,err{}", err);
+                    }
+                }
             }
             if event.id.0 == "zoom_reset" {
-                handle.emit("zoom_reset", "").unwrap();
+                let zoom = 1f64;
+                let views = handle.webview_windows();
+                for view in views.values() {
+                    if let Err(err) = view.set_zoom(zoom) {
+                        log::error!("set view  zoom failed:{}", err);
+                    }
+                }
+                if let Err(err) = set_zoom(handle, zoom) {
+                    log::error!("set zoom failed:{}", err);
+                }
             }
             if event.id.0 == "open_log_file" {
                 handle.emit("open_log_file", "").unwrap();
@@ -608,6 +677,7 @@ fn main_() {
             extract_table_select_selection,
             extract_table_select_sort,
             get_password,
+            get_backend_crash
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

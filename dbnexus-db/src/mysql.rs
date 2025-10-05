@@ -24,7 +24,7 @@ use crate::db::{
     UdfOrProcedureExtraParameter, XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data,
 };
 
-use crate::helper::{NextQueryId, create_csv};
+use crate::helper::{NextId, create_csv};
 use crate::meta_value::MetaValue;
 
 #[derive(Clone)]
@@ -33,7 +33,7 @@ pub struct MysqlDB {
     pub(crate) config: MysqlDBConfig,
     pub(crate) query_connection: Arc<DashMap<u32, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
-    query_id: NextQueryId,
+    query_id: NextId,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 

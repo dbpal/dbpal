@@ -22,7 +22,7 @@ use crate::db::{
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
     XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
 };
-use crate::helper::{NextQueryId, create_csv};
+use crate::helper::{NextId, create_csv};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 
@@ -35,7 +35,7 @@ pub struct SqliteDB {
     pub(crate) build_in_fn_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_completion: Arc<Mutex<Vec<String>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
-    query_id: NextQueryId,
+    query_id: NextId,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 

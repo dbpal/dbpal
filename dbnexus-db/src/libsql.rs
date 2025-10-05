@@ -18,7 +18,7 @@ use crate::db::{
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_data,
 };
-use crate::helper::{NextQueryId, create_csv};
+use crate::helper::{NextId, create_csv};
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
 use crate::sqlite::{
@@ -31,7 +31,7 @@ pub struct LibSqlDB {
     config: LibSqlDBConfig,
     pool: bb8::Pool<PoolManager>,
     pub(crate) query_connections: Arc<DashMap<u32, Connection>>,
-    query_id: NextQueryId,
+    query_id: NextId,
     query_connections_transaction: Arc<DashMap<u32, libsql::Transaction>>,
 
     pub(crate) build_in_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,

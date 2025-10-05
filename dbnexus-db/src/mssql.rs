@@ -27,7 +27,7 @@ use crate::db::{
     XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset,
     not_support_feature,
 };
-use crate::helper::{NextQueryId, create_csv};
+use crate::helper::{NextId, create_csv};
 
 use crate::meta_value::MetaValue;
 
@@ -36,7 +36,7 @@ pub struct SqlServerDB {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     pub(crate) config: SqlServerDBConfig,
     query_connections: Arc<DashMap<u32, Arc<Mutex<Connection>>>>,
-    query_id: NextQueryId,
+    query_id: NextId,
 }
 
 impl std::fmt::Debug for SqlServerDB {

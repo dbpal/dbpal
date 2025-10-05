@@ -9,7 +9,6 @@ import {
   useEffect,
   useState,
 } from 'react';
-import { MdError } from 'react-icons/md';
 import { TabContent, TabsWithContent } from './Tabs';
 import { EscDownEvent, modalHandleClose, modalStyle } from './Common';
 import { Left } from './Left';
@@ -27,7 +26,6 @@ import {
 } from './helper.ts';
 
 import { Box, Modal, Paper } from '@mui/material';
-import { BackendCrash } from './BackendCrash.tsx';
 import { EditConfigFile } from './EditConfigFile.tsx';
 import { ModalHeader } from './CommonComp.tsx';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
@@ -152,32 +150,6 @@ function App() {
   // shortcut
   useEffect(() => {
     document.addEventListener('keydown', shortCuts.callback);
-  }, []);
-
-  useEffect(() => {
-    let unlisten = listen<string>(
-      'backend-crash',
-      (msg: event.Event<string>) => {
-        setTabs((tabs) => {
-          let length = tabs.length;
-          setTab(length);
-          return [
-            ...tabs,
-            new TabContent(
-              generateRandomString(15),
-              'backend-crash',
-              <BackendCrash msg={msg.payload}></BackendCrash>,
-              <MdError> </MdError>
-            ),
-          ];
-        });
-      }
-    );
-    return () => {
-      unlisten.then((e) => {
-        e();
-      });
-    };
   }, []);
 
   useEffect(() => {

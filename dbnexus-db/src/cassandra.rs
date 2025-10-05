@@ -36,7 +36,7 @@ use crate::db::{
     SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_data,
 };
-use crate::helper::{NextQueryId, create_csv, current_timestamp};
+use crate::helper::{NextId, create_csv, current_timestamp};
 use crate::language_server::LexerCompletionTrait;
 use crate::meta_value::MetaValue;
 use cdrs_tokio::authenticators::StaticPasswordAuthenticatorProvider;
@@ -71,7 +71,7 @@ pub struct CassandraDB {
     pub(crate) query_connection: Arc<DashMap<u32, Arc<AppSession>>>,
     pub(crate) config: CassandraDBConfig,
     paging_cache: Arc<DashMap<String, Arc<PageCache>>>,
-    query_id: NextQueryId,
+    query_id: NextId,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 

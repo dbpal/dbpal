@@ -764,8 +764,9 @@ function SettingComp(props: { children }) {
     UserSetting.get()
       .then((setting) => {
         setSetting(setting);
-        console.log('list user setting', setting);
         document.documentElement.style.fontSize = setting.fontSize + 'px';
+        document.documentElement.style.fontFamily = setting.fontFamily;
+        document.documentElement.style.fontWeight = setting.fontWeight;
       })
       .catch((e) => {
         alert(`list user settings failed ${e.toString()}`);
