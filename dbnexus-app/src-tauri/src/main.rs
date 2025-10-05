@@ -201,14 +201,14 @@ impl log::Log for AppLogger {
 
 const STORE_FILE: &str = "store.json";
 
-fn get_zoom(handle: &AppHandle) -> anyhow::Result<f64> {
+fn get_configed_zoom(handle: &AppHandle) -> anyhow::Result<f64> {
     let x = handle
         .get_store(STORE_FILE)
         .map(|store| store.get("zoom").and_then(|x| x.as_f64()));
     Ok(x.flatten().unwrap_or(1.0))
 }
 
-fn set_zoom(handle: &AppHandle, zoom: f64) -> anyhow::Result<()> {
+fn config_zoom(handle: &AppHandle, zoom: f64) -> anyhow::Result<()> {
     let store = handle.get_store(STORE_FILE);
     if let Some(store) = store {
         store.set("zoom", zoom);
@@ -216,6 +216,14 @@ fn set_zoom(handle: &AppHandle, zoom: f64) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn set_webview_zoom(handle: &AppHandle, zoom: f64) {
+    let views = handle.webview_windows();
+    for view in views.values() {
+        if let Err(err) = view.set_zoom(zoom) {
+            log::error!("set view  zoom failed:{}", err);
+        }
+    }
+}
 fn main_() {
     // logger_test();
     let dbpal = DBPal::new();
@@ -483,16 +491,15 @@ fn main_() {
             }
 
             if event.id.0 == "zoom_in" {
-                match get_zoom(handle) {
+                match get_configed_zoom(handle) {
                     Ok(x) => {
-                        let zoom = x - 0.1;
-                        let views = handle.webview_windows();
-                        for view in views.values() {
-                            if let Err(err) = view.set_zoom(zoom) {
-                                log::error!("set view  zoom failed:{}", err);
-                            }
+                        let mut zoom = x - 0.1;
+                        let min = 0.3;
+                        if zoom < min {
+                            zoom = min;
                         }
-                        if let Err(err) = set_zoom(handle, zoom) {
+                        set_webview_zoom(handle, zoom);
+                        if let Err(err) = config_zoom(handle, zoom) {
                             log::error!("set zoom failed:{}", err);
                         }
                     }
@@ -502,16 +509,15 @@ fn main_() {
                 }
             }
             if event.id.0 == "zoom_out" {
-                match get_zoom(handle) {
+                match get_configed_zoom(handle) {
                     Ok(x) => {
-                        let zoom = x + 0.1;
-                        let views = handle.webview_windows();
-                        for view in views.values() {
-                            if let Err(err) = view.set_zoom(zoom) {
-                                log::error!("set view  zoom failed:{}", err);
-                            }
+                        let mut zoom = x + 0.1;
+                        let max = 2f64;
+                        if zoom > max {
+                            zoom = max;
                         }
-                        if let Err(err) = set_zoom(handle, zoom) {
+                        set_webview_zoom(handle, zoom);
+                        if let Err(err) = config_zoom(handle, zoom) {
                             log::error!("set zoom failed:{}", err);
                         }
                     }
@@ -522,13 +528,8 @@ fn main_() {
             }
             if event.id.0 == "zoom_reset" {
                 let zoom = 1f64;
-                let views = handle.webview_windows();
-                for view in views.values() {
-                    if let Err(err) = view.set_zoom(zoom) {
-                        log::error!("set view  zoom failed:{}", err);
-                    }
-                }
-                if let Err(err) = set_zoom(handle, zoom) {
+                set_webview_zoom(handle, zoom);
+                if let Err(err) = config_zoom(handle, zoom) {
                     log::error!("set zoom failed:{}", err);
                 }
             }

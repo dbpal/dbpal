@@ -1025,8 +1025,6 @@ async function windowInit(isMain: boolean, emitFocus: boolean) {
     });
   }
 
-
-
   if (isMain) {
     if (!import.meta.env.DEV) {
       currentWebview.theme().then(async (theme) => {
