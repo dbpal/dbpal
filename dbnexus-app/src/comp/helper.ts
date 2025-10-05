@@ -10,7 +10,7 @@ import { BSON, EJSON } from "bson";
 import Database, { QueryResult } from '@tauri-apps/plugin-sql';
 import { fetch } from '@tauri-apps/plugin-http';
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { emit, listen } from "@tauri-apps/api/event";
+import { emit } from "@tauri-apps/api/event";
 import { platform } from "@tauri-apps/plugin-os";
 
 

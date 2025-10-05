@@ -377,6 +377,7 @@ impl DBPal {
         Default::default()
     }
 
+    #[allow(unused)]
     pub(crate) fn set_backend_crash_msg(&self, msg: String) -> u32 {
         let id = self.backend_crash_next_id.next();
         self.backend_crash_msg.insert(id, msg);
@@ -546,12 +547,22 @@ impl DBPal {
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn generate_random_string(len: usize) -> String {
-    rand::thread_rng()
-        .sample_iter(&rand::distributions::Alphanumeric)
-        .take(len)
-        .map(char::from)
-        .collect()
+    // 定义只包含字母和数字的字符集
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+                              abcdefghijklmnopqrstuvwxyz\
+                              0123456789";
+
+    let mut rng = rand::thread_rng();
+    let rand_string: String = (0..len)
+        .map(|_| {
+            let idx = rng.gen_range(0, CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect();
+
+    rand_string
 }
 
 #[cfg(test)]
