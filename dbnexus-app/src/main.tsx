@@ -24,10 +24,10 @@ currentWebview.onCloseRequested(async (event) => {
   for (const view of views) {
     if (view.label != currentWebview.label) {
       // close all webview
-      view.close();
+      await view.close();
     }
     // close the current at last
-    currentWebview.close();
+    await currentWebview.close();
   }
 });
 
