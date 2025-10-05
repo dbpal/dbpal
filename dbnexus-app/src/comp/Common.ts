@@ -173,14 +173,13 @@ function initLanguageXXX(
           _context: any,
           _token: CancellationToken
         ) => {
-          console.log('autoCompletion', _context, model.id);
           return autoCompletion(model, position);
         },
         triggerCharacters: ['.'],
       });
     })
     .catch((e) => {
-      console.log('init monaco language error:', e);
+      console.log('init language error:', e);
     });
 }
 

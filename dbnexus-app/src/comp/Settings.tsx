@@ -63,6 +63,7 @@ function ModifySetting() {
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState('2');
   const [maxTreeSize, setMaxTreeSize] = useState('50');
   const [saveQueryLog, setSaveQueryLog] = useState(true);
+  let setting = useContext(SettingContext);
   useEffect(() => {
     invoke<string[]>('fonts_all_families', {})
       .then((fonts) => {
@@ -72,10 +73,8 @@ function ModifySetting() {
         showNotification('error', 'list all fonts failed', e);
       });
   }, []);
-
   const reload = async () => {
     try {
-      const setting = await UserSetting.get();
       setFontWeight(setting.fontWeight);
       setFontSize(setting.fontSize);
       setFontFamily(setting.fontFamily);
@@ -108,7 +107,7 @@ function ModifySetting() {
   useEffect(() => {
     reload();
   }, []);
-  let theme = useContext(SettingContext).theme;
+
   const handleSave = async () => {
     if (bgColorErr) {
       bgColorTextField.current.focus();
@@ -145,9 +144,9 @@ function ModifySetting() {
       datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
       maxTreeSize: parseInt(maxTreeSize),
       saveQueryLog: saveQueryLog,
-      theme,
+      theme: setting.theme,
     } as UserSetting;
-    if (theme == 'dark') {
+    if (setting.theme == 'dark') {
       s.darkBgColor = bgColor;
     } else {
       s.lightBgColor = bgColor;
@@ -171,10 +170,10 @@ function ModifySetting() {
       return;
     }
     if (
-      (theme == 'dark' && ColorFn.isLightHex(bgColor)) ||
-      (theme == 'light' && !ColorFn.isLightHex(bgColor))
+      (setting.theme == 'dark' && ColorFn.isLightHex(bgColor)) ||
+      (setting.theme == 'light' && !ColorFn.isLightHex(bgColor))
     ) {
-      setBgColorErr(`please set a ${theme} background color`);
+      setBgColorErr(`please set a ${setting.theme} background color`);
       return;
     }
     setBgColorErr('');
@@ -760,11 +759,12 @@ const darkTheme = (appFontWeight, fontFamily, bgColor) => {
 
 function SettingComp(props: { children }) {
   const { children } = props;
-  const [setting, setSetting] = useState<UserSetting>(new UserSetting());
+  const [setting, setSetting] = useState<UserSetting>(null);
   const reload = async () => {
     UserSetting.get()
       .then((setting) => {
         setSetting(setting);
+        console.log('list user setting', setting);
         document.documentElement.style.fontSize = setting.fontSize + 'px';
       })
       .catch((e) => {
@@ -788,28 +788,29 @@ function SettingComp(props: { children }) {
   useEffect(() => {
     reload();
   }, []);
-  useEffect(() => {}, [setting]);
   return (
-    <ThemeProvider
-      theme={
-        setting.isDark()
-          ? darkTheme(
-              setting.fontWeight,
-              setting.fontFamily,
-              setting.darkBgColor
-            )
-          : lightTheme(
-              setting.fontWeight,
-              setting.fontFamily,
-              setting.lightBgColor
-            )
-      }
-    >
-      <CssBaseline />
-      <SettingContext.Provider value={setting}>
-        {children}
-      </SettingContext.Provider>
-    </ThemeProvider>
+    setting && (
+      <ThemeProvider
+        theme={
+          setting.isDark()
+            ? darkTheme(
+                setting.fontWeight,
+                setting.fontFamily,
+                setting.darkBgColor
+              )
+            : lightTheme(
+                setting.fontWeight,
+                setting.fontFamily,
+                setting.lightBgColor
+              )
+        }
+      >
+        <CssBaseline />
+        <SettingContext.Provider value={setting}>
+          {children}
+        </SettingContext.Provider>
+      </ThemeProvider>
+    )
   );
 }
 
