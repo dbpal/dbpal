@@ -210,7 +210,7 @@ function SqlQuery(props: {
       if (editorRef) {
         editorRef.current = ed;
       }
-
+      ed.focus();
       ed.onDidChangeModelContent((_event) => {
         let text = ed.getValue();
         getParseErr(text).then((e) => {

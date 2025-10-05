@@ -113,7 +113,9 @@ interface ConfirmOptions {
   content?: string;
   confirmText?: string;
   cancelText?: string;
+  kind?: 'info' | 'warning' | 'error'
 }
+
 
 
 async function secondConfirm({
@@ -121,10 +123,11 @@ async function secondConfirm({
   content,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
+  kind = "warning",
 }: ConfirmOptions): Promise<boolean> {
   return ask(title, {
     title: content,
-    kind: 'error',
+    kind,
     okLabel: confirmText,
     cancelLabel: cancelText,
   });
