@@ -72,7 +72,7 @@ bson.workspace = true
 humantime = "*"
 humansize = "*"
 memory-stats = "1.2.0"
-rand = "*"
+rand = { version = "*" }
 cdrs-tokio = "8"
 num-bigint = "*"
 r2d2 = "*"
