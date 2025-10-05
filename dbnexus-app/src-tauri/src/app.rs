@@ -11,7 +11,6 @@ use dbnexus_db::datasource_config::{
 use dbnexus_db::db::{CatalogTrait, DBTrait, SchemaTrait};
 use dbnexus_db::helper::NextId;
 use dbnexus_db::mongo::MongoDB;
-use rand::Rng;
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
@@ -549,6 +548,7 @@ impl DBPal {
 
 #[allow(dead_code)]
 pub(crate) fn generate_random_string(len: usize) -> String {
+    use rand::prelude::*;
     // 定义只包含字母和数字的字符集
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                               abcdefghijklmnopqrstuvwxyz\
@@ -557,7 +557,7 @@ pub(crate) fn generate_random_string(len: usize) -> String {
     let mut rng = rand::thread_rng();
     let rand_string: String = (0..len)
         .map(|_| {
-            let idx = rng.random_range(0..CHARSET.len());
+            let idx = rng.gen_range(0, CHARSET.len());
             CHARSET[idx] as char
         })
         .collect();
