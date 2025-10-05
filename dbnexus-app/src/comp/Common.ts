@@ -183,7 +183,7 @@ function initLanguageXXX(
     });
 }
 
-function makeFormatFn(kind: DataSourceKind) {
+function makeFormatFn(kind: DataSourceKind, showNotification?) {
   return (sql: string, opts?: languages.FormattingOptions) => {
     if (!opts) {
       opts = {
@@ -225,6 +225,9 @@ function makeFormatFn(kind: DataSourceKind) {
         useTabs: !opts.insertSpaces,
       });
     } catch (e) {
+      if (showNotification) {
+        showNotification('error', "format failed", e)
+      }
       console.log('format sql failed error:', e);
       return sql;
     }

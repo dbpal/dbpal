@@ -143,14 +143,14 @@ function SetFilterSort(props: {
 
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [modalBox, setModalBox] = useState(null);
-
+  const { showNotification } = useContext(NotificationContext);
   useEffect(() => {
     if (modalBox) {
       let c = saveAndSetSize(modalBox, 'where-sort');
       return c;
     }
   }, [modalBox]);
-  const { showNotification } = useContext(NotificationContext);
+
   const handleSet = async () => {
     try {
       let value = await extractFn(editor.current.getValue());
@@ -180,7 +180,7 @@ function SetFilterSort(props: {
       >
         <ModalHeader title={`set ${label}`}></ModalHeader>
         <SimpleFlexEditor
-          value={makeFormatFn(kind)(
+          value={makeFormatFn(kind, showNotification)(
             label == 'filter'
               ? `select * from ${tableName} where ${value}`
               : `select * from ${tableName} order by ${value}`,
