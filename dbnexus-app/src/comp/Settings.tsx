@@ -42,6 +42,11 @@ import EditIcon from '@mui/icons-material/Edit';
 import ClearIcon from '@mui/icons-material/Clear';
 import { SimpleFlexEditor } from './CommonComp2';
 import { LogLevelSelection } from './CommonComp';
+import {
+  enable as enableApp,
+  isEnabled as isEnabledApp,
+  disable as disableApp,
+} from '@tauri-apps/plugin-autostart';
 function ModifySetting() {
   const { showNotification } = useContext(NotificationContext);
   const [fontWeight, setFontWeight] = useState('normal');
@@ -63,6 +68,8 @@ function ModifySetting() {
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState('2');
   const [maxTreeSize, setMaxTreeSize] = useState('50');
   const [saveQueryLog, setSaveQueryLog] = useState(true);
+  const [maxTabTitleLength, setMaxTabTitleLength] = useState('12');
+  const [autoStart, setAutoStart] = useState(false);
   let setting = useContext(SettingContext);
   useEffect(() => {
     invoke<string[]>('fonts_all_families', {})
@@ -91,6 +98,8 @@ function ModifySetting() {
       setMaxTreeSize(setting.maxTreeSize.toString());
       setDatagridRowHeightFactor(setting.datagridRowHeightFactor.toString());
       setSaveQueryLog(setting.saveQueryLog);
+      setMaxTabTitleLength(setting.maxTabTitleLength + '');
+      setAutoStart(setting.autoStart);
       const content = JSON.stringify(
         setting.editorOption ? setting.editorOption : {},
         null,
@@ -145,6 +154,8 @@ function ModifySetting() {
       maxTreeSize: parseInt(maxTreeSize),
       saveQueryLog: saveQueryLog,
       theme: setting.theme,
+      maxTabTitleLength: parseInt(maxTabTitleLength),
+      autoStart,
     } as UserSetting;
     if (setting.theme == 'dark') {
       s.darkBgColor = bgColor;
@@ -237,9 +248,7 @@ function ModifySetting() {
           style={{ minWidth: '12rem' }}
           value={fontFamily}
         >
-          <MenuItem style={{ fontFamily: undefined }} value="">
-            default
-          </MenuItem>
+          <MenuItem style={{ fontFamily: undefined }} value=""></MenuItem>
           {allFonts
             .filter((f) => {
               if (fontMatch) {
@@ -370,6 +379,18 @@ function ModifySetting() {
           error={isNaN(parseInt(maxTreeSize))}
         ></TextField>
       </Stack>
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
+          max tab title length:
+        </Typography>
+        <TextField
+          value={maxTabTitleLength}
+          onChange={(e) => {
+            setMaxTabTitleLength(e.target.value);
+          }}
+          error={isNaN(parseInt(maxTabTitleLength))}
+        ></TextField>
+      </Stack>
       <Divider textAlign="left" style={{ marginTop: '20px' }}>
         editor
       </Divider>
@@ -496,6 +517,21 @@ function ModifySetting() {
           checked={saveQueryLog}
           onChange={(e) => {
             setSaveQueryLog(e.target.checked);
+          }}
+        ></Switch>
+      </Stack>
+      <Divider textAlign="left" style={{ marginTop: '20px' }}>
+        auto start
+      </Divider>
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
+          auto start:
+        </Typography>
+
+        <Switch
+          checked={autoStart}
+          onChange={(e) => {
+            setAutoStart(e.target.checked);
           }}
         ></Switch>
       </Stack>
@@ -767,6 +803,20 @@ function SettingComp(props: { children }) {
         document.documentElement.style.fontSize = setting.fontSize + 'px';
         document.documentElement.style.fontFamily = setting.fontFamily;
         document.documentElement.style.fontWeight = setting.fontWeight;
+        if (setting.autoStart) {
+          if (!isEnabledApp()) {
+            enableApp().catch((e) => {
+              console.log('enable app autostart failed', e);
+              alert(`enable app autostart failed ${e.toString()}`);
+            });
+          }
+        } else {
+          if (isEnabledApp()) {
+            disableApp().catch((e) => {
+              console.log('disable app autostart failed', e);
+            });
+          }
+        }
       })
       .catch((e) => {
         alert(`list user settings failed ${e.toString()}`);

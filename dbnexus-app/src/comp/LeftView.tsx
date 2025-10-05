@@ -665,7 +665,7 @@ function ViewMenu(props: {
           <ListItemIcon>
             <ListIcon></ListIcon>
           </ListItemIcon>
-          <ListItemText> View Data(window)</ListItemText>
+          <ListItemText> View Data(new window)</ListItemText>
         </MenuItem>
 
         <MenuItem onClick={handleStructure}>

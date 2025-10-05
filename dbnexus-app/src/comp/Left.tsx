@@ -864,9 +864,14 @@ function FavoriteSqlList(props: { handleClose }) {
           </Tooltip>
         )}
         {fs.length > 0 && (
-          <Tooltip title="double click a row to use sql.">
-            <Typography color="info">use</Typography>
-          </Tooltip>
+          <>
+            <Tooltip title="double click a row to use sql in new tab.">
+              <Typography color="info">use</Typography>
+            </Tooltip>
+            <Tooltip title="right click a row to query new window.">
+              <Typography color="info">query new window</Typography>
+            </Tooltip>
+          </>
         )}
       </Stack>
       <div style={{ display: 'grid' }}>

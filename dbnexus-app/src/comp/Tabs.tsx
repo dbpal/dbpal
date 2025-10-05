@@ -18,6 +18,7 @@ import {
   TabContent,
   TabActiveContext,
   WindowFocusContext,
+  SettingContext,
 } from './helper';
 
 function TabsMenu(props: {
@@ -112,6 +113,7 @@ function TabsWithContent_(props: {
   let { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
   const { setUpMenu } = useContext(ContextMenuContext);
   const windowFocus = useContext(WindowFocusContext);
+  const setting = useContext(SettingContext);
   return (
     <Stack spacing={1} style={{ width: '100%' }}>
       <div style={{ display: 'grid' }}>
@@ -141,7 +143,10 @@ function TabsWithContent_(props: {
                     onDelete={() => {
                       handleClose(index);
                     }}
-                    style={{ padding: '0px', maxWidth: '14rem' }}
+                    style={{
+                      padding: '0px',
+                      maxWidth: setting.maxTabTitleLength + 'rem',
+                    }}
                     icon={tab.icon}
                     variant={index == selectIndex ? 'filled' : 'outlined'}
                     color={index == selectIndex ? 'success' : 'default'}
