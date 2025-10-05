@@ -680,38 +680,32 @@ class MongoTableHandler {
   }
   static reloadDocs(uuid: string, table) {
     return async (filter, sort, page, pageSize): Promise<DocsAndCount> => {
-      try {
-        let x = await invoke('mongo_show_collection_docs', {
-          name: uuid,
-          tableName: table,
-          filter: BSON.serialize(filter),
-          sort: BSON.serialize(sort),
-          page,
-          pageSize,
-        });
+      return invoke('mongo_show_collection_docs', {
+        name: uuid,
+        tableName: table,
+        filter: BSON.serialize(filter),
+        sort: BSON.serialize(sort),
+        page,
+        pageSize,
+      }).then(x => {
         //@ts-ignore
         let docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
         //@ts-ignore
         let count = x.count;
         return new DocsAndCount(docs, count);
-      } catch (e) {
-        throw e;
-      }
+      });
     }
   }
 
   static loadOne(uuid: string, table) {
     return async (id): Promise<BSON.Document> => {
-      try {
-        let x = await invoke<number[]>('mongo_get_one_document_by_id', {
-          name: uuid,
-          tableName: table,
-          id: JSON.stringify(EJSON.serialize(id)),
-        });
-        return BSON.deserialize(new Uint8Array(x));
-      } catch (e) {
-        throw e;
-      }
+      return invoke<number[]>('mongo_get_one_document_by_id', {
+        name: uuid,
+        tableName: table,
+        id: JSON.stringify(EJSON.serialize(id)),
+      }).then(x => {
+        return BSON.deserialize(new Uint8Array(x))
+      });
     }
   }
 

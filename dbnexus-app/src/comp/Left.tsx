@@ -946,10 +946,9 @@ function OneConfig_(props: { config: types.DBConnectionConfig }) {
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
       default:
         console.log('impl database kind:', config);
-        throw `impl this kind`;
+        console.log(`impl this kind ${config.conn_type}`);
     }
   };
-
   return (
     <OpenedContext.Provider value={{ opened, setOpened }}>
       <SimpleTreeView disableSelection>{makeTree()}</SimpleTreeView>

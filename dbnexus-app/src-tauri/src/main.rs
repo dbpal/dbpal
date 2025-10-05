@@ -201,7 +201,7 @@ impl log::Log for AppLogger {
 
 const STORE_FILE: &str = "store.json";
 
-fn get_configed_zoom(handle: &AppHandle) -> anyhow::Result<f64> {
+fn get_configured_zoom(handle: &AppHandle) -> anyhow::Result<f64> {
     let x = handle
         .get_store(STORE_FILE)
         .map(|store| store.get("zoom").and_then(|x| x.as_f64()));
@@ -491,7 +491,7 @@ fn main_() {
             }
 
             if event.id.0 == "zoom_in" {
-                match get_configed_zoom(handle) {
+                match get_configured_zoom(handle) {
                     Ok(x) => {
                         let mut zoom = x - 0.1;
                         let min = 0.3;
@@ -509,7 +509,7 @@ fn main_() {
                 }
             }
             if event.id.0 == "zoom_out" {
-                match get_configed_zoom(handle) {
+                match get_configured_zoom(handle) {
                     Ok(x) => {
                         let mut zoom = x + 0.1;
                         let max = 2f64;

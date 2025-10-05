@@ -18,6 +18,12 @@ currentWebview.onCloseRequested(async (event) => {
   });
   if (!confirm) {
     event.preventDefault();
+    return;
+  }
+  let views = await WebviewWindow.getAll();
+  for (const view of views) {
+    // close all webview
+    view.close();
   }
 });
 

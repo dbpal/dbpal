@@ -144,7 +144,7 @@ const autoCompletion = async (
     return suggestions;
   } catch (e) {
     console.log('completion server error:', e);
-    throw e;
+    return { suggestions: [] }
   }
 };
 
@@ -225,8 +225,8 @@ function makeFormatFn(kind: DataSourceKind) {
         useTabs: !opts.insertSpaces,
       });
     } catch (e) {
-      console.log('completion server error:', e);
-      throw e;
+      console.log('format sql failed error:', e);
+      return sql;
     }
   }
 }
@@ -484,7 +484,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
       );
       break;
     default:
-      throw `impl this ${kind}`;
+      console.log(`impl this ${kind}`);
   }
 }
 

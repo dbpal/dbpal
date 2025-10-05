@@ -1220,7 +1220,7 @@ function MongoTableList(props: {
       return x;
     } catch (e) {
       showNotification('error', 'fetch data failed', e);
-      throw e;
+      return null;
     }
   };
 
@@ -1239,7 +1239,9 @@ function MongoTableList(props: {
   );
   const onRowDoubleClick = useCallback((e) => {
     handleLoadOne(EJSON.parse(e.row[mongoID])).then((doc) => {
-      setSelectModifyDoc(doc);
+      if (doc) {
+        setSelectModifyDoc(doc);
+      }
     });
   }, []);
 
@@ -1395,7 +1397,7 @@ function MongoTableList(props: {
                         await modifyOP(doc);
                       } catch (e) {
                         showNotification('error', 'Modify failed', e);
-                        throw e;
+                        return;
                       }
                       showNotification('success', 'Modify OK');
                       setSelectModifyDoc(null);
