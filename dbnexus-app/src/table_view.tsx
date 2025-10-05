@@ -23,6 +23,7 @@ import {
 import { SeparateWindow } from './comp/MainPage.tsx';
 import { MongoTable } from './comp/MongoDB.tsx';
 import { makeRedisViewTable } from './comp/LeftTable.tsx';
+import { Typography } from '@mui/material';
 
 windowInit(false, false);
 const params = new URLSearchParams(location.search);
@@ -33,8 +34,9 @@ const isTable = params.get('isTable') === 'true';
 const kind = params.get('kind') as DataSourceKind;
 const redisType = params.get('redisType') as RedisTableType;
 console.log(uuid, table, isTable, kind);
+let err;
 await initMonacoLanguage(uuid, kind, (msg) => {
-  alert(msg);
+  err = msg;
 });
 
 let content;
@@ -80,6 +82,8 @@ switch (kind) {
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <SeparateWindow>{content}</SeparateWindow>
+    <SeparateWindow>
+      {err && <Typography color="error"> {err} </Typography>} {content}
+    </SeparateWindow>
   </React.StrictMode>
 );
