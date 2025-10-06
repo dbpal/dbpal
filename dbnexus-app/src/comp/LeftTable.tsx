@@ -821,7 +821,7 @@ function TableMenu(props: {
           <ListItemIcon>
             <ListIcon></ListIcon>
           </ListItemIcon>
-          <ListItemText> View Data(window)</ListItemText>
+          <ListItemText> View Data(new window)</ListItemText>
         </MenuItem>
 
         {kind != DataSourceKind.Redis && (
