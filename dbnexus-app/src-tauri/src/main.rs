@@ -363,14 +363,6 @@ fn main_() {
                                 true,
                                 Some(if is_mac() { "command+," } else { "control+," }),
                             )?,
-                            #[cfg(debug_assertions)]
-                            &MenuItem::with_id(
-                                handle,
-                                "edit_config_file",
-                                "edit config file",
-                                true,
-                                None as Option<&'static str>,
-                            )?,
                             &MenuItem::with_id(
                                 handle,
                                 "relauch",
@@ -500,9 +492,6 @@ fn main_() {
                         log::error!("create setting window failed:{}", err);
                     }
                 }
-            }
-            if event.id.0 == "edit_config_file" {
-                handle.emit("edit_config_file", "").unwrap();
             }
             if event.id.0 == "relauch" {
                 handle.restart();

@@ -10,14 +10,12 @@ import {
   useState,
 } from 'react';
 import { TabContent, TabsWithContent } from './Tabs';
-import { EscDownEvent, modalHandleClose, modalStyle } from './Common';
 import { Left } from './Left';
 import { listen } from '@tauri-apps/api/event';
 import { event } from '@tauri-apps/api';
 import { SettingComp } from './Settings.tsx';
 import {
   ContextMenuContext,
-  generateRandomString,
   secondConfirm,
   TabsSetContext,
   WindowFocusContext,
@@ -25,10 +23,7 @@ import {
   menuDivID,
 } from './helper.ts';
 import '../app.css';
-import { Box, Modal, Paper } from '@mui/material';
-import { EditConfigFile } from './EditConfigFile.tsx';
-import { ModalHeader } from './CommonComp.tsx';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { Paper } from '@mui/material';
 
 const shortCuts = {
   callback: (e: KeyboardEvent) => {
@@ -38,10 +33,6 @@ const shortCuts = {
       }
       if (e.metaKey && e.key == ']') {
         shortCuts.next();
-      }
-      if (e.metaKey && e.key == ',') {
-        shortCuts.showSetting();
-        e.preventDefault();
       }
 
       if (e.metaKey && e.key == 'w') {
@@ -58,22 +49,14 @@ const shortCuts = {
       if (e.ctrlKey && e.key == 'w') {
         shortCuts.closeCurrentTab(e);
       }
-
-      if (e.ctrlKey && e.key == ',') {
-        shortCuts.showSetting();
-        e.preventDefault();
-      }
     }
   },
 } as {
   prev: () => void;
   next: () => void;
   callback: (e: KeyboardEvent) => void;
-  showSetting: () => void;
   closeCurrentTab: (_: KeyboardEvent) => void;
 };
-
-const settingWindowID = generateRandomString();
 
 function App() {
   let [tabs, setTabs] = useState<TabContent[]>([]);
@@ -99,32 +82,6 @@ function App() {
     },
     [tabs]
   );
-  const showSetting = useCallback(() => {
-    (async () => {
-      const webview = await WebviewWindow.getByLabel(settingWindowID);
-      if (webview) {
-        webview.setFocus().catch((e) => {
-          console.log('show setting failed', e);
-        });
-      } else {
-        const webview = new WebviewWindow(settingWindowID, {
-          title: `setting`,
-          url: 'setting.html',
-          width: 800,
-          height: 600,
-          center: true,
-        });
-        webview.once('tauri://created', () =>
-          console.log('create setting view successfully')
-        );
-        webview.once('tauri://error', (e) => {
-          console.log('create webview failed' + e.payload.toString());
-        });
-      }
-    })();
-
-    // // }
-  }, []);
 
   shortCuts.prev = () => {
     setTab((e) => (e > 0 ? e - 1 : e));
@@ -136,9 +93,6 @@ function App() {
     }
   };
 
-  shortCuts.showSetting = () => {
-    showSetting();
-  };
   shortCuts.closeCurrentTab = (e) => {
     if (tabs.length > 0) {
       closeTab(tab);
@@ -149,18 +103,6 @@ function App() {
   // shortcut
   useEffect(() => {
     document.addEventListener('keydown', shortCuts.callback);
-  }, []);
-
-  const [showEditConfig, setShowEditConfig] = useState(false);
-  useEffect(() => {
-    let unlisten = listen('edit_config_file', () => {
-      setShowEditConfig(true);
-    });
-    return () => {
-      unlisten.then((e) => {
-        e();
-      });
-    };
   }, []);
 
   const [menu, setUpMenu] = useState<{
@@ -248,7 +190,7 @@ function App() {
                 </PanelGroup>
               </div>
               <div
-                id="menu-div"
+                id={menuDivID}
                 style={{
                   ...menuBasicStyle,
                   ...(menu && menu.style),
@@ -256,29 +198,6 @@ function App() {
               >
                 <Paper elevation={24}>{menu && menu.content}</Paper>
               </div>
-
-              {showEditConfig && (
-                <Modal
-                  open={showEditConfig}
-                  onClose={modalHandleClose((e: EscDownEvent) => {
-                    e.preventDefault();
-                    setShowEditConfig(false);
-                  })}
-                >
-                  <Box
-                    sx={{ resize: 'both', ...modalStyle }}
-                    width="75%"
-                    height="70vh"
-                  >
-                    <ModalHeader title="Edit Config File"></ModalHeader>
-                    <EditConfigFile
-                      handleClose={() => {
-                        setShowEditConfig(false);
-                      }}
-                    />
-                  </Box>
-                </Modal>
-              )}
             </WindowFocusContext>
           </NotificationProvider>
         </TabsSetContext.Provider>

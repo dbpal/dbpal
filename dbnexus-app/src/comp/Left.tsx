@@ -1501,8 +1501,8 @@ function SchemaMenu(props: {
     kind,
     setLoading,
   } = props;
-  const { showNotification } = useContext(NotificationContext);
   const { setSelectTab, setTabs } = useContext(TabsSetContext);
+  const { showNotification } = useContext(NotificationContext);
   return (
     <MenuList>
       {!schema && !opened && (

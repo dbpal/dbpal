@@ -808,8 +808,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
     if (!connections) {
       connections = [];
     }
-    if (connectionName.includes('/')) {
-      showNotification('error', "connection name can't contains '/'");
+    if (validConnectionName(connectionName)) {
+      showNotification('error', 'not valid connection name');
       connectionNameDom.current.focus();
       return;
     }
@@ -1254,6 +1254,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           label="Connection Name"
           value={connectionName}
           inputRef={connectionNameDom}
+          error={connectionName ? !validConnectionName(connectionName) : false}
           required
           onChange={(e) => setConnectionName(e.target.value)}
           slotProps={{
@@ -1452,6 +1453,11 @@ function LibSql(props: {
       )}
     </>
   );
+}
+
+function validConnectionName(str) {
+  const regex = /^[a-zA-Z0-9_$-]+$/;
+  return regex.test(str);
 }
 
 export { AddConnection };
