@@ -1136,7 +1136,7 @@ impl CassandraDB {
         let resp = self.session.query(sql).await?.response_body()?;
         let meta = resp.as_rows_metadata().cloned();
         if meta.is_none() {
-            anyhow::bail!("no as_rows_metadata")
+            anyhow::bail!("no meta data found")
         }
         let meta = meta.unwrap();
         let rows = resp.into_rows().unwrap_or_default();
@@ -1408,7 +1408,7 @@ impl SchemaTrait for CassandraDB {
             .into_rows()
             .unwrap_or_default();
         if rows.is_empty() {
-            anyhow::bail!("query create table expect return on result.");
+            anyhow::bail!("query create table expect return one result.");
         }
         let row = rows.first().unwrap();
 
@@ -1732,13 +1732,10 @@ impl SchemaTrait for CassandraDB {
         };
 
         let rows = body.into_rows().unwrap_or_default();
-
         for row in rows.iter() {
             let typ: Option<String> = row.get_by_index(1)?;
             let create_statement: Option<String> = row.get_by_index(3)?;
-
             let create_statement = create_statement.unwrap();
-
             let parameters_try_match = extract_parameter_for_function(&create_statement)?;
             if parameters.len() != parameters_try_match.len() {
                 continue;
@@ -1759,7 +1756,10 @@ impl SchemaTrait for CassandraDB {
                 metas: vec![MetaValue::new_opt("type", typ)],
             });
         }
-        anyhow::bail!("no match for parameter????");
+        anyhow::bail!(format!(
+            "no match for parameters:{:?},this should be a bug",
+            parameters
+        ));
     }
 
     async fn drop_udf(
@@ -2084,7 +2084,10 @@ impl CassandraDB {
                 metas: vec![MetaValue::new_opt("type", typ)],
             });
         }
-        anyhow::bail!("no match for parameter????");
+        anyhow::bail!(format!(
+            "no match for parameter:{:?},this should be a bug",
+            parameters
+        ));
     }
 
     pub async fn drop_aggregate(&self, name: &str, parameters: Vec<String>) -> anyhow::Result<()> {

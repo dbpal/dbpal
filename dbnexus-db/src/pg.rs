@@ -139,7 +139,7 @@ impl PostGresDB {
             //     sender.send(Cow::Owned(index)).await?;
             //     sender.send(";\n".into()).await?;
             // }
-            anyhow::bail!("export create table script not supported now.")
+            anyhow::bail!("export create table sql not supported now.")
         }
 
         let mut conn = self.get_conn().await?;
@@ -2046,17 +2046,17 @@ async fn get_index_kind(
     conn: &mut PoolConnection<Postgres>, table_name: &str, index_name: &str,
 ) -> anyhow::Result<IndexKind> {
     let sql: String = get_index_def(conn, table_name, index_name).await?;
-    let ss = sqlparser::parser::Parser::parse_sql(
+    let statements = sqlparser::parser::Parser::parse_sql(
         &sqlparser::dialect::PostgreSqlDialect {},
         sql.as_str(),
     )?;
-    if ss.len() != 1 {
+    if statements.len() != 1 {
         anyhow::bail!("parse create index should contains one statement");
     }
-    let s = &ss[0];
+    let stmt = &statements[0];
     use sqlparser::ast::Statement;
 
-    match s {
+    match stmt {
         Statement::CreateIndex(create_index) => {
             if create_index.unique {
                 anyhow::Ok(IndexKind::Unique)

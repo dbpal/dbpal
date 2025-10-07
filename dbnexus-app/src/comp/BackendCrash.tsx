@@ -11,7 +11,7 @@ function BackendCrash(props: { msg: string }) {
 
   const { showNotification } = useContext(NotificationContext);
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack direction="row" spacing={1}>
         <Button
           onClick={() => {
@@ -31,13 +31,13 @@ function BackendCrash(props: { msg: string }) {
         </Button>
       </Stack>
 
-      <div style={{ display: 'grid' }}>
+      <div style={{ display: 'grid', flex: 1 }}>
         <Paper
           elevation={8}
           style={{
             overflow: 'scroll',
-            maxWidth: '99%',
-            maxHeight: '80vh',
+            width: '100%',
+            flex: 1,
             padding: '2px 8px',
           }}
         >

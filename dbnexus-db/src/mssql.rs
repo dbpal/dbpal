@@ -827,7 +827,7 @@ impl SchemaTrait for SqlServerDB {
         }
         let ret = match meta {
             Some(meta) => make_table_list_from_meta_and_row(&meta, &rows, total as usize, sql)?,
-            None => anyhow::bail!("SELECT should yield at lease one meta"),
+            None => anyhow::bail!("SELECT should return at lease one meta"),
         };
         anyhow::Ok(ret)
     }
@@ -1212,7 +1212,7 @@ impl SchemaTrait for SqlServerDB {
                 tiberius::QueryItem::Metadata(_) => {}
             }
         }
-        anyhow::bail!("query procedure contains no result.")
+        anyhow::bail!("query procedure failed, no result.")
     }
 
     async fn drop_procedure(
@@ -1713,7 +1713,7 @@ impl QuerySql for SqlServerDB {
     async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
-            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+            None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
@@ -1742,7 +1742,7 @@ impl QuerySql for SqlServerDB {
         }
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
-            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+            None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
@@ -1753,7 +1753,7 @@ impl QuerySql for SqlServerDB {
     async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
-            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+            None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
@@ -1765,7 +1765,7 @@ impl QuerySql for SqlServerDB {
     async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
-            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+            None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
@@ -1812,7 +1812,7 @@ impl QuerySql for SqlServerDB {
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
-            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+            None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
@@ -1829,7 +1829,7 @@ impl QuerySql for SqlServerDB {
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let conn = match self.query_connections.get(&query_id) {
             Some(x) => x.clone(),
-            None => anyhow::bail!(format!("id connection '{}' not opened", query_id)),
+            None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();

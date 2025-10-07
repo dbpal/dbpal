@@ -346,7 +346,6 @@ impl AstCompletion {
                 return anyhow::Ok(c.result());
             }
         }
-
         anyhow::bail!("no completion found on ast")
     }
 
@@ -699,11 +698,8 @@ impl AstCompletion {
         if rows.len() != 1 {
             anyhow::bail!("result should contains one result");
         }
-
         let def: Option<String> = rows[0].get_by_index(3)?;
-
         let def = def.unwrap();
-
         for stmt in CassandraAST::new(&def).statements.iter() {
             match &stmt.statement {
                 CassandraStatement::CreateType(x) => {

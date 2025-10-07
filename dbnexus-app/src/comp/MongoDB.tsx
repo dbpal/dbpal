@@ -89,7 +89,7 @@ import {
   MuiDataGridData,
 } from './helper';
 import { EditorBar, SimpleFlexEditor } from './CommonComp2';
-
+import { message } from '@tauri-apps/plugin-dialog';
 enum MongoDataViewModel {
   List,
   Object,
@@ -225,9 +225,9 @@ function initMongoBsonLanguage() {
             return [{ range: model.getFullModelRange(), text: result }];
           } catch (e) {
             if (e instanceof MongoBsonError) {
-              alert(e.msgWithLoc);
+              message(e.msgWithLoc, { kind: 'error' });
             } else {
-              alert(e.toString());
+              message(e.toString(), { kind: 'error' });
             }
           }
         },

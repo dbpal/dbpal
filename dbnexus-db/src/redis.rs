@@ -1356,14 +1356,14 @@ impl SchemaTrait for RedisDB {
     async fn table_insert(
         &self, _table_name: &str, _values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        anyhow::bail!("call query sql instead")
+        anyhow::bail!("use redis special api")
     }
 
     async fn table_update(
         &self, _table_name: &str, _values: HashMap<String, Option<String>>,
         _wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        anyhow::bail!("call query sql instead")
+        anyhow::bail!("use redis special api")
     }
 
     async fn truncate_table(&self, key: &str) -> anyhow::Result<()> {
@@ -1802,7 +1802,7 @@ impl RedisToken {
             RedisTokenState::DoubleQuote => anyhow::bail!("unclose double quote"),
             RedisTokenState::Trans { .. } => anyhow::bail!("this is internal error"),
             RedisTokenState::Whitespace => {
-                // nothing here
+                // trailing whitespaces should be ignored
             }
         }
         anyhow::Ok(tokens)

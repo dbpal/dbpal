@@ -229,6 +229,11 @@ fn main_() {
     let dbpal = DBPal::new();
     let dbpal_clone = dbpal.clone();
 
+    // std::thread::spawn(move || {
+    //     std::thread::sleep(std::time::Duration::from_secs(5));
+    //     panic!("test");
+    // });
+
     let setup = move |app: &mut tauri::App| {
         {
             let dbpal_clone = dbpal_clone.clone();
@@ -240,7 +245,7 @@ fn main_() {
                 if let Err(err) = WebviewWindowBuilder::new(
                     &handler,
                     generate_random_string(10),
-                    WebviewUrl::App(format!("backend-crash.html?id={id}").into()),
+                    WebviewUrl::App(format!("backend_crash.html?id={id}").into()),
                 )
                 .title("Backend Crash")
                 .inner_size(800f64, 600f64)
@@ -316,6 +321,7 @@ fn main_() {
         }));
         Ok(())
     };
+    let log_window_id = generate_random_string(10);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::Builder::new().build())
@@ -350,7 +356,7 @@ fn main_() {
                             )?,
                             &MenuItem::with_id(
                                 handle,
-                                "show_settings",
+                                "show_setting",
                                 "settings",
                                 true,
                                 Some(if is_mac() { "command+," } else { "control+," }),
@@ -468,13 +474,13 @@ fn main_() {
                 ],
             )
         })
-        .on_menu_event(|handle, event| {
+        .on_menu_event(move |handle, event| {
             log::info!("on menu event:{:?}", event);
             if event.id.0 == "add_config" {
                 handle.emit("add_config", "").unwrap();
             }
-            if event.id.0 == "show_settings" {
-                handle.emit("show_settings", "").unwrap();
+            if event.id.0 == "show_setting" {
+                handle.emit("show_setting", "").unwrap();
             }
             if event.id.0 == "edit_config_file" {
                 handle.emit("edit_config_file", "").unwrap();
@@ -535,7 +541,24 @@ fn main_() {
                 }
             }
             if event.id.0 == "open_log_file" {
-                handle.emit("open_log_file", "").unwrap();
+                if let Some(window) = handle.get_webview_window(&log_window_id) {
+                    if let Err(err) = window.set_focus() {
+                        log::error!("set focus failed:{}", err);
+                    }
+                } else {
+                    if let Err(err) = WebviewWindowBuilder::new(
+                        handle,
+                        generate_random_string(10),
+                        WebviewUrl::App(format!("log_file.html").into()),
+                    )
+                    .title("log file")
+                    .inner_size(800f64, 600f64)
+                    .maximized(true)
+                    .build()
+                    {
+                        log::error!("create log file window failed:{}", err);
+                    }
+                }
             }
         })
         .plugin(tauri_plugin_dialog::init())

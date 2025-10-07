@@ -426,7 +426,7 @@ impl DBPal {
     pub async fn get_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         match self.get_backend(name).await? {
             DatabaseBackend::Schema(x) => anyhow::Ok(x.clone()),
-            _ => anyhow::bail!(format!("'{}' a schema trait", name)),
+            backend => anyhow::bail!(format!("'{}' not a schema trait,but:{:?}", name, backend)),
         }
     }
 
@@ -453,7 +453,7 @@ impl DBPal {
         let name_parts = name_to_parts(name);
         match name_parts.len() {
             1 => {
-                anyhow::bail!(format!("connection '{}' not open", name))
+                anyhow::bail!(format!("connection '{}' not established", name))
             }
             2 => {
                 let backend = self
@@ -485,7 +485,7 @@ impl DBPal {
                             name_parts[0],
                             backend
                         );
-                        anyhow::bail!(format!("connection '{}' not open", name))
+                        anyhow::bail!(format!("connection '{}' not established", name))
                     }
                 }
             }
@@ -495,8 +495,8 @@ impl DBPal {
                 let db_trait = match open {
                     Some(x) => match x {
                         DatabaseBackend::DataBase(x) => x.clone(),
-                        _ => {
-                            anyhow::bail!("this must be db trait")
+                        x => {
+                            anyhow::bail!("this must be db trait but:{:?}", x)
                         }
                     },
                     None => {
@@ -515,12 +515,12 @@ impl DBPal {
                                 }
                                 _ => {
                                     log::error!("internal error,catalog must been entered ");
-                                    anyhow::bail!(format!("connection '{}' not open", name))
+                                    anyhow::bail!(format!("connection '{}' not established", name))
                                 }
                             },
                             None => {
                                 log::error!("internal error,catalog must been entered");
-                                anyhow::bail!(format!("connection '{}' not open", name))
+                                anyhow::bail!(format!("connection '{}' not established", name))
                             }
                         }
                     }
@@ -535,7 +535,7 @@ impl DBPal {
             _ => {
                 // nothing to do here
                 log::error!("'{}' name part not right, this is a internal error", name);
-                anyhow::bail!(format!("connection '{}' not open", name))
+                anyhow::bail!(format!("connection '{}' not established", name))
             }
         }
     }

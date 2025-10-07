@@ -300,7 +300,7 @@ impl MongoDB {
         self.can_write()?;
         let id = match doc.remove("_id") {
             Some(x) => x,
-            None => anyhow::bail!("no _id provide"),
+            None => anyhow::bail!("no _id provide,this should be a bug"),
         };
         let db = self.get_db().await?;
         let ret = db
@@ -656,7 +656,7 @@ impl SchemaTrait for MongoDB {
         match kind {
             ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
             ExportKind::JsonLine => self.export_table_as_json_line(name, sender).await,
-            _ => anyhow::bail!("mongo only support export json."),
+            _ => anyhow::bail!(format!("mongo don't support export kind:{:?}", kind)),
         }
     }
 

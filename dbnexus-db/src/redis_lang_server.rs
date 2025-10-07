@@ -19,10 +19,6 @@ impl RedisDB {
         match conn {
             Some(x) => anyhow::Ok(x.clone()),
             None => {
-                // self.query_connections
-                //     .iter()
-                //     .for_each(|x| println!("connection id:{}", x.key()));
-
                 anyhow::bail!(format!(
                     "should be able get connection,connection id:{}",
                     self.completion_id.get()

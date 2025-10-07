@@ -74,7 +74,6 @@ const shortCuts = {
 };
 
 const settingWindowID = generateRandomString();
-const openLogFileId = generateRandomString();
 
 function App() {
   let [tabs, setTabs] = useState<TabContent[]>([]);
@@ -119,7 +118,7 @@ function App() {
           console.log('create table view successfully')
         );
         webview.once('tauri://error', (e) => {
-          alert('create webview failed' + e.payload.toString());
+          console.log('create webview failed' + e.payload.toString());
         });
       }
     })();
@@ -153,37 +152,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    let unlisten = listen<string>('open_log_file', () => {
-      (async () => {
-        let webview = await WebviewWindow.getByLabel(openLogFileId);
-        if (webview) {
-          webview.setFocus();
-        } else {
-          const webview = new WebviewWindow(openLogFileId, {
-            title: 'log file',
-            url: 'log_file.html',
-            width: 800,
-            height: 600,
-            maximized: true,
-          });
-          webview.once('tauri://created', () =>
-            console.log('create table view successfully')
-          );
-          webview.once('tauri://error', (e) => {
-            console.log('error', 'create webview failed', e.event.toString());
-          });
-        }
-      })();
-    });
-    return () => {
-      unlisten.then((e) => {
-        e();
-      });
-    };
-  }, []);
-
-  useEffect(() => {
-    let unlisten = listen('show_settings', () => {
+    let unlisten = listen('show_setting', () => {
       showSetting();
     });
     return () => {
@@ -356,7 +325,7 @@ function SeparateWindow(props: { children }) {
     <TabsSetContext.Provider
       value={{
         setTabs: () => {
-          alert('should not be called this is a bug');
+          console.log('should not be called this is a bug.');
         },
         tabs: [],
         setSelectTab: 0,
@@ -365,7 +334,16 @@ function SeparateWindow(props: { children }) {
       <SettingComp>
         <ContextMenuContext.Provider value={{ setUpMenu }}>
           <NotificationProvider>
-            <div style={{ padding: '0.5rem 1rem' }}> {children} </div>
+            <div
+              style={{
+                padding: '0.5rem 1rem',
+                width: '100vw',
+                height: '100vh',
+              }}
+            >
+              {' '}
+              {children}{' '}
+            </div>
             <div
               id={menuDivID}
               style={{

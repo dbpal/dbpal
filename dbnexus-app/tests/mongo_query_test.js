@@ -24,7 +24,7 @@ async function testCol() {
         longValue: bsonExtraDataType.newLong(123),
         idValue: bsonExtraDataType.newObjectID(),
         tsValue: bsonExtraDataType.newTimeStamp(bsonExtraDataType.newLong(1234)),
-        codeValue: bsonExtraDataType.newJavaScriptCode('alert(1)'),
+        codeValue: bsonExtraDataType.newJavaScriptCode('let a = 1;'),
         bValue1: bsonExtraDataType.newBinary([1, 2, 3], 10),
         bValue2: bsonExtraDataType.binaryCreateFromHexString('aa'),
         bValue3: bsonExtraDataType.binaryCreateFromBase64('SGVsbG8='),

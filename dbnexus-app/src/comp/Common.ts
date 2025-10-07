@@ -8,7 +8,7 @@ import { createContext } from 'react';
 import { loader } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
 import { invoke } from '@tauri-apps/api/core';
-
+import { message } from '@tauri-apps/plugin-dialog';
 const modalStyle: SxProps = {
   position: 'fixed',
   transform: 'translate(50%, 50%)',
@@ -127,7 +127,7 @@ const autoCompletion = async (
     let sql = modal.getValue();
     let name = SetAutoCompletionName.get(modal.id);
     if (!name) {
-      alert("auto completion name is null this is a bug");
+      message("auto completion name is null this is a bug", { kind: 'error' });
       return;
     }
     let completionItem = await invoke<types.CompletionItem[]>(

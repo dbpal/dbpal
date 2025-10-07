@@ -1312,7 +1312,7 @@ pub enum ExportKind {
 
 impl ExportKind {
     pub(crate) fn cannot_query_result_export_as_sql() -> anyhow::Result<()> {
-        anyhow::bail!("cannot export sql result as sql")
+        anyhow::bail!("can't export sql result as sql")
     }
 }
 
@@ -1393,7 +1393,10 @@ impl TryFrom<&str> for TriggerEvent {
             "UPDATE" => Ok(Self::Update),
             "DELETE" => Ok(Self::Delete),
             "INSTEAD OF" => Ok(Self::InsteadOf),
-            _ => anyhow::bail!(format!("'{}' not a valid event", value)),
+            _ => anyhow::bail!(format!(
+                "'{}' not a valid event,this should be a bug.please report,thanks.",
+                value
+            )),
         }
     }
 }

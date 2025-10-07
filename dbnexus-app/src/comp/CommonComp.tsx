@@ -368,7 +368,7 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
       <ListItemIcon>
         <LinkIcon></LinkIcon>
       </ListItemIcon>
-      <ListItemText> Open Connection </ListItemText>
+      <ListItemText> Establish Connection </ListItemText>
     </MenuItem>
   );
 }

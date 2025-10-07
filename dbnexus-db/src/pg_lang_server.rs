@@ -543,7 +543,7 @@ impl LangServerCommon for PostGresDB {
     async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
         let conn = self.query_connection.get(&self.completion_id.get());
         if conn.is_none() {
-            anyhow::bail!("query_id should get connection")
+            anyhow::bail!("query_id should be able get connection")
         }
         let conn = conn.unwrap();
         let mut conn = conn.lock().await;

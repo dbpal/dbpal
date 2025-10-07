@@ -47,6 +47,8 @@ import {
   isEnabled as isEnabledApp,
   disable as disableApp,
 } from '@tauri-apps/plugin-autostart';
+import { message } from '@tauri-apps/plugin-dialog';
+
 function ModifySetting() {
   const { showNotification } = useContext(NotificationContext);
   const [fontWeight, setFontWeight] = useState('normal');
@@ -807,20 +809,24 @@ function SettingComp(props: { children }) {
           if (!isEnabledApp()) {
             enableApp().catch((e) => {
               console.log('enable app autostart failed', e);
-              alert(`enable app autostart failed ${e.toString()}`);
+              message(`enable app autostart failed ${e.toString()}`, {
+                kind: 'error',
+              });
             });
           }
         } else {
           if (isEnabledApp()) {
             disableApp().catch((e) => {
               console.log('disable app autostart failed', e);
+              message('disable app autostart failed', { kind: 'error' });
             });
           }
         }
       })
       .catch((e) => {
-        alert(`list user settings failed ${e.toString()}`);
+        message(`list user settings failed ${e.toString()}`, { kind: 'error' });
         console.log('list user setting failed', e);
+        setSetting(new UserSetting());
       });
   };
   useEffect(() => {

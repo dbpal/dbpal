@@ -845,7 +845,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
                     }
                     _ => {
                         anyhow::bail!(format!(
-                            "should be a select statement,but ${:?}",
+                            "should be a select statement,but {:?}",
                             query.body.as_ref()
                         ))
                     }
