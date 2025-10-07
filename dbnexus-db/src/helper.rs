@@ -134,6 +134,10 @@ impl NextId {
         self.next_id
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     }
+
+    pub fn get(&self) -> u32 {
+        self.next_id.load(std::sync::atomic::Ordering::Relaxed)
+    }
 }
 
 impl TimeSome {

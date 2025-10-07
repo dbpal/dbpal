@@ -14,6 +14,8 @@ use dbnexus_db::mongo::MongoDB;
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 
+use crate::handlers::MuiDataGridData;
+
 impl DBConnectionConfig {
     pub fn get_name(&self) -> &str {
         match self {
@@ -368,6 +370,30 @@ pub struct DBPal {
     pub backend: Arc<Mutex<HashMap<String, DatabaseBackend>>>,
     pub saved_password: Arc<DashMap<String, String>>,
     pub backend_crash_msg: BackendCrashMsg,
+    pub query_cache: QueryCache,
+}
+
+pub type CachedQueryResp = Arc<Vec<Result<MuiDataGridData, String>>>;
+
+#[derive(Clone, Default)]
+pub struct QueryCache {
+    datas: Arc<DashMap<String, Arc<Vec<Result<MuiDataGridData, String>>>>>,
+}
+
+impl QueryCache {
+    pub(crate) fn set(&self, name: String, data: CachedQueryResp) {
+        log::info!("set query cache:{}", name);
+        self.datas.insert(name.clone(), data);
+    }
+
+    pub(crate) fn get(&self, name: &String) -> CachedQueryResp {
+        log::info!("get cache named:{}", name);
+        self.datas.get(name).map(|x| x.clone()).unwrap_or_default()
+    }
+    pub(crate) fn remove(&self, name: &String) {
+        log::info!("remove cache:{}", name);
+        self.datas.remove(name);
+    }
 }
 
 #[derive(Default, Clone)]

@@ -57,7 +57,6 @@ import {
   secondConfirm,
   SetCloseConfirmTextContext,
   SettingContext,
-  SomeTempStore,
   TabActiveContext,
 } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
@@ -209,7 +208,7 @@ function SqlQuery(props: {
   const [conn, setConn] = useState<IQueryConn | null>(null);
   const [showExport, setShowExport] = useState(false);
   const [queryRespView, setQueryRespView] = useState<WebviewWindow>(null);
-  const queryRespViewEvent = useRef(generateRandomString());
+  const queryRespViewCacheName = useRef(generateRandomString());
   const handleEditorDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor, _monaco) => {
       setEditor(ed);
@@ -342,7 +341,7 @@ function SqlQuery(props: {
     let now = new Date();
     setLoading(true);
     conn
-      .queryOP(text)
+      .queryOP(text, queryRespViewCacheName.current)
       .then((resp) => {
         if (setting.saveQueryLog) {
           queryLogHandler.current.save(
@@ -351,7 +350,6 @@ function SqlQuery(props: {
             showNotification
           );
         }
-
         if (append) {
           setResp((p) => [...p, ...resp]);
         } else {
@@ -376,7 +374,7 @@ function SqlQuery(props: {
       .then((conn) => {
         setConn((prev) => {
           if (prev) {
-            prev.destroy();
+            prev.destroy(queryRespViewCacheName.current);
           }
           return conn;
         });
@@ -389,7 +387,7 @@ function SqlQuery(props: {
   useEffect(() => {
     return () => {
       if (conn) {
-        conn.destroy();
+        conn.destroy(queryRespViewCacheName.current);
       }
     };
   }, [conn]);
@@ -420,7 +418,7 @@ function SqlQuery(props: {
     if (!queryRespView) {
       return;
     }
-    queryRespView.emit(queryRespViewEvent.current, resp).catch((e) => {
+    queryRespView.emit(queryRespViewCacheName.current).catch((e) => {
       showNotification('error', 'emit query response failed', e);
     });
   }, [queryRespView, resp]);
@@ -692,8 +690,8 @@ function SqlQuery(props: {
                     const webview = new WebviewWindow(generateRandomString(), {
                       title: `query result ${uuid}#${conn.queryId}`,
                       url:
-                        'query_response.html?event_name=' +
-                        queryRespViewEvent.current,
+                        'query_response.html?cache_name=' +
+                        queryRespViewCacheName.current,
                       width: 800,
                       height: 600,
                       maximized: true,
@@ -701,7 +699,7 @@ function SqlQuery(props: {
                     webview.once('tauri://created', () => {
                       console.log('create query response view successfully');
                     });
-                    webview.once(queryRespViewEvent.current, (e) => {
+                    webview.once(queryRespViewCacheName.current, (e) => {
                       console.log('query window send me something:', e.payload);
                       setQueryRespView(webview);
                     });

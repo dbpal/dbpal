@@ -492,7 +492,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
 }
 
 interface IQueryConn {
-  queryOP: (text: string) => Promise<any[]>;
+  queryOP: (text: string, cache_name: string | null) => Promise<any[]>;
   executeOP: (text: string) => Promise<any>;
   reconnect: () => Promise<void>;
   exportQueryResult: (
@@ -501,7 +501,7 @@ interface IQueryConn {
     file: string
   ) => Promise<void>;
   isDangerSql: (sql: string) => Promise<boolean>;
-  destroy: () => void;
+  destroy: (cache_name: string | null) => void;
   setAutoCommit: (boolean) => Promise<void>;
   getAutoCommit: () => Promise<boolean>;
   commit: () => Promise<void>;
@@ -574,11 +574,13 @@ class QueryConn implements IQueryConn {
       queryId: this.queryId,
     });
   }
-  queryOP(sql: string): Promise<any[]> {
+  queryOP(sql: string, cache_name: string | null): Promise<any[]> {
+
     let x = invoke<any[]>('query_sql', {
       name: this.uuid,
       queryId: this.queryId,
       sql,
+      cacheName: cache_name
     });
     return x;
   }
@@ -600,11 +602,12 @@ class QueryConn implements IQueryConn {
   isDangerSql(sql: string): Promise<boolean> {
     return invoke('is_dangerous_sql', { name: this.uuid, sql });
   }
-  destroy() {
+  destroy(cache_name: string | null) {
     console.log('destroy connection of:', this.queryId);
     invoke('query_sql_close_connection', {
       name: this.uuid,
       queryId: this.queryId,
+      cacheName: cache_name,
     })
       .then(() => { })
       .catch((e) => {
