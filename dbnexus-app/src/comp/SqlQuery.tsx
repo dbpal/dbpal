@@ -208,7 +208,6 @@ function SqlQuery(props: {
   const [conn, setConn] = useState<IQueryConn | null>(null);
   const [showExport, setShowExport] = useState(false);
   const [queryRespView, setQueryRespView] = useState<WebviewWindow>(null);
-  const queryRespViewCacheName = useRef(generateRandomString());
   const handleEditorDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor, _monaco) => {
       setEditor(ed);
@@ -316,6 +315,7 @@ function SqlQuery(props: {
         }
         setResp([e]);
         suggestReconnect(now);
+        showNotification('success', 'execute ok');
       })
       .catch((e) => {
         setResp([]);
@@ -341,7 +341,7 @@ function SqlQuery(props: {
     let now = new Date();
     setLoading(true);
     conn
-      .queryOP(text, queryRespViewCacheName.current)
+      .queryOP(text)
       .then((resp) => {
         if (setting.saveQueryLog) {
           queryLogHandler.current.save(
@@ -374,7 +374,7 @@ function SqlQuery(props: {
       .then((conn) => {
         setConn((prev) => {
           if (prev) {
-            prev.destroy(queryRespViewCacheName.current);
+            prev.destroy();
           }
           return conn;
         });
@@ -387,7 +387,7 @@ function SqlQuery(props: {
   useEffect(() => {
     return () => {
       if (conn) {
-        conn.destroy(queryRespViewCacheName.current);
+        conn.destroy();
       }
     };
   }, [conn]);
@@ -418,7 +418,7 @@ function SqlQuery(props: {
     if (!queryRespView) {
       return;
     }
-    queryRespView.emit(queryRespViewCacheName.current).catch((e) => {
+    queryRespView.emit(conn.cacheName).catch((e) => {
       showNotification('error', 'emit query response failed', e);
     });
   }, [queryRespView, resp]);
@@ -689,9 +689,7 @@ function SqlQuery(props: {
                   } else {
                     const webview = new WebviewWindow(generateRandomString(), {
                       title: `query result ${uuid}#${conn.queryId}`,
-                      url:
-                        'query_response.html?cache_name=' +
-                        queryRespViewCacheName.current,
+                      url: 'query_response.html?cache_name=' + conn.cacheName,
                       width: 800,
                       height: 600,
                       maximized: true,
@@ -699,7 +697,7 @@ function SqlQuery(props: {
                     webview.once('tauri://created', () => {
                       console.log('create query response view successfully');
                     });
-                    webview.once(queryRespViewCacheName.current, (e) => {
+                    webview.once(conn.cacheName, (e) => {
                       console.log('query window send me something:', e.payload);
                       setQueryRespView(webview);
                     });

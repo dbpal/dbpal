@@ -34,6 +34,7 @@ import {
   AppStoreKey,
   backendCompletionItemToEditor,
   DataSourceKind,
+  generateRandomString,
   MuiDataGridData,
   secondConfirm,
 } from './helper';
@@ -492,7 +493,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
 }
 
 interface IQueryConn {
-  queryOP: (text: string, cache_name: string | null) => Promise<any[]>;
+  queryOP: (text: string) => Promise<any[]>;
   executeOP: (text: string) => Promise<any>;
   reconnect: () => Promise<void>;
   exportQueryResult: (
@@ -501,19 +502,22 @@ interface IQueryConn {
     file: string
   ) => Promise<void>;
   isDangerSql: (sql: string) => Promise<boolean>;
-  destroy: (cache_name: string | null) => void;
+  destroy: () => void;
   setAutoCommit: (boolean) => Promise<void>;
   getAutoCommit: () => Promise<boolean>;
   commit: () => Promise<void>;
   rollback: () => Promise<void>;
   supportTransaction: () => boolean;
   queryId: number;
+  cacheName: string;
 }
 
 class QueryConn implements IQueryConn {
   queryId: number;
   uuid: string;
   kind: DataSourceKind;
+  cacheName: string = generateRandomString();
+
 
   constructor(uuid, queryId: number, kind: DataSourceKind) {
     this.queryId = queryId;
@@ -574,13 +578,13 @@ class QueryConn implements IQueryConn {
       queryId: this.queryId,
     });
   }
-  queryOP(sql: string, cache_name: string | null): Promise<any[]> {
+  queryOP(sql: string): Promise<any[]> {
 
     let x = invoke<any[]>('query_sql', {
       name: this.uuid,
       queryId: this.queryId,
       sql,
-      cacheName: cache_name
+      cacheName: this.cacheName
     });
     return x;
   }
@@ -588,7 +592,7 @@ class QueryConn implements IQueryConn {
     let x = invoke<any[]>('execute_sql', {
       name: this.uuid,
       queryId: this.queryId,
-      sql,
+      sql, cacheName: this.cacheName
     });
     return x;
   }
@@ -602,12 +606,12 @@ class QueryConn implements IQueryConn {
   isDangerSql(sql: string): Promise<boolean> {
     return invoke('is_dangerous_sql', { name: this.uuid, sql });
   }
-  destroy(cache_name: string | null) {
+  destroy() {
     console.log('destroy connection of:', this.queryId);
     invoke('query_sql_close_connection', {
       name: this.uuid,
       queryId: this.queryId,
-      cacheName: cache_name,
+      cacheName: this.cacheName,
     })
       .then(() => { })
       .catch((e) => {

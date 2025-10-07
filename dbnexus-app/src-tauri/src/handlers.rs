@@ -839,7 +839,8 @@ pub async fn execute_sql_no_open_conn(
 }
 #[tauri::command]
 pub async fn execute_sql(
-    name: String, query_id: u32, sql: String, app: tauri::State<'_, DBPal>,
+    name: String, cache_name: Option<String>, query_id: u32, sql: String,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Result<MuiDataGridData, String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -855,7 +856,12 @@ pub async fn execute_sql(
         DatabaseBackend::Catalog(x) => x.execute_sql(query_id, &sql).await,
     }
     .map_err(ErrorFrontend::from)?;
-    Ok(result.map(MuiDataGridData::from))
+    let result = result.map(MuiDataGridData::from);
+    if let Some(cache_name) = cache_name {
+        app.query_cache
+            .set(cache_name, Arc::new(vec![result.clone()]));
+    }
+    Ok(result)
 }
 
 #[tauri::command]
