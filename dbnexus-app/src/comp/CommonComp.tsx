@@ -436,6 +436,47 @@ function MenuDeleteConfig({ name }) {
     </MenuItem>
   );
 }
+
+function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
+  const { content, setSort, field } = props;
+  const { showNotification } = useContext(NotificationContext);
+  return (
+    <MenuList>
+      <MenuItem
+        onClick={() => {
+          handleCopyToClipboard(content, showNotification);
+        }}
+      >
+        <ListItemIcon>
+          <ContentCopyIcon></ContentCopyIcon>
+        </ListItemIcon>
+        <ListItemText> Copy </ListItemText>
+      </MenuItem>
+      <Divider />
+      <MenuItem
+        onClick={() => {
+          setSort([{ field, sort: 'asc' }] as GridSortModel);
+        }}
+      >
+        <ListItemIcon>
+          <ArrowUpwardIcon></ArrowUpwardIcon>
+        </ListItemIcon>
+        <ListItemText> {field} ASC </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          setSort([{ field, sort: 'desc' }] as GridSortModel);
+        }}
+      >
+        <ListItemIcon>
+          <ArrowDownwardIcon></ArrowDownwardIcon>
+        </ListItemIcon>
+        <ListItemText> {field} DESC </ListItemText>
+      </MenuItem>
+    </MenuList>
+  );
+}
+
 function MetaValueView({ values = [] as types.MetaValue[] }) {
   const setting = useContext(SettingContext);
   let columns = [
@@ -451,46 +492,6 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
     }
   });
 
-  function Menu(props: { content: string; setSort; field: string }) {
-    const { content, setSort, field } = props;
-
-    const { showNotification } = useContext(NotificationContext);
-    return (
-      <MenuList>
-        <MenuItem
-          onClick={() => {
-            handleCopyToClipboard(content, showNotification);
-          }}
-        >
-          <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
-          </ListItemIcon>
-          <ListItemText> Copy </ListItemText>
-        </MenuItem>
-        <Divider />
-        <MenuItem
-          onClick={() => {
-            setSort([{ field, sort: 'asc' }] as GridSortModel);
-          }}
-        >
-          <ListItemIcon>
-            <ArrowUpwardIcon></ArrowUpwardIcon>
-          </ListItemIcon>
-          <ListItemText> {field} ASC </ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            setSort([{ field, sort: 'desc' }] as GridSortModel);
-          }}
-        >
-          <ListItemIcon>
-            <ArrowDownwardIcon></ArrowDownwardIcon>
-          </ListItemIcon>
-          <ListItemText> {field} DESC </ListItemText>
-        </MenuItem>
-      </MenuList>
-    );
-  }
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
     return {
@@ -505,11 +506,11 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
           }
           setUpMenu({
             content: (
-              <Menu
+              <MetaValueViewMenu
                 content={content}
                 field={field}
                 setSort={setSortModel}
-              ></Menu>
+              ></MetaValueViewMenu>
             ),
             style: calMenuStyle(e),
           });
@@ -1101,6 +1102,37 @@ function ExportMarkDownTable(props: {
     </Stack>
   );
 }
+
+function ResizeParentHeight(props: { boxRef; min: number }) {
+  const { boxRef, min } = props;
+  const handleDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const box = boxRef.current!;
+    const startY = e.clientY;
+    const startH = box.offsetHeight;
+
+    const onMove = (ev: MouseEvent) => {
+      let newH = startH + ev.clientY - startY;
+      if (newH < min) {
+        newH = min;
+      }
+      box.style.height = newH + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, []);
+  return (
+    <div
+      style={{ height: '4px', backgroundColor: 'gray', cursor: 'ns-resize' }}
+      onMouseDown={handleDown}
+    ></div>
+  );
+}
+
 export {
   LogLevelSelection,
   MetaValueView,
@@ -1129,4 +1161,5 @@ export {
   OpenFileWithDefaultApp,
   MenuExportMarkDownTable,
   MenuNewQueryWindow,
+  ResizeParentHeight,
 };

@@ -31,21 +31,22 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import {
   DataSourceKind,
   editorSetPositionAndReveal,
+  generateRandomString,
+  isControlOpen,
+  isControlSave,
   secondConfirm,
   SettingContext,
   TabActiveContext,
-  TabContent,
-  TabsSetContext,
 } from './helper';
 import { Editor, Monaco } from '@monaco-editor/react';
 import { editor, Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
-import { extractBaseName, getNamedConfig, reloadOK, tabsHasId } from './Common';
+import { extractBaseName, getNamedConfig, reloadOK } from './Common';
 import types from './ApiStruct';
 import { MetaValueView } from './CommonComp';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { save, SaveDialogOptions, open } from '@tauri-apps/plugin-dialog';
-import { platform } from '@tauri-apps/plugin-os';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 function CreateDatabase({ uuid, handleClose }) {
   const { showNotification } = useContext(NotificationContext);
@@ -281,6 +282,7 @@ function SimpleFlexEditor(props: {
   const handleDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
       editor.current = ed;
+      ed.focus();
       if (handleEditor) {
         handleEditor(ed);
       }
@@ -349,7 +351,7 @@ function EditorBar(props: { left?: any; pos: Position }) {
       <Stack
         direction="row"
         spacing={1}
-        style={{ paddingLeft: '1rem', paddingRight: '1rem' }}
+        style={{ paddingLeft: '2rem', paddingRight: '3rem' }}
       >
         <span>Ln {pos ? pos.lineNumber : ''}</span>
         <span>Col {pos ? pos.column : ''}</span>
@@ -358,30 +360,29 @@ function EditorBar(props: { left?: any; pos: Position }) {
   );
 }
 
-function MenuConnectionInfo({ uuid }) {
-  const { tabs, setSelectTab, setTabs } = useContext(TabsSetContext);
+let infoWindows = new Map<String, WebviewWindow>();
 
+function MenuConnectionInfo({ uuid }) {
+  const { showNotification } = useContext(NotificationContext);
   const handleInfo = async () => {
-    let id = uuid + '-info';
-    let index = tabsHasId(tabs, id);
-    if (typeof index === 'number') {
-      setSelectTab(index);
-    } else {
-      setTabs((e) => {
-        setTimeout(() => {
-          setSelectTab(tabs.length);
-        }, 100);
-        return [
-          ...e,
-          new TabContent(
-            id,
-            uuid,
-            <ConnConfigInfo uuid={uuid}></ConnConfigInfo>,
-            <InfoIcon></InfoIcon>
-          ),
-        ];
-      });
+    let old = infoWindows.get(uuid);
+    if (old) {
+      old.setFocus();
+      return;
     }
+    const webview = new WebviewWindow(generateRandomString(), {
+      title: 'add connection',
+      url: 'info.html?uuid=' + uuid,
+      width: 800,
+      height: 600,
+    });
+    webview.once('tauri://created', () =>
+      console.log('create info view successfully')
+    );
+    webview.once('tauri://error', (e) => {
+      showNotification('error', 'create webview failed', e.event.toString());
+    });
+    infoWindows.set(uuid, webview);
   };
   return (
     <MenuItem onClick={handleInfo}>
@@ -480,7 +481,7 @@ function LoadStoreFileForQuery(props: {
   const [file, setFile] = useState('');
   const { showNotification } = useContext(NotificationContext);
   const active = useContext(TabActiveContext);
-  const loadFile = async () => {
+  const handleLoad = async () => {
     // ok to load
     try {
       let file = await open();
@@ -577,14 +578,14 @@ function LoadStoreFileForQuery(props: {
       if (!active) {
         return;
       }
-      let p = platform();
-      if (
-        (p == 'macos' && e.metaKey && e.key == 's') ||
-        (p == 'windows' && e.ctrlKey && e.key == 's') ||
-        (p == 'linux' && e.ctrlKey && e.key == 's')
-      ) {
-        handleSave();
+
+      if (isControlSave(e)) {
         e.preventDefault();
+        handleSave();
+      }
+      if (isControlOpen(e)) {
+        e.preventDefault();
+        handleLoad();
       }
     };
     document.addEventListener('keydown', callback);
@@ -609,7 +610,7 @@ function LoadStoreFileForQuery(props: {
       )}
 
       <Tooltip title="attach file">
-        <IconButton onClick={loadFile} color="primary">
+        <IconButton onClick={handleLoad} color="primary">
           <AttachFileIcon />
         </IconButton>
       </Tooltip>

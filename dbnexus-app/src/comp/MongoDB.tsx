@@ -270,6 +270,7 @@ function MongoBsonEditor(props: {
   const handleEditorDidMount = useCallback(
     (ce: editor.IStandaloneCodeEditor, _monaco) => {
       editor.current = ce;
+      ce.focus();
       ce.onDidChangeModelContent((_event) => {
         let text = ce.getValue();
         try {

@@ -58,7 +58,7 @@ enum QueryLogKind {
 }
 function QueryLog(props: {
   uuid: string;
-  showQueryLog;
+  showQueryLog: boolean;
   setShowQueryLog;
   executeTimes;
   language;
@@ -180,6 +180,7 @@ function QueryLog(props: {
         zIndex: 13,
         width: '75%',
         display: showQueryLog ? 'block' : 'none',
+        opacity: showQueryLog ? 0.8 : 0,
       }}
       elevation={16}
     >

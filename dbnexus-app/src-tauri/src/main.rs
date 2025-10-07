@@ -208,7 +208,7 @@ fn get_configured_zoom(handle: &AppHandle) -> anyhow::Result<f64> {
     Ok(x.flatten().unwrap_or(1.0))
 }
 
-fn config_zoom(handle: &AppHandle, zoom: f64) -> anyhow::Result<()> {
+fn configure_zoom(handle: &AppHandle, zoom: f64) -> anyhow::Result<()> {
     let store = handle.get_store(STORE_FILE);
     if let Some(store) = store {
         store.set("zoom", zoom);
@@ -224,11 +224,11 @@ fn set_webview_zoom(handle: &AppHandle, zoom: f64) {
         }
     }
 }
+
 fn main_() {
     // logger_test();
     let dbpal = DBPal::new();
     let dbpal_clone = dbpal.clone();
-
     // std::thread::spawn(move || {
     //     std::thread::sleep(std::time::Duration::from_secs(5));
     //     panic!("test");
@@ -241,7 +241,9 @@ fn main_() {
             let old = panic::take_hook();
             panic::set_hook(Box::new(move |info| {
                 let backtrace = Backtrace::capture();
-                let id = dbpal_clone.set_backend_crash_msg(format!("{}\n{}", info, backtrace));
+                let id = dbpal_clone
+                    .backend_crash_msg
+                    .set(format!("{}\n{}", info, backtrace));
                 if let Err(err) = WebviewWindowBuilder::new(
                     &handler,
                     generate_random_string(10),
@@ -322,7 +324,7 @@ fn main_() {
         Ok(())
     };
     let log_window_id = generate_random_string(10);
-
+    let setting_window_id = generate_random_string(10);
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_sql::Builder::new().build())
@@ -441,7 +443,7 @@ fn main_() {
                             &MenuItem::with_id(
                                 handle,
                                 "open_dev_tools",
-                                "open dev tools",
+                                "open dev tools(all widows)",
                                 true,
                                 None as Option<&'static str>,
                             )?,
@@ -480,7 +482,24 @@ fn main_() {
                 handle.emit("add_config", "").unwrap();
             }
             if event.id.0 == "show_setting" {
-                handle.emit("show_setting", "").unwrap();
+                if let Some(window) = handle.get_webview_window(&setting_window_id) {
+                    if let Err(err) = window.set_focus() {
+                        log::error!("set focus failed:{}", err);
+                    }
+                } else {
+                    if let Err(err) = WebviewWindowBuilder::new(
+                        handle,
+                        generate_random_string(10),
+                        WebviewUrl::App(format!("setting.html").into()),
+                    )
+                    .title("setting")
+                    .inner_size(800f64, 600f64)
+                    .maximized(true)
+                    .build()
+                    {
+                        log::error!("create setting window failed:{}", err);
+                    }
+                }
             }
             if event.id.0 == "edit_config_file" {
                 handle.emit("edit_config_file", "").unwrap();
@@ -491,12 +510,9 @@ fn main_() {
             if event.id.0 == "open_dev_tools" {
                 let views = handle.webview_windows();
                 for view in views.values() {
-                    if view.is_focused().unwrap_or_default() {
-                        view.open_devtools();
-                    }
+                    view.open_devtools();
                 }
             }
-
             if event.id.0 == "zoom_in" {
                 match get_configured_zoom(handle) {
                     Ok(x) => {
@@ -506,7 +522,7 @@ fn main_() {
                             zoom = min;
                         }
                         set_webview_zoom(handle, zoom);
-                        if let Err(err) = config_zoom(handle, zoom) {
+                        if let Err(err) = configure_zoom(handle, zoom) {
                             log::error!("set zoom failed:{}", err);
                         }
                     }
@@ -524,7 +540,7 @@ fn main_() {
                             zoom = max;
                         }
                         set_webview_zoom(handle, zoom);
-                        if let Err(err) = config_zoom(handle, zoom) {
+                        if let Err(err) = configure_zoom(handle, zoom) {
                             log::error!("set zoom failed:{}", err);
                         }
                     }
@@ -536,7 +552,7 @@ fn main_() {
             if event.id.0 == "zoom_reset" {
                 let zoom = 1f64;
                 set_webview_zoom(handle, zoom);
-                if let Err(err) = config_zoom(handle, zoom) {
+                if let Err(err) = configure_zoom(handle, zoom) {
                     log::error!("set zoom failed:{}", err);
                 }
             }

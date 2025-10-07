@@ -1,12 +1,12 @@
 'use strict';
 import ReactDOM from 'react-dom/client';
-import './app.css';
 import React, { useEffect, useState } from 'react';
 import {
   connTypeToDataSourceKind,
   DataSourceKind,
   secondConfirm,
   SetCloseConfirmTextContext,
+  SomeTempStore,
   windowInit,
 } from './comp/helper.ts';
 import { initMonacoLanguage } from './comp/Common.ts';
@@ -29,8 +29,15 @@ await initMonacoLanguage(uuid, kind, (msg) => {
 // when in transaction prevent user to close the window
 let cc;
 
-function Query(props: { uuid: string; kind: DataSourceKind }) {
-  const { uuid, kind } = props;
+let sqlData = SomeTempStore.get();
+
+function Query(props: {
+  uuid: string;
+  kind: DataSourceKind;
+  sql?: string;
+  favoriteName?: string;
+}) {
+  const { uuid, kind, sql, favoriteName } = props;
   const [closeConfirm, setCloseConfirm] = useState('');
   useEffect(() => {
     cc = closeConfirm;
@@ -43,10 +50,10 @@ function Query(props: { uuid: string; kind: DataSourceKind }) {
     >
       {err && <Typography color="error">{err}</Typography>}
       <AllKindQuery
-        heightName="query-new-window"
         uuid={uuid}
         kind={kind}
-        height="100vh"
+        value={sql}
+        favoriteName={favoriteName}
       />
     </SetCloseConfirmTextContext>
   );
@@ -70,7 +77,12 @@ currentWebview.onCloseRequested(async (event) => {
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <SeparateWindow>
-      <Query uuid={uuid} kind={kind}></Query>
+      <Query
+        uuid={uuid}
+        kind={kind}
+        sql={sqlData && sqlData.sql}
+        favoriteName={sqlData && sqlData.name}
+      ></Query>
     </SeparateWindow>
   </React.StrictMode>
 );

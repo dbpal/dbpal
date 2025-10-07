@@ -4,6 +4,7 @@ import { MultiQueryResp } from './QueryResp';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 import {
   Box,
+  Button,
   Chip,
   CircularProgress,
   IconButton,
@@ -11,6 +12,7 @@ import {
   Stack,
   TextField,
   Tooltip,
+  Typography,
 } from '@mui/material';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
@@ -48,25 +50,30 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import {
   DataSourceKind,
   ErrAndLoc,
+  generateRandomString,
   getEditorText,
   QueryLogHandler,
   rustResultOk,
-  saveAndSetSize,
   secondConfirm,
   SetCloseConfirmTextContext,
   SettingContext,
+  SomeTempStore,
   TabActiveContext,
 } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
-import { ExecutingTime, PossibleParseError } from './CommonComp.tsx';
+import {
+  ExecutingTime,
+  ModalHeader,
+  PossibleParseError,
+} from './CommonComp.tsx';
 import { EditorBar, LoadStoreFileForQuery } from './CommonComp2.tsx';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
   const { showNotification } = useContext(NotificationContext);
   const [txCount, setTxCount] = useState(0);
-
   const setCloseConfirm = useContext(SetCloseConfirmTextContext);
   const handleQueryCommit = async () => {
     try {
@@ -169,10 +176,9 @@ function SqlQuery(props: {
   saveFavoriteSql: (name: string, sql: string) => void;
   favoriteName?: string;
   kind: DataSourceKind;
-  buttons?: ReactNode;
+  extras?: ReactNode;
   getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
   editorRef?: RefObject<editor.IStandaloneCodeEditor>;
-  heightName: string;
 }) {
   let {
     uuid,
@@ -181,10 +187,9 @@ function SqlQuery(props: {
     saveFavoriteSql,
     favoriteName: oldFavoriteName,
     kind,
-    buttons,
+    extras,
     getParseErr,
     editorRef,
-    heightName,
   } = props;
   const [resp, setResp] = useState([]);
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
@@ -203,7 +208,8 @@ function SqlQuery(props: {
   const [executeTimes, setExecuteTimes] = useState(0);
   const [conn, setConn] = useState<IQueryConn | null>(null);
   const [showExport, setShowExport] = useState(false);
-
+  const [queryRespView, setQueryRespView] = useState<WebviewWindow>(null);
+  const queryRespViewEvent = useRef(generateRandomString());
   const handleEditorDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor, _monaco) => {
       setEditor(ed);
@@ -387,6 +393,37 @@ function SqlQuery(props: {
       }
     };
   }, [conn]);
+  useEffect(() => {
+    return () => {
+      if (queryRespView) {
+        queryRespView.close();
+      }
+    };
+  }, [queryRespView]);
+  // destroy query response view window
+  useEffect(() => {
+    if (!queryRespView) {
+      return;
+    }
+    const unlisten = queryRespView.onCloseRequested(() => {
+      setQueryRespView(null);
+    });
+    return () => {
+      unlisten.then((e) => {
+        e();
+      });
+    };
+  }, [queryRespView]);
+
+  // send data to query response view
+  useEffect(() => {
+    if (!queryRespView) {
+      return;
+    }
+    queryRespView.emit(queryRespViewEvent.current, resp).catch((e) => {
+      showNotification('error', 'emit query response failed', e);
+    });
+  }, [queryRespView, resp]);
 
   const editorOptions =
     useMemo((): editor.IStandaloneEditorConstructionOptions => {
@@ -452,23 +489,16 @@ function SqlQuery(props: {
     DataSourceKind.FireBird,
   ].includes(kind);
 
-  const wholeDiv = useRef(null);
-  useEffect(() => {
-    let c = saveAndSetSize(wholeDiv.current, heightName, 'height');
-    return c;
-  }, []);
   return (
     <div
       style={{
-        height: '90vh',
+        height: '100%',
         overflow: 'auto',
-        resize: 'vertical',
         position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         marginBottom: '300px',
       }}
-      ref={wholeDiv}
     >
       <PanelGroup
         direction="vertical"
@@ -477,7 +507,7 @@ function SqlQuery(props: {
       >
         <Panel
           minSize={10}
-          maxSize={70}
+          maxSize={100}
           defaultSize={40}
           style={{
             display: 'flex',
@@ -600,11 +630,9 @@ function SqlQuery(props: {
             )}
 
             <Tooltip
-              title={
-                !favoriteName
-                  ? 'save sql to favorite.'
-                  : `save favorite sql as named '${favoriteName}'`
-              }
+              title={`save favorite sql ${
+                favoriteName && `as named '${favoriteName}'`
+              }`}
             >
               <IconButton
                 onClick={() => {
@@ -646,9 +674,56 @@ function SqlQuery(props: {
                 <EventNoteIcon></EventNoteIcon>
               </IconButton>
             </Tooltip>
-            {buttons}
-
+            {extras}
             <ExecutingTime loading={loading} disableTime></ExecutingTime>
+
+            {conn && (
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  if (queryRespView) {
+                    try {
+                      queryRespView.close();
+                    } catch (e) {
+                      console.log(e);
+                      return;
+                    }
+                  } else {
+                    const webview = new WebviewWindow(generateRandomString(), {
+                      title: `query result ${uuid}#${conn.queryId}`,
+                      url:
+                        'query_response.html?event_name=' +
+                        queryRespViewEvent.current,
+                      width: 800,
+                      height: 600,
+                      maximized: true,
+                    });
+                    webview.once('tauri://created', () => {
+                      console.log('create query response view successfully');
+                    });
+                    webview.once(queryRespViewEvent.current, (e) => {
+                      console.log('query window send me something:', e.payload);
+                      setQueryRespView(webview);
+                    });
+                    webview.once('tauri://error', (e) => {
+                      showNotification(
+                        'error',
+                        'create webview failed',
+                        e.event.toString()
+                      );
+                    });
+                  }
+                }}
+              >
+                {queryRespView ? 'close' : 'detach'} query view window
+              </Button>
+            )}
+
+            {conn && (
+              <Tooltip title="connection id">
+                <Typography> #{conn.queryId} </Typography>
+              </Tooltip>
+            )}
             {!conn && <CircularProgress></CircularProgress>}
           </Stack>
           <div
@@ -688,75 +763,84 @@ function SqlQuery(props: {
             pos={pos}
           ></EditorBar>
         </Panel>
-        <PanelResizeHandle style={{ height: 4 }} className="resize-handle" />
-        <Panel style={{ overflow: 'auto' }}>
-          <div style={{ height: '100%' }}>
-            <MultiQueryResp data={resp}></MultiQueryResp>
-            {showExport && (
-              <Modal
-                open={showExport}
-                onClose={modalHandleClose((e: EscDownEvent) => {
-                  e.preventDefault();
-                  setShowExport(false);
-                })}
-              >
-                <Box sx={modalStyle} width="45%">
-                  <ExportView
-                    supportKind={['csv', 'json', 'jsonline', 'xlsx']}
-                    exportOP={async (kind, file) => {
-                      const sql = getEditorText(editor, showNotification);
-                      return conn.exportQueryResult(sql, kind, file);
-                    }}
-                    name="export_query_result"
-                  ></ExportView>
-                </Box>
-              </Modal>
-            )}
-            {showSetFavoriteName && (
-              <Modal
-                open={showSetFavoriteName}
-                onClose={modalHandleClose((e: EscDownEvent) => {
-                  e.preventDefault();
-                  setShowFavoriteName(false);
-                })}
-              >
-                <Box sx={modalStyle} width="40%">
-                  <Stack spacing={1}>
-                    <TextField
-                      fullWidth
-                      label="name"
-                      value={favoriteName}
-                      onChange={(e) => {
-                        setFavoriteName(e.target.value);
-                      }}
-                      required
-                    ></TextField>
-                    <Stack direction="row">
-                      <IconButton
-                        color="primary"
-                        onClick={() => {
-                          if (!favoriteName) {
-                            showNotification('error', "name can't be empty");
-                            return;
-                          }
-                          saveFavoriteSql(favoriteName, editor.getValue());
-                          setShowFavoriteName(false);
-                        }}
-                      >
-                        <FaBookmark> </FaBookmark>
-                      </IconButton>
-                    </Stack>
-                  </Stack>
-                </Box>
-              </Modal>
-            )}
-          </div>
-        </Panel>
+        {!queryRespView && (
+          <PanelResizeHandle style={{ height: 4 }} className="resize-handle" />
+        )}
+
+        {!queryRespView && (
+          <Panel
+            style={{ overflow: 'auto' }}
+            collapsible
+            collapsedSize={0}
+            maxSize={100}
+            minSize={10}
+          >
+            <div style={{ height: '100%' }}>
+              <MultiQueryResp data={resp}></MultiQueryResp>
+            </div>
+          </Panel>
+        )}
       </PanelGroup>
 
-      <div style={{ height: '0.7rem' }}>
-        {/* this div for resize handle last view element can shadow resize handle*/}
-      </div>
+      {showExport && (
+        <Modal
+          open={showExport}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowExport(false);
+          })}
+        >
+          <Box sx={modalStyle} width="45%">
+            <ExportView
+              supportKind={['csv', 'json', 'jsonline', 'xlsx']}
+              exportOP={async (kind, file) => {
+                const sql = getEditorText(editor, showNotification);
+                return conn.exportQueryResult(sql, kind, file);
+              }}
+              name="export_query_result"
+            ></ExportView>
+          </Box>
+        </Modal>
+      )}
+      {showSetFavoriteName && (
+        <Modal
+          open={showSetFavoriteName}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowFavoriteName(false);
+          })}
+        >
+          <Box sx={modalStyle} width="40%">
+            <ModalHeader title="edit favorite sql name"></ModalHeader>
+            <Stack spacing={1}>
+              <TextField
+                fullWidth
+                label="name"
+                value={favoriteName}
+                onChange={(e) => {
+                  setFavoriteName(e.target.value);
+                }}
+                required
+              ></TextField>
+              <Stack direction="row">
+                <IconButton
+                  color="primary"
+                  onClick={() => {
+                    if (!favoriteName) {
+                      showNotification('error', "name can't be empty");
+                      return;
+                    }
+                    saveFavoriteSql(favoriteName, editor.getValue());
+                    setShowFavoriteName(false);
+                  }}
+                >
+                  <FaBookmark> </FaBookmark>
+                </IconButton>
+              </Stack>
+            </Stack>
+          </Box>
+        </Modal>
+      )}
     </div>
   );
 }

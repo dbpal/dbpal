@@ -114,7 +114,7 @@ function TabsWithContent_(props: {
   const windowFocus = useContext(WindowFocusContext);
   const setting = useContext(SettingContext);
   return (
-    <Stack spacing={1} style={{ width: '100%' }}>
+    <Stack spacing={1} style={{ width: '100%', height: '100%' }}>
       <div style={{ display: 'grid' }}>
         <Tabs
           value={selectIndex}
@@ -171,7 +171,7 @@ function TabsWithContent_(props: {
           })}
         </Tabs>
       </div>
-      <div>
+      <div style={{ flex: 1 }}>
         {tabs.map((tab, index) => (
           <TabActiveContext.Provider key={tab.id} value={selectIndex == index}>
             <SetCloseConfirmTextContext
@@ -179,7 +179,9 @@ function TabsWithContent_(props: {
                 tabs[index].closeConfirmText = e;
               }}
             >
-              <div hidden={selectIndex !== index}>{tab.content}</div>
+              <div hidden={selectIndex !== index} style={{ height: '100%' }}>
+                {tab.content}
+              </div>
             </SetCloseConfirmTextContext>
           </TabActiveContext.Provider>
         ))}

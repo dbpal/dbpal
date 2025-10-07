@@ -78,6 +78,7 @@ import {
   SaveMatchPattern,
   secondConfirm,
   SettingContext,
+  SomeTempStore,
   TabsSetContext,
   UuidContext,
   WindowFocusContext,
@@ -148,7 +149,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
         height: 600,
       });
       webview.once('tauri://created', () =>
-        console.log('create table view successfully')
+        console.log('create add connection view successfully')
       );
       webview.once('tauri://error', (e) => {
         showNotification('error', 'create webview failed', e.event.toString());
@@ -698,10 +699,10 @@ function FavoriteSqlList(props: { handleClose }) {
       setTabs((tabs) => {
         let content = (
           <AllKindQuery
-            heightName="tab-query"
             kind={row.kind}
             uuid={row.uuid}
             value={row.sql}
+            favoriteName={row.name}
           />
         );
         handleClose();
@@ -734,6 +735,7 @@ function FavoriteSqlList(props: { handleClose }) {
     if (!(await checkConnOpened(row.uuid))) {
       return;
     }
+    SomeTempStore.set({ sql: row.sql, name: row.name });
     const webview = new WebviewWindow(generateRandomString(), {
       title: `query window of '${row.uuid}'`,
       url: 'query.html?uuid=' + row.uuid + '&kind=' + row.kind,
@@ -742,7 +744,7 @@ function FavoriteSqlList(props: { handleClose }) {
       maximized: true,
     });
     webview.once('tauri://created', () =>
-      console.log('create table view successfully')
+      console.log('create query view successfully')
     );
     webview.once('tauri://error', (e) => {
       showNotification('error', 'create webview failed', e.event.toString());
@@ -815,7 +817,7 @@ function FavoriteSqlList(props: { handleClose }) {
     useRow(row.row);
   }, []);
 
-  const handleClean = async () => {
+  const handleDelete = async () => {
     let confirm = await secondConfirm({
       title: 'clean all favorite sql???',
       confirmText: 'Clean',
@@ -823,8 +825,7 @@ function FavoriteSqlList(props: { handleClose }) {
     if (!confirm) {
       return;
     }
-    FavoriteSql.clear(showNotification);
-    handleClose();
+    FavoriteSql.clearByUuid(showNotification, uuidFilter);
   };
 
   return (
@@ -852,11 +853,11 @@ function FavoriteSqlList(props: { handleClose }) {
         >
           reload
         </Button>
-        {fs.length > 0 && (
-          <Tooltip title="delete all sql">
+        {fs.length > 0 && uuidFilter && (
+          <Tooltip title={`delete all sql by uuid '${uuidFilter}'`}>
             <IconButton
               onClick={() => {
-                handleClean();
+                handleDelete();
               }}
             >
               <DeleteForeverIcon color="error"></DeleteForeverIcon>
@@ -868,7 +869,7 @@ function FavoriteSqlList(props: { handleClose }) {
             <Tooltip title="double click a row to use sql in new tab.">
               <Typography color="info">use</Typography>
             </Tooltip>
-            <Tooltip title="right click a row to query new window.">
+            <Tooltip title="right click a row to query in new window.">
               <Typography color="info">query new window</Typography>
             </Tooltip>
           </>
@@ -1358,10 +1359,10 @@ function AllKindQuery(props: {
   kind: DataSourceKind;
   uuid: string;
   value?: string;
-  height?: string;
-  heightName: string;
+
+  favoriteName?: string;
 }) {
-  const { kind, uuid, value, heightName } = props;
+  const { kind, uuid, value, favoriteName } = props;
   let content;
   const { showNotification } = useContext(NotificationContext);
   switch (kind) {
@@ -1384,7 +1385,6 @@ function AllKindQuery(props: {
           makeConn={async () => {
             return makeConn(uuid, kind);
           }}
-          heightName={heightName}
           saveFavoriteSql={async (name, sql) => {
             await FavoriteSql.save(
               new FavoriteSql(uuid, name, kind, sql),
@@ -1394,6 +1394,7 @@ function AllKindQuery(props: {
           value={value}
           getParseErr={makeGetParserErr(uuid)}
           kind={kind}
+          favoriteName={favoriteName}
         ></SqlQuery>
       );
       break;
@@ -1412,7 +1413,7 @@ function AllKindQuery(props: {
           }}
           value={value}
           getParseErr={makeGetParserErr(uuid)}
-          heightName={heightName}
+          favoriteName={favoriteName}
         ></RedisQuery>
       );
       break;
@@ -1428,13 +1429,14 @@ function AllKindQuery(props: {
             );
           }}
           value={value}
+          favoriteName={favoriteName}
         ></MongoQuery>
       );
       break;
     default:
       console.log(`impl this ${kind}`);
   }
-  return <div> {content}</div>;
+  return <div style={{ height: '100%' }}> {content}</div>;
 }
 
 function openNewQuery(
@@ -1454,7 +1456,7 @@ function openNewQuery(
       maximized: true,
     });
     webview.once('tauri://created', () =>
-      console.log('create table view successfully')
+      console.log('create query view successfully')
     );
     webview.once('tauri://error', (e) => {
       showNotification('error', 'create webview failed', e.event.toString());
@@ -1463,7 +1465,7 @@ function openNewQuery(
   }
   console.log('open new query uuid:', uuid);
   let id = uuid + '-query-' + generateRandomString();
-  let content = <AllKindQuery heightName="tab-query" kind={kind} uuid={uuid} />;
+  let content = <AllKindQuery kind={kind} uuid={uuid} />;
   setTabs((e: TabContent[]) => {
     setTimeout(() => {
       setSelectTab(e.length);

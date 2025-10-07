@@ -53,7 +53,10 @@ function setUpDatabase() {
   )
     ` , `
       CREATE INDEX if not EXISTS index_favorite_sql_uuid ON favorite_sql (uuid);
-    ` ];
+    `  ,
+    `
+      CREATE UNIQUE INDEX if not EXISTS index_favorite_sql_uuid_name ON favorite_sql (uuid,name);
+    `];
   sqls.forEach(async (sql) => {
     try { await appDatabase.execute(sql) } catch (e) {
       console.log("apply sql failed,this maybe a error", e)
@@ -475,7 +478,7 @@ class FavoriteSql {
   }
   static async save(x: FavoriteSql, showNotification) {
     try {
-      await appDatabase.execute("insert into favorite_sql(uuid,connection_name,name,kind,sql,last_modified) values(?,?,?,?,?,?)", [x.uuid, x.connection_name, x.name, x.kind, x.sql, x.last_modified]);
+      await appDatabase.execute("replace into favorite_sql(uuid,connection_name,name,kind,sql,last_modified) values(?,?,?,?,?,?)", [x.uuid, x.connection_name, x.name, x.kind, x.sql, x.last_modified]);
       showNotification('success', "save favorite sql Ok");
     } catch (e) {
       showNotification('error', "save favorite sql failed", e);
@@ -515,9 +518,10 @@ class FavoriteSql {
       return
     }
   }
-  static async clear(showNotification) {
+
+  static async clearByUuid(showNotification, uuid: string) {
     try {
-      appDatabase.execute(`delete from favorite_sql`);
+      appDatabase.execute(`delete from favorite_sql where uuid=?`, [uuid]);
     } catch (e) {
       showNotification('error', "clear favorite sql failed", e);
       return
@@ -1077,6 +1081,55 @@ function extractFieldAndIDFromMouseEvent(e: MouseEvent) {
   return { field, id };
 }
 
+
+function editorPositionToEnd(editor: editor.IStandaloneCodeEditor) {
+  const model = editor.getModel();
+  const lastLine = model.getLineCount();
+  const lastColumn = model.getLineMaxColumn(lastLine);
+  // 设置光标位置到最后一行最后一列
+  editor.setPosition({ lineNumber: lastLine, column: lastColumn });
+
+}
+
+// is is control+s pressed 
+
+function isControlSave(e: KeyboardEvent) {
+  let os = platform();
+  const expect = 's';
+  return (os == 'macos' && e.metaKey && e.key == expect) ||
+    (os == 'windows' && e.ctrlKey && e.key == expect) ||
+    (os == 'linux' && e.ctrlKey && e.key == expect);
+}
+
+function isControlOpen(e: KeyboardEvent) {
+  let os = platform();
+  const expect = 'o';
+  return (os == 'macos' && e.metaKey && e.key == expect) ||
+    (os == 'windows' && e.ctrlKey && e.key == expect) ||
+    (os == 'linux' && e.ctrlKey && e.key == expect);
+}
+
+
+
+// some temp place for store some data
+// normally the store the data can be consume soon 
+// use to pass the parameter as some sql etc.... 
+
+class SomeTempStore {
+  static id = "temp-store-kfsdfwerwerqqq";
+  static set(data: any) {
+    return localStorage.setItem(SomeTempStore.id, JSON.stringify(data));
+  }
+  static get() {
+    let x = localStorage.getItem(SomeTempStore.id);
+    if (x) {
+      localStorage.removeItem(SomeTempStore.id);
+      return JSON.parse(x);
+    } else {
+      return null;
+    }
+  }
+}
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -1139,6 +1192,12 @@ export {
   RedisTableType,
   extractFieldAndIDFromMouseEvent,
   menuDivID,
+  editorPositionToEnd,
+  isControlSave,
+  isControlOpen,
+  SomeTempStore,
+
+
 };
 
 

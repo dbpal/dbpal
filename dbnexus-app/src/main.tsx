@@ -1,7 +1,7 @@
 'use strict';
 import ReactDOM from 'react-dom/client';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-import './app.css';
+
 import { App } from './comp/MainPage';
 import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
@@ -10,6 +10,7 @@ import { secondConfirm, windowInit } from './comp/helper';
 await windowInit(true, true);
 
 const currentWebview = await WebviewWindow.getCurrent();
+
 currentWebview.onCloseRequested(async (event) => {
   let confirm = await secondConfirm({
     title: 'close the window',
@@ -26,8 +27,8 @@ currentWebview.onCloseRequested(async (event) => {
       // close all webview
       await view.close();
     }
-    // close the current at last
-    await currentWebview.close();
+    // no need close current view just not calling `event.preventDefault()`
+    //  await currentWebview.close();
   }
 });
 

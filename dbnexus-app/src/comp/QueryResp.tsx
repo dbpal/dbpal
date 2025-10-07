@@ -21,7 +21,6 @@ import {
   ContextMenuContext,
   resetMuiDataRespWidth,
   SettingContext,
-  gridStyle,
   saveAndSetSize,
   ColumnWidth,
   MuiDataGridData,
@@ -225,11 +224,13 @@ function QueryResp_(props: { data: MuiDataGridData }) {
   const slots = useMemo(() => {
     return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
   }, []);
+  const gridStyle = useMemo(() => {
+    return {} as CSSProperties;
+  }, []);
   return (
     <div
       style={{
         height: '100%',
-
         display: 'flex',
         flexDirection: 'column',
       }}

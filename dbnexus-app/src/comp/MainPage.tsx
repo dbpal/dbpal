@@ -24,7 +24,7 @@ import {
   windowFocusChangeEvent,
   menuDivID,
 } from './helper.ts';
-
+import '../app.css';
 import { Box, Modal, Paper } from '@mui/material';
 import { EditConfigFile } from './EditConfigFile.tsx';
 import { ModalHeader } from './CommonComp.tsx';
@@ -115,7 +115,7 @@ function App() {
           center: true,
         });
         webview.once('tauri://created', () =>
-          console.log('create table view successfully')
+          console.log('create setting view successfully')
         );
         webview.once('tauri://error', (e) => {
           console.log('create webview failed' + e.payload.toString());
@@ -149,17 +149,6 @@ function App() {
   // shortcut
   useEffect(() => {
     document.addEventListener('keydown', shortCuts.callback);
-  }, []);
-
-  useEffect(() => {
-    let unlisten = listen('show_setting', () => {
-      showSetting();
-    });
-    return () => {
-      unlisten.then((e) => {
-        e();
-      });
-    };
   }, []);
 
   const [showEditConfig, setShowEditConfig] = useState(false);
@@ -227,7 +216,8 @@ function App() {
                 >
                   <Panel
                     style={{
-                      overflow: 'auto',
+                      overflowY: 'auto',
+                      overflowX: 'hidden',
                       height: '100%',
                     }}
                     minSize={10}
@@ -341,8 +331,7 @@ function SeparateWindow(props: { children }) {
                 height: '100vh',
               }}
             >
-              {' '}
-              {children}{' '}
+              {children}
             </div>
             <div
               id={menuDivID}

@@ -362,25 +362,38 @@ impl From<Arc<dyn dbnexus_db::db::SchemaTrait>> for DatabaseBackend {
     }
 }
 
-/// all the databases
 #[derive(Clone, Default)]
 pub struct DBPal {
+    /// all the databases
     pub backend: Arc<Mutex<HashMap<String, DatabaseBackend>>>,
     pub saved_password: Arc<DashMap<String, String>>,
+    pub backend_crash_msg: BackendCrashMsg,
+}
+
+#[derive(Default, Clone)]
+pub struct BackendCrashMsg {
     pub backend_crash_msg: Arc<DashMap<u32, String>>,
     pub backend_crash_next_id: NextId,
+}
+
+impl BackendCrashMsg {
+    #[allow(unused)]
+    pub(crate) fn set(&self, msg: String) -> u32 {
+        let id = self.backend_crash_next_id.next();
+        self.backend_crash_msg.insert(id, msg);
+        id
+    }
+    pub(crate) fn get(&self, id: u32) -> String {
+        self.backend_crash_msg
+            .remove(&id)
+            .map(|x| x.1)
+            .unwrap_or_default()
+    }
 }
 
 impl DBPal {
     pub fn new() -> Self {
         Default::default()
-    }
-
-    #[allow(unused)]
-    pub(crate) fn set_backend_crash_msg(&self, msg: String) -> u32 {
-        let id = self.backend_crash_next_id.next();
-        self.backend_crash_msg.insert(id, msg);
-        id
     }
 }
 type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;

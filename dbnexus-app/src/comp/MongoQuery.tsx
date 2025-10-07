@@ -71,8 +71,15 @@ function MongoQuery(props: {
   favoriteName?: string;
   saveFavoriteSql: (name: string, sql: string) => void;
   value?: string;
+  height?: string;
 }) {
-  const { uuid, favoriteName: oldFavoriteName, saveFavoriteSql, value } = props;
+  const {
+    uuid,
+    favoriteName: oldFavoriteName,
+    saveFavoriteSql,
+    value,
+    height,
+  } = props;
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
   const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
   const [showQueryLog, setShowQueryLog] = useState(false);
@@ -119,6 +126,7 @@ function MongoQuery(props: {
   const { showNotification } = useContext(NotificationContext);
   const jsCodeMount = (ed: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
     editor.current = ed;
+    ed.focus();
     ed.onDidChangeCursorPosition(() => {
       setPos(ed.getPosition());
     });
@@ -202,7 +210,10 @@ function MongoQuery(props: {
   }, [keyEscCancelLog]);
 
   return (
-    <Stack spacing={1} style={{ position: 'relative' }}>
+    <Stack
+      spacing={1}
+      style={{ position: 'relative', height: height ? height : '90vh' }}
+    >
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <QueryLog
           showQueryLog={showQueryLog}
@@ -288,9 +299,9 @@ function MongoQuery(props: {
 
       <div
         style={{
-          height: '80vh',
           display: 'flex',
           flexDirection: 'column',
+          flex: 1,
           width: '100%',
         }}
       >
@@ -321,6 +332,7 @@ function MongoQuery(props: {
           display: showLog ? 'flex' : 'none',
           flexDirection: 'column',
           zIndex: 14,
+          opacity: showLog ? 0.8 : 0,
         }}
         elevation={16}
       >

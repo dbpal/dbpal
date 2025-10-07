@@ -64,7 +64,6 @@ import {
   ContextMenuContext,
   DataSourceKind,
   generateRandomString,
-  gridStyle,
   handleCopyToClipboard,
   isTypeLargeText,
   ErrAndLoc,
@@ -80,6 +79,7 @@ import {
   quoteIdentifier,
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
+  editorPositionToEnd,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
@@ -144,6 +144,7 @@ function SetFilterSort(props: {
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [modalBox, setModalBox] = useState(null);
   const { showNotification } = useContext(NotificationContext);
+  const setting = useContext(SettingContext);
   useEffect(() => {
     if (modalBox) {
       let c = saveAndSetSize(modalBox, 'where-sort');
@@ -180,14 +181,18 @@ function SetFilterSort(props: {
       >
         <ModalHeader title={`set ${label}`}></ModalHeader>
         <SimpleFlexEditor
-          value={makeFormatFn(kind, showNotification)(
-            label == 'filter'
-              ? `select * from ${tableName} where ${value}`
-              : `select * from ${tableName} order by ${value}`,
-            { tabSize: 4, insertSpaces: true }
-          )}
+          value={
+            makeFormatFn(kind, showNotification)(
+              label == 'filter'
+                ? `SELECT * FROM ${tableName} WHERE ${value}`
+                : `SELECT * FROM ${tableName} ORDER BY ${value}`,
+              { tabSize: setting.tabSize, insertSpaces: true }
+            ) + ' '
+          }
           handleEditor={(e) => {
             editor.current = e;
+            e.focus();
+            editorPositionToEnd(e);
             SetAutoCompletionName.set(
               e.getModel().id,
               new NameAndQueryId(uuid)
@@ -681,7 +686,7 @@ function SqlTableView_(props: {
     return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
   }, []);
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack
         direction="row"
         spacing={1}
@@ -800,12 +805,11 @@ function SqlTableView_(props: {
           <ExecutingTime loading={loading}></ExecutingTime>
         </Stack>
       </Stack>
-      <div style={{ display: 'grid' }}>
+      <div style={{ display: 'grid', height: '100px', flex: 1 }}>
         <DataGrid
           showToolbar
           slots={slots}
           loading={loading}
-          style={gridStyle}
           showCellVerticalBorder
           showColumnVerticalBorder
           slotProps={slotProps}

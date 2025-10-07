@@ -772,12 +772,7 @@ pub async fn is_dangerous_sql(
 pub async fn get_backend_crash(
     id: u32, app: tauri::State<'_, DBPal>,
 ) -> Result<String, ErrorFrontend> {
-    Ok(app
-        .backend_crash_msg
-        .get(&id)
-        .map(|x| x.clone())
-        .unwrap_or_default()
-        .clone())
+    Ok(app.backend_crash_msg.get(id))
 }
 
 #[tauri::command]

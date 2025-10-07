@@ -1,6 +1,6 @@
 'use strict';
 import ReactDOM from 'react-dom/client';
-import './app.css';
+
 import { windowInit } from './comp/helper.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
 import React from 'react';

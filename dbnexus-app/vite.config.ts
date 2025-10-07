@@ -21,6 +21,8 @@ export default defineConfig(async ({ command }) => {
           setting: resolve(__dirname, 'setting.html'),
           add_connection: resolve(__dirname, 'add_connection.html'),
           log_file: resolve(__dirname, 'log_file.html'),
+          info: resolve(__dirname, 'info.html'),
+          query_response: resolve(__dirname, 'query_response.html'),
         }
       }
     },
