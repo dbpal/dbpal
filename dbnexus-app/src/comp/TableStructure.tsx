@@ -297,7 +297,9 @@ function ColumnsStructure(props: {
         )}
       </Stack>
 
-      <div style={{ display: 'grid', flex: 1, height: '100px' }}>
+      <div
+        style={{ display: 'grid', flexGrow: 1, flexShrink: 1, height: '100px' }}
+      >
         <DataGrid
           showToolbar
           getRowId={getRowId}
@@ -607,7 +609,9 @@ function IndexesStructure(props: {
         </Button>
       </Stack>
 
-      <div style={{ display: 'grid', flex: 1, height: '100px' }}>
+      <div
+        style={{ display: 'grid', flexGrow: 1, flexShrink: 1, height: '100px' }}
+      >
         <DataGrid
           showToolbar
           getRowId={getRowId}
@@ -1613,7 +1617,9 @@ function TriggersStructure(props: {
         )}
       </Stack>
 
-      <div style={{ display: 'grid', flex: 1, height: '100px' }}>
+      <div
+        style={{ display: 'grid', flexGrow: 1, flexShrink: 1, height: '100px' }}
+      >
         <DataGrid
           showToolbar
           getRowId={getRowId}

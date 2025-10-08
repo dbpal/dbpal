@@ -412,7 +412,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
           reload
         </Button>
       </Stack>
-      <div style={{ display: 'grid', flex: 1, height: '100%' }}>
+      <div style={{ display: 'grid', flex: 1, height: '100px' }}>
         <DataGrid
           showToolbar
           getRowId={getRowId}

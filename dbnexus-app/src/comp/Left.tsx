@@ -496,7 +496,9 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
         </Tooltip>
       </Stack>
 
-      <div style={{ display: 'grid', flex: 1, height: '100px' }}>
+      <div
+        style={{ display: 'grid', flexGrow: 1, flexShrink: 1, height: '100px' }}
+      >
         <DataGrid
           showToolbar
           getRowId={getRowId}
@@ -873,7 +875,9 @@ function FavoriteSqlList(props: { handleClose }) {
           </>
         )}
       </Stack>
-      <div style={{ display: 'grid', flex: 1, height: '200px' }}>
+      <div
+        style={{ display: 'grid', flexGrow: 1, flexShrink: 1, height: '100px' }}
+      >
         <DataGrid
           showToolbar
           sortModel={sortModel}

@@ -179,7 +179,6 @@ function QueryLog(props: {
         zIndex: 13,
         width: '75%',
         display: showQueryLog ? 'flex' : 'none',
-        opacity: showQueryLog ? 0.8 : 0,
         height: '65%',
         flexDirection: 'column',
       }}

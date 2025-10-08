@@ -886,7 +886,14 @@ function RedisSetTable(props: {
       </Stack>
 
       {resp && (
-        <div style={{ display: 'grid', flex: 1, height: '100px' }}>
+        <div
+          style={{
+            display: 'grid',
+            flexGrow: 1,
+            flexShrink: 1,
+            height: '100px',
+          }}
+        >
           <DataGrid
             showToolbar
             showCellVerticalBorder
@@ -1197,7 +1204,14 @@ function RedisListTable(props: {
       </Stack>
 
       {resp && (
-        <div style={{ display: 'grid', flex: 1, height: '100px' }}>
+        <div
+          style={{
+            display: 'grid',
+            flexGrow: 1,
+            flexShrink: 1,
+            height: '100px',
+          }}
+        >
           <DataGrid
             showToolbar
             loading={loading}
@@ -1528,7 +1542,14 @@ function RedisZsetTable(props: {
       </Stack>
 
       {resp && (
-        <div style={{ display: 'grid', flex: 1, height: '100px' }}>
+        <div
+          style={{
+            display: 'grid',
+            flexGrow: 1,
+            flexShrink: 1,
+            height: '100px',
+          }}
+        >
           <DataGrid
             showToolbar
             onColumnResize={onColumnResize}
@@ -1807,7 +1828,14 @@ function RedisHashTable(props: {
       </Stack>
 
       {resp && (
-        <div style={{ display: 'grid', flex: 1, height: '100px' }}>
+        <div
+          style={{
+            display: 'grid',
+            flexGrow: 1,
+            flexShrink: 1,
+            height: '100px',
+          }}
+        >
           <DataGrid
             showToolbar
             onColumnResize={onColumnResize}

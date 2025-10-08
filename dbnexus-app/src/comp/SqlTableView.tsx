@@ -692,7 +692,7 @@ function SqlTableView_(props: {
     return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
   }, []);
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
+    <Stack spacing={1} style={{ height: '99%' }}>
       <Stack
         direction="row"
         spacing={1}
@@ -811,7 +811,14 @@ function SqlTableView_(props: {
           <ExecutingTime loading={loading}></ExecutingTime>
         </Stack>
       </Stack>
-      <div style={{ display: 'grid', height: '100px', flex: 1 }}>
+      <div
+        style={{
+          display: 'grid',
+          height: '100px',
+          flexGrow: 1,
+          flexShrink: 1,
+        }}
+      >
         <DataGrid
           showToolbar
           slots={slots}
