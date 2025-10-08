@@ -52,6 +52,7 @@ import {
   ColumnWidth,
   ConnTypeContext,
   ContextMenuContext,
+  dataGridParentStyle,
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
   generateRandomString,
@@ -412,7 +413,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
           reload
         </Button>
       </Stack>
-      <div style={{ display: 'grid', flex: 1, height: '100px' }}>
+      <div style={{ ...dataGridParentStyle }}>
         <DataGrid
           showToolbar
           getRowId={getRowId}

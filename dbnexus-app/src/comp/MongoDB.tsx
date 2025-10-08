@@ -85,6 +85,7 @@ import {
   validJson,
   SavePageSize,
   MuiDataGridData,
+  dataGridParentStyle,
 } from './helper';
 import { EditorBar, SimpleFlexEditor } from './CommonComp2';
 import { message } from '@tauri-apps/plugin-dialog';
@@ -1344,7 +1345,7 @@ function MongoTableList(props: {
   return (
     <Stack style={{ height: '100%' }}>
       {resp && (
-        <div style={{ display: 'grid', height: '100px', flex: 1 }}>
+        <div style={{ ...dataGridParentStyle }}>
           <DataGrid
             showToolbar
             loading={loading}

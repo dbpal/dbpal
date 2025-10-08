@@ -1115,6 +1115,16 @@ interface DetachQueyRespViewPara {
   eventName: string,
 }
 
+const dataGridParentStyle = {
+  display: 'grid',
+  height: '100px',
+  flexGrow: 1,
+  flexShrink: 1,
+  // 这个值用 0% 在windows也有问题好像会把datagrid变得很高 用0 都可以 用0% 都不可以 然而flex为1 设置的值是0% 可能是兼容性的问题
+  flexBasis: '0'
+} as CSSProperties;
+
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -1178,6 +1188,7 @@ export {
   isControlSave,
   isControlOpen,
   SomeTempStore,
+  dataGridParentStyle
 
 };
 

@@ -18,6 +18,7 @@ import {
 import {
   ColumnWidth,
   ContextMenuContext,
+  dataGridParentStyle,
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
   handleCopyToClipboard,
@@ -297,9 +298,7 @@ function ColumnsStructure(props: {
         )}
       </Stack>
 
-      <div
-        style={{ display: 'grid', flexGrow: 1, flexShrink: 1, height: '100px' }}
-      >
+      <div style={{ ...dataGridParentStyle }}>
         <DataGrid
           showToolbar
           getRowId={getRowId}
@@ -609,9 +608,7 @@ function IndexesStructure(props: {
         </Button>
       </Stack>
 
-      <div
-        style={{ display: 'grid', flexGrow: 1, flexShrink: 1, height: '100px' }}
-      >
+      <div style={{ ...dataGridParentStyle }}>
         <DataGrid
           showToolbar
           getRowId={getRowId}
@@ -1617,9 +1614,7 @@ function TriggersStructure(props: {
         )}
       </Stack>
 
-      <div
-        style={{ display: 'grid', flexGrow: 1, flexShrink: 1, height: '100px' }}
-      >
+      <div style={{ ...dataGridParentStyle }}>
         <DataGrid
           showToolbar
           getRowId={getRowId}

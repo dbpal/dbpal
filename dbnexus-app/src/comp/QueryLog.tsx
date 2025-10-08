@@ -17,6 +17,7 @@ import {
   GridSortModel,
 } from '@mui/x-data-grid';
 import {
+  CSSProperties,
   useCallback,
   useContext,
   useEffect,
@@ -35,6 +36,8 @@ import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import {
   ColumnWidth,
+  dataGridParentStyle,
+  gridStyle,
   QueryLogHandler,
   saveAndSetSize,
   secondConfirm,
@@ -169,7 +172,9 @@ function QueryLog(props: {
       return c;
     }
   }, [modalBox]);
-
+  const gridStyle = useMemo(() => {
+    return {} as CSSProperties;
+  }, []);
   return (
     <Paper
       style={{
@@ -179,7 +184,6 @@ function QueryLog(props: {
         zIndex: 13,
         width: '75%',
         display: showQueryLog ? 'flex' : 'none',
-        height: '65%',
         flexDirection: 'column',
       }}
       elevation={16}
@@ -235,13 +239,14 @@ function QueryLog(props: {
         )}
       </Stack>
 
-      <div style={{ display: 'grid', flex: 1, height: '100px' }}>
+      <div style={{ display: 'grid' }}>
         <DataGrid
           showToolbar
           showCellVerticalBorder
           showColumnVerticalBorder
           onRowDoubleClick={onRowDoubleClick}
           columns={columns}
+          style={gridStyle}
           rows={logs}
           rowHeight={setting.datagridRowHeightXXX()}
           columnHeaderHeight={setting.datagridRowHeightXXX()}

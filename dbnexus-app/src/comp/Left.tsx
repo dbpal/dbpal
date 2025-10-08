@@ -64,6 +64,7 @@ import {
   ConnTypeContext,
   connTypeToDataSourceKind,
   ContextMenuContext,
+  dataGridParentStyle,
   DataSourceKind,
   extractConfigNameFromUuid,
   extractFieldAndIDFromMouseEvent,
@@ -496,9 +497,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
         </Tooltip>
       </Stack>
 
-      <div
-        style={{ display: 'grid', flexGrow: 1, flexShrink: 1, height: '100px' }}
-      >
+      <div style={{ ...dataGridParentStyle }}>
         <DataGrid
           showToolbar
           getRowId={getRowId}
@@ -875,9 +874,7 @@ function FavoriteSqlList(props: { handleClose }) {
           </>
         )}
       </Stack>
-      <div
-        style={{ display: 'grid', flexGrow: 1, flexShrink: 1, height: '100px' }}
-      >
+      <div style={{ ...dataGridParentStyle }}>
         <DataGrid
           showToolbar
           sortModel={sortModel}

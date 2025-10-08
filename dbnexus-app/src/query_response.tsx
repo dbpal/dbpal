@@ -8,10 +8,7 @@ import {
 } from './comp/helper.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
 import React, { useEffect, useState } from 'react';
-
 import { MultiQueryResp } from './comp/QueryResp.tsx';
-
-import { Typography } from '@mui/material';
 import { emit, listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -46,7 +43,6 @@ function QueryResponse() {
 
   return (
     <div style={{ height: '100%' }}>
-      {resp.length == 0 && <Typography color="info"> no results </Typography>}
       <MultiQueryResp data={resp}></MultiQueryResp>
     </div>
   );

@@ -55,6 +55,7 @@ import {
   SavePageSize,
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
+  dataGridParentStyle,
 } from './helper.ts';
 
 import { ExecutingTime, ModalHeader, pageSizeOptions } from './CommonComp.tsx';
@@ -888,10 +889,7 @@ function RedisSetTable(props: {
       {resp && (
         <div
           style={{
-            display: 'grid',
-            flexGrow: 1,
-            flexShrink: 1,
-            height: '100px',
+            ...dataGridParentStyle,
           }}
         >
           <DataGrid
@@ -1206,10 +1204,7 @@ function RedisListTable(props: {
       {resp && (
         <div
           style={{
-            display: 'grid',
-            flexGrow: 1,
-            flexShrink: 1,
-            height: '100px',
+            ...dataGridParentStyle,
           }}
         >
           <DataGrid
@@ -1544,10 +1539,7 @@ function RedisZsetTable(props: {
       {resp && (
         <div
           style={{
-            display: 'grid',
-            flexGrow: 1,
-            flexShrink: 1,
-            height: '100px',
+            ...dataGridParentStyle,
           }}
         >
           <DataGrid
@@ -1830,10 +1822,7 @@ function RedisHashTable(props: {
       {resp && (
         <div
           style={{
-            display: 'grid',
-            flexGrow: 1,
-            flexShrink: 1,
-            height: '100px',
+            ...dataGridParentStyle,
           }}
         >
           <DataGrid

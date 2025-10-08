@@ -76,6 +76,7 @@ import {
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
   editorPositionToEnd,
+  dataGridParentStyle,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
@@ -692,7 +693,7 @@ function SqlTableView_(props: {
     return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
   }, []);
   return (
-    <Stack spacing={1} style={{ height: '99%' }}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack
         direction="row"
         spacing={1}
@@ -813,16 +814,12 @@ function SqlTableView_(props: {
       </Stack>
       <div
         style={{
-          display: 'grid',
-          height: '100px',
-          flexGrow: 1,
-          flexShrink: 1,
+          ...dataGridParentStyle,
         }}
       >
         <DataGrid
           showToolbar
           slots={slots}
-          loading={loading}
           showCellVerticalBorder
           showColumnVerticalBorder
           slotProps={slotProps}
