@@ -66,7 +66,6 @@ function ModifySetting() {
   const [includeHeader, setIncludeHeader] = useState(true);
   const bgColorTextField = useRef<HTMLInputElement>(null);
   const [loggerLevel, setLoggerLevel] = useState('info');
-  const [loggerMaxSize, setLoggerMaxSize] = useState('1');
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState('2');
   const [maxTreeSize, setMaxTreeSize] = useState('50');
   const [saveQueryLog, setSaveQueryLog] = useState(true);
@@ -94,7 +93,7 @@ function ModifySetting() {
         setBgColor(setting.lightBgColor);
       }
       setLoggerLevel(setting.loggerLevel);
-      setLoggerMaxSize(setting.loggerMaxSize + '');
+
       setCsvDelimiter(setting.csvDelimiter);
       setIncludeHeader(setting.includeHeader);
       setMaxTreeSize(setting.maxTreeSize.toString());
@@ -151,7 +150,6 @@ function ModifySetting() {
       csvDelimiter: csvDelimiter,
       includeHeader: includeHeader,
       loggerLevel: loggerLevel,
-      loggerMaxSize: parseInt(loggerMaxSize),
       datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
       maxTreeSize: parseInt(maxTreeSize),
       saveQueryLog: saveQueryLog,
@@ -501,14 +499,6 @@ function ModifySetting() {
             setLoggerLevel(level);
           }}
         ></LogLevelSelection>
-        <TextField
-          value={loggerMaxSize}
-          label="max logger file size (MB)"
-          error={isNaN(parseInt(loggerMaxSize))}
-          onChange={(e) => {
-            setLoggerMaxSize(e.target.value);
-          }}
-        ></TextField>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">

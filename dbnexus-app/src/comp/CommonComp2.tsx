@@ -36,6 +36,7 @@ import {
   isControlSave,
   secondConfirm,
   SettingContext,
+  SomeTempStore,
   TabActiveContext,
 } from './helper';
 import { Editor, Monaco } from '@monaco-editor/react';
@@ -311,7 +312,6 @@ function SimpleFlexEditor(props: {
       fontWeight: setting.fontWeight,
       fontFamily: setting.fontFamily,
       readOnly,
-
       tabSize: setting.tabSize,
       ...setting.editorOption,
     };
@@ -370,9 +370,10 @@ function MenuConnectionInfo({ uuid }) {
       old.setFocus();
       return;
     }
+    SomeTempStore.set(uuid);
     const webview = new WebviewWindow(generateRandomString(), {
       title: 'add connection',
-      url: 'info.html?uuid=' + uuid,
+      url: 'info.html',
       width: 800,
       height: 600,
     });

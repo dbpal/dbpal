@@ -28,7 +28,9 @@ interface NotificationContextProps {
 }
 
 export const NotificationContext = createContext<NotificationContextProps>({
-  showNotification: () => {},
+  showNotification: (...args) => {
+    console.error('should not call this function is is bug ,args :', args);
+  },
 });
 
 interface NotificationProviderProps {

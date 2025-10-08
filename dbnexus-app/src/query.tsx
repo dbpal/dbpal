@@ -2,8 +2,8 @@
 import ReactDOM from 'react-dom/client';
 import React, { useEffect, useState } from 'react';
 import {
-  connTypeToDataSourceKind,
   DataSourceKind,
+  FavoriteSql,
   secondConfirm,
   SetCloseConfirmTextContext,
   SomeTempStore,
@@ -16,20 +16,16 @@ import { AllKindQuery } from './comp/Left.tsx';
 import { Typography } from '@mui/material';
 
 webviewWIndowInit(false);
-const params = new URLSearchParams(location.search);
 
-const uuid = params.get('uuid');
-const kind = connTypeToDataSourceKind(params.get('kind'));
+let sqlData = SomeTempStore.get<FavoriteSql>();
 let err;
-await initMonacoLanguage(uuid, kind, (msg) => {
+await initMonacoLanguage(sqlData.uuid, sqlData.kind, (msg) => {
   err = msg;
 });
 
 // close confirm message
 // when in transaction prevent user to close the window
 let cc;
-
-let sqlData = SomeTempStore.get();
 
 function Query(props: {
   uuid: string;
@@ -78,10 +74,10 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <SeparateWindow>
       <Query
-        uuid={uuid}
-        kind={kind}
-        sql={sqlData && sqlData.sql}
-        favoriteName={sqlData && sqlData.name}
+        uuid={sqlData.uuid}
+        kind={sqlData.kind}
+        sql={sqlData.sql}
+        favoriteName={sqlData.name}
       ></Query>
     </SeparateWindow>
   </React.StrictMode>

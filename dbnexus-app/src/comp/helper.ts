@@ -720,7 +720,6 @@ class UserSetting {
   datagridRowHeightFactor = 2;
   maxTreeSize: number = 150;
   loggerLevel: string = 'info';
-  loggerMaxSize: number = 1;
   saveQueryLog: boolean = true;
   maxTabTitleLength: number = 12;
   autoStart: boolean = false;
@@ -1085,16 +1084,37 @@ class SomeTempStore {
   static set(data: any) {
     return localStorage.setItem(SomeTempStore.id, JSON.stringify(data));
   }
-  static get() {
-    let x = localStorage.getItem(SomeTempStore.id);
-    if (x) {
-      localStorage.removeItem(SomeTempStore.id);
-      return JSON.parse(x);
-    } else {
+  static get<T>(): T {
+    try {
+      let x = localStorage.getItem(SomeTempStore.id);
+      if (x) {
+        // localStorage.removeItem(SomeTempStore.id);
+        return JSON.parse(x) as T;
+      } else {
+        return null;
+      }
+    } catch (e) {
+      console.log("get config failed", e);
       return null;
     }
   }
 }
+
+
+interface NewWindowTableParameter {
+  uuid: string,
+  table: string,
+  kind: DataSourceKind,
+  redisTableType: RedisTableType,
+  isTable?: boolean
+}
+
+interface DetachQueyRespViewPara {
+  uuid: string,
+  queryId: number,
+  eventName: string,
+}
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -1158,8 +1178,9 @@ export {
   isControlSave,
   isControlOpen,
   SomeTempStore,
+
 };
 
 
-export type { ErrAndLoc }
+export type { ErrAndLoc, NewWindowTableParameter, DetachQueyRespViewPara }
 

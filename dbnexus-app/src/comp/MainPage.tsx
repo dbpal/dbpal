@@ -117,8 +117,8 @@ function App() {
   return (
     <SettingComp>
       <TabsSetContext.Provider value={{ setTabs, tabs, setSelectTab: setTab }}>
-        <Menu>
-          <NotificationProvider>
+        <NotificationProvider>
+          <Menu>
             <WindowFocus>
               <div>
                 <PanelGroup
@@ -164,8 +164,8 @@ function App() {
                 </PanelGroup>
               </div>
             </WindowFocus>
-          </NotificationProvider>
-        </Menu>
+          </Menu>
+        </NotificationProvider>
       </TabsSetContext.Provider>
     </SettingComp>
   );

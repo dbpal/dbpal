@@ -11,22 +11,21 @@ import {
   getEditorText,
   makeExecuteSql,
   makeGetParserErr,
-  saveAndSetSize,
   SettingContext,
 } from './helper';
 import { MultiQueryResp } from './QueryResp';
 import { editor } from 'monaco-editor';
 import { SimpleFlexEditor } from './CommonComp2';
 import types from './ApiStruct';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 function DefAndMetasView(props: {
   reloadOP: () => Promise<DefAndMetas>;
   uuid: string;
   kind: DataSourceKind;
   showReload?: boolean;
-  heightName?: string;
 }) {
-  let { reloadOP, kind, showReload, heightName, uuid } = props;
+  let { reloadOP, kind, showReload, uuid } = props;
   const setting = useContext(SettingContext);
   const executeOP = makeExecuteSql(uuid, setting.saveQueryLog);
   const getParseErr = makeGetParserErr(uuid);
@@ -71,62 +70,44 @@ function DefAndMetasView(props: {
         setExecuteLoading(false);
       });
   };
-
   useEffect(() => {
     handleReload(false);
   }, []);
-  const [dom, setDom] = useState(null);
-  useEffect(() => {
-    if (dom) {
-      let c = saveAndSetSize(
-        dom,
-        heightName ? heightName : 'udf-metas-view',
-        'height'
-      );
-      return c;
-    }
-  }, [dom]);
   return (
-    <Stack spacing={1} style={{ minHeight: '18vh' }}>
-      <Stack direction="row" spacing={1}>
-        {showReload && (
-          <Button
-            loading={loading}
-            color="primary"
-            onClick={() => {
-              handleReload(true);
-            }}
-          >
-            reload
-          </Button>
-        )}
-        <Tooltip title="execute the sql">
-          <Button
-            loading={executeLoading}
-            color="success"
-            style={{
-              minWidth: '3rem',
-            }}
-            onClick={() => {
-              handleExecute();
-            }}
-          >
-            execute!
-          </Button>
-        </Tooltip>
-      </Stack>
-      {detail.def && (
-        <div
-          ref={setDom}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'auto',
-            minHeight: '15vh',
-            resize: 'vertical',
-            height: '18vh',
-          }}
-        >
+    <PanelGroup
+      autoSaveId="udf-and-meta-view"
+      direction="vertical"
+      style={{ height: '100%' }}
+    >
+      <Panel style={{ display: 'flex', flexDirection: 'column' }}>
+        <Stack direction="row" spacing={1}>
+          {showReload && (
+            <Button
+              loading={loading}
+              color="primary"
+              onClick={() => {
+                handleReload(true);
+              }}
+            >
+              reload
+            </Button>
+          )}
+          <Tooltip title="execute the sql">
+            <Button
+              loading={executeLoading}
+              color="success"
+              style={{
+                minWidth: '3rem',
+              }}
+              onClick={() => {
+                handleExecute();
+              }}
+            >
+              execute!
+            </Button>
+          </Tooltip>
+        </Stack>
+        {detail.def && (
           <SimpleFlexEditor
             language={kind}
             value={detail.def}
@@ -151,16 +132,41 @@ function DefAndMetasView(props: {
               )}
             </Stack>
           ></SimpleFlexEditor>
-        </div>
-      )}
-      <MultiQueryResp data={queryResp} />
-      {detail.metas && detail.metas.length > 0 && (
+        )}
+      </Panel>
+
+      {(queryResp.length > 0 || (detail.metas && detail.metas.length > 0)) && (
         <>
-          <Typography variant={titleVariant}> Some Metas </Typography>
-          <MetaValueView values={detail.metas}></MetaValueView>
+          <PanelResizeHandle
+            style={{ height: '4px' }}
+            className="resize-handle"
+          ></PanelResizeHandle>
+          <Panel
+            minSize={10}
+            collapsible
+            collapsedSize={0}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {queryResp.length > 0 && (
+              <div style={{ height: '100px', flex: 1 }}>
+                <MultiQueryResp data={queryResp} />
+              </div>
+            )}
+            {detail.metas && detail.metas.length > 0 && (
+              <>
+                <Typography variant={titleVariant}> Some Metas </Typography>
+                <div style={{ height: '100px', flex: 1 }}>
+                  <MetaValueView values={detail.metas}></MetaValueView>
+                </div>
+              </>
+            )}
+          </Panel>
         </>
       )}
-    </Stack>
+    </PanelGroup>
   );
 }
 
@@ -201,7 +207,6 @@ function TriggerDetail(props: {
 
   return (
     <DefAndMetasView
-      heightName="trigger-detail"
       kind={kind}
       reloadOP={async () => {
         return reloadOP().then((detail) => {

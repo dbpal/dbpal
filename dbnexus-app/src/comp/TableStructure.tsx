@@ -11,6 +11,7 @@ import types from './ApiStruct';
 import {
   DefAndMetas,
   EscDownEvent,
+  makeShowTableColumn,
   modalHandleClose,
   modalStyle,
 } from './Common';
@@ -19,7 +20,6 @@ import {
   ContextMenuContext,
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
-  gridStyle,
   handleCopyToClipboard,
   saveAndSetSize,
   secondConfirm,
@@ -124,10 +124,7 @@ function ColumnsStructure(props: {
   const [showAdd, setShowAdd] = useState(false);
   const handleReload = () => {
     setLoading(true);
-    invoke<types.Field[]>('show_table_columns', {
-      name: uuid,
-      tableName: table,
-    })
+    makeShowTableColumn(uuid, table)()
       .then((fs) => {
         setFields(fs);
       })
@@ -278,7 +275,7 @@ function ColumnsStructure(props: {
     }
   }, [row]);
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <Button loading={loading} onClick={handleReload}>
           reload
@@ -300,12 +297,11 @@ function ColumnsStructure(props: {
         )}
       </Stack>
 
-      <div style={{ display: 'grid' }}>
+      <div style={{ display: 'grid', flex: 1, height: '100px' }}>
         <DataGrid
           showToolbar
           getRowId={getRowId}
           slotProps={slotProps}
-          style={gridStyle}
           onColumnResize={onColumnResize}
           showCellVerticalBorder
           showColumnVerticalBorder
@@ -596,7 +592,7 @@ function IndexesStructure(props: {
     }
   }, [modalBox]);
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack direction="row" spacing={1}>
         <Button loading={loading} onClick={handleReload}>
           reload
@@ -611,11 +607,10 @@ function IndexesStructure(props: {
         </Button>
       </Stack>
 
-      <div style={{ display: 'grid' }}>
+      <div style={{ display: 'grid', flex: 1, height: '100px' }}>
         <DataGrid
           showToolbar
           getRowId={getRowId}
-          style={gridStyle}
           slotProps={slotProps}
           onColumnResize={onColumnResize}
           showCellVerticalBorder
@@ -826,10 +821,7 @@ function AddIndex(props: {
   }
 
   useEffect(() => {
-    invoke<types.Field[]>('show_table_columns', {
-      name: uuid,
-      tableName: table,
-    })
+    makeShowTableColumn(uuid, table)()
       .then((e) => {
         setFields(e);
         e;
@@ -1400,6 +1392,72 @@ function triggerIsEnable(enable: types.TriggerEnable): boolean {
   }
 }
 
+function TriggerMenu(props: {
+  content: string;
+  detail: types.TriggerDetail;
+  handleEnables;
+  handleDrop;
+}) {
+  const { content, detail, handleEnables, handleDrop } = props;
+  const { showNotification } = useContext(NotificationContext);
+  let enable;
+  if (detail.enable) {
+    enable = triggerIsEnable(detail.enable) ? (
+      <MenuItem
+        sx={{ color: 'error.main' }}
+        onClick={() => {
+          handleEnables('disable_trigger', detail.name, 'Disable trigger');
+        }}
+      >
+        <ListItemIcon>
+          <CancelIcon></CancelIcon>
+        </ListItemIcon>
+        <ListItemText>Disable</ListItemText>
+      </MenuItem>
+    ) : (
+      <MenuItem
+        onClick={() => {
+          handleEnables('enable_trigger', detail.name, 'Enable trigger');
+        }}
+      >
+        <ListItemIcon>
+          <CheckCircleIcon></CheckCircleIcon>
+        </ListItemIcon>
+        <ListItemText>Enable</ListItemText>
+      </MenuItem>
+    );
+  }
+
+  return (
+    <MenuList>
+      {content && (
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> Copy </ListItemText>
+        </MenuItem>
+      )}
+
+      {enable}
+      <MenuItem
+        onClick={() => {
+          handleDrop(detail.name);
+        }}
+      >
+        <ListItemIcon>
+          <DeleteForeverIcon></DeleteForeverIcon>
+        </ListItemIcon>
+        <ListItemText> drop </ListItemText>
+      </MenuItem>
+    </MenuList>
+  );
+}
+
 function TriggersStructure(props: {
   uuid: string;
   kind: DataSourceKind;
@@ -1496,66 +1554,6 @@ function TriggersStructure(props: {
   });
   const { setUpMenu } = useContext(ContextMenuContext);
 
-  function Menu(props: { content: string; detail: types.TriggerDetail }) {
-    const { content, detail } = props;
-    let enable;
-    if (detail.enable) {
-      enable = triggerIsEnable(detail.enable) ? (
-        <MenuItem
-          sx={{ color: 'error.main' }}
-          onClick={() => {
-            handleEnables('disable_trigger', detail.name, 'Disable trigger');
-          }}
-        >
-          <ListItemIcon>
-            <CancelIcon></CancelIcon>
-          </ListItemIcon>
-          <ListItemText>Disable</ListItemText>
-        </MenuItem>
-      ) : (
-        <MenuItem
-          onClick={() => {
-            handleEnables('enable_trigger', detail.name, 'Enable trigger');
-          }}
-        >
-          <ListItemIcon>
-            <CheckCircleIcon></CheckCircleIcon>
-          </ListItemIcon>
-          <ListItemText>Enable</ListItemText>
-        </MenuItem>
-      );
-    }
-
-    return (
-      <MenuList>
-        {content && (
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}
-          >
-            <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-        )}
-
-        {enable}
-        <MenuItem
-          onClick={() => {
-            handleDrop(detail.name);
-          }}
-        >
-          <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
-          </ListItemIcon>
-          <ListItemText> drop </ListItemText>
-        </MenuItem>
-      </MenuList>
-    );
-  }
-
   const slotProps = useMemo(() => {
     return {
       row: {
@@ -1573,7 +1571,14 @@ function TriggersStructure(props: {
           );
           let detail = triggers.find((e) => e.name == name);
           setUpMenu({
-            content: <Menu detail={detail} content={content}></Menu>,
+            content: (
+              <TriggerMenu
+                detail={detail}
+                content={content}
+                handleDrop={handleDrop}
+                handleEnables={handleEnables}
+              ></TriggerMenu>
+            ),
             event: e,
           });
         },
@@ -1596,7 +1601,7 @@ function TriggersStructure(props: {
   }, []);
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <Button loading={loading} onClick={handleReload}>
           reload
@@ -1608,11 +1613,10 @@ function TriggersStructure(props: {
         )}
       </Stack>
 
-      <div style={{ display: 'grid' }}>
+      <div style={{ display: 'grid', flex: 1, height: '100px' }}>
         <DataGrid
           showToolbar
           getRowId={getRowId}
-          style={gridStyle}
           slotProps={slotProps}
           onColumnResize={onColumnResize}
           showCellVerticalBorder
@@ -1705,7 +1709,7 @@ function TableStructure(props: {
   }
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack direction="row" spacing={1} style={{ justifyContent: 'center' }}>
         {structures.map((e) => (
           <Chip
@@ -1775,7 +1779,7 @@ function StatementStructure(props: {
   };
 
   return (
-    <Stack>
+    <Stack style={{ height: '100%' }}>
       <DefAndMetasView
         reloadOP={async () => {
           return invoke<types.CreateTableAndIndexSql>(

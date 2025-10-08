@@ -1,7 +1,11 @@
 'use strict';
 import ReactDOM from 'react-dom/client';
 
-import { webviewWIndowInit } from './comp/helper.ts';
+import {
+  DetachQueyRespViewPara,
+  SomeTempStore,
+  webviewWIndowInit,
+} from './comp/helper.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
 import React, { useEffect, useState } from 'react';
 
@@ -12,15 +16,16 @@ import { emit, listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 
 webviewWIndowInit(false);
-const params = new URLSearchParams(location.search);
-const eventName = params.get('eventName');
-const uuid = params.get('uuid');
-const queryId = parseInt(params.get('query_id'));
+let { uuid, queryId, eventName } = SomeTempStore.get<DetachQueyRespViewPara>();
+
 function QueryResponse() {
   const [resp, setResp] = useState([]);
 
   const handleReload = () => {
-    invoke<any>('get_query_cache', { name: uuid, queryId }).then((data) => {
+    invoke<any>('get_query_cache', {
+      name: uuid,
+      queryId,
+    }).then((data) => {
       setResp(data);
     });
   };

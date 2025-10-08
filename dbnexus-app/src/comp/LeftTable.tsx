@@ -12,6 +12,8 @@ import {
   makeTableDelete,
   makeInvalidCassandraTableCache,
   makePutValueInSql,
+  makeShowTableColumn,
+  makeTableInsertFn,
 } from './Common';
 import types from './ApiStruct';
 import { NotificationContext } from './Notification';
@@ -81,6 +83,8 @@ import {
   MuiDataGridData,
   SettingContext,
   RedisTableType,
+  SomeTempStore,
+  NewWindowTableParameter,
 } from './helper';
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from './CommonComp';
 import { TableStructure } from './TableStructure';
@@ -503,13 +507,7 @@ function makeViewTable(
           updateOP={makeTableUpdate(uuid, table)}
           deleteOP={makeTableDelete(uuid, table)}
           put_value_in_sql={makePutValueInSql(uuid)}
-          addOP={async (values) => {
-            return invoke('table_insert', {
-              name: uuid,
-              tableName: table,
-              values,
-            });
-          }}
+          addOP={makeTableInsertFn(uuid, table)}
         ></SqlTableView>
       );
       break;
@@ -539,6 +537,7 @@ function AddTableView(props: {
 }) {
   const { uuid, table, kind, redisTableType } = props;
   const [fields, setFields] = useState<types.Field[]>([]);
+  const { showNotification } = useContext(NotificationContext);
   switch (kind) {
     case DataSourceKind.Redis:
       switch (redisTableType) {
@@ -635,25 +634,20 @@ function AddTableView(props: {
   }
 
   useEffect(() => {
-    invoke<types.Field[]>('show_table_columns', {
-      name: uuid,
-      tableName: table,
-    }).then((e) => {
-      setFields(e);
-    });
+    makeShowTableColumn(uuid, table)()
+      .then((e) => {
+        setFields(e);
+      })
+      .catch((e) => {
+        showNotification('error', 'list fields failed', e);
+      });
   }, []);
 
   return (
     <SqlTableViewData
       isAdd
       buttonName="add"
-      handleData={async (values) => {
-        return invoke('table_insert', {
-          name: uuid,
-          tableName: table,
-          values,
-        });
-      }}
+      handleData={makeTableInsertFn(uuid, table)}
       fields={fields}
     ></SqlTableViewData>
   );
@@ -694,18 +688,16 @@ function TableMenu(props: {
   };
 
   const handleviewDataNewWindow = () => {
+    SomeTempStore.set({
+      uuid,
+      table,
+      kind,
+      redisTableType: redisTableType,
+      isTable: true,
+    } as NewWindowTableParameter);
     const webview = new WebviewWindow(generateRandomString(), {
       title: table,
-      url:
-        'table_view.html?uuid=' +
-        uuid +
-        '&table=' +
-        table +
-        '&kind=' +
-        kind +
-        '&isTable=true' +
-        '&redisType=' +
-        redisTableType,
+      url: 'table_view.html',
       width: 800,
       height: 600,
       maximized: true,
@@ -759,19 +751,18 @@ function TableMenu(props: {
   };
   const handleAddDataNewWindow = async () => {
     const id = generateRandomString(10);
+    SomeTempStore.set({
+      uuid,
+      table,
+      kind,
+      redisTableType: redisTableType,
+    } as NewWindowTableParameter);
     const webview = new WebviewWindow(id, {
-      title: 'add connection',
-      url:
-        'table_add.html?uuid=' +
-        uuid +
-        '&table=' +
-        table +
-        '&kind=' +
-        kind +
-        '&redisTableType' +
-        redisTableType,
+      title: 'table insert',
+      url: 'table_add.html',
       width: 800,
       height: 600,
+      maximized: true,
     });
     webview.once('tauri://created', () =>
       console.log('create add connection view successfully')

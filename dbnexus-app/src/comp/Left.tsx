@@ -69,7 +69,6 @@ import {
   extractFieldAndIDFromMouseEvent,
   FavoriteSql,
   generateRandomString,
-  gridStyle,
   handleCopyToClipboard,
   makeGetParserErr,
   MatchPatternContext,
@@ -141,9 +140,10 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
     if (webview) {
       await webview.setFocus();
     } else {
+      SomeTempStore.set(conn);
       const webview = new WebviewWindow(id, {
         title: 'add connection',
-        url: 'add_connection.html?config=' + (conn ? JSON.stringify(conn) : ''),
+        url: 'add_connection.html',
         width: 800,
         height: 600,
       });
@@ -326,7 +326,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
             setShowFavoriteSql(false);
           })}
         >
-          <Box sx={modalStyle} width="75%">
+          <Box sx={modalStyle} width="75%" height="65vh">
             <ModalHeader title="Favorite SQL Statements"></ModalHeader>
             <FavoriteSqlList
               handleClose={() => {
@@ -344,7 +344,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
             setShowCopyConn(false);
           })}
         >
-          <Box sx={modalStyle} width="65%">
+          <Box sx={modalStyle} width="65%" height="60vh">
             <ModalHeader title="Copy Connection"></ModalHeader>
             <CopyConnection
               handleClose={() => {
@@ -480,7 +480,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   }, []);
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack direction="row">
         {conns.length == 0 && (
           <Button
@@ -496,10 +496,9 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
         </Tooltip>
       </Stack>
 
-      <div style={{ display: 'grid' }}>
+      <div style={{ display: 'grid', flex: 1, height: '100px' }}>
         <DataGrid
           showToolbar
-          style={gridStyle}
           getRowId={getRowId}
           sortModel={sortModel}
           onSortModelChange={onSortModelChange}
@@ -734,10 +733,10 @@ function FavoriteSqlList(props: { handleClose }) {
     if (!(await checkConnOpened(row.uuid))) {
       return;
     }
-    SomeTempStore.set({ sql: row.sql, name: row.name });
+    SomeTempStore.set(row);
     const webview = new WebviewWindow(generateRandomString(), {
       title: `query window of '${row.uuid}'`,
-      url: 'query.html?uuid=' + row.uuid + '&kind=' + row.kind,
+      url: 'query.html',
       width: 800,
       height: 600,
       maximized: true,
@@ -828,7 +827,7 @@ function FavoriteSqlList(props: { handleClose }) {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <FormControl style={{ width: '15rem' }}>
           <InputLabel> connection name </InputLabel>
@@ -874,10 +873,9 @@ function FavoriteSqlList(props: { handleClose }) {
           </>
         )}
       </Stack>
-      <div style={{ display: 'grid' }}>
+      <div style={{ display: 'grid', flex: 1, height: '200px' }}>
         <DataGrid
           showToolbar
-          style={gridStyle}
           sortModel={sortModel}
           onSortModelChange={onSortModelChange}
           showCellVerticalBorder
@@ -1447,9 +1445,10 @@ function openNewQuery(
   newWindow: boolean
 ) {
   if (newWindow) {
+    SomeTempStore.set({ uuid, kind });
     const webview = new WebviewWindow(generateRandomString(), {
       title: `query window of '${uuid}'`,
-      url: 'query.html?uuid=' + uuid + '&kind=' + kind,
+      url: 'query.html',
       width: 800,
       height: 600,
       maximized: true,

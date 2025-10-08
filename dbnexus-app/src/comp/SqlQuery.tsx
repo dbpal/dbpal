@@ -49,6 +49,7 @@ import { QueryLog, QueryLogKind } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import {
   DataSourceKind,
+  DetachQueyRespViewPara,
   ErrAndLoc,
   generateRandomString,
   getEditorText,
@@ -57,6 +58,7 @@ import {
   secondConfirm,
   SetCloseConfirmTextContext,
   SettingContext,
+  SomeTempStore,
   TabActiveContext,
 } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
@@ -688,15 +690,14 @@ function SqlQuery(props: {
                       return;
                     }
                   } else {
+                    SomeTempStore.set({
+                      uuid,
+                      queryId: conn.queryId,
+                      eventName: queryRespViewEventName.current,
+                    } as DetachQueyRespViewPara);
                     const webview = new WebviewWindow(generateRandomString(), {
                       title: `query result ${uuid}#${conn.queryId}`,
-                      url:
-                        'query_response.html?eventName=' +
-                        queryRespViewEventName.current +
-                        '&uuid=' +
-                        uuid +
-                        '&query_id=' +
-                        conn.queryId,
+                      url: 'query_response.html',
                       width: 800,
                       height: 600,
                       maximized: true,

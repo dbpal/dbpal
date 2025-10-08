@@ -1,146 +1,114 @@
 'use strict';
 import {
   Button,
-  Chip,
   FormControlLabel,
   IconButton,
   Stack,
   Switch,
-  Typography,
 } from '@mui/material';
 import { SimpleFlexEditor } from './CommonComp2';
 import { useContext, useEffect, useRef, useState } from 'react';
-import { appDataDir } from '@tauri-apps/api/path';
-import { family } from '@tauri-apps/plugin-os';
-import { NotificationContext } from './Notification';
-import { readFile, stat } from '@tauri-apps/plugin-fs';
 import { editor, Position } from 'monaco-editor';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { editorSetPositionAndReveal, SettingContext } from './helper';
-import { invoke } from '@tauri-apps/api/core';
-
-function getLogFilePath(): Promise<string> {
-  return appDataDir().then((e) => {
-    let name = 'dbpal.log';
-    return family() == 'windows' ? `${e}\\${name}` : `${e}/${name}`;
-  });
-}
+import {
+  editorSetPositionAndReveal,
+  SettingContext,
+  UserSetting,
+} from './helper';
+import { listen } from '@tauri-apps/api/event';
+import { LogLevelSelection } from './CommonComp';
+import { NotificationContext } from './Notification';
 
 function LogFile() {
-  const [value, setValue] = useState('');
-  const { showNotification } = useContext(NotificationContext);
-  const [modifyDate, setModifyDate] = useState<string>('');
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const setting = useContext(SettingContext);
   const [pinToBotton, setPinToBotton] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date().toLocaleString());
-  const handleReload = async () => {
-    let path;
-    try {
-      path = await getLogFilePath();
-    } catch (e) {
-      showNotification('error', 'get log file path error', e);
-      return;
-    }
-    try {
-      const content = await readFile(path);
-      const str = new TextDecoder().decode(content);
-      setValue(str);
-    } catch (e) {
-      showNotification('error', 'read log file error', e);
-      return;
-    }
-  };
+  const { showNotification } = useContext(NotificationContext);
   useEffect(() => {
-    handleReload();
-  }, [modifyDate]);
-  const handleTruncate = () => {
-    invoke('truncate_log_file')
-      .then(() => {
-        showNotification('success', 'truncate log file OK');
-      })
-      .catch((e) => {
-        showNotification('error', 'truncate log file error', e);
-      });
-  };
-
-  useEffect(() => {
-    const int = setInterval(() => {
-      (async () => {
-        let info = await stat(await getLogFilePath());
-        if (info.mtime) {
-          setModifyDate(info.mtime.toLocaleString());
-        }
-        setCurrentTime(new Date().toLocaleString());
-      })();
-    }, 1000);
+    const unlisten = listen<string>('log_stream', (e) => {
+      const model = editor.current.getModel()!; // 或 monaco.editor.getModels()[0]
+      const lastLine = model.getLineCount();
+      const lastCol = model.getLineMaxColumn(lastLine);
+      model.applyEdits([
+        {
+          range: {
+            startLineNumber: lastLine,
+            startColumn: lastCol,
+            endLineNumber: lastLine,
+            endColumn: lastCol,
+          },
+          text: e.payload,
+        },
+      ]);
+      if (pinToBotton) {
+        console.log('ping to botton');
+        editorSetPositionAndReveal(editor.current, new Position(lastLine, 1));
+      }
+    });
     return () => {
-      clearInterval(int);
+      unlisten.then((unlisten) => {
+        unlisten();
+      });
     };
-  }, []);
+  }, [pinToBotton]);
 
-  useEffect(() => {
-    if (pinToBotton) {
-      editorSetPositionAndReveal(
-        editor.current,
-        new Position(value.split('\n').length + 1, 1)
-      );
-    }
-  }, [value, pinToBotton]);
   return (
-    <Stack spacing={1} flex={1} height="95vh">
-      <Stack
-        direction="row"
-        spacing={1}
-        style={{ alignItems: 'center', justifyContent: 'space-between' }}
-      >
-        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
-          <IconButton
-            onClick={() => {
-              editorSetPositionAndReveal(editor.current, new Position(1, 1));
-            }}
-            color="primary"
-            disabled={pinToBotton}
-          >
-            <ArrowUpwardIcon></ArrowUpwardIcon>
-          </IconButton>
-          <IconButton
-            onClick={() => {
-              let lines = value.split('\n');
-              editorSetPositionAndReveal(
-                editor.current,
-                new Position(lines.length + 1, 1)
-              );
-            }}
-            color="primary"
-            disabled={pinToBotton}
-          >
-            <ArrowDownwardIcon></ArrowDownwardIcon>
-          </IconButton>
-          <Button onClick={handleTruncate} variant="outlined">
-            truncate
-          </Button>
-          <FormControlLabel
-            label="pin to bottom"
-            control=<Switch
-              checked={pinToBotton}
-              onChange={(e) => setPinToBotton(e.target.checked)}
-            />
-          ></FormControlLabel>
-          <Chip color="info" label={setting.loggerLevel}></Chip>
-          <Typography color="info">
-            max size:{setting.loggerMaxSize}MB
-          </Typography>
-        </Stack>
-        <Stack direction="row" spacing={1}>
-          <Typography color="info"> current time:{currentTime} </Typography>
-          <Typography color="info"> loaded at:{modifyDate} </Typography>
-        </Stack>
+    <Stack spacing={1} style={{ height: '100%' }}>
+      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+        <IconButton
+          onClick={() => {
+            editorSetPositionAndReveal(editor.current, new Position(1, 1));
+          }}
+          color="primary"
+          disabled={pinToBotton}
+        >
+          <ArrowUpwardIcon></ArrowUpwardIcon>
+        </IconButton>
+        <IconButton
+          onClick={() => {
+            const model = editor.current.getModel()!; // 或 monaco.editor.getModels()[0]
+            const lastLine = model.getLineCount();
+            editorSetPositionAndReveal(
+              editor.current,
+              new Position(lastLine, 1)
+            );
+          }}
+          color="primary"
+          disabled={pinToBotton}
+        >
+          <ArrowDownwardIcon></ArrowDownwardIcon>
+        </IconButton>
+        <Button
+          variant="outlined"
+          onClick={() => {
+            editor.current.getModel().setValue('');
+          }}
+        >
+          truncate
+        </Button>
+        <FormControlLabel
+          label="pin to bottom"
+          control=<Switch
+            checked={pinToBotton}
+            onChange={(e) => setPinToBotton(e.target.checked)}
+          />
+        ></FormControlLabel>
+        <LogLevelSelection
+          level={setting.loggerLevel}
+          handleChange={(level) => {
+            try {
+              UserSetting.set({ loggerLevel: level } as UserSetting);
+            } catch (e) {
+              showNotification('error', 'save log level failed', e);
+              return;
+            }
+          }}
+        ></LogLevelSelection>
       </Stack>
 
       <SimpleFlexEditor
-        value={value}
+        value={''}
         handleEditor={(ed) => {
           editor.current = ed;
         }}

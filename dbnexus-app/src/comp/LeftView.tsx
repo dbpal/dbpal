@@ -56,13 +56,13 @@ import {
   extractFieldAndIDFromMouseEvent,
   generateRandomString,
   getSupportExportKind,
-  gridStyle,
   handleCopyToClipboard,
   MatchPatternContext,
   MongoTableHandler,
-  saveAndSetSize,
+  NewWindowTableParameter,
   secondConfirm,
   SettingContext,
+  SomeTempStore,
   TabsSetContext,
   UuidContext,
 } from './helper';
@@ -216,21 +216,9 @@ function StatementStructure(props: {
   useEffect(() => {
     handleReload();
   }, []);
-  const [dom, setDom] = useState(null);
-  useEffect(() => {
-    if (dom) {
-      let c = saveAndSetSize(dom, 'statement', 'height');
-      return c;
-    }
-  }, [dom]);
 
   return (
-    <Stack
-      spacing={1}
-      height="60vh"
-      style={{ resize: 'vertical', overflow: 'auto', minHeight: '20vh' }}
-      ref={setDom}
-    >
+    <Stack spacing={1} height="60vh" style={{ height: '100%' }}>
       <Stack direction="row">
         <Button
           loading={loading}
@@ -283,7 +271,7 @@ function ViewStructure(props: {
   }
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack direction="row" spacing={1} style={{ justifyContent: 'center' }}>
         {structures.map((e) => (
           <Chip
@@ -293,6 +281,7 @@ function ViewStructure(props: {
             color={structure == e.name ? 'success' : 'default'}
             key={e.name}
             label={e.name}
+            size="medium"
           ></Chip>
         ))}
       </Stack>
@@ -308,6 +297,27 @@ function ViewStructure(props: {
         ></StatementStructure>
       )}
     </Stack>
+  );
+}
+
+function ColumnsMenu(props: { content: string }) {
+  const { content } = props;
+  const { showNotification } = useContext(NotificationContext);
+  return (
+    <MenuList>
+      {content && (
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon></ContentCopyIcon>
+          </ListItemIcon>
+          <ListItemText> Copy </ListItemText>
+        </MenuItem>
+      )}
+    </MenuList>
   );
 }
 
@@ -363,27 +373,6 @@ function ColumnsContent(props: { uuid: string; view: string }) {
 
   const { setUpMenu } = useContext(ContextMenuContext);
 
-  function Menu(props: { content: string }) {
-    const { content } = props;
-
-    return (
-      <MenuList>
-        {content && (
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}
-          >
-            <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-        )}
-      </MenuList>
-    );
-  }
-
   const slotProps = useMemo(() => {
     return {
       row: {
@@ -397,7 +386,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
           }
           let content = (target as HTMLDivElement).innerHTML;
           setUpMenu({
-            content: <Menu content={content}></Menu>,
+            content: <ColumnsMenu content={content}></ColumnsMenu>,
             event: e,
           });
         },
@@ -417,16 +406,15 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   }, []);
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack direction="row" spacing={1}>
         <Button loading={loading} onClick={handleReload}>
           reload
         </Button>
       </Stack>
-      <div style={{ display: 'grid' }}>
+      <div style={{ display: 'grid', flex: 1, height: '100%' }}>
         <DataGrid
           showToolbar
-          style={gridStyle}
           getRowId={getRowId}
           slotProps={slotProps}
           onColumnResize={onColumnResize}
@@ -598,9 +586,14 @@ function ViewMenu(props: {
   };
 
   const handleviewDataNewWindow = () => {
+    SomeTempStore.set({
+      uuid,
+      table: view,
+      kind,
+    } as NewWindowTableParameter);
     const webview = new WebviewWindow(generateRandomString(), {
       title: view,
-      url: 'table_view.html?uuid=' + uuid + '&table=' + view + '&kind=' + kind,
+      url: 'table_view.html',
       maximized: true,
       width: 800,
       height: 600,

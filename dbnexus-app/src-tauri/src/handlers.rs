@@ -1,7 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::io::Seek;
-use std::ops::DerefMut;
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use crate::app::{
@@ -36,28 +34,6 @@ pub fn has_entered_password(
 ) -> Result<bool, ErrorFrontend> {
     let has = app.saved_password.get(&name).is_some();
     Ok(has)
-}
-
-pub(crate) fn log_file() -> &'static Mutex<Option<std::fs::File>> {
-    static FILE: Mutex<Option<std::fs::File>> = Mutex::new(None);
-    &FILE
-}
-
-pub(crate) fn truncate_file(file: &mut std::fs::File) -> Result<(), std::io::Error> {
-    file.set_len(0)?;
-    file.seek(std::io::SeekFrom::Start(0)).map(|_| ())
-}
-
-#[tauri::command]
-pub fn truncate_log_file() -> Result<(), ErrorFrontend> {
-    let mut lock = log_file().lock().unwrap();
-    match lock.deref_mut() {
-        Some(file) => {
-            truncate_file(file).map_err(ErrorFrontend::from)?;
-            Ok(())
-        }
-        None => Ok(()),
-    }
 }
 
 #[tauri::command]

@@ -52,18 +52,12 @@ import {
   SettingContext,
   stringToHex,
   validJson,
-  gridStyle,
   SavePageSize,
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
 } from './helper.ts';
 
-import {
-  ExecutingTime,
-  ModalHeader,
-  pageSizeOptions,
-  ResizeWrapper,
-} from './CommonComp.tsx';
+import { ExecutingTime, ModalHeader, pageSizeOptions } from './CommonComp.tsx';
 import { editor, Position } from 'monaco-editor';
 import { SimpleFlexEditor } from './CommonComp2.tsx';
 
@@ -109,37 +103,30 @@ function RedisAddList(props: {
       });
   };
   return (
-    <ResizeWrapper
-      sizeKey="redis-add-list"
-      sizeKeyKind="height"
-      height="70vh"
-      minHeight="50vh"
-    >
-      <Stack spacing={1} flex={1}>
-        <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
-          <Typography color="info"> direction: </Typography>
-          <RadioGroup
-            row
-            onChange={(_e, value) => {
-              //@ts-ignore
-              setDirection(value);
-            }}
-            value={direction}
-          >
-            <FormControlLabel value="left" control={<Radio />} label="head" />
-            <FormControlLabel value="right" control={<Radio />} label="tail" />
-          </RadioGroup>
-        </Stack>
-
-        <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
-
-        <Stack direction="row" spacing={1}>
-          <Button loading={loading} color="primary" onClick={handleAdd}>
-            push
-          </Button>
-        </Stack>
+    <Stack spacing={1} style={{ height: '100%' }}>
+      <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+        <Typography color="info"> direction: </Typography>
+        <RadioGroup
+          row
+          onChange={(_e, value) => {
+            //@ts-ignore
+            setDirection(value);
+          }}
+          value={direction}
+        >
+          <FormControlLabel value="left" control={<Radio />} label="head" />
+          <FormControlLabel value="right" control={<Radio />} label="tail" />
+        </RadioGroup>
       </Stack>
-    </ResizeWrapper>
+
+      <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
+
+      <Stack direction="row" spacing={1}>
+        <Button loading={loading} color="primary" onClick={handleAdd}>
+          push
+        </Button>
+      </Stack>
+    </Stack>
   );
 }
 
@@ -179,23 +166,13 @@ function RedisStringTable(props: {
         setLoading(false);
       });
   };
-  const [dom, setDom] = useState(null);
-  useEffect(() => {
-    if (dom) {
-      let c = saveAndSetSize(dom, 'redis-string-edit', 'height');
-      return c;
-    }
-  }, [dom]);
   return (
     <Stack
       spacing={1}
       style={{
-        resize: 'vertical',
         overflow: 'auto',
-        height: '300px',
-        minHeight: '20vh',
+        height: '100%',
       }}
-      ref={setDom}
     >
       {typeof content == 'string' && (
         <RedisValueEditor
@@ -242,22 +219,15 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
       });
   };
   return (
-    <ResizeWrapper
-      sizeKey="redis-add-set"
-      sizeKeyKind="height"
-      height="70vh"
-      minHeight="50vh"
-    >
-      <Stack spacing={1} flex={1}>
-        <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
+    <Stack spacing={1} style={{ height: '100%' }}>
+      <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
 
-        <Stack direction="row" spacing={1}>
-          <Button color="primary" loading={loading} onClick={handleAdd}>
-            add
-          </Button>
-        </Stack>
+      <Stack direction="row" spacing={1}>
+        <Button color="primary" loading={loading} onClick={handleAdd}>
+          add
+        </Button>
       </Stack>
-    </ResizeWrapper>
+    </Stack>
   );
 }
 
@@ -284,35 +254,28 @@ function RedisAddHash(props: {
   };
 
   return (
-    <ResizeWrapper
-      sizeKey="redis-add-hash"
-      sizeKeyKind="height"
-      height="70vh"
-      minHeight="50vh"
-    >
-      <Stack spacing={1} flex={1}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <RedisValueEditor
-            value=""
-            header="key"
-            valueRef={key}
-          ></RedisValueEditor>
-        </div>
-        <div style={{ flex: 1.5, display: 'flex', flexDirection: 'column' }}>
-          <RedisValueEditor
-            value=""
-            valueRef={value}
-            header="value"
-          ></RedisValueEditor>
-        </div>
+    <Stack spacing={1} height={'100%'}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <RedisValueEditor
+          value=""
+          header="key"
+          valueRef={key}
+        ></RedisValueEditor>
+      </div>
+      <div style={{ flex: 1.5, display: 'flex', flexDirection: 'column' }}>
+        <RedisValueEditor
+          value=""
+          valueRef={value}
+          header="value"
+        ></RedisValueEditor>
+      </div>
 
-        <Stack direction="row" spacing={1}>
-          <Button loading={loading} color="primary" onClick={handleAdd}>
-            Add
-          </Button>
-        </Stack>
+      <Stack direction="row" spacing={1}>
+        <Button loading={loading} color="primary" onClick={handleAdd}>
+          Add
+        </Button>
       </Stack>
-    </ResizeWrapper>
+    </Stack>
   );
 }
 function RedisAddZset(props: {
@@ -340,46 +303,39 @@ function RedisAddZset(props: {
   };
 
   return (
-    <ResizeWrapper
-      sizeKey="redis-add-zset"
-      sizeKeyKind="height"
-      height="70vh"
-      minHeight="50vh"
-    >
-      <Stack spacing={1} flex={1}>
-        <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
-        <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
-          <Button loading={loading} color="primary" onClick={handleAdd}>
-            Add
-          </Button>
-          <TextField
-            value={score}
-            label="score"
-            error={score ? isNaN(parseFloat(score)) : false}
-            helperText="put a valid float64 value"
-            onChange={(event) => {
-              setScore(event.target.value);
-            }}
-            slotProps={{
-              input: {
-                endAdornment: score && (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => {
-                        setScore('');
-                      }}
-                      edge="end"
-                    >
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              },
-            }}
-          ></TextField>
-        </Stack>
+    <Stack spacing={1} style={{ height: '100%' }}>
+      <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
+      <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
+        <Button loading={loading} color="primary" onClick={handleAdd}>
+          Add
+        </Button>
+        <TextField
+          value={score}
+          label="score"
+          error={score ? isNaN(parseFloat(score)) : false}
+          helperText="put a valid float64 value"
+          onChange={(event) => {
+            setScore(event.target.value);
+          }}
+          slotProps={{
+            input: {
+              endAdornment: score && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setScore('');
+                    }}
+                    edge="end"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+        ></TextField>
       </Stack>
-    </ResizeWrapper>
+    </Stack>
   );
 }
 
@@ -875,7 +831,7 @@ function RedisSetTable(props: {
   }, [modalBox]);
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack
         direction="row"
         spacing={1}
@@ -930,11 +886,10 @@ function RedisSetTable(props: {
       </Stack>
 
       {resp && (
-        <div style={{ display: 'grid' }}>
+        <div style={{ display: 'grid', flex: 1, height: '100px' }}>
           <DataGrid
             showToolbar
             showCellVerticalBorder
-            style={gridStyle}
             showColumnVerticalBorder
             slotProps={slotProps}
             rowHeight={settings.datagridRowHeightXXX()}
@@ -972,7 +927,6 @@ function RedisSetTable(props: {
                 } catch (e) {
                   throw e;
                 }
-                selectRow.value = newValue;
                 handleReload(false);
               }}
               key={selectRow.id}
@@ -1219,7 +1173,7 @@ function RedisListTable(props: {
     }
   }, []);
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack
         direction="row"
         style={{ justifyContent: 'space-between', alignItems: 'center' }}
@@ -1243,11 +1197,10 @@ function RedisListTable(props: {
       </Stack>
 
       {resp && (
-        <div style={{ display: 'grid' }}>
+        <div style={{ display: 'grid', flex: 1, height: '100px' }}>
           <DataGrid
             showToolbar
             loading={loading}
-            style={gridStyle}
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
@@ -1293,7 +1246,6 @@ function RedisListTable(props: {
                   throw e;
                 }
                 handleReload(false);
-                selectRow.value = newValue;
               }}
               key={selectRow.id}
               oldValue={selectRow.value}
@@ -1471,7 +1423,7 @@ function RedisZsetTable(props: {
     }
   }, []);
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <TextField
           label="key match could be *key,key*,*key*"
@@ -1576,12 +1528,11 @@ function RedisZsetTable(props: {
       </Stack>
 
       {resp && (
-        <div style={{ display: 'grid' }}>
+        <div style={{ display: 'grid', flex: 1, height: '100px' }}>
           <DataGrid
             showToolbar
             onColumnResize={onColumnResize}
             loading={loading}
-            style={gridStyle}
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
@@ -1800,7 +1751,7 @@ function RedisHashTable(props: {
     }
   }, []);
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack
         direction="row"
         spacing={1}
@@ -1856,12 +1807,11 @@ function RedisHashTable(props: {
       </Stack>
 
       {resp && (
-        <div style={{ display: 'grid' }}>
+        <div style={{ display: 'grid', flex: 1, height: '100px' }}>
           <DataGrid
             showToolbar
             onColumnResize={onColumnResize}
             loading={loading}
-            style={gridStyle}
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
@@ -1900,8 +1850,6 @@ function RedisHashTable(props: {
                 } catch (e) {
                   throw e;
                 }
-                selectRow.key = req.newKey;
-                selectRow.value = req.value;
                 handleReload(false);
               }}
               handleClose={() => {

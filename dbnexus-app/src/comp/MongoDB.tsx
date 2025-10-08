@@ -77,7 +77,6 @@ import {
   ColumnWidth,
   ContextMenuContext,
   DocsAndCount,
-  gridStyle,
   handleCopyToClipboard,
   ErrAndLoc,
   resetMuiDataRespWidth,
@@ -1343,35 +1342,32 @@ function MongoTableList(props: {
     }
   }, [modalBox]);
   return (
-    <>
+    <Stack style={{ height: '100%' }}>
       {resp && (
-        <Stack spacing={1}>
-          <div style={{ display: 'grid' }}>
-            <DataGrid
-              showToolbar
-              loading={loading}
-              slots={slots}
-              style={gridStyle}
-              showCellVerticalBorder
-              showColumnVerticalBorder
-              slotProps={slotProps}
-              getRowId={getRowId}
-              rowHeight={setting.datagridRowHeightXXX()}
-              columnHeaderHeight={setting.datagridRowHeightXXX()}
-              rowCount={resp.total}
-              columns={resp.fields}
-              rows={resp.data}
-              pageSizeOptions={pageSizeOptions}
-              paginationMode="server"
-              paginationModel={paginationModel}
-              onPaginationModelChange={onPaginationModelChange}
-              onRowDoubleClick={onRowDoubleClick}
-              sortingMode="server"
-              onSortModelChange={onSortModelChange}
-              onColumnResize={onColumnResize}
-            ></DataGrid>
-          </div>
-        </Stack>
+        <div style={{ display: 'grid', height: '100px', flex: 1 }}>
+          <DataGrid
+            showToolbar
+            loading={loading}
+            slots={slots}
+            showCellVerticalBorder
+            showColumnVerticalBorder
+            slotProps={slotProps}
+            getRowId={getRowId}
+            rowHeight={setting.datagridRowHeightXXX()}
+            columnHeaderHeight={setting.datagridRowHeightXXX()}
+            rowCount={resp.total}
+            columns={resp.fields}
+            rows={resp.data}
+            pageSizeOptions={pageSizeOptions}
+            paginationMode="server"
+            paginationModel={paginationModel}
+            onPaginationModelChange={onPaginationModelChange}
+            onRowDoubleClick={onRowDoubleClick}
+            sortingMode="server"
+            onSortModelChange={onSortModelChange}
+            onColumnResize={onColumnResize}
+          ></DataGrid>
+        </div>
       )}
       {selectModifyDoc && (
         <Modal
@@ -1424,7 +1420,7 @@ function MongoTableList(props: {
           </Box>
         </Modal>
       )}
-    </>
+    </Stack>
   );
 }
 
@@ -1567,7 +1563,7 @@ function MongoTable(props: {
     oldViewModel = viewModel;
   }, [viewModel]);
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <MongoTableToolBar
         addOP={async () => {}}
         sort={sort}
@@ -1592,7 +1588,6 @@ function MongoTable(props: {
         }
         loading={loading}
       ></MongoTableToolBar>
-
       <Stack
         direction="row"
         spacing={1}

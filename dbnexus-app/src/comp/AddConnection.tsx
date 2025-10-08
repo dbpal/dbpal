@@ -28,7 +28,7 @@ import { types } from './ApiStruct';
 import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { AppStoreKey, extractBaseName, msgTimeout } from './Common';
-import { appStore, DataSourceKind } from './helper';
+import { appStore, DataSourceKind, errToString } from './helper';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { platform } from '@tauri-apps/plugin-os';
 
@@ -490,10 +490,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   const [readOnly, setReadOnly] = useState(getConfig('read_only', false));
 
   const [testLoading, setTestLoading] = useState(false);
-  const [triggerReLoad, setTriggerReload] = useState(false);
+  const [triggerReLoad, setTriggerReload] = useState<boolean | null>(null);
   const [path, setPath] = useState(getConfig('path'));
   const { showNotification } = useContext(NotificationContext);
-  const [testOk, setTestOk] = useState(false);
+  const [testStatus, setTestStatus] = useState<string | true | null>(null);
   const [trustCert, setTrustCert] = useState(getConfig('trust_cert', false));
   const [databaseCandidates, setDatabaseCandidates] = useState([]);
   const [schema, setSchema] = useState(getConfig('schema'));
@@ -527,6 +527,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
     const connTimeout_null = connTimeout ? parseInt(connTimeout) : null;
     switch (connectionType) {
       case DataSourceKind.FireBird:
+        if (!host) {
+          showNotification('error', 'host is required');
+          return null;
+        }
         return {
           conn_type: connectionType,
           host: host,
@@ -544,7 +548,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           conn_type: connectionType,
           replica: replica,
           source: libSqlModel,
-          path: path,
+          path,
           url: url,
           auth_token: authToken,
           read_only: readOnly,
@@ -553,6 +557,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         };
 
       case DataSourceKind.ClickHouse:
+        if (!host) {
+          showNotification('error', 'host is required');
+          return null;
+        }
         return {
           conn_type: connectionType,
           host: host,
@@ -567,6 +575,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Mysql:
+        if (!host) {
+          showNotification('error', 'host is required');
+          return null;
+        }
         return {
           conn_type: connectionType,
           host: host,
@@ -584,6 +596,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Cassandra:
+        if (!host) {
+          showNotification('error', 'host is required');
+          return null;
+        }
         return {
           conn_type: connectionType,
           host: host,
@@ -597,6 +613,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           conn_timeout: connTimeout_null,
         };
       case DataSourceKind.MariaDB:
+        if (!host) {
+          showNotification('error', 'host is required');
+          return null;
+        }
         return {
           conn_type: connectionType,
           host: host,
@@ -610,6 +630,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           conn_timeout: connTimeout_null,
         };
       case DataSourceKind.TiDB:
+        if (!host) {
+          showNotification('error', 'host is required');
+          return null;
+        }
         return {
           conn_type: connectionType,
           host: host,
@@ -623,6 +647,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Postgres:
+        if (!host) {
+          showNotification('error', 'host is required');
+          return null;
+        }
         return {
           conn_type: connectionType,
           host: host,
@@ -641,6 +669,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Cockroach:
+        if (!host) {
+          showNotification('error', 'host is required');
+          return null;
+        }
         return {
           conn_type: connectionType,
           host: host,
@@ -659,17 +691,25 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Sqlite:
+        if (!path) {
+          showNotification('error', 'path is required');
+          return null;
+        }
         return {
           conn_type: connectionType,
-          path: path,
+          path,
           read_only: readOnly,
           name: connectionName,
           conn_timeout: connTimeout_null,
         };
       case DataSourceKind.DuckDB:
+        if (!path) {
+          showNotification('error', 'path is required');
+          return null;
+        }
         return {
           conn_type: connectionType,
-          path: path,
+          path,
           db: db_null,
           schema: schema_null,
           read_only: readOnly,
@@ -677,6 +717,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Redis:
+        if (!host) {
+          showNotification('error', 'host is required');
+          return null;
+        }
         return {
           conn_type: connectionType,
           read_only: readOnly,
@@ -690,6 +734,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Mongo:
+        if (!host) {
+          showNotification('error', 'host is required');
+          return null;
+        }
         return {
           conn_type: connectionType,
           read_only: readOnly,
@@ -703,6 +751,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           conn_timeout: connTimeout_null,
         };
       case DataSourceKind.MsSql:
+        if (!host) {
+          showNotification('error', 'host is required');
+          return null;
+        }
         return {
           conn_type: connectionType,
           read_only: readOnly,
@@ -718,6 +770,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Oracle:
+        if (!host) {
+          showNotification('error', 'host is required');
+          return null;
+        }
         return {
           name: connectionName,
           conn_type: connectionType,
@@ -740,15 +796,17 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
       setTestLoading(true);
       invoke('test_connection', { config })
         .then(() => {
-          setTestLoading(false);
-          setTestOk(true);
-          setTimeout(() => {
-            setTestOk(false);
-          }, msgTimeout);
+          setTestStatus(true);
         })
         .catch((e) => {
-          setTestLoading(false);
+          setTestStatus(errToString(e));
           showNotification('error', 'test connection failed', e);
+        })
+        .finally(() => {
+          setTestLoading(false);
+          setTimeout(() => {
+            setTestStatus(null);
+          }, msgTimeout);
         });
     }
   };
@@ -814,7 +872,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
     if (!connections) {
       connections = [];
     }
-    if (validConnectionName(connectionName)) {
+    if (!validConnectionName(connectionName)) {
       showNotification('error', 'not valid connection name');
       connectionNameDom.current.focus();
       return;
@@ -864,6 +922,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   };
 
   useEffect(() => {
+    // first time we make sure it is a null value not a boolean
+    if (triggerReLoad === null) {
+      return;
+    }
     let config = makeConfig();
     if (connectionType === DataSourceKind.Oracle) {
       // TODO oracle have bug right now
@@ -1337,7 +1399,12 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         >
           test
         </Button>
-        {testOk && <Typography color="success">Test OK</Typography>}
+        {testStatus === true && (
+          <Typography color="success">Test OK</Typography>
+        )}
+        {typeof testStatus == 'string' && (
+          <Typography color="error"> {testStatus} </Typography>
+        )}
       </Stack>
     </Stack>
   );

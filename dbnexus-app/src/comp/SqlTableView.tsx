@@ -32,7 +32,7 @@ import {
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import { NotificationContext } from './Notification';
-import { IoIosAddCircle } from 'react-icons/io';
+
 import {
   DataGrid,
   GridCallbackDetails,
@@ -62,7 +62,6 @@ import {
   ColumnWidth,
   ContextMenuContext,
   DataSourceKind,
-  generateRandomString,
   handleCopyToClipboard,
   isTypeLargeText,
   ErrAndLoc,
@@ -70,8 +69,6 @@ import {
   saveAndSetSize,
   secondConfirm,
   SettingContext,
-  TabContent,
-  TabsSetContext,
   validJson,
   SavePageSize,
   textEllipsisStyle,
@@ -601,8 +598,18 @@ function SqlTableView_(props: {
                     : undefined
                 }
                 row={row}
-                tableName={tableName}
-                addOP={addOP}
+                addOP={
+                  addOP
+                    ? async (row) => {
+                        try {
+                          await addOP(row);
+                        } catch (e) {
+                          throw e;
+                        }
+                        handleReload(false);
+                      }
+                    : undefined
+                }
                 setSort={setSort}
                 setWhere={setWhere}
                 put_value_in_sql={(value) => {
@@ -903,9 +910,9 @@ function SqlTableView_(props: {
               isAdd={false}
               handleData={async (args) => {
                 await handleProcessRowUpdate(args, editInModalRow);
-                setEditInModalRow(null);
                 handleReload(false);
               }}
+              handleClose={() => setEditInModalRow(null)}
             ></SqlTableViewData>
           </Box>
         </Modal>
@@ -973,8 +980,10 @@ function SqlTableViewData(props: {
   initValues?: object;
   buttonName;
   isAdd: boolean;
+  handleClose?: () => void;
 }) {
-  let { handleData, fields, initValues, buttonName, isAdd } = props;
+  let { handleData, fields, initValues, buttonName, isAdd, handleClose } =
+    props;
   if (!initValues) {
     initValues = {};
   }
@@ -1019,9 +1028,14 @@ function SqlTableViewData(props: {
     setLoading(true);
     handleData(args)
       .then(() => {
+        console.log('insert done');
         showNotification('success', `${buttonName} OK`);
+        if (handleClose) {
+          handleClose();
+        }
       })
       .catch((e) => {
+        console.log('insert failed');
         showNotification('error', `${buttonName} failure`, e);
       })
       .finally(() => {
@@ -1121,7 +1135,6 @@ function Menu(props: {
   setNull?: () => void;
   addOP?: (x: object) => Promise<void>;
   updateOP?;
-  tableName: string;
   row: object;
   fields: types.Field[];
   nullable: boolean;
@@ -1140,7 +1153,6 @@ function Menu(props: {
     setWhere,
     put_value_in_sql,
     setNull,
-    tableName,
     addOP,
     updateOP,
     row,
@@ -1155,34 +1167,18 @@ function Menu(props: {
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showFilter, setShowFilter] = useState(false);
-  const { setTabs, setSelectTab } = useContext(TabsSetContext);
   const quoteFn = quoteIdentifier(kind);
-  const handleClone = () => {
-    setTabs((tabs) => {
-      let t = (
-        <SqlTableViewData
-          buttonName="add"
-          handleData={addOP}
-          fields={fields}
-          initValues={row}
-          isAdd
-        ></SqlTableViewData>
-      );
-      setTimeout(() => {
-        setSelectTab(tabs.length);
-      }, 100);
-      return [
-        ...tabs,
-        new TabContent(
-          generateRandomString(20),
-          `${tableName}*`,
-          t,
-          <IoIosAddCircle> </IoIosAddCircle>
-        ),
-      ];
-    });
-  };
+  const [showClone, setShowClone] = useState(false);
   let quoteField = quoteFn(field);
+  const [cloneModalBox, setCloneModalBox] = useState(null);
+  useEffect(() => {
+    if (cloneModalBox) {
+      let clean = saveAndSetSize(cloneModalBox, 'clone-data', 'width');
+      return () => {
+        clean();
+      };
+    }
+  }, [cloneModalBox]);
   return (
     <div>
       <MenuList>
@@ -1282,7 +1278,11 @@ function Menu(props: {
         <Divider />
 
         {addOP && (
-          <MenuItem onClick={handleClone}>
+          <MenuItem
+            onClick={() => {
+              setShowClone(true);
+            }}
+          >
             <ListItemIcon>
               <FileCopyIcon></FileCopyIcon>
             </ListItemIcon>
@@ -1305,6 +1305,32 @@ function Menu(props: {
           showExportMarkDown={showExportMarkDown}
         ></MenuExportMarkDownTable>
       </MenuList>
+
+      {showClone && (
+        <Modal
+          open={showClone}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowClone(false);
+          })}
+        >
+          <Box
+            sx={{ resize: 'horizontal', ...modalStyle }}
+            width="50%"
+            ref={setCloneModalBox}
+          >
+            <ModalHeader title="Clone Data"></ModalHeader>
+            <SqlTableViewData
+              buttonName="add"
+              handleData={addOP}
+              fields={fields}
+              handleClose={() => setShowClone(false)}
+              initValues={row}
+              isAdd
+            ></SqlTableViewData>
+          </Box>
+        </Modal>
+      )}
 
       {showFilter && (
         <Modal

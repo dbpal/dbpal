@@ -223,9 +223,6 @@ function QueryResp_(props: { data: MuiDataGridData }) {
   const slots = useMemo(() => {
     return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
   }, []);
-  const gridStyle = useMemo(() => {
-    return {} as CSSProperties;
-  }, []);
   return (
     <div
       style={{
@@ -261,7 +258,6 @@ function QueryResp_(props: { data: MuiDataGridData }) {
               getRowId={getRowId}
               slots={slots}
               sortModel={sortModel}
-              style={gridStyle}
               onSortModelChange={onSortModelChange}
               showCellVerticalBorder
               showColumnVerticalBorder

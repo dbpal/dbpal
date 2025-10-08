@@ -4,7 +4,8 @@ import React from 'react';
 import {
   DataSourceKind,
   MongoTableHandler,
-  RedisTableType,
+  NewWindowTableParameter,
+  SomeTempStore,
   webviewWIndowInit,
 } from './comp/helper.ts';
 import { SqlTableView } from './comp/SqlTableView.tsx';
@@ -17,6 +18,7 @@ import {
   makeShowTableFn,
   makeShowViewFn,
   makeTableDelete,
+  makeTableInsertFn,
   makeTableUpdate,
 } from './comp/Common.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
@@ -25,14 +27,10 @@ import { makeRedisViewTable } from './comp/LeftTable.tsx';
 import { Typography } from '@mui/material';
 
 webviewWIndowInit(false);
-const params = new URLSearchParams(location.search);
 
-const uuid = params.get('uuid');
-const table = params.get('table');
-const isTable = params.get('isTable') === 'true';
-const kind = params.get('kind') as DataSourceKind;
-const redisType = params.get('redisType') as RedisTableType;
-console.log(uuid, table, isTable, kind);
+const { uuid, kind, table, redisTableType, isTable } =
+  SomeTempStore.get<NewWindowTableParameter>();
+
 let err;
 await initMonacoLanguage(uuid, kind, (msg) => {
   err = msg;
@@ -42,7 +40,7 @@ let content;
 
 switch (kind) {
   case DataSourceKind.Redis:
-    content = makeRedisViewTable(uuid, table, redisType);
+    content = makeRedisViewTable(uuid, table, redisTableType);
     break;
   case DataSourceKind.Mongo:
     content = (
@@ -71,6 +69,7 @@ switch (kind) {
         reloadOP={
           isTable ? makeShowTableFn(uuid, table) : makeShowViewFn(uuid, table)
         }
+        addOP={isTable ? makeTableInsertFn(uuid, table) : undefined}
         isTable={isTable}
         updateOP={isTable ? makeTableUpdate(uuid, table) : undefined}
         deleteOP={isTable ? makeTableDelete(uuid, table) : undefined}

@@ -35,7 +35,6 @@ import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import {
   ColumnWidth,
-  gridStyle,
   QueryLogHandler,
   saveAndSetSize,
   secondConfirm,
@@ -179,8 +178,10 @@ function QueryLog(props: {
         top: 0,
         zIndex: 13,
         width: '75%',
-        display: showQueryLog ? 'block' : 'none',
+        display: showQueryLog ? 'flex' : 'none',
         opacity: showQueryLog ? 0.8 : 0,
+        height: '65%',
+        flexDirection: 'column',
       }}
       elevation={16}
     >
@@ -234,58 +235,56 @@ function QueryLog(props: {
           </Button>
         )}
       </Stack>
-      <Stack>
-        <div style={{ display: 'grid' }}>
-          <DataGrid
-            showToolbar
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            style={gridStyle}
-            onRowDoubleClick={onRowDoubleClick}
-            columns={columns}
-            rows={logs}
-            rowHeight={setting.datagridRowHeightXXX()}
-            columnHeaderHeight={setting.datagridRowHeightXXX()}
-            pageSizeOptions={pageSizeOptions}
-            paginationModel={paginationModel}
-            onPaginationModelChange={onPaginationModelChange}
-            initialState={initialState}
-            onColumnResize={onColumnResize}
-            onSortModelChange={onSortModelChange}
-            rowCount={total}
-            paginationMode="server"
-          ></DataGrid>
-        </div>
 
-        {selectSql && (
-          <Modal
-            open={!!selectSql}
-            onClose={modalHandleClose((e: EscDownEvent) => {
-              e.preventDefault();
-              setSelectSql('');
-            })}
+      <div style={{ display: 'grid', flex: 1, height: '100px' }}>
+        <DataGrid
+          showToolbar
+          showCellVerticalBorder
+          showColumnVerticalBorder
+          onRowDoubleClick={onRowDoubleClick}
+          columns={columns}
+          rows={logs}
+          rowHeight={setting.datagridRowHeightXXX()}
+          columnHeaderHeight={setting.datagridRowHeightXXX()}
+          pageSizeOptions={pageSizeOptions}
+          paginationModel={paginationModel}
+          onPaginationModelChange={onPaginationModelChange}
+          initialState={initialState}
+          onColumnResize={onColumnResize}
+          onSortModelChange={onSortModelChange}
+          rowCount={total}
+          paginationMode="server"
+        ></DataGrid>
+      </div>
+
+      {selectSql && (
+        <Modal
+          open={!!selectSql}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setSelectSql('');
+          })}
+        >
+          <Box
+            sx={{ resize: 'both', ...modalStyle }}
+            ref={setModalBox}
+            width="60%"
+            height="40vh"
           >
-            <Box
-              sx={{ resize: 'both', ...modalStyle }}
-              ref={setModalBox}
-              width="60%"
-              height="40vh"
-            >
-              <ModalHeader title="View SQL"></ModalHeader>
-              <SimpleFlexEditor
-                language={language}
-                value={selectSql}
-                handleEditor={(e) => {
-                  SetAutoCompletionName.set(
-                    e.getModel().id,
-                    new NameAndQueryId(uuid)
-                  );
-                }}
-              ></SimpleFlexEditor>
-            </Box>
-          </Modal>
-        )}
-      </Stack>
+            <ModalHeader title="View SQL"></ModalHeader>
+            <SimpleFlexEditor
+              language={language}
+              value={selectSql}
+              handleEditor={(e) => {
+                SetAutoCompletionName.set(
+                  e.getModel().id,
+                  new NameAndQueryId(uuid)
+                );
+              }}
+            ></SimpleFlexEditor>
+          </Box>
+        </Modal>
+      )}
     </Paper>
   );
 }

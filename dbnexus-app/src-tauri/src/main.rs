@@ -4,14 +4,11 @@
 mod app;
 mod handlers;
 use std::backtrace::Backtrace;
-use std::io::Write;
-use std::ops::DerefMut;
 use std::panic;
 use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::app::generate_random_string;
-use crate::handlers::{log_file, truncate_file};
 use app::{DBConnectionConfig, DBPal};
 use handlers::{
     PASSWORD_KEY, add_table_column, auto_completion, cassandra_drop_aggregate,
@@ -49,7 +46,7 @@ use handlers::{
     redis_zset_show_table, rename_index, rename_sequence, rename_table, save_entered_password,
     save_password, server_metas, show_indexes, show_procedure, show_table, show_table_columns,
     show_trigger, show_udf, show_view, show_view_columns, sql_parse_error, table_delete,
-    table_insert, table_update, test_connection, truncate_log_file, truncate_table, valid_json,
+    table_insert, table_update, test_connection, truncate_table, valid_json,
 };
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Wry};
@@ -78,6 +75,7 @@ fn is_mac() -> bool {
 
 pub struct AppLogger {
     config: Arc<Store<Wry>>,
+    handle: AppHandle,
 }
 
 impl AppLogger {
@@ -122,19 +120,6 @@ impl AppLogger {
             })
             .unwrap_or(log::Level::Info)
     }
-    fn get_max_size(&self) -> u64 {
-        let x = self.get_config();
-        x.and_then(|x| match x {
-            serde_json::Value::Object(map) => match map.get("loggerMaxSize") {
-                Some(serde_json::Value::Number(max)) => {
-                    Some(max.as_u64().unwrap_or(5) * 1024 * 1024)
-                }
-                _ => None,
-            },
-            _ => None,
-        })
-        .unwrap_or(5 * 1024 * 1024)
-    }
 }
 
 impl log::Log for AppLogger {
@@ -144,28 +129,6 @@ impl log::Log for AppLogger {
     fn log(&self, record: &log::Record) {
         if !self.enabled(record.metadata()) {
             return;
-        }
-        let mut lock = log_file().lock().unwrap();
-        let file = match lock.deref_mut() {
-            Some(x) => x,
-            None => return,
-        };
-        match file.metadata() {
-            Ok(meta) => {
-                if meta.len() > self.get_max_size() {
-                    match truncate_file(file) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            println!("truncate file failed,err:{}", err);
-                            return;
-                        }
-                    }
-                }
-            }
-            Err(err) => {
-                println!("get file metadata failed,err:{}", err);
-                return;
-            }
         }
         let s = format!(
             "{} {} {}-{}\n",
@@ -182,21 +145,12 @@ impl log::Log for AppLogger {
             record.level(),
             record.args()
         );
-        match file.write_all(s.as_bytes()) {
-            Ok(_) => {}
-            Err(err) => println!("write file failed,err:{:?}", err),
+        if let Err(err) = self.handle.emit("log_stream", s) {
+            println!("emit log stream failed:{}", err);
         }
     }
-    fn flush(&self) {
-        let mut lock = log_file().lock().unwrap();
-        let file = match lock.deref_mut() {
-            Some(x) => x,
-            None => return,
-        };
-        if let Err(err) = file.flush() {
-            println!("flush file failed,err:{:?}", err)
-        }
-    }
+
+    fn flush(&self) {}
 }
 
 const STORE_FILE: &str = "store.json";
@@ -229,10 +183,6 @@ fn main_() {
     // logger_test();
     let dbpal = DBPal::new();
     let dbpal_clone = dbpal.clone();
-    // std::thread::spawn(move || {
-    //     std::thread::sleep(std::time::Duration::from_secs(5));
-    //     panic!("test");
-    // });
 
     let setup = move |app: &mut tauri::App| {
         {
@@ -265,26 +215,12 @@ fn main_() {
             window.open_devtools();
         }
         let store = app.store(STORE_FILE).unwrap();
-        match app.path().app_data_dir() {
-            Ok(mut f_path) => {
-                f_path.push("dbpal.log");
-                let mut ops = std::fs::OpenOptions::new();
-                ops.write(true);
-                ops.create(true);
-                match ops.open(f_path) {
-                    Ok(file) => {
-                        let logger = AppLogger {
-                            config: store.clone(),
-                        };
-                        *log_file().lock().unwrap() = Some(file);
-                        log::set_boxed_logger(Box::new(logger)).unwrap();
-                        log::set_max_level(log::LevelFilter::Trace);
-                    }
-                    Err(err) => println!("can't open file for write,err:{}", err),
-                }
-            }
-            Err(err) => println!("can't get app data dir,err:{}", err),
-        }
+        let logger = AppLogger {
+            config: store.clone(),
+            handle: app.handle().clone(),
+        };
+        log::set_boxed_logger(Box::new(logger)).unwrap();
+        log::set_max_level(log::LevelFilter::Trace);
 
         *unsafe { DBPal::get_config_ref() } = Some(Box::new(move |name| {
             let configs: Vec<DBConnectionConfig> = serde_json::from_value(
@@ -441,8 +377,8 @@ fn main_() {
                             )?,
                             &MenuItem::with_id(
                                 handle,
-                                "open_log_file",
-                                "open log file",
+                                "open_logger_window",
+                                "open logger window",
                                 true,
                                 None as Option<&'static str>,
                             )?,
@@ -545,7 +481,7 @@ fn main_() {
                     log::error!("set zoom failed:{}", err);
                 }
             }
-            if event.id.0 == "open_log_file" {
+            if event.id.0 == "open_logger_window" {
                 if let Some(window) = handle.get_webview_window(&log_window_id) {
                     if let Err(err) = window.set_focus() {
                         log::error!("set focus failed:{}", err);
@@ -702,7 +638,6 @@ fn main_() {
             drop_created_type,
             list_event,
             drop_event,
-            truncate_log_file,
             key_words,
             extract_table_select_selection,
             extract_table_select_sort,

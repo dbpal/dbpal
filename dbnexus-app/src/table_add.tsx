@@ -2,18 +2,16 @@
 import ReactDOM from 'react-dom/client';
 
 import {
-  DataSourceKind,
-  RedisTableType,
+  NewWindowTableParameter,
+  SomeTempStore,
   webviewWIndowInit,
 } from './comp/helper.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
 import React from 'react';
 import { AddTableView } from './comp/LeftTable.tsx';
-const params = new URLSearchParams(location.search);
-const table = params.get('table');
-const uuid = params.get('uuid');
-const kind = params.get('kind') as DataSourceKind;
-const redisTableType = params.get('redisTableType') as RedisTableType;
+
+let { uuid, table, kind, redisTableType } =
+  SomeTempStore.get<NewWindowTableParameter>();
 
 webviewWIndowInit(false);
 

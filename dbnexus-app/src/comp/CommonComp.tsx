@@ -64,7 +64,6 @@ import {
   FavoriteSql,
   generateDefaultFilename,
   generateRandomString,
-  gridStyle,
   handleCopyToClipboard,
   pageSizeOptions,
   QueryLogHandler,
@@ -536,10 +535,9 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
     }
   }, []);
   return (
-    <div style={{ display: 'grid' }}>
+    <div style={{ display: 'grid', height: '100%' }}>
       <DataGrid
         showToolbar
-        style={gridStyle}
         sortModel={sortModel}
         onSortModelChange={onSortModelChange}
         showCellVerticalBorder

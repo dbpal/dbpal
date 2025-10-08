@@ -21,12 +21,12 @@ const modalStyle: SxProps = {
   p: 1,
   maxHeight: '85vh',
   minHeight: '10vh',
-  overflow: 'auto',
   minWidth: '20vw',
   maxWidth: '80vw',
   display: 'flex',
+  overflow: 'auto',
   flexDirection: 'column',
-  animation: 'modalAnimation 0.8s ease-out',
+  animation: 'modalAnimation 0.6s ease-out',
 };
 
 import {
@@ -754,6 +754,26 @@ class SetAutoCompletionName {
     return SetAutoCompletionName.id2Name.get(editorId)
   }
 }
+
+function makeShowTableColumn(uuid, table) {
+  return () => {
+    return invoke<types.Field[]>('show_table_columns', {
+      name: uuid,
+      tableName: table,
+    })
+  }
+}
+
+function makeTableInsertFn(uuid, table) {
+  return async (values) => {
+    return invoke<void>('table_insert', {
+      name: uuid,
+      tableName: table,
+      values,
+    });
+  }
+}
+
 export {
   modalStyle,
   tabsHasId,
@@ -781,6 +801,8 @@ export {
   makeTableDelete,
   makeInvalidCassandraTableCache,
   makePutValueInSql,
+  makeShowTableColumn,
+  makeTableInsertFn,
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent };
