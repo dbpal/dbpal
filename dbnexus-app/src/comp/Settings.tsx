@@ -41,7 +41,6 @@ import { invoke } from '@tauri-apps/api/core';
 import EditIcon from '@mui/icons-material/Edit';
 import ClearIcon from '@mui/icons-material/Clear';
 import { SimpleFlexEditor } from './CommonComp2';
-import { LogLevelSelection } from './CommonComp';
 import {
   enable as enableApp,
   isEnabled as isEnabledApp,
@@ -65,7 +64,6 @@ function ModifySetting() {
   const [csvDelimiter, setCsvDelimiter] = useState(',');
   const [includeHeader, setIncludeHeader] = useState(true);
   const bgColorTextField = useRef<HTMLInputElement>(null);
-  const [loggerLevel, setLoggerLevel] = useState('info');
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState('2');
   const [maxTreeSize, setMaxTreeSize] = useState('50');
   const [saveQueryLog, setSaveQueryLog] = useState(true);
@@ -92,8 +90,6 @@ function ModifySetting() {
       } else {
         setBgColor(setting.lightBgColor);
       }
-      setLoggerLevel(setting.loggerLevel);
-
       setCsvDelimiter(setting.csvDelimiter);
       setIncludeHeader(setting.includeHeader);
       setMaxTreeSize(setting.maxTreeSize.toString());
@@ -149,7 +145,6 @@ function ModifySetting() {
       editorOption: JSON.parse(editorOptions),
       csvDelimiter: csvDelimiter,
       includeHeader: includeHeader,
-      loggerLevel: loggerLevel,
       datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
       maxTreeSize: parseInt(maxTreeSize),
       saveQueryLog: saveQueryLog,
@@ -296,7 +291,6 @@ function ModifySetting() {
           select * from employees
         </Typography>
       </Stack>
-
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           table row height factor:
@@ -365,7 +359,6 @@ function ModifySetting() {
         <div style={{ position: 'relative' }}></div>
         {bgColorErr && <Typography color="error"> {bgColorErr} </Typography>}
       </Stack>
-
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           max tree size:
@@ -410,7 +403,6 @@ function ModifySetting() {
           ></Chip>
         ))}
       </Stack>
-
       <Stack spacing={1}>
         <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
           <Tooltip
@@ -454,7 +446,6 @@ function ModifySetting() {
           </Stack>
         </Stack>
       </Stack>
-
       <Divider textAlign="left" style={{ marginTop: '20px' }}>
         export
       </Divider>
@@ -483,23 +474,9 @@ function ModifySetting() {
           label="include header"
         />
       </Stack>
-
       <Divider textAlign="left" style={{ marginTop: '20px' }}>
-        logger
+        query log
       </Divider>
-
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          logger level:
-        </Typography>
-
-        <LogLevelSelection
-          level={loggerLevel}
-          handleChange={(level) => {
-            setLoggerLevel(level);
-          }}
-        ></LogLevelSelection>
-      </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           auto save query log:
@@ -527,7 +504,6 @@ function ModifySetting() {
           }}
         ></Switch>
       </Stack>
-
       <Divider />
       <Stack direction="row">
         <Button

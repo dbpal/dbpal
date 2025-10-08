@@ -36,8 +36,6 @@ import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import {
   ColumnWidth,
-  dataGridParentStyle,
-  gridStyle,
   QueryLogHandler,
   saveAndSetSize,
   secondConfirm,
