@@ -10,7 +10,6 @@ import { BSON, EJSON } from "bson";
 import Database, { QueryResult } from '@tauri-apps/plugin-sql';
 import { fetch } from '@tauri-apps/plugin-http';
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { emit } from "@tauri-apps/api/event";
 import { platform } from "@tauri-apps/plugin-os";
 
 
@@ -297,38 +296,6 @@ function getViewportSize() {
 }
 
 
-const menuDivID = "menu-div";
-function calMenuStyle(e: MouseEvent): CSSProperties {
-  e.preventDefault();
-  const x = e.clientX;
-  const y = e.clientY;
-  let ret: CSSProperties = {};
-  const menuDiv = document.getElementById(menuDivID);
-  menuDiv.style.display = 'block';
-  const { height, width } = getViewportSize();
-  ret.top = 'auto';
-  ret.bottom = 'auto';
-  ret.left = 'auto';
-  ret.right = 'auto';
-  if (width - x > (width / 2)) {
-    // this is click have a lot of space on the right
-    ret.left =
-      x -
-      10 + // 稍微靠左一点
-      'px';
-  } else {
-    ret.right = width - x - 10 + 'px';
-  }
-
-  if ((height - y) > (height / 2)) {
-    // 这个是点击的位置下面有很大的空间
-    ret.top = y - 10 + 'px';
-  } else {
-    ret.bottom = height - y - 10 + 'px';
-  }
-  return ret;
-}
-
 function errToString(message) {
   if (typeof message == 'object' && 'reason' in message) {
     // TODO show message
@@ -604,7 +571,7 @@ const UuidContext = createContext<{
 }>(null);
 
 const ContextMenuContext = createContext<{
-  setUpMenu: ({ content, style }) => void;
+  setUpMenu: ({ content, event }) => void;
 }>(null);
 
 
@@ -789,7 +756,7 @@ class UserSetting {
 }
 
 const SettingContext = createContext<UserSetting>(null);
-const windowFocusChangeEvent = "window-focus-change-event";
+
 const WindowFocusContext = createContext(true);
 
 function editorSetPositionAndReveal(editor: editor.IStandaloneCodeEditor, pos: Position) {
@@ -1004,7 +971,7 @@ async function setZoom(out: boolean) {
 
 
 
-async function windowInit(isMain: boolean, emitFocus: boolean) {
+async function webviewWIndowInit(isMain: boolean) {
   const currentWebview = await WebviewWindow.getCurrent();
   appStore.get<number>(AppStoreKey.Zoom).then(async (zoom) => {
     if (zoom) {
@@ -1021,11 +988,7 @@ async function windowInit(isMain: boolean, emitFocus: boolean) {
       }
     });
   }
-  if (emitFocus) {
-    currentWebview.onFocusChanged((x) => {
-      emit(windowFocusChangeEvent, x.payload);
-    });
-  }
+
 
   if (isMain) {
     if (!import.meta.env.DEV) {
@@ -1080,6 +1043,8 @@ function extractFieldAndIDFromMouseEvent(e: MouseEvent) {
   let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
   return { field, id };
 }
+
+
 
 
 function editorPositionToEnd(editor: editor.IStandaloneCodeEditor) {
@@ -1142,7 +1107,6 @@ export {
   stringToHex,
   backendCompletionItemToEditor,
   extractConfigNameFromUuid,
-  calMenuStyle,
   errToString,
   getViewportSize,
   isTypeLargeText,
@@ -1166,7 +1130,6 @@ export {
   UserSetting,
   SettingContext,
   SetCloseConfirmTextContext,
-  windowFocusChangeEvent,
   WindowFocusContext,
   gridStyle,
   editorSetPositionAndReveal,
@@ -1188,16 +1151,13 @@ export {
   SaveMatchPattern,
   SaveLeftTopShow,
   setZoom,
-  windowInit,
+  webviewWIndowInit,
   RedisTableType,
   extractFieldAndIDFromMouseEvent,
-  menuDivID,
   editorPositionToEnd,
   isControlSave,
   isControlOpen,
   SomeTempStore,
-
-
 };
 
 

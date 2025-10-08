@@ -42,7 +42,6 @@ import {
 } from '@mui/x-data-grid';
 import { BsFillLightbulbFill } from 'react-icons/bs';
 import {
-  calMenuStyle,
   ColumnWidth,
   ContextMenuContext,
   handleCopyToClipboard,
@@ -852,7 +851,7 @@ function RedisSetTable(props: {
                 }}
               ></RedisSetTableContextMenu>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         },
         style: { cursor: 'context-menu' },
@@ -1193,7 +1192,7 @@ function RedisListTable(props: {
                 content={content}
               ></RedisListTableContextMenu>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         },
         style: { cursor: 'context-menu' },
@@ -1445,7 +1444,7 @@ function RedisZsetTable(props: {
                 }}
               ></RedisZSetTableContextMenu>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         },
         style: { cursor: 'context-menu' },
@@ -1774,7 +1773,7 @@ function RedisHashTable(props: {
                 }}
               ></RedisHashTableContextMenu>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         },
         style: { cursor: 'context-menu' },

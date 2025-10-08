@@ -67,7 +67,6 @@ import {
 import { MongoTable, MongoTableAdd } from './MongoDB';
 import { BSON } from 'bson';
 import {
-  calMenuStyle,
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
@@ -157,7 +156,7 @@ function TablesTree(props: { typ: TableType }) {
                 <MenuRefresh reload={handleReload}></MenuRefresh>
               </MenuList>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         }}
       >
@@ -217,7 +216,7 @@ function TableTree(props: {
                   uuid={uuid}
                 />
               ),
-              style: calMenuStyle(e),
+              event: e,
             });
           }}
         >
@@ -532,51 +531,19 @@ function makeViewTable(
   return tableList;
 }
 
-async function makeAddTable(
-  uuid,
-  table: string,
-  kind: DataSourceKind,
-  redisTableType: RedisTableType
-) {
-  let tableList: ReactNode = null;
+function AddTableView(props: {
+  uuid;
+  table: string;
+  kind: DataSourceKind;
+  redisTableType: RedisTableType;
+}) {
+  const { uuid, table, kind, redisTableType } = props;
+  const [fields, setFields] = useState<types.Field[]>([]);
   switch (kind) {
-    case DataSourceKind.MariaDB:
-    case DataSourceKind.Mysql:
-    case DataSourceKind.MsSql:
-    case DataSourceKind.Sqlite:
-    case DataSourceKind.Postgres:
-    case DataSourceKind.Oracle:
-    case DataSourceKind.TiDB:
-    case DataSourceKind.Cassandra:
-    case DataSourceKind.ClickHouse:
-    case DataSourceKind.LibSql:
-    case DataSourceKind.FireBird:
-    case DataSourceKind.DuckDB:
-    case DataSourceKind.Cockroach:
-      tableList = (
-        <SqlTableViewData
-          isAdd
-          buttonName="add"
-          handleData={async (values) => {
-            return invoke('table_insert', {
-              name: uuid,
-              tableName: table,
-              values,
-            });
-          }}
-          fields={await (async () => {
-            return invoke('show_table_columns', {
-              name: uuid,
-              tableName: table,
-            });
-          })()}
-        ></SqlTableViewData>
-      );
-      break;
     case DataSourceKind.Redis:
       switch (redisTableType) {
         case RedisTableType.String:
-          tableList = (
+          return (
             <RedisStringTable
               modifyOP={async (value) => {
                 return await invoke('redis_string_set', {
@@ -590,9 +557,9 @@ async function makeAddTable(
               }}
             ></RedisStringTable>
           );
-          break;
+
         case RedisTableType.List:
-          tableList = (
+          return (
             <RedisAddList
               lpushOP={async (value) => {
                 return await invoke('redis_list_lpush', {
@@ -610,10 +577,9 @@ async function makeAddTable(
               }}
             ></RedisAddList>
           );
-          break;
 
         case RedisTableType.Set:
-          tableList = (
+          return (
             <RedisAddSet
               addOP={async (member) => {
                 return await invoke('redis_set_add', {
@@ -624,9 +590,9 @@ async function makeAddTable(
               }}
             ></RedisAddSet>
           );
-          break;
+
         case RedisTableType.Zset:
-          tableList = (
+          return (
             <RedisAddZset
               addOP={async (member, value) => {
                 return await invoke('redis_zset_add', {
@@ -638,9 +604,9 @@ async function makeAddTable(
               }}
             ></RedisAddZset>
           );
-          break;
+
         case RedisTableType.Hash:
-          tableList = (
+          return (
             <RedisAddHash
               addOP={async (member, value) => {
                 return await invoke('redis_hash_add', {
@@ -652,11 +618,10 @@ async function makeAddTable(
               }}
             ></RedisAddHash>
           );
-          break;
       }
-      break;
+
     case DataSourceKind.Mongo:
-      tableList = (
+      return (
         <MongoTableAdd
           addOP={async (data) => {
             return invoke<void>('mongo_insert', {
@@ -667,10 +632,31 @@ async function makeAddTable(
           }}
         ></MongoTableAdd>
       );
-      break;
   }
 
-  return tableList;
+  useEffect(() => {
+    invoke<types.Field[]>('show_table_columns', {
+      name: uuid,
+      tableName: table,
+    }).then((e) => {
+      setFields(e);
+    });
+  }, []);
+
+  return (
+    <SqlTableViewData
+      isAdd
+      buttonName="add"
+      handleData={async (values) => {
+        return invoke('table_insert', {
+          name: uuid,
+          tableName: table,
+          values,
+        });
+      }}
+      fields={fields}
+    ></SqlTableViewData>
+  );
 }
 
 function TableMenu(props: {
@@ -748,12 +734,7 @@ function TableMenu(props: {
   };
   const handleAddData = async () => {
     const id = generateRandomString(10);
-    let tableList: ReactNode = await makeAddTable(
-      uuid,
-      table,
-      kind,
-      redisTableType
-    );
+
     setTabs((e) => {
       setTimeout(() => {
         setSelectTab(tabs.length);
@@ -763,12 +744,43 @@ function TableMenu(props: {
         new TabContent(
           id,
           `${table}*`,
-          tableList,
+          (
+            <AddTableView
+              uuid={uuid}
+              kind={kind}
+              table={table}
+              redisTableType={redisTableType}
+            ></AddTableView>
+          ),
           <TableViewIcon> </TableViewIcon>
         ),
       ];
     });
   };
+  const handleAddDataNewWindow = async () => {
+    const id = generateRandomString(10);
+    const webview = new WebviewWindow(id, {
+      title: 'add connection',
+      url:
+        'table_add.html?uuid=' +
+        uuid +
+        '&table=' +
+        table +
+        '&kind=' +
+        kind +
+        '&redisTableType' +
+        redisTableType,
+      width: 800,
+      height: 600,
+    });
+    webview.once('tauri://created', () =>
+      console.log('create add connection view successfully')
+    );
+    webview.once('tauri://error', (e) => {
+      showNotification('error', 'create webview failed', e.event.toString());
+    });
+  };
+
   const handleStructure = () => {
     let id = uuid + '-table-' + table + '-struct';
     let index = tabsHasId(tabs, id);
@@ -824,7 +836,7 @@ function TableMenu(props: {
           <ListItemText> View Data(new window)</ListItemText>
         </MenuItem>
 
-        {kind != DataSourceKind.Redis && (
+        {redisTableType != RedisTableType.String && (
           <MenuItem
             onClick={() => {
               handleAddData();
@@ -836,19 +848,19 @@ function TableMenu(props: {
             <ListItemText> Add Data </ListItemText>
           </MenuItem>
         )}
-        {kind == DataSourceKind.Redis &&
-          redisTableType != RedisTableType.String && (
-            <MenuItem
-              onClick={() => {
-                handleAddData();
-              }}
-            >
-              <ListItemIcon>
-                <AddIcon></AddIcon>
-              </ListItemIcon>
-              <ListItemText> Add Data</ListItemText>
-            </MenuItem>
-          )}
+
+        {redisTableType != RedisTableType.String && (
+          <MenuItem
+            onClick={() => {
+              handleAddDataNewWindow();
+            }}
+          >
+            <ListItemIcon>
+              <AddIcon></AddIcon>
+            </ListItemIcon>
+            <ListItemText> Add Data(new window) </ListItemText>
+          </MenuItem>
+        )}
 
         <MenuItem onClick={handleStructure}>
           <ListItemIcon>
@@ -1160,7 +1172,7 @@ function RedisOneTableKind(props: {
                 <MenuRefresh reload={handleReload}></MenuRefresh>
               </MenuList>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         }}
       >
@@ -1184,7 +1196,7 @@ function RedisOneTableKind(props: {
                     redisTableType={typ}
                   />
                 ),
-                style: calMenuStyle(e),
+                event: e,
               });
             }}
           >
@@ -1339,4 +1351,4 @@ function RedisTables() {
   );
 }
 
-export { TablesTree, TableType, RedisTables, makeRedisViewTable };
+export { TablesTree, TableType, RedisTables, makeRedisViewTable, AddTableView };

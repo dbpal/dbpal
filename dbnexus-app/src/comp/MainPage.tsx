@@ -7,23 +7,22 @@ import {
   ReactNode,
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import { TabContent, TabsWithContent } from './Tabs';
 import { Left } from './Left';
-import { listen } from '@tauri-apps/api/event';
-import { event } from '@tauri-apps/api';
 import { SettingComp } from './Settings.tsx';
 import {
   ContextMenuContext,
   secondConfirm,
   TabsSetContext,
   WindowFocusContext,
-  windowFocusChangeEvent,
-  menuDivID,
+  getViewportSize,
 } from './helper.ts';
 import '../app.css';
 import { Paper } from '@mui/material';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 const shortCuts = {
   callback: (e: KeyboardEvent) => {
@@ -105,14 +104,6 @@ function App() {
     document.addEventListener('keydown', shortCuts.callback);
   }, []);
 
-  const [menu, setUpMenu] = useState<{
-    content: ReactNode;
-    style: CSSProperties;
-  }>();
-  useEffect(() => {
-    window.addEventListener('click', hiddenMenu);
-  }, []);
-
   useEffect(() => {
     if (tab > 0 && tab >= tabs.length) {
       setTab((e) => e - 1);
@@ -123,29 +114,12 @@ function App() {
     setTab(index as number);
   }, []);
 
-  const [windowFocus, setWindowsFocus] = useState(true);
-  useEffect(() => {
-    let unlisten = listen<boolean>(
-      windowFocusChangeEvent,
-      (msg: event.Event<boolean>) => {
-        setWindowsFocus(msg.payload);
-      }
-    );
-    return () => {
-      unlisten.then((e) => {
-        e();
-      });
-    };
-  }, []);
-
   return (
     <SettingComp>
-      <ContextMenuContext.Provider value={{ setUpMenu }}>
-        <TabsSetContext.Provider
-          value={{ setTabs, tabs, setSelectTab: setTab }}
-        >
+      <TabsSetContext.Provider value={{ setTabs, tabs, setSelectTab: setTab }}>
+        <Menu>
           <NotificationProvider>
-            <WindowFocusContext value={windowFocus}>
+            <WindowFocus>
               <div>
                 <PanelGroup
                   direction="horizontal"
@@ -163,7 +137,7 @@ function App() {
                       height: '100%',
                     }}
                     minSize={10}
-                    maxSize={45}
+                    maxSize={65}
                     collapsible
                     collapsedSize={0}
                   >
@@ -189,47 +163,80 @@ function App() {
                   </Panel>
                 </PanelGroup>
               </div>
-              <div
-                id={menuDivID}
-                style={{
-                  ...menuBasicStyle,
-                  ...(menu && menu.style),
-                }}
-              >
-                <Paper elevation={24}>{menu && menu.content}</Paper>
-              </div>
-            </WindowFocusContext>
+            </WindowFocus>
           </NotificationProvider>
-        </TabsSetContext.Provider>
-      </ContextMenuContext.Provider>
+        </Menu>
+      </TabsSetContext.Provider>
     </SettingComp>
   );
 }
 
-const menuBasicStyle = {
-  position: 'fixed',
-  zIndex: 10000,
-  height: 'fit-content',
-  maxHeight: '48vh',
-  overflow: 'auto',
-} as CSSProperties;
+function WindowFocus(props: { children: ReactNode }) {
+  const { children } = props;
+  const [windowFocus, setWindowsFocus] = useState(true);
+  useEffect(() => {
+    let webview = WebviewWindow.getCurrent();
+    let x = webview.onFocusChanged((e) => {
+      setWindowsFocus(e.payload);
+    });
+    return () => {
+      x.then((c) => {
+        c();
+      });
+    };
+  }, []);
 
-function hiddenMenu() {
-  const customMenu = document.getElementById(menuDivID);
-  if (customMenu.style) {
-    customMenu.style.display = 'none';
-  }
+  return (
+    <WindowFocusContext value={windowFocus}>{children}</WindowFocusContext>
+  );
 }
 
-function SeparateWindow(props: { children }) {
-  useEffect(() => {
-    window.addEventListener('click', hiddenMenu);
-  }, []);
+function Menu(props: { children: ReactNode }) {
   const { children } = props;
   const [menu, setUpMenu] = useState<{
     content: ReactNode;
-    style: CSSProperties;
+    event: MouseEvent;
   }>();
+
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    document.addEventListener('click', () => {
+      ref.current.style.display = 'none';
+    });
+  }, []);
+
+  useEffect(() => {
+    ref.current.style.display = 'block';
+    if (menu && menu.event) {
+      menu.event.preventDefault();
+    }
+  }, [menu]);
+
+  return (
+    <ContextMenuContext.Provider value={{ setUpMenu }}>
+      {children}
+      <div
+        ref={ref}
+        style={{
+          position: 'fixed',
+          zIndex: 10000,
+          height: 'fit-content',
+          maxHeight: '48vh',
+          overflow: 'auto',
+          display: 'block',
+          ...(menu && calMenuStyle(menu.event)),
+        }}
+      >
+        <Paper elevation={24}>{menu && menu.content}</Paper>
+      </div>
+    </ContextMenuContext.Provider>
+  );
+}
+
+function SeparateWindow(props: { children }) {
+  const { children } = props;
+
   return (
     <TabsSetContext.Provider
       value={{
@@ -241,7 +248,7 @@ function SeparateWindow(props: { children }) {
       }}
     >
       <SettingComp>
-        <ContextMenuContext.Provider value={{ setUpMenu }}>
+        <Menu>
           <NotificationProvider>
             <div
               style={{
@@ -252,20 +259,39 @@ function SeparateWindow(props: { children }) {
             >
               {children}
             </div>
-            <div
-              id={menuDivID}
-              style={{
-                ...menuBasicStyle,
-                ...(menu && menu.style),
-              }}
-            >
-              <Paper elevation={24}>{menu && menu.content}</Paper>
-            </div>
           </NotificationProvider>
-        </ContextMenuContext.Provider>
+        </Menu>
       </SettingComp>
     </TabsSetContext.Provider>
   );
+}
+
+function calMenuStyle(e: MouseEvent): CSSProperties {
+  const x = e.clientX;
+  const y = e.clientY;
+  let ret: CSSProperties = {};
+  const { height, width } = getViewportSize();
+  ret.top = 'auto';
+  ret.bottom = 'auto';
+  ret.left = 'auto';
+  ret.right = 'auto';
+  if (width - x > width / 2) {
+    // this is click have a lot of space on the right
+    ret.left =
+      x -
+      10 + // 稍微靠左一点
+      'px';
+  } else {
+    ret.right = width - x - 10 + 'px';
+  }
+
+  if (height - y > height / 2) {
+    // 这个是点击的位置下面有很大的空间
+    ret.top = y - 10 + 'px';
+  } else {
+    ret.bottom = height - y - 10 + 'px';
+  }
+  return ret;
 }
 
 export { App, SeparateWindow };

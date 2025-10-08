@@ -5,9 +5,9 @@ import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { App } from './comp/MainPage';
 import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
-import { secondConfirm, windowInit } from './comp/helper';
+import { secondConfirm, webviewWIndowInit } from './comp/helper';
 
-await windowInit(true, true);
+await webviewWIndowInit(true);
 
 const currentWebview = await WebviewWindow.getCurrent();
 

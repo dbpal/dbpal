@@ -15,7 +15,6 @@ import {
   modalStyle,
 } from './Common';
 import {
-  calMenuStyle,
   ColumnWidth,
   ContextMenuContext,
   DataSourceKind,
@@ -241,7 +240,7 @@ function ColumnsStructure(props: {
           let content = (target as HTMLDivElement).innerHTML;
           setUpMenu({
             content: <Menu col={id} content={content}></Menu>,
-            style: calMenuStyle(e),
+            event: e,
           });
         },
         style: { cursor: 'context-menu' },
@@ -567,7 +566,7 @@ function IndexesStructure(props: {
           );
           setUpMenu({
             content: <Menu indexName={indexName} content={content}></Menu>,
-            style: calMenuStyle(e),
+            event: e,
           });
         },
         style: { cursor: 'context-menu' },
@@ -1575,7 +1574,7 @@ function TriggersStructure(props: {
           let detail = triggers.find((e) => e.name == name);
           setUpMenu({
             content: <Menu detail={detail} content={content}></Menu>,
-            style: calMenuStyle(e),
+            event: e,
           });
         },
         style: { cursor: 'context-menu' },

@@ -7,7 +7,7 @@ import {
   secondConfirm,
   SetCloseConfirmTextContext,
   SomeTempStore,
-  windowInit,
+  webviewWIndowInit,
 } from './comp/helper.ts';
 import { initMonacoLanguage } from './comp/Common.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
@@ -15,7 +15,7 @@ import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { AllKindQuery } from './comp/Left.tsx';
 import { Typography } from '@mui/material';
 
-windowInit(false, false);
+webviewWIndowInit(false);
 const params = new URLSearchParams(location.search);
 
 const uuid = params.get('uuid');

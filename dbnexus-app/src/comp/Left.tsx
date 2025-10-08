@@ -60,7 +60,6 @@ import wcmatch from 'wildcard-match';
 
 import {
   appStore,
-  calMenuStyle,
   ColumnWidth,
   ConnTypeContext,
   connTypeToDataSourceKind,
@@ -416,7 +415,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
           }
           setUpMenu({
             content: <Menu content={content}></Menu>,
-            style: calMenuStyle(e),
+            event: e,
           });
         },
         style: { cursor: 'context-menu' },
@@ -774,7 +773,7 @@ function FavoriteSqlList(props: { handleClose }) {
                 }}
               ></FavoriteSqlMenu>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         },
         style: { cursor: 'context-menu' },
@@ -1031,7 +1030,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
               ></SchemaMenu>
             ),
 
-            style: calMenuStyle(e),
+            event: e,
           });
         }}
         sx={{
@@ -1632,7 +1631,7 @@ function CatalogTree(_props: {}) {
                 kind={kind}
               ></CatalogMenu>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         }}
       >
@@ -1717,7 +1716,7 @@ function DatabaseTree(props: {
                 schemas={schemas}
               ></DatabaseMenu>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         }}
         sx={{ alignItems: 'center' }}

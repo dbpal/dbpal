@@ -59,7 +59,6 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import { FaArrowsAltV } from 'react-icons/fa';
 import {
-  calMenuStyle,
   ColumnWidth,
   ContextMenuContext,
   DataSourceKind,
@@ -641,7 +640,7 @@ function SqlTableView_(props: {
                 }}
               ></Menu>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         },
         style: { cursor: 'context-menu' },

@@ -11,7 +11,6 @@ import {
 } from '@mui/material';
 
 import {
-  calMenuStyle,
   ContextMenuContext,
   secondConfirm,
   SetCloseConfirmTextContext,
@@ -161,7 +160,7 @@ function TabsWithContent_(props: {
                             selectIndex={selectIndex}
                           ></TabsMenu>
                         ),
-                        style: calMenuStyle(e),
+                        event: e,
                       });
                     }}
                   ></Chip>

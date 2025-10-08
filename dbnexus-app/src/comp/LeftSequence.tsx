@@ -29,7 +29,6 @@ import { TabContent } from './Tabs';
 import { DefAndMetasView } from './UdfAndMetaView';
 import { GiProgression } from 'react-icons/gi';
 import {
-  calMenuStyle,
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
@@ -91,7 +90,7 @@ function SequenceTree() {
                 <MenuRefresh reload={reload}></MenuRefresh>
               </MenuList>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         }}
       >
@@ -123,7 +122,7 @@ function SequenceTree() {
                         seq={seq}
                       ></SequenceMenu>
                     ),
-                    style: calMenuStyle(e),
+                    event: e,
                   });
                 }}
                 sx={{ alignItems: 'center' }}

@@ -18,7 +18,6 @@ import { TabContent } from './Tabs';
 import { DefAndMetasView } from './UdfAndMetaView';
 import { MdOutlineEventRepeat } from 'react-icons/md';
 import {
-  calMenuStyle,
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
@@ -75,7 +74,7 @@ function EventsTree() {
                 <MenuRefresh reload={reload}></MenuRefresh>
               </MenuList>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         }}
       >
@@ -106,7 +105,7 @@ function EventsTree() {
                         event={event}
                       ></EventMenu>
                     ),
-                    style: calMenuStyle(e),
+                    event: e,
                   });
                 }}
                 sx={{ alignItems: 'center' }}

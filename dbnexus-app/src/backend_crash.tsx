@@ -1,12 +1,12 @@
 'use strict';
 import ReactDOM from 'react-dom/client';
 import React from 'react';
-import { windowInit } from './comp/helper.ts';
+import { webviewWIndowInit } from './comp/helper.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
 import { BackendCrash } from './comp/BackendCrash.tsx';
 import { invoke } from '@tauri-apps/api/core';
 
-windowInit(false, false);
+webviewWIndowInit(false);
 const params = new URLSearchParams(location.search);
 const id = parseInt(params.get('id'));
 let msg;

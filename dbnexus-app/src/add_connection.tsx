@@ -1,13 +1,13 @@
 'use strict';
 import ReactDOM from 'react-dom/client';
-import { windowInit } from './comp/helper.ts';
+import { webviewWIndowInit } from './comp/helper.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { AddConnection } from './comp/AddConnection.tsx';
 import React from 'react';
 import { Stack, Typography } from '@mui/material';
 
-windowInit(false, false);
+webviewWIndowInit(false);
 const params = new URLSearchParams(location.search);
 let c = params.get('config');
 const currentWebview = WebviewWindow.getCurrent();

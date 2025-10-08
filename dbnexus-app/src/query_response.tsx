@@ -1,7 +1,7 @@
 'use strict';
 import ReactDOM from 'react-dom/client';
 
-import { windowInit } from './comp/helper.ts';
+import { webviewWIndowInit } from './comp/helper.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
 import React, { useEffect, useState } from 'react';
 
@@ -11,27 +11,27 @@ import { Typography } from '@mui/material';
 import { emit, listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 
-windowInit(false, false);
+webviewWIndowInit(false);
 const params = new URLSearchParams(location.search);
-const cache_name = params.get('cache_name');
-
+const eventName = params.get('eventName');
+const uuid = params.get('uuid');
+const queryId = parseInt(params.get('query_id'));
 function QueryResponse() {
   const [resp, setResp] = useState([]);
 
   const handleReload = () => {
-    invoke<any>('get_query_cache', { cacheName: cache_name }).then((data) => {
-      console.log('!!!!!!!!!!!!!!!!1', data);
+    invoke<any>('get_query_cache', { name: uuid, queryId }).then((data) => {
       setResp(data);
     });
   };
   useEffect(() => {
-    let unlisten = listen<any[]>(cache_name, (e) => {
+    let unlisten = listen<any[]>(eventName, (e) => {
       if (typeof e.payload == 'string') {
         return;
       }
       handleReload();
     });
-    emit(cache_name, 'listen_ok');
+    emit(eventName, 'listen_ok');
     return () => {
       unlisten.then((e) => {
         e();

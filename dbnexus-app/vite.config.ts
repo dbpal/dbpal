@@ -23,6 +23,7 @@ export default defineConfig(async ({ command }) => {
           log_file: resolve(__dirname, 'log_file.html'),
           info: resolve(__dirname, 'info.html'),
           query_response: resolve(__dirname, 'query_response.html'),
+          table_add: resolve(__dirname, 'table_add.html'),
         }
       }
     },

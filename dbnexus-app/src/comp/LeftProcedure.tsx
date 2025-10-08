@@ -19,7 +19,6 @@ import { DefAndMetasView } from './UdfAndMetaView';
 
 import { SiProcessingfoundation } from 'react-icons/si';
 import {
-  calMenuStyle,
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
@@ -81,7 +80,7 @@ function ProceduresTree() {
                 <MenuRefresh reload={reload}></MenuRefresh>
               </MenuList>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         }}
       >
@@ -113,7 +112,7 @@ function ProceduresTree() {
                         parameters={p.parameters}
                       ></ProcedureMenu>
                     ),
-                    style: calMenuStyle(e),
+                    event: e,
                   });
                 }}
                 sx={{ alignItems: 'center' }}

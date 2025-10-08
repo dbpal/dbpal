@@ -381,18 +381,30 @@ pub struct QueryCache {
 }
 
 impl QueryCache {
-    pub(crate) fn set(&self, name: String, data: CachedQueryResp) {
-        log::info!("set query cache:{}", name);
-        self.datas.insert(name.clone(), data);
+    pub(crate) fn set(&self, name: &str, query_id: u32, data: CachedQueryResp, append: bool) {
+        let key = self.get_key(name, query_id);
+        log::info!("set query cache:{}", key);
+        if append {
+            let mut r = self.datas.get(&key).map(|x| x.to_vec()).unwrap_or_default();
+            r.extend(data.to_vec().into_iter());
+            self.datas.insert(key, Arc::new(r));
+        } else {
+            self.datas.insert(key, data);
+        }
     }
 
-    pub(crate) fn get(&self, name: &String) -> CachedQueryResp {
-        log::info!("get cache named:{}", name);
-        self.datas.get(name).map(|x| x.clone()).unwrap_or_default()
+    pub(crate) fn get(&self, name: &str, query_id: u32) -> CachedQueryResp {
+        let key = self.get_key(name, query_id);
+        log::info!("get cache named:{}", key);
+        self.datas.get(&key).map(|x| x.clone()).unwrap_or_default()
     }
-    pub(crate) fn remove(&self, name: &String) {
-        log::info!("remove cache:{}", name);
-        self.datas.remove(name);
+    fn get_key(&self, name: &str, query_id: u32) -> String {
+        format!("{}:{}", name, query_id)
+    }
+    pub(crate) fn remove(&self, name: &str, query_id: u32) {
+        let key = self.get_key(name, query_id);
+        log::info!("remove cache:{}", key);
+        self.datas.remove(&key);
     }
 }
 

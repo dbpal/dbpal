@@ -208,6 +208,7 @@ function SqlQuery(props: {
   const [conn, setConn] = useState<IQueryConn | null>(null);
   const [showExport, setShowExport] = useState(false);
   const [queryRespView, setQueryRespView] = useState<WebviewWindow>(null);
+  const queryRespViewEventName = useRef(generateRandomString());
   const handleEditorDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor, _monaco) => {
       setEditor(ed);
@@ -341,7 +342,7 @@ function SqlQuery(props: {
     let now = new Date();
     setLoading(true);
     conn
-      .queryOP(text)
+      .queryOP(text, append)
       .then((resp) => {
         if (setting.saveQueryLog) {
           queryLogHandler.current.save(
@@ -418,7 +419,7 @@ function SqlQuery(props: {
     if (!queryRespView) {
       return;
     }
-    queryRespView.emit(conn.cacheName).catch((e) => {
+    queryRespView.emit(queryRespViewEventName.current).catch((e) => {
       showNotification('error', 'emit query response failed', e);
     });
   }, [queryRespView, resp]);
@@ -689,7 +690,13 @@ function SqlQuery(props: {
                   } else {
                     const webview = new WebviewWindow(generateRandomString(), {
                       title: `query result ${uuid}#${conn.queryId}`,
-                      url: 'query_response.html?cache_name=' + conn.cacheName,
+                      url:
+                        'query_response.html?eventName=' +
+                        queryRespViewEventName.current +
+                        '&uuid=' +
+                        uuid +
+                        '&query_id=' +
+                        conn.queryId,
                       width: 800,
                       height: 600,
                       maximized: true,
@@ -697,7 +704,7 @@ function SqlQuery(props: {
                     webview.once('tauri://created', () => {
                       console.log('create query response view successfully');
                     });
-                    webview.once(conn.cacheName, (e) => {
+                    webview.once(queryRespViewEventName.current, (e) => {
                       console.log('query window send me something:', e.payload);
                       setQueryRespView(webview);
                     });

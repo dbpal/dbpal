@@ -53,7 +53,6 @@ import { IoTimerOutline } from 'react-icons/io5';
 import {
   appStore,
   AppStoreKey,
-  calMenuStyle,
   ColumnWidth,
   connTypeToDataSourceKind,
   ContextMenuContext,
@@ -512,7 +511,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
                 setSort={setSortModel}
               ></MetaValueViewMenu>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         },
         style: { cursor: 'context-menu' },

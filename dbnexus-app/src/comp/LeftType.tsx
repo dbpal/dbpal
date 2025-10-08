@@ -18,7 +18,6 @@ import { TabContent } from './Tabs';
 import { DefAndMetasView } from './UdfAndMetaView';
 import { PiTreeStructureFill } from 'react-icons/pi';
 import {
-  calMenuStyle,
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
@@ -75,7 +74,7 @@ function TypesTree() {
                 <MenuRefresh reload={reload}></MenuRefresh>
               </MenuList>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         }}
       >
@@ -106,7 +105,7 @@ function TypesTree() {
                         createdType={typ}
                       ></TypeMenu>
                     ),
-                    style: calMenuStyle(e),
+                    event: e,
                   });
                 }}
                 sx={{ alignItems: 'center' }}

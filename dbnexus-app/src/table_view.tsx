@@ -5,7 +5,7 @@ import {
   DataSourceKind,
   MongoTableHandler,
   RedisTableType,
-  windowInit,
+  webviewWIndowInit,
 } from './comp/helper.ts';
 import { SqlTableView } from './comp/SqlTableView.tsx';
 import {
@@ -24,7 +24,7 @@ import { MongoTable } from './comp/MongoDB.tsx';
 import { makeRedisViewTable } from './comp/LeftTable.tsx';
 import { Typography } from '@mui/material';
 
-windowInit(false, false);
+webviewWIndowInit(false);
 const params = new URLSearchParams(location.search);
 
 const uuid = params.get('uuid');

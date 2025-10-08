@@ -16,7 +16,6 @@ import {
   Typography,
 } from '@mui/material';
 import {
-  calMenuStyle,
   handleCopyToClipboard,
   ContextMenuContext,
   resetMuiDataRespWidth,
@@ -194,7 +193,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
                 }}
               ></RespContextMenu>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         },
         style: { cursor: 'context-menu' },

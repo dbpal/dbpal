@@ -21,7 +21,6 @@ import { DefAndMetasView } from './UdfAndMetaView';
 
 import { TbMathFunction } from 'react-icons/tb';
 import {
-  calMenuStyle,
   ConnTypeContext,
   ContextMenuContext,
   DataSourceKind,
@@ -82,7 +81,7 @@ function UdfsTree() {
                 <MenuRefresh reload={reload}></MenuRefresh>
               </MenuList>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         }}
       >
@@ -114,7 +113,7 @@ function UdfsTree() {
                         udf={udf}
                       ></UdfMenu>
                     ),
-                    style: calMenuStyle(e),
+                    event: e,
                   });
                 }}
               >
@@ -385,7 +384,7 @@ function CassandraAggregatesTree() {
                 <MenuRefresh reload={reload}></MenuRefresh>
               </MenuList>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         }}
       >
@@ -423,7 +422,7 @@ function CassandraAggregatesTree() {
                         parameters={agg.cassandra_parameters}
                       ></CassandraAggregateMenu>
                     ),
-                    style: calMenuStyle(e),
+                    event: e,
                   });
                 }}
               >

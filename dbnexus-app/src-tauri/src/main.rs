@@ -481,7 +481,7 @@ fn main_() {
                 } else {
                     if let Err(err) = WebviewWindowBuilder::new(
                         handle,
-                        generate_random_string(10),
+                        setting_window_id.clone(),
                         WebviewUrl::App(format!("setting.html").into()),
                     )
                     .title("setting")
@@ -553,7 +553,7 @@ fn main_() {
                 } else {
                     if let Err(err) = WebviewWindowBuilder::new(
                         handle,
-                        generate_random_string(10),
+                        log_window_id.clone(),
                         WebviewUrl::App(format!("log_file.html").into()),
                     )
                     .title("log file")

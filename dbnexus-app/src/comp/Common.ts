@@ -34,7 +34,6 @@ import {
   AppStoreKey,
   backendCompletionItemToEditor,
   DataSourceKind,
-  generateRandomString,
   MuiDataGridData,
   secondConfirm,
 } from './helper';
@@ -493,7 +492,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
 }
 
 interface IQueryConn {
-  queryOP: (text: string) => Promise<any[]>;
+  queryOP: (text: string, append: boolean) => Promise<any[]>;
   executeOP: (text: string) => Promise<any>;
   reconnect: () => Promise<void>;
   exportQueryResult: (
@@ -509,14 +508,13 @@ interface IQueryConn {
   rollback: () => Promise<void>;
   supportTransaction: () => boolean;
   queryId: number;
-  cacheName: string;
+
 }
 
 class QueryConn implements IQueryConn {
   queryId: number;
   uuid: string;
   kind: DataSourceKind;
-  cacheName: string = generateRandomString();
 
 
   constructor(uuid, queryId: number, kind: DataSourceKind) {
@@ -578,13 +576,13 @@ class QueryConn implements IQueryConn {
       queryId: this.queryId,
     });
   }
-  queryOP(sql: string): Promise<any[]> {
+  queryOP(sql: string, append: boolean): Promise<any[]> {
 
     let x = invoke<any[]>('query_sql', {
       name: this.uuid,
       queryId: this.queryId,
       sql,
-      cacheName: this.cacheName
+      append
     });
     return x;
   }
@@ -592,7 +590,7 @@ class QueryConn implements IQueryConn {
     let x = invoke<any[]>('execute_sql', {
       name: this.uuid,
       queryId: this.queryId,
-      sql, cacheName: this.cacheName
+      sql,
     });
     return x;
   }
@@ -611,7 +609,6 @@ class QueryConn implements IQueryConn {
     invoke('query_sql_close_connection', {
       name: this.uuid,
       queryId: this.queryId,
-      cacheName: this.cacheName,
     })
       .then(() => { })
       .catch((e) => {

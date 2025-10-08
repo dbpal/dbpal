@@ -84,9 +84,9 @@ pub async fn save_entered_password(
 }
 #[tauri::command]
 pub async fn get_query_cache(
-    cache_name: String, app: tauri::State<'_, DBPal>,
+    name: String, query_id: u32, app: tauri::State<'_, DBPal>,
 ) -> Result<CachedQueryResp, ErrorFrontend> {
-    let x = app.query_cache.get(&cache_name);
+    let x = app.query_cache.get(&name, query_id);
     Ok(x)
 }
 
@@ -786,8 +786,7 @@ pub async fn get_backend_crash(
 
 #[tauri::command]
 pub async fn query_sql(
-    name: String, query_id: u32, sql: String, cache_name: Option<String>,
-    app: tauri::State<'_, DBPal>,
+    name: String, query_id: u32, sql: String, append: bool, app: tauri::State<'_, DBPal>,
 ) -> Result<Arc<Vec<Result<MuiDataGridData, String>>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -810,10 +809,7 @@ pub async fn query_sql(
             .collect::<Vec<_>>()
     })?;
     let r = Arc::new(r);
-
-    if let Some(cache_name) = cache_name {
-        app.query_cache.set(cache_name, r.clone());
-    }
+    app.query_cache.set(&name, query_id, r.clone(), append);
     Ok(r)
 }
 
@@ -839,16 +835,12 @@ pub async fn execute_sql_no_open_conn(
 }
 #[tauri::command]
 pub async fn execute_sql(
-    name: String, cache_name: Option<String>, query_id: u32, sql: String,
-    app: tauri::State<'_, DBPal>,
+    name: String, query_id: u32, sql: String, app: tauri::State<'_, DBPal>,
 ) -> Result<Result<MuiDataGridData, String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
 
-    let db = app
-        .get_backend(name.as_str())
-        .await
-        .map_err(ErrorFrontend::from)?;
+    let db = app.get_backend(&name).await.map_err(ErrorFrontend::from)?;
 
     let result = match db {
         DatabaseBackend::DataBase(x) => x.execute_sql(query_id, &sql).await,
@@ -857,10 +849,9 @@ pub async fn execute_sql(
     }
     .map_err(ErrorFrontend::from)?;
     let result = result.map(MuiDataGridData::from);
-    if let Some(cache_name) = cache_name {
-        app.query_cache
-            .set(cache_name, Arc::new(vec![result.clone()]));
-    }
+
+    app.query_cache
+        .set(&name, query_id, Arc::new(vec![result.clone()]), false);
     Ok(result)
 }
 
@@ -902,7 +893,7 @@ pub async fn query_sql_re_connection(
 
 #[tauri::command]
 pub async fn query_sql_close_connection(
-    name: String, cache_name: Option<String>, query_id: u32, app: tauri::State<'_, DBPal>,
+    name: String, query_id: u32, app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -910,9 +901,7 @@ pub async fn query_sql_close_connection(
         .get_backend(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    if let Some(name) = cache_name {
-        app.query_cache.remove(&name);
-    }
+    app.query_cache.remove(&name, query_id);
     let result = match db {
         DatabaseBackend::DataBase(x) => x.close_connection(query_id).await,
         DatabaseBackend::Schema(x) => x.close_connection(query_id).await,

@@ -79,8 +79,13 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
   );
 }
 
-function SelectPath(props: { path; setPath; label: string }) {
-  let { path, setPath, label } = props;
+function SelectPath(props: {
+  path;
+  setPath;
+  label: string;
+  required: boolean;
+}) {
+  let { path, setPath, label, required } = props;
   return (
     <Stack direction="row" sx={{ alignItems: 'center' }}>
       <TextField
@@ -90,6 +95,7 @@ function SelectPath(props: { path; setPath; label: string }) {
         }}
         style={{ flex: 1 }}
         label={label}
+        required={required}
         slotProps={{
           input: {
             endAdornment: path && (
@@ -1230,6 +1236,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         <SelectPath
           path={path}
           setPath={setPath}
+          required
           label="sqlite database file"
         ></SelectPath>
       )}
@@ -1239,6 +1246,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             path={path}
             setPath={setPath}
             label="duckdb database file"
+            required
           ></SelectPath>
           <Database
             database={database}
@@ -1378,6 +1386,7 @@ function LibSql(props: {
         <SelectPath
           path={path}
           setPath={setPath}
+          required
           label="libsql database file"
         ></SelectPath>
       )}
@@ -1446,6 +1455,7 @@ function LibSql(props: {
                 label="replica"
                 path={path}
                 setPath={setPath}
+                required={false}
               ></SelectPath>
             )}
           </Stack>

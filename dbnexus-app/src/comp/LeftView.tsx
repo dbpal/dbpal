@@ -49,7 +49,6 @@ import { SqlTableView } from './SqlTableView';
 import { TabContent } from './Tabs';
 import { ExportTableOrView } from './Export';
 import {
-  calMenuStyle,
   ColumnWidth,
   ConnTypeContext,
   ContextMenuContext,
@@ -154,7 +153,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
                 <MenuRefresh reload={handleReload}></MenuRefresh>
               </MenuList>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         }}
       >
@@ -399,7 +398,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
           let content = (target as HTMLDivElement).innerHTML;
           setUpMenu({
             content: <Menu content={content}></Menu>,
-            style: calMenuStyle(e),
+            event: e,
           });
         },
         style: { cursor: 'context-menu' },
@@ -482,7 +481,7 @@ function ViewTree(props: {
                   viewKind={viewKind}
                 />
               ),
-              style: calMenuStyle(e),
+              event: e,
             });
           }}
         >

@@ -74,7 +74,6 @@ import {
   SelectPageSize,
 } from './CommonComp';
 import {
-  calMenuStyle,
   ColumnWidth,
   ContextMenuContext,
   DocsAndCount,
@@ -679,7 +678,6 @@ function MongoTableListContextMenu(props: {
             <ListItemText> Copy </ListItemText>
           </MenuItem>
         )}
-
         <Divider />
         <MenuItem
           onClick={() => {
@@ -1317,7 +1315,7 @@ function MongoTableList(props: {
                 }}
               ></MongoTableListContextMenu>
             ),
-            style: calMenuStyle(e),
+            event: e,
           });
         },
         style: { cursor: 'context-menu' },
