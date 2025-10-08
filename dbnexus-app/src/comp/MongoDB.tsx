@@ -1655,22 +1655,12 @@ function MongoTableAdd(props: {
     }
     showNotification('success', 'Add OK');
   };
-  const [dom, setDom] = useState(null);
-  useEffect(() => {
-    if (dom) {
-      let c = saveAndSetSize(dom, 'mongo-table-add', 'height');
-      return c;
-    }
-  }, [dom]);
+
   return (
     <Stack
       style={{
-        resize: 'vertical',
-        overflow: 'auto',
-        minHeight: '20vh',
-        height: '300px',
+        height: '100%',
       }}
-      ref={setDom}
     >
       <MongoValueEditor
         doc={{}}

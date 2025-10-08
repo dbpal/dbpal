@@ -26,6 +26,7 @@ import {
   Tooltip,
   InputAdornment,
   IconButton,
+  Divider,
 } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
@@ -619,6 +620,7 @@ function RedisValueEditor(props: {
       ></SimpleFlexEditor>
       {editModel == RedisEditorMode.Hex && (
         <Stack>
+          <Divider></Divider>
           <pre> {hexToString(newValue)}</pre>
         </Stack>
       )}
