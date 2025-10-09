@@ -1,13 +1,14 @@
 'use strict';
+
 import ReactDOM from 'react-dom/client';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 import { App } from './comp/MainPage';
 import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
-import { secondConfirm, webviewWIndowInit } from './comp/helper';
+import { secondConfirm, webviewWIndowInit } from './comp/helper.ts';
 
-await webviewWIndowInit(true);
+webviewWIndowInit(true);
 
 const currentWebview = await WebviewWindow.getCurrent();
 

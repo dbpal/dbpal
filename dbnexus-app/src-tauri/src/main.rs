@@ -15,15 +15,15 @@ use app::{DBConnectionConfig, DBPal};
 use handlers::{
     PASSWORD_KEY, add_table_column, auto_completion, cassandra_drop_aggregate,
     cassandra_invalid_table_or_view_caching, cassandra_list_aggregate, cassandra_show_aggregate,
-    check_conn, close_conn, command_panic, config_list_database_or_schema, conn_opened,
-    create_database, create_index, create_schema, create_table_and_index_sql, create_view_sql,
-    delete_password, disable_trigger, drop_created_type, drop_database, drop_event, drop_index,
-    drop_materialized_view, drop_procedure, drop_schema, drop_sequence, drop_table,
-    drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
-    execute_sql, execute_sql_no_open_conn, export_query_result_to_file, export_table_or_view,
-    extract_table_select_selection, extract_table_select_sort, fonts_all_families,
-    get_backend_crash, get_password, get_query_cache, has_entered_password, is_dangerous_sql,
-    key_words, list_created_types, list_data_types, list_database, list_event,
+    check_conn, close_conn, close_log_channel, command_panic, config_list_database_or_schema,
+    conn_opened, create_database, create_index, create_schema, create_table_and_index_sql,
+    create_view_sql, delete_password, disable_trigger, drop_created_type, drop_database,
+    drop_event, drop_index, drop_materialized_view, drop_procedure, drop_schema, drop_sequence,
+    drop_table, drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table,
+    enable_trigger, execute_sql, execute_sql_no_open_conn, export_query_result_to_file,
+    export_table_or_view, extract_table_select_selection, extract_table_select_sort,
+    fonts_all_families, get_backend_crash, get_password, get_query_cache, has_entered_password,
+    is_dangerous_sql, key_words, list_created_types, list_data_types, list_database, list_event,
     list_materialized_view, list_procedure, list_schema, list_sequence, list_sql_current_values,
     list_table, list_udf, list_view, log_channel, modify_table_column, mongo_create_index,
     mongo_delete_ids, mongo_get_one_document_by_id, mongo_insert,
@@ -186,7 +186,7 @@ fn set_webview_zoom(handle: &AppHandle, zoom: f64) {
 }
 
 fn main_() {
-    // logger_test();
+    logger_test();
     let dbpal = DBPal::new();
     let dbpal_clone = dbpal.clone();
 
@@ -649,7 +649,8 @@ fn main_() {
             get_password,
             get_backend_crash,
             get_query_cache,
-            log_channel
+            log_channel,
+            close_log_channel,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
