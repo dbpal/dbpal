@@ -12,20 +12,11 @@
 }
 
 ::-webkit-resizer {
-  /* 1. 换成你的图片 */
-  background-image: url('resize.png');
-
-  /* 2. 关键三行：让图片始终贴在右下角，且只出现一次 */
-  background-size: 12px 12px; /* 图片真实宽高 */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024' width='200' height='200'%3E%3Cpath d='M944.296229 518.144c27.794286 27.794286 27.794286 72.704 0 100.352L618.517943 944.274286a71.094857 71.094857 0 1 1-100.352-100.352l325.778286-325.778286c27.794286-27.794286 72.704-27.794286 100.352 0zM873.347657 20.772571c27.794286 27.794286 27.794286 72.704 0 100.498286L121.2928 873.179429a71.094857 71.094857 0 1 1-100.498286-100.352L772.849371 20.918857c27.794286-27.794286 72.704-27.794286 100.498286 0z' fill='%23909399'/%3E%3C/svg%3E");
+  background-size: 12px 12px; /* 按需改大小 */
   background-position: 100% 100%;
   background-repeat: no-repeat;
-
-  /* 3. 把默认灰色三角抹掉 */
   background-color: transparent;
-
-  /* 4. 如果想让热区更大，可额外加宽高（可选） */
-  /* width: 20px; */
-  /* height: 20px; */
 }
 
 .resize-handle {
