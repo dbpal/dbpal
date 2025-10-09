@@ -605,10 +605,10 @@ pub(crate) fn generate_random_string(len: usize) -> String {
                               abcdefghijklmnopqrstuvwxyz\
                               0123456789";
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let rand_string: String = (0..len)
         .map(|_| {
-            let idx = rng.gen_range(0, CHARSET.len());
+            let idx = rng.random_range(0usize..CHARSET.len());
             CHARSET[idx] as char
         })
         .collect();

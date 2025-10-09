@@ -17,7 +17,7 @@ const modalStyle: SxProps = {
   bgcolor: 'background.paper',
   border: '2px solid skyblue',
   boxShadow: 24,
-  borderRadius: '0.7rem',
+  borderRadius: '0.4rem',
   p: 1,
   maxHeight: '85vh',
   minHeight: '10vh',

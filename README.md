@@ -63,3 +63,9 @@ oracle add table column有问题
 ###可以把日志文件变大一点
 perl -e 'print "hello world\n" x 1024 for 1..2048' > dbpal.log
 
+
+
+这个导致linux的title不对呢
+https://github.com/tauri-apps/tauri/issues/13749
+
+

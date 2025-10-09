@@ -238,31 +238,21 @@ function SeparateWindow(props: { children }) {
   const { children } = props;
 
   return (
-    <TabsSetContext.Provider
-      value={{
-        setTabs: () => {
-          console.log('should not be called this is a bug.');
-        },
-        tabs: [],
-        setSelectTab: 0,
-      }}
-    >
-      <SettingComp>
-        <Menu>
-          <NotificationProvider>
-            <div
-              style={{
-                padding: '0.5rem 1rem',
-                width: '100vw',
-                height: '100vh',
-              }}
-            >
-              {children}
-            </div>
-          </NotificationProvider>
-        </Menu>
-      </SettingComp>
-    </TabsSetContext.Provider>
+    <SettingComp>
+      <Menu>
+        <NotificationProvider>
+          <div
+            style={{
+              padding: '0.5rem 1rem',
+              width: '100vw',
+              height: '100vh',
+            }}
+          >
+            {children}
+          </div>
+        </NotificationProvider>
+      </Menu>
+    </SettingComp>
   );
 }
 

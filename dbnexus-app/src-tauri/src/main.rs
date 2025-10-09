@@ -145,7 +145,7 @@ impl log::Log for AppLogger {
             record.level(),
             record.args()
         );
-        if let Err(err) = self.handle.emit("log_stream", s) {
+        if let Err(err) = self.handle.emit("log_stream_xxx", s) {
             println!("emit log stream failed:{}", err);
         }
     }

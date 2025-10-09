@@ -10,11 +10,22 @@
     right: 50%;
   }
 }
+
 ::-webkit-resizer {
-  background: linear-gradient(135deg, transparent 8px, gray 8px);
-  border-bottom-right-radius: 8px; /* ❌ 无效，但保留作说明 */
-  /* 用背景裁剪模拟圆角 */
-  background-clip: padding-box;
+  /* 1. 换成你的图片 */
+  background-image: url('resize.png');
+
+  /* 2. 关键三行：让图片始终贴在右下角，且只出现一次 */
+  background-size: 12px 12px; /* 图片真实宽高 */
+  background-position: 100% 100%;
+  background-repeat: no-repeat;
+
+  /* 3. 把默认灰色三角抹掉 */
+  background-color: transparent;
+
+  /* 4. 如果想让热区更大，可额外加宽高（可选） */
+  /* width: 20px; */
+  /* height: 20px; */
 }
 
 .resize-handle {

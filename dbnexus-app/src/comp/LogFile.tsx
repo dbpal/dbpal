@@ -51,7 +51,7 @@ function LogFile() {
   const [pinToBotton, setPinToBotton] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   useEffect(() => {
-    const unlisten = listen<string>('log_stream', (e) => {
+    const unlisten = listen<string>('log_stream_xxx', (e) => {
       const model = editor.current.getModel()!; // 或 monaco.editor.getModels()[0]
       const lastLine = model.getLineCount();
       const lastCol = model.getLineMaxColumn(lastLine);
@@ -71,11 +71,15 @@ function LogFile() {
       }
     });
     return () => {
-      unlisten.then((callback) => {
-        callback();
-      });
+      unlisten
+        .then((callback) => {
+          callback();
+        })
+        .catch((e) => {
+          console.log("can't observe unlisten callback", e);
+        });
     };
-  }, []);
+  }, [pinToBotton]);
 
   return (
     <Stack spacing={1} style={{ height: '100%' }}>
@@ -107,6 +111,7 @@ function LogFile() {
           variant="outlined"
           onClick={() => {
             editor.current.getModel().setValue('');
+            showNotification('success', 'log truncated');
           }}
         >
           truncate
