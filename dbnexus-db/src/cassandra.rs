@@ -912,10 +912,12 @@ impl QuerySql for CassandraDB {
         anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
+        self.query_connection.remove(&id);
+        let new_id = self.query_id.next();
         let session = make_session(&self.config, 1).await?;
-        self.query_connection.insert(id, Arc::new(session));
-        anyhow::Ok(())
+        self.query_connection.insert(new_id, Arc::new(session));
+        anyhow::Ok(new_id)
     }
 
     async fn close_connection(&self, id: u32) -> anyhow::Result<()> {

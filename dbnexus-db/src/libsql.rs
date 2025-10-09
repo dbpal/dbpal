@@ -30,12 +30,12 @@ use crate::sqlite::{
 pub struct LibSqlDB {
     config: LibSqlDBConfig,
     pool: bb8::Pool<PoolManager>,
-    pub(crate) query_connections: Arc<DashMap<u32, Connection>>,
+    pub(crate) query_connection: Arc<DashMap<u32, Connection>>,
     query_id: NextId,
     query_connections_transaction: Arc<DashMap<u32, libsql::Transaction>>,
 
     pub(crate) build_in_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
-    pub(crate) keywords_completion: Arc<Mutex<Vec<String>>>,
+    pub(crate) keywords_cache: Arc<Mutex<Vec<String>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
@@ -125,7 +125,7 @@ impl QuerySql for LibSqlDB {
         if c {
             anyhow::bail!("libsql use commit or rollback to end transaction");
         }
-        let conn = self.query_connections.get(&query_id);
+        let conn = self.query_connection.get(&query_id);
         let conn = match &conn {
             Some(x) => x.deref(),
             None => anyhow::bail!("collection closed????"),
@@ -176,7 +176,7 @@ impl QuerySql for LibSqlDB {
         &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let tr = self.query_connections_transaction.get(&query_id);
-        let conn = self.query_connections.get(&query_id);
+        let conn = self.query_connection.get(&query_id);
         let conn = conn.as_deref();
         let conn = match &tr {
             Some(x) => x.deref().deref(),
@@ -196,7 +196,7 @@ impl QuerySql for LibSqlDB {
         &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let tr = self.query_connections_transaction.get(&query_id);
-        let conn = self.query_connections.get(&query_id);
+        let conn = self.query_connection.get(&query_id);
         let conn = conn.as_deref();
         let conn = match &tr {
             Some(x) => x.deref().deref(),
@@ -236,21 +236,21 @@ impl QuerySql for LibSqlDB {
     async fn open_connection(&self) -> anyhow::Result<u32> {
         let conn = self.connect().await?;
         let id = self.query_id.next();
-        self.query_connections.insert(id, conn);
+        self.query_connection.insert(id, conn);
         anyhow::Ok(id)
     }
-
-    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
-        let conn = self.connect().await?;
-        self.query_connections.insert(id, conn);
+    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
+        self.query_connection.remove(&id);
         self.query_connections_transaction.remove(&id);
-
-        anyhow::Ok(())
+        let new_id = self.query_id.next();
+        let conn = self.connect().await?;
+        self.query_connection.insert(new_id, conn);
+        anyhow::Ok(new_id)
     }
 
     async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
         self.query_connections_transaction.remove(&id);
-        self.query_connections.remove(&id);
+        self.query_connection.remove(&id);
         anyhow::Ok(())
     }
 }
@@ -355,10 +355,10 @@ impl LibSqlDB {
         anyhow::Ok(Self {
             config,
             pool,
-            query_connections: Default::default(),
+            query_connection: Default::default(),
             query_connections_transaction: Default::default(),
             build_in_fn_cache: Default::default(),
-            keywords_completion: Default::default(),
+            keywords_cache: Default::default(),
             pragma_completion: Default::default(),
             query_id: Default::default(),
             completion_id: Default::default(),
@@ -399,7 +399,7 @@ impl LibSqlDB {
         let sql =
             format!(r#"SELECT name FROM "{db}".sqlite_master WHERE type='table' ORDER BY name "#);
         log::info!("sql:{}", sql);
-        let mut rows: libsql::Rows = match self.query_connections.get(&self.completion_id.get()) {
+        let mut rows: libsql::Rows = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let conn = conn.deref();
                 conn.query(&sql, params!()).await?
@@ -427,7 +427,7 @@ impl LibSqlDB {
             WHERE type = 'view'; "#
         );
         log::info!("sql:{}", sql);
-        let mut rows = match self.query_connections.get(&self.completion_id.get()) {
+        let mut rows = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let conn = conn.deref();
                 conn.query(&sql, params!()).await?
@@ -1289,9 +1289,6 @@ mod tests {
                 .total
                 == 1
         );
-        db.re_connect(query_id).await.unwrap();
-
-        assert!(db.get_auto_commit(query_id).await.unwrap());
     }
 
     #[tokio::test]

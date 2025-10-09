@@ -104,6 +104,7 @@ function ColumnsStructure(props: {
       title: `Drop Column '${col}'`,
       content: '',
       confirmText: 'DROP COLUMN',
+      kind: 'error',
     });
     if (!confirm) {
       return;
@@ -1110,13 +1111,13 @@ function SqlDefaultValue(props: {
         }}
       ></TextField>
       <FormControl style={{ flex: 1 }}>
-        <InputLabel>current values </InputLabel>
+        <InputLabel>some predefined value can pick </InputLabel>
         <Select
           value={defaultValue}
           label="font family"
           onChange={(e) => setDefaultValue(e.target.value as string)}
         >
-          <MenuItem value="">empty </MenuItem>
+          <MenuItem value=""> </MenuItem>
           {currentValue.map((e) => {
             return (
               <MenuItem key={e} value={e}>
@@ -1497,6 +1498,7 @@ function TriggersStructure(props: {
     const confirm = await secondConfirm({
       title: `Drop trigger '${trigger}'`,
       confirmText: 'Drop',
+      kind: 'error',
     });
     if (!confirm) {
       return;
@@ -1601,6 +1603,14 @@ function TriggersStructure(props: {
     setRow(row.row);
   }, []);
 
+  const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (modalBox) {
+      let c = saveAndSetSize(modalBox, 'redis-edit');
+      return c;
+    }
+  }, [modalBox]);
+
   return (
     <Stack spacing={1} style={{ height: '100%' }}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
@@ -1638,7 +1648,12 @@ function TriggersStructure(props: {
             setRow(null);
           })}
         >
-          <Box sx={modalStyle} width="80%">
+          <Box
+            sx={{ resize: 'both', ...modalStyle }}
+            width="80vw"
+            height="80vh"
+            ref={setModalBox}
+          >
             <ModalHeader title={`Trigger Detail`}></ModalHeader>
             <TriggerDetail
               reloadOP={async () => {

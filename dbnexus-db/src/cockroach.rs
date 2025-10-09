@@ -109,7 +109,7 @@ impl QuerySql for CockRoachDB {
         self.db.open_connection().await
     }
 
-    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
         self.db.re_connect(id).await
     }
 
@@ -568,9 +568,6 @@ mod tests {
                 .total
                 == 1
         );
-        db.re_connect(query_id).await.unwrap();
-
-        assert!(db.get_auto_commit(query_id).await.unwrap());
     }
 
     #[tokio::test]

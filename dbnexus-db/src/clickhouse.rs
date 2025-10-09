@@ -17,7 +17,7 @@ use crate::db::{
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
     escape_sql_str, ty_is_float, ty_is_int,
 };
-use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
+use crate::helper::{NextId, create_csv, separate_sql_by_sqlparser_tokenizer};
 use crate::meta_value::MetaValue;
 
 impl GetBackendKind for ClickHouseDB {
@@ -896,11 +896,11 @@ impl QuerySql for ClickHouseDB {
     }
 
     async fn open_connection(&self) -> anyhow::Result<u32> {
-        anyhow::Ok(1)
+        anyhow::Ok(self.query_id.next())
     }
 
-    async fn re_connect(&self, _id: u32) -> anyhow::Result<()> {
-        anyhow::Ok(())
+    async fn re_connect(&self, _id: u32) -> anyhow::Result<u32> {
+        anyhow::Ok(self.query_id.next())
     }
 
     async fn close_connection(&self, _id: u32) -> anyhow::Result<()> {
@@ -924,6 +924,7 @@ pub struct ClickHouseDB {
     pool: r2d2::Pool<PoolManager>,
     client: reqwest::Client,
     pub(crate) key_words_cache: Arc<tokio::sync::Mutex<Vec<String>>>,
+    pub(crate) query_id: NextId,
 }
 
 impl ReadOnlyTrait for ClickHouseDB {
@@ -962,6 +963,7 @@ impl ClickHouseDB {
             pool,
             client,
             key_words_cache: Default::default(),
+            query_id: Default::default(),
         })
     }
 

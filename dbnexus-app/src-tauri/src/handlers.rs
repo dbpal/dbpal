@@ -852,7 +852,7 @@ pub async fn query_sql_open_connection(
 #[tauri::command]
 pub async fn query_sql_re_connection(
     name: String, query_id: u32, app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
+) -> Result<u32, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app

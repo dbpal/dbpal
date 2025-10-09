@@ -66,7 +66,6 @@ function ModifySetting() {
   const bgColorTextField = useRef<HTMLInputElement>(null);
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState('2');
   const [maxTreeSize, setMaxTreeSize] = useState('50');
-  const [saveQueryLog, setSaveQueryLog] = useState(true);
   const [maxTabTitleLength, setMaxTabTitleLength] = useState('12');
   const [autoStart, setAutoStart] = useState(false);
   let setting = useContext(SettingContext);
@@ -94,7 +93,6 @@ function ModifySetting() {
       setIncludeHeader(setting.includeHeader);
       setMaxTreeSize(setting.maxTreeSize.toString());
       setDatagridRowHeightFactor(setting.datagridRowHeightFactor.toString());
-      setSaveQueryLog(setting.saveQueryLog);
       setMaxTabTitleLength(setting.maxTabTitleLength + '');
       setAutoStart(setting.autoStart);
       const content = JSON.stringify(
@@ -147,7 +145,6 @@ function ModifySetting() {
       includeHeader: includeHeader,
       datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
       maxTreeSize: parseInt(maxTreeSize),
-      saveQueryLog: saveQueryLog,
       theme: setting.theme,
       maxTabTitleLength: parseInt(maxTabTitleLength),
       autoStart,
@@ -475,21 +472,6 @@ function ModifySetting() {
         />
       </Stack>
       <Divider textAlign="left" style={{ marginTop: '20px' }}>
-        query log
-      </Divider>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          auto save query log:
-        </Typography>
-
-        <Switch
-          checked={saveQueryLog}
-          onChange={(e) => {
-            setSaveQueryLog(e.target.checked);
-          }}
-        ></Switch>
-      </Stack>
-      <Divider textAlign="left" style={{ marginTop: '20px' }}>
         auto start
       </Divider>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
@@ -563,7 +545,6 @@ function EditorOptions(props: {
           jsonErr ? (
             <Typography
               color="error"
-              variant="body1"
               style={{ cursor: 'pointer' }}
               onClick={() => {
                 if (!jsonErrPos) {

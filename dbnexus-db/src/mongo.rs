@@ -841,7 +841,7 @@ impl QuerySql for MongoDB {
         not_support_feature(self.backend_name())
     }
 
-    async fn re_connect(&self, _id: u32) -> anyhow::Result<()> {
+    async fn re_connect(&self, _id: u32) -> anyhow::Result<u32> {
         not_support_feature(self.backend_name())
     }
 

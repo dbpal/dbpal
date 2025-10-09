@@ -5,6 +5,8 @@ import {
   IconButton,
   Stack,
   Switch,
+  Tooltip,
+  Typography,
 } from '@mui/material';
 import { SimpleFlexEditor } from './CommonComp2';
 import { useContext, useEffect, useRef, useState } from 'react';
@@ -19,6 +21,29 @@ import {
 import { listen } from '@tauri-apps/api/event';
 import { LogLevelSelection } from './CommonComp';
 import { NotificationContext } from './Notification';
+import InfoIcon from '@mui/icons-material/Info';
+function LogTip({ width }) {
+  return (
+    <Stack style={{ width }} spacing={1}>
+      <Typography variant="h6">
+        The rust backend can generate various logs,it is useful for debug a lot
+        of problem.
+      </Typography>
+
+      <Typography>
+        Dbpal will log sql been execute via `log::info("sql:" ,sql)`,so you can
+        search for them and dependencies can generate various logs maybe very
+        useful.
+      </Typography>
+      <Typography color="warning">
+        dbpal will not trying to save logs to local file because maybe be
+        danger.
+        <br />
+        When this window is closed,the log will be lost.
+      </Typography>
+    </Stack>
+  );
+}
 
 function LogFile() {
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
@@ -42,16 +67,15 @@ function LogFile() {
         },
       ]);
       if (pinToBotton) {
-        console.log('ping to botton');
         editorSetPositionAndReveal(editor.current, new Position(lastLine, 1));
       }
     });
     return () => {
-      unlisten.then((unlisten) => {
-        unlisten();
+      unlisten.then((callback) => {
+        callback();
       });
     };
-  }, [pinToBotton]);
+  }, []);
 
   return (
     <Stack spacing={1} style={{ height: '100%' }}>
@@ -105,6 +129,19 @@ function LogFile() {
             }
           }}
         ></LogLevelSelection>
+
+        <Tooltip
+          title={<LogTip width="40vw"></LogTip>}
+          slotProps={{
+            tooltip: {
+              style: { maxWidth: '40vw' },
+            },
+          }}
+        >
+          <span>
+            <InfoIcon> </InfoIcon>
+          </span>
+        </Tooltip>
       </Stack>
 
       <SimpleFlexEditor

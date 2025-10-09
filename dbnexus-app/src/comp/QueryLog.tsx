@@ -40,6 +40,7 @@ import {
   saveAndSetSize,
   secondConfirm,
   SettingContext,
+  UserSetting,
 } from './helper.ts';
 import { ModalHeader } from './CommonComp.tsx';
 import { BsFillLightbulbFill } from 'react-icons/bs';
@@ -62,10 +63,18 @@ function QueryLog(props: {
   setShowQueryLog;
   executeTimes;
   language;
+  queryId?;
   kind: QueryLogKind;
 }) {
-  let { uuid, showQueryLog, setShowQueryLog, executeTimes, language, kind } =
-    props;
+  let {
+    uuid,
+    showQueryLog,
+    setShowQueryLog,
+    executeTimes,
+    language,
+    queryId,
+    kind,
+  } = props;
   const [selectSql, setSelectSql] = useState('');
   const [page, setPage] = useState(0); // datagrid start with 0
   const [pageSize, setPagesize] = useState(10);
@@ -171,8 +180,9 @@ function QueryLog(props: {
     }
   }, [modalBox]);
   const gridStyle = useMemo(() => {
-    return {} as CSSProperties;
+    return { maxHeight: '40vh', height: 'auto' } as CSSProperties;
   }, []);
+
   return (
     <Paper
       style={{
@@ -183,6 +193,7 @@ function QueryLog(props: {
         width: '75%',
         display: showQueryLog ? 'flex' : 'none',
         flexDirection: 'column',
+        height: 'fit-content',
       }}
       elevation={16}
     >
@@ -235,6 +246,27 @@ function QueryLog(props: {
             delete
           </Button>
         )}
+        <Tooltip
+          title={
+            !setting.saveQueryLog
+              ? `auto save query log to local database maybe danger,be careful.`
+              : ''
+          }
+        >
+          <Button
+            variant={setting.saveQueryLog ? 'contained' : 'text'}
+            color="info"
+            onClick={() => {
+              UserSetting.set({
+                saveQueryLog: !setting.saveQueryLog,
+              } as UserSetting).catch((e) => {
+                showNotification('error', 'save auto save query log error', e);
+              });
+            }}
+          >
+            {setting.saveQueryLog ? 'disable' : 'enable'}
+          </Button>
+        </Tooltip>
       </Stack>
 
       <div style={{ display: 'grid' }}>
@@ -280,7 +312,7 @@ function QueryLog(props: {
               handleEditor={(e) => {
                 SetAutoCompletionName.set(
                   e.getModel().id,
-                  new NameAndQueryId(uuid)
+                  new NameAndQueryId(uuid, queryId)
                 );
               }}
             ></SimpleFlexEditor>

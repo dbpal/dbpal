@@ -69,7 +69,6 @@ import {
   MenuExportMarkDownTable,
   MenuResetColumnWidths,
   ModalHeader,
-  pageSizeOptions,
   ResizeWrapper,
   SelectPageSize,
 } from './CommonComp';
@@ -86,6 +85,7 @@ import {
   SavePageSize,
   MuiDataGridData,
   dataGridParentStyle,
+  pageSizeOptions,
 } from './helper';
 import { EditorBar, SimpleFlexEditor } from './CommonComp2';
 import { message } from '@tauri-apps/plugin-dialog';

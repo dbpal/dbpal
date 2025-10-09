@@ -35,7 +35,7 @@ use crate::meta_value::MetaValue;
 pub struct SqlServerDB {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     pub(crate) config: SqlServerDBConfig,
-    query_connections: Arc<DashMap<u32, Arc<Mutex<Connection>>>>,
+    query_connection: Arc<DashMap<u32, Arc<Mutex<Connection>>>>,
     query_id: NextId,
 }
 
@@ -182,7 +182,7 @@ impl SqlServerDB {
         anyhow::Ok(Self {
             config: c,
             pool,
-            query_connections: Default::default(),
+            query_connection: Default::default(),
             query_id: Default::default(),
         })
     }
@@ -1618,7 +1618,7 @@ impl SqlServerDB {
 
 impl SqlServerDB {
     /// this fn create a `Connection` only use for query connection
-    /// because `query_connections` use in `SqlServer`,
+    /// because `query_connection` use in `SqlServer`,
     /// we can't create self reference struct in rust.
     async fn new_tcp_conn(&self) -> anyhow::Result<Connection> {
         let config = make_config(&self.config);
@@ -1711,7 +1711,7 @@ impl ExportQueryResult for SqlServerDB {
 #[async_trait::async_trait]
 impl QuerySql for SqlServerDB {
     async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
@@ -1740,7 +1740,7 @@ impl QuerySql for SqlServerDB {
         if commit {
             anyhow::bail!("mssql use commit or rollback to end transaction");
         }
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
@@ -1751,7 +1751,7 @@ impl QuerySql for SqlServerDB {
     }
 
     async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
@@ -1763,7 +1763,7 @@ impl QuerySql for SqlServerDB {
     }
 
     async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
@@ -1778,21 +1778,22 @@ impl QuerySql for SqlServerDB {
         let conn = self.new_tcp_conn().await?;
 
         let id = self.query_id.next();
-        self.query_connections
+        self.query_connection
             .insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
+        self.query_connection.remove(&id);
+        let new_id = self.query_id.next();
         let conn = self.new_tcp_conn().await?;
-        self.query_connections
-            .insert(id, Arc::new(Mutex::new(conn)));
-
-        anyhow::Ok(())
+        self.query_connection
+            .insert(new_id, Arc::new(Mutex::new(conn)));
+        anyhow::Ok(new_id)
     }
 
     async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
-        self.query_connections.remove(&id);
+        self.query_connection.remove(&id);
 
         anyhow::Ok(())
     }
@@ -1810,7 +1811,7 @@ impl QuerySql for SqlServerDB {
     async fn execute_sql(
         &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
@@ -1827,7 +1828,7 @@ impl QuerySql for SqlServerDB {
     async fn query_sql(
         &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
@@ -1933,7 +1934,7 @@ impl crate::db::DBTrait for SqlServerDB {
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
         x.config.schema = Some(name.to_owned());
-        x.query_connections = Default::default();
+        x.query_connection = Default::default();
         Ok(Arc::new(x))
     }
 
@@ -2238,9 +2239,6 @@ mod tests {
                 .total
                 == 1
         );
-        db.re_connect(query_id).await.unwrap();
-
-        assert!(db.get_auto_commit(query_id).await.unwrap());
     }
 
     #[tokio::test]

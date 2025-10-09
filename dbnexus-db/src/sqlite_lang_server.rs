@@ -12,7 +12,7 @@ use crate::sqlparser_completion::TempTableColumn;
 impl GetKeyWords for SqliteDB {
     // some backend can use a query to query this.
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let mut lock = self.keywords_completion.lock().await;
+        let mut lock = self.keywords_cache.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }

@@ -171,6 +171,7 @@ function TypeMenu(props: {
     let confirm = await secondConfirm({
       title: `Drop type '${createdType.name}'`,
       confirmText: 'Drop',
+      kind: 'error',
     });
     if (!confirm) {
       return;

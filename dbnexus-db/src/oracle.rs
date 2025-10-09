@@ -28,7 +28,7 @@ use crate::oracle_lang_server::ORACLE_TYPES;
 #[derive(Clone)]
 pub struct OracleDB {
     pool: Arc<Pool>,
-    query_connections: Arc<DashMap<u32, Arc<Mutex<Connection>>>>,
+    query_connection: Arc<DashMap<u32, Arc<Mutex<Connection>>>>,
     pub(crate) config: OracleDBConfig,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
     query_id: NextId,
@@ -75,7 +75,7 @@ impl OracleDB {
         let pool = builder.build()?;
         anyhow::Ok(Self {
             pool: Arc::new(pool),
-            query_connections: Default::default(),
+            query_connection: Default::default(),
             config,
             key_words_cache: Default::default(),
             query_id: Default::default(),
@@ -87,7 +87,7 @@ impl OracleDB {
     async fn with_query_connection<R>(
         &self, id: u32, f: impl FnOnce(&mut Connection) -> anyhow::Result<R>,
     ) -> anyhow::Result<R> {
-        let conn = match self.query_connections.get(&id) {
+        let conn = match self.query_connection.get(&id) {
             Some(x) => x.clone(),
             None => {
                 anyhow::bail!(format!("id '{}' not found", id));
@@ -199,25 +199,25 @@ impl QuerySql for OracleDB {
         let id = self.query_id.next();
         let mut conn = self.get_conn().await?;
         conn.set_autocommit(QUERY_AUTO_COMMIT);
-        self.query_connections
+        self.query_connection
             .insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
-        if let Some((_, conn)) = self.query_connections.remove(&id) {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
+        if let Some((_, conn)) = self.query_connection.remove(&id) {
             tokio::spawn(async move { conn.lock().await.close() });
         }
+        let new_id = self.query_id.next();
         let mut conn = self.get_conn().await?;
         conn.set_autocommit(QUERY_AUTO_COMMIT);
-        self.query_connections
-            .insert(id, Arc::new(Mutex::new(conn)));
-
-        anyhow::Ok(())
+        self.query_connection
+            .insert(new_id, Arc::new(Mutex::new(conn)));
+        anyhow::Ok(new_id)
     }
 
     async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
-        if let Some((_, x)) = self.query_connections.remove(&id) {
+        if let Some((_, x)) = self.query_connection.remove(&id) {
             tokio::spawn(async move { x.lock().await.close() });
         }
         anyhow::Ok(())
@@ -237,7 +237,7 @@ impl QuerySql for OracleDB {
     async fn execute_sql(
         &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
@@ -253,7 +253,7 @@ impl QuerySql for OracleDB {
     async fn query_sql(
         &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
@@ -1715,7 +1715,7 @@ impl DBTrait for OracleDB {
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         let mut x = Clone::clone(self);
         x.config.schema = Some(name.to_string());
-        x.query_connections = Default::default();
+        x.query_connection = Default::default();
         anyhow::Ok(Arc::new(x))
     }
 

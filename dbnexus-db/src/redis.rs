@@ -27,7 +27,7 @@ use crate::meta_value::MetaValue;
 pub struct RedisDB {
     config: RedisDBConfig,
     conn_manager: ConnectionManager,
-    pub(crate) query_connections: Arc<DashMap<u32, Arc<Mutex<MultiplexedConnection>>>>,
+    pub(crate) query_connection: Arc<DashMap<u32, Arc<Mutex<MultiplexedConnection>>>>,
     created_database: Arc<DashSet<String>>,
     query_id: NextId,
     pub(crate) completion_id: AutoCompletionQueryId,
@@ -47,7 +47,7 @@ impl RedisDB {
         anyhow::Ok(Self {
             config,
             conn_manager: m,
-            query_connections: Default::default(),
+            query_connection: Default::default(),
             created_database: Default::default(),
             query_id: Default::default(),
             completion_id: Default::default(),
@@ -1520,21 +1520,22 @@ impl QuerySql for RedisDB {
         let id = self.query_id.next();
         let client: redis::Client = self.get_client().await?;
         let conn = client.get_multiplexed_async_connection().await?;
-        self.query_connections
-            .insert(id, Arc::new(Mutex::new(conn)));
+        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
+        self.query_connection.remove(&id);
+        let new_id = self.query_id.next();
         let client = self.get_client().await?;
         let conn = client.get_multiplexed_async_connection().await?;
-        self.query_connections
-            .insert(id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(())
+        self.query_connection
+            .insert(new_id, Arc::new(Mutex::new(conn)));
+        anyhow::Ok(new_id)
     }
 
     async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
-        self.query_connections.remove(&id);
+        self.query_connection.remove(&id);
         anyhow::Ok(())
     }
     async fn execute_sql_no_open_conn(
@@ -1561,7 +1562,7 @@ impl QuerySql for RedisDB {
     async fn query_sql(
         &self, id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let conn = match self.query_connections.get(&id) {
+        let conn = match self.query_connection.get(&id) {
             Some(x) => x.clone(),
             None => {
                 anyhow::bail!(format!("can't find connection for id '{}'", id))

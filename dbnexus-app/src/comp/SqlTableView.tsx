@@ -77,6 +77,7 @@ import {
   extractFieldAndIDFromMouseEvent,
   editorPositionToEnd,
   dataGridParentStyle,
+  pageSizeOptions,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
@@ -87,7 +88,6 @@ import {
   MenuExportMarkDownTable,
   MenuResetColumnWidths,
   ModalHeader,
-  pageSizeOptions,
   ViewRowInModal,
 } from './CommonComp';
 import { editor, Position } from 'monaco-editor';
@@ -109,6 +109,7 @@ const confirmAboutPrimary = async (
   return secondConfirm({
     title: 'No Primary key found.',
     content: 'No Primary key found,maybe multi row affected.',
+    kind: 'error',
   });
 };
 

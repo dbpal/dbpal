@@ -10,9 +10,11 @@
     right: 50%;
   }
 }
-
 ::-webkit-resizer {
-  background: linear-gradient(to bottom right, transparent 50%, gray 50%);
+  background: linear-gradient(135deg, transparent 8px, gray 8px);
+  border-bottom-right-radius: 8px; /* ❌ 无效，但保留作说明 */
+  /* 用背景裁剪模拟圆角 */
+  background-clip: padding-box;
 }
 
 .resize-handle {

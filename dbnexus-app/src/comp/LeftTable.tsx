@@ -250,6 +250,7 @@ function DropTable(props: {
     const confirm = await secondConfirm({
       confirmText: 'Drop',
       title: `drop table '${table}'`,
+      kind: 'error',
     });
     if (!confirm) {
       return;
@@ -674,6 +675,7 @@ function TableMenu(props: {
       title: `Truncate '${table}'`,
       confirmText: 'Truncate',
       content: '',
+      kind: 'error',
     });
     if (!confirm) {
       return;

@@ -204,6 +204,7 @@ function SequenceMenu(props: {
     let confirm = await secondConfirm({
       title: `Drop Sequence '${seq.name}'`,
       confirmText: 'Drop',
+      kind: 'error',
     });
     if (!confirm) {
       return;

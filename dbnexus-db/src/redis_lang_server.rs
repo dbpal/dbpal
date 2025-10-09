@@ -15,7 +15,7 @@ use crate::language_server::{CompletionItem, CompletionKind, GetKeyWords, Langua
 use crate::redis::{RedisDB, RedisToken, RedisType, get_command_from_sql};
 impl RedisDB {
     fn get_query_conn(&self) -> anyhow::Result<Arc<Mutex<MultiplexedConnection>>> {
-        let conn = self.query_connections.get(&self.completion_id.get());
+        let conn = self.query_connection.get(&self.completion_id.get());
         match conn {
             Some(x) => anyhow::Ok(x.clone()),
             None => {

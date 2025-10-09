@@ -106,6 +106,7 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
       const confirm = await secondConfirm({
         title: 'Commit Transaction',
         confirmText: 'Commit',
+        kind: 'info',
       });
       if (!confirm) {
         return;
@@ -239,6 +240,7 @@ function SqlQuery(props: {
         title: 'reconnection',
         content: 'unsaved data may lost.',
         confirmText: 'Connect',
+        kind: 'info',
       });
       if (!confirm) {
         return;
@@ -247,7 +249,19 @@ function SqlQuery(props: {
     if (conn) {
       conn
         .reconnect()
-        .then(() => {
+        .then((conn) => {
+          setConn(conn);
+          if (queryRespView) {
+            // send new query id
+            queryRespView.setTitle(makeWindowTitle(uuid, conn.queryId));
+            let payload = {};
+            payload[newQueryIDName] = conn.queryId;
+            queryRespView
+              .emit(queryRespViewEventName.current, payload)
+              .catch((e) => {
+                showNotification('error', 'send new query id failed', e);
+              });
+          }
           showNotification('success', 'Reconnect OK');
         })
         .catch((e) => {
@@ -421,9 +435,11 @@ function SqlQuery(props: {
     if (!queryRespView) {
       return;
     }
-    queryRespView.emit(queryRespViewEventName.current).catch((e) => {
-      showNotification('error', 'emit query response failed', e);
-    });
+    queryRespView
+      .emit(queryRespViewEventName.current, reloadData)
+      .catch((e) => {
+        showNotification('error', 'emit query response failed', e);
+      });
   }, [queryRespView, resp]);
 
   const editorOptions =
@@ -490,6 +506,44 @@ function SqlQuery(props: {
     DataSourceKind.FireBird,
   ].includes(kind);
 
+  const tryOpenQueryRespView = () => {
+    if (queryRespView) {
+      try {
+        queryRespView.close();
+      } catch (e) {
+        console.log(e);
+        return;
+      }
+    } else {
+      SomeTempStore.set({
+        uuid,
+        queryId: conn.queryId,
+        eventName: queryRespViewEventName.current,
+      } as DetachQueyRespViewPara);
+      const webview = new WebviewWindow(generateRandomString(), {
+        title: makeWindowTitle(uuid, conn.queryId),
+        url: 'query_response.html',
+        width: 800,
+        height: 600,
+        maximized: true,
+      });
+      webview.once('tauri://created', () => {
+        console.log('create query response view successfully');
+      });
+      webview.once(queryRespViewEventName.current, (e) => {
+        console.log('query window send me something:', e.payload);
+        if (e.payload == listenOK) {
+          setQueryRespView(webview);
+        } else {
+          console.log('query window send me something wrong:', e.payload);
+        }
+      });
+      webview.once('tauri://error', (e) => {
+        showNotification('error', 'create webview failed', e.event.toString());
+      });
+    }
+  };
+
   return (
     <div
       style={{
@@ -527,6 +581,7 @@ function SqlQuery(props: {
                 ? QueryLogKind.Redis
                 : QueryLogKind.Sql
             }
+            queryId={conn?.queryId}
             language={kind}
           ></QueryLog>
 
@@ -679,50 +734,21 @@ function SqlQuery(props: {
             <ExecutingTime loading={loading} disableTime></ExecutingTime>
 
             {conn && (
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  if (queryRespView) {
-                    try {
-                      queryRespView.close();
-                    } catch (e) {
-                      console.log(e);
-                      return;
-                    }
-                  } else {
-                    SomeTempStore.set({
-                      uuid,
-                      queryId: conn.queryId,
-                      eventName: queryRespViewEventName.current,
-                    } as DetachQueyRespViewPara);
-                    const webview = new WebviewWindow(generateRandomString(), {
-                      title: `query result ${uuid}#${conn.queryId}`,
-                      url: 'query_response.html',
-                      width: 800,
-                      height: 600,
-                      maximized: true,
-                    });
-                    webview.once('tauri://created', () => {
-                      console.log('create query response view successfully');
-                    });
-                    webview.once(queryRespViewEventName.current, (e) => {
-                      console.log('query window send me something:', e.payload);
-                      setQueryRespView(webview);
-                    });
-                    webview.once('tauri://error', (e) => {
-                      showNotification(
-                        'error',
-                        'create webview failed',
-                        e.event.toString()
-                      );
-                    });
-                  }
-                }}
+              <Tooltip
+                title={
+                  queryRespView
+                    ? 'close query response view'
+                    : 'You can open the query results in a separate window.'
+                }
               >
-                {queryRespView ? 'close' : 'detach'} query view window
-              </Button>
+                <Button
+                  variant={queryRespView ? 'outlined' : 'contained'}
+                  onClick={tryOpenQueryRespView}
+                >
+                  {queryRespView ? 'close response window' : 'detach response'}
+                </Button>
+              </Tooltip>
             )}
-
             {conn && (
               <Tooltip title="connection id">
                 <Typography> #{conn.queryId} </Typography>
@@ -849,4 +875,11 @@ function SqlQuery(props: {
   );
 }
 
-export { SqlQuery };
+const listenOK = 'listen_ok';
+const newQueryIDName = 'new_query_id';
+const reloadData = 'reload_data';
+function makeWindowTitle(uuid, queryid): string {
+  return `query result ${uuid}#${queryid}`;
+}
+
+export { SqlQuery, listenOK, newQueryIDName, reloadData };

@@ -191,6 +191,7 @@ function ProcedureMenu(props: {
     let confirm = await secondConfirm({
       title: `Drop Procedure '${procedure}'`,
       confirmText: 'Drop',
+      kind: 'error',
     });
     if (!confirm) {
       return;

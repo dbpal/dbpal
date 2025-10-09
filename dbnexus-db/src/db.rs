@@ -965,7 +965,8 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
 
     async fn open_connection(&self) -> anyhow::Result<u32>;
 
-    async fn re_connect(&self, id: u32) -> anyhow::Result<()>;
+    #[must_use]
+    async fn re_connect(&self, id: u32) -> anyhow::Result<u32>;
 
     async fn close_connection(&self, id: u32) -> anyhow::Result<()>;
 }

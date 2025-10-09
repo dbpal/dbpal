@@ -194,6 +194,7 @@ function UdfMenu(props: {
     let confirm = await secondConfirm({
       title: `Drop UDF '${udf.name}'`,
       confirmText: 'Drop',
+      kind: 'error',
     });
     if (!confirm) {
       return;
@@ -290,6 +291,7 @@ function CassandraAggregateMenu(props: {
     let confirm = await secondConfirm({
       title: `Drop Aggregate '${agg}'`,
       confirmText: 'Drop',
+      kind: 'error',
     });
     if (!confirm) {
       return;

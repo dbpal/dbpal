@@ -707,6 +707,8 @@ class MongoTableHandler {
   }
 }
 
+
+
 class UserSetting {
   theme: string = 'light';
   fontSize: number = 15;
@@ -720,7 +722,7 @@ class UserSetting {
   datagridRowHeightFactor = 2;
   maxTreeSize: number = 150;
   loggerLevel: string = 'info';
-  saveQueryLog: boolean = true;
+  saveQueryLog: boolean = false;
   maxTabTitleLength: number = 12;
   autoStart: boolean = false;
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
@@ -749,7 +751,6 @@ class UserSetting {
   static async set(x: object): Promise<void> {
     let old = await UserSetting.get();
     let s = { ...old, ...x };
-
     return appStore.set(AppStoreKey.UserSetting, s);
   }
 }
@@ -1055,23 +1056,27 @@ function editorPositionToEnd(editor: editor.IStandaloneCodeEditor) {
 
 }
 
-// is is control+s pressed 
 
-function isControlSave(e: KeyboardEvent) {
-  let os = platform();
-  const expect = 's';
-  return (os == 'macos' && e.metaKey && e.key == expect) ||
-    (os == 'windows' && e.ctrlKey && e.key == expect) ||
-    (os == 'linux' && e.ctrlKey && e.key == expect);
+class KeyPressed {
+  // is is control+s pressed  
+  static isControlSave(e: KeyboardEvent) {
+    let os = platform();
+    const expect = 's';
+    return (os == 'macos' && e.metaKey && e.key == expect) ||
+      (os == 'windows' && e.ctrlKey && e.key == expect) ||
+      (os == 'linux' && e.ctrlKey && e.key == expect);
+  }
+
+  static isControlOpen(e: KeyboardEvent) {
+    let os = platform();
+    const expect = 'o';
+    return (os == 'macos' && e.metaKey && e.key == expect) ||
+      (os == 'windows' && e.ctrlKey && e.key == expect) ||
+      (os == 'linux' && e.ctrlKey && e.key == expect);
+  }
+
 }
 
-function isControlOpen(e: KeyboardEvent) {
-  let os = platform();
-  const expect = 'o';
-  return (os == 'macos' && e.metaKey && e.key == expect) ||
-    (os == 'windows' && e.ctrlKey && e.key == expect) ||
-    (os == 'linux' && e.ctrlKey && e.key == expect);
-}
 
 
 
@@ -1101,6 +1106,11 @@ class SomeTempStore {
 }
 
 
+function isMacOs() {
+  return platform() == 'macos';
+}
+
+
 interface NewWindowTableParameter {
   uuid: string,
   table: string,
@@ -1123,6 +1133,7 @@ const dataGridParentStyle = {
   // 这个值用 0% 在windows也有问题好像会把datagrid变得很高 用0 都可以 用0% 都不可以 然而flex为1 设置的值是0% 可能是兼容性的问题
   flexBasis: '0'
 } as CSSProperties;
+
 
 
 export {
@@ -1185,11 +1196,10 @@ export {
   RedisTableType,
   extractFieldAndIDFromMouseEvent,
   editorPositionToEnd,
-  isControlSave,
-  isControlOpen,
+  KeyPressed,
   SomeTempStore,
-  dataGridParentStyle
-
+  dataGridParentStyle,
+  isMacOs
 };
 
 

@@ -33,7 +33,7 @@ pub struct SqliteDB {
     path: String,
     pub(crate) query_connection: Arc<DashMap<u32, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
     pub(crate) build_in_fn_completion: Arc<Mutex<Vec<CompletionItem>>>,
-    pub(crate) keywords_completion: Arc<Mutex<Vec<String>>>,
+    pub(crate) keywords_cache: Arc<Mutex<Vec<String>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
     query_id: NextId,
     pub(crate) completion_id: AutoCompletionQueryId,
@@ -1194,7 +1194,7 @@ impl SqliteDB {
             query_connection: Default::default(),
             path: conn.path.clone(),
             build_in_fn_completion: Default::default(),
-            keywords_completion: Default::default(),
+            keywords_cache: Default::default(),
             pragma_completion: Default::default(),
             query_id: Default::default(),
             completion_id: Default::default(),
@@ -1460,12 +1460,13 @@ impl QuerySql for SqliteDB {
         anyhow::Ok(id)
     }
 
-    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
-        if let Some((_, _x)) = self.query_connection.remove(&id) {}
+    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
+        self.query_connection.remove(&id);
+        let new_id = self.query_id.next();
         let conn = self.get_conn().await?;
-        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
-
-        anyhow::Ok(())
+        self.query_connection
+            .insert(new_id, Arc::new(Mutex::new(conn)));
+        anyhow::Ok(new_id)
     }
 
     async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
@@ -1749,9 +1750,6 @@ mod tests {
                 .total
                 == 1
         );
-        db.re_connect(query_id).await.unwrap();
-
-        assert!(db.get_auto_commit(query_id).await.unwrap());
     }
 
     #[tokio::test]

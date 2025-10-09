@@ -490,9 +490,9 @@ fn main_() {
                     if let Err(err) = WebviewWindowBuilder::new(
                         handle,
                         log_window_id.clone(),
-                        WebviewUrl::App(format!("log_file.html").into()),
+                        WebviewUrl::App(format!("log_window.html").into()),
                     )
-                    .title("log file")
+                    .title("view log")
                     .inner_size(800f64, 600f64)
                     .maximized(true)
                     .build()

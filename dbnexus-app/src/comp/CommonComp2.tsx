@@ -32,8 +32,8 @@ import {
   DataSourceKind,
   editorSetPositionAndReveal,
   generateRandomString,
-  isControlOpen,
-  isControlSave,
+  isMacOs,
+  KeyPressed,
   secondConfirm,
   SettingContext,
   SomeTempStore,
@@ -580,11 +580,11 @@ function LoadStoreFileForQuery(props: {
         return;
       }
 
-      if (isControlSave(e)) {
+      if (KeyPressed.isControlSave(e)) {
         e.preventDefault();
         handleSave();
       }
-      if (isControlOpen(e)) {
+      if (KeyPressed.isControlOpen(e)) {
         e.preventDefault();
         handleLoad();
       }
@@ -609,13 +609,20 @@ function LoadStoreFileForQuery(props: {
           </Tooltip>
         </Stack>
       )}
-
-      <Tooltip title="attach file">
+      <Tooltip
+        title={`attach file,keyboard shortcut is ${
+          isMacOs() ? 'command+o' : 'control+o'
+        }`}
+      >
         <IconButton onClick={handleLoad} color="primary">
           <AttachFileIcon />
         </IconButton>
       </Tooltip>
-      <Tooltip title="save query to file">
+      <Tooltip
+        title={`save query to file,keyboard shortcut is ${
+          isMacOs() ? 'command+s' : 'control+s'
+        }`}
+      >
         <IconButton onClick={handleSave} color="primary">
           <SaveIcon />
         </IconButton>

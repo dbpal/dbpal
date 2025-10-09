@@ -656,6 +656,7 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
             style={{
               borderRadius: '10px',
               padding: '8px',
+              border: '2px solid ' + theme.palette.success.main,
             }}
             key={f.field}
           >
@@ -1100,14 +1101,16 @@ function ExportMarkDownTable(props: {
   );
 }
 
-function ResizeParentHeight(props: { boxRef; min: number }) {
-  const { boxRef, min } = props;
+function ResizeParentHeight(props: {
+  box: HTMLDivElement;
+  min: number;
+  saveHeightName;
+}) {
+  const { box, min } = props;
   const handleDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
-    const box = boxRef.current!;
     const startY = e.clientY;
     const startH = box.offsetHeight;
-
     const onMove = (ev: MouseEvent) => {
       let newH = startH + ev.clientY - startY;
       if (newH < min) {
@@ -1124,7 +1127,8 @@ function ResizeParentHeight(props: { boxRef; min: number }) {
   }, []);
   return (
     <div
-      style={{ height: '4px', backgroundColor: 'gray', cursor: 'ns-resize' }}
+      style={{ height: '4px', cursor: 'ns-resize' }}
+      className="resize-handle"
       onMouseDown={handleDown}
     ></div>
   );
@@ -1141,7 +1145,6 @@ export {
   MenuCreateSchema,
   MenuOpenConn,
   SelectPageSize,
-  pageSizeOptions,
   MenuDeleteConfig,
   MenuResetColumnWidths,
   TrueOrFalse,

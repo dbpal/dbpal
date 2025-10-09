@@ -17,7 +17,7 @@ const modalStyle: SxProps = {
   bgcolor: 'background.paper',
   border: '2px solid skyblue',
   boxShadow: 24,
-  borderRadius: '4px',
+  borderRadius: '0.7rem',
   p: 1,
   maxHeight: '85vh',
   minHeight: '10vh',
@@ -494,7 +494,7 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
 interface IQueryConn {
   queryOP: (text: string, append: boolean) => Promise<any[]>;
   executeOP: (text: string) => Promise<any>;
-  reconnect: () => Promise<void>;
+  reconnect: () => Promise<IQueryConn>;
   exportQueryResult: (
     sql: string,
     kind: types.ExportKind,
@@ -595,10 +595,12 @@ class QueryConn implements IQueryConn {
     return x;
   }
 
-  reconnect(): Promise<void> {
-    return invoke('query_sql_re_connection', {
+  reconnect(): Promise<IQueryConn> {
+    return invoke<number>('query_sql_re_connection', {
       name: this.uuid,
       queryId: this.queryId,
+    }).then(queryid => {
+      return new QueryConn(this.uuid, queryid, this.kind);
     });
   }
   isDangerSql(sql: string): Promise<boolean> {

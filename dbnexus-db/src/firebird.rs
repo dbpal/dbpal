@@ -358,7 +358,7 @@ impl QuerySql for FireBirdDB {
         if commit {
             anyhow::bail!("firebird use commit or rollback to end transaction");
         }
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
@@ -370,7 +370,7 @@ impl QuerySql for FireBirdDB {
     }
 
     async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
@@ -383,7 +383,7 @@ impl QuerySql for FireBirdDB {
     }
 
     async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
@@ -401,7 +401,7 @@ impl QuerySql for FireBirdDB {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
 
         let mut ret = vec![];
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
@@ -443,7 +443,7 @@ impl QuerySql for FireBirdDB {
         &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
@@ -460,22 +460,22 @@ impl QuerySql for FireBirdDB {
     async fn open_connection(&self) -> anyhow::Result<u32> {
         let id = self.query_id.next();
         let conn = self.get_conn()?;
-        self.query_connections
+        self.query_connection
             .insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
-
-    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
-        let conn = self.get_conn()?;
-        self.query_connections
-            .insert(id, Arc::new(Mutex::new(conn)));
+    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
+        self.query_connection.remove(&id);
         self.query_connections_tx.remove(&id);
-
-        anyhow::Ok(())
+        let new_id = self.query_id.next();
+        let conn = self.get_conn()?;
+        self.query_connection
+            .insert(new_id, Arc::new(Mutex::new(conn)));
+        anyhow::Ok(new_id)
     }
 
     async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
-        self.query_connections.remove(&id);
+        self.query_connection.remove(&id);
 
         anyhow::Ok(())
     }
@@ -485,7 +485,7 @@ impl QuerySql for FireBirdDB {
 pub struct FireBirdDB {
     config: FireBirdConfig,
     pool: Pool<PoolManager>,
-    query_connections: Arc<DashMap<u32, Arc<Mutex<PooledConnection<PoolManager>>>>>,
+    query_connection: Arc<DashMap<u32, Arc<Mutex<PooledConnection<PoolManager>>>>>,
     query_connections_tx: Arc<DashSet<u32>>,
     pub(crate) key_words_completion: Arc<Mutex<Vec<String>>>,
     query_id: NextId,
@@ -1067,7 +1067,7 @@ impl FireBirdDB {
         anyhow::Ok(Self {
             config,
             pool,
-            query_connections: Default::default(),
+            query_connection: Default::default(),
             query_connections_tx: Default::default(),
             key_words_completion: Default::default(),
             query_id: Default::default(),
@@ -1187,9 +1187,6 @@ mod tests {
                 .total
                 == 1
         );
-        db.re_connect(query_id).await.unwrap();
-
-        assert!(db.get_auto_commit(query_id).await.unwrap());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

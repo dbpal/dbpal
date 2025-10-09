@@ -57,9 +57,10 @@ import {
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
   dataGridParentStyle,
+  pageSizeOptions,
 } from './helper.ts';
 
-import { ExecutingTime, ModalHeader, pageSizeOptions } from './CommonComp.tsx';
+import { ExecutingTime, ModalHeader } from './CommonComp.tsx';
 import { editor, Position } from 'monaco-editor';
 import { SimpleFlexEditor } from './CommonComp2.tsx';
 

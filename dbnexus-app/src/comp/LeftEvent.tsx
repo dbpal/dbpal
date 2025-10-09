@@ -172,6 +172,7 @@ function EventMenu(props: {
     let confirm = await secondConfirm({
       title: `Drop event '${event.name}'`,
       confirmText: 'Drop',
+      kind: 'error',
     });
     if (!confirm) {
       return;

@@ -820,6 +820,7 @@ function FavoriteSqlList(props: { handleClose }) {
     let confirm = await secondConfirm({
       title: 'clean all favorite sql???',
       confirmText: 'Clean',
+      kind: 'error',
     });
     if (!confirm) {
       return;

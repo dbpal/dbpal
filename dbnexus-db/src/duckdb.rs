@@ -74,7 +74,7 @@ impl r2d2::ManageConnection for PoolManage {
 pub struct DuckDB {
     pub(crate) config: DuckDBConfig,
     pool: r2d2::Pool<PoolManage>,
-    query_connections: Arc<DashMap<u32, Arc<Mutex<duckdb::Connection>>>>,
+    query_connection: Arc<DashMap<u32, Arc<Mutex<duckdb::Connection>>>>,
     query_logs: QueryLogMap,
 }
 
@@ -101,7 +101,7 @@ impl DuckDB {
         anyhow::Ok(Self {
             config,
             pool,
-            query_connections: Default::default(),
+            query_connection: Default::default(),
             query_logs: Default::default(),
         })
     }
@@ -430,7 +430,7 @@ impl QuerySql for DuckDB {
         &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut _log_guard = self.query_logs.get_guard(query_id, sql);
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
@@ -467,7 +467,7 @@ impl QuerySql for DuckDB {
         &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let mut _log_guard = self.query_logs.get_guard(query_id, sql);
-        let conn = match self.query_connections.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
@@ -484,20 +484,19 @@ impl QuerySql for DuckDB {
     async fn open_connection(&self) -> anyhow::Result<u32> {
         let uuid = uuid::Uuid::new_v4();
         let conn = make_conn(&self.config.path)?;
-        self.query_connections
+        self.query_connection
             .insert(uuid, Arc::new(Mutex::new(conn)));
         anyhow::Ok(uuid)
     }
 
-    async fn re_connect(&self, id: u32) -> anyhow::Result<()> {
+    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
         let conn = make_conn(&self.config.path)?;
-        self.query_connections
-            .insert(id, Arc::new(Mutex::new(conn)));
+        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
-        self.query_connections.remove(&id);
+        self.query_connection.remove(&id);
         anyhow::Ok(())
     }
 }
