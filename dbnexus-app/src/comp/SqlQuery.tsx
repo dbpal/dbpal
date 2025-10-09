@@ -253,7 +253,15 @@ function SqlQuery(props: {
           setConn(conn);
           if (queryRespView) {
             // send new query id
-            queryRespView.setTitle(makeWindowTitle(uuid, conn.queryId));
+            queryRespView
+              .setTitle(makeWindowTitle(uuid, conn.queryId))
+              .catch((e) => {
+                showNotification(
+                  'error',
+                  'set query response view title failed',
+                  e
+                );
+              });
             let payload = {};
             payload[newQueryIDName] = conn.queryId;
             queryRespView
