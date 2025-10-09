@@ -27,6 +27,18 @@ use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable};
 use dbnexus_db::sqlite::SqliteDB;
 use font_kit::error::SelectionError;
+use tauri::ipc::Channel;
+
+pub fn log_channel_store() -> &'static std::sync::Mutex<Option<Channel<String>>> {
+    static X: std::sync::Mutex<Option<Channel<String>>> = std::sync::Mutex::new(None);
+    &X
+}
+
+#[tauri::command]
+pub fn log_channel(on_event: Channel<String>) {
+    *log_channel_store().lock().unwrap() = Some(on_event);
+}
+
 pub const PASSWORD_KEY: &str = "site.dbpal.dev";
 #[tauri::command]
 pub fn has_entered_password(

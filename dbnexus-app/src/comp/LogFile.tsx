@@ -9,7 +9,7 @@ import {
   Typography,
 } from '@mui/material';
 import { SimpleFlexEditor } from './CommonComp2';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { editor, Position } from 'monaco-editor';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
@@ -18,10 +18,11 @@ import {
   SettingContext,
   UserSetting,
 } from './helper';
-import { listen } from '@tauri-apps/api/event';
+// import { listen } from '@tauri-apps/api/event';
 import { LogLevelSelection } from './CommonComp';
 import { NotificationContext } from './Notification';
 import InfoIcon from '@mui/icons-material/Info';
+import { Channel, invoke } from '@tauri-apps/api/core';
 function LogTip({ width }) {
   return (
     <Stack style={{ width }} spacing={1}>
@@ -46,13 +47,17 @@ function LogTip({ width }) {
 }
 
 function LogFile() {
-  const editor = useRef<editor.IStandaloneCodeEditor>(null);
+  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const setting = useContext(SettingContext);
   const [pinToBotton, setPinToBotton] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   useEffect(() => {
-    const unlisten = listen<string>('log_stream_xxx', (e) => {
-      const model = editor.current.getModel()!; // 或 monaco.editor.getModels()[0]
+    if (!editor) {
+      return;
+    }
+    const onEvent = new Channel<string>();
+    onEvent.onmessage = (message) => {
+      const model = editor.getModel()!; // 或 monaco.editor.getModels()[0]
       const lastLine = model.getLineCount();
       const lastCol = model.getLineMaxColumn(lastLine);
       model.applyEdits([
@@ -63,30 +68,24 @@ function LogFile() {
             endLineNumber: lastLine,
             endColumn: lastCol,
           },
-          text: e.payload,
+          text: message,
         },
       ]);
       if (pinToBotton) {
-        editorSetPositionAndReveal(editor.current, new Position(lastLine, 1));
+        editorSetPositionAndReveal(editor, new Position(lastLine, 1));
       }
-    });
-    return () => {
-      unlisten
-        .then((callback) => {
-          callback();
-        })
-        .catch((e) => {
-          console.log("can't observe unlisten callback", e);
-        });
     };
-  }, [pinToBotton]);
+    invoke('log_channel', {
+      onEvent,
+    });
+  }, [pinToBotton, editor]);
 
   return (
     <Stack spacing={1} style={{ height: '100%' }}>
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <IconButton
           onClick={() => {
-            editorSetPositionAndReveal(editor.current, new Position(1, 1));
+            editorSetPositionAndReveal(editor, new Position(1, 1));
           }}
           color="primary"
           disabled={pinToBotton}
@@ -95,12 +94,9 @@ function LogFile() {
         </IconButton>
         <IconButton
           onClick={() => {
-            const model = editor.current.getModel()!; // 或 monaco.editor.getModels()[0]
+            const model = editor.getModel()!; // 或 monaco.editor.getModels()[0]
             const lastLine = model.getLineCount();
-            editorSetPositionAndReveal(
-              editor.current,
-              new Position(lastLine, 1)
-            );
+            editorSetPositionAndReveal(editor, new Position(lastLine, 1));
           }}
           color="primary"
           disabled={pinToBotton}
@@ -110,7 +106,7 @@ function LogFile() {
         <Button
           variant="outlined"
           onClick={() => {
-            editor.current.getModel().setValue('');
+            editor.getModel().setValue('');
             showNotification('success', 'log truncated');
           }}
         >
@@ -152,7 +148,7 @@ function LogFile() {
       <SimpleFlexEditor
         value={''}
         handleEditor={(ed) => {
-          editor.current = ed;
+          setEditor(ed);
         }}
         readOnly
         language="log"
