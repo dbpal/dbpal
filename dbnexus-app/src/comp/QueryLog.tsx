@@ -36,6 +36,7 @@ import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import {
   ColumnWidth,
+  dataGridParentStyle,
   QueryLogHandler,
   saveAndSetSize,
   secondConfirm,
@@ -193,7 +194,7 @@ function QueryLog(props: {
         width: '75%',
         display: showQueryLog ? 'flex' : 'none',
         flexDirection: 'column',
-        height: 'fit-content',
+        height: '40vh',
       }}
       elevation={16}
     >
@@ -269,7 +270,7 @@ function QueryLog(props: {
         </Tooltip>
       </Stack>
 
-      <div style={{ display: 'grid' }}>
+      <div style={{ ...dataGridParentStyle }}>
         <DataGrid
           showToolbar
           showCellVerticalBorder

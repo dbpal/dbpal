@@ -1116,7 +1116,8 @@ interface DetachQueyRespViewPara {
 }
 
 const dataGridParentStyle = {
-  display: 'grid',
+  display: 'flex',
+  flexDirection: 'column',
   height: '100px',
   flexGrow: 1,
   flexShrink: 1,

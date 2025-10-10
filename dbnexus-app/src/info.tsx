@@ -10,7 +10,9 @@ webviewWIndowInit(false);
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <SeparateWindow>
-      <ConnConfigInfo uuid={SomeTempStore.get<string>()}></ConnConfigInfo>
+      <div style={{ height: '100%' }}>
+        <ConnConfigInfo uuid={SomeTempStore.get<string>()}></ConnConfigInfo>{' '}
+      </div>
     </SeparateWindow>
   </React.StrictMode>
 );

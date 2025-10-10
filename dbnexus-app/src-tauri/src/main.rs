@@ -172,7 +172,7 @@ fn set_webview_zoom(handle: &AppHandle, zoom: f64) {
     let views = handle.webview_windows();
     for view in views.values() {
         if let Err(err) = view.set_zoom(zoom) {
-            log::error!("set view  zoom failed:{}", err);
+            log::error!("set view zoom failed:{}", err);
         }
     }
 }

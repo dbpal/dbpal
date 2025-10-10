@@ -56,6 +56,7 @@ import {
   ColumnWidth,
   connTypeToDataSourceKind,
   ContextMenuContext,
+  dataGridParentStyle,
   DataSourceKind,
   editorSetPositionAndReveal,
   ErrAndLoc,
@@ -535,7 +536,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
     }
   }, []);
   return (
-    <div style={{ display: 'grid', height: '100%' }}>
+    <div style={{ ...dataGridParentStyle }}>
       <DataGrid
         showToolbar
         sortModel={sortModel}

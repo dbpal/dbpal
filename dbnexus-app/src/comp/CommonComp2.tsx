@@ -452,7 +452,7 @@ function ConnConfigInfo(props: { uuid }) {
   }, []);
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack direction="row">
         <Button
           color="primary"
