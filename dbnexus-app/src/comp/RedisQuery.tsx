@@ -129,7 +129,7 @@ function RedisQuery(props: {
       clearInterval(int);
     };
   }, [tryUpdateCommand]);
-
+  const [collapsied, setCollapsied] = useState(false);
   return (
     <PanelGroup direction="horizontal" autoSaveId="redis-query">
       <Panel defaultSize={40}>
@@ -164,21 +164,29 @@ function RedisQuery(props: {
             style={{ width: 4 }}
             className="resize-handle"
           />
-          <Panel collapsible collapsedSize={0} minSize={15}>
-            <div style={{ height: '100vh' }}>
-              {showDoc && (
-                <iframe
-                  ref={iframeRef} // 绑定 iframe 引用
-                  src={getURL(command)}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    border: 'none', // 去掉边框
-                  }}
-                  title="Full Size Iframe"
-                />
-              )}
-            </div>
+          <Panel
+            onCollapse={() => {
+              setCollapsied(true);
+            }}
+            onExpand={() => {
+              setCollapsied(false);
+            }}
+            collapsible
+            collapsedSize={0}
+            minSize={15}
+          >
+            {showDoc && !collapsied && (
+              <iframe
+                ref={iframeRef} // 绑定 iframe 引用
+                src={getURL(command)}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  border: 'none', // 去掉边框
+                }}
+                title="Full Size Iframe"
+              />
+            )}
           </Panel>
         </>
       )}

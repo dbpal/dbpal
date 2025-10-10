@@ -757,7 +757,7 @@ function PossibleParseError(props: {
 }) {
   const { parseErr, editor } = props;
   return (
-    <Tooltip title="possible error">
+    <Tooltip title="possible error" followCursor>
       <Typography
         style={{
           cursor: parseErr.line && parseErr.column && 'pointer',
