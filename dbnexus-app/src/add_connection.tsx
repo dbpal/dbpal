@@ -7,11 +7,8 @@ import { AddConnection } from './comp/AddConnection.tsx';
 import React from 'react';
 import { Stack } from '@mui/material';
 
-window.onerror = function (msg, url, line, col, error) {
-  console.error('[global error]', msg, url, line, col, error);
-};
-
 webviewWIndowInit(false);
+
 const currentWebview = WebviewWindow.getCurrent();
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

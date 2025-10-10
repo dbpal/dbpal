@@ -1183,7 +1183,6 @@ function MongoTableList(props: {
     reloadOP(filter, sort, page + 1, pageSize)
       .then((r) => {
         r.data.forEach((e, index) => {
-          //@ts-ignore
           e[keyNotInTable] = index;
         });
         r.fields.forEach((f) => {

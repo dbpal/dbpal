@@ -651,7 +651,7 @@ function makeComponents(fontWeight) {
         },
         columnHeaders: {
           fontSize: '0.8rem',
-          boxShadow: '0 2px 4px',
+          boxShadow: '0 1px 3px',
         },
       },
     },

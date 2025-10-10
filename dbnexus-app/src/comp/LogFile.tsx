@@ -13,12 +13,7 @@ import { useContext, useEffect, useState } from 'react';
 import { editor, Position } from 'monaco-editor';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import {
-  editorSetPositionAndReveal,
-  SettingContext,
-  UserSetting,
-} from './helper';
-// import { listen } from '@tauri-apps/api/event';
+import { editorSetPositionAndReveal, LoggerLevel } from './helper';
 import { LogLevelSelection } from './CommonComp';
 import { NotificationContext } from './Notification';
 import InfoIcon from '@mui/icons-material/Info';
@@ -48,9 +43,9 @@ function LogTip({ width }) {
 
 function LogFile() {
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const setting = useContext(SettingContext);
   const [pinToBotton, setPinToBotton] = useState(false);
   const { showNotification } = useContext(NotificationContext);
+  const [loggerLevel, setLoggerLevel] = useState(LoggerLevel.level);
   useEffect(() => {
     if (!editor) {
       return;
@@ -120,10 +115,11 @@ function LogFile() {
           />
         ></FormControlLabel>
         <LogLevelSelection
-          level={setting.loggerLevel}
-          handleChange={(level) => {
+          level={loggerLevel}
+          handleChange={async (level) => {
             try {
-              UserSetting.set({ loggerLevel: level } as UserSetting);
+              await LoggerLevel.set(level);
+              setLoggerLevel(level);
             } catch (e) {
               showNotification('error', 'save log level failed', e);
               return;

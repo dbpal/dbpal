@@ -44,6 +44,7 @@ import {
 import ClearIcon from '@mui/icons-material/Clear';
 import {
   EscDownEvent,
+  FieldAndGridField,
   keyNotInTable,
   makeFormatFn,
   modalHandleClose,
@@ -72,7 +73,7 @@ import {
   validJson,
   SavePageSize,
   textEllipsisStyle,
-  quoteIdentifier,
+  quoteDatabaseIdentifier,
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
   editorPositionToEnd,
@@ -137,7 +138,7 @@ function SetFilterSort(props: {
     extractFn,
     uuid,
   } = props;
-  tableName = quoteIdentifier(kind)(tableName);
+  tableName = quoteDatabaseIdentifier(kind)(tableName);
 
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [modalBox, setModalBox] = useState(null);
@@ -373,11 +374,11 @@ function SqlTableView_(props: {
       data[keyNotInTable] = index;
     });
     for (let i = 0; i < resp.fields.length; i++) {
-      let field = resp.fields[i];
-      field['renderHeader'] = (e) => {
-        let def = e.colDef;
+      let field = resp.fields[i] as FieldAndGridField;
+      field.renderHeader = (e) => {
+        let def = e.colDef as unknown as FieldAndGridField;
         const makeTitle = (): string => {
-          let f = def as types.Field;
+          let f = def as unknown as FieldAndGridField;
           let ret = f.field + ' ';
           ret += f.data_type;
           if (f.nullable) {
@@ -395,14 +396,15 @@ function SqlTableView_(props: {
         };
         return (
           <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
-            <Tooltip title={makeTitle()}>{def.field}</Tooltip>
+            <Tooltip title={makeTitle()}>
+              <Typography> {def.field}</Typography>
+            </Tooltip>
             {def.is_primary && <KeyIcon style={{ fontSize: '16px' }}></KeyIcon>}
           </Stack>
         );
       };
 
       if (!field.is_auto_increment) {
-        //@ts-ignore
         field.editable = true;
       }
     }
@@ -549,7 +551,9 @@ function SqlTableView_(props: {
       setSort('');
       return;
     }
-    setSort(`${quoteIdentifier(kind)(sort.field)} ${sort.sort.toUpperCase()}`);
+    setSort(
+      `${quoteDatabaseIdentifier(kind)(sort.field)} ${sort.sort.toUpperCase()}`
+    );
   }, []);
 
   const onProcessRowUpdateError = useCallback((e) => {
@@ -1172,7 +1176,7 @@ function Menu(props: {
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showFilter, setShowFilter] = useState(false);
-  const quoteFn = quoteIdentifier(kind);
+  const quoteFn = quoteDatabaseIdentifier(kind);
   const [showClone, setShowClone] = useState(false);
   let quoteField = quoteFn(field);
   const [cloneModalBox, setCloneModalBox] = useState(null);
@@ -1395,7 +1399,7 @@ function FilterOnValue(props: {
   }, []);
 
   const where = () => {
-    let quoteField = quoteIdentifier(kind)(field);
+    let quoteField = quoteDatabaseIdentifier(kind)(field);
     if (compare == 'null') {
       return `${quoteField} IS NULL`;
     }

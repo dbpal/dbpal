@@ -80,12 +80,6 @@ pub struct AppLogger {
     config: Arc<Store<Wry>>,
 }
 
-impl AppLogger {
-    fn get_config(&self) -> Option<serde_json::Value> {
-        self.config.get("user-settings")
-    }
-}
-
 #[allow(dead_code)]
 fn logger_test() {
     std::thread::spawn(|| {
@@ -102,25 +96,23 @@ fn logger_test() {
 
 impl AppLogger {
     fn get_level(&self) -> log::Level {
-        let x = self.get_config();
-        x.as_ref()
-            .and_then(|x| match x {
-                serde_json::Value::Object(map) => match map.get("loggerLevel") {
-                    Some(serde_json::Value::String(level)) => match log::Level::from_str(level) {
-                        Ok(level) => Some(level),
-                        Err(err) => {
-                            println!(
-                                "parse level failed,err:{:?} this is a bug from frontend",
-                                err
-                            );
-                            None
-                        }
-                    },
-                    _ => None,
+        let x = self.config.get("logger-level");
+        let r = x
+            .map(|x| match x {
+                serde_json::Value::String(level) => match log::Level::from_str(&level) {
+                    Ok(level) => Some(level),
+                    Err(err) => {
+                        println!(
+                            "parse level failed,err:{:?} this is a bug from frontend",
+                            err
+                        );
+                        None
+                    }
                 },
                 _ => None,
             })
-            .unwrap_or(log::Level::Info)
+            .flatten();
+        r.unwrap_or(log::Level::Info)
     }
 }
 
@@ -186,7 +178,7 @@ fn set_webview_zoom(handle: &AppHandle, zoom: f64) {
 }
 
 fn main_() {
-    logger_test();
+    // logger_test();
     let dbpal = DBPal::new();
     let dbpal_clone = dbpal.clone();
 
@@ -427,7 +419,6 @@ fn main_() {
                     )
                     .title("setting")
                     .inner_size(800f64, 600f64)
-                    .maximized(true)
                     .build()
                     {
                         log::error!("create setting window failed:{}", err);

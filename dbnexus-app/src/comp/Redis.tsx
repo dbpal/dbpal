@@ -78,13 +78,14 @@ enum RedisEditorMode {
   Json = 'json',
 }
 
+type ListPushDirection = 'left' | 'right';
 function RedisAddList(props: {
   lpushOP: (value: string) => Promise<void>;
   rpushOP: (value: string) => Promise<void>;
 }) {
   const { lpushOP, rpushOP } = props;
   const [loading, setLoading] = useState(false);
-  const [direction, setDirection] = useState<'left' | 'right'>('left');
+  const [direction, setDirection] = useState<ListPushDirection>('left');
   const { showNotification } = useContext(NotificationContext);
   const valueRef = useRef(new EditorAndMode());
   const handleAdd = () => {
@@ -112,8 +113,7 @@ function RedisAddList(props: {
         <RadioGroup
           row
           onChange={(_e, value) => {
-            //@ts-ignore
-            setDirection(value);
+            setDirection(value as ListPushDirection);
           }}
           value={direction}
         >
@@ -600,7 +600,6 @@ function RedisValueEditor(props: {
           valueRef.current.editor = ed;
         }}
         errPos={jsonErrPos}
-        wordWrap="on"
         barLeft={
           jsonErr ? (
             <Typography
@@ -800,8 +799,7 @@ function RedisSetTable(props: {
           if (field) {
             return;
           }
-          //@ts-ignore
-          const content = target.innerHTML;
+          const content = (target as HTMLDivElement).innerHTML;
           setUpMenu({
             content: (
               <RedisSetTableContextMenu
@@ -1079,10 +1077,8 @@ function RedisListTable(props: {
   }, []);
 
   const handleDel = async (id, deleteCount: number) => {
-    //@ts-ignore
     let del = resp.data.find((e) => e.id == id);
     try {
-      //@ts-ignore
       await delOP(deleteCount, del.value);
       showNotification('success', 'Delete OK');
     } catch (e) {
@@ -1351,7 +1347,6 @@ function RedisZsetTable(props: {
           resp.fields[0]['width'] = scoreWidth;
         }
         resp.data.forEach((e) => {
-          //@ts-ignore rewrite to float value
           e.score = parseFloat(e['score']);
         });
         resp.fields[1]['valueGetter'] = valueGetter;
@@ -1375,7 +1370,6 @@ function RedisZsetTable(props: {
   const handleDel = async (id: string) => {
     let del = resp.data.find((e) => e['id'] == id);
     try {
-      //@ts-ignore
       await delOP(del.key);
       showNotification('success', 'Delete OK');
     } catch (e) {
@@ -1707,7 +1701,6 @@ function RedisHashTable(props: {
   const handleDel = async (id: string) => {
     let del = resp.data.find((e) => e['id'] == id);
     try {
-      //@ts-ignore
       await delOP(del.key);
       showNotification('success', 'Delete OK');
     } catch (e) {

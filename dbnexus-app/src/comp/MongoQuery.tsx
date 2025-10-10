@@ -32,6 +32,7 @@ import EventNoteIcon from '@mui/icons-material/EventNote';
 import {
   DataSourceKind,
   generateRandomString,
+  LoggerLevel,
   QueryLogHandler,
   SettingContext,
   TabActiveContext,
@@ -94,7 +95,7 @@ function MongoQuery(props: {
     loglevel.getLogger(generateRandomString(10))
   );
   let setting = useContext(SettingContext);
-  const [loggerLevel, setLoggerLevel] = useState(setting.loggerLevel);
+  const [loggerLevel, setLoggerLevel] = useState(LoggerLevel.level);
   const [db, _] = useState(new MongoDBQuery(uuid));
   const [bsonExtraDataType, _setBsonExtraDataTypes] = useState(
     new BsonExtraDataType()
@@ -102,6 +103,7 @@ function MongoQuery(props: {
 
   useEffect(() => {
     logger.setLevel(loggerLevel as loglevel.LogLevelDesc);
+    LoggerLevel.set(loggerLevel);
   }, [loggerLevel]);
 
   const logEditorOnMount = (

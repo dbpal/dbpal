@@ -37,6 +37,7 @@ import {
   MuiDataGridData,
   secondConfirm,
 } from './helper';
+import { GridColDef } from '@mui/x-data-grid';
 
 const getNamedConfig = async (
   name: string
@@ -776,6 +777,10 @@ function makeTableInsertFn(uuid, table) {
   }
 }
 
+type FieldAndGridField = types.Field & GridColDef;
+
+
+
 export {
   modalStyle,
   tabsHasId,
@@ -807,4 +812,4 @@ export {
   makeTableInsertFn,
 };
 
-export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent };
+export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent, FieldAndGridField };

@@ -572,9 +572,9 @@ function MenuResetColumnWidths(props: { reset: () => void }) {
   );
 }
 
-function TrueOrFalse(props: { b: boolean }) {
-  const { b } = props;
-  return b ? <CheckIcon> </CheckIcon> : <CloseIcon></CloseIcon>;
+function TrueOrFalse(props: { value: boolean }) {
+  const { value } = props;
+  return value ? <CheckIcon> </CheckIcon> : <CloseIcon></CloseIcon>;
 }
 
 function ModalHeader(props: { title: string }) {

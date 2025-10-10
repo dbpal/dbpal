@@ -326,7 +326,7 @@ enum DataSourceKind {
   Cockroach = "cockroach"
 }
 
-function quoteIdentifier(x: DataSourceKind) {
+function quoteDatabaseIdentifier(x: DataSourceKind) {
 
   return (identifier: string) => {
     let q = "";
@@ -364,6 +364,7 @@ enum AppStoreKey {
   Align = "align",
   MatchPattern = "match-pattern",
   LeftTopShow = "left-top-show",
+  LoggerLevel = "logger-level",
 }
 
 
@@ -654,7 +655,7 @@ class MongoTableHandler {
   }
   static reloadDocs(uuid: string, table) {
     return async (filter, sort, page, pageSize): Promise<DocsAndCount> => {
-      return invoke('mongo_show_collection_docs', {
+      return invoke<{ count: number, docs: number[][] }>('mongo_show_collection_docs', {
         name: uuid,
         tableName: table,
         filter: BSON.serialize(filter),
@@ -662,9 +663,7 @@ class MongoTableHandler {
         page,
         pageSize,
       }).then(x => {
-        //@ts-ignore
         let docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
-        //@ts-ignore
         let count = x.count;
         return new DocsAndCount(docs, count);
       });
@@ -713,15 +712,14 @@ class UserSetting {
   theme: string = 'light';
   fontSize: number = 15;
   fontWeight: string = 'normal';
-  fontFamily: string = undefined;
+  fontFamily: string = '';
   tabSize: number = 4;
-  lightBgColor: string = undefined;
-  darkBgColor: string = undefined;
+  lightBgColor: string = '';
+  darkBgColor: string = '';
   csvDelimiter: string = ',';
   includeHeader: boolean = true;
   datagridRowHeightFactor = 2;
   maxTreeSize: number = 150;
-  loggerLevel: string = 'info';
   saveQueryLog: boolean = false;
   maxTabTitleLength: number = 12;
   autoStart: boolean = false;
@@ -766,6 +764,22 @@ function editorSetPositionAndReveal(editor: editor.IStandaloneCodeEditor, pos: P
 
 }
 
+
+class LoggerLevel {
+  static level: string = 'info';
+  static async set(level: string) {
+    LoggerLevel.level = level;
+    await appStore.set(AppStoreKey.LoggerLevel, level);
+
+  }
+}
+
+{
+  const level = await appStore.get<string>(AppStoreKey.LoggerLevel);
+  if (level) {
+    LoggerLevel.level = level;
+  }
+}
 
 function postgresLike(x: DataSourceKind) {
   switch (x) {
@@ -946,28 +960,6 @@ export type MuiDataGridData = {
   "has_more": boolean;
 };
 
-async function setZoom(out: boolean) {
-  const currentWebview = WebviewWindow.getCurrent();
-  let zoom = await appStore.get<number>(AppStoreKey.Zoom);
-  if (!zoom) {
-    zoom = 1;
-  }
-  const min = 0.5;
-  const max = 1.5;
-  if (out) {
-    zoom += 0.1;
-    if (zoom > max) {
-      zoom = max;
-    }
-  } else {
-    zoom -= 0.1;
-    if (zoom < min) {
-      zoom = min;
-    }
-  }
-  currentWebview.setZoom(zoom);
-  await appStore.set(AppStoreKey.Zoom, zoom);
-}
 
 
 
@@ -991,16 +983,14 @@ async function webviewWIndowInit(isMain: boolean) {
 
 
   if (isMain) {
-    if (!import.meta.env.DEV) {
-      currentWebview.theme().then(async (theme) => {
-        if (!theme) {
-          return;
-        }
-        let set = await UserSetting.get();
-        set.theme = theme;
-        appStore.set(AppStoreKey.UserSetting, set);
-      });
-    }
+    currentWebview.theme().then(async (theme) => {
+      if (!theme) {
+        return;
+      }
+      let set = await UserSetting.get();
+      set.theme = theme;
+      appStore.set(AppStoreKey.UserSetting, set);
+    });
 
     currentWebview.onThemeChanged(async (msg) => {
       let set = await UserSetting.get();
@@ -1163,7 +1153,7 @@ export {
   FavoriteSql,
   MatchPatternContext,
   resetMuiDataRespWidth,
-  quoteIdentifier,
+  quoteDatabaseIdentifier,
   saveAndSetSize,
   SaveDomSizes,
   DocsAndCount,
@@ -1191,7 +1181,6 @@ export {
   SaveAlign,
   SaveMatchPattern,
   SaveLeftTopShow,
-  setZoom,
   webviewWIndowInit,
   RedisTableType,
   extractFieldAndIDFromMouseEvent,
@@ -1199,7 +1188,8 @@ export {
   KeyPressed,
   SomeTempStore,
   dataGridParentStyle,
-  isMacOs
+  isMacOs,
+  LoggerLevel,
 };
 
 

@@ -36,7 +36,6 @@ import {
   MakeIQueryConn,
   modalHandleClose,
   modalStyle,
-  msgTimeout,
   NameAndQueryId,
   SetAutoCompletionName,
 } from './Common.ts';
@@ -202,9 +201,6 @@ function SqlQuery(props: {
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [showQueryLog, setShowQueryLog] = useState(false);
-  const [showSuggestReconnect, setShowSuggestReconnect] = useState<
-    number | null
-  >(null);
   const setting = useContext(SettingContext);
   const queryLogHandler = useRef(new QueryLogHandler(uuid));
   const [executeTimes, setExecuteTimes] = useState(0);
@@ -310,17 +306,6 @@ function SqlQuery(props: {
     }
   };
 
-  const suggestReconnect = (start: Date) => {
-    //@ts-ignore
-    let queryTime = new Date() - start;
-    if (queryTime > 5_000) {
-      setShowSuggestReconnect(queryTime as number);
-      setTimeout(() => {
-        setShowSuggestReconnect(null);
-      }, msgTimeout);
-    }
-  };
-
   const handleExecute = async () => {
     const text = getEditorText(editor, showNotification);
     if (!text) {
@@ -330,7 +315,6 @@ function SqlQuery(props: {
     if (!confirm) {
       return;
     }
-    let now = new Date();
     setLoading(true);
     conn
       .executeOP(text)
@@ -339,7 +323,6 @@ function SqlQuery(props: {
           queryLogHandler.current.save(text, rustResultOk(e), showNotification);
         }
         setResp([e]);
-        suggestReconnect(now);
         showNotification('success', 'execute ok');
       })
       .catch((e) => {
@@ -363,7 +346,6 @@ function SqlQuery(props: {
     if (!confirm) {
       return;
     }
-    let now = new Date();
     setLoading(true);
     conn
       .queryOP(text, append)
@@ -380,7 +362,6 @@ function SqlQuery(props: {
         } else {
           setResp(resp);
         }
-        suggestReconnect(now);
         showNotification('success', 'Execute OK');
       })
       .catch((e) => {
@@ -656,22 +637,14 @@ function SqlQuery(props: {
             {conn && conn.supportTransaction() && (
               <SqlTransaction executeTimes={executeTimes} conn={conn} />
             )}
-            <Tooltip
-              title={
-                showSuggestReconnect
-                  ? `query used ${showSuggestReconnect}ms,try reconnect?`
-                  : 'reconnect'
-              }
-            >
+            <Tooltip title={'reconnect'}>
               <IconButton
                 onClick={() => {
                   handleReconnect();
                 }}
                 color="primary"
               >
-                <RefreshIcon
-                  color={showSuggestReconnect ? 'error' : 'inherit'}
-                />
+                <RefreshIcon />
               </IconButton>
             </Tooltip>
             {conn && (

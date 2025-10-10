@@ -262,7 +262,6 @@ function SimpleFlexEditor(props: {
   value?: string;
   handleValue?: (x: string) => void;
   barLeft?: ReactNode;
-  wordWrap?: string;
   readOnly?: boolean;
   errPos?: Position;
   handleEditor?: (editor: editor.IStandaloneCodeEditor) => void;
@@ -272,7 +271,6 @@ function SimpleFlexEditor(props: {
     value,
     handleValue,
     barLeft,
-    wordWrap,
     readOnly,
     errPos,
     handleEditor,
@@ -307,8 +305,6 @@ function SimpleFlexEditor(props: {
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
       fontSize: setting.fontSize,
-      //@ts-ignore
-      wordWrap: wordWrap,
       fontWeight: setting.fontWeight,
       fontFamily: setting.fontFamily,
       readOnly,
