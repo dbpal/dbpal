@@ -1,7 +1,6 @@
 'use strict';
 import { NotificationProvider } from './Notification';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import { platform } from '@tauri-apps/plugin-os';
 import {
   CSSProperties,
   ReactNode,
@@ -19,6 +18,7 @@ import {
   TabsSetContext,
   WindowFocusContext,
   getViewportSize,
+  KeyPressed,
 } from './helper.ts';
 import '../app.css';
 import { Paper } from '@mui/material';
@@ -26,28 +26,14 @@ import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 const shortCuts = {
   callback: (e: KeyboardEvent) => {
-    if (platform() == 'macos') {
-      if (e.metaKey && e.key == '[') {
-        shortCuts.prev();
-      }
-      if (e.metaKey && e.key == ']') {
-        shortCuts.next();
-      }
-
-      if (e.metaKey && e.key == 'w') {
-        shortCuts.closeCurrentTab(e);
-      }
+    if (KeyPressed.prevTab(e)) {
+      shortCuts.prev();
     }
-    if (['windows', 'linux'].includes(platform())) {
-      if (e.ctrlKey && e.key == '[') {
-        shortCuts.prev();
-      }
-      if (e.ctrlKey && e.key == ']') {
-        shortCuts.next();
-      }
-      if (e.ctrlKey && e.key == 'w') {
-        shortCuts.closeCurrentTab(e);
-      }
+    if (KeyPressed.nextTab(e)) {
+      shortCuts.next();
+    }
+    if (KeyPressed.closeTab(e)) {
+      shortCuts.closeCurrentTab(e);
     }
   },
 } as {

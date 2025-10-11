@@ -1028,14 +1028,11 @@ enum RedisTableType {
 }
 
 function extractFieldAndIDFromMouseEvent(e: MouseEvent) {
-
   const { currentTarget, target } = e;
   let field = (target as HTMLDivElement).getAttribute('data-field');
   let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
   return { field, id };
 }
-
-
 
 
 function editorPositionToEnd(editor: editor.IStandaloneCodeEditor) {
@@ -1047,29 +1044,35 @@ function editorPositionToEnd(editor: editor.IStandaloneCodeEditor) {
 
 }
 
-
 class KeyPressed {
+
+  // control on windows on command on mac pressed and expect key
+  static matchControl(e: KeyboardEvent, expect: string) {
+    let os = platform();
+    return (os == 'macos' && e.metaKey && e.key == expect) ||
+      (os == 'windows' && e.ctrlKey && e.key == expect) ||
+      (os == 'linux' && e.ctrlKey && e.key == expect);
+  }
+
   // is is control+s pressed  
-  static isControlSave(e: KeyboardEvent) {
-    let os = platform();
-    const expect = 's';
-    return (os == 'macos' && e.metaKey && e.key == expect) ||
-      (os == 'windows' && e.ctrlKey && e.key == expect) ||
-      (os == 'linux' && e.ctrlKey && e.key == expect);
+  static isFileSave(e: KeyboardEvent) {
+    return KeyPressed.matchControl(e, 's')
   }
 
-  static isControlOpen(e: KeyboardEvent) {
-    let os = platform();
-    const expect = 'o';
-    return (os == 'macos' && e.metaKey && e.key == expect) ||
-      (os == 'windows' && e.ctrlKey && e.key == expect) ||
-      (os == 'linux' && e.ctrlKey && e.key == expect);
+  static isFileOpen(e: KeyboardEvent) {
+    return KeyPressed.matchControl(e, 'o')
   }
 
+  static prevTab(e: KeyboardEvent) {
+    return KeyPressed.matchControl(e, '[')
+  }
+  static nextTab(e: KeyboardEvent) {
+    return KeyPressed.matchControl(e, ']')
+  }
+  static closeTab(e: KeyboardEvent) {
+    return KeyPressed.matchControl(e, 'w')
+  }
 }
-
-
-
 
 // some temp place for store some data
 // normally the store the data can be consume soon 
@@ -1125,7 +1128,6 @@ const dataGridParentStyle = {
   // 这个值用 0% 在windows也有问题好像会把datagrid变得很高 用0 都可以 用0% 都不可以 然而flex为1 设置的值是0% 可能是兼容性的问题
   flexBasis: '0'
 } as CSSProperties;
-
 
 
 export {

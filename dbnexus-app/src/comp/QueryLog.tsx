@@ -17,7 +17,6 @@ import {
   GridSortModel,
 } from '@mui/x-data-grid';
 import {
-  CSSProperties,
   useCallback,
   useContext,
   useEffect,
@@ -180,9 +179,6 @@ function QueryLog(props: {
       return c;
     }
   }, [modalBox]);
-  const gridStyle = useMemo(() => {
-    return { maxHeight: '40vh', height: 'auto' } as CSSProperties;
-  }, []);
 
   return (
     <Paper
@@ -277,7 +273,6 @@ function QueryLog(props: {
           showColumnVerticalBorder
           onRowDoubleClick={onRowDoubleClick}
           columns={columns}
-          style={gridStyle}
           rows={logs}
           rowHeight={setting.datagridRowHeightXXX()}
           columnHeaderHeight={setting.datagridRowHeightXXX()}

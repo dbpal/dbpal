@@ -576,11 +576,11 @@ function LoadStoreFileForQuery(props: {
         return;
       }
 
-      if (KeyPressed.isControlSave(e)) {
+      if (KeyPressed.isFileSave(e)) {
         e.preventDefault();
         handleSave();
       }
-      if (KeyPressed.isControlOpen(e)) {
+      if (KeyPressed.isFileOpen(e)) {
         e.preventDefault();
         handleLoad();
       }
