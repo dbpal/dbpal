@@ -115,62 +115,61 @@ function TabsWithContent_(props: {
   const setting = useContext(SettingContext);
   return (
     <Stack spacing={1} style={{ width: '100%', height: '100%' }}>
-      <div style={{ display: 'grid' }}>
-        <Tabs
-          value={selectIndex}
-          variant="scrollable"
-          scrollButtons="auto"
-          allowScrollButtonsMobile
-          onChange={(_, newValue) => {
-            changeTab(newValue);
-          }}
-          sx={{
-            // 1. Tab 之间缝隙
-            '& .MuiTabs-flexContainer': { columnGap: 0 }, // 4px
-            // 2. Tab 内边距
-            '& .MuiTab-root': { minHeight: 36, px: 0.4 }, // 高度36px，左右12px
-            opacity: windowFocus ? 1 : 0.6,
-          }}
-        >
-          {tabs.map((tab, index) => {
-            return (
-              <Tab
-                key={tab.id}
-                label=<Tooltip title={tab.header}>
-                  <Chip
-                    label={tab.header}
-                    onDelete={() => {
-                      handleClose(index);
-                    }}
-                    style={{
-                      padding: '0px',
-                      maxWidth: setting.maxTabTitleLength + 'rem',
-                    }}
-                    icon={tab.icon}
-                    variant={index == selectIndex ? 'filled' : 'outlined'}
-                    color={index == selectIndex ? 'success' : 'default'}
-                    onContextMenu={(e) => {
-                      setUpMenu({
-                        content: (
-                          <TabsMenu
-                            index={index}
-                            handleClose={handleClose}
-                            setTabs={setTabs}
-                            tabsLength={tabs.length}
-                            changeTab={changeTab}
-                            selectIndex={selectIndex}
-                          ></TabsMenu>
-                        ),
-                        event: e,
-                      });
-                    }}
-                  ></Chip>
-                </Tooltip>
-              ></Tab>
-            );
-          })}
-        </Tabs>
-      </div>
+      <Tabs
+        value={selectIndex}
+        variant="scrollable"
+        scrollButtons="auto"
+        allowScrollButtonsMobile
+        onChange={(_, newValue) => {
+          changeTab(newValue);
+        }}
+        sx={{
+          // 1. Tab 之间缝隙
+          '& .MuiTabs-flexContainer': { columnGap: 0 }, // 4px
+          // 2. Tab 内边距
+          '& .MuiTab-root': { minHeight: 36, px: 0.4 }, // 高度36px，左右12px
+          opacity: windowFocus ? 1 : 0.6,
+        }}
+      >
+        {tabs.map((tab, index) => {
+          return (
+            <Tab
+              key={tab.id}
+              label=<Tooltip title={tab.header}>
+                <Chip
+                  label={tab.header}
+                  onDelete={() => {
+                    handleClose(index);
+                  }}
+                  style={{
+                    padding: '0px',
+                    maxWidth: setting.maxTabTitleLength + 'rem',
+                  }}
+                  icon={tab.icon}
+                  variant={index == selectIndex ? 'filled' : 'outlined'}
+                  color={index == selectIndex ? 'success' : 'default'}
+                  onContextMenu={(e) => {
+                    setUpMenu({
+                      content: (
+                        <TabsMenu
+                          index={index}
+                          handleClose={handleClose}
+                          setTabs={setTabs}
+                          tabsLength={tabs.length}
+                          changeTab={changeTab}
+                          selectIndex={selectIndex}
+                        ></TabsMenu>
+                      ),
+                      event: e,
+                    });
+                  }}
+                ></Chip>
+              </Tooltip>
+            ></Tab>
+          );
+        })}
+      </Tabs>
+
       <div style={{ flex: 1 }}>
         {tabs.map((tab, index) => (
           <TabActiveContext.Provider key={tab.id} value={selectIndex == index}>
