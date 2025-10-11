@@ -589,7 +589,7 @@ function LoadStoreFileForQuery(props: {
     return () => {
       document.removeEventListener('keydown', callback);
     };
-  }, [active]);
+  }, [active, file]);
 
   return (
     <>
