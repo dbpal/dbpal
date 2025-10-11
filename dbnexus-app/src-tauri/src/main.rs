@@ -189,6 +189,7 @@ fn main_() {
             let old = panic::take_hook();
             panic::set_hook(Box::new(move |info| {
                 let backtrace = Backtrace::capture();
+                println!("panic here:{}", backtrace);
                 let id = dbpal_clone
                     .backend_crash_msg
                     .set(format!("{}\n{}", info, backtrace));

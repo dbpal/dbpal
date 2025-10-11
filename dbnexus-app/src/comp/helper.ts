@@ -967,10 +967,11 @@ async function webviewWIndowInit(isMain: boolean) {
   const currentWebview = await WebviewWindow.getCurrent();
   appStore.get<number>(AppStoreKey.Zoom).then(async (zoom) => {
     if (zoom) {
-      await currentWebview.setZoom(zoom);
+      try { await currentWebview.setZoom(zoom); } catch (e) {
+        console.log("set zoom failed", e);
+      }
     }
   });
-
   if (['windows', 'linux'].includes(platform())) {
     document.addEventListener('keydown', function (event) {
       if (event.key === 'F11') {
