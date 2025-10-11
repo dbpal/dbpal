@@ -386,18 +386,16 @@ function MultiQueryResp_(props: { data: any[] }) {
         ...styleForTrans,
       }}
     >
-      <div style={{ display: 'grid' }}>
-        <Tabs
-          value={value}
-          onChange={handleChange}
-          variant="scrollable"
-          scrollButtons="auto"
-        >
-          {data.map((_, index) => (
-            <Tab label={`Result ${index + 1}`} key={index} />
-          ))}
-        </Tabs>
-      </div>
+      <Tabs
+        value={value}
+        onChange={handleChange}
+        variant="scrollable"
+        scrollButtons="auto"
+      >
+        {data.map((_, index) => (
+          <Tab label={`Result ${index + 1}`} key={index} />
+        ))}
+      </Tabs>
 
       <div style={{ height: '100px', flex: 1 }}>
         {data.map((e, index) => {

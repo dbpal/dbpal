@@ -30,20 +30,17 @@ function BackendCrash(props: { msg: string }) {
           copy error msg
         </Button>
       </Stack>
-
-      <div style={{ display: 'grid', flex: 1 }}>
-        <Paper
-          elevation={8}
-          style={{
-            overflow: 'scroll',
-            width: '100%',
-            flex: 1,
-            padding: '2px 8px',
-          }}
-        >
-          <pre style={{ color: theme.palette.error.main }}>{msg}</pre>
-        </Paper>
-      </div>
+      <Paper
+        elevation={8}
+        style={{
+          overflow: 'scroll',
+          width: '100%',
+          flex: 1,
+          padding: '2px 8px',
+        }}
+      >
+        <pre style={{ color: theme.palette.error.main }}>{msg}</pre>
+      </Paper>
     </Stack>
   );
 }
