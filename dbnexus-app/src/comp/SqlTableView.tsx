@@ -814,7 +814,7 @@ function SqlTableView_(props: {
             alignItems: 'center',
           }}
         >
-          <ExecutingTime loading={loading}></ExecutingTime>
+          <ExecutingTime loading={loading} title="loading time"></ExecutingTime>
         </Stack>
       </Stack>
       <div

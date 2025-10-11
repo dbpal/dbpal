@@ -1593,7 +1593,7 @@ function MongoTable(props: {
         spacing={1}
         style={{ justifyContent: 'flex-end', alignItems: 'center' }}
       >
-        <ExecutingTime loading={loading} />
+        <ExecutingTime loading={loading} title="loading time" />
       </Stack>
 
       {viewModel == MongoDataViewModel.List && (

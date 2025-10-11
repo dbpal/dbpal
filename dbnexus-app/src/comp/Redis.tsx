@@ -882,7 +882,7 @@ function RedisSetTable(props: {
         </Stack>
 
         <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
-          <ExecutingTime loading={loading} />
+          <ExecutingTime loading={loading} title="loading time" />
         </Stack>
         {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
       </Stack>
@@ -1196,7 +1196,7 @@ function RedisListTable(props: {
         </Stack>
 
         <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
-          <ExecutingTime loading={loading} />
+          <ExecutingTime loading={loading} title="loading time" />
         </Stack>
       </Stack>
 
@@ -1530,7 +1530,7 @@ function RedisZsetTable(props: {
         <DoubleClickToModify></DoubleClickToModify>
         {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
 
-        <ExecutingTime loading={loading} />
+        <ExecutingTime loading={loading} title="loading time" />
       </Stack>
 
       {resp && (
@@ -1811,7 +1811,7 @@ function RedisHashTable(props: {
         </Stack>
 
         <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
-          <ExecutingTime loading={loading} />
+          <ExecutingTime loading={loading} title="loading time" />
         </Stack>
       </Stack>
 

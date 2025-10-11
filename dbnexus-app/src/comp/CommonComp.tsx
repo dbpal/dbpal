@@ -781,8 +781,15 @@ function PossibleParseError(props: {
   );
 }
 
-function ExecutingTime(props: { loading: boolean; disableTime?: boolean }) {
-  const { loading, disableTime } = props;
+function ExecutingTime(props: {
+  loading: boolean;
+  disableTime?: boolean;
+  title?: string;
+}) {
+  let { loading, disableTime, title } = props;
+  if (!title) {
+    title = 'executing time';
+  }
   const executeTimeRef = useRef(null);
   const timeExecuteClean = useRef<() => void>(null);
   const [lastLoadTime, setLastLoadTime] = useState(new Date());
@@ -836,7 +843,7 @@ function ExecutingTime(props: { loading: boolean; disableTime?: boolean }) {
 
   return (
     <>
-      <Tooltip title="execute time">
+      <Tooltip title={title}>
         <Chip
           color="success"
           label={<span ref={executeTimeRef}> </span>}
