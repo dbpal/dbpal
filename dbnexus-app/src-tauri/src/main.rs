@@ -179,11 +179,11 @@ fn set_webview_zoom(handle: &AppHandle, zoom: f64) {
 
 fn main_() {
     // logger_test();
-    // #[cfg(debug_assertions)]
-    // std::thread::spawn(|| {
-    //     std::thread::sleep(std::time::Duration::from_secs(5));
-    //     panic!("this is a log from backend");
-    // });
+    #[cfg(debug_assertions)]
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        panic!("this is a log from backend");
+    });
 
     let dbpal = DBPal::new();
     let dbpal_clone = dbpal.clone();

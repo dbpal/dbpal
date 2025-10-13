@@ -590,13 +590,13 @@ function makeComponents(fontWeight) {
       styleOverrides: {
         root: {
           fontSize: '1rem',
-          padding: '2px  4px',
           textTransform: 'none',
           fontWeight,
         },
       },
       defaultProps: {
         variant: 'contained',
+        size: 'small',
       },
     },
     MuiIconButton: {

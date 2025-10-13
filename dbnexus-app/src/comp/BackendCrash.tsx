@@ -36,7 +36,7 @@ function BackendCrash(props: { msg: string }) {
           overflow: 'scroll',
           width: '100%',
           flex: 1,
-          padding: '2px 8px',
+          padding: '4px',
         }}
       >
         <pre style={{ color: theme.palette.error.main }}>{msg}</pre>

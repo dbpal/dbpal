@@ -1048,10 +1048,9 @@ class KeyPressed {
 
   // control on windows on command on mac pressed and expect key
   static matchControl(e: KeyboardEvent, expect: string) {
-    let os = platform();
-    return (os == 'macos' && e.metaKey && e.key == expect) ||
-      (os == 'windows' && e.ctrlKey && e.key == expect) ||
-      (os == 'linux' && e.ctrlKey && e.key == expect);
+    return (isMacOs() && e.metaKey && e.key == expect) ||
+      (!isMacOs() && e.ctrlKey && e.key == expect);
+
   }
 
   // is is control+s pressed  
@@ -1081,6 +1080,7 @@ class KeyPressed {
 class SomeTempStore {
   static id = "temp-store-kfsdfwerwerqqq";
   static set(data: any) {
+    if (!data) { throw new Error("data can not be null"); }
     return localStorage.setItem(SomeTempStore.id, JSON.stringify(data));
   }
   static get<T>(): T {
