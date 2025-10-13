@@ -1104,6 +1104,9 @@ pub(crate) async fn try_parser_completion(
         let mut c = CompletionStatement::new(loc, helper, &scopes);
         c.completion_on_statement(&statement).await;
         if c.finished() {
+            if c.on_def {
+                return anyhow::Ok(helper.key_words_completion().await);
+            }
             let m = c.result.unwrap_or_default();
             return anyhow::Ok(m);
         }
