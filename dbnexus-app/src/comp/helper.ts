@@ -591,7 +591,7 @@ function resetMuiDataRespWidth(old: MuiDataGridData): MuiDataGridData {
     sql: old.sql,
     data: old.data,
     fields: old.fields.map((e) => {
-      return { width: undefined, ...e } as types.Field;
+      return { ...e, width: undefined, } as types.Field;
     }),
     total: old.total,
     cache_time: old.cache_time,
