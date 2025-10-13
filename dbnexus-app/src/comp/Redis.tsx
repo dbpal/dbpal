@@ -621,7 +621,9 @@ function RedisValueEditor(props: {
       {editModel == RedisEditorMode.Hex && (
         <Stack>
           <Divider></Divider>
-          <pre> {hexToString(newValue)}</pre>
+          <pre style={{ maxHeight: '10vh', overflow: 'auto' }}>
+            {hexToString(newValue)}
+          </pre>
         </Stack>
       )}
     </Stack>

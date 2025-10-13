@@ -141,7 +141,9 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
     if (webview) {
       await webview.setFocus();
     } else {
-      SomeTempStore.set(conn);
+      if (conn) {
+        SomeTempStore.set(conn);
+      }
       const webview = new WebviewWindow(id, {
         title: 'add connection',
         url: 'add_connection.html',
