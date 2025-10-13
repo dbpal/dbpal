@@ -495,7 +495,7 @@ function SqlQuery(props: {
     DataSourceKind.FireBird,
   ].includes(kind);
 
-  const tryOpenQueryRespView = () => {
+  const toggleQueryRespView = (maximized: boolean, x?: number, y?: number) => {
     if (queryRespView) {
       try {
         queryRespView.close();
@@ -514,7 +514,9 @@ function SqlQuery(props: {
         url: 'query_response.html',
         width: 800,
         height: 600,
-        maximized: true,
+        maximized,
+        x,
+        y,
       });
       webview.once('tauri://created', () => {
         console.log('create query response view successfully');
@@ -724,7 +726,9 @@ function SqlQuery(props: {
               >
                 <Button
                   variant={queryRespView ? 'outlined' : 'contained'}
-                  onClick={tryOpenQueryRespView}
+                  onClick={() => {
+                    toggleQueryRespView(true);
+                  }}
                 >
                   {queryRespView ? 'close response window' : 'detach response'}
                 </Button>
@@ -785,6 +789,10 @@ function SqlQuery(props: {
             collapsedSize={0}
             maxSize={100}
             minSize={10}
+            draggable
+            onDragEnd={(e) => {
+              toggleQueryRespView(false, e.screenX, e.screenY);
+            }}
           >
             <div style={{ height: '100%' }}>
               <MultiQueryResp data={resp}></MultiQueryResp>
