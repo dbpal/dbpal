@@ -721,7 +721,7 @@ function SqlQuery(props: {
                 title={
                   queryRespView
                     ? 'close query response view'
-                    : 'You can open the query results in a separate window.'
+                    : 'You can open the query results in a separate window , can drag query response to a separate window too'
                 }
               >
                 <Button

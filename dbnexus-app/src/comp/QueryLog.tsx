@@ -2,10 +2,12 @@
 import {
   Box,
   Button,
+  FormControlLabel,
   IconButton,
   Modal,
   Paper,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -204,7 +206,11 @@ function QueryLog(props: {
       ref={setDom}
       elevation={16}
     >
-      <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+      <Stack
+        direction="row"
+        style={{ alignItems: 'center', padding: '0px 4px' }}
+        spacing={1}
+      >
         <IconButton
           onClick={() => {
             setShowQueryLog(false);
@@ -260,19 +266,25 @@ function QueryLog(props: {
               : ''
           }
         >
-          <Button
-            variant={setting.saveQueryLog ? 'contained' : 'text'}
-            color="info"
-            onClick={() => {
-              UserSetting.set({
-                saveQueryLog: !setting.saveQueryLog,
-              } as UserSetting).catch((e) => {
-                showNotification('error', 'save auto save query log error', e);
-              });
-            }}
-          >
-            {setting.saveQueryLog ? 'disable' : 'enable'}
-          </Button>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={setting.saveQueryLog}
+                onChange={() => {
+                  UserSetting.set({
+                    saveQueryLog: !setting.saveQueryLog,
+                  } as UserSetting).catch((e) => {
+                    showNotification(
+                      'error',
+                      'save auto save query log error',
+                      e
+                    );
+                  });
+                }}
+              />
+            }
+            label="auto save query log"
+          />
         </Tooltip>
       </Stack>
 
