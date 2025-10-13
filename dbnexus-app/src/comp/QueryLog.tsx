@@ -36,17 +36,18 @@ import CloseIcon from '@mui/icons-material/Close';
 import {
   ColumnWidth,
   dataGridParentStyle,
+  pageSizeOptions,
   QueryLogHandler,
   saveAndSetSize,
+  SavePageSize,
   secondConfirm,
   SettingContext,
   UserSetting,
 } from './helper.ts';
-import { ModalHeader } from './CommonComp.tsx';
+import { ModalHeader, ResizeParentHeight } from './CommonComp.tsx';
 import { BsFillLightbulbFill } from 'react-icons/bs';
 import { NotificationContext } from './Notification.tsx';
 import { SimpleFlexEditor } from './CommonComp2.tsx';
-const pageSizeOptions = [10, 15];
 
 const initialState: object = {
   sorting: { sortModel: [{ field: 'create_at', sort: 'desc' }] },
@@ -77,7 +78,7 @@ function QueryLog(props: {
   } = props;
   const [selectSql, setSelectSql] = useState('');
   const [page, setPage] = useState(0); // datagrid start with 0
-  const [pageSize, setPagesize] = useState(10);
+  const [pageSize, setPagesize] = useState(SavePageSize.instance.get());
   const [logs, setLogs] = useState([]);
   const [matchSql, setMatchSql] = useState('');
   const [orderBy, setOrderBy] = useState('');
@@ -89,10 +90,16 @@ function QueryLog(props: {
   const paginationModel = useMemo(() => {
     return { page: page, pageSize: pageSize };
   }, [page, pageSize]);
-  const onPaginationModelChange = useCallback((e: GridPaginationModel) => {
-    setPage(e.page);
-    setPagesize(e.pageSize);
-  }, []);
+  const onPaginationModelChange = useCallback(
+    (e: GridPaginationModel, reason) => {
+      setPage(e.page);
+      setPagesize(e.pageSize);
+      if (reason.reason == 'setPaginationModel') {
+        SavePageSize.instance.save(e.pageSize);
+      }
+    },
+    []
+  );
 
   let sqlDesc = 'sql';
   switch (kind) {
@@ -179,7 +186,7 @@ function QueryLog(props: {
       return c;
     }
   }, [modalBox]);
-
+  const [dom, setDom] = useState<HTMLDivElement>(null);
   return (
     <Paper
       style={{
@@ -191,7 +198,10 @@ function QueryLog(props: {
         display: showQueryLog ? 'flex' : 'none',
         flexDirection: 'column',
         height: '40vh',
+        maxHeight: '80vh',
       }}
+      hidden={true}
+      ref={setDom}
       elevation={16}
     >
       <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
@@ -286,6 +296,13 @@ function QueryLog(props: {
           paginationMode="server"
         ></DataGrid>
       </div>
+      {dom && (
+        <ResizeParentHeight
+          box={dom}
+          min={300}
+          saveHeightName="query-log-height"
+        ></ResizeParentHeight>
+      )}
 
       {selectSql && (
         <Modal

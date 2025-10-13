@@ -70,6 +70,7 @@ import {
   QueryLogHandler,
   SaveAlign,
   saveAndSetSize,
+  SaveDomSizes,
   secondConfirm,
   SettingContext,
   textEllipsisStyle,
@@ -1114,7 +1115,16 @@ function ResizeParentHeight(props: {
   min: number;
   saveHeightName;
 }) {
-  const { box, min } = props;
+  const { box, min, saveHeightName } = props;
+
+  useEffect(() => {
+    SaveDomSizes.getSize(saveHeightName).then((e) => {
+      if (e && e.height) {
+        box.style.height = e.height + 'px';
+      }
+    });
+  }, []);
+  useEffect(() => {}, []);
   const handleDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     const startY = e.clientY;
@@ -1124,6 +1134,7 @@ function ResizeParentHeight(props: {
       if (newH < min) {
         newH = min;
       }
+      SaveDomSizes.saveSize(saveHeightName, { height: newH });
       box.style.height = newH + 'px';
     };
     const onUp = () => {

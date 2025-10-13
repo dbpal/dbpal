@@ -901,7 +901,6 @@ class SavePageSize {
       this.sizes[key] = size;
       appStore.set(AppStoreKey.PageSize, this.sizes);
     } else {
-      console.log("invalid page size", size, "this is bug");
       getStackTrace();
     }
   }
