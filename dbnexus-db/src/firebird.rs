@@ -458,16 +458,15 @@ impl QuerySql for FireBirdDB {
     }
 
     async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self.query_id.next();
+        let id = self.next_query_id.next();
         let conn = self.get_conn()?;
-        self.query_connection
-            .insert(id, Arc::new(Mutex::new(conn)));
+        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
     async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
         self.query_connection.remove(&id);
         self.query_connections_tx.remove(&id);
-        let new_id = self.query_id.next();
+        let new_id = self.next_query_id.next();
         let conn = self.get_conn()?;
         self.query_connection
             .insert(new_id, Arc::new(Mutex::new(conn)));
@@ -488,7 +487,7 @@ pub struct FireBirdDB {
     query_connection: Arc<DashMap<u32, Arc<Mutex<PooledConnection<PoolManager>>>>>,
     query_connections_tx: Arc<DashSet<u32>>,
     pub(crate) key_words_completion: Arc<Mutex<Vec<String>>>,
-    query_id: NextId,
+    next_query_id: NextId,
 }
 
 impl std::fmt::Debug for FireBirdDB {
@@ -1070,7 +1069,7 @@ impl FireBirdDB {
             query_connection: Default::default(),
             query_connections_tx: Default::default(),
             key_words_completion: Default::default(),
-            query_id: Default::default(),
+            next_query_id: Default::default(),
         })
     }
 

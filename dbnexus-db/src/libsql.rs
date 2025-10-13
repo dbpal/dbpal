@@ -31,7 +31,7 @@ pub struct LibSqlDB {
     config: LibSqlDBConfig,
     pool: bb8::Pool<PoolManager>,
     pub(crate) query_connection: Arc<DashMap<u32, Connection>>,
-    query_id: NextId,
+    next_query_id: NextId,
     query_connections_transaction: Arc<DashMap<u32, libsql::Transaction>>,
 
     pub(crate) build_in_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
@@ -235,14 +235,14 @@ impl QuerySql for LibSqlDB {
 
     async fn open_connection(&self) -> anyhow::Result<u32> {
         let conn = self.connect().await?;
-        let id = self.query_id.next();
+        let id = self.next_query_id.next();
         self.query_connection.insert(id, conn);
         anyhow::Ok(id)
     }
     async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
         self.query_connection.remove(&id);
         self.query_connections_transaction.remove(&id);
-        let new_id = self.query_id.next();
+        let new_id = self.next_query_id.next();
         let conn = self.connect().await?;
         self.query_connection.insert(new_id, conn);
         anyhow::Ok(new_id)
@@ -360,7 +360,7 @@ impl LibSqlDB {
             build_in_fn_cache: Default::default(),
             keywords_cache: Default::default(),
             pragma_completion: Default::default(),
-            query_id: Default::default(),
+            next_query_id: Default::default(),
             completion_id: Default::default(),
         })
     }

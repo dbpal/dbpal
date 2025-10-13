@@ -31,7 +31,7 @@ pub struct OracleDB {
     query_connection: Arc<DashMap<u32, Arc<Mutex<Connection>>>>,
     pub(crate) config: OracleDBConfig,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
-    query_id: NextId,
+    next_query_id: NextId,
 }
 
 #[async_trait::async_trait]
@@ -78,7 +78,7 @@ impl OracleDB {
             query_connection: Default::default(),
             config,
             key_words_cache: Default::default(),
-            query_id: Default::default(),
+            next_query_id: Default::default(),
         })
     }
 }
@@ -196,11 +196,10 @@ impl QuerySql for OracleDB {
     }
 
     async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self.query_id.next();
+        let id = self.next_query_id.next();
         let mut conn = self.get_conn().await?;
         conn.set_autocommit(QUERY_AUTO_COMMIT);
-        self.query_connection
-            .insert(id, Arc::new(Mutex::new(conn)));
+        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
@@ -208,7 +207,7 @@ impl QuerySql for OracleDB {
         if let Some((_, conn)) = self.query_connection.remove(&id) {
             tokio::spawn(async move { conn.lock().await.close() });
         }
-        let new_id = self.query_id.next();
+        let new_id = self.next_query_id.next();
         let mut conn = self.get_conn().await?;
         conn.set_autocommit(QUERY_AUTO_COMMIT);
         self.query_connection

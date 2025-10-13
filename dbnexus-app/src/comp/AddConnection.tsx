@@ -1532,7 +1532,8 @@ function LibSql(props: {
   );
 }
 
-function validConnectionName(str) {
+// TODO we can support more
+function validConnectionName(str: string) {
   const regex = /^[a-zA-Z0-9_$-]+$/;
   return regex.test(str);
 }

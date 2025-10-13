@@ -896,11 +896,11 @@ impl QuerySql for ClickHouseDB {
     }
 
     async fn open_connection(&self) -> anyhow::Result<u32> {
-        anyhow::Ok(self.query_id.next())
+        anyhow::Ok(self.next_query_id.next())
     }
 
     async fn re_connect(&self, _id: u32) -> anyhow::Result<u32> {
-        anyhow::Ok(self.query_id.next())
+        anyhow::Ok(self.next_query_id.next())
     }
 
     async fn close_connection(&self, _id: u32) -> anyhow::Result<()> {
@@ -924,7 +924,7 @@ pub struct ClickHouseDB {
     pool: r2d2::Pool<PoolManager>,
     client: reqwest::Client,
     pub(crate) key_words_cache: Arc<tokio::sync::Mutex<Vec<String>>>,
-    pub(crate) query_id: NextId,
+    pub(crate) next_query_id: NextId,
 }
 
 impl ReadOnlyTrait for ClickHouseDB {
@@ -963,7 +963,7 @@ impl ClickHouseDB {
             pool,
             client,
             key_words_cache: Default::default(),
-            query_id: Default::default(),
+            next_query_id: Default::default(),
         })
     }
 

@@ -32,7 +32,7 @@ typescript-type-def = "*"
 bson.workspace = true
 hex.workspace = true
 mongodb.workspace = true
-rand = { version = "*" }
+rand.workspace = true
 chrono.workspace = true
 tauri-plugin-fs = "2.4"
 humantime = "*"

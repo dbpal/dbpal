@@ -69,11 +69,12 @@ fn main() {
 
 // is this macbook computer
 #[inline(always)]
-fn is_mac() -> bool {
-    #[cfg(target_os = "macos")]
-    return true;
-    #[cfg(not(target_os = "macos"))]
-    return false;
+fn is_macos() -> bool {
+    if cfg!(target_os = "macos") {
+        true
+    } else {
+        false
+    }
 }
 
 pub struct AppLogger {
@@ -301,7 +302,7 @@ fn main_() {
                                 "show_setting",
                                 "settings",
                                 true,
-                                Some(if is_mac() { "command+," } else { "control+," }),
+                                Some(if is_macos() { "command+," } else { "control+," }),
                             )?,
                             &MenuItem::with_id(
                                 handle,
@@ -349,14 +350,14 @@ fn main_() {
                                 "zoom_in",
                                 "zoom in",
                                 true,
-                                Some(if is_mac() { "command+-" } else { "ctrl+-" }),
+                                Some(if is_macos() { "command+-" } else { "ctrl+-" }),
                             )?,
                             &MenuItem::with_id(
                                 handle,
                                 "zoom_out",
                                 "zoom out",
                                 true,
-                                Some(if is_mac() { "command+=" } else { "ctrl+=" }),
+                                Some(if is_macos() { "command+=" } else { "ctrl+=" }),
                             )?,
                             &MenuItem::with_id(
                                 handle,
@@ -375,7 +376,7 @@ fn main_() {
                             &MenuItem::with_id(
                                 handle,
                                 "open_dev_tools",
-                                "open dev tools(all widows)",
+                                "open dev tools(all windows)",
                                 true,
                                 None as Option<&'static str>,
                             )?,

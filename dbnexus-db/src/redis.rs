@@ -29,7 +29,7 @@ pub struct RedisDB {
     conn_manager: ConnectionManager,
     pub(crate) query_connection: Arc<DashMap<u32, Arc<Mutex<MultiplexedConnection>>>>,
     created_database: Arc<DashSet<String>>,
-    query_id: NextId,
+    next_query_id: NextId,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
@@ -49,7 +49,7 @@ impl RedisDB {
             conn_manager: m,
             query_connection: Default::default(),
             created_database: Default::default(),
-            query_id: Default::default(),
+            next_query_id: Default::default(),
             completion_id: Default::default(),
         })
     }
@@ -1517,7 +1517,7 @@ impl QuerySql for RedisDB {
     /// redis have no transaction any connection is fine
     /// so connection management for redis is dummy
     async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self.query_id.next();
+        let id = self.next_query_id.next();
         let client: redis::Client = self.get_client().await?;
         let conn = client.get_multiplexed_async_connection().await?;
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
@@ -1526,7 +1526,7 @@ impl QuerySql for RedisDB {
 
     async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
         self.query_connection.remove(&id);
-        let new_id = self.query_id.next();
+        let new_id = self.next_query_id.next();
         let client = self.get_client().await?;
         let conn = client.get_multiplexed_async_connection().await?;
         self.query_connection

@@ -33,7 +33,7 @@ pub struct PostGresDB {
     pub(crate) config: PGDBConfig,
     pub(crate) query_connection: Arc<DashMap<u32, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
-    query_id: NextId,
+    next_query_id: NextId,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
@@ -1684,7 +1684,7 @@ impl PostGresDB {
             config,
             query_connection: Default::default(),
             key_words_cache: Default::default(),
-            query_id: Default::default(),
+            next_query_id: Default::default(),
             completion_id: Default::default(),
         })
     }
@@ -1914,7 +1914,7 @@ impl QuerySql for PostGresDB {
     }
 
     async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self.query_id.next();
+        let id = self.next_query_id.next();
         let conn = self.get_conn().await?;
 
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
@@ -1923,7 +1923,7 @@ impl QuerySql for PostGresDB {
 
     async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
         self.query_connection.remove(&id);
-        let new_id = self.query_id.next();
+        let new_id = self.next_query_id.next();
         let conn = self.get_conn().await?;
         self.query_connection
             .insert(new_id, Arc::new(Mutex::new(conn)));

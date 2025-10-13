@@ -920,8 +920,14 @@ function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
   }
 }
 const validURL = async (url) => {
-  let x = await fetch(url);
-  return x.ok;
+  try {
+    let x = await fetch(url);
+    return x.ok;
+  } catch (e) {
+    console.log("fetch url failed", e);
+    return false
+  }
+
 };
 
 
@@ -998,7 +1004,6 @@ async function webviewWIndowInit(isMain: boolean) {
       appStore.set(AppStoreKey.UserSetting, set);
     });
   }
-
   if (!import.meta.env.DEV) {
     document.addEventListener('contextmenu', function (event) {
       event.preventDefault();

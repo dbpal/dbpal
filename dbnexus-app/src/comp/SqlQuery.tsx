@@ -714,14 +714,13 @@ function SqlQuery(props: {
               </IconButton>
             </Tooltip>
             {extras}
-            <ExecutingTime loading={loading} disableTime></ExecutingTime>
 
             {conn && (
               <Tooltip
                 title={
                   queryRespView
                     ? 'close query response view'
-                    : 'You can open the query results in a separate window , can drag query response to a separate window too'
+                    : 'can open the query results in a separate window,can drag query response to a separate window too'
                 }
               >
                 <Button
@@ -740,6 +739,7 @@ function SqlQuery(props: {
               </Tooltip>
             )}
             {!conn && <CircularProgress></CircularProgress>}
+            <ExecutingTime loading={loading} disableTime></ExecutingTime>
           </Stack>
           <div
             style={{

@@ -29,7 +29,7 @@ log = { version = "0.4.22", features = ["std"] }
 futures-util = "*"
 futures-core = "*"
 mongodb = { version = "3.3", features = [] }
-
+rand = "0.9"
 tokio-util = "*"
 
 uuid = { version = "*", features = ["v4"] }

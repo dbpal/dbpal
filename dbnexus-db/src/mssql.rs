@@ -36,7 +36,7 @@ pub struct SqlServerDB {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     pub(crate) config: SqlServerDBConfig,
     query_connection: Arc<DashMap<u32, Arc<Mutex<Connection>>>>,
-    query_id: NextId,
+    next_query_id: NextId,
 }
 
 impl std::fmt::Debug for SqlServerDB {
@@ -183,7 +183,7 @@ impl SqlServerDB {
             config: c,
             pool,
             query_connection: Default::default(),
-            query_id: Default::default(),
+            next_query_id: Default::default(),
         })
     }
 }
@@ -1777,15 +1777,14 @@ impl QuerySql for SqlServerDB {
     async fn open_connection(&self) -> anyhow::Result<u32> {
         let conn = self.new_tcp_conn().await?;
 
-        let id = self.query_id.next();
-        self.query_connection
-            .insert(id, Arc::new(Mutex::new(conn)));
+        let id = self.next_query_id.next();
+        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
     }
 
     async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
         self.query_connection.remove(&id);
-        let new_id = self.query_id.next();
+        let new_id = self.next_query_id.next();
         let conn = self.new_tcp_conn().await?;
         self.query_connection
             .insert(new_id, Arc::new(Mutex::new(conn)));

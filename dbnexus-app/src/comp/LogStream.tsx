@@ -41,7 +41,7 @@ function LogTip({ width }) {
   );
 }
 
-function LogFile() {
+function LogStream() {
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pinToBotton, setPinToBotton] = useState(false);
   const { showNotification } = useContext(NotificationContext);
@@ -153,4 +153,4 @@ function LogFile() {
   );
 }
 
-export { LogFile };
+export { LogStream };

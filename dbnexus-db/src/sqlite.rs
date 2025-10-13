@@ -35,7 +35,7 @@ pub struct SqliteDB {
     pub(crate) build_in_fn_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_cache: Arc<Mutex<Vec<String>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
-    query_id: NextId,
+    next_query_id: NextId,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
@@ -1196,7 +1196,7 @@ impl SqliteDB {
             build_in_fn_completion: Default::default(),
             keywords_cache: Default::default(),
             pragma_completion: Default::default(),
-            query_id: Default::default(),
+            next_query_id: Default::default(),
             completion_id: Default::default(),
         })
     }
@@ -1454,7 +1454,7 @@ impl QuerySql for SqliteDB {
     }
 
     async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self.query_id.next();
+        let id = self.next_query_id.next();
         let conn = self.get_conn().await?;
         self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
         anyhow::Ok(id)
@@ -1462,7 +1462,7 @@ impl QuerySql for SqliteDB {
 
     async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
         self.query_connection.remove(&id);
-        let new_id = self.query_id.next();
+        let new_id = self.next_query_id.next();
         let conn = self.get_conn().await?;
         self.query_connection
             .insert(new_id, Arc::new(Mutex::new(conn)));

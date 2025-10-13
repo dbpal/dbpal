@@ -71,7 +71,7 @@ pub struct CassandraDB {
     pub(crate) query_connection: Arc<DashMap<u32, Arc<AppSession>>>,
     pub(crate) config: CassandraDBConfig,
     paging_cache: Arc<DashMap<String, Arc<PageCache>>>,
-    query_id: NextId,
+    next_query_id: NextId,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
@@ -180,7 +180,7 @@ impl CassandraDB {
             config,
             paging_cache: Default::default(),
             query_connection: Default::default(),
-            query_id: Default::default(),
+            next_query_id: Default::default(),
             completion_id: Default::default(),
         })
     }
@@ -906,7 +906,7 @@ impl QuerySql for CassandraDB {
     }
 
     async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self.query_id.next();
+        let id = self.next_query_id.next();
         let session = make_session(&self.config, 1).await?;
         self.query_connection.insert(id, Arc::new(session));
         anyhow::Ok(id)
@@ -914,7 +914,7 @@ impl QuerySql for CassandraDB {
 
     async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
         self.query_connection.remove(&id);
-        let new_id = self.query_id.next();
+        let new_id = self.next_query_id.next();
         let session = make_session(&self.config, 1).await?;
         self.query_connection.insert(new_id, Arc::new(session));
         anyhow::Ok(new_id)

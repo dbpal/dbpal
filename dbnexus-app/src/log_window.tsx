@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom/client';
 import { webviewWIndowInit } from './comp/helper.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
 import React from 'react';
-import { LogFile } from './comp/LogFile.tsx';
+import { LogStream } from './comp/LogStream.tsx';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -12,7 +12,7 @@ webviewWIndowInit(false);
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <SeparateWindow>
-      <LogFile></LogFile>
+      <LogStream></LogStream>
     </SeparateWindow>
   </React.StrictMode>
 );

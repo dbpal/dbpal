@@ -12,7 +12,8 @@ import {
   ErrAndLoc,
   validURL,
 } from './helper.ts';
-import { Chip } from '@mui/material';
+import { Button, Chip, Tooltip } from '@mui/material';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 class SaveShowDoc {
   showDocOld = true;
@@ -82,9 +83,6 @@ function RedisQuery(props: {
   }, [isDragging]);
 
   const tryUpdateCommand = useCallback(() => {
-    if (!showDoc) {
-      return;
-    }
     if (!editorRef.current) {
       return;
     }
@@ -112,13 +110,11 @@ function RedisQuery(props: {
       return; // no need to change
     }
     const url = getURL(cmd);
-    validURL(url)
-      .then((e) => {
-        if (e) {
-          setCommand(cmd);
-        }
-      })
-      .catch(() => {});
+    validURL(url).then((e) => {
+      if (e) {
+        setCommand(cmd);
+      }
+    });
   }, [showDoc]);
 
   useEffect(() => {
@@ -151,6 +147,18 @@ function RedisQuery(props: {
                 color={showDoc ? 'success' : 'primary'}
                 label={`${showDoc ? 'hidden' : 'show'} doc`}
               ></Chip>
+              {command && !showDoc && (
+                <Tooltip title={`document for ${command}`}>
+                  <Button
+                    onClick={() => {
+                      openUrl(getURL(command));
+                    }}
+                    variant="text"
+                  >
+                    {command}
+                  </Button>
+                </Tooltip>
+              )}
             </>
           }
         ></SqlQuery>

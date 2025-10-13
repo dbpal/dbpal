@@ -199,7 +199,7 @@ function QueryLog(props: {
         width: '75%',
         display: showQueryLog ? 'flex' : 'none',
         flexDirection: 'column',
-        height: '40vh',
+        height: '400px',
         maxHeight: '80vh',
       }}
       hidden={true}
@@ -259,13 +259,7 @@ function QueryLog(props: {
             delete
           </Button>
         )}
-        <Tooltip
-          title={
-            !setting.saveQueryLog
-              ? `auto save query log to local database maybe danger,be careful.`
-              : ''
-          }
-        >
+        <Tooltip title={`auto save query log to local database maybe danger.`}>
           <FormControlLabel
             control={
               <Switch
@@ -283,7 +277,7 @@ function QueryLog(props: {
                 }}
               />
             }
-            label="auto save query log"
+            label="enable"
           />
         </Tooltip>
       </Stack>
@@ -311,7 +305,7 @@ function QueryLog(props: {
       {dom && (
         <ResizeParentHeight
           box={dom}
-          min={300}
+          min={200}
           saveHeightName="query-log-height"
         ></ResizeParentHeight>
       )}
