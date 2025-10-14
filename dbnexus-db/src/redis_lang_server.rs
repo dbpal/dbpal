@@ -1,6 +1,6 @@
 use std::future::Future;
 use std::pin::Pin;
-use std::str::FromStr;
+
 use std::sync::{Arc, OnceLock};
 use std::task::Poll;
 
@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 
 use crate::db::{GetBackendKind, not_support_feature};
 use crate::language_server::{CompletionItem, CompletionKind, GetKeyWords, LanguageServer, in_pos};
-use crate::redis::{RedisDB, RedisToken, RedisType, get_command_from_sql};
+use crate::redis::{RedisDB, RedisToken, get_command_from_sql};
 impl RedisDB {
     fn get_query_conn(&self) -> anyhow::Result<Arc<Mutex<MultiplexedConnection>>> {
         let conn = self.query_connection.get(&self.completion_id.get());
@@ -26,9 +26,7 @@ impl RedisDB {
             }
         }
     }
-    async fn completion_keys(
-        &self, pattern: &str, kind: Option<RedisType>,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn completion_keys(&self, pattern: &str) -> anyhow::Result<Vec<CompletionItem>> {
         log::trace!("completion on keys pattern:{}", pattern);
         let conn = self.get_query_conn()?;
         let mut conn = conn.lock().await;
@@ -45,20 +43,11 @@ impl RedisDB {
         };
         let mut ret = Vec::new();
         for key in keys.into_iter() {
-            let type_matched = match kind {
-                Some(ty2) => {
-                    let ty = RedisType::from_str(&conn.key_type::<_, String>(&key).await?)?;
-                    ty == ty2
-                }
-                None => true,
-            };
-            if type_matched {
-                ret.push(CompletionItem {
-                    item: key.into(),
-                    kind: CompletionKind::Table,
-                    desc: None,
-                })
-            }
+            ret.push(CompletionItem {
+                item: key.into(),
+                kind: CompletionKind::Table,
+                desc: None,
+            })
         }
         anyhow::Ok(ret)
     }
@@ -167,10 +156,7 @@ impl RedisDB {
                 let key = patterns.first();
                 match key {
                     Some(key) => {
-                        vec![
-                            async move { self.completion_keys(key, Some(RedisType::String)).await }
-                                .boxed(),
-                        ]
+                        vec![async move { self.completion_keys(key).await }.boxed()]
                     }
                     None => vec![],
                 }
@@ -217,7 +203,7 @@ impl RedisDB {
                 match key {
                     Some(key) => {
                         let key = key.to_string();
-                        vec![async move { self.completion_keys(&key, None).await }.boxed()]
+                        vec![async move { self.completion_keys(&key).await }.boxed()]
                     }
                     None => vec![dummy.clone()],
                 }
@@ -227,7 +213,7 @@ impl RedisDB {
                 match key {
                     Some(key) => {
                         let key = key.to_string();
-                        vec![async move { self.completion_keys(&key, None).await }.boxed()]
+                        vec![async move { self.completion_keys(&key).await }.boxed()]
                     }
                     None => vec![dummy.clone()],
                 }
@@ -284,7 +270,7 @@ impl RedisDB {
                 let x = patterns
                     .iter()
                     .skip(1)
-                    .map(|x| async move { self.completion_keys(x, None).await }.boxed())
+                    .map(|x| async move { self.completion_keys(x).await }.boxed())
                     .collect::<Vec<_>>();
 
                 vs.extend(x);
@@ -295,24 +281,21 @@ impl RedisDB {
                 match key {
                     Some(key) => {
                         let key = key.to_string();
-                        vec![async move { self.completion_keys(&key, None).await }.boxed()]
+                        vec![async move { self.completion_keys(&key).await }.boxed()]
                     }
                     None => vec![dummy.clone()],
                 }
             }
             "BLPOP" | "BRPOP" => patterns
                 .iter()
-                .map(|key| {
-                    async move { self.completion_keys(key, Some(RedisType::List)).await }.boxed()
-                })
+                .map(|key| async move { self.completion_keys(key).await }.boxed())
                 .collect::<Vec<_>>(),
 
             "BRPOPLPUSH" => patterns
                 .iter()
                 .enumerate()
                 .map(|(index, key)| match index {
-                    0 | 1 => async move { self.completion_keys(key, Some(RedisType::List)).await }
-                        .boxed(),
+                    0 | 1 => async move { self.completion_keys(key).await }.boxed(),
                     _ => dummy.clone(),
                 })
                 .collect::<Vec<_>>(),
@@ -320,7 +303,7 @@ impl RedisDB {
                 vec![
                     async move {
                         /*
-                           帮我列出所有redis的client的子命令用rust数组
+                            帮我列出所有redis的client的子命令用rust数组
                         */
                         const CLIENT_SUBCOMMANDS: &[&str] = &[
                             "LIST",
@@ -425,7 +408,7 @@ impl RedisDB {
                 match key {
                     Some(key) => {
                         let key = key.to_string();
-                        vec![async move { self.completion_keys(&key, Some(RedisType::String )).await }.boxed()]
+                        vec![async move { self.completion_keys(&key).await }.boxed()]
                     }
                     None => vec![dummy.clone()],
                 }
@@ -433,14 +416,14 @@ impl RedisDB {
 
             "DEL" => patterns
                 .iter()
-                .map(|x| async move { self.completion_keys(x, None).await }.boxed())
+                .map(|x| async move { self.completion_keys(x).await }.boxed())
                 .collect(),
             "DUMP" => {
                 let key = patterns.first();
                 match key {
                     Some(key) => {
                         let key = key.to_string();
-                        vec![async move { self.completion_keys(&key, None).await }.boxed()]
+                        vec![async move { self.completion_keys(&key).await }.boxed()]
                     }
                     None => vec![dummy.clone()],
                 }
@@ -448,7 +431,7 @@ impl RedisDB {
             "EXISTS" => {
                 let x = patterns
                     .iter()
-                    .map(|key| async move { self.completion_keys(key, None).await }.boxed())
+                    .map(|key| async move { self.completion_keys(key).await }.boxed())
                     .collect::<Vec<_>>();
                 x
             }
@@ -458,7 +441,7 @@ impl RedisDB {
                 .enumerate()
                 .map(|(index, key)| {
                     match index {
-                        0 => async move { self.completion_keys(key, None).await }.boxed(),
+                        0 => async move { self.completion_keys(key).await }.boxed(),
                         _ => dummy.clone(),
                     }
                     .boxed()
@@ -468,13 +451,7 @@ impl RedisDB {
             "GEOADD" | "GEORADIUS" => {
                 // geo data use zset to store.
                 if !patterns.is_empty() {
-                    vec![
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::Zset))
-                                .await
-                        }
-                        .boxed(),
-                    ]
+                    vec![async move { self.completion_keys(&patterns[0]).await }.boxed()]
                 } else {
                     vec![]
                 }
@@ -483,23 +460,13 @@ impl RedisDB {
                 .iter()
                 .enumerate()
                 .map(|(index, p)| match index {
-                    0 => async move {
-                        self.completion_keys(&patterns[0], Some(RedisType::Zset))
-                            .await
-                    }
-                    .boxed(),
+                    0 => async move { self.completion_keys(&patterns[0]).await }.boxed(),
                     _ => async move { self.completion_zset_member(&patterns[0], p).await }.boxed(),
                 })
                 .collect(),
             "GET" | "GETBIT" | "GETRANGE" | "GETSET" => {
                 if !patterns.is_empty() {
-                    vec![
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::String))
-                                .await
-                        }
-                        .boxed(),
-                    ]
+                    vec![async move { self.completion_keys(&patterns[0]).await }.boxed()]
                 } else {
                     vec![]
                 }
@@ -512,8 +479,7 @@ impl RedisDB {
                         match index {
                             0 => {
                                 // suggest hash key
-                                async move { self.completion_keys(p, Some(RedisType::Hash)).await }
-                                    .boxed()
+                                async move { self.completion_keys(p).await }.boxed()
                             }
                             _ => {
                                 let key = &patterns[0];
@@ -527,13 +493,7 @@ impl RedisDB {
             }
             "HGETALL" => {
                 if !patterns.is_empty() {
-                    vec![
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::Hash))
-                                .await
-                        }
-                        .boxed(),
-                    ]
+                    vec![async move { self.completion_keys(&patterns[0]).await }.boxed()]
                 } else {
                     vec![]
                 }
@@ -545,8 +505,7 @@ impl RedisDB {
                     .map(|(index, p)| {
                         match index {
                             0 => {
-                                async move { self.completion_keys(p, Some(RedisType::Hash)).await }
-                                    .boxed()
+                                async move { self.completion_keys(p).await }.boxed()
 
                                 // suggest hash key
                             }
@@ -564,13 +523,7 @@ impl RedisDB {
             }
             "HKEYS" | "HLEN" => {
                 if !patterns.is_empty() {
-                    vec![
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::Hash))
-                                .await
-                        }
-                        .boxed(),
-                    ]
+                    vec![async move { self.completion_keys(&patterns[0]).await }.boxed()]
                 } else {
                     vec![]
                 }
@@ -583,7 +536,7 @@ impl RedisDB {
                         match index {
                                 0 => {
                                     async move {
-                                        self.completion_keys(&patterns[0], Some(RedisType::Hash))
+                                        self.completion_keys(&patterns[0])
                                             .await
                                     }
                                     .boxed()
@@ -601,23 +554,13 @@ impl RedisDB {
                 .iter()
                 .enumerate()
                 .map(|(index, p)| match index {
-                    0 => async move {
-                        self.completion_keys(&patterns[0], Some(RedisType::Hash))
-                            .await
-                    }
-                    .boxed(),
+                    0 => async move { self.completion_keys(&patterns[0]).await }.boxed(),
                     _ => async move { self.completion_hash_keys(&patterns[0], p).await }.boxed(),
                 })
                 .collect(),
             "HSCAN" => {
                 if !patterns.is_empty() {
-                    let ret = vec![
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::Hash))
-                                .await
-                        }
-                        .boxed(),
-                    ];
+                    let ret = vec![async move { self.completion_keys(&patterns[0]).await }.boxed()];
                     ret
                 } else {
                     vec![]
@@ -626,11 +569,7 @@ impl RedisDB {
             "HSETNX" => {
                 let mut ret = Vec::with_capacity(2);
                 if !patterns.is_empty() {
-                    let x = async move {
-                        self.completion_keys(&patterns[0], Some(RedisType::Hash))
-                            .await
-                    }
-                    .boxed();
+                    let x = async move { self.completion_keys(&patterns[0]).await }.boxed();
                     ret.push(x);
                 }
                 if patterns.len() > 1 {
@@ -644,13 +583,7 @@ impl RedisDB {
             "HSTRLEN" => {
                 let mut ret = Vec::with_capacity(2);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::Hash))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 if patterns.len() > 1 {
                     ret.push(
@@ -663,26 +596,14 @@ impl RedisDB {
             "HVALS" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::Hash))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
             "INCR" | "INCRBY" | "INCRBYFLOAT" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::String))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
@@ -746,31 +667,19 @@ impl RedisDB {
                 */
                 let mut ret = Vec::new();
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::List))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
 
             "MGET" => patterns
                 .iter()
-                .map(|p| {
-                    async move {
-                        self.completion_keys(p.as_str(), Some(RedisType::String))
-                            .await
-                    }
-                    .boxed()
-                })
+                .map(|p| async move { self.completion_keys(p.as_str()).await }.boxed())
                 .collect(),
             "MOVE" => {
                 let mut ret = Vec::new();
                 if !patterns.is_empty() {
-                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
@@ -779,8 +688,7 @@ impl RedisDB {
                 .enumerate()
                 .map(|(index, key)| {
                     let x = if index % 2 == 0 {
-                        async move { self.completion_keys(key, Some(RedisType::String)).await }
-                            .boxed()
+                        async move { self.completion_keys(key).await }.boxed()
                     } else {
                         dummy.clone()
                     };
@@ -818,41 +726,41 @@ impl RedisDB {
                     );
                 }
                 if patterns.len() > 1 {
-                    ret.push(async move { self.completion_keys(&patterns[1], None).await }.boxed());
+                    ret.push(async move { self.completion_keys(&patterns[1]).await }.boxed());
                 }
                 ret
             }
             "PERSIST" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
             "PEXPIRE" | "PEXPIREAT" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
             "PFADD" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
             "PFCOUNT" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
             "PFMERGE" => patterns
                 .iter()
-                .map(|p| async move { self.completion_keys(p, None).await }.boxed())
+                .map(|p| async move { self.completion_keys(p).await }.boxed())
                 .collect(),
             "PING" => {
                 //
@@ -861,20 +769,14 @@ impl RedisDB {
             "PSETEX" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::String))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
             "PTTL" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
@@ -895,74 +797,48 @@ impl RedisDB {
             "RENAME" | "RENAMENX" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
             "RESTORE" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
             "RPOP" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::List))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
 
             "RPOPLPUSH" => patterns
                 .iter()
-                .map(|p| {
-                    async move { self.completion_keys(p, Some(RedisType::List)).await }.boxed()
-                })
+                .map(|p| async move { self.completion_keys(p).await }.boxed())
                 .collect(),
 
             "RPUSH" | "RPUSHX" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::List))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
             "SADD" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::Set))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
             "SCARD" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::Set))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
@@ -1035,23 +911,17 @@ impl RedisDB {
             }
             "SDIFF" => patterns
                 .iter()
-                .map(|p| async move { self.completion_keys(p, Some(RedisType::Set)).await }.boxed())
+                .map(|p| async move { self.completion_keys(p).await }.boxed())
                 .collect(),
             "SDIFFSTORE" => patterns
                 .iter()
-                .map(|p| async move { self.completion_keys(p, Some(RedisType::Set)).await }.boxed())
+                .map(|p| async move { self.completion_keys(p).await }.boxed())
                 .collect(),
 
             "SETBIT" | "SETEX" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::String))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
@@ -1062,35 +932,23 @@ impl RedisDB {
             "SETRANGE" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::String))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
             "SINTER" => patterns
                 .iter()
-                .map(|p| async move { self.completion_keys(p, Some(RedisType::Set)).await }.boxed())
+                .map(|p| async move { self.completion_keys(p).await }.boxed())
                 .collect(),
             "SINTERSTORE" => patterns
                 .iter()
-                .map(|p| async move { self.completion_keys(p, Some(RedisType::Set)).await }.boxed())
+                .map(|p| async move { self.completion_keys(p).await }.boxed())
                 .collect(),
             "SISMEMBER" => {
                 let mut ret = Vec::with_capacity(1);
 
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::Set))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 if patterns.len() > 1 {
                     ret.push(
@@ -1131,13 +989,7 @@ impl RedisDB {
             "SMEMBERS" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::Set))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
@@ -1145,9 +997,7 @@ impl RedisDB {
                 .iter()
                 .enumerate()
                 .map(|(index, p)| match index {
-                    0 | 1 => {
-                        async move { self.completion_keys(p, Some(RedisType::Set)).await }.boxed()
-                    }
+                    0 | 1 => async move { self.completion_keys(p).await }.boxed(),
                     2 => {
                         async move { self.completion_set_member(&patterns[0], &patterns[2]).await }
                             .boxed()
@@ -1159,20 +1009,14 @@ impl RedisDB {
             "SORT" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
             "SPOP" | "SRANDMEMBER" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::Set))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
@@ -1180,11 +1024,7 @@ impl RedisDB {
                 .iter()
                 .enumerate()
                 .map(|(index, p)| match index {
-                    0 => async move {
-                        self.completion_keys(&patterns[0], Some(RedisType::Set))
-                            .await
-                    }
-                    .boxed(),
+                    0 => async move { self.completion_keys(&patterns[0]).await }.boxed(),
                     _ => async move { self.completion_set_member(&patterns[0], p).await }.boxed(),
                 })
                 .collect(),
@@ -1192,63 +1032,45 @@ impl RedisDB {
             "SSCAN" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::Set))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
             "STRLEN" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::String))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
             "SUNION" => patterns
                 .iter()
-                .map(|p| async move { self.completion_keys(p, Some(RedisType::Set)).await }.boxed())
+                .map(|p| async move { self.completion_keys(p).await }.boxed())
                 .collect(),
             "SUNIONSTORE" => patterns
                 .iter()
-                .map(|p| async move { self.completion_keys(p, Some(RedisType::Set)).await }.boxed())
+                .map(|p| async move { self.completion_keys(p).await }.boxed())
                 .collect(),
             "TOUCH" => patterns
                 .iter()
-                .map(|p| async move { self.completion_keys(p, None).await }.boxed())
+                .map(|p| async move { self.completion_keys(p).await }.boxed())
                 .collect(),
             "TTL" | "TYPE" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(async move { self.completion_keys(&patterns[0], None).await }.boxed());
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
             "UNLINK" => patterns
                 .iter()
-                .map(|p| async move { self.completion_keys(p, None).await }.boxed())
+                .map(|p| async move { self.completion_keys(p).await }.boxed())
                 .collect(),
 
             "ZADD" | "ZCARD" | "ZCOUNT" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::Zset))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
@@ -1256,9 +1078,7 @@ impl RedisDB {
                 .iter()
                 .enumerate()
                 .map(|(index, p)| match index {
-                    0 => {
-                        async move { self.completion_keys(p, Some(RedisType::Zset)).await }.boxed()
-                    }
+                    0 => async move { self.completion_keys(p).await }.boxed(),
                     1 => dummy.clone(),
                     2 => async move { self.completion_zset_member(&patterns[0], p).await }.boxed(),
                     _ => dummy.clone(),
@@ -1266,20 +1086,12 @@ impl RedisDB {
                 .collect(),
             "ZINTERSTORE" | "ZUNIONSTORE" => patterns
                 .iter()
-                .map(|p| {
-                    async move { self.completion_keys(p, Some(RedisType::Zset)).await }.boxed()
-                })
+                .map(|p| async move { self.completion_keys(p).await }.boxed())
                 .collect(),
             "ZLEXCOUNT" => {
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::Zset))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
@@ -1287,11 +1099,7 @@ impl RedisDB {
                 .iter()
                 .enumerate()
                 .map(|(index, p)| match index {
-                    0 => async move {
-                        self.completion_keys(&patterns[0], Some(RedisType::Zset))
-                            .await
-                    }
-                    .boxed(),
+                    0 => async move { self.completion_keys(&patterns[0]).await }.boxed(),
                     _ => async move { self.completion_zset_member(&patterns[0], p).await }.boxed(),
                 })
                 .collect(),
@@ -1316,13 +1124,7 @@ impl RedisDB {
                 */
                 let mut ret = Vec::with_capacity(1);
                 if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            self.completion_keys(&patterns[0], Some(RedisType::Zset))
-                                .await
-                        }
-                        .boxed(),
-                    );
+                    ret.push(async move { self.completion_keys(&patterns[0]).await }.boxed());
                 }
                 ret
             }
