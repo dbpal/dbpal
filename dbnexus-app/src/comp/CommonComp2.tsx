@@ -375,7 +375,7 @@ function MenuConnectionInfo({ uuid }) {
     }
     SomeTempStore.set(uuid);
     const webview = new WebviewWindow(generateRandomString(), {
-      title: 'add connection',
+      title: `some infomation about '${uuid}'`,
       url: 'info.html',
       width: 800,
       height: 600,
@@ -387,6 +387,9 @@ function MenuConnectionInfo({ uuid }) {
       showNotification('error', 'create webview failed', e.event.toString());
     });
     infoWindows.set(uuid, webview);
+    webview.onCloseRequested(() => {
+      infoWindows.delete(uuid);
+    });
   };
   return (
     <MenuItem onClick={handleInfo}>

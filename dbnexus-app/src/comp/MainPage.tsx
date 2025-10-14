@@ -43,10 +43,6 @@ const shortCuts = {
   closeCurrentTab: (_: KeyboardEvent) => void;
 };
 
-document.addEventListener('dragend', (e) => {
-  document.body.style.cursor = ''; // 或 'default'
-});
-
 function App() {
   let [tabs, setTabs] = useState<TabContent[]>([]);
   const [tab, setTab] = useState(0);
@@ -92,6 +88,9 @@ function App() {
   // shortcut
   useEffect(() => {
     document.addEventListener('keydown', shortCuts.callback);
+    return () => {
+      document.removeEventListener('keydown', shortCuts.callback);
+    };
   }, []);
 
   useEffect(() => {

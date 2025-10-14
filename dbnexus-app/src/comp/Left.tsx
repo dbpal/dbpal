@@ -145,7 +145,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
         SomeTempStore.set(conn);
       }
       const webview = new WebviewWindow(id, {
-        title: 'add connection',
+        title: conn ? `copy connection of '${conn.name}'` : 'add connection',
         url: 'add_connection.html',
         width: 800,
         height: 600,
