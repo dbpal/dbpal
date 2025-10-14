@@ -117,13 +117,13 @@ function QueryLog(props: {
     try {
       let total = await handler.current.queryCount(matchSql);
       setTotal(total);
-      let x = await handler.current.query(
+      const logs = await handler.current.query(
         matchSql,
         page + 1,
         pageSize,
         orderBy
       );
-      setLogs(x);
+      setLogs(logs);
       setLoaded(true);
     } catch (e) {
       showNotification('error', 'get query log error', e);
@@ -210,78 +210,89 @@ function QueryLog(props: {
     >
       <Stack
         direction="row"
-        style={{ alignItems: 'center', padding: '0px 4px' }}
+        style={{
+          alignItems: 'center',
+          padding: '0px 4px',
+          justifyContent: 'space-between',
+        }}
         spacing={1}
       >
-        <IconButton
-          onClick={() => {
-            setShowQueryLog(false);
-          }}
-        >
-          <CloseIcon></CloseIcon>
-        </IconButton>
-        <Tooltip title="double click to open code editor">
-          <BsFillLightbulbFill />
-        </Tooltip>
-        <Tooltip title="esc can close query log too">
-          <span>esc</span>
-        </Tooltip>
-        <Tooltip title={`filter ${sqlDesc}`}>
-          <TextField
-            value={matchSql}
-            onChange={(e) => {
-              setMatchSql(e.target.value);
-            }}
-            style={{ flex: 1 }}
-          ></TextField>
-        </Tooltip>
-        {total > 0 && (
-          <Button
-            onClick={async () => {
-              try {
-                const confirm = await secondConfirm({
-                  confirmText: 'delete',
-                  title: 'delete all query log?',
-                });
-                if (!confirm) {
-                  return;
-                }
-                const r = await handler.current.delete();
-                showNotification(
-                  'success',
-                  `deleted ${r.rowsAffected} query log`
-                );
-                setShowQueryLog(false);
-              } catch (e) {
-                showNotification('error', 'delete failed', e);
-                return;
-              }
+        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+          <IconButton
+            onClick={() => {
+              setShowQueryLog(false);
             }}
           >
-            delete
-          </Button>
-        )}
-        <Tooltip title={`auto save query log to local database maybe danger.`}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={setting.saveQueryLog}
-                onChange={() => {
-                  UserSetting.set({
-                    saveQueryLog: !setting.saveQueryLog,
-                  } as UserSetting).catch((e) => {
-                    showNotification(
-                      'error',
-                      'save auto save query log error',
-                      e
-                    );
+            <CloseIcon></CloseIcon>
+          </IconButton>
+          <Tooltip title="double click to open code editor">
+            <BsFillLightbulbFill />
+          </Tooltip>
+          <Tooltip title="esc can close query log too">
+            <span>esc</span>
+          </Tooltip>
+        </Stack>
+
+        <Stack direction="row" spacing={1}>
+          <Tooltip title={`filter ${sqlDesc}`}>
+            <TextField
+              value={matchSql}
+              onChange={(e) => {
+                setMatchSql(e.target.value);
+              }}
+              style={{ flex: 1, maxWidth: '20rem' }}
+            ></TextField>
+          </Tooltip>
+          {total > 0 && (
+            <Button
+              onClick={async () => {
+                try {
+                  const confirm = await secondConfirm({
+                    confirmText: 'delete',
+                    title: 'delete all query log?',
                   });
-                }}
-              />
-            }
-            label="save query log"
-          />
-        </Tooltip>
+                  if (!confirm) {
+                    return;
+                  }
+                  const r = await handler.current.delete();
+                  showNotification(
+                    'success',
+                    `deleted ${r.rowsAffected} query log`
+                  );
+                  setShowQueryLog(false);
+                } catch (e) {
+                  showNotification('error', 'delete failed', e);
+                  return;
+                }
+              }}
+            >
+              delete
+            </Button>
+          )}
+          <Tooltip
+            title={`auto save query log to local database maybe danger.`}
+          >
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={setting.saveQueryLog}
+                  onChange={() => {
+                    UserSetting.set({
+                      saveQueryLog: !setting.saveQueryLog,
+                    } as UserSetting).catch((e) => {
+                      showNotification(
+                        'error',
+                        'save auto save query log error',
+                        e
+                      );
+                    });
+                  }}
+                />
+              }
+              label="save query log"
+            />
+          </Tooltip>
+        </Stack>
       </Stack>
 
       {loaded && (

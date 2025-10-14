@@ -55,7 +55,7 @@ function RedisQuery(props: {
         return;
       }
       const model = editorRef.current.getModel();
-      let pos = editorRef.current.getPosition();
+      const pos = editorRef.current.getPosition();
       if (!pos) {
         return;
       }
@@ -90,10 +90,12 @@ function RedisQuery(props: {
       autoSaveId="redis-query"
       style={{
         height: '100%',
+        position: 'relative',
       }}
     >
       <Panel defaultSize={40}>
         <SqlQuery
+          hasPositionRelative
           editorRef={editorRef}
           getParseErr={getParseErr}
           uuid={uuid}

@@ -68,7 +68,7 @@ function ModifySetting() {
   const [maxTreeSize, setMaxTreeSize] = useState('50');
   const [maxTabTitleLength, setMaxTabTitleLength] = useState('12');
   const [autoStart, setAutoStart] = useState(false);
-  let setting = useContext(SettingContext);
+  const setting = useContext(SettingContext);
   useEffect(() => {
     invoke<string[]>('fonts_all_families', {})
       .then((fonts) => {
@@ -135,7 +135,7 @@ function ModifySetting() {
       showNotification('error', 'call valid json error', e);
       return;
     }
-    let s = {
+    const s = {
       fontWeight,
       fontSize,
       fontFamily,

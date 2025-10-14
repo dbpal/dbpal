@@ -120,7 +120,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
     handleReload();
   }, []);
 
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
   let itemId;
   switch (viewKind) {
     case ViewKind.Normal:
@@ -131,7 +131,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       break;
   }
   let name;
-  let icon = getIcon(viewKind);
+  const icon = getIcon(viewKind);
   switch (viewKind) {
     case ViewKind.Normal:
       name = 'views';
@@ -353,7 +353,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   useEffect(() => {
     handleReload();
   }, []);
-  let cols = useMemo(() => {
+  const cols = useMemo(() => {
     return [
       { field: 'field' },
       {
@@ -385,7 +385,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
               return;
             }
           }
-          let content = (target as HTMLDivElement).innerHTML;
+          const content = (target as HTMLDivElement).innerHTML;
           setUpMenu({
             content: <ColumnsMenu content={content}></ColumnsMenu>,
             event: e,
@@ -448,7 +448,7 @@ function ViewTree(props: {
   let { view, reload, viewKind, size } = props;
   const { uuid } = useContext(UuidContext);
   const { kind: conn_type } = useContext(ConnTypeContext);
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
   let icon = getIcon(viewKind);
 
   return (
@@ -491,11 +491,11 @@ function ViewMenu(props: {
   kind: DataSourceKind;
   viewKind: ViewKind;
 }) {
-  let { view, uuid, reload, kind, viewKind } = props;
+  const { view, uuid, reload, kind, viewKind } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showExport, setShowExport] = useState(false);
   const handleDrop = async () => {
-    let confirm = await secondConfirm({
+    const confirm = await secondConfirm({
       title: `Drop view '${view}'`,
       content: '',
       confirmText: 'Drop',
@@ -608,8 +608,8 @@ function ViewMenu(props: {
   };
 
   const handleStructure = () => {
-    let id = uuid + '-view-' + view + '-structure';
-    let index = tabsHasId(tabs, id);
+    const id = uuid + '-view-' + view + '-structure';
+    const index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
       setSelectTab(index);
     } else {

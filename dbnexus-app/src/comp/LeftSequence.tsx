@@ -71,7 +71,7 @@ function SequenceTree() {
     }
   };
 
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
     reload();
   }, []);
@@ -170,7 +170,7 @@ function SequenceMenu(props: {
 
   const handleOpenDetails = () => {
     const id = uuid + '-' + '-sequence-' + seq.name;
-    let index = tabsHasId(tabs, id);
+    const index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
       setSelectTab(index);
     } else {
@@ -201,7 +201,7 @@ function SequenceMenu(props: {
   };
 
   const handleDrop = async () => {
-    let confirm = await secondConfirm({
+    const confirm = await secondConfirm({
       title: `Drop Sequence '${seq.name}'`,
       confirmText: 'Drop',
       kind: 'error',

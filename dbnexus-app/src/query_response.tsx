@@ -28,7 +28,7 @@ function QueryResponse() {
     });
   };
   useEffect(() => {
-    let unlisten = listen<'listen_ok' | object | string>(eventName, (e) => {
+    const unlisten = listen<'listen_ok' | object | string>(eventName, (e) => {
       if (e.payload == listenOK) {
         // I send this message nothing to do here.
         return;

@@ -44,12 +44,12 @@ const shortCuts = {
 };
 
 function App() {
-  let [tabs, setTabs] = useState<TabContent[]>([]);
+  const [tabs, setTabs] = useState<TabContent[]>([]);
   const [tab, setTab] = useState(0);
   const closeTab = useCallback(
     (index: number) => {
       (async () => {
-        let id = tabs[index].id;
+        const id = tabs[index].id;
         if (tabs[index].closeConfirmText) {
           const c = await secondConfirm({
             content: tabs[index].closeConfirmText,

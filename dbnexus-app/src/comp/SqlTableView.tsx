@@ -329,7 +329,7 @@ function SqlTableView_(props: {
   extractTableSelectSort: (sql: string) => Promise<String | null>;
   isTable: boolean;
 }) {
-  let {
+  const {
     reloadOP,
     updateOP,
     deleteOP,
@@ -419,7 +419,7 @@ function SqlTableView_(props: {
           extra = { extra: 'cassandra', allow_filtering: allowFiltering };
           break;
       }
-      let resp = await reloadOP(
+      const resp = await reloadOP(
         where.trim(),
         sort.trim(),
         page + 1,
@@ -546,7 +546,7 @@ function SqlTableView_(props: {
       setSort('');
       return;
     }
-    let sort = sorts[0];
+    const sort = sorts[0];
     if (!sort.sort) {
       setSort('');
       return;
@@ -573,7 +573,7 @@ function SqlTableView_(props: {
             return;
           }
           let row = { ...resp.data.find((e) => e[keyNotInTable] == id) };
-          let content = row[field];
+          const content = row[field];
           delete row[keyNotInTable];
           let nullable = resp.fields.find((e) => e.field == field).nullable;
           setUpMenu({
@@ -670,7 +670,7 @@ function SqlTableView_(props: {
   const [editInModalBox, setEditInModalBox] = useState(null);
   useEffect(() => {
     if (editInModalBox) {
-      let x1 = saveAndSetSize(editInModalBox, 'edit-cell');
+      const x1 = saveAndSetSize(editInModalBox, 'edit-cell');
       return () => {
         x1();
       };
@@ -679,7 +679,7 @@ function SqlTableView_(props: {
   const [editRowInModalBox, setEditRowInModalBox] = useState(null);
   useEffect(() => {
     if (editRowInModalBox) {
-      let x1 = saveAndSetSize(editRowInModalBox, 'edit-row', 'width');
+      const x1 = saveAndSetSize(editRowInModalBox, 'edit-row', 'width');
       return () => {
         x1();
       };
@@ -688,7 +688,7 @@ function SqlTableView_(props: {
   const [viewInModalBox, setViewInModalBox] = useState(null);
   useEffect(() => {
     if (viewInModalBox) {
-      let x1 = saveAndSetSize(viewInModalBox, 'view-row-in-modal');
+      const x1 = saveAndSetSize(viewInModalBox, 'view-row-in-modal');
       return () => {
         x1();
       };
@@ -1018,7 +1018,7 @@ function SqlTableViewData(props: {
   const inputDoms = useRef({});
   const handleModify = () => {
     for (let i = 0; i < fields.length; i++) {
-      let f = fields[i];
+      const f = fields[i];
       if (f.is_auto_increment) {
         continue;
       }
@@ -1178,11 +1178,11 @@ function Menu(props: {
   const [showFilter, setShowFilter] = useState(false);
   const quoteFn = quoteDatabaseIdentifier(kind);
   const [showClone, setShowClone] = useState(false);
-  let quoteField = quoteFn(field);
+  const quoteField = quoteFn(field);
   const [cloneModalBox, setCloneModalBox] = useState(null);
   useEffect(() => {
     if (cloneModalBox) {
-      let clean = saveAndSetSize(cloneModalBox, 'clone-data', 'width');
+      const clean = saveAndSetSize(cloneModalBox, 'clone-data', 'width');
       return () => {
         clean();
       };

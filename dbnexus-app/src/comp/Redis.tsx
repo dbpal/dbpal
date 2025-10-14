@@ -199,7 +199,7 @@ function RedisStringTable(props: {
 }
 
 function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
-  let { addOP } = props;
+  const { addOP } = props;
   const [loading, setLoading] = useState(false);
   const valueRef = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
@@ -237,7 +237,7 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
 function RedisAddHash(props: {
   addOP: (key: string, value: string) => Promise<void>;
 }) {
-  let { addOP } = props;
+  const { addOP } = props;
   const [loading, setLoading] = useState(false);
   const key = useRef(new EditorAndMode());
   const value = useRef(new EditorAndMode());
@@ -284,7 +284,7 @@ function RedisAddHash(props: {
 function RedisAddZset(props: {
   addOP: (key: string, value: number) => Promise<void>;
 }) {
-  let { addOP } = props;
+  const { addOP } = props;
   const [loading, setLoading] = useState(false);
   const [score, setScore] = useState('');
   const valueRef = useRef(new EditorAndMode());
@@ -1138,7 +1138,7 @@ function RedisListTable(props: {
       row: {
         onContextMenu: (e) => {
           const { target } = e;
-          let content = (target as HTMLDivElement).innerHTML;
+          const content = (target as HTMLDivElement).innerHTML;
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
@@ -1390,7 +1390,7 @@ function RedisZsetTable(props: {
       row: {
         onContextMenu: (e) => {
           const { target } = e;
-          let content = (target as HTMLDivElement).innerHTML;
+          const content = (target as HTMLDivElement).innerHTML;
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
@@ -1721,7 +1721,7 @@ function RedisHashTable(props: {
       row: {
         onContextMenu: (e) => {
           const { target } = e;
-          let content = (target as HTMLDivElement).innerHTML;
+          const content = (target as HTMLDivElement).innerHTML;
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;

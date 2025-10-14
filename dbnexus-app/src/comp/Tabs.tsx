@@ -109,7 +109,7 @@ function TabsWithContent_(props: {
   selectIndex: number;
   setTabs;
 }) {
-  let { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
+  const { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
   const { setUpMenu } = useContext(ContextMenuContext);
   const windowFocus = useContext(WindowFocusContext);
   const setting = useContext(SettingContext);

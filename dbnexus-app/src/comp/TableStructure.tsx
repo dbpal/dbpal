@@ -1,5 +1,6 @@
 'use strict';
 import {
+  ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -140,7 +141,7 @@ function ColumnsStructure(props: {
   useEffect(() => {
     handleReload();
   }, []);
-  let cols = useMemo(() => {
+  const cols = useMemo(() => {
     return [
       { field: 'field' },
       {
@@ -236,7 +237,7 @@ function ColumnsStructure(props: {
           if (!field) {
             return;
           }
-          let content = (target as HTMLDivElement).innerHTML;
+          const content = (target as HTMLDivElement).innerHTML;
           setUpMenu({
             content: <Menu col={id} content={content}></Menu>,
             event: e,
@@ -465,7 +466,7 @@ function IndexesStructure(props: {
   };
 
   const handleDrop = async (indexName) => {
-    let confirm = await secondConfirm({
+    const confirm = await secondConfirm({
       title: `drop index '${indexName}'`,
       content: 'Are u sure to drop the index',
       confirmText: 'Drop',
@@ -490,7 +491,7 @@ function IndexesStructure(props: {
   useEffect(() => {
     handleReload();
   }, []);
-  let cols = useMemo(() => {
+  const cols = useMemo(() => {
     return [
       { field: 'name' },
       { field: 'kind' },
@@ -558,7 +559,7 @@ function IndexesStructure(props: {
               return;
             }
           }
-          let content = (target as HTMLDivElement).innerHTML;
+          const content = (target as HTMLDivElement).innerHTML;
           const indexName = (currentTarget as HTMLDivElement).getAttribute(
             'data-id'
           );
@@ -585,7 +586,7 @@ function IndexesStructure(props: {
   const [modalBox, setModalBox] = useState(null);
   useEffect(() => {
     if (modalBox) {
-      let c = saveAndSetSize(
+      const c = saveAndSetSize(
         modalBox,
         'create-index' + (kind == DataSourceKind.Mongo ? '-mongo' : '-other'),
         kind == DataSourceKind.Mongo ? 'both' : 'width'
@@ -782,7 +783,7 @@ function AddIndex(props: {
   reload;
   kind: DataSourceKind;
 }) {
-  let { uuid, table, handleClose, reload, kind } = props;
+  const { uuid, table, handleClose, reload, kind } = props;
 
   const [fields, setFields] = useState<types.Field[]>([]);
   const [includes, setIncludes] = useState<string[]>([]);
@@ -1180,7 +1181,7 @@ function ModifyTableColumn(props: {
         setLoading(false);
       });
   };
-  let supportModifyType = kind != DataSourceKind.Cassandra;
+  const supportModifyType = kind != DataSourceKind.Cassandra;
   return (
     <Stack spacing={1}>
       <TextField
@@ -1279,7 +1280,7 @@ function ModifyTableColumn(props: {
 }
 
 function TableTypes(props: { handleChange; uuid; type }) {
-  let { handleChange, uuid, type } = props;
+  const { handleChange, uuid, type } = props;
   const [types, setTypes] = useState<string[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [match, setMatch] = useState('');
@@ -1402,7 +1403,7 @@ function TriggerMenu(props: {
 }) {
   const { content, detail, handleEnables, handleDrop } = props;
   const { showNotification } = useContext(NotificationContext);
-  let enable;
+  let enable: ReactNode;
   if (detail.enable) {
     enable = triggerIsEnable(detail.enable) ? (
       <MenuItem
@@ -1527,7 +1528,7 @@ function TriggersStructure(props: {
   useEffect(() => {
     handleReload();
   }, []);
-  let cols = useMemo(() => {
+  const cols = useMemo(() => {
     return [
       { field: 'name' },
       { field: 'event' },
@@ -1535,7 +1536,7 @@ function TriggersStructure(props: {
       {
         field: 'enable',
         renderCell: (r) => {
-          let enable = r.row.enable as types.TriggerEnable;
+          const enable = r.row.enable as types.TriggerEnable;
           if (!enable) {
             return;
           }
@@ -1568,11 +1569,11 @@ function TriggersStructure(props: {
               return;
             }
           }
-          let content = (target as HTMLDivElement).innerHTML;
+          const content = (target as HTMLDivElement).innerHTML;
           const name = (currentTarget as HTMLDivElement).getAttribute(
             'data-id'
           );
-          let detail = triggers.find((e) => e.name == name);
+          const detail = triggers.find((e) => e.name == name);
           setUpMenu({
             content: (
               <TriggerMenu
@@ -1606,7 +1607,7 @@ function TriggersStructure(props: {
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modalBox) {
-      let c = saveAndSetSize(modalBox, 'redis-edit');
+      const c = saveAndSetSize(modalBox, 'redis-edit');
       return c;
     }
   }, [modalBox]);

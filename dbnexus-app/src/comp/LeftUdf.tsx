@@ -65,7 +65,7 @@ function UdfsTree() {
     reload();
   }, []);
 
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
   const treeID = useRef(generateRandomString());
   return (
     <TreeItem
@@ -155,7 +155,7 @@ function UdfMenu(props: {
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
     const id = udfIdGenerate(kind, udf, uuid, 'udf');
-    let index = tabsHasId(tabs, id);
+    const index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
       setSelectTab(index);
     } else {
@@ -191,7 +191,7 @@ function UdfMenu(props: {
   };
 
   const handleDrop = async () => {
-    let confirm = await secondConfirm({
+    const confirm = await secondConfirm({
       title: `Drop UDF '${udf.name}'`,
       confirmText: 'Drop',
       kind: 'error',
@@ -249,7 +249,7 @@ function CassandraAggregateMenu(props: {
 
   const handleOpenDetails = () => {
     const id = uuid + '-' + '-cassandra-aggregate-' + agg;
-    let index = tabsHasId(tabs, id);
+    const index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
       setSelectTab(index);
     } else {
@@ -288,7 +288,7 @@ function CassandraAggregateMenu(props: {
   };
 
   const handleDrop = async () => {
-    let confirm = await secondConfirm({
+    const confirm = await secondConfirm({
       title: `Drop Aggregate '${agg}'`,
       confirmText: 'Drop',
       kind: 'error',
@@ -370,7 +370,7 @@ function CassandraAggregatesTree() {
       idPrefix + '-' + named.name + '-' + named.cassandra_parameters.join('-')
     );
   };
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
 
   return (
     <TreeItem

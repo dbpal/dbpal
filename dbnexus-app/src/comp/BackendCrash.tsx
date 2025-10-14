@@ -6,8 +6,8 @@ import { useContext } from 'react';
 import { NotificationContext } from './Notification';
 
 function BackendCrash(props: { msg: string }) {
-  let { msg } = props;
-  let theme = useTheme();
+  const { msg } = props;
+  const theme = useTheme();
 
   const { showNotification } = useContext(NotificationContext);
   return (

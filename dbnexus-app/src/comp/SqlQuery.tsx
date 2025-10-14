@@ -76,7 +76,7 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   const setCloseConfirm = useContext(SetCloseConfirmTextContext);
   const handleQueryCommit = async () => {
     try {
-      let c = await conn.getAutoCommit();
+      const c = await conn.getAutoCommit();
       setCommit(c);
     } catch (e) {
       showNotification('error', 'get commit modal failed', e);
@@ -179,8 +179,9 @@ function SqlQuery(props: {
   extras?: ReactNode;
   getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
   editorRef?: RefObject<editor.IStandaloneCodeEditor>;
+  hasPositionRelative?: boolean;
 }) {
-  let {
+  const {
     uuid,
     makeConn,
     value,
@@ -190,6 +191,7 @@ function SqlQuery(props: {
     extras,
     getParseErr,
     editorRef,
+    hasPositionRelative,
   } = props;
   const [resp, setResp] = useState([]);
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
@@ -215,14 +217,14 @@ function SqlQuery(props: {
       }
       ed.focus();
       ed.onDidChangeModelContent((_event) => {
-        let text = ed.getValue();
+        const text = ed.getValue();
         getParseErr(text).then((e) => {
           setParseErr(e);
         });
       });
 
       ed.onDidChangeCursorPosition((_event) => {
-        let p = ed.getPosition();
+        const p = ed.getPosition();
         setPos(p);
       });
     },
@@ -257,7 +259,7 @@ function SqlQuery(props: {
                   e
                 );
               });
-            let payload = {};
+            const payload = {};
             payload[newQueryIDName] = conn.queryId;
             queryRespView
               .emit(queryRespViewEventName.current, payload)
@@ -310,7 +312,7 @@ function SqlQuery(props: {
     if (!text) {
       return;
     }
-    let confirm = await warnDangerousSql(text);
+    const confirm = await warnDangerousSql(text);
     if (!confirm) {
       return;
     }
@@ -341,7 +343,7 @@ function SqlQuery(props: {
     if (explain) {
       text = `EXPLAIN ${text}`;
     }
-    let confirm = await warnDangerousSql(text);
+    const confirm = await warnDangerousSql(text);
     if (!confirm) {
       return;
     }
@@ -539,7 +541,7 @@ function SqlQuery(props: {
       style={{
         height: '100%',
         overflow: 'auto',
-        position: 'relative',
+        position: hasPositionRelative ? undefined : 'relative',
         display: 'flex',
         flexDirection: 'column',
         marginBottom: '300px',

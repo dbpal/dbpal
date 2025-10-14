@@ -60,7 +60,7 @@ function ProceduresTree() {
   const getItemId = (x: types.NamedStaff) => {
     return udfIdGenerate(kind, x, uuid, 'procedure');
   };
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
     reload();
   }, []);
@@ -152,7 +152,7 @@ function ProcedureMenu(props: {
 
   const handleOpenDetails = () => {
     const id = uuid + '-' + '-procedure-' + procedure;
-    let index = tabsHasId(tabs, id);
+    const index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
       setSelectTab(index);
     } else {
@@ -188,7 +188,7 @@ function ProcedureMenu(props: {
   };
 
   const handleDrop = async () => {
-    let confirm = await secondConfirm({
+    const confirm = await secondConfirm({
       title: `Drop Procedure '${procedure}'`,
       confirmText: 'Drop',
       kind: 'error',

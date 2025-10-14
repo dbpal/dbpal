@@ -53,7 +53,7 @@ function EventsTree() {
   const getItemId = (x: types.SqlEvent) => {
     return `${uuid}-event-${x.name}`;
   };
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
 
   useEffect(() => {
     reload();
@@ -136,7 +136,7 @@ function EventMenu(props: {
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
     const id = uuid + '-' + '-event-' + event.name;
-    let index = tabsHasId(tabs, id);
+    const index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
       setSelectTab(index);
     } else {
@@ -169,7 +169,7 @@ function EventMenu(props: {
     }
   };
   const handleDrop = async () => {
-    let confirm = await secondConfirm({
+    const confirm = await secondConfirm({
       title: `Drop event '${event.name}'`,
       confirmText: 'Drop',
       kind: 'error',

@@ -218,7 +218,7 @@ function initMongoBsonLanguage() {
 
       monaco.languages.registerDocumentFormattingEditProvider(languageXXX, {
         provideDocumentFormattingEdits(model, options, _token) {
-          let text = model.getValue();
+          const text = model.getValue();
           try {
             const result = formatMongoBsonStr(text, options.tabSize);
             return [{ range: model.getFullModelRange(), text: result }];
@@ -271,7 +271,7 @@ function MongoBsonEditor(props: {
       editor.current = ce;
       ce.focus();
       ce.onDidChangeModelContent((_event) => {
-        let text = ce.getValue();
+        const text = ce.getValue();
         try {
           const doc = parseMongoBson(text).compile();
           setErr(null);
@@ -476,7 +476,7 @@ function MongoTableToolBar(props: {
   const [modalBox, setModalBox] = useState(null);
   useEffect(() => {
     if (modalBox) {
-      let c = saveAndSetSize(modalBox, 'mongo-filter-sort');
+      const c = saveAndSetSize(modalBox, 'mongo-filter-sort');
       return c;
     }
   }, [modalBox]);
@@ -645,7 +645,7 @@ function MongoTableListContextMenu(props: {
 
   useEffect(() => {
     if (modalBox) {
-      let c = saveAndSetSize(modalBox, 'mongo--list-view-json');
+      const c = saveAndSetSize(modalBox, 'mongo--list-view-json');
       return c;
     }
   }, [modalBox]);
@@ -1035,7 +1035,7 @@ function JsonEditor(props: {
   useEffect(() => {
     (async () => {
       try {
-        let x = await validJson(newValue);
+        const x = await validJson(newValue);
         setJsonErr(x);
       } catch (e) {
         showNotification('error', 'call valid json failed', e);
@@ -1281,7 +1281,7 @@ function MongoTableList(props: {
         onContextMenu: (e) => {
           const { currentTarget, target } = e;
           let field = (target as HTMLDivElement).getAttribute('data-field');
-          let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+          const id = (currentTarget as HTMLDivElement).getAttribute('data-id');
           if (!field) {
             return;
           }

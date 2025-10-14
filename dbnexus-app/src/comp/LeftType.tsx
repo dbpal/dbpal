@@ -54,7 +54,7 @@ function TypesTree() {
   const getItemId = (x: types.CreatedTypeDef) => {
     return `${uuid}-type-${x.name}`;
   };
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
     reload();
   }, []);
@@ -136,7 +136,7 @@ function TypeMenu(props: {
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
     const id = uuid + '-' + '-type-' + createdType.name;
-    let index = tabsHasId(tabs, id);
+    const index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
       setSelectTab(index);
     } else {
@@ -168,7 +168,7 @@ function TypeMenu(props: {
     }
   };
   const handleDrop = async () => {
-    let confirm = await secondConfirm({
+    const confirm = await secondConfirm({
       title: `Drop type '${createdType.name}'`,
       confirmText: 'Drop',
       kind: 'error',

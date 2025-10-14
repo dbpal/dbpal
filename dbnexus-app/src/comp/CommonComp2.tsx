@@ -273,7 +273,7 @@ function SimpleFlexEditor(props: {
   errPos?: Position;
   handleEditor?: (editor: editor.IStandaloneCodeEditor) => void;
 }) {
-  let {
+  const {
     language,
     value,
     handleValue,
@@ -346,7 +346,7 @@ function SimpleFlexEditor(props: {
 }
 
 function EditorBar(props: { left?: any; pos: Position }) {
-  let { left, pos } = props;
+  const { left, pos } = props;
   return (
     <Stack justifyContent="space-between" direction="row" alignItems="center">
       {left ? left : <span></span>}
@@ -368,7 +368,7 @@ let infoWindows = new Map<String, WebviewWindow>();
 function MenuConnectionInfo({ uuid }) {
   const { showNotification } = useContext(NotificationContext);
   const handleInfo = async () => {
-    let old = infoWindows.get(uuid);
+    const old = infoWindows.get(uuid);
     if (old) {
       old.setFocus();
       return;
@@ -402,7 +402,7 @@ function MenuConnectionInfo({ uuid }) {
 }
 
 function ConnConfigInfo(props: { uuid }) {
-  let { uuid } = props;
+  const { uuid } = props;
   const { showNotification } = useContext(NotificationContext);
   const [metas, setMetas] = useState<types.MetaValue[]>([]);
   const handleInfo = async (showOK: boolean) => {
@@ -410,7 +410,7 @@ function ConnConfigInfo(props: { uuid }) {
       let metas = await invoke<types.MetaValue[]>('server_metas', {
         name: uuid,
       });
-      let config = await getNamedConfig(uuid);
+      const config = await getNamedConfig(uuid);
       let configMetas = [];
       switch (config.conn_type) {
         case DataSourceKind.Mysql:
@@ -491,7 +491,7 @@ function LoadStoreFileForQuery(props: {
   const handleLoad = async () => {
     // ok to load
     try {
-      let file = await open();
+      const file = await open();
       if (file) {
         const content = new TextDecoder().decode(await readFile(file));
         handleChange(content);
@@ -541,7 +541,7 @@ function LoadStoreFileForQuery(props: {
   }, [kind]);
 
   const handleSave = async () => {
-    let content = getQuery();
+    const content = getQuery();
     if (!content) {
       showNotification('error', `can't save empty content`);
       return;

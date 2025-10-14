@@ -172,9 +172,9 @@ function QueryResp_(props: { data: MuiDataGridData }) {
           if (!field) {
             return;
           }
-          let row = { ...data.data.find((e) => e[keyNotInTable] == id) };
+          const row = { ...data.data.find((e) => e[keyNotInTable] == id) };
           delete row[keyNotInTable];
-          let content = row[field];
+          const content = row[field];
           setUpMenu({
             content: (
               <RespContextMenu
@@ -214,7 +214,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
   const [viewInModalBox, setViewInModalBox] = useState(null);
   useEffect(() => {
     if (viewInModalBox) {
-      let x1 = saveAndSetSize(viewInModalBox, 'view-row-in-modal');
+      const x1 = saveAndSetSize(viewInModalBox, 'view-row-in-modal');
       return () => {
         x1();
       };

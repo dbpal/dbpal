@@ -10,8 +10,6 @@ interface ILogger {
     error: (...msg: any[]) => void;
 }
 
-
-
 interface IMongoDB {
     collection: (name: string) => IMongoCollection;
     createCollection: (name: string) => IMongoCollection;
@@ -19,10 +17,6 @@ interface IMongoDB {
     listCollectionNames: () => Promise<string[]>;
     runCommand: (doc: BSON.Document) => Promise<BSON.Document>;
 }
-
-
-
-
 
 interface IMongoCollection {
     cuntDocuments: () => Promise<number>;
@@ -66,8 +60,6 @@ interface IMongoCollection {
     ) => Promise<any>;
 }
 
-
-
 interface IFindCommon {
     max: (doc: BSON.Document) => IFind;
     min: (doc: BSON.Document) => IFind;
@@ -83,7 +75,5 @@ interface IFind extends IFindCommon {
     limit: (x: number) => IFind;
     find: () => Promise<BSON.Document[]>;
 }
-
-
 
 export type { ILogger, IMongoDB, IFindCommon, IFind, IFindOne, IMongoCollection } 

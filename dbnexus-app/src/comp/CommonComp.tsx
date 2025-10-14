@@ -103,13 +103,13 @@ function SelectAlign(props: {
   align: 'left' | 'right' | 'center';
   handleChange;
 }) {
-  let theme = useTheme();
+  const theme = useTheme();
   const { align, handleChange } = props;
   const handleChangeXXX = (a) => {
     SaveAlign.instance.save(a);
     handleChange(a);
   };
-  let style = { cursor: 'pointer' };
+  const style = { cursor: 'pointer' };
 
   return (
     <Stack direction="row" fontSize="1.5rem" spacing={1}>
@@ -139,7 +139,7 @@ function SelectAlign(props: {
 }
 
 const LogLevelSelection = ({ handleChange, level }) => {
-  let levels = ['trace', 'debug', 'info', 'warn', 'error'];
+  const levels = ['trace', 'debug', 'info', 'warn', 'error'];
 
   return (
     <Stack style={{ minWidth: '13rem' }}>
@@ -261,7 +261,7 @@ function ConnPingTime({ uuid }) {
 
   useEffect(() => {
     reloadStatus();
-    let interval = setInterval(() => {
+    const interval = setInterval(() => {
       reloadStatus();
     }, 5000);
     return () => {
@@ -479,7 +479,7 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
 
 function MetaValueView({ values = [] as types.MetaValue[] }) {
   const setting = useContext(SettingContext);
-  let columns = [
+  const columns = [
     { field: 'name', width: ColumnWidth.instance.get('name') },
     { field: 'value', width: ColumnWidth.instance.get('value') },
     { field: 'desc', flex: 1 },
@@ -498,7 +498,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
       row: {
         onContextMenu: (e) => {
           const { target } = e;
-          let content = (target as HTMLDivElement).innerHTML;
+          const content = (target as HTMLDivElement).innerHTML;
           let field = extractFieldAndIDFromMouseEvent(e).field;
 
           if (!field) {
@@ -531,7 +531,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
   }, []);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
-    let f = colDef.field;
+    const f = colDef.field;
     if (f == 'name' || f == 'value') {
       ColumnWidth.instance.save(f, width);
     }
@@ -705,7 +705,7 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
 
 function ExceedMaxTreeItem(props: { exceed: number; maxTreeSize: number }) {
   const { exceed, maxTreeSize } = props;
-  let id = useRef(generateRandomString());
+  const id = useRef(generateRandomString());
   return (
     <TreeItem
       itemId={id.current}
@@ -812,11 +812,11 @@ function ExecutingTime(props: {
       //@ts-ignore
       const ms = new Date() - now;
       function getTime() {
-        let s = Math.floor(ms / 1000);
+        const s = Math.floor(ms / 1000);
         if (s == 0) {
           return `${ms}ms`;
         }
-        let r = ms % 1000;
+        const r = ms % 1000;
         if (r == 0) {
           return `${s}s`;
         }
@@ -1020,7 +1020,7 @@ function ExportMarkDownTable(props: {
     });
     ret += '|\n';
     includes.forEach(() => {
-      let a;
+      let a: string;
       switch (align) {
         case 'left':
           a = ':----';

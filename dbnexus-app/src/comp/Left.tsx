@@ -136,7 +136,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   }, [show]);
 
   const showAddConnection = async (conn?: types.DBConnectionConfig) => {
-    let id = addConnectionID + (conn ? conn.name : '');
+    const id = addConnectionID + (conn ? conn.name : '');
     let webview = await WebviewWindow.getByLabel(id);
     if (webview) {
       await webview.setFocus();
@@ -160,7 +160,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   };
 
   useEffect(() => {
-    let unlisten = listen('add_config', () => {
+    const unlisten = listen('add_config', () => {
       showAddConnection();
     });
     return () => {
@@ -401,7 +401,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
 
   const useRow = async (conn) => {
     const password = await invoke<string>('get_password', { name: conn.name });
-    let x = { ...conn };
+    const x = { ...conn };
     x['password'] = password;
     setCopyConn(x);
     handleClose();
@@ -411,7 +411,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
       row: {
         onContextMenu: (e) => {
           const { target } = e;
-          let content = (target as HTMLDivElement).innerHTML;
+          const content = (target as HTMLDivElement).innerHTML;
           let field = extractFieldAndIDFromMouseEvent(e).field;
           if (!field) {
             return;
@@ -432,7 +432,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
     } as GridSlotsComponentsProps;
   }, []);
 
-  let cols = useMemo(() => {
+  const cols = useMemo(() => {
     const cols = [
       { field: 'name' },
       {
@@ -698,7 +698,7 @@ function FavoriteSqlList(props: { handleClose }) {
         return;
       }
       setTabs((tabs) => {
-        let content = (
+        const content = (
           <AllKindQuery
             kind={row.kind}
             uuid={row.uuid}
@@ -759,7 +759,7 @@ function FavoriteSqlList(props: { handleClose }) {
         onContextMenu: (e) => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
-          let { field, id } = extractFieldAndIDFromMouseEvent(e);
+          const { field, id } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
@@ -790,7 +790,7 @@ function FavoriteSqlList(props: { handleClose }) {
   }, [fs]);
 
   const columns = useMemo(() => {
-    let cols = [
+    const cols = [
       {
         field: 'uuid',
         renderHeader: () => {
@@ -803,7 +803,7 @@ function FavoriteSqlList(props: { handleClose }) {
       { field: 'lastModified' },
     ] as GridColDef[];
     cols.forEach((e) => {
-      let width = ColumnWidth.instance.get(e.field);
+      const width = ColumnWidth.instance.get(e.field);
       if (width) {
         e.width = width;
       }
@@ -819,7 +819,7 @@ function FavoriteSqlList(props: { handleClose }) {
   }, []);
 
   const handleDelete = async () => {
-    let confirm = await secondConfirm({
+    const confirm = await secondConfirm({
       title: 'clean all favorite sql???',
       confirmText: 'Clean',
       kind: 'error',
@@ -978,8 +978,8 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     DataSourceKind.Cockroach,
   ]);
 
-  let supportProcedure = SUPPORTED_PROCEDURE_KINDS.has(kind);
-  let supportUdf = new Set([
+  const supportProcedure = SUPPORTED_PROCEDURE_KINDS.has(kind);
+  const supportUdf = new Set([
     DataSourceKind.MariaDB,
     DataSourceKind.Mysql,
     DataSourceKind.Postgres,
@@ -989,24 +989,24 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     DataSourceKind.Cockroach,
     DataSourceKind.ClickHouse,
   ]).has(kind);
-  let supportSequence = [
+  const supportSequence = [
     DataSourceKind.MariaDB,
     DataSourceKind.Postgres,
     DataSourceKind.Cockroach,
   ].includes(kind);
 
-  let supportType = [
+  const supportType = [
     DataSourceKind.Postgres,
     DataSourceKind.Cockroach,
     DataSourceKind.Cassandra,
   ].includes(kind);
-  let supportEvent = [DataSourceKind.Mysql, DataSourceKind.MariaDB].includes(
+  const supportEvent = [DataSourceKind.Mysql, DataSourceKind.MariaDB].includes(
     kind
   );
 
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
   const [loading, setLoading] = useState(false);
-  let idForTree = useRef(generateRandomString());
+  const idForTree = useRef(generateRandomString());
   return (
     <TreeItem
       itemId={idForTree.current}
@@ -1235,7 +1235,7 @@ function DatabaseMenu(props: {
             onClick={() => {
               // we are in database context uuid contains the database name
               // we need remove that
-              let index = uuid.indexOf('/');
+              const index = uuid.indexOf('/');
               dropDatabase({
                 uuid: uuid.substring(0, index),
                 database,
@@ -1465,8 +1465,8 @@ function openNewQuery(
     return;
   }
   console.log('open new query uuid:', uuid);
-  let id = uuid + '-query-' + generateRandomString();
-  let content = <AllKindQuery kind={kind} uuid={uuid} />;
+  const id = uuid + '-query-' + generateRandomString();
+  const content = <AllKindQuery kind={kind} uuid={uuid} />;
   setTabs((e: TabContent[]) => {
     setTimeout(() => {
       setSelectTab(e.length);
@@ -1559,7 +1559,7 @@ function SchemaMenu(props: {
           onClick={() => {
             // we are in database context uuid contains the database name
             // we need remove that
-            let index = uuid.lastIndexOf('/');
+            const index = uuid.lastIndexOf('/');
             dropSchema({
               uuid: uuid.substring(0, index),
               schema,
@@ -1607,7 +1607,7 @@ function CatalogTree(_props: {}) {
     }
   }, [opened]);
 
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
 
   return (
     <TreeItem
@@ -1688,7 +1688,7 @@ function DatabaseTree(props: {
       handleReload();
     }
   }, [opened]);
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
 
   return (
     <TreeItem

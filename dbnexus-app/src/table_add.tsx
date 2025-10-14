@@ -10,7 +10,7 @@ import { SeparateWindow } from './comp/MainPage.tsx';
 import React from 'react';
 import { AddTableView } from './comp/LeftTable.tsx';
 
-let { uuid, table, kind, redisTableType } =
+const { uuid, table, kind, redisTableType } =
   SomeTempStore.get<NewWindowTableParameter>();
 
 webviewWIndowInit(false);

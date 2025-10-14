@@ -25,7 +25,7 @@ function DefAndMetasView(props: {
   kind: DataSourceKind;
   showReload?: boolean;
 }) {
-  let { reloadOP, kind, showReload, uuid } = props;
+  const { reloadOP, kind, showReload, uuid } = props;
   const setting = useContext(SettingContext);
   const executeOP = makeExecuteSql(uuid, setting.saveQueryLog);
   const getParseErr = makeGetParserErr(uuid);
@@ -57,7 +57,7 @@ function DefAndMetasView(props: {
       });
   };
   const handleExecute = () => {
-    let sql = getEditorText(editor.current, showNotification);
+    const sql = getEditorText(editor.current, showNotification);
     setExecuteLoading(true);
     executeOP(sql)
       .then((e) => {

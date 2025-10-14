@@ -17,7 +17,7 @@ import { Typography } from '@mui/material';
 
 webviewWIndowInit(false);
 
-let sqlData = SomeTempStore.get<FavoriteSql>();
+const sqlData = SomeTempStore.get<FavoriteSql>();
 let err;
 await initMonacoLanguage(sqlData.uuid, sqlData.kind, (msg) => {
   err = msg;
@@ -60,7 +60,7 @@ currentWebview.onCloseRequested(async (event) => {
   if (!cc) {
     return;
   }
-  let confirm = await secondConfirm({
+  const confirm = await secondConfirm({
     title: 'close the window',
     content: cc,
     confirmText: 'close',

@@ -134,7 +134,7 @@ function TablesTree(props: { typ: TableType }) {
     handleReload();
   }, []);
 
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
 
   let tablesText;
   switch (typ) {
@@ -197,10 +197,10 @@ function TableTree(props: {
   reloadTables;
   size: string | null;
 }) {
-  let { table, reloadTables, size } = props;
+  const { table, reloadTables, size } = props;
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
 
   return (
     <TreeItem
@@ -775,8 +775,8 @@ function TableMenu(props: {
   };
 
   const handleStructure = () => {
-    let id = uuid + '-table-' + table + '-struct';
-    let index = tabsHasId(tabs, id);
+    const id = uuid + '-table-' + table + '-struct';
+    const index = tabsHasId(tabs, id);
     if (typeof index == 'number') {
       setSelectTab(index);
     } else {
@@ -1150,7 +1150,7 @@ function RedisOneTableKind(props: {
       break;
   }
   let tablesID = useRef(generateRandomString());
-  let { setUpMenu } = useContext(ContextMenuContext);
+  const { setUpMenu } = useContext(ContextMenuContext);
   return (
     <TreeItem
       itemId={tablesID.current}

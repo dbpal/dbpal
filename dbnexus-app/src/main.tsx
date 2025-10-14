@@ -13,7 +13,7 @@ webviewWIndowInit(true);
 const currentWebview = await WebviewWindow.getCurrent();
 
 currentWebview.onCloseRequested(async (event) => {
-  let confirm = await secondConfirm({
+  const confirm = await secondConfirm({
     title: 'close the window',
     content: 'exit the app',
     confirmText: 'close',
@@ -22,7 +22,7 @@ currentWebview.onCloseRequested(async (event) => {
     event.preventDefault();
     return;
   }
-  let views = await WebviewWindow.getAll();
+  const views = await WebviewWindow.getAll();
   for (const view of views) {
     if (view.label != currentWebview.label) {
       // close all webview

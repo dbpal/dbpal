@@ -47,7 +47,7 @@ import { QueryLog, QueryLogKind } from './QueryLog';
 initMongoQueryGlobals();
 
 function makeLog(level, ...msg: any[]): string {
-  let encode = (e): string => {
+  const encode = (e): string => {
     switch (typeof e) {
       case 'undefined':
         return 'undefined';

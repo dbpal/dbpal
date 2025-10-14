@@ -40,7 +40,7 @@ async function selectOneFile() {
 }
 
 function HostAndPort(props: { host; port; setHost; setPort; onBlur }) {
-  let { host, port, setHost, setPort, onBlur } = props;
+  const { host, port, setHost, setPort, onBlur } = props;
   return (
     <Stack direction="row">
       <TextField
@@ -85,7 +85,7 @@ function SelectPath(props: {
   label: string;
   required: boolean;
 }) {
-  let { path, setPath, label, required } = props;
+  const { path, setPath, label, required } = props;
   return (
     <Stack direction="row" sx={{ alignItems: 'center' }}>
       <TextField
@@ -136,7 +136,7 @@ function UserAndPassword(props: {
   savePassword;
   setSavePassword;
 }) {
-  let {
+  const {
     user,
     password,
     setUser,
@@ -221,7 +221,7 @@ function UserAndPassword(props: {
 
 //@ts-ignore
 function EnableSSL(props: { useSSL; setUseSSL }) {
-  let { useSSL, setUseSSL } = props;
+  const { useSSL, setUseSSL } = props;
   return (
     <FormControlLabel
       control={
@@ -236,7 +236,7 @@ function EnableSSL(props: { useSSL; setUseSSL }) {
 }
 
 function Https(props: { https; setHttps }) {
-  let { https, setHttps } = props;
+  const { https, setHttps } = props;
   return (
     <FormControlLabel
       control={
@@ -248,7 +248,7 @@ function Https(props: { https; setHttps }) {
 }
 
 function TrustCert(props: { trustCert; setTrustCert }) {
-  let { trustCert, setTrustCert } = props;
+  const { trustCert, setTrustCert } = props;
   return (
     <Stack direction="row" style={{ alignItems: 'center' }}>
       <FormControlLabel
@@ -313,7 +313,7 @@ function EnableSSlCert(props: {
           <Tooltip
             title={sslCa}
             onClick={async () => {
-              let file = await selectOneFile();
+              const file = await selectOneFile();
               if (file) {
                 setSslCa(file);
               }
@@ -330,7 +330,7 @@ function EnableSSlCert(props: {
             <Chip
               variant="outlined"
               onClick={async () => {
-                let file = await selectOneFile();
+                const file = await selectOneFile();
                 if (file) {
                   setSslCert(file);
                 }
@@ -345,7 +345,7 @@ function EnableSSlCert(props: {
             <Chip
               variant="outlined"
               onClick={async () => {
-                let file = await selectOneFile();
+                const file = await selectOneFile();
                 if (file) {
                   setSslKey(file);
                 }
@@ -367,7 +367,7 @@ function Database(props: {
   candidates: string[];
   onBlur?;
 }) {
-  let { database, setDatabase, candidates, onBlur } = props;
+  const { database, setDatabase, candidates, onBlur } = props;
   const label = 'database';
   return (
     <Stack direction="row">
@@ -415,7 +415,7 @@ function Database(props: {
 }
 
 function Schema(props: { schema; setSchema; candidates: string[] }) {
-  let { schema, setSchema, candidates } = props;
+  const { schema, setSchema, candidates } = props;
 
   return (
     <Stack direction="row">
@@ -926,7 +926,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
     if (triggerReLoad === null) {
       return;
     }
-    let config = makeConfig();
+    const config = makeConfig();
     if (connectionType === DataSourceKind.Oracle) {
       // TODO oracle have bug right now
       return;
@@ -950,7 +950,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
         connectionType === DataSourceKind.Oracle ||
         connectionType === DataSourceKind.Cockroach)
     ) {
-      let config = makeConfig();
+      const config = makeConfig();
       if (config) {
         invoke<string[]>('config_list_database_or_schema', { conn: config })
           .then((e) => {
@@ -1434,7 +1434,7 @@ function LibSql(props: {
     libSqlModel,
     setLibSqlModal,
   } = props;
-  let models = ['remote', 'local'];
+  const models = ['remote', 'local'];
   return (
     <>
       <RadioGroup
