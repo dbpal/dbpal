@@ -641,7 +641,8 @@ function AppMarkDown(props: {
   const { doc, handleUrlNotHttp } = props;
   const setting = useContext(SettingContext);
 
-  const CustomLink = ({ href, children }) => {
+  const CustomLink = (props: { href: string; children: ReactNode }) => {
+    const { href, children } = props;
     const handleClick = (event) => {
       event.preventDefault();
       // 在这里处理链接点击，比如使用 Tauri API 打开链接
@@ -651,13 +652,10 @@ function AppMarkDown(props: {
       } else {
         handleUrlNotHttp(href);
       }
-
-      // 示例：调用 Tauri API
-      // window.tauri.invoke('open_url', { url: href });
     };
 
     return (
-      <a href={href} onClick={handleClick}>
+      <a href={href} title={href} onClick={handleClick}>
         {children}
       </a>
     );
