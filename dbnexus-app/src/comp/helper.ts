@@ -365,8 +365,28 @@ enum AppStoreKey {
   MatchPattern = "match-pattern",
   LeftTopShow = "left-top-show",
   LoggerLevel = "logger-level",
+  LoggerStreamPinToBotton = "logger-stream-pin-to-bottom",
 }
 
+
+class SaveLoggerStreamPinToBotton {
+  pinToBotton = false;
+  get() {
+    return this.pinToBotton;
+  }
+  save(x: boolean) {
+    this.pinToBotton = x;
+    appStore.set(AppStoreKey.LoggerStreamPinToBotton, this.pinToBotton)
+  }
+  static instance = new SaveLoggerStreamPinToBotton();
+}
+
+{
+  let x = await appStore.get(AppStoreKey.LoggerStreamPinToBotton);
+  if (typeof x == 'boolean') {
+    SaveLoggerStreamPinToBotton.instance.pinToBotton = x;
+  }
+}
 
 class SaveLeftTopShow {
   leftTopShow = true;
@@ -1198,6 +1218,7 @@ export {
   dataGridParentStyle,
   isMacOs,
   LoggerLevel,
+  SaveLoggerStreamPinToBotton,
 };
 
 

@@ -158,7 +158,15 @@ function DefAndMetasView(props: {
             {detail.metas && detail.metas.length > 0 && (
               <>
                 <Typography variant={titleVariant}> Some Metas </Typography>
-                <div style={{ height: '100px', flex: 1 }}>
+                <div
+                  style={{
+                    height: '100px',
+                    flex: 1,
+
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
                   <MetaValueView values={detail.metas}></MetaValueView>
                 </div>
               </>

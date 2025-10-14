@@ -613,10 +613,6 @@ function ResizeWrapper(props: {
     minHeight = '20vh';
   }
   const dom = useRef(null);
-  useEffect(() => {
-    const c = saveAndSetSize(dom.current, sizeKey, sizeKeyKind);
-    return c;
-  }, []);
   let resize;
   switch (sizeKeyKind) {
     case 'both':
@@ -629,6 +625,10 @@ function ResizeWrapper(props: {
       resize = 'vertical';
       break;
   }
+  useEffect(() => {
+    const c = saveAndSetSize(dom.current, sizeKey, sizeKeyKind);
+    return c;
+  }, []);
   return (
     <div
       style={{

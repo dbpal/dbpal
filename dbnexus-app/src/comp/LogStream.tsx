@@ -13,7 +13,11 @@ import { useContext, useEffect, useState } from 'react';
 import { editor, Position } from 'monaco-editor';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { editorSetPositionAndReveal, LoggerLevel } from './helper';
+import {
+  editorSetPositionAndReveal,
+  LoggerLevel,
+  SaveLoggerStreamPinToBotton,
+} from './helper';
 import { LogLevelSelection } from './CommonComp';
 import { NotificationContext } from './Notification';
 import InfoIcon from '@mui/icons-material/Info';
@@ -43,7 +47,9 @@ function LogTip({ width }) {
 
 function LogStream() {
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
-  const [pinToBotton, setPinToBotton] = useState(false);
+  const [pinToBotton, setPinToBotton] = useState(
+    SaveLoggerStreamPinToBotton.instance.pinToBotton
+  );
   const { showNotification } = useContext(NotificationContext);
   const [loggerLevel, setLoggerLevel] = useState(LoggerLevel.level);
   useEffect(() => {
@@ -74,6 +80,10 @@ function LogStream() {
       onEvent,
     });
   }, [pinToBotton, editor]);
+
+  useEffect(() => {
+    SaveLoggerStreamPinToBotton.instance.save(pinToBotton);
+  }, [pinToBotton]);
 
   return (
     <Stack spacing={1} style={{ height: '100%' }}>

@@ -4,7 +4,6 @@ import { MultiQueryResp } from './QueryResp';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 import {
   Box,
-  Button,
   Chip,
   CircularProgress,
   IconButton,
@@ -723,14 +722,15 @@ function SqlQuery(props: {
                     : 'can open the query results in a separate window,can drag query response to a separate window too'
                 }
               >
-                <Button
-                  variant={queryRespView ? 'outlined' : 'contained'}
+                <Chip
+                  variant={queryRespView ? 'outlined' : 'filled'}
                   onClick={() => {
                     toggleQueryRespView(true);
                   }}
-                >
-                  {queryRespView ? 'close response window' : 'detach response'}
-                </Button>
+                  label={
+                    queryRespView ? 'close response window' : 'detach response'
+                  }
+                ></Chip>
               </Tooltip>
             )}
             {conn && (
