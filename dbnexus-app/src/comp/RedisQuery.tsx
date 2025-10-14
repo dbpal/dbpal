@@ -1,19 +1,14 @@
 'use strict';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { editor } from 'monaco-editor';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 import { SqlQuery } from './SqlQuery.tsx';
 import { MakeIQueryConn } from './Common.ts';
-import {
-  appStore,
-  AppStoreKey,
-  DataSourceKind,
-  ErrAndLoc,
-  validURL,
-} from './helper.ts';
-import { Button, Chip, Tooltip } from '@mui/material';
-import { openUrl } from '@tauri-apps/plugin-opener';
+import { appStore, AppStoreKey, DataSourceKind, ErrAndLoc } from './helper.ts';
+import { Chip } from '@mui/material';
+import { invoke } from '@tauri-apps/api/core';
+import { AppMarkDown } from './CommonComp2.tsx';
 
 class SaveShowDoc {
   showDocOld = true;
@@ -35,11 +30,6 @@ class SaveShowDoc {
   static instance = new SaveShowDoc();
 }
 
-const urlPrefix = 'https://redis.io/docs/latest/commands/';
-const getURL = (command: string) => {
-  return urlPrefix + command + '/' + '#examples';
-};
-
 function RedisQuery(props: {
   makeConn: MakeIQueryConn;
   saveFavoriteSql: (name, sql: string) => void;
@@ -50,84 +40,57 @@ function RedisQuery(props: {
 }) {
   const { makeConn, saveFavoriteSql, favoriteName, value, getParseErr, uuid } =
     props;
-  const [command, setCommand] = useState('get');
-  const [isDragging, setIsDragging] = useState(false);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [doc, setDoc] = useState('');
   const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
-
-  // 禁用 iframe 的鼠标事件
-  const disableIframe = () => {
-    if (iframeRef.current) {
-      iframeRef.current.style.pointerEvents = 'none';
-    }
-  };
   const [showDoc, setShowDoc] = useState(SaveShowDoc.instance.get());
-
+  const [prevLine, setPrevLine] = useState('');
   useEffect(() => {
     SaveShowDoc.instance.save(showDoc);
   }, [showDoc]);
 
-  // 启用 iframe 的鼠标事件
-  const enableIframe = () => {
-    if (iframeRef.current) {
-      iframeRef.current.style.pointerEvents = 'auto';
-    }
-  };
-
   useEffect(() => {
-    if (isDragging) {
-      disableIframe();
-    } else {
-      enableIframe();
-    }
-  }, [isDragging]);
-
-  const tryUpdateCommand = useCallback(() => {
-    if (!editorRef.current) {
-      return;
-    }
-    const text = editorRef.current.getValue();
-    const pos = editorRef.current.getPosition();
-    const lineArray = text.split('\n');
-    const line = pos.lineNumber - 1;
-    if (line >= lineArray.length) {
-      return;
-    }
-    let cmds = lineArray[line].split(' ');
-    let cmd = '';
-    for (let i = 0; i < cmds.length; i++) {
-      let c = cmds[i];
-      if (c) {
-        cmd = c;
-        break;
+    const tryUpdateCommand = () => {
+      if (!editorRef.current) {
+        return;
       }
-    }
-    if (!cmd) {
-      return;
-    }
-    cmd = cmd.toLowerCase();
-    if (cmd == command) {
-      return; // no need to change
-    }
-    const url = getURL(cmd);
-    validURL(url).then((e) => {
-      if (e) {
-        setCommand(cmd);
+      const model = editorRef.current.getModel();
+      let pos = editorRef.current.getPosition();
+      if (!pos) {
+        return;
       }
-    });
-  }, [showDoc]);
-
-  useEffect(() => {
+      const line = model.getLineContent(pos.lineNumber).trim();
+      if (!line) {
+        return;
+      }
+      if (line === prevLine) {
+        // line not change no need to update
+        return;
+      }
+      invoke<string>('get_redis_doc', { line })
+        .then((e) => {
+          setPrevLine(line);
+          setDoc(e);
+        })
+        .catch(() => {
+          // console.log('get redis doc failed', e);
+        });
+    };
     const int = setInterval(() => {
       tryUpdateCommand();
-    }, 1000);
+    }, 200);
     return () => {
       clearInterval(int);
     };
-  }, [tryUpdateCommand]);
-  const [collapsied, setCollapsied] = useState(false);
+  }, [showDoc, prevLine]);
+
   return (
-    <PanelGroup direction="horizontal" autoSaveId="redis-query">
+    <PanelGroup
+      direction="horizontal"
+      autoSaveId="redis-query"
+      style={{
+        height: '100%',
+      }}
+    >
       <Panel defaultSize={40}>
         <SqlQuery
           editorRef={editorRef}
@@ -147,56 +110,36 @@ function RedisQuery(props: {
                 color={showDoc ? 'success' : 'primary'}
                 label={`${showDoc ? 'hidden' : 'show'} doc`}
               ></Chip>
-              {command && !showDoc && (
-                <Tooltip title={`document for ${command}`}>
-                  <Button
-                    onClick={() => {
-                      openUrl(getURL(command));
-                    }}
-                    variant="text"
-                  >
-                    {command}
-                  </Button>
-                </Tooltip>
-              )}
             </>
           }
         ></SqlQuery>
       </Panel>
+
       {showDoc && (
-        <>
-          <PanelResizeHandle
-            onDragging={(is) => {
-              setIsDragging(is);
+        <PanelResizeHandle style={{ width: 4 }} className="resize-handle" />
+      )}
+      {showDoc && (
+        <Panel
+          collapsible
+          collapsedSize={0}
+          minSize={15}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <div
+            style={{
+              height: '100px',
+              flexGrow: 1,
+              flexShrink: 1,
+              overflow: 'auto',
+              padding: '0.3rem',
             }}
-            style={{ width: 4 }}
-            className="resize-handle"
-          />
-          <Panel
-            onCollapse={() => {
-              setCollapsied(true);
-            }}
-            onExpand={() => {
-              setCollapsied(false);
-            }}
-            collapsible
-            collapsedSize={0}
-            minSize={15}
           >
-            {showDoc && !collapsied && (
-              <iframe
-                ref={iframeRef} // 绑定 iframe 引用
-                src={getURL(command)}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  border: 'none', // 去掉边框
-                }}
-                title="Full Size Iframe"
-              />
-            )}
-          </Panel>
-        </>
+            <AppMarkDown doc={doc} />
+          </div>
+        </Panel>
       )}
     </PanelGroup>
   );

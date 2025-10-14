@@ -43,6 +43,10 @@ const shortCuts = {
   closeCurrentTab: (_: KeyboardEvent) => void;
 };
 
+document.addEventListener('dragend', (e) => {
+  document.body.style.cursor = ''; // 或 'default'
+});
+
 function App() {
   let [tabs, setTabs] = useState<TabContent[]>([]);
   const [tab, setTab] = useState(0);
@@ -184,16 +188,19 @@ function Menu(props: { children: ReactNode }) {
     event: MouseEvent;
   }>();
 
-  const ref = useRef<HTMLDivElement>(null);
+  const menuDiv = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     document.addEventListener('click', () => {
-      ref.current.style.display = 'none';
+      if (!menuDiv.current.style) {
+        return;
+      }
+      menuDiv.current.style.display = 'none';
     });
   }, []);
 
   useEffect(() => {
-    ref.current.style.display = 'block';
+    menuDiv.current.style.display = 'block';
     if (menu && menu.event) {
       menu.event.preventDefault();
     }
@@ -203,7 +210,7 @@ function Menu(props: { children: ReactNode }) {
     <ContextMenuContext.Provider value={{ setUpMenu }}>
       {children}
       <div
-        ref={ref}
+        ref={menuDiv}
         style={{
           position: 'fixed',
           zIndex: 10000,

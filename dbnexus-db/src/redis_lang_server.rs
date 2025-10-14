@@ -72,6 +72,7 @@ impl RedisDB {
             conn.hscan_match(hash_key, format!("*{}*", p)).await?;
         let mut keys = vec![];
         while let Some(k) = stream.next().await {
+            let k = k?;
             if let Ok(x) = String::from_utf8(k) {
                 keys.push(x)
             }
@@ -92,9 +93,12 @@ impl RedisDB {
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let conn = self.get_query_conn()?;
         let mut conn = conn.lock().await;
-        let mut stream = conn.sscan_match(key, format!("*{}*", p)).await?;
+        let mut stream = conn
+            .sscan_match::<_, _, Vec<u8>>(key, format!("*{}*", p))
+            .await?;
         let mut keys = vec![];
         while let Some(k) = stream.next().await {
+            let k = k?;
             if let Ok(x) = String::from_utf8(k) {
                 keys.push(x)
             }
@@ -115,10 +119,13 @@ impl RedisDB {
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let conn = self.get_query_conn()?;
         let mut conn = conn.lock().await;
-        let mut stream: AsyncIter<(Vec<u8>, f64)> =
-            conn.zscan_match(key, format!("*{}*", member)).await?;
+        let mut stream = conn
+            .zscan_match::<_, _, (Vec<u8>, f64)>(key, format!("*{}*", member))
+            .await?;
         let mut keys = vec![];
-        while let Some((key, score)) = stream.next().await {
+        while let Some(item) = stream.next_item().await {
+            let item = item?;
+            let (key, score) = item;
             if let Ok(x) = String::from_utf8(key) {
                 keys.push((score, x))
             }
@@ -1352,7 +1359,6 @@ impl LanguageServer for RedisDB {
                     x.eq_ignore_ascii_case("FLUSHDB")
                         || x.eq_ignore_ascii_case("FLUSHALL")
                         || x.eq_ignore_ascii_case("DEL")
-                        || x.eq_ignore_ascii_case("CONFIG")
                         || x.eq_ignore_ascii_case("SHUTDOWN")
                         || x.eq_ignore_ascii_case("DEBUG")
                         || x.eq_ignore_ascii_case("REPLICAOF")

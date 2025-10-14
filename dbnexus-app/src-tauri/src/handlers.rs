@@ -24,15 +24,91 @@ use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mssql::SqlServerDB;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
-use dbnexus_db::redis::{RedisDB, RedisListTable};
+use dbnexus_db::redis::{RedisDB, RedisListTable, RedisToken};
 use dbnexus_db::sqlite::SqliteDB;
 use font_kit::error::SelectionError;
+use include_dir::{Dir, include_dir};
 use tauri::ipc::Channel;
+
 pub const PASSWORD_KEY: &str = "site.dbpal.dev";
 
 pub fn log_channel_store() -> &'static std::sync::Mutex<Option<Channel<String>>> {
     static X: std::sync::Mutex<Option<Channel<String>>> = std::sync::Mutex::new(None);
     &X
+}
+
+static REDIS_DOC_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../redis-doc/commands");
+
+#[tauri::command]
+
+pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
+    let tokens = RedisToken::tokenize(line, 1).map_err(|e| ErrorFrontend::from(e))?;
+    if tokens.is_empty() {
+        return Err(ErrorFrontend::from("no tokens found,empty line??"));
+    }
+
+    let command = tokens[0].value().to_lowercase();
+    if tokens.len() >= 2 {
+        let file = REDIS_DOC_FILES
+            .get_file(format!("{}-{}.md", command, tokens[1].value().to_lowercase()).as_str());
+        match file {
+            Some(x) => return Ok(x.contents_utf8().unwrap().into()),
+            None => {}
+        }
+    }
+    let exact_file = format!("{}.md", command);
+    match REDIS_DOC_FILES.get_file(&exact_file) {
+        Some(file) => {
+            let sub_match = format!("{}-", command);
+            let mut ret = format!("## {}\n", tokens[0].value());
+            ret.push_str(file.contents_utf8().unwrap());
+            // try match sub markdown
+            for en in REDIS_DOC_FILES.entries() {
+                match en {
+                    include_dir::DirEntry::Dir(..) => {}
+                    include_dir::DirEntry::File(file) => {
+                        let str_path = file.path().to_str();
+                        if str_path
+                            .map(|path| path.starts_with(&sub_match) && path.ends_with(".md"))
+                            .unwrap_or_default()
+                        {
+                            ret.push_str("  \n");
+                            ret.push_str("---\n");
+                            ret.push_str(
+                                format!("### {}\n", {
+                                    let name = file
+                                        .path()
+                                        .file_name()
+                                        .map(|x| x.to_str())
+                                        .flatten()
+                                        .unwrap_or_default();
+                                    if name.len() > 3 {
+                                        let name = &name[0..(name.len() - 3)];
+                                        if name.contains("-") {
+                                            let name =
+                                                name.split("-").collect::<Vec<_>>().join(" ");
+                                            name
+                                        } else {
+                                            name.to_string()
+                                        }
+                                    } else {
+                                        name.to_string()
+                                    }
+                                })
+                                .as_str(),
+                            );
+                            ret.push_str(file.contents_utf8().unwrap());
+                        }
+                    }
+                }
+            }
+            Ok(ret)
+        }
+        None => Err(ErrorFrontend::from(format!(
+            "no markdown file found for command '{}'",
+            tokens[0].value()
+        ))),
+    }
 }
 
 #[tauri::command]

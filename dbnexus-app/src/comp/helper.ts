@@ -8,7 +8,6 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
 import { BSON, EJSON } from "bson";
 import Database, { QueryResult } from '@tauri-apps/plugin-sql';
-import { fetch } from '@tauri-apps/plugin-http';
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 
@@ -939,16 +938,7 @@ function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
       return isTable ? ['csv', 'sql', 'json', 'jsonline', "xlsx"] : ['csv', 'json', 'jsonline', "xlsx"];
   }
 }
-const validURL = async (url) => {
-  try {
-    let x = await fetch(url);
-    return x.ok;
-  } catch (e) {
-    console.log("fetch url failed", e);
-    return false
-  }
 
-};
 
 
 function generateDefaultFilename(name, extension) {
@@ -1202,7 +1192,6 @@ export {
   getSupportExportKind,
   SavePageSize,
   rustResultOk,
-  validURL,
   generateDefaultFilename,
   pageSizeOptions,
   textEllipsisStyle,

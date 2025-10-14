@@ -48,7 +48,13 @@ import { MetaValueView } from './CommonComp';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { save, SaveDialogOptions, open } from '@tauri-apps/plugin-dialog';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import ReactMarkdown from 'react-markdown';
+import {
+  oneDark,
+  oneLight,
+} from 'react-syntax-highlighter/dist/esm/styles/prism';
 
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 function CreateDatabase({ uuid, handleClose }) {
   const { showNotification } = useContext(NotificationContext);
   const [database, setDatabase] = useState('');
@@ -627,6 +633,35 @@ function LoadStoreFileForQuery(props: {
   );
 }
 
+function AppMarkDown(props: { doc: string }) {
+  const { doc } = props;
+  const setting = useContext(SettingContext);
+  return (
+    <ReactMarkdown
+      components={{
+        code({ node, className, children, ...props }) {
+          const match = /language-(\w+)/.exec(className || '');
+          return match ? (
+            <SyntaxHighlighter
+              style={setting.theme == 'light' ? oneLight : oneDark} // Apply the chosen theme
+              language={match[1]}
+              PreTag="div"
+              {...props}
+            >
+              {String(children).replace(/\n$/, '')}
+            </SyntaxHighlighter>
+          ) : (
+            <code className={className} {...props}>
+              {children}
+            </code>
+          );
+        },
+      }}
+      children={doc}
+    ></ReactMarkdown>
+  );
+}
+
 export {
   CreateDatabase,
   CreateSchema,
@@ -635,4 +670,5 @@ export {
   MenuConnectionInfo,
   ConnConfigInfo,
   LoadStoreFileForQuery,
+  AppMarkDown,
 };

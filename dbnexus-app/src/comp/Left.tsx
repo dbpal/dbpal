@@ -1360,7 +1360,6 @@ function AllKindQuery(props: {
   kind: DataSourceKind;
   uuid: string;
   value?: string;
-
   favoriteName?: string;
 }) {
   const { kind, uuid, value, favoriteName } = props;

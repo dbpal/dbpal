@@ -66,7 +66,8 @@ impl RedisDB {
             conn.zscan_match(key, where_str.unwrap_or("*")).await?;
         let mut key_values = Vec::new();
         let mut has_more = false;
-        while let Some(value) = ret.next().await {
+        while let Some(item) = ret.next_item().await {
+            let value = item?;
             // try match
             if let Some(min) = min {
                 if value.1 < min {
@@ -299,8 +300,8 @@ impl RedisDB {
             }
 
             RedisType::Set => {
-                let mut iter = conn.sscan::<_, Vec<u8>>(key).await?.ready_chunks(100);
-                while let Some(set) = iter.next().await {
+                let mut iter = conn.sscan::<_, Vec<u8>>(key).await?;
+                while let Some(set) = iter.next_item().await {
                     let set = set
                         .into_iter()
                         .map(|x| vec![Some(to_string_or_hex(x))])
@@ -310,8 +311,9 @@ impl RedisDB {
             }
 
             RedisType::Hash => {
-                let mut stream = conn.hscan::<_, Vec<u8>>(key).await?.chunks(2);
+                let mut stream = conn.hscan::<_, [Vec<u8>; 2]>(key).await?;
                 while let Some(value) = stream.next().await {
+                    let value = value?;
                     sender
                         .send(Cow::Owned(create_csv(
                             &vec![vec![
@@ -324,8 +326,9 @@ impl RedisDB {
                 }
             }
             RedisType::Zset => {
-                let mut stream = conn.zscan::<_, Vec<u8>>(key).await?.chunks(2);
+                let mut stream = conn.zscan::<_, [Vec<u8>; 2]>(key).await?;
                 while let Some(value) = stream.next().await {
+                    let value = value?;
                     sender
                         .send(Cow::Owned(create_csv(
                             &vec![vec![
@@ -401,6 +404,7 @@ impl RedisDB {
                     sender.send("\n".into()).await?;
                 }
                 while let Some(s) = iter.next().await {
+                    let s = s?;
                     if !first {
                         sender.send(",".into()).await?;
                         if pretty {
@@ -424,10 +428,10 @@ impl RedisDB {
                 sender.send("]".into()).await?;
             }
             RedisType::Hash => {
-                let mut stream = conn.hscan::<_, Vec<u8>>(key).await?.chunks(2);
+                let mut stream = conn.hscan::<_, [Vec<u8>; 2]>(key).await?;
                 let mut m = HashMap::new();
-
                 while let Some(value) = stream.next().await {
+                    let value = value?;
                     let key = to_string_key(value[0].clone());
                     let value = to_json_value(value[1].clone());
                     m.insert(key, value);
@@ -441,9 +445,10 @@ impl RedisDB {
                     .await?;
             }
             RedisType::Zset => {
-                let mut stream = conn.zscan::<_, Vec<u8>>(key).await?.chunks(2);
+                let mut stream = conn.zscan::<_, [Vec<u8>; 2]>(key).await?;
                 let mut m = HashMap::new();
                 while let Some(value) = stream.next().await {
+                    let value = value?;
                     let key = to_string_key(value[0].clone());
                     let value = to_json_value(value[1].clone());
                     m.insert(key, value);
@@ -487,18 +492,19 @@ impl RedisDB {
                 }
             }
             RedisType::Set => {
-                let mut iter = conn.sscan::<_, Vec<u8>>(key).await?.ready_chunks(100);
+                let mut iter = conn.sscan::<_, Vec<u8>>(key).await?;
                 while let Some(s) = iter.next().await {
-                    let json_value: Vec<_> = s.into_iter().map(to_json_value).collect();
+                    let s = s?;
+                    let json_value = to_json_value(s);
                     let json_str = serde_json::to_string(&json_value)?;
                     sender.send(json_str.into()).await?;
                     sender.send("\n".into()).await?;
                 }
             }
-
             RedisType::Hash => {
-                let mut stream = conn.hscan::<_, Vec<u8>>(key).await?.chunks(2);
+                let mut stream = conn.hscan::<_, [Vec<u8>; 2]>(key).await?;
                 while let Some(value) = stream.next().await {
+                    let value = value?;
                     let mut m = HashMap::new();
                     let key = to_string_key(value[0].clone());
                     m.insert(key, to_json_value(value[1].clone()));
@@ -508,9 +514,10 @@ impl RedisDB {
                 }
             }
             RedisType::Zset => {
-                let mut stream = conn.zscan::<_, Vec<u8>>(key).await?.chunks(2);
+                let mut stream = conn.zscan::<_, [Vec<u8>; 2]>(key).await?;
 
                 while let Some(value) = stream.next().await {
+                    let value = value?;
                     let mut m = HashMap::new();
                     let key = to_string_key(value[0].clone());
                     m.insert(key, to_json_value(value[1].clone()));
@@ -560,6 +567,7 @@ impl RedisDB {
             RedisType::Set => {
                 let mut iter = conn.sscan::<_, String>(key).await?;
                 while let Some(value) = iter.next().await {
+                    let value = value?;
                     sender
                         .send(Cow::Owned(format!(
                             "SADD {} '{}'\n",
@@ -571,9 +579,9 @@ impl RedisDB {
             }
 
             RedisType::Hash => {
-                let mut stream = conn.hscan::<_, String>(key).await?.chunks(2);
-
+                let mut stream = conn.hscan::<_, [String; 2]>(key).await?;
                 while let Some(values) = stream.next().await {
+                    let values = values?;
                     sender
                         .send(Cow::Owned(format!(
                             "HMSET {} {} '{}'\n",
@@ -586,8 +594,9 @@ impl RedisDB {
             }
 
             RedisType::Zset => {
-                let mut stream = conn.zscan::<_, String>(key).await?.chunks(2);
-                while let Some(values) = stream.next().await {
+                let mut stream = conn.zscan::<_, [String; 2]>(key).await?;
+                while let Some(value) = stream.next().await {
+                    let values = value?;
                     sender
                         .send(Cow::Owned(format!(
                             "ZADD {} {} '{}'\n",
@@ -1075,6 +1084,7 @@ impl SchemaTrait for RedisDB {
                 let mut iter = conn.sscan::<_, Vec<u8>>(key).await?;
                 let mut row_num = 0;
                 while let Some(set) = iter.next().await {
+                    let set = set?;
                     sender
                         .send(XlsxEdit {
                             row: row_num,
@@ -1089,6 +1099,7 @@ impl SchemaTrait for RedisDB {
                 let mut stream: AsyncIter<'_, Vec<u8>> = conn.hscan(key).await?;
                 let mut offset = 0;
                 while let Some(value) = stream.next().await {
+                    let value = value?;
                     sender
                         .send(XlsxEdit {
                             row: offset / 2,
@@ -1103,6 +1114,7 @@ impl SchemaTrait for RedisDB {
                 let mut stream: AsyncIter<'_, Vec<u8>> = conn.zscan(key).await?;
                 let mut offset = 0;
                 while let Some(value) = stream.next().await {
+                    let value = value?;
                     sender
                         .send(XlsxEdit {
                             row: offset / 2,
@@ -1146,8 +1158,9 @@ impl SchemaTrait for RedisDB {
                 }
             }
             RedisType::Set => {
-                let mut iter = conn.sscan::<_, Vec<u8>>(key).await?.ready_chunks(100);
+                let mut iter = conn.sscan::<_, Vec<u8>>(key).await?;
                 while let Some(set) = iter.next().await {
+                    let set = set?;
                     let _: () = conn_set.sadd(dup, set).await?;
                 }
             }
@@ -1156,6 +1169,7 @@ impl SchemaTrait for RedisDB {
                 let mut stream: AsyncIter<'_, Vec<u8>> = conn.hscan(key).await?;
                 let mut key = None as Option<Vec<u8>>;
                 while let Some(value) = stream.next().await {
+                    let value = value?;
                     match &key {
                         Some(key2) => {
                             let _: () = conn_set.hset(dup, key2, value).await?;
@@ -1168,19 +1182,11 @@ impl SchemaTrait for RedisDB {
                 }
             }
             RedisType::Zset => {
-                let mut stream: AsyncIter<'_, Vec<u8>> = conn.zscan(key).await?;
-                let mut zkey = None as Option<Vec<u8>>;
+                let mut stream: AsyncIter<'_, (Vec<u8>, f64)> = conn.zscan(key).await?;
 
-                while let Some(score) = stream.next().await {
-                    match zkey {
-                        Some(zkey2) => {
-                            let _: () = conn_set.zadd(dup, zkey2, score).await?;
-                            zkey = None;
-                        }
-                        None => {
-                            zkey = Some(score);
-                        }
-                    }
+                while let Some(value) = stream.next().await {
+                    let (value, score) = value?;
+                    let _: () = conn_set.zadd(dup, value, score).await?;
                 }
             }
         }
@@ -1287,6 +1293,7 @@ impl SchemaTrait for RedisDB {
                 let mut set_values = Vec::new();
                 let mut has_more = false;
                 while let Some(value) = ret.next().await {
+                    let value = value?;
                     if set_values.len() >= Self::MAX_RETURNING {
                         has_more = true;
                         break;
@@ -1314,6 +1321,7 @@ impl SchemaTrait for RedisDB {
                 let mut value_values = Vec::new();
                 let mut has_more = false;
                 while let Some(value) = ret.next().await {
+                    let value = value?;
                     if index >= Self::MAX_RETURNING << 1 {
                         has_more = true;
                         break;
@@ -1661,6 +1669,15 @@ pub enum RedisToken {
     },
 }
 
+impl RedisToken {
+    pub fn value(&self) -> &String {
+        match self {
+            RedisToken::String(value) => value,
+            RedisToken::NotString { value, .. } => value,
+        }
+    }
+}
+
 impl From<String> for RedisToken {
     fn from(s: String) -> Self {
         RedisToken::String(s)
@@ -1680,7 +1697,7 @@ impl std::fmt::Display for RedisToken {
 }
 
 impl RedisToken {
-    pub(crate) fn tokenize(line: &str, line_number: u64) -> anyhow::Result<Vec<RedisToken>> {
+    pub fn tokenize(line: &str, line_number: u64) -> anyhow::Result<Vec<RedisToken>> {
         let mut buf: Vec<char> = vec![];
         let mut tokens = vec![];
         let mut state = RedisTokenState::default();

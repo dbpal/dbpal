@@ -10,7 +10,6 @@ import {
   Switch,
   TextField,
   Tooltip,
-  Typography,
 } from '@mui/material';
 import {
   DataGrid,
@@ -63,10 +62,10 @@ enum QueryLogKind {
 function QueryLog(props: {
   uuid: string;
   showQueryLog: boolean;
-  setShowQueryLog;
-  executeTimes;
-  language;
-  queryId?;
+  setShowQueryLog: (x: boolean) => void;
+  executeTimes: number;
+  language: string;
+  queryId?: number;
   kind: QueryLogKind;
 }) {
   let {
@@ -82,6 +81,7 @@ function QueryLog(props: {
   const [page, setPage] = useState(0); // datagrid start with 0
   const [pageSize, setPagesize] = useState(SavePageSize.instance.get());
   const [logs, setLogs] = useState([]);
+  const [loaded, setLoaded] = useState(false);
   const [matchSql, setMatchSql] = useState('');
   const [orderBy, setOrderBy] = useState('');
   const [total, setTotal] = useState(0);
@@ -124,6 +124,7 @@ function QueryLog(props: {
         orderBy
       );
       setLogs(x);
+      setLoaded(true);
     } catch (e) {
       showNotification('error', 'get query log error', e);
       return;
@@ -189,6 +190,7 @@ function QueryLog(props: {
     }
   }, [modalBox]);
   const [dom, setDom] = useState<HTMLDivElement>(null);
+
   return (
     <Paper
       style={{
@@ -224,15 +226,15 @@ function QueryLog(props: {
         <Tooltip title="esc can close query log too">
           <span>esc</span>
         </Tooltip>
-        <div style={{ width: '20%' }}></div>
-        <Typography color="info">match {sqlDesc}: </Typography>
-        <TextField
-          value={matchSql}
-          onChange={(e) => {
-            setMatchSql(e.target.value);
-          }}
-          style={{ flex: 1 }}
-        ></TextField>
+        <Tooltip title={`filter ${sqlDesc}`}>
+          <TextField
+            value={matchSql}
+            onChange={(e) => {
+              setMatchSql(e.target.value);
+            }}
+            style={{ flex: 1 }}
+          ></TextField>
+        </Tooltip>
         {total > 0 && (
           <Button
             onClick={async () => {
@@ -277,31 +279,33 @@ function QueryLog(props: {
                 }}
               />
             }
-            label="enable"
+            label="save query log"
           />
         </Tooltip>
       </Stack>
 
-      <div style={{ ...dataGridParentStyle }}>
-        <DataGrid
-          showToolbar
-          showCellVerticalBorder
-          showColumnVerticalBorder
-          onRowDoubleClick={onRowDoubleClick}
-          columns={columns}
-          rows={logs}
-          rowHeight={setting.datagridRowHeightXXX()}
-          columnHeaderHeight={setting.datagridRowHeightXXX()}
-          pageSizeOptions={pageSizeOptions}
-          paginationModel={paginationModel}
-          onPaginationModelChange={onPaginationModelChange}
-          initialState={initialState}
-          onColumnResize={onColumnResize}
-          onSortModelChange={onSortModelChange}
-          rowCount={total}
-          paginationMode="server"
-        ></DataGrid>
-      </div>
+      {loaded && (
+        <div style={{ ...dataGridParentStyle }}>
+          <DataGrid
+            showToolbar
+            showCellVerticalBorder
+            showColumnVerticalBorder
+            onRowDoubleClick={onRowDoubleClick}
+            columns={columns}
+            rows={logs}
+            rowHeight={setting.datagridRowHeightXXX()}
+            columnHeaderHeight={setting.datagridRowHeightXXX()}
+            pageSizeOptions={pageSizeOptions}
+            paginationModel={paginationModel}
+            onPaginationModelChange={onPaginationModelChange}
+            initialState={initialState}
+            onColumnResize={onColumnResize}
+            onSortModelChange={onSortModelChange}
+            rowCount={total}
+            paginationMode="server"
+          ></DataGrid>
+        </div>
+      )}
       {dom && (
         <ResizeParentHeight
           box={dom}
