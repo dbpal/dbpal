@@ -9,6 +9,7 @@ import { appStore, AppStoreKey, DataSourceKind, ErrAndLoc } from './helper.ts';
 import { Chip } from '@mui/material';
 import { invoke } from '@tauri-apps/api/core';
 import { AppMarkDown } from './CommonComp2.tsx';
+import { message } from '@tauri-apps/plugin-dialog';
 
 class SaveShowDoc {
   showDocOld = true;
@@ -137,7 +138,15 @@ function RedisQuery(props: {
               padding: '0.3rem',
             }}
           >
-            <AppMarkDown doc={doc} />
+            <AppMarkDown
+              handleUrlNotHttp={(href) => {
+                message(
+                  `can't goto '${href}',we are sorry about this document implementation for redis is limited.`,
+                  { kind: 'error', okLabel: 'dismiss' }
+                );
+              }}
+              doc={doc}
+            />
           </div>
         </Panel>
       )}

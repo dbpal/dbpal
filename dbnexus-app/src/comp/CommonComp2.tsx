@@ -55,6 +55,7 @@ import {
 } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { openUrl } from '@tauri-apps/plugin-opener';
 function CreateDatabase({ uuid, handleClose }) {
   const { showNotification } = useContext(NotificationContext);
   const [database, setDatabase] = useState('');
@@ -633,9 +634,34 @@ function LoadStoreFileForQuery(props: {
   );
 }
 
-function AppMarkDown(props: { doc: string }) {
-  const { doc } = props;
+function AppMarkDown(props: {
+  doc: string;
+  handleUrlNotHttp: (href: string) => void;
+}) {
+  const { doc, handleUrlNotHttp } = props;
   const setting = useContext(SettingContext);
+
+  const CustomLink = ({ href, children }) => {
+    const handleClick = (event) => {
+      event.preventDefault();
+      // 在这里处理链接点击，比如使用 Tauri API 打开链接
+      console.log(`Link clicked: ${href}`);
+      if (href.startsWith('http')) {
+        openUrl(href);
+      } else {
+        handleUrlNotHttp(href);
+      }
+
+      // 示例：调用 Tauri API
+      // window.tauri.invoke('open_url', { url: href });
+    };
+
+    return (
+      <a href={href} onClick={handleClick}>
+        {children}
+      </a>
+    );
+  };
   return (
     <ReactMarkdown
       components={{
@@ -656,6 +682,7 @@ function AppMarkDown(props: { doc: string }) {
             </code>
           );
         },
+        a: CustomLink,
       }}
       children={doc}
     ></ReactMarkdown>
