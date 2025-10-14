@@ -639,21 +639,28 @@ function LoadStoreFileForQuery(props: {
 
 function AppMarkDown(props: {
   doc: string;
-  handleUrlNotHttp: (href: string) => void;
+  handlePathUrl: (href: string) => void;
 }) {
-  const { doc, handleUrlNotHttp } = props;
+  const { doc, handlePathUrl } = props;
   const setting = useContext(SettingContext);
 
   const CustomLink = (props: { href: string; children: ReactNode }) => {
     const { href, children } = props;
+    const { showNotification } = useContext(NotificationContext);
     const handleClick = (event) => {
       event.preventDefault();
       // 在这里处理链接点击，比如使用 Tauri API 打开链接
       console.log(`Link clicked: ${href}`);
       if (href.startsWith('http')) {
-        openUrl(href);
+        openUrl(href)
+          .then(() => {
+            showNotification('success', 'open url OK');
+          })
+          .catch((e) => {
+            showNotification('error', 'open url failed', e);
+          });
       } else {
-        handleUrlNotHttp(href);
+        handlePathUrl(href);
       }
     };
 

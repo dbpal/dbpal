@@ -141,7 +141,7 @@ function RedisQuery(props: {
             }}
           >
             <AppMarkDown
-              handleUrlNotHttp={(href) => {
+              handlePathUrl={(href) => {
                 message(
                   `can't goto '${href}',we are sorry about this document implementation for redis is limited.`,
                   { kind: 'error', okLabel: 'dismiss' }
