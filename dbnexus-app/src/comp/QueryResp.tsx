@@ -131,19 +131,29 @@ function RespContextMenu(props: {
   );
 }
 
+function smallDataSet(fields: types.Field[]) {
+  return fields.length <= 4;
+}
+
 function QueryResp_(props: { data: MuiDataGridData }) {
   const { data: oldData } = props;
   const [data, setData] = useState<MuiDataGridData>(null);
   const setting = useContext(SettingContext);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
+
   useEffect(() => {
     oldData.data.forEach((e, index) => {
       e[keyNotInTable] = index;
     });
+    const considerSmallDataSet = smallDataSet(oldData.fields);
     oldData.fields.forEach((field) => {
-      const width = ColumnWidth.instance.get(field.field);
-      if (width) {
-        field['width'] = width;
+      if (considerSmallDataSet) {
+        field['flex'] = 1;
+      } else {
+        const width = ColumnWidth.instance.get(field.field);
+        if (width) {
+          field['width'] = width;
+        }
       }
       field['renderHeader'] = (e) => {
         const def = e.colDef as types.Field;
@@ -158,9 +168,15 @@ function QueryResp_(props: { data: MuiDataGridData }) {
   }, [oldData]);
   const [viewInModal, setViewInModal] = useState<object>(null);
 
-  const onColumnResize = useCallback(({ colDef, width }) => {
-    ColumnWidth.instance.save(colDef.field, width);
-  }, []);
+  const onColumnResize = useCallback(
+    ({ colDef, width }) => {
+      if (smallDataSet(data.fields)) {
+        return;
+      }
+      ColumnWidth.instance.save(colDef.field, width);
+    },
+    [data]
+  );
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const { setUpMenu } = useContext(ContextMenuContext);

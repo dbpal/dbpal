@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 use std::vec;
 
@@ -1376,35 +1376,142 @@ impl QuerySql for RedisDB {
         let mut conn = conn.lock().await;
         let commands = get_command_from_sql(sql)?;
         let mut ret = Vec::new();
+
         for c in commands.iter() {
             let args = &c[1..];
+            let make_result = |data: Vec<String>| -> QueryResp {
+                QueryResp {
+                    fields: vec![Field::from_name_type(format!("result of '{}'", c[0]), "")],
+                    total: 0,
+                    data: data.into_iter().map(|x| vec![Some(x)]).collect(),
+                    sql: None,
+                    cache_time: None,
+                    has_more: false,
+                }
+            };
             let mut redis_cmd = redis::cmd(c[0].as_str());
             redis_cmd.arg(args);
-            let stream = redis_cmd.iter_async::<Value>(conn.deref_mut()).await;
-            match stream {
-                Ok(mut stream) => {
-                    let mut values = vec![];
-                    while let Some(value) = stream.next_item().await {
-                        let value = value?;
-                        let r = encode_response_value(&value)?;
-                        values.extend(r.into_iter());
+            if command_return_multi_value(c[0].as_str()) {
+                let stream = redis_cmd
+                    .clone()
+                    .iter_async::<Value>(conn.deref_mut())
+                    .await;
+                match stream {
+                    Ok(mut stream) => {
+                        let mut values = vec![];
+                        while let Some(value) = stream.next_item().await {
+                            let value = value?;
+                            let r = encode_response_value(&value)?;
+                            values.extend(r.into_iter());
+                        }
+                        ret.push(Ok(make_result(values)));
                     }
-                    ret.push(Ok(QueryResp {
-                        fields: vec![Field::from_name_type("result", "")],
-                        total: 0,
-                        data: values.into_iter().map(|x| vec![Some(x)]).collect(),
-                        sql: None,
-                        cache_time: None,
-                        has_more: false,
-                    }));
+                    Err(err) => {
+                        log::error!("query failed:{}", err);
+                        ret.push(Err(err.to_string()))
+                    }
                 }
-                Err(err) => ret.push(Err(err.to_string())),
+            } else {
+                let value = redis_cmd.query_async::<Value>(conn.deref_mut()).await;
+                match value {
+                    Ok(value) => {
+                        let values = encode_response_value(&value)?;
+                        ret.push(Ok(make_result(values)));
+                    }
+                    Err(err) => ret.push(Err(err.to_string())),
+                }
             }
         }
 
         anyhow::Ok(ret)
     }
 }
+
+fn command_return_multi_value(s: &str) -> bool {
+    static ALL: LazyLock<HashSet<String>> = LazyLock::new(|| {
+        REDIS_MULTI_VAL_CMDS
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<HashSet<_>>()
+    });
+    ALL.contains(&s.to_uppercase())
+}
+/*
+    ai keywords
+    给我一个数组redis的所有命令里面可以返回多个值的
+    直接给我rust数组 我拷贝使用
+*/
+
+// Redis 会返回“多个值”的命令名称列表（共 63 条）
+// 直接 copy 即可使用
+const REDIS_MULTI_VAL_CMDS: &[&str] = &[
+    // String
+    "MGET",
+    "GETRANGE",
+    // List
+    "LRANGE",
+    "LPOP",
+    "RPOP",
+    "LMPOP",
+    "BLPOP",
+    "BRPOP",
+    "BLMPOP",
+    // Set
+    "SMEMBERS",
+    "SRANDMEMBER",
+    "SPOP",
+    "SINTER",
+    "SUNION",
+    "SDIFF",
+    "SINTERCARD",
+    "SINTERSTORE",
+    "SUNIONSTORE",
+    "SDIFFSTORE",
+    // Sorted Set
+    "ZRANGE",
+    "ZREVRANGE",
+    "ZRANGEBYSCORE",
+    "ZREVRANGEBYSCORE",
+    "ZRANGEBYLEX",
+    "ZREVRANGEBYLEX",
+    "ZPOPMIN",
+    "ZPOPMAX",
+    "ZMPOP",
+    "BZPOPMIN",
+    "BZPOPMAX",
+    "ZINTER",
+    "ZUNION",
+    "ZDIFF",
+    "ZINTERSTORE",
+    "ZUNIONSTORE",
+    "ZDIFFSTORE",
+    "ZRANK",
+    "ZREVRANK",
+    // Hash
+    "HGETALL",
+    "HKEYS",
+    "HVALS",
+    "HMGET",
+    "HRANDFIELD",
+    // Stream
+    "XREAD",
+    "XREADGROUP",
+    "XRANGE",
+    "XREVRANGE",
+    "XCLAIM",
+    "XPENDING",
+    // Pub/Sub
+    "PUBSUB",
+    // Generic / Admin
+    "KEYS",
+    "SORT",
+    "SORT_RO",
+    "MIGRATE",
+    "OBJECT",
+    "MEMORY",
+    "LATENCY",
+    "SLOWLOG",
+];
 
 impl RedisDB {
     pub(crate) async fn get_key_type(

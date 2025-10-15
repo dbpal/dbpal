@@ -93,7 +93,7 @@ function RedisQuery(props: {
         position: 'relative',
       }}
     >
-      <Panel defaultSize={40}>
+      <Panel defaultSize={40} minSize={4}>
         <SqlQuery
           hasPositionRelative
           editorRef={editorRef}
