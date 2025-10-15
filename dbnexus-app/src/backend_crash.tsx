@@ -9,7 +9,7 @@ import { invoke } from '@tauri-apps/api/core';
 webviewWIndowInit(false);
 const params = new URLSearchParams(location.search);
 const id = parseInt(params.get('id'));
-let msg;
+let msg: string;
 
 try {
   msg = await invoke<string>('get_backend_crash', { id });

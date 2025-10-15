@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-use std::str::{FromStr, from_utf8};
+use std::ops::DerefMut;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
@@ -259,15 +260,19 @@ fn to_json_value(x: Vec<u8>) -> serde_json::Value {
     }
 }
 
-fn to_string_key(key: Vec<u8>) -> String {
-    match String::from_utf8(key.clone()) {
-        Ok(x) => x,
-        Err(_) => hex::encode(key.as_slice()),
-    }
-}
-
 fn escape_string(s: &str) -> String {
     s.replace("'", "\'").replace("\n", "\\n")
+}
+
+fn check_resp(
+    value: Vec<Result<Vec<u8>, redis::RedisError>>,
+) -> Result<Vec<Vec<u8>>, redis::RedisError> {
+    let mut kv = vec![];
+    for v in value {
+        let v = v?;
+        kv.push(v);
+    }
+    Ok(kv)
 }
 
 // export impl
@@ -311,14 +316,14 @@ impl RedisDB {
             }
 
             RedisType::Hash => {
-                let mut stream = conn.hscan::<_, [Vec<u8>; 2]>(key).await?;
+                let mut stream = conn.hscan::<_, Vec<u8>>(key).await?.chunks(2);
                 while let Some(value) = stream.next().await {
-                    let value = value?;
+                    let kv = check_resp(value)?;
                     sender
                         .send(Cow::Owned(create_csv(
                             &vec![vec![
-                                Some(to_string_or_hex(value[0].clone())),
-                                Some(to_string_or_hex(value[1].clone())),
+                                Some(to_string_or_hex(kv[0].clone())),
+                                Some(to_string_or_hex(kv[1].clone())),
                             ]],
                             delimiter,
                         )))
@@ -326,14 +331,14 @@ impl RedisDB {
                 }
             }
             RedisType::Zset => {
-                let mut stream = conn.zscan::<_, [Vec<u8>; 2]>(key).await?;
+                let mut stream = conn.zscan::<_, Vec<u8>>(key).await?.chunks(2);
                 while let Some(value) = stream.next().await {
-                    let value = value?;
+                    let kv = check_resp(value)?;
                     sender
                         .send(Cow::Owned(create_csv(
                             &vec![vec![
-                                Some(to_string_or_hex(value[0].clone())),
-                                Some(to_string_or_hex(value[1].clone())),
+                                Some(to_string_or_hex(kv[0].clone())),
+                                Some(to_string_or_hex(kv[1].clone())),
                             ]],
                             delimiter,
                         )))
@@ -428,12 +433,12 @@ impl RedisDB {
                 sender.send("]".into()).await?;
             }
             RedisType::Hash => {
-                let mut stream = conn.hscan::<_, [Vec<u8>; 2]>(key).await?;
+                let mut stream = conn.hscan::<_, Vec<u8>>(key).await?.chunks(2);
                 let mut m = HashMap::new();
                 while let Some(value) = stream.next().await {
-                    let value = value?;
-                    let key = to_string_key(value[0].clone());
-                    let value = to_json_value(value[1].clone());
+                    let kv = check_resp(value)?;
+                    let key = to_string_or_hex(kv[0].clone());
+                    let value = to_json_value(kv[1].clone());
                     m.insert(key, value);
                 }
                 sender
@@ -445,12 +450,12 @@ impl RedisDB {
                     .await?;
             }
             RedisType::Zset => {
-                let mut stream = conn.zscan::<_, [Vec<u8>; 2]>(key).await?;
+                let mut stream = conn.zscan::<_, Vec<u8>>(key).await?.chunks(2);
                 let mut m = HashMap::new();
                 while let Some(value) = stream.next().await {
-                    let value = value?;
-                    let key = to_string_key(value[0].clone());
-                    let value = to_json_value(value[1].clone());
+                    let kv = check_resp(value)?;
+                    let key = to_string_or_hex(kv[0].clone());
+                    let value = to_json_value(kv[1].clone());
                     m.insert(key, value);
                 }
                 let value = if pretty {
@@ -502,25 +507,25 @@ impl RedisDB {
                 }
             }
             RedisType::Hash => {
-                let mut stream = conn.hscan::<_, [Vec<u8>; 2]>(key).await?;
+                let mut stream = conn.hscan::<_, Vec<u8>>(key).await?.chunks(2);
                 while let Some(value) = stream.next().await {
-                    let value = value?;
                     let mut m = HashMap::new();
-                    let key = to_string_key(value[0].clone());
-                    m.insert(key, to_json_value(value[1].clone()));
+                    let kv = check_resp(value)?;
+                    let key = to_string_or_hex(kv[0].clone());
+                    m.insert(key, to_json_value(kv[1].clone()));
                     let json_str = serde_json::to_string(&m)?;
                     sender.send(json_str.into()).await?;
                     sender.send("\n".into()).await?;
                 }
             }
             RedisType::Zset => {
-                let mut stream = conn.zscan::<_, [Vec<u8>; 2]>(key).await?;
+                let mut stream = conn.zscan::<_, Vec<u8>>(key).await?.chunks(2);
 
                 while let Some(value) = stream.next().await {
-                    let value = value?;
+                    let kv = check_resp(value)?;
                     let mut m = HashMap::new();
-                    let key = to_string_key(value[0].clone());
-                    m.insert(key, to_json_value(value[1].clone()));
+                    let key = to_string_or_hex(kv[0].clone());
+                    m.insert(key, to_json_value(kv[1].clone()));
                     let json_str = serde_json::to_string(&m)?;
                     sender.send(json_str.into()).await?;
                     sender.send("\n".into()).await?;
@@ -579,30 +584,38 @@ impl RedisDB {
             }
 
             RedisType::Hash => {
-                let mut stream = conn.hscan::<_, [String; 2]>(key).await?;
+                let mut stream = conn.hscan::<_, String>(key).await?.chunks(2);
                 while let Some(values) = stream.next().await {
-                    let values = values?;
+                    let mut kv = vec![];
+                    for v in values.into_iter() {
+                        let v = v?;
+                        kv.push(v);
+                    }
                     sender
                         .send(Cow::Owned(format!(
                             "HMSET {} {} '{}'\n",
                             key,
-                            values[0],
-                            escape_string(values[1].as_str())
+                            kv[0],
+                            escape_string(kv[1].as_str())
                         )))
                         .await?;
                 }
             }
 
             RedisType::Zset => {
-                let mut stream = conn.zscan::<_, [String; 2]>(key).await?;
+                let mut stream = conn.zscan::<_, String>(key).await?.chunks(2);
                 while let Some(value) = stream.next().await {
-                    let values = value?;
+                    let mut kv = vec![];
+                    for v in value.into_iter() {
+                        let v = v?;
+                        kv.push(v);
+                    }
                     sender
                         .send(Cow::Owned(format!(
                             "ZADD {} {} '{}'\n",
                             key,
-                            values[1],
-                            escape_string(values[0].as_str())
+                            kv[1],
+                            escape_string(kv[0].as_str())
                         )))
                         .await?;
                 }
@@ -655,233 +668,14 @@ impl RedisDB {
     }
 }
 
-fn value_2_json(v: &redis::Value) -> serde_json::Value {
-    match v {
-        Value::Set(vs) => serde_json::Value::Array(vs.iter().map(value_2_json).collect()),
-        Value::Array(vs) => serde_json::Value::Array(vs.iter().map(value_2_json).collect()),
-        Value::SimpleString(x) => serde_json::Value::from(x.clone()),
-        Value::BulkString(x) => match String::from_utf8(x.clone()) {
-            Ok(value) => serde_json::Value::from(value),
-            Err(_) => serde_json::Value::from(x.to_vec()),
-        },
-
-        Value::Map(items) => {
-            let mut m = serde_json::Map::new();
-            for (k, v) in items.iter() {
-                m.insert(encode_response_value_to_string(k), value_2_json(v));
-            }
-            serde_json::Value::Object(m)
-        }
-        Value::Attribute {
-            data,
-            attributes: _, // TODO how to handle this???
-        } => value_2_json(data),
-        Value::VerbatimString { format, text } => {
-            let mut m = serde_json::Map::new();
-            m.insert("format".to_string(), format.to_string().into());
-            m.insert("text".to_string(), text.to_string().into());
-            serde_json::Value::Object(m)
-        }
-        Value::Nil => serde_json::Value::Null,
-        Value::Int(value) => serde_json::Value::from(*value),
-        Value::Okay => serde_json::Value::from("Okay"),
-        Value::Double(value) => serde_json::Value::from(*value),
-        Value::Boolean(value) => serde_json::Value::from(*value),
-        Value::BigNumber(value) => serde_json::Value::from(value.to_string()),
-
-        Value::Push { kind, data } => {
-            let mut m = serde_json::Map::new();
-            m.insert("kind".to_string(), kind.to_string().into());
-            m.insert(
-                "data".to_string(),
-                serde_json::Value::Array(data.iter().map(value_2_json).collect()),
-            );
-            serde_json::Value::Object(m)
-        }
-        Value::ServerError(server_error) => {
-            let mut m = serde_json::Map::new();
-            m.insert("code".into(), server_error.code().into());
-            m.insert("detail".to_string(), server_error.details().into());
-            serde_json::Value::Object(m)
-        }
-    }
-}
-
-async fn handle_export_xlsx(
-    v: &redis::Value, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-) -> anyhow::Result<()> {
-    match v {
-        Value::Set(vs) => {
-            for (index, v) in vs.iter().enumerate() {
-                sender
-                    .send(XlsxEdit {
-                        row: index as u32,
-                        column: 0,
-                        content: encode_response_value_to_string(v),
-                    })
-                    .await?;
-            }
-        }
-        Value::Array(vs) => {
-            for (index, v) in vs.iter().enumerate() {
-                sender
-                    .send(XlsxEdit {
-                        row: index as u32,
-                        column: 0,
-                        content: encode_response_value_to_string(v),
-                    })
-                    .await?;
-            }
-        }
-        Value::SimpleString(x) => {
-            sender
-                .send(XlsxEdit {
-                    row: 0,
-                    column: 0,
-                    content: x.clone(),
-                })
-                .await?;
-        }
-        Value::BulkString(x) => match String::from_utf8(x.clone()) {
-            Ok(value) => {
-                sender
-                    .send(XlsxEdit {
-                        row: 0,
-                        column: 0,
-                        content: value,
-                    })
-                    .await?
-            }
-            Err(_) => {
-                for (index, e) in x.iter().enumerate() {
-                    sender
-                        .send(XlsxEdit {
-                            row: index as u32,
-                            column: 0,
-                            content: e.to_string(),
-                        })
-                        .await?;
-                }
-            }
-        },
-
-        Value::Map(items) => {
-            for (index, (k, v)) in items.iter().enumerate() {
-                sender
-                    .send(XlsxEdit {
-                        row: index as u32,
-                        column: 0,
-                        content: encode_response_value_to_string(k),
-                    })
-                    .await?;
-                sender
-                    .send(XlsxEdit {
-                        row: index as u32,
-                        column: 0,
-                        content: encode_response_value_to_string(v),
-                    })
-                    .await?;
-            }
-        }
-        Value::Attribute {
-            data,
-            attributes: _, // TODO how to handle this???
-        } => {
-            Box::pin(handle_export_xlsx(data, sender.clone())).await?;
-        }
-        Value::VerbatimString { format, text } => {
-            sender
-                .send(XlsxEdit {
-                    row: 0,
-                    column: 0,
-                    content: format!("{}", format),
-                })
-                .await?;
-            sender
-                .send(XlsxEdit {
-                    row: 1,
-                    column: 0,
-                    content: text.clone(),
-                })
-                .await?;
-        }
-        Value::Nil => {
-            sender
-                .send(XlsxEdit {
-                    row: 0,
-                    column: 0,
-                    content: "nil".to_string(),
-                })
-                .await?
-        }
-        Value::Int(value) => {
-            sender
-                .send(XlsxEdit {
-                    row: 0,
-                    column: 0,
-                    content: value.to_string(),
-                })
-                .await?
-        }
-        Value::Okay => {
-            sender
-                .send(XlsxEdit {
-                    row: 0,
-                    column: 0,
-                    content: "Okay".to_string(),
-                })
-                .await?
-        }
-        Value::Double(value) => {
-            sender
-                .send(XlsxEdit {
-                    row: 0,
-                    column: 0,
-                    content: value.to_string(),
-                })
-                .await?
-        }
-        Value::Boolean(value) => {
-            sender
-                .send(XlsxEdit {
-                    row: 0,
-                    column: 0,
-                    content: value.to_string(),
-                })
-                .await?
-        }
-        Value::BigNumber(value) => {
-            sender
-                .send(XlsxEdit {
-                    row: 0,
-                    column: 0,
-                    content: value.to_string(),
-                })
-                .await?
-        }
-        Value::Push { .. } => anyhow::bail!("push not supported"),
-        Value::ServerError(server_error) => {
-            sender
-                .send(XlsxEdit {
-                    row: 0,
-                    column: 0,
-                    content: server_error.code().to_string(),
-                })
-                .await?;
-            sender
-                .send(XlsxEdit {
-                    row: 1,
-                    column: 0,
-                    content: server_error.details().unwrap_or_default().to_string(),
-                })
-                .await?
-        }
-    }
-    anyhow::Ok(())
-}
-
 impl RedisDB {
-    async fn export_query_result_as_value(&self, sql: &str) -> anyhow::Result<redis::Value> {
+    async fn export_query_result_as_csv(
+        &self, sql: &str, include_header: bool, delimiter: char,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        if include_header {
+            anyhow::bail!("don't support export without header")
+        }
         let commands = get_command_from_sql(sql)?;
         if commands.len() != 1 {
             anyhow::bail!("Redis does not support multiple commands");
@@ -891,113 +685,84 @@ impl RedisDB {
         let client = self.get_client().await?;
         let args = &c[1..];
         let mut conn = client.get_multiplexed_async_connection().await?;
-        let value = redis::cmd(c[0].as_str())
-            .arg(args)
-            .query_async(&mut conn)
-            .await?;
-        anyhow::Ok(value)
-    }
-    async fn export_query_result_as_csv(
-        &self, sql: &str, include_header: bool, _delimiter: char,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        if include_header {
-            anyhow::bail!("don't support export without header")
-        }
-        let value = self.export_query_result_as_value(sql).await?;
-        match value {
-            Value::Array(values) | Value::Set(values) => {
-                for value in values.iter() {
-                    sender
-                        .send(encode_response_value_to_string(value).into())
-                        .await?;
-                    sender.send("\n".into()).await?;
-                }
-            }
-            _ => {
-                anyhow::bail!("unsupported data return from the server:{:?}", value)
-            }
+        let mut redis_cmd = redis::cmd(c[0].as_str());
+        redis_cmd.arg(args);
+        let mut stream = redis_cmd.iter_async::<String>(&mut conn).await?;
+        while let Some(value) = stream.next().await {
+            let value = value?;
+            sender
+                .send(create_csv(&vec![vec![Some(value)]], delimiter).into())
+                .await?;
         }
         anyhow::Ok(())
     }
     async fn export_query_result_as_json(
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let value = self.export_query_result_as_value(sql).await?;
-        let value = value_2_json(&value);
-        sender
-            .send(Cow::Owned(if pretty {
-                serde_json::to_string_pretty(&value)?
-            } else {
-                serde_json::to_string(&value)?
-            }))
-            .await?;
+        let commands = get_command_from_sql(sql)?;
+        if commands.len() != 1 {
+            anyhow::bail!("Redis does not support multiple commands");
+        }
+        sender.send("[".into()).await?;
+        if pretty {
+            sender.send("\n".into()).await?;
+        }
+        let c = &commands[0];
+        log::info!("cmd is:{:?}", c);
+        let client = self.get_client().await?;
+        let args = &c[1..];
+        let mut conn = client.get_multiplexed_async_connection().await?;
+        let mut redis_cmd = redis::cmd(c[0].as_str());
+        redis_cmd.arg(args);
+        let mut stream = redis_cmd.iter_async::<Vec<u8>>(&mut conn).await?;
+        let mut first = true;
+        while let Some(value) = stream.next().await {
+            if !first {
+                sender.send(",".into()).await?;
+            }
+            if pretty {
+                sender.send("\n".into()).await?;
+            }
+            let value = value?;
+            sender
+                .send(
+                    if pretty {
+                        serde_json::to_string_pretty(&value)?
+                    } else {
+                        serde_json::to_string_pretty(&value)?
+                    }
+                    .into(),
+                )
+                .await?;
+            first = false;
+        }
+        if pretty {
+            sender.send("\n".into()).await?;
+        }
+        sender.send("]".into()).await?;
         anyhow::Ok(())
     }
+
     async fn export_query_result_as_jsonline(
         &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let value = self.export_query_result_as_value(sql).await?;
-        async fn handle(
-            value: &Value, sender: &tokio::sync::mpsc::Sender<Cow<'static, str>>,
-        ) -> anyhow::Result<()> {
-            match &value {
-                Value::Nil => {}
-                Value::Int(x) => sender.send(x.to_string().into()).await?,
-                Value::BulkString(items) => match String::from_utf8(items.to_vec()) {
-                    Ok(x) => sender.send(x.into()).await?,
-                    Err(_) => {
-                        let value = serde_json::Value::Array(
-                            items.iter().map(|x| serde_json::Value::from(*x)).collect(),
-                        );
-                        sender.send(serde_json::to_string(&value)?.into()).await?;
-                    }
-                },
-
-                Value::Array(values) | Value::Set(values) => {
-                    for value in values.iter() {
-                        sender
-                            .send(serde_json::to_string(&value_2_json(value))?.into())
-                            .await?;
-
-                        sender.send("\n".into()).await?;
-                    }
-                }
-                Value::SimpleString(s) => {
-                    sender.send(s.clone().into()).await?;
-                }
-                Value::Okay => sender.send("Okay".into()).await?,
-                Value::Map(items) => {
-                    for (k, v) in items.iter() {
-                        let mut m = HashMap::new();
-                        m.insert(encode_response_value_to_string(k), value_2_json(v));
-                        sender.send(serde_json::to_string(&m)?.into()).await?;
-                        sender.send("\n".into()).await?;
-                    }
-                }
-                Value::Attribute { data, .. } => Box::pin(handle(data, sender)).await?,
-                Value::Double(value) => sender.send(value.to_string().into()).await?,
-                Value::Boolean(value) => sender.send(value.to_string().into()).await?,
-                Value::VerbatimString { format, text } => {
-                    let mut m = HashMap::new();
-                    m.insert("format", format.to_string());
-                    m.insert("text", text.to_string());
-                    sender.send(serde_json::to_string(&m)?.into()).await?;
-                }
-                Value::BigNumber(big_int) => sender.send(big_int.to_string().into()).await?,
-                Value::Push { .. } => {
-                    anyhow::bail!("push not supported");
-                }
-                Value::ServerError(server_error) => {
-                    let mut m = HashMap::new();
-                    m.insert("code", server_error.code());
-                    m.insert("detail", server_error.details().unwrap_or_default());
-                    sender.send(serde_json::to_string(&m)?.into()).await?;
-                }
-            }
-            anyhow::Ok(())
+        let commands = get_command_from_sql(sql)?;
+        if commands.len() != 1 {
+            anyhow::bail!("Redis does not support multiple commands");
         }
-        handle(&value, &sender).await?;
+        let c = &commands[0];
+        log::info!("cmd is:{:?}", c);
+        let client = self.get_client().await?;
+        let args = &c[1..];
+        let mut conn = client.get_multiplexed_async_connection().await?;
+        let mut redis_cmd = redis::cmd(c[0].as_str());
+        redis_cmd.arg(args);
+        let mut stream = redis_cmd.iter_async::<Vec<u8>>(&mut conn).await?;
+        while let Some(value) = stream.next().await {
+            let value = value?;
+            sender.send(serde_json::to_string(&value)?.into()).await?;
+            sender.send("\n".into()).await?;
+        }
         anyhow::Ok(())
     }
 }
@@ -1031,8 +796,30 @@ impl ExportQueryResult for RedisDB {
         if include_header {
             anyhow::bail!("Redis does not support exporting header");
         }
-        let value = self.export_query_result_as_value(sql).await?;
-        handle_export_xlsx(&value, sender.clone()).await?;
+        let commands = get_command_from_sql(sql)?;
+        if commands.len() != 1 {
+            anyhow::bail!("Redis does not support multiple commands");
+        }
+        let c = &commands[0];
+        log::info!("cmd is:{:?}", c);
+        let client = self.get_client().await?;
+        let args = &c[1..];
+        let mut conn = client.get_multiplexed_async_connection().await?;
+        let mut redis_cmd = redis::cmd(c[0].as_str());
+        redis_cmd.arg(args);
+        let mut stream = redis_cmd.iter_async::<String>(&mut conn).await?;
+        let mut row = 0;
+        while let Some(value) = stream.next().await {
+            let value = value?;
+            sender
+                .send(XlsxEdit {
+                    row,
+                    column: 0,
+                    content: value,
+                })
+                .await?;
+            row += 1;
+        }
         anyhow::Ok(())
     }
 
@@ -1554,31 +1341,68 @@ impl QuerySql for RedisDB {
     async fn execute_sql(
         &self, query_id: u32, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let ret = QuerySql::query_sql(self, query_id, sql).await?;
-        match ret.len() {
-            1 => {
-                return anyhow::Ok(ret[0].clone());
-            }
-            0 => return anyhow::Ok(Err("empty statement???".into())),
-            _ => {
-                log::warn!("multi resp should be fine");
-                return anyhow::Ok(ret[0].clone());
-            }
-        }
-    }
-
-    async fn query_sql(
-        &self, id: u32, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let conn = match self.query_connection.get(&id) {
+        let conn = match self.query_connection.get(&query_id) {
             Some(x) => x.clone(),
             None => {
-                anyhow::bail!(format!("can't find connection for id '{}'", id))
+                anyhow::bail!(format!("can't find connection for id '{}'", query_id))
             }
         };
         let mut lock = conn.lock().await;
-        let ret = query_sql(&mut lock, sql).await;
-        ret
+        let commands = get_command_from_sql(sql)?;
+        let mut ret = vec![];
+        for c in commands {
+            let r = redis::cmd(&c[0])
+                .arg(&c[1..])
+                .exec_async(lock.deref_mut())
+                .await;
+
+            ret.push(Some(match r {
+                Ok(_) => "execute ok".to_string(),
+                Err(err) => format!("execute failed,err:{}", err),
+            }));
+        }
+        anyhow::Ok(Ok(QueryResp::result(None, ret)))
+    }
+
+    async fn query_sql(
+        &self, query_id: u32, sql: &str,
+    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        let conn = match self.query_connection.get(&query_id) {
+            Some(x) => x.clone(),
+            None => {
+                anyhow::bail!(format!("can't find connection for id '{}'", query_id))
+            }
+        };
+        let mut conn = conn.lock().await;
+        let commands = get_command_from_sql(sql)?;
+        let mut ret = Vec::new();
+        for c in commands.iter() {
+            let args = &c[1..];
+            let mut redis_cmd = redis::cmd(c[0].as_str());
+            redis_cmd.arg(args);
+            let stream = redis_cmd.iter_async::<Value>(conn.deref_mut()).await;
+            match stream {
+                Ok(mut stream) => {
+                    let mut values = vec![];
+                    while let Some(value) = stream.next_item().await {
+                        let value = value?;
+                        let r = encode_response_value(&value)?;
+                        values.extend(r.into_iter());
+                    }
+                    ret.push(Ok(QueryResp {
+                        fields: vec![Field::from_name_type("result", "")],
+                        total: 0,
+                        data: values.into_iter().map(|x| vec![Some(x)]).collect(),
+                        sql: None,
+                        cache_time: None,
+                        has_more: false,
+                    }));
+                }
+                Err(err) => ret.push(Err(err.to_string())),
+            }
+        }
+
+        anyhow::Ok(ret)
     }
 }
 
@@ -1853,150 +1677,50 @@ impl ReadOnlyTrait for RedisDB {
     }
 }
 
-async fn query_sql(
-    conn: &mut redis::aio::MultiplexedConnection, sql: &str,
-) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-    let commands = get_command_from_sql(sql)?;
-    let mut ret = Vec::new();
-    for c in commands.iter() {
-        let args = &c[1..];
-        let v = redis::cmd(c[0].as_str())
-            .arg(args)
-            .query_async(conn)
-            .await
-            .map(|x| encode_response_value(&x));
-
-        match v {
-            Ok(x) => {
-                ret.push(x.map_err(|x| x.to_string()));
+fn encode_response_value(v: &Value) -> anyhow::Result<Vec<String>> {
+    let ret = match v {
+        Value::Set(vs) | Value::Array(vs) => {
+            // a set
+            let mut result = vec![];
+            for v in vs.iter() {
+                result.extend(encode_response_value(v)?.into_iter());
             }
-            Err(x) => ret.push(Err(x.to_string())),
+            result
         }
-    }
-    anyhow::Ok(ret)
-}
-
-/// redis only support limited nested value.
-/// if hit this fn should somehow always return string.
-/// right ???
-fn encode_response_value_to_string(v: &Value) -> String {
-    match v {
-        Value::Int(v) => v.to_string(),
-        Value::BulkString(x) => match from_utf8(x.as_slice()) {
-            Ok(x) => x.to_owned(),
-            Err(_) => format!("0x{}", hex::encode(x.as_slice())),
-        },
-        Value::SimpleString(x) => x.to_owned(),
-        Value::Double(d) => d.to_string(),
-        Value::Boolean(x) => x.to_string(),
-        Value::BigNumber(v) => v.to_string(),
-        Value::Nil => "nil".to_string(),
-        Value::Array(values) => {
-            let x: Vec<_> = values.iter().map(encode_response_value_to_string).collect();
-            format!("[{}]", x.join(", "))
+        Value::SimpleString(str) => vec![str.to_string()],
+        Value::BulkString(str) => {
+            vec![String::from_utf8(str.clone())?]
         }
-        Value::Okay => "Okay".to_string(),
-        Value::Map(items) => {
-            let x: Vec<_> = items
-                .iter()
-                .map(|(k, v)| {
-                    format!(
-                        "{}:{}",
-                        encode_response_value_to_string(k),
-                        encode_response_value_to_string(v)
-                    )
-                })
-                .collect();
-            format!("[{}]", x.join(", "))
+        Value::Map(map) => {
+            let mut result = vec![];
+            for (k, v) in map.iter() {
+                result.extend(encode_response_value(k)?.into_iter());
+                result.extend(encode_response_value(v)?.into_iter());
+            }
+            result
         }
         Value::Attribute {
             data,
             attributes: _,
-        } => encode_response_value_to_string(data),
-        Value::Set(values) => {
-            let x: Vec<_> = values.iter().map(encode_response_value_to_string).collect();
-            format!("[{}]", x.join(", "))
-        }
-        Value::VerbatimString { format, text } => format!("type:{} text:{}", format, text),
-        Value::Push { kind, data } => {
-            let x: Vec<_> = data.iter().map(encode_response_value_to_string).collect();
-            format!("kind:{}[{}]", kind, x.join(", "))
-        }
-        Value::ServerError(server_error) => format!("server error:{:?}", server_error),
-    }
-}
-
-fn encode_response_value(v: &Value) -> anyhow::Result<QueryResp> {
-    let ret = match v {
-        Value::Set(vs) => {
-            // a set
-            let result: Vec<_> = vs
-                .iter()
-                .map(encode_response_value_to_string)
-                .map(Some)
-                .collect();
-            QueryResp::result(None, result)
-        }
-        Value::Array(vs) => {
-            let result: Vec<_> = vs
-                .iter()
-                .map(encode_response_value_to_string)
-                .map(Some)
-                .collect();
-            QueryResp::result(None, result)
-        }
-        Value::SimpleString(x) => QueryResp::result(None, vec![Some(x.to_string())]),
-        Value::BulkString(_x) => {
-            QueryResp::result(None, vec![Some(encode_response_value_to_string(v))])
-        }
-        Value::Map(x) => {
-            let fields = vec![
-                Field::from_name_type("key", "string"),
-                Field::from_name_type("value", ""),
-            ];
-            let data = x
-                .iter()
-                .map(|x| {
-                    vec![
-                        Some(encode_response_value_to_string(&x.0)),
-                        Some(encode_response_value_to_string(&x.1)),
-                    ]
-                })
-                .collect::<Vec<_>>();
-
-            QueryResp::new(fields, 0, data, None)?
-        }
-        Value::Attribute {
-            data,
-            attributes: _, // TODO how to handle this???
         } => encode_response_value(data)?,
-        Value::VerbatimString { format, text } => {
-            let fields = vec![
-                Field::from_name_type("format", ""),
-                Field::from_name_type("value", ""),
-            ];
-            let data = vec![vec![Some(format.to_string()), Some(text.clone())]];
-            QueryResp::new(fields, 0, data, None)?
+        Value::VerbatimString { text, .. } => {
+            vec![text.clone()]
         }
-        Value::Nil => QueryResp::result(None, vec![]),
-        Value::Int(value) => QueryResp::result(None, vec![Some(value.to_string())]),
-        Value::Okay => QueryResp::result(None, vec![Some("Okay".to_string())]),
-        Value::Double(value) => QueryResp::result(None, vec![Some(value.to_string())]),
-        Value::Boolean(value) => QueryResp::result(None, vec![Some(value.to_string())]),
-        Value::BigNumber(value) => QueryResp::result(None, vec![Some(value.to_string())]),
-        Value::Push { kind, data } => QueryResp {
-            fields: vec![Field::from_name_type("kind", kind.to_string())],
-            total: 0,
-            data: data
-                .iter()
-                .map(|x| vec![Some(encode_response_value_to_string(x))])
-                .collect(),
-            sql: None,
-            cache_time: None,
-            has_more: false,
-        },
+        Value::Nil => vec!["nil".to_string()],
+        Value::Int(value) => vec![value.to_string()],
+        Value::Okay => vec!["Okay".to_string()],
+        Value::Double(value) => vec![value.to_string()],
+        Value::Boolean(value) => vec![value.to_string()],
+        Value::BigNumber(value) => vec![value.to_string()],
+        Value::Push { data, .. } => {
+            let mut result = vec![];
+            for v in data.iter() {
+                result.extend(encode_response_value(v)?.into_iter());
+            }
+            result
+        }
         Value::ServerError(server_error) => {
-            QueryResp::result(None, vec![Some(format!("ServerError: {:?}", server_error))])
+            vec![format!("ServerError: {:?}", server_error)]
         }
     };
     anyhow::Ok(ret)
@@ -2063,7 +1787,6 @@ mod tests {
         DBTrait, ExportKind, ExportQueryResult, GetBackendKind, QuerySql, SchemaTrait, ServerMetas,
     };
     use crate::enable_test_log;
-    use crate::language_server::completion_test::test_file_auto_completion;
 
     #[cfg(test)]
     #[test]
@@ -2148,14 +1871,6 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         println!("resp:{:?}", resp);
     }
 
-    #[tokio::test]
-    async fn test_auto_completion_xxx() {
-        enable_test_log();
-        let content = r#"SSCAN set
-1 SSCAN ; 10 set_value"#;
-        let db = make_test_object().await;
-        test_file_auto_completion(&content, &db, false).await;
-    }
     #[tokio::test]
     async fn test_server_metas() {
         let db = make_test_object().await;

@@ -27,9 +27,9 @@ class MongoBsonObject {
   }
 
   compile(): Document {
-    let ret = {};
+    const ret = {};
     for (let i = 0; i < this.elements.length; i++) {
-      let kv = this.elements[i];
+      const kv = this.elements[i];
       const key = trimQuoteMark(this.elements[i].key.value);
       if (key in ret) {
         throw new MongoBsonError(`key '${key}' already exits.`, kv.key.loc);
@@ -89,9 +89,9 @@ class MongoBsonAs {
 
   compileBinary(): Binary {
     let v = this.value.compile();
-    let ty = typeof v;
+    const ty = typeof v;
 
-    let subType = this.binarySubType
+    const subType = this.binarySubType
       ? this.binarySubType.toBinarySubTypeNumber()
       : Binary.SUBTYPE_DEFAULT;
 
@@ -111,8 +111,8 @@ class MongoBsonAs {
   }
 
   compileJavascript(): Code {
-    let v = this.value.compile();
-    let ty = typeof v;
+    const v = this.value.compile();
+    const ty = typeof v;
     if (ty === 'string') {
       return new Code(v);
     }
@@ -120,8 +120,8 @@ class MongoBsonAs {
   }
 
   compileDecimal(): Decimal128 {
-    let v = this.value.compile();
-    let ty = typeof v;
+    const v = this.value.compile();
+    const ty = typeof v;
     if (ty === 'string') {
       return new Decimal128(v);
     }
@@ -132,10 +132,10 @@ class MongoBsonAs {
   }
 
   compileDate(): Date {
-    let v = this.value.compile();
-    let ty = typeof v;
+    const v = this.value.compile();
+    const ty = typeof v;
     if (ty === 'string') {
-      let x = new Date(v);
+      const x = new Date(v);
       if (x instanceof Date) {
         return x
       }
@@ -144,8 +144,8 @@ class MongoBsonAs {
     this.cannotConvert(ty, 'date');
   }
   compileObjectID(): ObjectId {
-    let v = this.value.compile();
-    let ty = typeof v;
+    const v = this.value.compile();
+    const ty = typeof v;
     if (ty === 'string') {
       return new ObjectId(v as string);
     }
@@ -160,16 +160,16 @@ class MongoBsonAs {
     throw new MongoBsonError(`can't compile '${ty}' to ${to}`, this.kind.loc);
   }
   compileInt32(): Int32 {
-    let v = this.value.compile();
-    let ty = typeof v;
+    const v = this.value.compile();
+    const ty = typeof v;
     if (ty === 'number') {
       return new Int32(v);
     }
     this.cannotConvert(ty, 'int');
   }
   compileLong(): Long {
-    let v = this.value.compile();
-    let ty = typeof v;
+    const v = this.value.compile();
+    const ty = typeof v;
     if (ty === 'number') {
       return new Long(v);
     }
@@ -179,8 +179,8 @@ class MongoBsonAs {
     this.cannotConvert(ty, 'long');
   }
   compileTimestamp(): Timestamp {
-    let v = this.value.compile();
-    let ty = typeof v;
+    const v = this.value.compile();
+    const ty = typeof v;
     if (ty === 'object') {
       if (!hasTypeKey(v, "t", "number")) {
         throw new MongoBsonError("must have field name 't' and have type number", this.kind.loc);
@@ -263,7 +263,7 @@ class MongoBsonBinaryAllSubType {
   }
 
   toBinarySubTypeNumber(): number | undefined {
-    let lower = this.kind.value.toLowerCase();
+    const lower = this.kind.value.toLowerCase();
     if (lower == MongoBsonBinaryAllSubType.Generic) {
       return Binary.SUBTYPE_DEFAULT;
     }
@@ -377,7 +377,7 @@ class MongoBsonValue {
     }
     x.forEach((e, index) => {
       ret += MongoBsonValue.doIdent(newLine, tabSize, ident);
-      let ety = typeof e;
+      const ety = typeof e;
       if (ety == 'number') {
         // float32 array and int8 array goes here.
         ret += e;
@@ -438,7 +438,7 @@ class MongoBsonValue {
       case MongoBsonValueKind.ObjectID:
         return `'${this.asToken().value}' as ObjectID`;
       case MongoBsonValueKind.Binary:
-        let binaryValue = this.value as Binary;
+        const binaryValue = this.value as Binary;
         ret += "'" + binaryValue.toString("hex") + "'";
         // here is type annotation
         ret +=
@@ -448,7 +448,7 @@ class MongoBsonValue {
       case MongoBsonValueKind.Date:
         return `'${this.asToken().value}' as date`;
       case MongoBsonValueKind.Timestamp:
-        let t = this.value as Timestamp;
+        const t = this.value as Timestamp;
         return `{t: ${t.t},i:${t.i}} as timestamp`;
       case MongoBsonValueKind.Code:
         return this.asToken().value + ' as code';
@@ -459,13 +459,13 @@ class MongoBsonValue {
       case MongoBsonValueKind.RegExp:
         return `${this.asToken().value}`; // this is regexp
       case MongoBsonValueKind.String:
-        let x = this.asToken().value;
+        const x = this.asToken().value;
         return x;
       case MongoBsonValueKind.Decimal:
         return `'${this.asToken().value}' as decimal`;
 
       case MongoBsonValueKind.As:
-        let as = this.value as MongoBsonAs;
+        const as = this.value as MongoBsonAs;
         ret = as.value.format(ident, false, tabSize);
         ret += ` as ${as.kind.value}`;
         if (as.binarySubType) {
@@ -473,10 +473,10 @@ class MongoBsonValue {
         }
         return ret;
       case MongoBsonValueKind.Array:
-        let valueArr = this.value as MongoBsonArray;
+        const valueArr = this.value as MongoBsonArray;
         return this.formatArray(valueArr.elements, newLine, tabSize, ident);
       case MongoBsonValueKind.Object:
-        let valueObj = this.value as MongoBsonObject;
+        const valueObj = this.value as MongoBsonObject;
         ret = '{';
         newLine = newLine || this.elementsSize() > formatMaxNewLineSize;
         if (newLine) {
@@ -516,25 +516,25 @@ class MongoBsonValue {
       case MongoBsonValueKind.String:
         return this.asToken().value.length;
       case MongoBsonValueKind.Array:
-        let arr = (this.value as MongoBsonArray);
-        for (let i = 0; i < arr.elements.length; i++) {
-          size += arr.elements[i].elementsSize();
+        const arr = (this.value as MongoBsonArray);
+        for (const e of arr.elements) {
+          size += e.elementsSize();
           if (size > formatMaxNewLineSize)
             return size;
         }
         return size;
       case MongoBsonValueKind.Object:
-        let obj = (this.value as MongoBsonObject);
-        for (let i = 0; i < obj.elements.length; i++) {
-          size += obj.elements[i].value.elementsSize();
-          size += obj.elements[i].key.value.length;
+        const obj = (this.value as MongoBsonObject);
+        for (const e of obj.elements) {
+          size += e.value.elementsSize();
+          size += e.key.value.length;
           if (size > formatMaxNewLineSize) {
             return size;
           }
         }
         return size;
       case MongoBsonValueKind.As:
-        let as_ = this.value as MongoBsonAs;
+        const as_ = this.value as MongoBsonAs;
         size += as_.kind.value.length;
         size += as_.value.elementsSize();
         return size;
@@ -556,19 +556,19 @@ class MongoBsonArray {
 }
 
 function parseMongoBson(input: string): MongoBsonObject {
-  let tokens = tokenize(input, { loc: true }) as Token[];
-  let parser = new Parser(tokens);
-  let x = parser.parseObject();
+  const tokens = tokenize(input, { loc: true }) as Token[];
+  const parser = new Parser(tokens);
+  const x = parser.parseObject();
   if (!parser.tokenAllConsumed()) {
-    let token = parser.peek();
+    const token = parser.peek();
     throw new MongoBsonError(`expect EOF but '${token.value}'`, token.loc);
   }
   return x;
 }
 
 function formatMongoBsonStr(input: string, tabSize: number): string {
-  let ast = parseMongoBson(input);
-  let s = new MongoBsonValue(MongoBsonValueKind.Object, ast).format(
+  const ast = parseMongoBson(input);
+  const s = new MongoBsonValue(MongoBsonValueKind.Object, ast).format(
     1,
     true,
     tabSize
@@ -585,7 +585,7 @@ interface Token {
 class MongoBsonError extends Error {
   msgWithLoc: string;
   constructor(public msg: string, public loc?: Location) {
-    let msgWithLoc = MongoBsonError.makeMsg(msg, loc);
+    const msgWithLoc = MongoBsonError.makeMsg(msg, loc);
     super(msgWithLoc);
     this.msgWithLoc = msgWithLoc;
 
@@ -616,25 +616,25 @@ class Parser {
     return this.index >= this.tokens.length;
   }
   parseObject(): MongoBsonObject {
-    let tokenStart = this.peek();
-    let startLoc = tokenStart.loc;
+    const tokenStart = this.peek();
+    const startLoc = tokenStart.loc;
     this.except('{');
-    let defs = [];
+    const defs = [];
     while (this.peek().value != '}') {
-      let def = this.parseObjectDefs();
+      const def = this.parseObjectDefs();
       defs.push(def);
       if (this.peek().value == ',') {
         this.next();
       }
     }
-    let tokenEnd = this.peek();
-    let endLoc = tokenEnd.loc;
+    const tokenEnd = this.peek();
+    const endLoc = tokenEnd.loc;
     this.except('}');
     return new MongoBsonObject(defs, endLoc, startLoc);
   }
 
   parseObjectDefs(): MongoBsonKV {
-    let token = this.peek();
+    const token = this.peek();
     if (token.type != 'Identifier' && token.type != 'String') {
       throw new MongoBsonError(
         `expect identifier or string,but '${token.value}'`,
@@ -642,7 +642,7 @@ class Parser {
       );
     }
     this.next();
-    let tokenColon = this.peek();
+    const tokenColon = this.peek();
     if (tokenColon.value != ':') {
       throw new MongoBsonError(
         `expect colon,but '${tokenColon.value}'`,
@@ -651,13 +651,13 @@ class Parser {
     }
     this.next();
     // here is value
-    let value = this.parseValueAs();
+    const value = this.parseValueAs();
 
     return new MongoBsonKV(token, value);
   }
 
   parseValueAs(): MongoBsonValue {
-    let value = this.parseValue();
+    const value = this.parseValue();
     let token = this.peek();
     if (token.value != 'as') {
       return value;
@@ -676,9 +676,9 @@ class Parser {
     }
   }
   parseBinaryTypeAnnotation(): MongoBsonBinaryAllSubType | null {
-    let token = this.peek();
-    let valueLow = token.value.toLowerCase();
-    let t = MongoBsonBinaryAllSubType.allValues().find((e) => valueLow == e);
+    const token = this.peek();
+    const valueLow = token.value.toLowerCase();
+    const t = MongoBsonBinaryAllSubType.allValues().find((e) => valueLow == e);
     if (t) {
       this.next();
       return new MongoBsonBinaryAllSubType(token);
@@ -688,15 +688,15 @@ class Parser {
   }
 
   parseBinaryTypeAnnotionVector(): Token[] {
-    let token = this.peek();
-    let toLower = token.value.toLowerCase();
+    const token = this.peek();
+    const toLower = token.value.toLowerCase();
     if (toLower == 'float32' || toLower == 'int8') {
       this.next();
       return [token];
     }
   }
   parseArray(): MongoBsonValue[] {
-    let values = [];
+    const values = [];
     while (this.peek().value != ']') {
       values.push(this.parseValueAs());
       if (this.peek().value == ',') {
@@ -707,7 +707,7 @@ class Parser {
   }
 
   parseValue(): MongoBsonValue {
-    let token = this.peek();
+    const token = this.peek();
     if (token.type == 'String') {
       this.next();
       return new MongoBsonValue(MongoBsonValueKind.String, token);
@@ -736,9 +736,9 @@ class Parser {
     }
 
     if (token.value == '-') {
-      let startLoc = token.loc.start;
+      const startLoc = token.loc.start;
       this.next();
-      let tokenNumber = this.peek();
+      const tokenNumber = this.peek();
       if (tokenNumber.type == 'Numeric') {
         tokenNumber.value = '-' + tokenNumber.value;
         tokenNumber.loc.start = startLoc;
@@ -752,17 +752,17 @@ class Parser {
       }
     }
     if (token.value == '[') {
-      let startLoc = token.loc;
+      const startLoc = token.loc;
       this.next();
-      let values = this.parseArray();
-      let endLoc = this.except(']').loc;
+      const values = this.parseArray();
+      const endLoc = this.except(']').loc;
       return new MongoBsonValue(
         MongoBsonValueKind.Array,
         new MongoBsonArray(values, startLoc, endLoc)
       );
     }
     if (token.value == '{') {
-      let value = this.parseObject();
+      const value = this.parseObject();
       return new MongoBsonValue(MongoBsonValueKind.Object, value);
     }
     if (token.type == 'RegularExpression') {
@@ -777,7 +777,7 @@ class Parser {
   }
 
   except(value: string): Token {
-    let token = this.peek();
+    const token = this.peek();
     if (token.value != value) {
       throw new MongoBsonError(
         `expect '${value}' , but '${token.value}'`,
@@ -793,8 +793,7 @@ class Parser {
     } else {
       // esprima don't produce a EOF token
       // So I make fake
-      let loc = this.tokens[this.tokens.length - 1].loc;
-
+      const loc = this.tokens[this.tokens.length - 1].loc;
       return {
         type: 'EOF',
         value: 'EOF',
@@ -842,7 +841,7 @@ function quoteString(quote: string): string {
 }
 
 function validIdentifier(str): boolean {
-  let tokens = tokenize(str) as Token[];
+  const tokens = tokenize(str) as Token[];
   return tokens.length == 1 && tokens[0].type == 'Identifier';
 }
 
@@ -918,13 +917,13 @@ function toMongoBson(a: any): MongoBsonValue {
 
       if (a instanceof Binary) {
         try {
-          let arr = a.toInt8Array();
+          const arr = a.toInt8Array();
           return new MongoBsonValue(MongoBsonValueKind.Int8Array, arr);
         } catch (_e) {
 
         }
         try {
-          let arr = a.toFloat32Array();
+          const arr = a.toFloat32Array();
           return new MongoBsonValue(MongoBsonValueKind.Float32Array, arr);
         } catch (_e) {
 
@@ -932,7 +931,7 @@ function toMongoBson(a: any): MongoBsonValue {
         return new MongoBsonValue(MongoBsonValueKind.Binary, a as Binary);
       }
       if (a instanceof Array) {
-        let elements = a.map((e) => {
+        const elements = a.map((e) => {
           return toMongoBson(e);
         });
         return new MongoBsonValue(
@@ -941,7 +940,7 @@ function toMongoBson(a: any): MongoBsonValue {
         );
       }
       if (a instanceof Object) {
-        let kv = [];
+        const kv = [];
         for (const key in a) {
           let keyStr = '';
           if (validIdentifier(key)) {
@@ -974,7 +973,7 @@ function bsonValue2MongoBson(x: Uint8Array | Document): MongoBsonObject {
     elements = x;
   }
 
-  let defs = [];
+  const defs = [];
   for (const key in elements) {
     let keyStr = '';
     if (validIdentifier(key)) {

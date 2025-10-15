@@ -260,7 +260,7 @@ function MongoBsonEditor(props: {
   if (!setOPName) {
     setOPName = 'set';
   }
-  let editor = useRef<editor.IStandaloneCodeEditor>(null);
+  const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
   const [err, setErr] = useState<MongoBsonError>(null);
   const setting = useContext(SettingContext);
@@ -291,7 +291,7 @@ function MongoBsonEditor(props: {
   const [content, setContent] = useState('{\n}');
   useEffect(() => {
     try {
-      let c = bsonValue2MongoBson(doc).format();
+      const c = bsonValue2MongoBson(doc).format();
       setContent(c);
     } catch (e) {
       showNotification('error', 'format mongo value failed', e);
@@ -681,7 +681,7 @@ function MongoTableListContextMenu(props: {
         <Divider />
         <MenuItem
           onClick={() => {
-            let doc = {};
+            const doc = {};
             doc[field] = 1;
             setSort(doc);
           }}
@@ -693,7 +693,7 @@ function MongoTableListContextMenu(props: {
         </MenuItem>
         <MenuItem
           onClick={() => {
-            let doc = {};
+            const doc = {};
             doc[field] = -1;
             setSort(doc);
           }}
@@ -811,36 +811,35 @@ function MongoTableListMenuFilter(props: {
     lastCompare = compare;
   }, [compare]);
   useEffect(() => {
-    let c = {};
+    const compareObj = {};
     if (compare == 'starts') {
-      c[field] = { $regex: `^${value}`, $options: 'i' };
-      setDoc(c);
+      compareObj[field] = { $regex: `^${value}`, $options: 'i' };
+      setDoc(compareObj);
       return;
     }
     if (compare == 'ends') {
-      c[field] = { $regex: `${value}$`, $options: 'i' };
-      setDoc(c);
+      compareObj[field] = { $regex: `${value}$`, $options: 'i' };
+      setDoc(compareObj);
       return;
     }
     if (compare == 'contains') {
-      c[field] = { $regex: `${value}`, $options: 'i' };
-      setDoc(c);
+      compareObj[field] = { $regex: `${value}`, $options: 'i' };
+      setDoc(compareObj);
       return;
     }
     if (compare == 'null') {
-      c[field] = null;
-      setDoc(c);
+      compareObj[field] = null;
+      setDoc(compareObj);
       return;
     }
     if (compare == 'not null') {
-      c[field] = { $ne: null };
-      setDoc(c);
+      compareObj[field] = { $ne: null };
+      setDoc(compareObj);
       return;
     }
-
-    c[compare] = value;
-    let doc = {};
-    doc[field] = c;
+    compareObj[compare] = value;
+    const doc = {};
+    doc[field] = compareObj;
     setDoc(doc);
   }, [compare, value]);
 
@@ -1186,7 +1185,7 @@ function MongoTableList(props: {
           e[keyNotInTable] = index;
         });
         r.fields.forEach((f) => {
-          let width = ColumnWidth.instance.get(f.field);
+          const width = ColumnWidth.instance.get(f.field);
           if (width) {
             f['width'] = width;
           }
@@ -1214,8 +1213,7 @@ function MongoTableList(props: {
 
   const handleLoadOne = async (id: any) => {
     try {
-      let x = await loadOne(id);
-      return x;
+      return await loadOne(id);
     } catch (e) {
       showNotification('error', 'fetch data failed', e);
       return null;
@@ -1252,19 +1250,19 @@ function MongoTableList(props: {
       setSort({});
       return;
     }
-    let s = e[0];
+    const s = e[0];
     if (!s.sort) {
       setSort({});
       return;
     }
-    let order = {};
+    const order = {};
     order[s.field] = s.sort == 'asc' ? 1 : -1;
     setSort(order);
   }, []);
 
   const handleDel = deleteOP
     ? async (id: string) => {
-        let del = resp.data.find((e) => e[keyNotInTable] == id);
+        const del = resp.data.find((e) => e[keyNotInTable] == id);
         try {
           await deleteOP([EJSON.parse(del[mongoID])]);
           showNotification('success', 'delete OK');
@@ -1280,12 +1278,12 @@ function MongoTableList(props: {
       row: {
         onContextMenu: (e) => {
           const { currentTarget, target } = e;
-          let field = (target as HTMLDivElement).getAttribute('data-field');
+          const field = (target as HTMLDivElement).getAttribute('data-field');
           const id = (currentTarget as HTMLDivElement).getAttribute('data-id');
           if (!field) {
             return;
           }
-          let row = resp.data.find((e) => e[keyNotInTable] == id);
+          const row = resp.data.find((e) => e[keyNotInTable] == id);
           setUpMenu({
             content: (
               <MongoTableListContextMenu
@@ -1300,7 +1298,7 @@ function MongoTableList(props: {
                 field={field}
                 setFilter={setFilter}
                 loadDoc={async () => {
-                  let doc = resp.data.find((x) => x[keyNotInTable] == id);
+                  const doc = resp.data.find((x) => x[keyNotInTable] == id);
                   return await loadOne(EJSON.parse(doc[mongoID]));
                 }}
                 setSort={setSort}
@@ -1337,8 +1335,8 @@ function MongoTableList(props: {
   const [modalBox, setModalBox] = useState(null);
   useEffect(() => {
     if (modalBox) {
-      let c = saveAndSetSize(modalBox, 'mongo-list-modify');
-      return c;
+      const clean = saveAndSetSize(modalBox, 'mongo-list-modify');
+      return clean;
     }
   }, [modalBox]);
   return (
@@ -1643,7 +1641,7 @@ function MongoTable(props: {
 function MongoTableAdd(props: {
   addOP: (doc: BSON.Document) => Promise<void>;
 }) {
-  let { addOP } = props;
+  const { addOP } = props;
   const { showNotification } = useContext(NotificationContext);
   const handleAdd = async (doc) => {
     try {

@@ -266,8 +266,8 @@ function ColumnsStructure(props: {
 
   useEffect(() => {
     if (modalBox) {
-      let c = saveAndSetSize(modalBox, 'table-column', 'width');
-      return c;
+      const clean = saveAndSetSize(modalBox, 'table-column', 'width');
+      return clean;
     }
   }, [modalBox]);
   useEffect(() => {
@@ -1141,7 +1141,7 @@ function ModifyTableColumn(props: {
   typ: string;
   kind: DataSourceKind;
 }) {
-  let { uuid, table, col, handleClose, reload, typ, kind } = props;
+  const { uuid, table, col, handleClose, reload, typ, kind } = props;
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState(col);
   const [newTyp, setNewTyp] = useState(typ);
@@ -1493,7 +1493,7 @@ function TriggersStructure(props: {
         setLoading(false);
       });
   };
-  let callPara = { name: uuid, tableName: table };
+  const callPara = { name: uuid, tableName: table };
 
   const handleDrop = async (trigger) => {
     const confirm = await secondConfirm({

@@ -52,7 +52,11 @@ pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
         let file = REDIS_DOC_FILES
             .get_file(format!("{}-{}.md", command, tokens[1].value().to_lowercase()).as_str());
         match file {
-            Some(x) => return Ok(x.contents_utf8().unwrap().into()),
+            Some(file) => {
+                let mut ret = format!("## {} {}\n", tokens[0].value(), tokens[1].value());
+                ret.push_str(file.contents_utf8().unwrap());
+                return Ok(ret);
+            }
             None => {}
         }
     }

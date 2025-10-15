@@ -24,6 +24,7 @@ import {
 import ClearIcon from '@mui/icons-material/Clear';
 import {
   memo,
+  ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -137,7 +138,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
 
   const showAddConnection = async (conn?: types.DBConnectionConfig) => {
     const id = addConnectionID + (conn ? conn.name : '');
-    let webview = await WebviewWindow.getByLabel(id);
+    const webview = await WebviewWindow.getByLabel(id);
     if (webview) {
       await webview.setFocus();
     } else {
@@ -164,8 +165,8 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
       showAddConnection();
     });
     return () => {
-      unlisten.then((e) => {
-        e();
+      unlisten.then((callback) => {
+        callback();
       });
     };
   }, []);
@@ -412,7 +413,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
         onContextMenu: (e) => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
-          let field = extractFieldAndIDFromMouseEvent(e).field;
+          const field = extractFieldAndIDFromMouseEvent(e).field;
           if (!field) {
             return;
           }
@@ -470,7 +471,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
 
   const handleReload = async () => {
     try {
-      let conns = await appStore.get<types.DBConnectionConfig[]>(
+      const conns = await appStore.get<types.DBConnectionConfig[]>(
         AppStoreKey.ConnectionConfig
       );
       setConns(conns);
@@ -555,9 +556,9 @@ function Left_() {
       if (matchPattern.length == 0) {
         return true;
       }
-      for (let i = 0; i < matchPattern.length; i++) {
-        const m = wcmatch('*' + matchPattern[i] + '*', { flags: 'i' });
-        if (m(x)) {
+      for (const mp of matchPattern) {
+        const matchFn = wcmatch('*' + mp + '*', { flags: 'i' });
+        if (matchFn(x)) {
           return true;
         }
       }
@@ -681,7 +682,7 @@ function FavoriteSqlList(props: { handleClose }) {
   const { setTabs, setSelectTab } = useContext(TabsSetContext);
 
   const checkConnOpened = async (uuid: string) => {
-    let connOpened = await invoke<boolean>('conn_opened', { name: uuid });
+    const connOpened = await invoke<boolean>('conn_opened', { name: uuid });
     if (!connOpened) {
       showNotification(
         'error',
@@ -899,7 +900,7 @@ function FavoriteSqlList(props: { handleClose }) {
 
 const OneConnection = memo(OneConfig_);
 function OneConfig_(props: { config: types.DBConnectionConfig }) {
-  let { config } = props;
+  const { config } = props;
   const [opened, setOpened] = useState(false);
 
   const makeTree = () => {
@@ -1363,7 +1364,7 @@ function AllKindQuery(props: {
   favoriteName?: string;
 }) {
   const { kind, uuid, value, favoriteName } = props;
-  let content;
+  let content: ReactNode;
   const { showNotification } = useContext(NotificationContext);
   switch (kind) {
     case DataSourceKind.MsSql:

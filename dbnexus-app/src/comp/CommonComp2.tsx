@@ -46,7 +46,12 @@ import { extractBaseName, getNamedConfig, reloadOK } from './Common';
 import types from './ApiStruct';
 import { MetaValueView } from './CommonComp';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
-import { save, SaveDialogOptions, open } from '@tauri-apps/plugin-dialog';
+import {
+  save,
+  SaveDialogOptions,
+  open,
+  DialogFilter,
+} from '@tauri-apps/plugin-dialog';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import ReactMarkdown from 'react-markdown';
 import {
@@ -363,7 +368,7 @@ function EditorBar(props: { left?: any; pos: Position }) {
   );
 }
 
-let infoWindows = new Map<String, WebviewWindow>();
+const infoWindows = new Map<String, WebviewWindow>();
 
 function MenuConnectionInfo({ uuid }) {
   const { showNotification } = useContext(NotificationContext);
@@ -407,7 +412,7 @@ function ConnConfigInfo(props: { uuid }) {
   const [metas, setMetas] = useState<types.MetaValue[]>([]);
   const handleInfo = async (showOK: boolean) => {
     try {
-      let metas = await invoke<types.MetaValue[]>('server_metas', {
+      const metas = await invoke<types.MetaValue[]>('server_metas', {
         name: uuid,
       });
       const config = await getNamedConfig(uuid);
@@ -502,7 +507,7 @@ function LoadStoreFileForQuery(props: {
     }
   };
   const saveOpt = useMemo(() => {
-    let filters;
+    let filters: DialogFilter[];
     switch (kind) {
       case DataSourceKind.Mongo:
         filters = [
@@ -547,7 +552,7 @@ function LoadStoreFileForQuery(props: {
       return;
     }
     try {
-      let ofile = file ? file : await save(saveOpt);
+      const ofile = file ? file : await save(saveOpt);
       if (ofile) {
         await writeFile(ofile, new TextEncoder().encode(content), {
           create: true,
@@ -563,7 +568,7 @@ function LoadStoreFileForQuery(props: {
 
   const handleClose = async () => {
     try {
-      let fileContent = new TextDecoder().decode(await readFile(file));
+      const fileContent = new TextDecoder().decode(await readFile(file));
       if (fileContent != getQuery()) {
         const confirm = await secondConfirm({
           title: 'file not saved',

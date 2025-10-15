@@ -164,13 +164,13 @@ function WindowFocus(props: { children: ReactNode }) {
   const { children } = props;
   const [windowFocus, setWindowsFocus] = useState(true);
   useEffect(() => {
-    let webview = WebviewWindow.getCurrent();
-    let x = webview.onFocusChanged((e) => {
+    const webview = WebviewWindow.getCurrent();
+    const unlisten = webview.onFocusChanged((e) => {
       setWindowsFocus(e.payload);
     });
     return () => {
-      x.then((c) => {
-        c();
+      unlisten.then((callback) => {
+        callback();
       });
     };
   }, []);
@@ -185,7 +185,7 @@ function Menu(props: { children: ReactNode }) {
   const [menu, setUpMenu] = useState<{
     content: ReactNode;
     event: MouseEvent;
-  }>();
+  }>(null);
 
   const menuDiv = useRef<HTMLDivElement>(null);
 
@@ -199,6 +199,9 @@ function Menu(props: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!menu) {
+      return;
+    }
     menuDiv.current.style.display = 'block';
     if (menu && menu.event) {
       menu.event.preventDefault();
@@ -217,6 +220,8 @@ function Menu(props: { children: ReactNode }) {
           maxHeight: '48vh',
           overflow: 'auto',
           display: 'block',
+          border: '1px solid gray',
+          borderRadius: '0.5rem',
           ...(menu && calMenuStyle(menu.event)),
         }}
       >

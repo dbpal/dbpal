@@ -62,12 +62,12 @@ function setUpDatabase() {
   })
 }
 
-setUpDatabase();
+
 
 function rustResultOk(x: any): boolean {
   if (x instanceof Array) {
-    for (let i = 0; i < x.length; i++) {
-      if (!rustResultOk(x[i])) {
+    for (const e of x) {
+      if (!rustResultOk(e)) {
         return false;
       }
     }
@@ -91,7 +91,7 @@ class QueryLogHandler {
   }
 
   query(matchSql: string, page: number, pageSize: number, order_by: string): Promise<any[]> {
-    let sql = `
+    const sql = `
     select * from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""} order by ${order_by ? order_by : 'create_at desc'} limit ${pageSize} offset ${pageSize * (page - 1)}`;
     console.log("query log sql:", sql);
     return appDatabase.select(sql, [this.uuid])
@@ -381,7 +381,7 @@ class SaveLoggerStreamPinToBotton {
 }
 
 {
-  let x = await appStore.get(AppStoreKey.LoggerStreamPinToBotton);
+  const x = await appStore.get(AppStoreKey.LoggerStreamPinToBotton);
   if (typeof x == 'boolean') {
     SaveLoggerStreamPinToBotton.instance.pinToBotton = x;
   }
@@ -399,7 +399,7 @@ class SaveLeftTopShow {
   static instance = new SaveLeftTopShow();
 }
 {
-  let x = await appStore.get(AppStoreKey.LeftTopShow);
+  const x = await appStore.get(AppStoreKey.LeftTopShow);
   if (typeof x == 'boolean') {
     SaveLeftTopShow.instance.leftTopShow = x;
   }
@@ -419,7 +419,7 @@ class SaveMatchPattern {
   static instance = new SaveMatchPattern();
 }
 {
-  let x = await appStore.get<string[]>(AppStoreKey.MatchPattern);
+  const x = await appStore.get<string[]>(AppStoreKey.MatchPattern);
   if (x) {
     SaveMatchPattern.instance.matchPattern = x;
   }
@@ -624,8 +624,8 @@ type UISize = {
 };
 const gridStyle = { height: "auto", maxHeight: "80vh" } as CSSProperties;
 
-function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "both" = "both") {
-  let e = new ResizeObserver((en) => {
+function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "both" = "both"): () => void {
+  const e = new ResizeObserver((en) => {
     const height = en[0].target.clientHeight;
     const width = en[0].target.clientWidth;
     if (width && height) {
@@ -634,7 +634,7 @@ function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "bo
   });
   SaveDomSizes.getSize(key).then(size => {
     if (size) {
-      let div = (dom as HTMLDivElement);
+      const div = (dom as HTMLDivElement);
       if (set == "height" || set == "both") {
         if (size.height) {
           div.style.height = size.height + 'px';
@@ -682,8 +682,8 @@ class MongoTableHandler {
         page,
         pageSize,
       }).then(x => {
-        let docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
-        let count = x.count;
+        const docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
+        const count = x.count;
         return new DocsAndCount(docs, count);
       });
     }
@@ -759,15 +759,15 @@ class UserSetting {
     if (!x) {
       x = {};
     }
-    let r = new UserSetting();
+    const r = new UserSetting();
     for (const key in x) {
       r[key] = x[key];
     }
     return r;
   }
   static async set(x: object): Promise<void> {
-    let old = await UserSetting.get();
-    let s = { ...old, ...x };
+    const old = await UserSetting.get();
+    const s = { ...old, ...x };
     return appStore.set(AppStoreKey.UserSetting, s);
   }
 }
@@ -814,7 +814,7 @@ const udfIdGenerate = (
   uuid: string,
   typ: string,
 ) => {
-  let idPrefix = `${uuid} + ${typ} + ${named.name}-`;
+  const idPrefix = `${uuid} + ${typ} + ${named.name}-`;
   switch (kind) {
     case DataSourceKind.Postgres:
     case DataSourceKind.Cockroach:
@@ -1003,13 +1003,13 @@ async function webviewWIndowInit(isMain: boolean) {
       if (!theme) {
         return;
       }
-      let set = await UserSetting.get();
+      const set = await UserSetting.get();
       set.theme = theme;
       appStore.set(AppStoreKey.UserSetting, set);
     });
 
     currentWebview.onThemeChanged(async (msg) => {
-      let set = await UserSetting.get();
+      const set = await UserSetting.get();
       set.theme = msg.payload;
       appStore.set(AppStoreKey.UserSetting, set);
     });
@@ -1043,8 +1043,8 @@ enum RedisTableType {
 
 function extractFieldAndIDFromMouseEvent(e: MouseEvent) {
   const { currentTarget, target } = e;
-  let field = (target as HTMLDivElement).getAttribute('data-field');
-  let id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+  const field = (target as HTMLDivElement).getAttribute('data-field');
+  const id = (currentTarget as HTMLDivElement).getAttribute('data-id');
   return { field, id };
 }
 
@@ -1099,7 +1099,7 @@ class SomeTempStore {
   }
   static get<T>(): T {
     try {
-      let x = localStorage.getItem(SomeTempStore.id);
+      const x = localStorage.getItem(SomeTempStore.id);
       if (x) {
         // localStorage.removeItem(SomeTempStore.id);
         return JSON.parse(x) as T;
@@ -1208,6 +1208,7 @@ export {
   isMacOs,
   LoggerLevel,
   SaveLoggerStreamPinToBotton,
+  setUpDatabase,
 };
 
 

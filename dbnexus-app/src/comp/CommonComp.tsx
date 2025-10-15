@@ -319,15 +319,15 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
 
   const handleOpenXXX = async () => {
     // try promote use to enter a password.
-    let config = await getNamedConfig(name);
+    const config = await getNamedConfig(name);
     if (!config) {
       return;
     }
     const has = await invoke('has_entered_password', { name: name });
     if (!has) {
-      let key = 'save_password';
+      const key = 'save_password';
       if (false === config[key]) {
-        let pass = window.prompt(`enter password for '${name}'`);
+        const pass = window.prompt(`enter password for '${name}'`);
         // macos will return null directly
         if (pass == null) {
           return;
@@ -410,10 +410,10 @@ function MenuDeleteConfig({ name }) {
       );
     }
     try {
-      let old = await appStore.get<types.DBConnectionConfig[]>(
+      const old = await appStore.get<types.DBConnectionConfig[]>(
         AppStoreKey.ConnectionConfig
       );
-      let newData = old.filter((e) => e.name != name);
+      const newData = old.filter((e) => e.name != name);
       await invoke('close_conn', { name });
       await FavoriteSql.deleteByConnectionName(name);
       await QueryLogHandler.deleteByConnectionname(name);
@@ -499,7 +499,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
         onContextMenu: (e) => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
-          let field = extractFieldAndIDFromMouseEvent(e).field;
+          const field = extractFieldAndIDFromMouseEvent(e).field;
 
           if (!field) {
             return;
@@ -1020,19 +1020,19 @@ function ExportMarkDownTable(props: {
     });
     ret += '|\n';
     includes.forEach(() => {
-      let a: string;
+      let alignText: string;
       switch (align) {
         case 'left':
-          a = ':----';
+          alignText = ':----';
           break;
         case 'right':
-          a = '-----:';
+          alignText = '-----:';
           break;
         case 'center':
-          a = ':---:';
+          alignText = ':---:';
           break;
       }
-      ret += '|' + a;
+      ret += '|' + alignText;
     });
     ret += '|\n';
 
@@ -1049,7 +1049,7 @@ function ExportMarkDownTable(props: {
       showNotification('error', 'Please select column');
       return;
     }
-    let markdown = makeMarkDownStr();
+    const markdown = makeMarkDownStr();
     if (toClipBoard) {
       handleCopyToClipboard(markdown, undefined, () => {
         showNotification('success', 'export OK');

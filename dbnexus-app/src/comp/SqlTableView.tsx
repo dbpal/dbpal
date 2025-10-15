@@ -146,8 +146,8 @@ function SetFilterSort(props: {
   const setting = useContext(SettingContext);
   useEffect(() => {
     if (modalBox) {
-      let c = saveAndSetSize(modalBox, 'where-sort');
-      return c;
+      const clean = saveAndSetSize(modalBox, 'where-sort');
+      return clean;
     }
   }, [modalBox]);
 
@@ -376,9 +376,9 @@ function SqlTableView_(props: {
     for (let i = 0; i < resp.fields.length; i++) {
       let field = resp.fields[i] as FieldAndGridField;
       field.renderHeader = (e) => {
-        let def = e.colDef as unknown as FieldAndGridField;
+        const def = e.colDef as unknown as FieldAndGridField;
         const makeTitle = (): string => {
-          let f = def as unknown as FieldAndGridField;
+          const f = def as unknown as FieldAndGridField;
           let ret = f.field + ' ';
           ret += f.data_type;
           if (f.nullable) {
@@ -451,7 +451,7 @@ function SqlTableView_(props: {
         return newRow;
       }
       const findDiff = (): Map<string, string | null> => {
-        let m = new Map();
+        const m = new Map();
         for (const key in newRow) {
           if (newRow[key] != oldRow[key]) {
             m.set(key, newRow[key]);
@@ -469,7 +469,7 @@ function SqlTableView_(props: {
         return oldRow;
       }
       try {
-        let ret = await updateOP(old, updateRow);
+        const ret = await updateOP(old, updateRow);
         showNotification(
           'success',
           'Update OK',
@@ -575,7 +575,7 @@ function SqlTableView_(props: {
           let row = { ...resp.data.find((e) => e[keyNotInTable] == id) };
           const content = row[field];
           delete row[keyNotInTable];
-          let nullable = resp.fields.find((e) => e.field == field).nullable;
+          const nullable = resp.fields.find((e) => e.field == field).nullable;
           setUpMenu({
             content: (
               <Menu
@@ -627,12 +627,14 @@ function SqlTableView_(props: {
                 setNull={
                   updateOP
                     ? async () => {
-                        let x = resp.data.find((e) => e[keyNotInTable] == id);
+                        const row = resp.data.find(
+                          (e) => e[keyNotInTable] == id
+                        );
                         try {
-                          let values = {};
+                          const values = {};
                           values[field] = null;
-                          delete x[keyNotInTable];
-                          await updateOP(x, values);
+                          delete row[keyNotInTable];
+                          await updateOP(row, values);
                         } catch (e) {
                           showNotification('error', 'update failed', e);
                           return;
@@ -888,7 +890,7 @@ function SqlTableView_(props: {
             <EditInModal
               content={editCellInModal.content}
               handleModify={async (value) => {
-                let newRow = { ...editCellInModal.row };
+                const newRow = { ...editCellInModal.row };
                 newRow[editCellInModal.field] = value;
                 await handleProcessRowUpdate(newRow, editCellInModal.row);
                 handleReload(false);
@@ -1090,7 +1092,7 @@ function SqlTableViewData(props: {
                 fullWidth
                 onChange={(e) => {
                   const value = e.target.value;
-                  let newArgs = { ...args };
+                  const newArgs = { ...args };
                   newArgs[f.field] = value;
                   setArgs(newArgs);
                 }}
@@ -1399,7 +1401,7 @@ function FilterOnValue(props: {
   }, []);
 
   const where = () => {
-    let quoteField = quoteDatabaseIdentifier(kind)(field);
+    const quoteField = quoteDatabaseIdentifier(kind)(field);
     if (compare == 'null') {
       return `${quoteField} IS NULL`;
     }

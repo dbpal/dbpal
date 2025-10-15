@@ -96,10 +96,10 @@ class MongoDBQueryFind extends MongoDBQueryFindCommon implements IFind {
     return this;
   }
   find() {
-    let x = this.makeCommonArg();
+    const x = this.makeCommonArg();
     x.limit = this._limit;
     return invoke<number[][]>('mongo_query_collection_find', x).then(e => {
-      let x = e.map(x => new Uint8Array(x)).map((e) => BSON.deserialize(e));
+      const x = e.map(x => new Uint8Array(x)).map((e) => BSON.deserialize(e));
       return x
     })
   }
@@ -107,9 +107,9 @@ class MongoDBQueryFind extends MongoDBQueryFindCommon implements IFind {
 
 class MongoDBQueryFindOne extends MongoDBQueryFindCommon implements IFindOne {
   find() {
-    let x = this.makeCommonArg();
+    const x = this.makeCommonArg();
     return invoke<number[]>('mongo_query_collection_find_one', x).then(e => {
-      let x = BSON.deserialize(new Uint8Array(e));
+      const x = BSON.deserialize(new Uint8Array(e));
       return x
     })
   }

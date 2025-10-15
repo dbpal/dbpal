@@ -234,29 +234,31 @@ function ModifySetting() {
         <Typography width={headerSize} textAlign="right" style={{ fontFamily }}>
           font family:
         </Typography>
+        {allFonts.length > 0 && (
+          <Select
+            onChange={(e) => setFontFamily(e.target.value as string)}
+            style={{ minWidth: '12rem' }}
+            value={fontFamily}
+          >
+            <MenuItem style={{ fontFamily: undefined }} value=""></MenuItem>
+            {allFonts
+              .filter((f) => {
+                if (fontMatch) {
+                  return f.toLowerCase().includes(fontMatch.toLowerCase());
+                } else {
+                  return true;
+                }
+              })
+              .map((f) => {
+                return (
+                  <MenuItem style={{ fontFamily: f }} value={f} key={f}>
+                    {f}
+                  </MenuItem>
+                );
+              })}
+          </Select>
+        )}
 
-        <Select
-          onChange={(e) => setFontFamily(e.target.value as string)}
-          style={{ minWidth: '12rem' }}
-          value={fontFamily}
-        >
-          <MenuItem style={{ fontFamily: undefined }} value=""></MenuItem>
-          {allFonts
-            .filter((f) => {
-              if (fontMatch) {
-                return f.toLowerCase().includes(fontMatch.toLowerCase());
-              } else {
-                return true;
-              }
-            })
-            .map((f) => {
-              return (
-                <MenuItem style={{ fontFamily: f }} value={f} key={f}>
-                  {f}
-                </MenuItem>
-              );
-            })}
-        </Select>
         <TextField
           label="match font"
           value={fontMatch}

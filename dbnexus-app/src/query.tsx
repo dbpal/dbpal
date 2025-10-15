@@ -25,7 +25,7 @@ await initMonacoLanguage(sqlData.uuid, sqlData.kind, (msg) => {
 
 // close confirm message
 // when in transaction prevent user to close the window
-let cc;
+let exitConfirmMessage: string;
 
 function Query(props: {
   uuid: string;
@@ -36,7 +36,7 @@ function Query(props: {
   const { uuid, kind, sql, favoriteName } = props;
   const [closeConfirm, setCloseConfirm] = useState('');
   useEffect(() => {
-    cc = closeConfirm;
+    exitConfirmMessage = closeConfirm;
   }, [closeConfirm]);
   return (
     <SetCloseConfirmTextContext
@@ -57,12 +57,12 @@ function Query(props: {
 
 const currentWebview = await WebviewWindow.getCurrent();
 currentWebview.onCloseRequested(async (event) => {
-  if (!cc) {
+  if (!exitConfirmMessage) {
     return;
   }
   const confirm = await secondConfirm({
     title: 'close the window',
-    content: cc,
+    content: exitConfirmMessage,
     confirmText: 'close',
   });
   if (!confirm) {

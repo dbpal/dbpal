@@ -351,6 +351,7 @@ function SqlQuery(props: {
     conn
       .queryOP(text, append)
       .then((resp) => {
+        console.log('query resp:', resp);
         if (setting.saveQueryLog) {
           queryLogHandler.current.save(
             text,

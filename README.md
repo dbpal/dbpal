@@ -69,3 +69,6 @@ perl -e 'print "hello world\n" x 1024 for 1..2048' > dbpal.log
 https://github.com/tauri-apps/tauri/issues/13749
 
 
+
+
+CONFIG HELP redis返回的值不对啊

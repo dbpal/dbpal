@@ -42,7 +42,7 @@ import { GridColDef } from '@mui/x-data-grid';
 const getNamedConfig = async (
   name: string
 ): Promise<types.DBConnectionConfig> => {
-  let x = await appStore.get<types.DBConnectionConfig[]>(
+  const x = await appStore.get<types.DBConnectionConfig[]>(
     AppStoreKey.ConnectionConfig
   );
   if (!x) {
@@ -100,7 +100,7 @@ const msgTimeout = 10000;
 
 function tabsHasId(tabs: TabContent[], id: string): number | null {
   for (let i = 0; i < tabs.length; i++) {
-    let tab = tabs[i];
+    const tab = tabs[i];
     if (tab.id === id) {
       return i;
     }
@@ -125,13 +125,13 @@ const autoCompletion = async (
   pos: Position
 ): Promise<languages.CompletionList> => {
   try {
-    let sql = modal.getValue();
-    let name = SetAutoCompletionName.get(modal.id);
+    const sql = modal.getValue();
+    const name = SetAutoCompletionName.get(modal.id);
     if (!name) {
       message("auto completion name is null this is a bug", { kind: 'error' });
       return;
     }
-    let completionItem = await invoke<types.CompletionItem[]>(
+    const completionItem = await invoke<types.CompletionItem[]>(
       'auto_completion',
       {
         sql,
@@ -141,7 +141,7 @@ const autoCompletion = async (
         queryId: name.queryId
       }
     );
-    let suggestions = backendCompletionItemToEditor(completionItem);
+    const suggestions = backendCompletionItemToEditor(completionItem);
     return suggestions;
   } catch (e) {
     console.log('completion server error:', e);
@@ -578,22 +578,20 @@ class QueryConn implements IQueryConn {
     });
   }
   queryOP(sql: string, append: boolean): Promise<any[]> {
-
-    let x = invoke<any[]>('query_sql', {
+    return invoke<any[]>('query_sql', {
       name: this.uuid,
       queryId: this.queryId,
       sql,
       append
     });
-    return x;
+
   }
   executeOP(sql: string): Promise<any> {
-    let x = invoke<any[]>('execute_sql', {
+    return invoke<any[]>('execute_sql', {
       name: this.uuid,
       queryId: this.queryId,
       sql,
     });
-    return x;
   }
 
   reconnect(): Promise<IQueryConn> {
@@ -664,8 +662,8 @@ function makeShowTableFn(uuid: string, table: string) {
     pageSize: number,
     extra
   ) => {
-    let where_null = where ? where : null;
-    let orderBy_null = orderBy ? orderBy : null;
+    const where_null = where ? where : null;
+    const orderBy_null = orderBy ? orderBy : null;
     return await invoke<MuiDataGridData>('show_table', {
       name: uuid,
       tableName: table,
@@ -687,8 +685,8 @@ function makeShowViewFn(uuid: string, view: string) {
     pageSize: number,
     extra
   ) => {
-    let where_null = where ? where : null;
-    let orderBy_null = orderBy ? orderBy : null;
+    const where_null = where ? where : null;
+    const orderBy_null = orderBy ? orderBy : null;
     return await invoke<MuiDataGridData>('show_view', {
       name: uuid,
       viewName: view,

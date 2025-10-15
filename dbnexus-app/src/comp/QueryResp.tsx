@@ -132,7 +132,7 @@ function RespContextMenu(props: {
 }
 
 function QueryResp_(props: { data: MuiDataGridData }) {
-  let { data: oldData } = props;
+  const { data: oldData } = props;
   const [data, setData] = useState<MuiDataGridData>(null);
   const setting = useContext(SettingContext);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
@@ -146,7 +146,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
         field['width'] = width;
       }
       field['renderHeader'] = (e) => {
-        let def = e.colDef as types.Field;
+        const def = e.colDef as types.Field;
         return (
           <Tooltip title={`${def.field} ${def.data_type}`}>
             <span> {def.field}</span>
@@ -315,14 +315,14 @@ function getRowId(row) {
   return row[keyNotInTable];
 }
 
-let styleForTrans: CSSProperties = {
+const styleForTrans: CSSProperties = {
   transition: 'all 0.5s ease',
   position: 'relative',
   overflow: 'hidden',
 };
 
 function MultiQueryResp_(props: { data: any[] }) {
-  let { data: oldData } = props;
+  const { data: oldData } = props;
   const [data, setData] = useState([]);
   const [top, setTop] = useState(0);
   const [value, setValue] = React.useState(0);

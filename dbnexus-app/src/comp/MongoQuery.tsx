@@ -62,8 +62,8 @@ function makeLog(level, ...msg: any[]): string {
         return JSON.stringify(e);
     }
   };
-  let msg2 = msg.flat();
-  let str = msg2.map((e) => encode(e)).join(' ');
+  const msg2 = msg.flat();
+  const str = msg2.map((e) => encode(e)).join(' ');
   return `${new Date().toLocaleString()}-${level} ${str}\n`;
 }
 
@@ -94,7 +94,7 @@ function MongoQuery(props: {
   const [logger, _setLogger] = useState(
     loglevel.getLogger(generateRandomString(10))
   );
-  let setting = useContext(SettingContext);
+  const setting = useContext(SettingContext);
   const [loggerLevel, setLoggerLevel] = useState(LoggerLevel.level);
   const [db, _] = useState(new MongoDBQuery(uuid));
   const [bsonExtraDataType, _setBsonExtraDataTypes] = useState(
@@ -113,7 +113,7 @@ function MongoQuery(props: {
     setLoggerEditor(editor);
     logger.methodFactory = (level) => {
       return (...args) => {
-        let l = makeLog(level, args);
+        const l = makeLog(level, args);
         modifyEditorContent(editor, l);
       };
     };
@@ -134,7 +134,7 @@ function MongoQuery(props: {
     });
   };
   const handleExecute = () => {
-    let code = editor.current.getValue();
+    const code = editor.current.getValue();
     if (!code.trim()) {
       showNotification('error', "can't execute empty statement");
       return;

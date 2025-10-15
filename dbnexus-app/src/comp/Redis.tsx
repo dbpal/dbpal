@@ -89,13 +89,13 @@ function RedisAddList(props: {
   const { showNotification } = useContext(NotificationContext);
   const valueRef = useRef(new EditorAndMode());
   const handleAdd = () => {
-    let c = valueRef.current.getValue();
-    if (!c) {
+    const content = valueRef.current.getValue();
+    if (!content) {
       showNotification('error', 'Please input value');
       return;
     }
     setLoading(true);
-    (direction == 'left' ? lpushOP : rpushOP)(c)
+    (direction == 'left' ? lpushOP : rpushOP)(content)
       .then(() => {
         showNotification('success', 'Push OK');
       })
@@ -636,7 +636,7 @@ function RedisEditList(props: {
   index: number;
   handleClose: () => void;
 }) {
-  let { oldValue, modifyOP, handleClose, index } = props;
+  const { oldValue, modifyOP, handleClose, index } = props;
   const [loading, setLoading] = useState(false);
   const newValue = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
@@ -673,7 +673,7 @@ function RedisEditSet(props: {
   oldValue: string;
   handleClose: () => void;
 }) {
-  let { oldValue, modifyOP, handleClose } = props;
+  const { oldValue, modifyOP, handleClose } = props;
   const [loading, setLoading] = useState(false);
   const newValue = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
@@ -776,7 +776,7 @@ function RedisSetTable(props: {
   }, []);
 
   const handleDel = async (id: string) => {
-    let del = resp.data.find((e) => e['id'] == id);
+    const del = resp.data.find((e) => e['id'] == id);
     try {
       await delOP(del.value);
       showNotification('success', 'Delete OK');
@@ -829,8 +829,8 @@ function RedisSetTable(props: {
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modalBox) {
-      let c = saveAndSetSize(modalBox, 'redis-edit');
-      return c;
+      const clean = saveAndSetSize(modalBox, 'redis-edit');
+      return clean;
     }
   }, [modalBox]);
 
@@ -1079,7 +1079,7 @@ function RedisListTable(props: {
   }, []);
 
   const handleDel = async (id, deleteCount: number) => {
-    let del = resp.data.find((e) => e.id == id);
+    const del = resp.data.find((e) => e.id == id);
     try {
       await delOP(deleteCount, del.value);
       showNotification('success', 'Delete OK');
@@ -1113,7 +1113,7 @@ function RedisListTable(props: {
         setResp(respOrigin);
         return;
       }
-      let s = c[0];
+      const s = c[0];
       if (!s.sort) {
         setResp(respOrigin);
         return;
@@ -1169,8 +1169,8 @@ function RedisListTable(props: {
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modalBox) {
-      let c = saveAndSetSize(modalBox, 'redis-edit');
-      return c;
+      const clean = saveAndSetSize(modalBox, 'redis-edit');
+      return clean;
     }
   }, [modalBox]);
   const onColumnResize = useCallback(({ colDef, width }) => {
@@ -1334,8 +1334,8 @@ function RedisZsetTable(props: {
     if (minErr || maxErr) {
       return;
     }
-    let minValue = parseFloat(min);
-    let maxValue = parseFloat(max);
+    const minValue = parseFloat(min);
+    const maxValue = parseFloat(max);
     setLoading(true);
     reloadOP(keyMatch, minValue, maxValue)
       .then((resp) => {
@@ -1370,7 +1370,7 @@ function RedisZsetTable(props: {
   }, []);
 
   const handleDel = async (id: string) => {
-    let del = resp.data.find((e) => e['id'] == id);
+    const del = resp.data.find((e) => e['id'] == id);
     try {
       await delOP(del.key);
       showNotification('success', 'Delete OK');
@@ -1421,8 +1421,8 @@ function RedisZsetTable(props: {
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modalBox) {
-      let c = saveAndSetSize(modalBox, 'redis-edit');
-      return c;
+      const clean = saveAndSetSize(modalBox, 'redis-edit');
+      return clean;
     }
   }, [modalBox]);
   const onColumnResize = useCallback(({ colDef, width }) => {
@@ -1701,7 +1701,7 @@ function RedisHashTable(props: {
   }, []);
 
   const handleDel = async (id: string) => {
-    let del = resp.data.find((e) => e['id'] == id);
+    const del = resp.data.find((e) => e['id'] == id);
     try {
       await delOP(del.key);
       showNotification('success', 'Delete OK');
@@ -1752,8 +1752,8 @@ function RedisHashTable(props: {
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modalBox) {
-      let c = saveAndSetSize(modalBox, 'redis-edit');
-      return c;
+      const clean = saveAndSetSize(modalBox, 'redis-edit');
+      return clean;
     }
   }, [modalBox]);
   const onColumnResize = useCallback(({ colDef, width }) => {

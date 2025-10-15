@@ -449,7 +449,7 @@ function ViewTree(props: {
   const { uuid } = useContext(UuidContext);
   const { kind: conn_type } = useContext(ConnTypeContext);
   const { setUpMenu } = useContext(ContextMenuContext);
-  let icon = getIcon(viewKind);
+  const icon = getIcon(viewKind);
 
   return (
     <TreeItem

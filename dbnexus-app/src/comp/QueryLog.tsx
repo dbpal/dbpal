@@ -68,7 +68,7 @@ function QueryLog(props: {
   queryId?: number;
   kind: QueryLogKind;
 }) {
-  let {
+  const {
     uuid,
     showQueryLog,
     setShowQueryLog,
@@ -115,7 +115,7 @@ function QueryLog(props: {
   const { showNotification } = useContext(NotificationContext);
   const handleReload = async () => {
     try {
-      let total = await handler.current.queryCount(matchSql);
+      const total = await handler.current.queryCount(matchSql);
       setTotal(total);
       const logs = await handler.current.query(
         matchSql,
@@ -146,8 +146,8 @@ function QueryLog(props: {
       width: ColumnWidth.instance.get('success'),
       field: 'success',
       renderCell: (p) => {
-        let s = p.row.success;
-        if (s) {
+        const success = p.row.success;
+        if (success) {
           return <DoneIcon color="success"></DoneIcon>;
         } else {
           return <CloseIcon color="error"></CloseIcon>;
@@ -172,7 +172,7 @@ function QueryLog(props: {
 
   const setting = useContext(SettingContext);
   const onColumnResize = useCallback(({ colDef, width }) => {
-    let field = colDef.field;
+    const field = colDef.field;
     if (field == 'create_at' || field == 'success') {
       ColumnWidth.instance.save(field, width);
     }
@@ -185,8 +185,8 @@ function QueryLog(props: {
   const [modalBox, setModalBox] = useState(null);
   useEffect(() => {
     if (modalBox) {
-      let c = saveAndSetSize(modalBox, 'query-sql');
-      return c;
+      const clean = saveAndSetSize(modalBox, 'query-sql');
+      return clean;
     }
   }, [modalBox]);
   const [dom, setDom] = useState<HTMLDivElement>(null);

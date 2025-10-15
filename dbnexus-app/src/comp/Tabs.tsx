@@ -56,7 +56,7 @@ function TabsMenu(props: {
         <MenuItem
           onClick={() => {
             setTabs((e) => {
-              let x = e.slice(0, index + 1);
+              const x = e.slice(0, index + 1);
               if (selectIndex > index) {
                 changeTab(index);
               }
@@ -71,7 +71,7 @@ function TabsMenu(props: {
         <MenuItem
           onClick={() => {
             setTabs((e) => {
-              let x = [e[selectIndex]];
+              const x = [e[selectIndex]];
               changeTab(0);
               return x;
             });

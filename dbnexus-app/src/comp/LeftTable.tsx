@@ -109,7 +109,7 @@ function TablesTree(props: { typ: TableType }) {
   }, [tables, matchPattern]);
   const handleReload = () => {
     setLoading(true);
-    let invokeName;
+    let invokeName: string;
     switch (typ) {
       case TableType.Normal:
         invokeName = 'list_table';
@@ -1149,7 +1149,7 @@ function RedisOneTableKind(props: {
       name = 'hash';
       break;
   }
-  let tablesID = useRef(generateRandomString());
+  const tablesID = useRef(generateRandomString());
   const { setUpMenu } = useContext(ContextMenuContext);
   return (
     <TreeItem
@@ -1235,7 +1235,7 @@ function RedisTables() {
   }, [filter]);
 
   const [showEditFilter, setShowEditFilter] = useState(false);
-  let filterTreeID = useRef(generateRandomString());
+  const filterTreeID = useRef(generateRandomString());
   return (
     <>
       <TreeItem
