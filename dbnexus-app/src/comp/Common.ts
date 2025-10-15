@@ -184,6 +184,8 @@ function initLanguageXXX(
     });
 }
 
+
+
 function makeFormatFn(kind: DataSourceKind, showNotification?) {
   return (sql: string, opts?: languages.FormattingOptions) => {
     if (!opts) {
@@ -272,7 +274,6 @@ async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (
               [keywordReg, 'keyword'],
               [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
               [stringReg, 'string'],
-
               [singleLineCommentReg, 'comment'],
             ],
           },
@@ -776,8 +777,6 @@ function makeTableInsertFn(uuid, table) {
 }
 
 type FieldAndGridField = types.Field & GridColDef;
-
-
 
 export {
   modalStyle,

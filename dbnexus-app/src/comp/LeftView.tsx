@@ -66,14 +66,11 @@ import {
   SomeTempStore,
   TabsSetContext,
   UuidContext,
+  ViewKind,
 } from './helper';
 import { ExceedMaxTreeItem, MenuRefresh } from './CommonComp';
 import { MongoTable } from './MongoDB';
 
-enum ViewKind {
-  Normal,
-  Materialized,
-}
 import {
   DataGrid,
   GridColDef,

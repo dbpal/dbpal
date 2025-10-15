@@ -1160,9 +1160,9 @@ dependencies = [
 
 [[package]]
 name = "cfg-if"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fd1289c04a9ea8cb22300a459a72a385d7c73d3259e2ed7dcb2af674838cfa9"
+checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "cfg_aliases"
@@ -5171,9 +5171,9 @@ dependencies = [
 
 [[package]]
 name = "openssl"
-version = "0.10.73"
+version = "0.10.74"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8505734d46c8ab1e19a1dce3aef597ad87dcb4c37e7188231769bd6bd51cebf8"
+checksum = "24ad14dd45412269e1a30f52ad8f0664f0f4f4a89ee8fe28c3b3527021ebb654"
 dependencies = [
  "bitflags 2.9.4",
  "cfg-if",
@@ -5203,9 +5203,9 @@ checksum = "d05e27ee213611ffe7d6348b942e8f942b37114c00cc03cec254295a4a17852e"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.109"
+version = "0.9.110"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90096e2e47630d78b7d1c20952dc621f957103f8bc2c8359ec81290d75238571"
+checksum = "0a9f0075ba3c21b09f8e8b2026584b1d18d49388648f2fbbf3c97ea8deced8e2"
 dependencies = [
  "cc",
  "libc",
@@ -7344,7 +7344,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#1b2b19fe8e840f8b49dab9c954e7697e94ce00df"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#946b6d4d162410df65c8eadd73b9ae7eef7db7a4"
 dependencies = [
  "sqlx-core 0.9.0-alpha.1",
  "sqlx-macros 0.9.0-alpha.1",
@@ -7391,7 +7391,7 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#1b2b19fe8e840f8b49dab9c954e7697e94ce00df"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#946b6d4d162410df65c8eadd73b9ae7eef7db7a4"
 dependencies = [
  "base64 0.22.1",
  "bigdecimal",
@@ -7445,7 +7445,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#1b2b19fe8e840f8b49dab9c954e7697e94ce00df"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#946b6d4d162410df65c8eadd73b9ae7eef7db7a4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7482,7 +7482,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros-core"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#1b2b19fe8e840f8b49dab9c954e7697e94ce00df"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#946b6d4d162410df65c8eadd73b9ae7eef7db7a4"
 dependencies = [
  "cfg-if",
  "dotenvy",
@@ -7550,7 +7550,7 @@ dependencies = [
 [[package]]
 name = "sqlx-mysql"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#1b2b19fe8e840f8b49dab9c954e7697e94ce00df"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#946b6d4d162410df65c8eadd73b9ae7eef7db7a4"
 dependencies = [
  "atoi",
  "base64 0.22.1",
@@ -7631,7 +7631,7 @@ dependencies = [
 [[package]]
 name = "sqlx-postgres"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#1b2b19fe8e840f8b49dab9c954e7697e94ce00df"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#946b6d4d162410df65c8eadd73b9ae7eef7db7a4"
 dependencies = [
  "atoi",
  "base64 0.22.1",
@@ -7698,7 +7698,7 @@ dependencies = [
 [[package]]
 name = "sqlx-sqlite"
 version = "0.9.0-alpha.1"
-source = "git+https://github.com/launchbadge/sqlx?branch=main#1b2b19fe8e840f8b49dab9c954e7697e94ce00df"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#946b6d4d162410df65c8eadd73b9ae7eef7db7a4"
 dependencies = [
  "atoi",
  "chrono",
@@ -10375,9 +10375,9 @@ dependencies = [
 
 [[package]]
 name = "zbus"
-version = "5.11.0"
+version = "5.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d07e46d035fb8e375b2ce63ba4e4ff90a7f73cf2ffb0138b29e1158d2eaadf7"
+checksum = "b622b18155f7a93d1cd2dc8c01d2d6a44e08fb9ebb7b3f9e6ed101488bad6c91"
 dependencies = [
  "async-broadcast",
  "async-executor",
@@ -10400,7 +10400,8 @@ dependencies = [
  "tokio",
  "tracing",
  "uds_windows",
- "windows-sys 0.60.2",
+ "uuid",
+ "windows-sys 0.61.2",
  "winnow 0.7.13",
  "zbus_macros",
  "zbus_names",
@@ -10409,9 +10410,9 @@ dependencies = [
 
 [[package]]
 name = "zbus_macros"
-version = "5.11.0"
+version = "5.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57e797a9c847ed3ccc5b6254e8bcce056494b375b511b3d6edcec0aeb4defaca"
+checksum = "1cdb94821ca8a87ca9c298b5d1cbd80e2a8b67115d99f6e4551ac49e42b6a314"
 dependencies = [
  "proc-macro-crate 3.4.0",
  "proc-macro2",
@@ -10598,9 +10599,9 @@ dependencies = [
 
 [[package]]
 name = "zvariant"
-version = "5.7.0"
+version = "5.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "999dd3be73c52b1fccd109a4a81e4fcd20fab1d3599c8121b38d04e1419498db"
+checksum = "2be61892e4f2b1772727be11630a62664a1826b62efa43a6fe7449521cb8744c"
 dependencies = [
  "endi",
  "enumflags2",
@@ -10613,9 +10614,9 @@ dependencies = [
 
 [[package]]
 name = "zvariant_derive"
-version = "5.7.0"
+version = "5.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6643fd0b26a46d226bd90d3f07c1b5321fe9bb7f04673cb37ac6d6883885b68e"
+checksum = "da58575a1b2b20766513b1ec59d8e2e68db2745379f961f86650655e862d2006"
 dependencies = [
  "proc-macro-crate 3.4.0",
  "proc-macro2",

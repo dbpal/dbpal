@@ -37,11 +37,10 @@ pub fn log_channel_store() -> &'static std::sync::Mutex<Option<Channel<String>>>
     &X
 }
 
-static REDIS_DOC_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../redis-doc/commands");
-
 #[tauri::command]
 
 pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
+    static REDIS_DOC_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../redis-doc/commands");
     let tokens = RedisToken::tokenize(line, 1).map_err(|e| ErrorFrontend::from(e))?;
     if tokens.is_empty() {
         return Err(ErrorFrontend::from("no tokens found,empty line??"));
@@ -134,7 +133,7 @@ pub fn has_entered_password(
 }
 
 #[tauri::command]
-pub async fn fonts_all_families() -> Result<Vec<String>, ErrorFrontend> {
+pub async fn all_font_family() -> Result<Vec<String>, ErrorFrontend> {
     let source = font_kit::source::SystemSource::new();
     let fonts = source.all_families().map_err(ErrorFrontend::from)?;
     Ok(fonts)

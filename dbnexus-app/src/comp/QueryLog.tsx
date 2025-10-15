@@ -39,6 +39,7 @@ import {
   dataGridParentStyle,
   pageSizeOptions,
   QueryLogHandler,
+  QueryLogKind,
   saveAndSetSize,
   SavePageSize,
   secondConfirm,
@@ -54,11 +55,6 @@ const initialState: object = {
   sorting: { sortModel: [{ field: 'create_at', sort: 'desc' }] },
 };
 
-enum QueryLogKind {
-  Sql,
-  Redis,
-  Mongo,
-}
 function QueryLog(props: {
   uuid: string;
   showQueryLog: boolean;

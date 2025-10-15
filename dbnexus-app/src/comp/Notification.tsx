@@ -18,6 +18,7 @@ import {
 import { AlertColor } from '@mui/material/Alert';
 import { msgTimeout } from './Common';
 import { handleCopyToClipboard } from './helper';
+import { message } from '@tauri-apps/plugin-dialog';
 
 interface NotificationContextProps {
   showNotification: (
@@ -29,7 +30,10 @@ interface NotificationContextProps {
 
 export const NotificationContext = createContext<NotificationContextProps>({
   showNotification: (...args) => {
-    console.error('should not call this function is is bug ,args :', args);
+    message('should not call this function is is bug ,args :', {
+      kind: 'error',
+    });
+    console.log('message args:', args);
   },
 });
 

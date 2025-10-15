@@ -1,5 +1,12 @@
 'use strict';
-import { CSSProperties, useContext, useEffect, useRef, useState } from 'react';
+import {
+  CSSProperties,
+  ReactNode,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import {
   Button,
@@ -71,7 +78,7 @@ function ModifySetting() {
   const [autoStart, setAutoStart] = useState(false);
   const setting = useContext(SettingContext);
   useEffect(() => {
-    invoke<string[]>('fonts_all_families', {})
+    invoke<string[]>('all_font_family', {})
       .then((fonts) => {
         setAllFonts(fonts);
       })
@@ -746,10 +753,10 @@ const darkTheme = (appFontWeight, fontFamily, bgColor) => {
   });
 };
 
-function SettingComp(props: { children }) {
+function SettingComp(props: { children: ReactNode }) {
   const { children } = props;
   const [setting, setSetting] = useState<UserSetting>(null);
-  const reload = async () => {
+  const reload = () => {
     UserSetting.get()
       .then((setting) => {
         setSetting(setting);
