@@ -100,7 +100,7 @@ const mongoID = '_id';
 const mongoBsonKeywords =
   /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|int8_array|float32_array|user_define|true|false|null|undefined|code)\b/i;
 function mongoBsonAutoCompletion(): languages.CompletionList {
-  let generateSubTypes = MongoBsonBinaryAllSubType.allValues().map((e) => {
+  const generateSubTypes = MongoBsonBinaryAllSubType.allValues().map((e) => {
     return {
       label: e,
       insertText: e,

@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { internalIpV4 } from 'internal-ip';
 import { resolve } from 'path';
 import { visualizer } from 'rollup-plugin-visualizer'
-import monacoEditorEsmPlugin from 'vite-plugin-monaco-editor-esm'
+
 const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 
 // https://vitejs.dev/config/
@@ -25,6 +25,11 @@ export default defineConfig(async ({ command }) => {
           info: resolve(__dirname, 'info.html'),
           query_response: resolve(__dirname, 'query_response.html'),
           table_add: resolve(__dirname, 'table_add.html'),
+        },
+        output: {
+          manualChunks: (id) => {
+            if (id.includes('monaco-editor')) return 'monaco'
+          },
         }
       }
     },

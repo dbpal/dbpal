@@ -258,7 +258,7 @@ function SeparateWindow(props: { children }) {
 function calMenuStyle(e: MouseEvent): CSSProperties {
   const x = e.clientX;
   const y = e.clientY;
-  let ret: CSSProperties = {};
+  const ret: CSSProperties = {};
   const { height, width } = getViewportSize();
   ret.top = 'auto';
   ret.bottom = 'auto';
