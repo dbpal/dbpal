@@ -753,7 +753,7 @@ function SqlQuery(props: {
             ref={editorDivDom}
           >
             <Editor
-              language={kind}
+              language={'sql'}
               onMount={handleEditorDidMount}
               width="99%"
               height="99%"

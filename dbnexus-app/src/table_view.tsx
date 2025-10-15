@@ -10,7 +10,6 @@ import {
 } from './comp/helper.ts';
 import { SqlTableView } from './comp/SqlTableView.tsx';
 import {
-  initMonacoLanguage,
   makeExtractTableSelectSort,
   makeExtractTableSelectWhere,
   makeInvalidCassandraTableCache,
@@ -24,17 +23,11 @@ import {
 import { SeparateWindow } from './comp/MainPage.tsx';
 import { MongoTable } from './comp/MongoDB.tsx';
 import { makeRedisViewTable } from './comp/LeftTable.tsx';
-import { Typography } from '@mui/material';
 
 webviewWIndowInit(false);
 
 const { uuid, kind, table, redisTableType, isTable } =
   SomeTempStore.get<NewWindowTableParameter>();
-
-let err;
-await initMonacoLanguage(uuid, kind, (msg) => {
-  err = msg;
-});
 
 let content;
 
@@ -80,8 +73,6 @@ switch (kind) {
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <SeparateWindow>
-      {err && <Typography color="error"> {err} </Typography>} {content}
-    </SeparateWindow>
+    <SeparateWindow>{content}</SeparateWindow>
   </React.StrictMode>
 );

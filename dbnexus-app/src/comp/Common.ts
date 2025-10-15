@@ -5,7 +5,6 @@ import { languages, editor, Position, CancellationToken } from 'monaco-editor';
 import { types } from './ApiStruct';
 import { format as formatSql, SqlLanguage } from 'sql-formatter';
 import { createContext } from 'react';
-import { loader } from '@monaco-editor/react';
 import { TabContent } from './Tabs';
 import { invoke } from '@tauri-apps/api/core';
 import { message } from '@tauri-apps/plugin-dialog';
@@ -118,7 +117,6 @@ const OpenedContext = createContext<{ opened: boolean; setOpened }>(null);
 function reloadOK(showNotification) {
   showNotification('success', 'data loaded.');
 }
-const registeredLanguage = new Set<DataSourceKind>();
 
 const autoCompletion = async (
   modal: editor.ITextModel,
@@ -149,41 +147,25 @@ const autoCompletion = async (
   }
 };
 
+// languages.registerCompletionItemProvider('sql', {
+//   provideCompletionItems: (
+//     model: editor.ITextModel,
+//     position: Position,
+//     _context: any,
+//     _token: CancellationToken
+//   ) => {
+//     alert('auto completion');
+//     return autoCompletion(model, position);
+//   },
+// });
 
-function initLanguageXXX(
-  kind: DataSourceKind,
-  ILanguage: languages.IMonarchLanguage,
-) {
-  loader
-    .init()
-    .then((monaco) => {
-      monaco.languages.register({ id: kind });
-      monaco.languages.setMonarchTokensProvider(kind, ILanguage);
-      if (kind != DataSourceKind.Redis) {
-        monaco.languages.registerDocumentFormattingEditProvider(kind, {
-          provideDocumentFormattingEdits(model, options, _token) {
-            const text = makeFormatFn(kind)(model.getValue(), options);
-            return [{ range: model.getFullModelRange(), text }];
-          },
-        });
-      }
-      monaco.languages.registerCompletionItemProvider(kind, {
-        provideCompletionItems: (
-          model: editor.ITextModel,
-          position: Position,
-          _context: any,
-          _token: CancellationToken
-        ) => {
-          return autoCompletion(model, position);
-        },
-        triggerCharacters: ['.'],
-      });
-    })
-    .catch((e) => {
-      console.log('init language error:', e);
-    });
-}
 
+// languages.registerDocumentFormattingEditProvider('sql', {
+//   provideDocumentFormattingEdits(model, options, _token) {
+//     const text = makeFormatFn('sqlite' as DataSourceKind)(model.getValue(), options);
+//     return [{ range: model.getFullModelRange(), text }];
+//   },
+// });
 
 
 function makeFormatFn(kind: DataSourceKind, showNotification?) {
@@ -234,262 +216,6 @@ function makeFormatFn(kind: DataSourceKind, showNotification?) {
       console.log('format sql failed error:', e);
       return sql;
     }
-  }
-}
-// uuid as language identifier.
-async function initMonacoLanguage(uuid: string, kind: DataSourceKind, showErr: (x: string) => void) {
-  // mongodb don't need this
-  if (kind == DataSourceKind.Mongo) {
-    return;
-  }
-  if (registeredLanguage.has(kind)) {
-    return;
-  }
-  registeredLanguage.add(kind);
-  let keywordReg;
-  try {
-    const kw = await invoke<string[]>('key_words', { name: uuid });
-    // /\b(as|int|long|date|timestamp|decimal|binary|generic|function|byte_array|uuid|md5|encrypted|column|sensitive|int8_array|float32_array|user_define|true|false|null|undefined|code)\b/i 
-    keywordReg = new RegExp(
-      `\\b(${kw.join('|')})\\b`,
-      'i'
-    );
-  } catch (e) {
-    showErr("get keyword error:" + e.toString());
-    console.log('get keyword error:', e);
-    return;
-  }
-  const singleLineCommentReg = /(--[^\n]*|#[^\n]*)/g;
-  const stringReg = /\'(?:\\.|[^\\\'])*\'/;
-
-
-  switch (kind) {
-    case DataSourceKind.MariaDB:
-      initLanguageXXX(
-        kind,
-        {
-          ignoreCase: true,
-          tokenizer: {
-            root: [
-              [keywordReg, 'keyword'],
-              [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
-              [stringReg, 'string'],
-              [singleLineCommentReg, 'comment'],
-            ],
-          },
-          brackets: [
-            { open: '{', close: '}', token: 'delimiter.curly' },
-            { open: '[', close: ']', token: 'delimiter.square' },
-          ],
-        } as languages.IMonarchLanguage,
-      );
-      break;
-    case DataSourceKind.Mysql:
-      initLanguageXXX(
-        kind,
-        {
-          ignoreCase: true,
-          tokenizer: {
-            root: [
-              [keywordReg, 'keyword'],
-              [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
-              [stringReg, 'string'],
-              [/(--[^\n]*|#[^\n]*)/g, 'comment'],
-            ],
-          },
-          brackets: [
-            { open: '{', close: '}', token: 'delimiter.curly' },
-            { open: '[', close: ']', token: 'delimiter.square' },
-          ],
-        } as languages.IMonarchLanguage,
-      );
-      break;
-    case DataSourceKind.ClickHouse:
-      initLanguageXXX(
-        kind,
-        {
-          ignoreCase: true,
-          tokenizer: {
-            root: [
-              [keywordReg, 'keyword'],
-              [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
-              [stringReg, 'string'],
-              [singleLineCommentReg, 'comment'],
-            ],
-          },
-          brackets: [
-            { open: '(', close: ')', token: 'delimiter.parenthesis' },
-            { open: '[', close: ']', token: 'delimiter.square' },
-          ],
-        } as languages.IMonarchLanguage,
-      );
-      break;
-
-    case DataSourceKind.TiDB:
-      initLanguageXXX(
-        kind,
-        {
-          ignoreCase: true,
-          tokenizer: {
-            root: [
-              [keywordReg, 'keyword'],
-              [/[\$_a-z][\$_a-z0-9]*/i, 'identifier'],
-              [stringReg, 'string'],
-              [singleLineCommentReg, 'comment'],
-            ],
-          },
-          brackets: [
-            { open: '(', close: ')', token: 'delimiter.parenthesis' },
-            { open: '[', close: ']', token: 'delimiter.square' },
-          ],
-        } as languages.IMonarchLanguage,
-      );
-      break;
-    case DataSourceKind.Sqlite:
-    case DataSourceKind.LibSql:
-      initLanguageXXX(
-        kind,
-        {
-          ignoreCase: true,
-          tokenizer: {
-            root: [
-              [keywordReg, 'keyword'],
-              [/[_a-z][_a-z0-9]*/i, 'identifier'],
-              [stringReg, 'string'],
-              [singleLineCommentReg, 'comment'],
-            ],
-          },
-        } as languages.IMonarchLanguage,
-      );
-      break;
-    case DataSourceKind.FireBird:
-      initLanguageXXX(
-        kind,
-        {
-          ignoreCase: true,
-          tokenizer: {
-            root: [
-              [keywordReg, 'keyword'],
-              [/[_a-z][_a-z0-9]*/i, 'identifier'],
-              [stringReg, 'string'],
-              [singleLineCommentReg, 'comment'],
-            ],
-          },
-        } as languages.IMonarchLanguage,
-      );
-      break;
-    case DataSourceKind.DuckDB:
-      initLanguageXXX(
-        kind,
-        {
-          ignoreCase: true,
-          tokenizer: {
-            root: [
-              [keywordReg, 'keyword'],
-              [/[_a-z\$][_a-z0-9\$]*/i, 'identifier'],
-              [stringReg, 'string'],
-              [singleLineCommentReg, 'comment'],
-            ],
-          },
-        } as languages.IMonarchLanguage,
-      );
-      break;
-
-    case DataSourceKind.Postgres:
-      initLanguageXXX(
-        kind,
-        {
-          ignoreCase: true,
-          tokenizer: {
-            root: [
-              [keywordReg, 'keyword'],
-              [/[_a-z][_a-z0-9]*/i, 'identifier'],
-              [/\'(?:\\.|[^\'\'])*\'/, 'string'],
-              [singleLineCommentReg, 'comment'],
-            ],
-          },
-        } as languages.IMonarchLanguage,
-      );
-      break;
-    case DataSourceKind.Cockroach:
-      initLanguageXXX(
-        kind,
-        {
-          ignoreCase: true,
-          tokenizer: {
-            root: [
-              [keywordReg, 'keyword'],
-              [/[_a-z][_a-z0-9]*/i, 'identifier'],
-              [/\"(?:\\.|[^\"\"])*\"/, 'string'],
-              [/\'(?:\\.|[^\'\'])*\'/, 'string'],
-
-              [singleLineCommentReg, 'comment'],
-            ],
-          },
-        } as languages.IMonarchLanguage,
-      );
-      break;
-    case DataSourceKind.MsSql:
-      initLanguageXXX(
-        kind,
-        {
-          ignoreCase: true,
-          tokenizer: {
-            root: [
-              [keywordReg, 'keyword'],
-              [/[_a-z][_a-z0-9]*/i, 'identifier'],
-              [/\'(?:\\.|[^\'\'])*\'/, 'string'],
-              [/\"(?:\\.|[^\\\"])*\"/, 'string'],
-              [singleLineCommentReg, 'comment'],
-            ],
-          },
-        } as languages.IMonarchLanguage,
-      );
-      break;
-    case DataSourceKind.Redis:
-      initLanguageXXX(
-        kind,
-        {
-          ignoreCase: true,
-          tokenizer: { root: [[keywordReg, 'keyword']] },
-        } as languages.IMonarchLanguage,
-      );
-      break;
-    case DataSourceKind.Oracle:
-      initLanguageXXX(
-        kind,
-        {
-          ignoreCase: true,
-          tokenizer: {
-            root: [
-              [keywordReg, 'keyword'],
-              [/[_a-z][_a-z0-9]*/i, 'identifier'],
-              [/\'(?:\\.|[^\'\'])*\'/, 'string'],
-              [singleLineCommentReg, 'comment'],
-            ],
-          },
-        } as languages.IMonarchLanguage,
-
-      );
-      break;
-    case DataSourceKind.Cassandra:
-      initLanguageXXX(
-        kind,
-        {
-          ignoreCase: true,
-          tokenizer: {
-            root: [
-              [keywordReg, 'keyword'],
-              [/[_a-z][_a-z0-9]*/i, 'identifier'],
-              [/\'(?:\\.|[^\'\'])*\'/, 'string'],
-              [singleLineCommentReg, 'comment'],
-            ],
-          },
-        } as languages.IMonarchLanguage,
-      );
-      break;
-    default:
-      console.log(`impl this ${kind}`);
   }
 }
 
@@ -787,7 +513,6 @@ export {
   dropDatabase,
   dropSchema,
   reloadOK,
-  initMonacoLanguage,
   QueryConn,
   AppStoreKey,
   keyNotInTable,

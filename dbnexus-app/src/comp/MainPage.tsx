@@ -23,6 +23,7 @@ import {
 import '../app.css';
 import { Paper, useTheme } from '@mui/material';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { Editor } from '@monaco-editor/react';
 
 const shortCuts = {
   callback: (e: KeyboardEvent) => {
@@ -110,7 +111,11 @@ function App() {
           <Menu>
             <WindowFocus>
               <div>
-                <PanelGroup
+                <div style={{ height: '400px', width: '400px' }}>
+                  <Editor language="sql" value="1111"></Editor>
+                </div>
+
+                {/* <PanelGroup
                   direction="horizontal"
                   style={{
                     height: '100vh',
@@ -150,7 +155,7 @@ function App() {
                       setTabs={setTabs}
                     ></TabsWithContent>
                   </Panel>
-                </PanelGroup>
+                </PanelGroup> */}
               </div>
             </WindowFocus>
           </Menu>
