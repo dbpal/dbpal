@@ -52,7 +52,9 @@
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.2",
     "internal-ip": "^8.0.0",
+    "rollup-plugin-visualizer": "^6.0.4",
     "typescript": "^5.9.2",
-    "vite": "^7"
+    "vite": "^7",
+    "vite-plugin-monaco-editor-esm": "^2.0.2"
   }
 }

@@ -11,12 +11,11 @@ import Database, { QueryResult } from '@tauri-apps/plugin-sql';
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 
-
 const pageSizeOptions = [10, 20, 50, 100];
 const appStore = await load('store.json');
 
-
 const appDatabase = await Database.load('sqlite:dbpal.sqlite.db');
+
 function setUpDatabase() {
   const sqls = [`
   CREATE TABLE if not EXISTS query_log (
@@ -56,7 +55,9 @@ function setUpDatabase() {
       CREATE UNIQUE INDEX if not EXISTS index_favorite_sql_uuid_name ON favorite_sql (uuid,name);
     `];
   sqls.forEach(async (sql) => {
-    try { await appDatabase.execute(sql) } catch (e) {
+    try {
+      await (appDatabase).execute(sql)
+    } catch (e) {
       console.log("apply sql failed,this maybe a error", e)
     }
   })
@@ -84,27 +85,27 @@ class QueryLogHandler {
     this.name = extractConfigNameFromUuid(uuid);
   }
   async save(sql: string, success: boolean, showNotification?): Promise<void> {
-    return appDatabase.execute("insert into query_log (uuid,name,sql,success) values (?,?,?,?)", [this.uuid, this.name, sql, success ? 1 : 0]).then(() => { }).catch(e => {
+    return (appDatabase).execute("insert into query_log (uuid,name,sql,success) values (?,?,?,?)", [this.uuid, this.name, sql, success ? 1 : 0]).then(() => { }).catch(e => {
       if (showNotification) { showNotification("error", "save query log failed", e); }
 
     });
   }
 
-  query(matchSql: string, page: number, pageSize: number, order_by: string): Promise<any[]> {
+  async query(matchSql: string, page: number, pageSize: number, order_by: string): Promise<any[]> {
     const sql = `
     select * from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""} order by ${order_by ? order_by : 'create_at desc'} limit ${pageSize} offset ${pageSize * (page - 1)}`;
     console.log("query log sql:", sql);
-    return appDatabase.select(sql, [this.uuid])
+    return (appDatabase).select(sql, [this.uuid])
   }
-  queryCount(matchSql: string): Promise<number> {
+  async queryCount(matchSql: string): Promise<number> {
     let sql = `select count(*) as total from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""}`;
-    return appDatabase.select(sql, [this.uuid]).then(e => e ? e[0].total : 0);
+    return (appDatabase).select(sql, [this.uuid]).then(e => e ? e[0].total : 0);
   }
-  delete(): Promise<QueryResult> {
-    return appDatabase.execute("delete from query_log where uuid=?", [this.uuid]);
+  async delete(): Promise<QueryResult> {
+    return (appDatabase).execute("delete from query_log where uuid=?", [this.uuid]);
   }
-  static deleteByConnectionname(name): Promise<QueryResult> {
-    return appDatabase.execute("delete from query_log where name=?", [name]);
+  static async deleteByConnectionname(name): Promise<QueryResult> {
+    return (appDatabase).execute("delete from query_log where name=?", [name]);
   }
 }
 
@@ -448,10 +449,10 @@ class SaveAlign {
 
 class SaveDomSizes {
   static async saveSize(key: string, size: UISize) {
-    return appDatabase.execute("replace into element_size(name, width, height) values(?,?,?)", [key, Math.ceil(size.width), Math.ceil(size.height)]);
+    return (appDatabase).execute("replace into element_size(name, width, height) values(?,?,?)", [key, Math.ceil(size.width), Math.ceil(size.height)]);
   }
   static async getSize(key: string): Promise<undefined | UISize> {
-    return appDatabase.select("select width, height from element_size where name = ?", [key]).then((xs) => {
+    return (appDatabase).select("select width, height from element_size where name = ?", [key]).then((xs) => {
       if (xs instanceof Array) { return xs[0] }
       return xs
     })
@@ -465,7 +466,7 @@ class FavoriteSql {
   }
   static async save(x: FavoriteSql, showNotification) {
     try {
-      await appDatabase.execute("replace into favorite_sql(uuid,connection_name,name,kind,sql,last_modified) values(?,?,?,?,?,?)", [x.uuid, x.connection_name, x.name, x.kind, x.sql, x.last_modified]);
+      await (appDatabase).execute("replace into favorite_sql(uuid,connection_name,name,kind,sql,last_modified) values(?,?,?,?,?,?)", [x.uuid, x.connection_name, x.name, x.kind, x.sql, x.last_modified]);
       showNotification('success', "save favorite sql Ok");
     } catch (e) {
       showNotification('error', "save favorite sql failed", e);
@@ -474,22 +475,22 @@ class FavoriteSql {
   }
 
   static async getDistinctUuid() {
-    return appDatabase.select<{ uuid: string }[]>("SELECT DISTINCT  uuid from favorite_sql").then(x => x.map(y => y.uuid))
+    return (appDatabase).select<{ uuid: string }[]>("SELECT DISTINCT  uuid from favorite_sql").then(x => x.map(y => y.uuid))
   }
 
   // todo performance issue????
-  static getByUuid(uuid: string): Promise<FavoriteSql[]> {
+  static async getByUuid(uuid: string): Promise<FavoriteSql[]> {
     let sql = "select * from favorite_sql";
     if (uuid) {
       sql += " where uuid=?";
     }
-    return appDatabase.select(sql, uuid ? [uuid] : []);
+    return (appDatabase).select(sql, uuid ? [uuid] : []);
   }
 
 
   static async delete(id: number, showNotification) {
     try {
-      await appDatabase.execute("delete from favorite_sql where id=?", [id]);
+      await (appDatabase).execute("delete from favorite_sql where id=?", [id]);
     } catch (e) {
       showNotification('error', "save favorite sql failed", e);
       return
@@ -499,7 +500,7 @@ class FavoriteSql {
 
   static async deleteByConnectionName(name: string) {
     try {
-      appDatabase.execute(`delete from favorite_sql where connection_name=?`, [name]);
+      (appDatabase).execute(`delete from favorite_sql where connection_name=?`, [name]);
     } catch (e) {
       console.log("delete all logs belong to a key failed", e);
       return
@@ -508,7 +509,7 @@ class FavoriteSql {
 
   static async clearByUuid(showNotification, uuid: string) {
     try {
-      appDatabase.execute(`delete from favorite_sql where uuid=?`, [uuid]);
+      (appDatabase).execute(`delete from favorite_sql where uuid=?`, [uuid]);
     } catch (e) {
       showNotification('error', "clear favorite sql failed", e);
       return
@@ -520,28 +521,32 @@ class FavoriteSql {
 class ColumnWidth {
   width = {};
   constructor() {
-    appDatabase.select("select * from column_width").then((xs) => {
-      (xs as { name: string, width: number }[]).forEach(e => {
-        this.width[e.name] = e.width
-      })
-    })
+
   }
-  save(name: string, width: number) {
+  async save(name: string, width: number) {
     this.width[name] = width;
-    appDatabase.execute("replace into column_width(name,width) values(?,?)", [name, Math.ceil(width)])
+    (appDatabase).execute("replace into column_width(name,width) values(?,?)", [name, Math.ceil(width)])
   }
 
   get(key): number {
     return this.width[key];
   }
-  reset(): Promise<void> {
+  async reset(): Promise<void> {
     this.width = {};
-    return appDatabase.execute("delete from column_width").then((x) => {
+    return (appDatabase).execute("delete from column_width").then((x) => {
       console.log("delete of", x.rowsAffected, "rows");
     })
-
   }
   static instance = new ColumnWidth();
+}
+
+{
+  appDatabase.select("select * from column_width").then((xs) => {
+    (xs as { name: string, width: number }[]).forEach(e => {
+      ColumnWidth.instance.width[e.name] = e.width
+    })
+  })
+
 }
 
 const TabActiveContext = createContext(true);
@@ -938,8 +943,6 @@ function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
       return isTable ? ['csv', 'sql', 'json', 'jsonline', "xlsx"] : ['csv', 'json', 'jsonline', "xlsx"];
   }
 }
-
-
 
 function generateDefaultFilename(name, extension) {
   if (extension == 'jsonline') {

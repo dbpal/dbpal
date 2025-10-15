@@ -308,7 +308,7 @@ function MongoQuery(props: {
         }}
       >
         <div style={{ height: '100px', flex: 1 }}>
-          <Editor
+          <MyEditor
             width="99%"
             height="99%"
             onMount={jsCodeMount}
@@ -316,7 +316,7 @@ function MongoQuery(props: {
             options={options}
             value={value}
             theme={setting.editorTheme()}
-          ></Editor>
+          ></MyEditor>
         </div>
 
         <EditorBar

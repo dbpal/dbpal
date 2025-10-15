@@ -426,6 +426,8 @@ fn main_() {
                     )
                     .title("setting")
                     .inner_size(800f64, 600f64)
+                    .maximized(true)
+                    .devtools(true)
                     .build()
                     {
                         log::error!("create setting window failed:{}", err);

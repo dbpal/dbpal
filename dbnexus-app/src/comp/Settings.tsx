@@ -22,6 +22,7 @@ import {
   ThemeProvider,
   Tooltip,
   Typography,
+  useTheme,
 } from '@mui/material';
 import { HexColorPicker } from 'react-colorful';
 import { NotificationContext } from './Notification';
@@ -181,6 +182,7 @@ function ModifySetting() {
     }
     setBgColorErr('');
   }, [bgColor]);
+  const theme = useTheme();
 
   return (
     <Stack
@@ -432,7 +434,7 @@ function ModifySetting() {
                 }}
                 style={{
                   height: '40vh',
-                  border: '1px solid',
+                  border: '2px solid' + theme.palette.success.main,
                   borderRadius: '8px',
                   padding: '8px',
                   display: showEditorOptions ? 'flex' : 'none',

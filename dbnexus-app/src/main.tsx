@@ -1,5 +1,4 @@
 'use strict';
-
 import ReactDOM from 'react-dom/client';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 
@@ -13,10 +12,8 @@ import {
 } from './comp/helper.ts';
 
 await setUpDatabase();
-
 webviewWIndowInit(true);
-
-const currentWebview = await WebviewWindow.getCurrent();
+const currentWebview = WebviewWindow.getCurrent();
 
 currentWebview.onCloseRequested(async (event) => {
   const confirm = await secondConfirm({

@@ -1351,7 +1351,7 @@ function Menu(props: {
             setShowFilter(false);
           })}
         >
-          <Box sx={modalStyle} width="50%">
+          <Box sx={modalStyle}>
             <ModalHeader title="Quick Filter"></ModalHeader>
             <FilterOnValue
               content={content}

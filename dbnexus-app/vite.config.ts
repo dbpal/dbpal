@@ -2,14 +2,15 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { internalIpV4 } from 'internal-ip';
 import { resolve } from 'path';
-
+import { visualizer } from 'rollup-plugin-visualizer'
+import monacoEditorEsmPlugin from 'vite-plugin-monaco-editor-esm'
 const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 
 // https://vitejs.dev/config/
 export default defineConfig(async ({ command }) => {
   return {
     plugins: [
-      react(),
+      react(), visualizer({ open: true, gzipSize: true }),
     ],
     build: {
       target: 'esnext',

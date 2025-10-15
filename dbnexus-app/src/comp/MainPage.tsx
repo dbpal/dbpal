@@ -21,7 +21,7 @@ import {
   KeyPressed,
 } from './helper.ts';
 import '../app.css';
-import { Paper } from '@mui/material';
+import { Paper, useTheme } from '@mui/material';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 const shortCuts = {
@@ -208,6 +208,8 @@ function Menu(props: { children: ReactNode }) {
     }
   }, [menu]);
 
+  const theme = useTheme();
+
   return (
     <ContextMenuContext.Provider value={{ setUpMenu }}>
       {children}
@@ -220,7 +222,7 @@ function Menu(props: { children: ReactNode }) {
           maxHeight: '48vh',
           overflow: 'auto',
           display: 'block',
-          border: '1px solid gray',
+          border: '2px solid ' + theme.palette.success.main,
           borderRadius: '0.5rem',
           ...(menu && calMenuStyle(menu.event)),
         }}

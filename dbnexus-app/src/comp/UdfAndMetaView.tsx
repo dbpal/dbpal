@@ -2,7 +2,7 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 
 import { NotificationContext } from './Notification';
-import { Button, Stack, Tooltip, Typography } from '@mui/material';
+import { Button, Stack, Tooltip } from '@mui/material';
 import { DefAndMetas, NameAndQueryId, SetAutoCompletionName } from './Common';
 import { MetaValueView, PossibleParseError } from './CommonComp';
 import {
@@ -29,7 +29,6 @@ function DefAndMetasView(props: {
   const setting = useContext(SettingContext);
   const executeOP = makeExecuteSql(uuid, setting.saveQueryLog);
   const getParseErr = makeGetParserErr(uuid);
-  const titleVariant = 'h6';
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas>({
     def: '',
@@ -156,20 +155,17 @@ function DefAndMetasView(props: {
               </div>
             )}
             {detail.metas && detail.metas.length > 0 && (
-              <>
-                <Typography variant={titleVariant}> Some Metas </Typography>
-                <div
-                  style={{
-                    height: '100px',
-                    flex: 1,
+              <div
+                style={{
+                  height: '100px',
+                  flex: 1,
 
-                    display: 'flex',
-                    flexDirection: 'column',
-                  }}
-                >
-                  <MetaValueView values={detail.metas}></MetaValueView>
-                </div>
-              </>
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <MetaValueView values={detail.metas}></MetaValueView>
+              </div>
             )}
           </Panel>
         </>
