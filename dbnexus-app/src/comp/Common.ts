@@ -37,6 +37,7 @@ import {
   secondConfirm,
 } from './helper';
 import { GridColDef } from '@mui/x-data-grid';
+import { loader } from '@monaco-editor/react';
 
 const getNamedConfig = async (
   name: string
@@ -124,7 +125,6 @@ const autoCompletion = async (
 ): Promise<languages.CompletionList> => {
   try {
     const sql = modal.getValue();
-    alert(sql);
     const name = SetAutoCompletionName.get(modal.id);
     if (!name) {
       message("auto completion name is null this is a bug", { kind: 'error' });
@@ -147,36 +147,53 @@ const autoCompletion = async (
     return { suggestions: [] }
   }
 };
-languages.register({ id: 'sql' });
 
 
-languages.registerCompletionItemProvider(
-  { language: 'sql' },
-  {
-    triggerCharacters: ['.', 'a'],
-    provideCompletionItems(model,
-      position: Position,
-      _context: any,
-      _token: CancellationToken
-    ) {
-      return autoCompletion(model, position);
-    },
-  }
-);
-languages.registerDocumentFormattingEditProvider('sql', {
-  provideDocumentFormattingEdits(model, options, _) {
-    const name = SetAutoCompletionName.get(model.id);
-    if (!name) {
-      message("auto completion name is null this is a bug", { kind: 'error' });
-      return;
-    }
-    let text = makeFormatFn(name.kind)(model.getValue(), { insertSpaces: options.insertSpaces, tabSize: options.tabSize });
-    if (!text) {
-      return null
-    }
-    return [{ range: model.getFullModelRange(), text }]
-  },
-});
+loader
+  .init()
+  .then((monaco) => {
+
+    monaco.languages.registerCompletionItemProvider(
+      { language: 'sql' },
+      {
+        triggerCharacters: ['.'],
+        provideCompletionItems(model,
+          position: Position,
+          _context: any,
+          _token: CancellationToken
+        ) {
+          return autoCompletion(model, position);
+        },
+      }
+    );
+    monaco.languages.registerCompletionItemProvider(
+      { language: 'redis' },
+      {
+
+        provideCompletionItems(model,
+          position: Position,
+          _context: any,
+          _token: CancellationToken
+        ) {
+          return autoCompletion(model, position);
+        },
+      }
+    );
+    monaco.languages.registerDocumentFormattingEditProvider('sql', {
+      provideDocumentFormattingEdits(model, options, _) {
+        const name = SetAutoCompletionName.get(model.id);
+        if (!name) {
+          message("auto completion name is null this is a bug", { kind: 'error' });
+          return;
+        }
+        let text = makeFormatFn(name.kind)(model.getValue(), { insertSpaces: options.insertSpaces, tabSize: options.tabSize });
+        if (!text) {
+          return null
+        }
+        return [{ range: model.getFullModelRange(), text }]
+      },
+    });
+  });
 
 function makeFormatFn(kind: DataSourceKind) {
   return (sql: string, opts?: languages.FormattingOptions) => {

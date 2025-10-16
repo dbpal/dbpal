@@ -11,6 +11,7 @@ import Database, { QueryResult } from '@tauri-apps/plugin-sql';
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
+import { loader } from "@monaco-editor/react";
 
 
 const pageSizeOptions = [10, 20, 50, 100];
@@ -1156,23 +1157,26 @@ const registeredThemes = [];
 async function setUpEditorThemes() {
   try {
     const themes = await invoke<object>('monaco_editor_themes');
+    const monaco = await loader.init();
     for (const key in themes) {
       themes[key] = JSON.parse(themes[key]);
     }
     for (const key in themelist) {
       let v = themelist[key];
-
-      editor.defineTheme(key, themes[v]);
+      monaco.editor.defineTheme(key, themes[v]);
       registeredThemes.push(key);
     }
   } catch (e) {
     message("set up editor themes failed", { kind: 'error' });
     console.log("set up editor themes failed", e);
   }
+
 }
 
 function getLanguageFromDataSourceKind(kind: DataSourceKind): string {
   switch (kind) {
+    case DataSourceKind.Redis:
+      return "redis";
     case DataSourceKind.Mongo:
       return 'javascript';
     default:

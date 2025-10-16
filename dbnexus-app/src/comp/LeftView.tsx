@@ -56,6 +56,7 @@ import {
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
   generateRandomString,
+  getLanguageFromDataSourceKind,
   getSupportExportKind,
   handleCopyToClipboard,
   MatchPatternContext,
@@ -230,7 +231,7 @@ function StatementStructure(props: {
       {sql && (
         <SimpleFlexEditor
           readOnly={true}
-          language={kind}
+          language={getLanguageFromDataSourceKind(kind)}
           value={sql}
           handleEditor={(editor) => {
             SetAutoCompletionName.set(

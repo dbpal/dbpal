@@ -79,6 +79,7 @@ import {
   editorPositionToEnd,
   dataGridParentStyle,
   pageSizeOptions,
+  getLanguageFromDataSourceKind,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
@@ -197,7 +198,7 @@ function SetFilterSort(props: {
               new NameAndQueryId(uuid, kind)
             );
           }}
-          language={kind}
+          language={getLanguageFromDataSourceKind(kind)}
         ></SimpleFlexEditor>
 
         <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>

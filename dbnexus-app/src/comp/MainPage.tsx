@@ -22,11 +22,6 @@ import {
 import '../app.css';
 import { Paper, useTheme } from '@mui/material';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { Editor } from '@monaco-editor/react';
-import { languages } from 'monaco-editor';
-languages.getLanguages().forEach((e) => {
-  console.log('!!!!!!!!!!!!!!!!!!!!', e);
-});
 
 const shortCuts = {
   callback: (e: KeyboardEvent) => {
@@ -114,9 +109,6 @@ function App() {
           <Menu>
             <WindowFocus>
               <div>
-                <div style={{ height: '300px' }}>
-                  <Editor language="sql" value="select 1"></Editor>
-                </div>
                 <PanelGroup
                   direction="horizontal"
                   style={{

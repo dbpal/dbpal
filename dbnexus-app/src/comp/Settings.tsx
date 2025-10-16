@@ -56,7 +56,8 @@ import {
   disable as disableApp,
 } from '@tauri-apps/plugin-autostart';
 import { message } from '@tauri-apps/plugin-dialog';
-
+import InfoIcon from '@mui/icons-material/Info';
+import { Editor } from '@monaco-editor/react';
 function ModifySetting() {
   const { showNotification } = useContext(NotificationContext);
   const [fontWeight, setFontWeight] = useState('normal');
@@ -480,6 +481,25 @@ function ModifySetting() {
             );
           })}
         </Select>
+
+        <Tooltip
+          title={
+            <EditorThemeDemo
+              width="55vw"
+              fontSize={fontSize}
+              theme={customEditorTheme}
+            ></EditorThemeDemo>
+          }
+          slotProps={{
+            tooltip: {
+              style: { maxWidth: '55vw' },
+            },
+          }}
+        >
+          <span>
+            <InfoIcon> </InfoIcon>
+          </span>
+        </Tooltip>
       </Stack>
       <Divider textAlign="left" style={{ marginTop: '20px' }}>
         export
@@ -538,6 +558,21 @@ function ModifySetting() {
   );
 }
 
+function EditorThemeDemo(props: { width: string; theme: string; fontSize }) {
+  const { theme, width, fontSize } = props;
+  return (
+    <Stack style={{ width, height: '30vh' }} spacing={1}>
+      <Editor
+        value={`select * from employees where id is not null limit 10;`}
+        width="99%"
+        height="99%"
+        language="sql"
+        options={{ fontSize }}
+        theme={theme}
+      ></Editor>
+    </Stack>
+  );
+}
 function EditorOptions(props: {
   editorOptions;
   setEditorOptions;

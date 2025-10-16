@@ -9,6 +9,7 @@ import {
   DataSourceKind,
   ErrAndLoc,
   getEditorText,
+  getLanguageFromDataSourceKind,
   makeExecuteSql,
   makeGetParserErr,
   SettingContext,
@@ -108,7 +109,7 @@ function DefAndMetasView(props: {
         </Stack>
         {detail.def && (
           <SimpleFlexEditor
-            language={kind}
+            language={getLanguageFromDataSourceKind(kind)}
             value={detail.def}
             handleEditor={(ed) => {
               editor.current = ed;
