@@ -40,25 +40,25 @@ pub fn log_channel_store() -> &'static std::sync::Mutex<Option<Channel<String>>>
 #[tauri::command]
 pub fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str>, ErrorFrontend> {
     let mut ret = HashMap::new();
-    // static FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../monaco-themes/themes");
-    // for en in FILES.entries() {
-    //     match en {
-    //         include_dir::DirEntry::Dir(..) => {}
-    //         include_dir::DirEntry::File(file) => {
-    //             let name = file
-    //                 .path()
-    //                 .file_name()
-    //                 .map(|x| x.to_str())
-    //                 .flatten()
-    //                 .unwrap();
-    //             if name.ends_with("themelist.json") {
-    //                 continue;
-    //             }
-    //             let name = &name[..name.len() - 5];
-    //             ret.insert(name, file.contents_utf8().unwrap());
-    //         }
-    //     }
-    // }
+    static FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../monaco-themes/themes");
+    for en in FILES.entries() {
+        match en {
+            include_dir::DirEntry::Dir(..) => {}
+            include_dir::DirEntry::File(file) => {
+                let name = file
+                    .path()
+                    .file_name()
+                    .map(|x| x.to_str())
+                    .flatten()
+                    .unwrap();
+                if name.ends_with("themelist.json") {
+                    continue;
+                }
+                let name = &name[..name.len() - 5];
+                ret.insert(name, file.contents_utf8().unwrap());
+            }
+        }
+    }
     Ok(ret)
 }
 #[tauri::command]

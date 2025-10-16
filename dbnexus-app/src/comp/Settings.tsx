@@ -43,6 +43,7 @@ import {
   validJson,
   textEllipsisStyle,
   appStore,
+  registeredThemes,
 } from './helper';
 import { Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
@@ -76,6 +77,7 @@ function ModifySetting() {
   const [maxTreeSize, setMaxTreeSize] = useState('50');
   const [maxTabTitleLength, setMaxTabTitleLength] = useState('12');
   const [autoStart, setAutoStart] = useState(false);
+  const [customEditorTheme, setCustomEditorTheme] = useState('');
   const setting = useContext(SettingContext);
   useEffect(() => {
     invoke<string[]>('all_font_family', {})
@@ -103,6 +105,7 @@ function ModifySetting() {
       setDatagridRowHeightFactor(setting.datagridRowHeightFactor.toString());
       setMaxTabTitleLength(setting.maxTabTitleLength + '');
       setAutoStart(setting.autoStart);
+      setCustomEditorTheme(setting.customEditorTheme);
       const content = JSON.stringify(
         setting.editorOption ? setting.editorOption : {},
         null,
@@ -156,6 +159,7 @@ function ModifySetting() {
       theme: setting.theme,
       maxTabTitleLength: parseInt(maxTabTitleLength),
       autoStart,
+      customEditorTheme,
     } as UserSetting;
     if (setting.theme == 'dark') {
       s.darkBgColor = bgColor;
@@ -453,6 +457,29 @@ function ModifySetting() {
             )}
           </Stack>
         </Stack>
+      </Stack>
+
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
+          editor theme:
+        </Typography>
+        <Select
+          onChange={(e) => setCustomEditorTheme(e.target.value)}
+          style={{ minWidth: '14rem' }}
+          value={customEditorTheme}
+        >
+          <MenuItem value=""></MenuItem>
+          {['vs', 'vs-dark', 'hc-black', 'hc-light'].map((theme) => (
+            <MenuItem value={theme}>{theme}</MenuItem>
+          ))}
+          {registeredThemes.map((theme) => {
+            return (
+              <MenuItem value={theme} key={theme}>
+                {theme}
+              </MenuItem>
+            );
+          })}
+        </Select>
       </Stack>
       <Divider textAlign="left" style={{ marginTop: '20px' }}>
         export

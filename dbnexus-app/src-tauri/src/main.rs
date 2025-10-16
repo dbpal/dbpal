@@ -122,6 +122,9 @@ impl log::Log for AppLogger {
         metadata.level() <= self.get_level()
     }
     fn log(&self, record: &log::Record) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
         let log_str = format!(
             "{} {} {}-{}\n",
             chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
@@ -139,9 +142,6 @@ impl log::Log for AppLogger {
         );
         #[cfg(debug_assertions)]
         eprintln!("{}", log_str);
-        if !self.enabled(record.metadata()) {
-            return;
-        }
         let mut sender = log_channel_store().lock().unwrap();
         match sender.deref_mut() {
             Some(x) => {
@@ -428,6 +428,7 @@ fn main_() {
                     )
                     .title("setting")
                     .inner_size(800f64, 600f64)
+                    .maximized(true)
                     .build()
                     {
                         log::error!("create setting window failed:{}", err);

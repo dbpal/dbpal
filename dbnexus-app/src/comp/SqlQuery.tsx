@@ -302,7 +302,6 @@ function SqlQuery(props: {
         return true;
       }
     } catch (e) {
-      console.log('warning dangerous failed,error:', e);
       return true;
     }
   };
@@ -351,7 +350,6 @@ function SqlQuery(props: {
     conn
       .queryOP(text, append)
       .then((resp) => {
-        console.log('query resp:', resp);
         if (setting.saveQueryLog) {
           queryLogHandler.current.save(
             text,

@@ -10,7 +10,8 @@ import { BSON, EJSON } from "bson";
 import Database, { QueryResult } from '@tauri-apps/plugin-sql';
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
-import { console } from "inspector";
+import themelist from "../../monaco-themes/themes/themelist.json";
+
 
 const pageSizeOptions = [10, 20, 50, 100];
 const appStore = await load('store.json');
@@ -731,8 +732,6 @@ class MongoTableHandler {
   }
 }
 
-
-
 class UserSetting {
   theme: string = 'light';
   fontSize: number = 15;
@@ -748,8 +747,12 @@ class UserSetting {
   saveQueryLog: boolean = false;
   maxTabTitleLength: number = 12;
   autoStart: boolean = false;
+  customEditorTheme: string = '';
   editorOption: editor.IStandaloneEditorConstructionOptions = {};
   editorTheme(): string {
+    if (this.customEditorTheme) {
+      return this.customEditorTheme;
+    }
     return this.isDark() ? 'vs-dark' : 'light';
   }
 
@@ -1154,18 +1157,26 @@ enum QueryLogKind {
 }
 
 
-// async function setUpEditorThemes() {
-//   try {
-//     let themes = invoke<object>('monaco_editor_themes');
-//     console.log("themes", themes);
-//   } catch (e) {
-//     message("set up editor themes failed", { kind: 'error' });
-//     console.log("set up editor themes failed", e);
-//   }
-// }
+const registeredThemes = [];
+async function setUpEditorThemes() {
+  try {
+    const themes = await invoke<object>('monaco_editor_themes');
+    for (const key in themes) {
+      themes[key] = JSON.parse(themes[key]);
+    }
+    for (const key in themelist) {
+      let v = themelist[key];
 
-// setUpEditorThemes();
+      editor.defineTheme(key, themes[v]);
+      registeredThemes.push(key);
+    }
+  } catch (e) {
+    message("set up editor themes failed", { kind: 'error' });
+    console.log("set up editor themes failed", e);
+  }
+}
 
+await setUpEditorThemes();
 
 export {
   TabsSetContext,
@@ -1233,7 +1244,8 @@ export {
   SaveLoggerStreamPinToBotton,
   setUpDatabase,
   ViewKind,
-  QueryLogKind
+  QueryLogKind,
+  registeredThemes,
 };
 
 
