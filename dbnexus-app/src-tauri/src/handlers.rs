@@ -1236,22 +1236,6 @@ pub async fn auto_completion(
 }
 
 #[tauri::command]
-pub async fn key_words(
-    name: String, app: tauri::State<'_, DBPal>,
-) -> Result<Vec<String>, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let db = app.get_backend(name.as_str()).await?;
-    let ret = match db {
-        DatabaseBackend::Catalog(x) => x.key_words().await,
-        DatabaseBackend::DataBase(x) => x.key_words().await,
-        DatabaseBackend::Schema(x) => x.key_words().await,
-    }
-    .map_err(ErrorFrontend::from)?;
-    Ok(ret)
-}
-
-#[tauri::command]
 pub async fn sql_parse_error(
     name: String, sql: String, app: tauri::State<'_, DBPal>,
 ) -> Result<Option<ErrAndLoc>, ErrorFrontend> {
