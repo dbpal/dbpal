@@ -11,7 +11,9 @@ use redis::{AsyncCommands, AsyncIter};
 use tokio::sync::Mutex;
 
 use crate::db::{GetBackendKind, not_support_feature};
-use crate::language_server::{CompletionItem, CompletionKind, GetKeyWords, LanguageServer, in_pos};
+use crate::language_server::{
+    CompletionItem, CompletionKind, CompletionList, GetKeyWords, LanguageServer, in_pos,
+};
 use crate::redis::{RedisDB, RedisToken, get_command_from_sql};
 impl RedisDB {
     fn get_query_conn(&self) -> anyhow::Result<Arc<Mutex<MultiplexedConnection>>> {
@@ -1174,7 +1176,7 @@ impl LanguageServer for RedisDB {
 
     async fn auto_completion(
         &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, _use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         let pos = sqlparser::tokenizer::Location {
             line: line as u64,
@@ -1204,7 +1206,7 @@ impl LanguageServer for RedisDB {
                         },
                         value.len() as u64,
                     ) {
-                        return anyhow::Ok(static_redis_command_completion_items());
+                        return anyhow::Ok(static_redis_command_completion_items().into());
                     }
                     value.clone().to_uppercase()
                 }
@@ -1237,7 +1239,7 @@ impl LanguageServer for RedisDB {
                             },
                             value.len() as u64,
                         ) {
-                            return f.await;
+                            return f.await.map(|x| x.into());
                         }
                     }
                     _ => {
@@ -1248,7 +1250,7 @@ impl LanguageServer for RedisDB {
         }
         // lexer command
         let ret = static_redis_command_completion_items();
-        anyhow::Ok(ret)
+        anyhow::Ok(ret.into())
     }
 }
 

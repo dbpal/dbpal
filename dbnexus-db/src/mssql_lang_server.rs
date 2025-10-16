@@ -4,8 +4,8 @@
 
 use crate::db::{CatalogTrait, CreatedTypeDef};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, GetKeyWords,
-    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, DBExecutable, ErrAndLoc,
+    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::mssql::SqlServerDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -35,7 +35,7 @@ impl LanguageServer for SqlServerDB {
 
     async fn auto_completion(
         &self, _query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<CompletionList> {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 

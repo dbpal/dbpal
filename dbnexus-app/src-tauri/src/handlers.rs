@@ -17,7 +17,7 @@ use dbnexus_db::db::{
     UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use dbnexus_db::firebird::FireBirdDB;
-use dbnexus_db::language_server::{CompletionItem, ErrAndLoc};
+use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
 use dbnexus_db::libsql::LibSqlDB;
 use dbnexus_db::meta_value::MetaValue;
 use dbnexus_db::mongo::MongoDB;
@@ -1203,7 +1203,7 @@ fn auto_completion_mutex(name: &str) -> Arc<tokio::sync::Mutex<()>> {
 pub async fn auto_completion(
     name: String, query_id: Option<u32>, sql: String, line: u32, col: u32,
     app: tauri::State<'_, DBPal>,
-) -> Result<Vec<CompletionItem>, ErrorFrontend> {
+) -> Result<CompletionList, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let use_lexer = true;

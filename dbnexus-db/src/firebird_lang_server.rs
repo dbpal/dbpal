@@ -3,8 +3,8 @@ use rsfbclient::{Queryable, Row};
 use crate::db::SchemaTrait;
 use crate::firebird::FireBirdDB;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, GetKeyWords, LangServerCommon,
-    LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, GetKeyWords,
+    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::sqlparser_completion::TempTableColumn;
 
@@ -31,8 +31,10 @@ impl LanguageServer for FireBirdDB {
 
     async fn auto_completion(
         &self, _query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
+    ) -> anyhow::Result<CompletionList> {
+        try_parser_dot_lexer(self, sql, line, col, use_lexer)
+            .await
+            .map(|x| x.into())
     }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)

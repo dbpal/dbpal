@@ -466,7 +466,7 @@ function ModifySetting() {
         </Typography>
         <Select
           onChange={(e) => setCustomEditorTheme(e.target.value)}
-          style={{ minWidth: '14rem' }}
+          style={{ minWidth: '25rem' }}
           value={customEditorTheme}
         >
           <MenuItem value=""></MenuItem>

@@ -11,8 +11,8 @@ MySQL 只允许省略 sys. 前缀直接调用“函数”，对“存储过程�
 
 use crate::db::{SqlEvent, name_start_ascii_alphabetic};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, GetKeyWords,
-    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, DBExecutable, ErrAndLoc,
+    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -63,7 +63,7 @@ impl LanguageServer for MysqlDB {
 
     async fn auto_completion(
         &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
@@ -586,16 +586,16 @@ mod tests {
         let sql = include_str!("../tests/mysql_at_var_lexer.sql");
         let db = make_test_object(make_config()).await;
 
-        let item = LanguageServer::auto_completion(&db, None, sql, 2, 11, true)
+        let list = LanguageServer::auto_completion(&db, None, sql, 2, 11, true)
             .await
             .unwrap();
-        item.iter().for_each(|x| {
+        list.items.iter().for_each(|x| {
             if x.item.contains("my_var") {
                 println!("!!!!!:{:?}", x.item);
             }
         });
 
-        assert!(item.iter().any(|x| x.item == "my_var"));
+        assert!(list.items.iter().any(|x| x.item == "my_var"));
     }
 }
 

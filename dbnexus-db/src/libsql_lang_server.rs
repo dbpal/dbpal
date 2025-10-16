@@ -1,7 +1,7 @@
 use crate::db::name_start_ascii_alphabetic;
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, ErrAndLoc, GetKeyWords, LangServerCommon,
-    LanguageServer, try_parser_dot_lexer,
+    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, ErrAndLoc, GetKeyWords,
+    LangServerCommon, LanguageServer, try_parser_dot_lexer,
 };
 use crate::libsql::LibSqlDB;
 use crate::sqlite::SqliteDB;
@@ -38,7 +38,7 @@ impl LanguageServer for LibSqlDB {
 
     async fn auto_completion(
         &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }

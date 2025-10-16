@@ -16,7 +16,7 @@ use crate::sqlparser_completion::{CompletionStatement, Scopes, TempTableColumn};
 pub trait LanguageServer: GetBackendKind + GetKeyWords {
     async fn auto_completion(
         &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>>;
+    ) -> anyhow::Result<CompletionList>;
 
     fn parse_error(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         anyhow::Ok(None)
@@ -35,6 +35,22 @@ pub struct CompletionItem {
     pub desc: Option<Cow<'static, str>>,
 }
 
+#[derive(
+    Debug, Clone, PartialEq, Eq, serde::Serialize, Hash, Default, typescript_type_def::TypeDef,
+)]
+pub struct CompletionList {
+    pub items: Vec<CompletionItem>,
+    pub incomplete: bool,
+}
+
+impl From<Vec<CompletionItem>> for CompletionList {
+    fn from(value: Vec<CompletionItem>) -> Self {
+        CompletionList {
+            items: value,
+            incomplete: false,
+        }
+    }
+}
 impl From<CompletionItem> for String {
     fn from(value: CompletionItem) -> Self {
         value.item.into()
@@ -104,7 +120,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
 
     async fn do_auto_completion(
         &self, sql: &str, line: u32, col: u32,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<CompletionList> {
         let pos = sqlparser::tokenizer::Location {
             line: line as u64,
             column: col as u64,
@@ -119,7 +135,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
                     if x.value.starts_with("@@") && in_pos(pos, t.span.start, x.value.len() as u64)
                     {
                         // 词法匹配到了@@
-                        return anyhow::Ok(self.list_variable_completion().await);
+                        return anyhow::Ok(self.list_variable_completion().await.into());
                     }
                 }
             }
@@ -149,7 +165,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 }
             }
         }
-        return anyhow::Ok(remove_duplicate(all_item));
+        return anyhow::Ok(remove_duplicate(all_item).into());
     }
 
     async fn all_completion_items(&self) -> Vec<CompletionItem> {
@@ -568,7 +584,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
     // completion on ast struct like `SCHEMA.XXXX`  , 'TABLE.XXXX'
     async fn try_completion_dot(
         &self, sql: &str, line: u32, col: u32,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<CompletionList> {
         let loc = sqlparser::tokenizer::Location {
             line: line as u64,
             column: col as u64,
@@ -652,7 +668,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
                                 desc: x.statement.map(|x| x.into()),
                             }),
                     );
-                    return anyhow::Ok(remove_duplicate(ret));
+                    return anyhow::Ok(remove_duplicate(ret).into());
                 }
 
                 {
@@ -684,7 +700,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
                         );
                     }
                 }
-                return anyhow::Ok(ret);
+                return anyhow::Ok(CompletionList {
+                    items: ret,
+                    incomplete: false,
+                });
             }
         }
         anyhow::bail!("can't find completion");
@@ -1030,7 +1049,7 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
 /// then lexer   
 pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletionHelper>(
     backend: &T, sql: &str, line: u32, col: u32, use_lexer: bool,
-) -> anyhow::Result<Vec<CompletionItem>> {
+) -> anyhow::Result<CompletionList> {
     let dot = backend.try_completion_dot(sql, line, col).await;
     let r = tokio::time::timeout(Duration::from_secs(4), async move {
         try_parser_completion(sql, line, col, backend).await
@@ -1045,8 +1064,8 @@ pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletion
             // xxx. 有可能和后面的元素结合产生不同寻常的结果
             // 有时候是关键字也会结合 这点一般的解析程序不太一样呢
             // 自动完成更多的给出可能性 但是有可能是错误的 问题不大
-            xs.extend(dot.unwrap_or_default());
-            return Ok(remove_duplicate(xs));
+            xs.extend(dot.unwrap_or_default().items.clone());
+            return Ok(remove_duplicate(xs).into());
         }
         Err(err) => {
             log::error!("completion on ast failed,err:{}", err);
@@ -1054,11 +1073,11 @@ pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletion
     };
     // try dot
     if let Ok(x) = dot {
-        return anyhow::Ok(x);
+        return anyhow::Ok(x.into());
     }
     if !use_lexer {
         log::warn!("disabled use lexer , we will return empty data.");
-        return anyhow::Ok(vec![]);
+        return anyhow::Ok(vec![].into());
     }
     return LexerCompletionTrait::do_auto_completion(backend, sql, line, col).await;
 }
@@ -1231,12 +1250,12 @@ select xxxx
         for item in items.iter() {
             for i in item.tests.iter() {
                 log::trace!("on pos:{}:{}", item.line, i.0);
-                let items = db
+                let list = db
                     .auto_completion(None, &item.sql, 1, i.0 as u32, use_lexer)
                     .await
                     .unwrap();
                 for should in i.1.iter() {
-                    test_completion_items_contains(&items[..], item.line, i.0, &should);
+                    test_completion_items_contains(&list.items[..], item.line, i.0, &should);
                 }
             }
         }

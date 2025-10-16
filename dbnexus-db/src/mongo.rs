@@ -19,7 +19,7 @@ use crate::db::{
     GetBackendKind, Index, IndexKind, ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
     ServerMetas, ShowTableExtraArgs, SqlExecuteRet, XlsxEdit, not_support_feature,
 };
-use crate::language_server::{CompletionItem, GetKeyWords, LanguageServer};
+use crate::language_server::{GetKeyWords, LanguageServer};
 use crate::meta_value::MetaValue;
 #[derive(Clone)]
 pub struct MongoDB {
@@ -87,7 +87,7 @@ impl LanguageServer for MongoDB {
 
     async fn auto_completion(
         &self, _query_id: Option<u32>, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<crate::language_server::CompletionList> {
         not_support_feature(self.backend_name())
     }
 

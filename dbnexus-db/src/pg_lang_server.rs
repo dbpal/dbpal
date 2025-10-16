@@ -1,7 +1,7 @@
 use crate::db::{CatalogTrait, CreatedTypeDef, SequenceDetail};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, GetKeyWords,
-    LangServerCommon, LanguageServer, LexerCompletionTrait, PostGresExtension,
+    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, DBExecutable, ErrAndLoc,
+    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait, PostGresExtension,
     try_parser_dot_lexer,
 };
 
@@ -578,7 +578,7 @@ impl LanguageServer for PostGresDB {
 
     async fn auto_completion(
         &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }

@@ -1,7 +1,7 @@
 use crate::db::{DBTrait, SequenceDetail, SqlEvent};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, DBExecutable, ErrAndLoc, GetKeyWords,
-    LangServerCommon, LanguageServer, LexerCompletionTrait,
+    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, DBExecutable, ErrAndLoc,
+    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
 use crate::mariadb::MariaDB;
 use crate::mysql::MysqlDB;
@@ -28,7 +28,7 @@ impl LanguageServer for MariaDB {
 
     async fn auto_completion(
         &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<CompletionList> {
         LanguageServer::auto_completion(self.db.as_ref(), query_id, sql, line, col, use_lexer).await
     }
     fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {

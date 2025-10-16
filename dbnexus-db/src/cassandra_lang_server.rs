@@ -15,8 +15,8 @@ use cql3_parser::select::SelectElement;
 use crate::cassandra::{AppSession, CassandraDB};
 use crate::db::{CreatedTypeDef, DBTrait};
 use crate::language_server::{
-    CompletionItem, CompletionKind, ErrAndLoc, GetKeyWords, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, remove_duplicate,
+    CompletionItem, CompletionKind, CompletionList, ErrAndLoc, GetKeyWords, LangServerCommon,
+    LanguageServer, LexerCompletionTrait, remove_duplicate,
 };
 
 use crate::sqlparser_completion::TempTableColumn;
@@ -39,7 +39,7 @@ impl LanguageServer for CassandraDB {
 
     async fn auto_completion(
         &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         //
         let dot = self.try_completion_dot(sql, line, col).await;
@@ -47,18 +47,21 @@ impl LanguageServer for CassandraDB {
         let r = AstCompletion::completion(sql, line - 1, col - 1, Clone::clone(self)).await;
         match r {
             Ok(mut x) => {
-                x.extend(dot.unwrap_or_default());
-                return anyhow::Ok(remove_duplicate(x));
+                x.extend(dot.unwrap_or_default().items.clone());
+                return anyhow::Ok(CompletionList {
+                    items: remove_duplicate(x),
+                    incomplete: false,
+                });
             }
             Err(x) => {
                 log::error!("try completion on ast failed:{}", x)
             }
         }
         if let Ok(x) = dot {
-            return anyhow::Ok(x);
+            return anyhow::Ok(x.into());
         }
         if !use_lexer {
-            return anyhow::Ok(vec![]);
+            return anyhow::Ok(vec![].into());
         }
         return LexerCompletionTrait::do_auto_completion(self, sql, line, col).await;
     }

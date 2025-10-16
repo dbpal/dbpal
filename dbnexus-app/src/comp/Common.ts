@@ -130,7 +130,7 @@ const autoCompletion = async (
       message("auto completion name is null this is a bug", { kind: 'error' });
       return;
     }
-    const completionItem = await invoke<types.CompletionItem[]>(
+    const completionItem = await invoke<types.CompletionList>(
       'auto_completion',
       {
         sql,
@@ -140,7 +140,8 @@ const autoCompletion = async (
         queryId: name.queryId
       }
     );
-    const suggestions = backendCompletionItemToEditor(completionItem);
+    const suggestions = backendCompletionItemToEditor(completionItem.items);
+    suggestions.incomplete = completionItem.incomplete;
     return suggestions;
   } catch (e) {
     console.log('completion server error:', e);

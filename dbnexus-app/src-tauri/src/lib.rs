@@ -8,6 +8,7 @@ mod tests {
         ColumnType, CreateTableAndIndexSql, CreatedTypeDef, SequenceDetail, ShowTableExtraArgs,
         SqlEvent,
     };
+    use dbnexus_db::language_server::CompletionList;
 
     #[test]
     fn generate_ts_def() {
@@ -70,6 +71,7 @@ mod tests {
             &CreatedTypeDef::INFO,
             &ShowTableExtraArgs::INFO,
             &SqlEvent::INFO,
+            &CompletionList::INFO,
         ];
 
         let options: DefinitionFileOptions = DefinitionFileOptions::default();

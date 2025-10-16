@@ -348,4 +348,8 @@ export namespace types {
         "sql": string;
         "metas": (types.MetaValue)[];
     };
+    export type CompletionList = {
+        "items": (types.CompletionItem)[];
+        "incomplete": boolean;
+    };
 }

@@ -2,8 +2,8 @@ use tokio::task::block_in_place;
 
 use crate::db::{DBTrait, name_start_ascii_alphabetic};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, GetKeyWords, LangServerCommon,
-    LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
+    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, GetKeyWords,
+    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::oracle::OracleDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -233,7 +233,7 @@ impl LanguageServer for OracleDB {
 
     async fn auto_completion(
         &self, _query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<CompletionList> {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
