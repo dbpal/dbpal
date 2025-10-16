@@ -43,7 +43,7 @@ import { FaBookmark } from 'react-icons/fa';
 import { FaUpload } from 'react-icons/fa';
 import { MdOutlineReply } from 'react-icons/md';
 import { NotificationContext } from './Notification.tsx';
-import { QueryLog, QueryLogKind } from './QueryLog.tsx';
+import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import {
   DataSourceKind,
@@ -51,6 +51,7 @@ import {
   ErrAndLoc,
   generateRandomString,
   getEditorText,
+  getLanguageFromDataSourceKind,
   QueryLogHandler,
   rustResultOk,
   secondConfirm,
@@ -460,7 +461,7 @@ function SqlQuery(props: {
     if (conn && editor) {
       SetAutoCompletionName.set(
         editor.getModel().id,
-        new NameAndQueryId(uuid, conn.queryId)
+        new NameAndQueryId(uuid, kind, conn.queryId)
       );
     }
   }, [conn, editor]);
@@ -567,13 +568,8 @@ function SqlQuery(props: {
             setShowQueryLog={setShowQueryLog}
             uuid={uuid}
             executeTimes={executeTimes}
-            kind={
-              kind == DataSourceKind.Redis
-                ? QueryLogKind.Redis
-                : QueryLogKind.Sql
-            }
+            kind={kind}
             queryId={conn?.queryId}
-            language={kind}
           ></QueryLog>
 
           <Stack
@@ -751,7 +747,7 @@ function SqlQuery(props: {
             ref={editorDivDom}
           >
             <Editor
-              language={kind}
+              language={'sql'}
               onMount={handleEditorDidMount}
               width="99%"
               height="99%"

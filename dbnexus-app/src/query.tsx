@@ -9,19 +9,13 @@ import {
   SomeTempStore,
   webviewWIndowInit,
 } from './comp/helper.ts';
-import { initMonacoLanguage } from './comp/Common.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { AllKindQuery } from './comp/Left.tsx';
-import { Typography } from '@mui/material';
 
 webviewWIndowInit(false);
 
 const sqlData = SomeTempStore.get<FavoriteSql>();
-let err;
-await initMonacoLanguage(sqlData.uuid, sqlData.kind, (msg) => {
-  err = msg;
-});
 
 // close confirm message
 // when in transaction prevent user to close the window
@@ -44,7 +38,6 @@ function Query(props: {
         setCloseConfirm(msg);
       }}
     >
-      {err && <Typography color="error">{err}</Typography>}
       <AllKindQuery
         uuid={uuid}
         kind={kind}

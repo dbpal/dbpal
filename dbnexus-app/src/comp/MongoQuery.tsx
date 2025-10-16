@@ -43,7 +43,7 @@ import { LogLevelSelection, ModalHeader } from './CommonComp';
 import * as esprima from 'esprima';
 import { FaBookmark } from 'react-icons/fa';
 import { EditorBar, LoadStoreFileForQuery } from './CommonComp2';
-import { QueryLog, QueryLogKind } from './QueryLog';
+import { QueryLog } from './QueryLog';
 initMongoQueryGlobals();
 
 function makeLog(level, ...msg: any[]): string {
@@ -221,8 +221,7 @@ function MongoQuery(props: {
           showQueryLog={showQueryLog}
           setShowQueryLog={setShowQueryLog}
           uuid={uuid}
-          language={'javascript'}
-          kind={QueryLogKind.Mongo}
+          kind={DataSourceKind.Mongo}
           executeTimes={executeTimes}
         ></QueryLog>
 

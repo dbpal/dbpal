@@ -6,7 +6,6 @@ import {
   ReactNode,
   useCallback,
   useEffect,
-  useRef,
   useState,
 } from 'react';
 import { TabContent, TabsWithContent } from './Tabs';
@@ -23,6 +22,11 @@ import {
 import '../app.css';
 import { Paper, useTheme } from '@mui/material';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { Editor } from '@monaco-editor/react';
+import { languages } from 'monaco-editor';
+languages.getLanguages().forEach((e) => {
+  console.log('!!!!!!!!!!!!!!!!!!!!', e);
+});
 
 const shortCuts = {
   callback: (e: KeyboardEvent) => {
@@ -110,6 +114,9 @@ function App() {
           <Menu>
             <WindowFocus>
               <div>
+                <div style={{ height: '300px' }}>
+                  <Editor language="sql" value="select 1"></Editor>
+                </div>
                 <PanelGroup
                   direction="horizontal"
                   style={{
@@ -187,26 +194,32 @@ function Menu(props: { children: ReactNode }) {
     event: MouseEvent;
   }>(null);
 
-  const menuDiv = useRef<HTMLDivElement>(null);
+  const [menuDiv, setMenuDiv] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    if (!menuDiv) {
+      return;
+    }
     document.addEventListener('click', () => {
-      if (!menuDiv.current.style) {
+      if (!menuDiv.style) {
         return;
       }
-      menuDiv.current.style.display = 'none';
+      menuDiv.style.display = 'none';
     });
-  }, []);
+  }, [menuDiv]);
 
   useEffect(() => {
     if (!menu) {
       return;
     }
-    menuDiv.current.style.display = 'block';
+    if (!menuDiv) {
+      return;
+    }
+    menuDiv.style.display = 'block';
     if (menu && menu.event) {
       menu.event.preventDefault();
     }
-  }, [menu]);
+  }, [menu, menuDiv]);
 
   const theme = useTheme();
 
@@ -214,7 +227,7 @@ function Menu(props: { children: ReactNode }) {
     <ContextMenuContext.Provider value={{ setUpMenu }}>
       {children}
       <div
-        ref={menuDiv}
+        ref={setMenuDiv}
         style={{
           position: 'fixed',
           zIndex: 10000,

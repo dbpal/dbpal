@@ -114,7 +114,7 @@ function DefAndMetasView(props: {
               editor.current = ed;
               SetAutoCompletionName.set(
                 ed.getModel().id,
-                new NameAndQueryId(uuid)
+                new NameAndQueryId(uuid, kind)
               );
             }}
             handleValue={(sql) => {

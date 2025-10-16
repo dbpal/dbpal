@@ -1150,11 +1150,6 @@ enum ViewKind {
   Normal,
   Materialized,
 }
-enum QueryLogKind {
-  Sql,
-  Redis,
-  Mongo,
-}
 
 
 const registeredThemes = [];
@@ -1173,6 +1168,16 @@ async function setUpEditorThemes() {
   } catch (e) {
     message("set up editor themes failed", { kind: 'error' });
     console.log("set up editor themes failed", e);
+  }
+}
+
+function getLanguageFromDataSourceKind(kind: DataSourceKind): string {
+  switch (kind) {
+    case DataSourceKind.Mongo:
+      return 'javascript';
+    default:
+      return 'sql';
+
   }
 }
 
@@ -1244,8 +1249,8 @@ export {
   SaveLoggerStreamPinToBotton,
   setUpDatabase,
   ViewKind,
-  QueryLogKind,
   registeredThemes,
+  getLanguageFromDataSourceKind,
 };
 
 

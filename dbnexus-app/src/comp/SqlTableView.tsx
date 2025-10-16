@@ -181,7 +181,7 @@ function SetFilterSort(props: {
         <ModalHeader title={`set ${label}`}></ModalHeader>
         <SimpleFlexEditor
           value={
-            makeFormatFn(kind, showNotification)(
+            makeFormatFn(kind)(
               label == 'filter'
                 ? `SELECT * FROM ${tableName} WHERE ${value}`
                 : `SELECT * FROM ${tableName} ORDER BY ${value}`,
@@ -194,7 +194,7 @@ function SetFilterSort(props: {
             editorPositionToEnd(e);
             SetAutoCompletionName.set(
               e.getModel().id,
-              new NameAndQueryId(uuid)
+              new NameAndQueryId(uuid, kind)
             );
           }}
           language={kind}

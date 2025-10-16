@@ -37,9 +37,10 @@ import CloseIcon from '@mui/icons-material/Close';
 import {
   ColumnWidth,
   dataGridParentStyle,
+  DataSourceKind,
+  getLanguageFromDataSourceKind,
   pageSizeOptions,
   QueryLogHandler,
-  QueryLogKind,
   saveAndSetSize,
   SavePageSize,
   secondConfirm,
@@ -60,19 +61,11 @@ function QueryLog(props: {
   showQueryLog: boolean;
   setShowQueryLog: (x: boolean) => void;
   executeTimes: number;
-  language: string;
   queryId?: number;
-  kind: QueryLogKind;
+  kind: DataSourceKind;
 }) {
-  const {
-    uuid,
-    showQueryLog,
-    setShowQueryLog,
-    executeTimes,
-    language,
-    queryId,
-    kind,
-  } = props;
+  const { uuid, showQueryLog, setShowQueryLog, executeTimes, queryId, kind } =
+    props;
   const [selectSql, setSelectSql] = useState('');
   const [page, setPage] = useState(0); // datagrid start with 0
   const [pageSize, setPagesize] = useState(SavePageSize.instance.get());
@@ -101,10 +94,10 @@ function QueryLog(props: {
 
   let sqlDesc = 'sql';
   switch (kind) {
-    case QueryLogKind.Redis:
+    case DataSourceKind.Redis:
       sqlDesc = 'command';
       break;
-    case QueryLogKind.Mongo:
+    case DataSourceKind.Mongo:
       sqlDesc = 'code';
       break;
   }
@@ -337,14 +330,14 @@ function QueryLog(props: {
           >
             <ModalHeader title="View SQL"></ModalHeader>
             <SimpleFlexEditor
-              language={language}
               value={selectSql}
               handleEditor={(e) => {
                 SetAutoCompletionName.set(
                   e.getModel().id,
-                  new NameAndQueryId(uuid, queryId)
+                  new NameAndQueryId(uuid, kind, queryId)
                 );
               }}
+              language={getLanguageFromDataSourceKind(kind)}
             ></SimpleFlexEditor>
           </Box>
         </Modal>
@@ -353,4 +346,4 @@ function QueryLog(props: {
   );
 }
 
-export { QueryLog, QueryLogKind };
+export { QueryLog };

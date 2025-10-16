@@ -54,7 +54,6 @@ import {
   appStore,
   AppStoreKey,
   ColumnWidth,
-  connTypeToDataSourceKind,
   ContextMenuContext,
   dataGridParentStyle,
   DataSourceKind,
@@ -78,7 +77,7 @@ import {
 
 import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
-import { getNamedConfig, initMonacoLanguage } from './Common';
+import { getNamedConfig } from './Common';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { editor, Position } from 'monaco-editor';
 import { FaAlignLeft } from 'react-icons/fa';
@@ -346,10 +345,6 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
     }
     try {
       await invoke('open_conn', { name });
-      const kind = connTypeToDataSourceKind(config.conn_type);
-      await initMonacoLanguage(name, kind, (msg) => {
-        showNotification('error', msg);
-      });
     } catch (e) {
       showNotification('error', 'open connection failed', e);
       return;

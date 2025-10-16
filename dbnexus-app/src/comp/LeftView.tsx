@@ -235,7 +235,7 @@ function StatementStructure(props: {
           handleEditor={(editor) => {
             SetAutoCompletionName.set(
               editor.getModel().id,
-              new NameAndQueryId(uuid)
+              new NameAndQueryId(uuid, kind)
             );
           }}
         ></SimpleFlexEditor>
