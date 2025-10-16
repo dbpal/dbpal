@@ -17,14 +17,10 @@
     "opener:allow-default-urls",
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text",
-    "clipboard-manager:allow-read-image",
-    "clipboard-manager:allow-clear",
+
     "core:window:allow-destroy",
     "core:window:allow-set-fullscreen",
     "core:webview:allow-set-webview-zoom",
-    "clipboard-manager:allow-write-html",
-    "clipboard-manager:allow-write-image",
-    "clipboard-manager:allow-write-html",
     "opener:allow-open-path",
     {
       "identifier": "opener:allow-open-path",
