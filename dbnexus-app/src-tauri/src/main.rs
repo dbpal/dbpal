@@ -25,8 +25,8 @@ use handlers::{
     get_backend_crash, get_password, get_query_cache, get_redis_doc, has_entered_password,
     is_dangerous_sql, key_words, list_created_types, list_data_types, list_database, list_event,
     list_materialized_view, list_procedure, list_schema, list_sequence, list_sql_current_values,
-    list_table, list_udf, list_view, log_channel, modify_table_column, mongo_create_index,
-    mongo_delete_ids, mongo_get_one_document_by_id, mongo_insert,
+    list_table, list_udf, list_view, log_channel, modify_table_column, monaco_editor_themes,
+    mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id, mongo_insert,
     mongo_list_time_serial_collection, mongo_query_collection_count_docs,
     mongo_query_collection_create_index, mongo_query_collection_create_search_index,
     mongo_query_collection_delete_many, mongo_query_collection_delete_one,
@@ -122,10 +122,7 @@ impl log::Log for AppLogger {
         metadata.level() <= self.get_level()
     }
     fn log(&self, record: &log::Record) {
-        if !self.enabled(record.metadata()) {
-            return;
-        }
-        let s = format!(
+        let log_str = format!(
             "{} {} {}-{}\n",
             chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
             if cfg!(debug_assertions) {
@@ -140,10 +137,15 @@ impl log::Log for AppLogger {
             record.level(),
             record.args()
         );
+        #[cfg(debug_assertions)]
+        eprintln!("{}", log_str);
+        if !self.enabled(record.metadata()) {
+            return;
+        }
         let mut sender = log_channel_store().lock().unwrap();
         match sender.deref_mut() {
             Some(x) => {
-                x.send(s).unwrap();
+                x.send(log_str).unwrap();
             }
             None => {}
         }
@@ -650,6 +652,7 @@ fn main_() {
             log_channel,
             close_log_channel,
             get_redis_doc,
+            monaco_editor_themes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

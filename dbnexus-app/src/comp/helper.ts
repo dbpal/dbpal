@@ -2,7 +2,7 @@
 import { editor, languages, Position } from "monaco-editor";
 import types from "./ApiStruct";
 import { createContext, CSSProperties, MouseEvent, ReactElement, ReactNode } from "react";
-import { ask } from '@tauri-apps/plugin-dialog';
+import { ask, message } from '@tauri-apps/plugin-dialog';
 import { load } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
@@ -10,6 +10,7 @@ import { BSON, EJSON } from "bson";
 import Database, { QueryResult } from '@tauri-apps/plugin-sql';
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
+import { console } from "inspector";
 
 const pageSizeOptions = [10, 20, 50, 100];
 const appStore = await load('store.json');
@@ -978,9 +979,6 @@ export type MuiDataGridData = {
   "has_more": boolean;
 };
 
-
-
-
 async function webviewWIndowInit(isMain: boolean) {
   const currentWebview = await WebviewWindow.getCurrent();
   appStore.get<number>(AppStoreKey.Zoom).then(async (zoom) => {
@@ -1154,6 +1152,21 @@ enum QueryLogKind {
   Redis,
   Mongo,
 }
+
+
+// async function setUpEditorThemes() {
+//   try {
+//     let themes = invoke<object>('monaco_editor_themes');
+//     console.log("themes", themes);
+//   } catch (e) {
+//     message("set up editor themes failed", { kind: 'error' });
+//     console.log("set up editor themes failed", e);
+//   }
+// }
+
+// setUpEditorThemes();
+
+
 export {
   TabsSetContext,
   ConnTypeContext,
