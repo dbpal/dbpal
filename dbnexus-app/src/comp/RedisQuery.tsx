@@ -5,28 +5,21 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 import { SqlQuery } from './SqlQuery.tsx';
 import { MakeIQueryConn } from './Common.ts';
-import { appStore, AppStoreKey, DataSourceKind, ErrAndLoc } from './helper.ts';
+import { DataSourceKind, ErrAndLoc } from './helper.ts';
 import { Chip } from '@mui/material';
 import { invoke } from '@tauri-apps/api/core';
 import { AppMarkDown } from './CommonComp2.tsx';
 import { message } from '@tauri-apps/plugin-dialog';
 
 class SaveShowDoc {
-  showDocOld = true;
+  key = 'dbpal-redis-show-doc';
+
   save(x: boolean) {
-    this.showDocOld = x;
-    appStore.set(AppStoreKey.RedisShowDoc, x);
+    localStorage.setItem(this.key, x ? '1' : '0');
   }
 
-  constructor() {
-    appStore.get<boolean>(AppStoreKey.RedisShowDoc).then((x) => {
-      if (typeof x === 'boolean') {
-        this.showDocOld = x;
-      }
-    });
-  }
   get(): boolean {
-    return this.showDocOld;
+    return localStorage.getItem(this.key) == '1';
   }
   static instance = new SaveShowDoc();
 }

@@ -48,7 +48,7 @@ function LogTip({ width }) {
 function LogStream() {
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pinToBotton, setPinToBotton] = useState(
-    SaveLoggerStreamPinToBotton.instance.pinToBotton
+    SaveLoggerStreamPinToBotton.instance.get()
   );
   const { showNotification } = useContext(NotificationContext);
   const [loggerLevel, setLoggerLevel] = useState(LoggerLevel.level);

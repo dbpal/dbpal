@@ -46,6 +46,8 @@ import {
   UserSettingAppearance,
   UserSettingExport,
   UserSettingEditor,
+  settingChangeEvent,
+  UserSettingMisc,
 } from './helper';
 import { Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
@@ -58,16 +60,16 @@ import {
   disable as disableApp,
 } from '@tauri-apps/plugin-autostart';
 import { message } from '@tauri-apps/plugin-dialog';
-import InfoIcon from '@mui/icons-material/Info';
 import { Editor } from '@monaco-editor/react';
+import { listen } from '@tauri-apps/api/event';
 
-function Appearance() {
+function AppearanceSetting() {
   const setting = UserSettingAppearance.get();
   const { showNotification } = useContext(NotificationContext);
   const [allFonts, setAllFonts] = useState<string[]>([]);
   const [fontMatch, setFontMatch] = useState<string>('');
   const [showEditBgColor, setShowEditBgColor] = useState(false);
-  const [fontWeight, setFontWeight] = useState(setting.fontFamily);
+  const [fontWeight, setFontWeight] = useState(setting.fontWeight);
   const [fontSize, setFontSize] = useState(setting.fontSize);
   const [bgColor, setBgColor] = useState(
     setting.theme == 'dark' ? setting.darkBgColor : setting.lightBgColor
@@ -111,19 +113,25 @@ function Appearance() {
   }, []);
 
   const handleSave = () => {
-    let x = {
-      theme: setting.theme,
-      fontFamily,
-      fontSize,
-      fontWeight,
-      darkBgColor: setting.isDark() ? bgColor : setting.darkBgColor,
-      lightBgColor: !setting.isDark() ? bgColor : setting.lightBgColor,
-      datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
-      maxTreeSize: parseInt(maxTreeSize),
-      maxTabTitleLength: parseInt(maxTabTitleLength),
-    } as UserSettingAppearance;
-    Object.setPrototypeOf(x, UserSettingAppearance.prototype);
-    x.save();
+    try {
+      let x = {
+        theme: setting.theme,
+        fontFamily,
+        fontSize,
+        fontWeight,
+        darkBgColor: setting.isDark() ? bgColor : setting.darkBgColor,
+        lightBgColor: !setting.isDark() ? bgColor : setting.lightBgColor,
+        datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
+        maxTreeSize: parseInt(maxTreeSize),
+        maxTabTitleLength: parseInt(maxTabTitleLength),
+      } as UserSettingAppearance;
+      Object.setPrototypeOf(x, UserSettingAppearance.prototype);
+      x.save();
+    } catch (e) {
+      showNotification('error', 'save setting failed', e);
+      return;
+    }
+    showNotification('success', 'save setting success');
   };
   return (
     <Stack spacing={1} style={{ height: '100%' }}>
@@ -321,6 +329,7 @@ function Appearance() {
           error={isNaN(parseInt(maxTabTitleLength))}
         ></TextField>
       </Stack>
+      <Divider></Divider>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Button onClick={handleSave}> save </Button>
       </Stack>
@@ -329,25 +338,32 @@ function Appearance() {
 }
 
 function EditorSetting() {
-  const [editorOptions, setEditorOptions] = useState('');
+  const setting = UserSettingEditor.get();
+  const [editorOptions, setEditorOptions] = useState(
+    setting.editorOption ? JSON.stringify(setting.editorOption) : '{}'
+  );
   const [showEditOption, setShowEditOption] = useState(false);
-  const [tabSize, setTabSize] = useState(2);
-  const [customEditorTheme, setCustomEditorTheme] = useState('');
+  const [tabSize, setTabSize] = useState(setting.tabSize);
+  const [customEditorTheme, setCustomEditorTheme] = useState(setting.theme);
   const muiTheme = useTheme();
+  const { showNotification } = useContext(NotificationContext);
   const handleSave = () => {
-    let obj = {
-      tabSize,
-      theme: customEditorTheme,
-      editorOption: JSON.parse(editorOptions),
-    } as UserSettingEditor;
-    Object.setPrototypeOf(obj, UserSettingEditor.prototype);
-    obj.save();
+    try {
+      let obj = {
+        tabSize,
+        theme: customEditorTheme,
+        editorOption: editorOptions ? JSON.parse(editorOptions) : null,
+      } as UserSettingEditor;
+      Object.setPrototypeOf(obj, UserSettingEditor.prototype);
+      obj.save();
+    } catch (e) {
+      showNotification('error', 'save setting  failed', e);
+      return;
+    }
+    showNotification('success', 'save setting ok');
   };
   return (
     <Stack spacing={1}>
-      <Divider textAlign="left" style={{ marginTop: '20px' }}>
-        editor
-      </Divider>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           tab size:
@@ -408,47 +424,44 @@ function EditorSetting() {
         </Stack>
       </Stack>
 
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+      <Stack direction="row" sx={{ alignItems: 'flex-start' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           editor theme:
         </Typography>
-        <Select
-          onChange={(e) => setCustomEditorTheme(e.target.value)}
-          style={{ minWidth: '25rem' }}
-          value={customEditorTheme}
+        <Stack
+          spacing={1}
+          direction="row"
+          style={{ flex: 1, alignItems: 'flex-start' }}
         >
-          <MenuItem value=""></MenuItem>
-          {['vs', 'vs-dark', 'hc-black', 'hc-light'].map((theme) => (
-            <MenuItem value={theme}>{theme}</MenuItem>
-          ))}
-          {registeredThemes.map((theme) => {
-            return (
-              <MenuItem value={theme} key={theme}>
-                {theme}
-              </MenuItem>
-            );
-          })}
-        </Select>
-
-        <Tooltip
-          title={
-            <EditorThemeDemo
-              fontSize={15}
-              width="55vw"
-              theme={customEditorTheme}
-            ></EditorThemeDemo>
-          }
-          slotProps={{
-            tooltip: {
-              style: { maxWidth: '55vw' },
-            },
-          }}
-        >
-          <span>
-            <InfoIcon> </InfoIcon>
-          </span>
-        </Tooltip>
+          <Select
+            onChange={(e) => setCustomEditorTheme(e.target.value)}
+            style={{ minWidth: '25rem', flex: 0.5 }}
+            value={customEditorTheme}
+          >
+            <MenuItem value=""></MenuItem>
+            {['vs', 'vs-dark', 'hc-black', 'hc-light'].map((theme) => (
+              <MenuItem value={theme}>{theme}</MenuItem>
+            ))}
+            {registeredThemes.map((theme) => {
+              return (
+                <MenuItem value={theme} key={theme}>
+                  {theme}
+                </MenuItem>
+              );
+            })}
+          </Select>
+          <EditorThemeDemo
+            style={{
+              flexGrow: 1,
+              flexShrink: 1,
+              width: '100px',
+              height: '15vh',
+            }}
+            theme={customEditorTheme}
+          ></EditorThemeDemo>
+        </Stack>
       </Stack>
+      <Divider />
       <Stack direction="row">
         <Button onClick={handleSave}> save </Button>
       </Stack>
@@ -459,18 +472,24 @@ function EditorSetting() {
 const headerSize = '16rem';
 
 function ExportSetting() {
-  const [csvDelimiter, setCsvDelimiter] = useState(',');
-  const [includeHeader, setIncludeHeader] = useState(true);
-  const [autoStart, setAutoStart] = useState(false);
-
+  const setting = UserSettingExport.get();
+  const [csvDelimiter, setCsvDelimiter] = useState(setting.csvDelimiter);
+  const [includeHeader, setIncludeHeader] = useState(setting.includeHeader);
+  const { showNotification } = useContext(NotificationContext);
   const handleSave = () => {
-    let x = { csvDelimiter, includeHeader } as UserSettingExport;
-    Object.setPrototypeOf(x, UserSettingExport.prototype);
-    x.save();
+    try {
+      let x = { csvDelimiter, includeHeader } as UserSettingExport;
+      Object.setPrototypeOf(x, UserSettingExport.prototype);
+      x.save();
+    } catch (e) {
+      showNotification('error', 'save setting  failed', e);
+      return;
+    }
+    showNotification('success', 'save setting ok');
   };
 
   return (
-    <Stack>
+    <Stack spacing={1}>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           csv delimiter:
@@ -496,9 +515,31 @@ function ExportSetting() {
           label="include header"
         />
       </Stack>
-      <Divider textAlign="left" style={{ marginTop: '20px' }}>
-        auto start
-      </Divider>
+
+      <Divider />
+      <Stack direction="row">
+        <Button onClick={handleSave}>save</Button>
+      </Stack>
+    </Stack>
+  );
+}
+
+function MiscSetting() {
+  const [autoStart, setAutoStart] = useState(false);
+  const { showNotification } = useContext(NotificationContext);
+  const handleSave = () => {
+    try {
+      let x = { autoStart } as UserSettingMisc;
+      Object.setPrototypeOf(x, UserSettingMisc.prototype);
+      x.save();
+    } catch (e) {
+      showNotification('error', 'save setting  failed', e);
+      return;
+    }
+    showNotification('success', 'save setting ok');
+  };
+  return (
+    <Stack spacing={1}>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           auto start:
@@ -520,12 +561,10 @@ function ExportSetting() {
 }
 
 function ModifySetting() {
-  const { showNotification } = useContext(NotificationContext);
-  const ss = ['apprearance', 'editor', 'export'];
+  const ss = ['appearance', 'editor', 'export', 'misc'];
   const [tab, setTab] = useState(ss[0]);
-
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
+    <Stack spacing={1}>
       <Tabs
         value={tab}
         onChange={(_, value) => {
@@ -536,20 +575,49 @@ function ModifySetting() {
           <Tab value={e} label={e} key={e} />
         ))}
       </Tabs>
+      <div style={{ flex: 1 }}>
+        {ss.map((setting) => {
+          let content: ReactNode;
+          switch (setting) {
+            case 'appearance':
+              content = <AppearanceSetting></AppearanceSetting>;
+              break;
+            case 'editor':
+              content = <EditorSetting></EditorSetting>;
+              break;
+            case 'export':
+              content = <ExportSetting></ExportSetting>;
+              break;
+            case 'misc':
+              content = <MiscSetting></MiscSetting>;
+              break;
+          }
+          return (
+            <div
+              key={setting}
+              style={{ display: setting === tab ? 'block' : 'none' }}
+            >
+              {content}
+            </div>
+          );
+        })}
+      </div>
     </Stack>
   );
 }
 
-function EditorThemeDemo(props: { width: string; theme: string; fontSize }) {
-  const { theme, width, fontSize } = props;
+function EditorThemeDemo(props: { style: CSSProperties; theme: string }) {
+  const setting = useContext(SettingContext);
+  const { fontWeight, fontSize, fontFamily } = setting.appearance;
+  const { theme, style } = props;
   return (
-    <Stack style={{ width, height: '30vh' }} spacing={1}>
+    <Stack style={style} spacing={1}>
       <Editor
         value={`select * from employees where id is not null limit 10;`}
         width="99%"
         height="99%"
         language="sql"
-        options={{ fontSize }}
+        options={{ fontSize, fontFamily, fontWeight, readOnly: true }}
         theme={theme}
       ></Editor>
     </Stack>
@@ -792,7 +860,7 @@ function SettingComp(props: { children: ReactNode }) {
       setting.appearance.fontSize + 'px';
     document.documentElement.style.fontFamily = setting.appearance.fontFamily;
     document.documentElement.style.fontWeight = setting.appearance.fontWeight;
-    if (setting.autoStart) {
+    if (setting.misc.autoStart) {
       if (!isEnabledApp()) {
         enableApp().catch((e) => {
           console.log('enable app autostart failed', e);
@@ -812,6 +880,18 @@ function SettingComp(props: { children: ReactNode }) {
   useEffect(() => {
     reload();
   }, []);
+
+  useEffect(() => {
+    const unlisten = listen(settingChangeEvent, () => {
+      reload();
+    });
+    return () => {
+      unlisten.then((callback) => {
+        callback();
+      });
+    };
+  }, []);
+
   return (
     setting && (
       <ThemeProvider theme={makeTheme(setting.appearance)}>

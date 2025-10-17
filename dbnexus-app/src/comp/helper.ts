@@ -12,6 +12,7 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
 import { loader } from "@monaco-editor/react";
+import { emit } from "@tauri-apps/api/event";
 
 
 const pageSizeOptions = [10, 20, 50, 100];
@@ -359,93 +360,66 @@ function isTypeLargeText(s: string): boolean {
 
 
 enum AppStoreKey {
-
   ConnectionConfig = 'connection-config',
-  Zoom = "zoom",
-  RedisShowDoc = "redis-show-doc",
-  PageSize = "page-size",
-  Align = "align",
-  MatchPattern = "match-pattern",
-  LeftTopShow = "left-top-show",
   LoggerLevel = "logger-level",
-  LoggerStreamPinToBotton = "logger-stream-pin-to-bottom",
 }
 
 
 class SaveLoggerStreamPinToBotton {
-  pinToBotton = false;
+  key = "dbpal-logger-stream-pin-to-botton";
   get() {
-    return this.pinToBotton;
+    return localStorage.getItem(this.key) == '1';
   }
   save(x: boolean) {
-    this.pinToBotton = x;
-    appStore.set(AppStoreKey.LoggerStreamPinToBotton, this.pinToBotton)
+    localStorage.setItem(this.key, x ? '1' : '0');
   }
   static instance = new SaveLoggerStreamPinToBotton();
 }
 
-{
-  const x = await appStore.get(AppStoreKey.LoggerStreamPinToBotton);
-  if (typeof x == 'boolean') {
-    SaveLoggerStreamPinToBotton.instance.pinToBotton = x;
-  }
-}
 
 class SaveLeftTopShow {
-  leftTopShow = true;
+  key = "dbpal-left-top-show";
   get() {
-    return this.leftTopShow;
+    return localStorage.getItem(this.key) == '1';
   }
   save(x: boolean) {
-    this.leftTopShow = x;
-    appStore.set(AppStoreKey.LeftTopShow, this.leftTopShow)
+    localStorage.setItem(this.key, x ? '1' : '0')
   }
   static instance = new SaveLeftTopShow();
-}
-{
-  const x = await appStore.get(AppStoreKey.LeftTopShow);
-  if (typeof x == 'boolean') {
-    SaveLeftTopShow.instance.leftTopShow = x;
-  }
 }
 
 
 class SaveMatchPattern {
-  matchPattern = [];
-
+  key = "dbpal-match-pattern";
   get() {
-    return this.matchPattern;
+    try {
+
+      const x = JSON.parse(localStorage.getItem(this.key));
+      if (x instanceof Array) { return x } else {
+        return []
+      }
+    } catch (e) {
+      return []
+    }
   }
   save(x: string[]) {
-    this.matchPattern = x;
-    appStore.set(AppStoreKey.MatchPattern, this.matchPattern);
+    localStorage.setItem(this.key, JSON.stringify(x))
   }
   static instance = new SaveMatchPattern();
 }
-{
-  const x = await appStore.get<string[]>(AppStoreKey.MatchPattern);
-  if (x) {
-    SaveMatchPattern.instance.matchPattern = x;
-  }
-}
-
 
 class SaveAlign {
   align = "center";
-  constructor() {
-    appStore.get<string>(AppStoreKey.Align).then(x => {
-      if (x) {
-        this.align = x;
-      }
-    });
-  }
+  key = "dbpal-align";
 
   get() {
-    return this.align;
+    const r = localStorage.getItem(this.key);
+    if (r) { return r } else {
+      return "center"
+    }
   }
   save(a: string) {
-    this.align = a;
-    appStore.set(AppStoreKey.Align, this.align);
+    localStorage.setItem(this.key, a);
   }
   static instance = new SaveAlign();
 }
@@ -733,6 +707,12 @@ class MongoTableHandler {
   }
 }
 
+
+function notifySettingChange() {
+
+  emit(settingChangeEvent, "");
+}
+
 class UserSettingAppearance {
   fontSize: number = 15;
   fontWeight: string = 'normal';
@@ -747,6 +727,7 @@ class UserSettingAppearance {
   save() {
     console.log('save appearance setting', this);
     localStorage.setItem(UserSettingAppearance.key, JSON.stringify({ ...this }));
+    notifySettingChange();
   }
   isDark() {
     return this.theme == 'dark'
@@ -774,6 +755,7 @@ class UserSettingExport {
   static key = "dbpal-export-setting";
   save() {
     localStorage.setItem(UserSettingExport.key, JSON.stringify({ ...this }));
+    notifySettingChange();
   }
   static get(): UserSettingExport {
     try {
@@ -795,6 +777,7 @@ class UserSettingEditor {
   static key = "dbpal-editor-setting";
   save() {
     localStorage.setItem(UserSettingEditor.key, JSON.stringify({ ... this }));
+    notifySettingChange();
   }
 
   static get() {
@@ -809,13 +792,13 @@ class UserSettingEditor {
 }
 
 class UserSetting {
-  editor = UserSettingEditor.get();
+  editor: UserSettingEditor = UserSettingEditor.get();
   appearance: UserSettingAppearance = UserSettingAppearance.get();
-  autoStart: boolean = false;
-  export = UserSettingExport.get();
+  export: UserSettingExport = UserSettingExport.get();
+  misc: UserSettingMisc = UserSettingMisc.get();
   editorTheme(): string {
-    if (this.editor.customEditorTheme) {
-      return this.editor.customEditorTheme;
+    if (this.editor.theme) {
+      return this.editor.theme;
     }
     return this.isDark() ? 'vs-dark' : 'light';
   }
@@ -825,6 +808,28 @@ class UserSetting {
   datagridRowHeightXXX() {
     return this.appearance.datagridRowHeightXXX()
   }
+}
+
+
+class UserSettingMisc {
+  static key = "dbpal-misc-setting"
+  autoStart: boolean = false;
+  save() {
+    localStorage.setItem(UserSettingMisc.key, JSON.stringify({ ... this }));
+    notifySettingChange();
+  }
+
+  static get() {
+    try {
+      let x = JSON.parse(localStorage.getItem(UserSettingMisc.key));
+      return { ...  new UserSettingMisc(), ...x };
+    } catch (e) {
+      // ignore
+      return new UserSettingMisc();
+    }
+  }
+
+
 }
 
 const SettingContext = createContext<UserSetting>(null);
@@ -978,25 +983,26 @@ class ColorFn {
 
 
 class SavePageSize {
-  sizes = {}
+  key = "dbpal-page-size";
 
-  constructor() {
-    appStore.get(AppStoreKey.PageSize).then((sizes) => {
-      if (sizes) {
-        this.sizes = sizes;
-      }
-    })
-  }
-  save(size: number, key = "default") {
+  save(size: number) {
     if (pageSizeOptions.find(e => size == e)) {
-      this.sizes[key] = size;
-      appStore.set(AppStoreKey.PageSize, this.sizes);
+      localStorage.setItem(this.key, size + '');
     } else {
       getStackTrace();
     }
   }
-  get(key = "default", defaultSize = 100) {
-    return this.sizes[key] || defaultSize;
+
+  get() {
+    try {
+      const x = parseInt(localStorage.getItem(this.key));
+      if (!isNaN(x)) {
+        return x
+      }
+    } catch (e) {
+      console.log("get page size failed");
+    }
+    return 100;
   }
   static instance = new SavePageSize();
 }
@@ -1047,7 +1053,7 @@ export type MuiDataGridData = {
 
 async function webviewWIndowInit(isMain: boolean) {
   const currentWebview = await WebviewWindow.getCurrent();
-  appStore.get<number>(AppStoreKey.Zoom).then(async (zoom) => {
+  appStore.get<number>("zoom").then(async (zoom) => {
     if (zoom) {
       try { await currentWebview.setZoom(zoom); } catch (e) {
         console.log("set zoom failed", e);
@@ -1249,6 +1255,8 @@ function getLanguageFromDataSourceKind(kind: DataSourceKind): string {
 
 await setUpEditorThemes();
 
+const settingChangeEvent = "setting-change";
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -1320,7 +1328,9 @@ export {
   SaveQueryLogConfigure,
   UserSettingAppearance,
   UserSettingExport,
-  UserSettingEditor
+  UserSettingEditor,
+  settingChangeEvent,
+  UserSettingMisc
 };
 
 
