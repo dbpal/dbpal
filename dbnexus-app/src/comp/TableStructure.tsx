@@ -329,7 +329,12 @@ function ColumnsStructure(props: {
             width="60%"
             ref={setModalBox}
           >
-            <ModalHeader title="Add Column"></ModalHeader>
+            <ModalHeader
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+              title="Add Column"
+            ></ModalHeader>
             <TableAddColumn
               table={table}
               uuid={uuid}
@@ -358,7 +363,12 @@ function ColumnsStructure(props: {
               width="60%"
               ref={setModalBox}
             >
-              <ModalHeader title="Modify Column"></ModalHeader>
+              <ModalHeader
+                title="Modify Column"
+                handleClose={() => {
+                  setRow(null);
+                }}
+              ></ModalHeader>
               <ModifyTableColumn
                 table={table}
                 uuid={uuid}
@@ -642,7 +652,12 @@ function IndexesStructure(props: {
             ref={setModalBox}
             height={kind == DataSourceKind.Mongo ? '40vh' : 'auto'}
           >
-            <ModalHeader title="create index"></ModalHeader>
+            <ModalHeader
+              title="create index"
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+            ></ModalHeader>
             <MongoAddIndex
               uuid={uuid}
               table={table}
@@ -671,7 +686,12 @@ function IndexesStructure(props: {
             width="60%"
             ref={setModalBox}
           >
-            <ModalHeader title="create index"></ModalHeader>
+            <ModalHeader
+              title="create index"
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+            ></ModalHeader>
             <AddIndex
               uuid={uuid}
               table={table}
@@ -694,7 +714,12 @@ function IndexesStructure(props: {
           })}
         >
           <Box sx={modalStyle} width="40%">
-            <ModalHeader title={`Rename Index`}></ModalHeader>
+            <ModalHeader
+              title={`Rename Index`}
+              handleClose={() => {
+                setRenameIndexName('');
+              }}
+            ></ModalHeader>
             <RenameIndex
               uuid={uuid}
               table={table}
@@ -1655,7 +1680,12 @@ function TriggersStructure(props: {
             height="80vh"
             ref={setModalBox}
           >
-            <ModalHeader title={`Trigger Detail`}></ModalHeader>
+            <ModalHeader
+              title={`Trigger Detail`}
+              handleClose={() => {
+                setRow(null);
+              }}
+            ></ModalHeader>
             <TriggerDetail
               reloadOP={async () => {
                 return row;

@@ -40,8 +40,9 @@ function ExportView(props: {
   name: string;
   exportOP: (kind: types.ExportKind, file: string) => Promise<void>;
   supportKind: string[];
+  handleClose: () => void;
 }) {
-  const { exportOP, supportKind, name } = props;
+  const { exportOP, supportKind, name, handleClose } = props;
   let lastKind = supportKind.find((k) => k === lastExportKind);
   const [kind, setKind] = useState(lastExportKind ? lastKind : supportKind[0]);
   const setting = useContext(SettingContext);
@@ -110,7 +111,10 @@ function ExportView(props: {
   }, [kind]);
   return (
     <Stack spacing={1}>
-      <ModalHeader title={`export ${name}`}></ModalHeader>
+      <ModalHeader
+        title={`export ${name}`}
+        handleClose={handleClose}
+      ></ModalHeader>
       <Stack direction="row" spacing={1}>
         {supportKind.map((e) => (
           <Chip
@@ -209,8 +213,9 @@ function ExportTableOrView(props: {
   uuid: string;
   name: string;
   supportKind: string[];
+  handleClose: () => void;
 }) {
-  let { uuid, name, supportKind } = props;
+  let { uuid, name, supportKind, handleClose } = props;
   return (
     <ExportView
       exportOP={async (kind, filepath) => {
@@ -223,6 +228,7 @@ function ExportTableOrView(props: {
       }}
       supportKind={supportKind}
       name={name}
+      handleClose={handleClose}
     ></ExportView>
   );
 }

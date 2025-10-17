@@ -721,6 +721,9 @@ function ViewMenu(props: {
               uuid={uuid}
               name={view}
               supportKind={getSupportExportKind(kind, false)}
+              handleClose={() => {
+                setShowExport(false);
+              }}
             ></ExportTableOrView>
           </Box>
         </Modal>

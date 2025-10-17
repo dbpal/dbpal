@@ -373,7 +373,12 @@ function MongoQuery(props: {
           })}
         >
           <Box sx={modalStyle} width="45%">
-            <ModalHeader title="Set Favorite Name"></ModalHeader>
+            <ModalHeader
+              title="Set Favorite Name"
+              handleClose={() => {
+                setShowFavoriteName(false);
+              }}
+            ></ModalHeader>
             <Stack spacing={1}>
               <TextField
                 fullWidth

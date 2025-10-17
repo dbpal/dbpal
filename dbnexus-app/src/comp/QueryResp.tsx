@@ -301,7 +301,12 @@ function QueryResp_(props: { data: MuiDataGridData }) {
             width="80%"
             height="30vh"
           >
-            <ModalHeader title="View Row"></ModalHeader>
+            <ModalHeader
+              title="View Row"
+              handleClose={() => {
+                setViewInModal(null);
+              }}
+            ></ModalHeader>
             <ViewRowInModal
               fields={data.fields}
               x={viewInModal}
@@ -318,7 +323,12 @@ function QueryResp_(props: { data: MuiDataGridData }) {
           })}
         >
           <Box sx={modalStyle} width="60%">
-            <ModalHeader title="export markdown table"></ModalHeader>
+            <ModalHeader
+              title="export markdown table"
+              handleClose={() => {
+                setShowExportMarkDown(false);
+              }}
+            ></ModalHeader>
             <ExportMarkDownTable fields={data.fields} data={data.data} />
           </Box>
         </Modal>

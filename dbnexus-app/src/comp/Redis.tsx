@@ -927,7 +927,12 @@ function RedisSetTable(props: {
             ref={setModalBox}
             height="70vh"
           >
-            <ModalHeader title="Edit Set value"></ModalHeader>
+            <ModalHeader
+              handleClose={() => {
+                setSelectRow(null);
+              }}
+              title="Edit Set value"
+            ></ModalHeader>
             <RedisEditSet
               modifyOP={async (oldValue, newValue) => {
                 try {
@@ -995,7 +1000,12 @@ function RedisListTableContextMenu(props: {
           })}
         >
           <Box sx={modalStyle} width="40%">
-            <ModalHeader title="Delete Redis List"></ModalHeader>
+            <ModalHeader
+              title="Delete Redis List"
+              handleClose={() => {
+                setShowDel(null);
+              }}
+            ></ModalHeader>
             <Stack spacing={1}>
               <TextField
                 value={count}
@@ -1247,7 +1257,12 @@ function RedisListTable(props: {
             height="70vh"
             ref={setModalBox}
           >
-            <ModalHeader title="Edit List value"></ModalHeader>
+            <ModalHeader
+              title="Edit List value"
+              handleClose={() => {
+                setSelectRow(null);
+              }}
+            ></ModalHeader>
             <RedisEditList
               modifyOP={async (index, newValue) => {
                 try {
@@ -1575,7 +1590,12 @@ function RedisZsetTable(props: {
             height="70vh"
             ref={setModalBox}
           >
-            <ModalHeader title="Edit Zset Value"></ModalHeader>
+            <ModalHeader
+              title="Edit Zset Value"
+              handleClose={() => {
+                setSelectRow(null);
+              }}
+            ></ModalHeader>
             <RedisEditZset
               modifyOP={async (oldKey, newKey, value) => {
                 try {
@@ -1857,7 +1877,12 @@ function RedisHashTable(props: {
             height="70vh"
             ref={setModalBox}
           >
-            <ModalHeader title="Edit Hash Value"></ModalHeader>
+            <ModalHeader
+              title="Edit Hash Value"
+              handleClose={() => {
+                setSelectRow(null);
+              }}
+            ></ModalHeader>
             <RedisEditHash
               modifyOP={async (req) => {
                 try {

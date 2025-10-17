@@ -814,6 +814,9 @@ function SqlQuery(props: {
                 const sql = getEditorText(editor, showNotification);
                 return conn.exportQueryResult(sql, kind, file);
               }}
+              handleClose={() => {
+                setShowExport(false);
+              }}
               name="export_query_result"
             ></ExportView>
           </Box>
@@ -828,7 +831,12 @@ function SqlQuery(props: {
           })}
         >
           <Box sx={modalStyle} width="40%">
-            <ModalHeader title="edit favorite sql name"></ModalHeader>
+            <ModalHeader
+              title="edit favorite sql name"
+              handleClose={() => {
+                setShowFavoriteName(false);
+              }}
+            ></ModalHeader>
             <Stack spacing={1}>
               <TextField
                 fullWidth

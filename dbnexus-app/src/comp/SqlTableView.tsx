@@ -179,7 +179,10 @@ function SetFilterSort(props: {
         height="30vh"
         ref={setModalBox}
       >
-        <ModalHeader title={`set ${label}`}></ModalHeader>
+        <ModalHeader
+          title={`set ${label}`}
+          handleClose={handleClose}
+        ></ModalHeader>
         <SimpleFlexEditor
           value={
             makeFormatFn(kind)(
@@ -864,7 +867,12 @@ function SqlTableView_(props: {
             width="80%"
             height="30vh"
           >
-            <ModalHeader title="View Row"></ModalHeader>
+            <ModalHeader
+              title="View Row"
+              handleClose={() => {
+                setViewInModal(null);
+              }}
+            ></ModalHeader>
             <ViewRowInModal
               fields={resp.fields}
               x={viewInModal}
@@ -887,7 +895,12 @@ function SqlTableView_(props: {
             width="80%"
             height="30vh"
           >
-            <ModalHeader title="edit cell"></ModalHeader>
+            <ModalHeader
+              title="edit cell"
+              handleClose={() => {
+                setEditCellInModal(null);
+              }}
+            ></ModalHeader>
             <EditInModal
               content={editCellInModal.content}
               handleModify={async (value) => {
@@ -914,7 +927,12 @@ function SqlTableView_(props: {
             ref={setEditRowInModalBox}
             width="80%"
           >
-            <ModalHeader title="edit row"></ModalHeader>
+            <ModalHeader
+              title="edit row"
+              handleClose={() => {
+                setEditInModalRow(null);
+              }}
+            ></ModalHeader>
             <SqlTableViewData
               initValues={editInModalRow}
               buttonName="modify"
@@ -939,7 +957,12 @@ function SqlTableView_(props: {
           })}
         >
           <Box sx={modalStyle} width="60%">
-            <ModalHeader title="export markdown table"></ModalHeader>
+            <ModalHeader
+              title="export markdown table"
+              handleClose={() => {
+                setShowExportMarkDown(false);
+              }}
+            ></ModalHeader>
             <ExportMarkDownTable fields={resp.fields} data={resp.data} />
           </Box>
         </Modal>
@@ -1331,7 +1354,12 @@ function Menu(props: {
             width="50%"
             ref={setCloneModalBox}
           >
-            <ModalHeader title="Clone Data"></ModalHeader>
+            <ModalHeader
+              title="Clone Data"
+              handleClose={() => {
+                setShowClone(false);
+              }}
+            ></ModalHeader>
             <SqlTableViewData
               buttonName="add"
               handleData={addOP}
@@ -1353,7 +1381,12 @@ function Menu(props: {
           })}
         >
           <Box sx={modalStyle}>
-            <ModalHeader title="Quick Filter"></ModalHeader>
+            <ModalHeader
+              title="Quick Filter"
+              handleClose={() => {
+                setShowFilter(false);
+              }}
+            ></ModalHeader>
             <FilterOnValue
               content={content}
               setWhere={setWhere}

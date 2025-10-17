@@ -574,10 +574,13 @@ function TrueOrFalse(props: { value: boolean }) {
   return value ? <CheckIcon> </CheckIcon> : <CloseIcon></CloseIcon>;
 }
 
-function ModalHeader(props: { title: string }) {
-  const { title } = props;
+function ModalHeader(props: { title: string; handleClose: () => void }) {
+  const { title, handleClose } = props;
   return (
-    <div>
+    <Stack
+      direction="row"
+      style={{ justifyContent: 'space-between', alignItems: 'center' }}
+    >
       <Typography
         variant="h6"
         style={{
@@ -588,7 +591,12 @@ function ModalHeader(props: { title: string }) {
       >
         {title}
       </Typography>
-    </div>
+      <Tooltip title={'close this modal,esc can close this modal too'}>
+        <IconButton color="warning" onClick={handleClose}>
+          <CloseIcon> </CloseIcon>
+        </IconButton>
+      </Tooltip>
+    </Stack>
   );
 }
 

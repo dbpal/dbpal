@@ -574,7 +574,12 @@ function MongoTableToolBar(props: {
             ref={setModalBox}
             height="45vh"
           >
-            <ModalHeader title="Modify Filter"></ModalHeader>
+            <ModalHeader
+              title="Modify Filter"
+              handleClose={() => {
+                setShowModifyFilter(false);
+              }}
+            ></ModalHeader>
             <MongoValueEditor
               setOP={async (doc) => {
                 handleFilter(doc);
@@ -600,7 +605,12 @@ function MongoTableToolBar(props: {
             ref={setModalBox}
             height="45vh"
           >
-            <ModalHeader title="Modify Sort"></ModalHeader>
+            <ModalHeader
+              handleClose={() => {
+                setShowModifySort(false);
+              }}
+              title="Modify Sort"
+            ></ModalHeader>
             <MongoValueEditor
               setOP={async (doc) => {
                 handleSort(doc);
@@ -749,7 +759,12 @@ function MongoTableListContextMenu(props: {
             width="75%"
             height="65vh"
           >
-            <ModalHeader title="View Json"></ModalHeader>
+            <ModalHeader
+              title="View Json"
+              handleClose={() => {
+                setShowViewJson(false);
+              }}
+            ></ModalHeader>
             <SimpleFlexEditor
               value={content}
               language="json"
@@ -768,7 +783,12 @@ function MongoTableListContextMenu(props: {
           })}
         >
           <Box sx={modalStyle} width="45%">
-            <ModalHeader title="Quick Filter"></ModalHeader>
+            <ModalHeader
+              title="Quick Filter"
+              handleClose={() => {
+                setShowFilter(false);
+              }}
+            ></ModalHeader>
             <MongoTableListMenuFilter
               loadValue={async () => {
                 return loadDoc().then((x) => x[field]);
@@ -1382,7 +1402,12 @@ function MongoTableList(props: {
             height="60vh"
             ref={setModalBox}
           >
-            <ModalHeader title="Modify data" />
+            <ModalHeader
+              title="Modify data"
+              handleClose={() => {
+                setSelectModifyDoc(null);
+              }}
+            />
             <MongoValueEditor
               setOP={
                 modifyOP
@@ -1414,7 +1439,12 @@ function MongoTableList(props: {
           })}
         >
           <Box sx={modalStyle} width="60%">
-            <ModalHeader title="export markdown table"></ModalHeader>
+            <ModalHeader
+              title="export markdown table"
+              handleClose={() => {
+                setShowExportMarkDown(false);
+              }}
+            ></ModalHeader>
             <ExportMarkDownTable fields={resp.fields} data={resp.data} />
           </Box>
         </Modal>

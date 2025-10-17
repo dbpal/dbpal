@@ -322,7 +322,12 @@ function QueryLog(props: {
             width="60%"
             height="40vh"
           >
-            <ModalHeader title="View SQL"></ModalHeader>
+            <ModalHeader
+              title="View SQL"
+              handleClose={() => {
+                setSelectSql('');
+              }}
+            ></ModalHeader>
             <SimpleFlexEditor
               value={selectSql}
               handleEditor={(e) => {

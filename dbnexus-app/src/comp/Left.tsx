@@ -331,7 +331,12 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
           })}
         >
           <Box sx={modalStyle} width="75%" height="65vh">
-            <ModalHeader title="Favorite SQL Statements"></ModalHeader>
+            <ModalHeader
+              title="Favorite SQL Statements"
+              handleClose={() => {
+                setShowFavoriteSql(false);
+              }}
+            ></ModalHeader>
             <FavoriteSqlList
               handleClose={() => {
                 setShowFavoriteSql(false);
@@ -349,7 +354,12 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
           })}
         >
           <Box sx={modalStyle} width="65%" height="60vh">
-            <ModalHeader title="Copy Connection"></ModalHeader>
+            <ModalHeader
+              handleClose={() => {
+                setShowCopyConn(false);
+              }}
+              title="Copy Connection"
+            ></ModalHeader>
             <CopyConnection
               handleClose={() => {
                 setShowCopyConn(false);
@@ -1266,6 +1276,22 @@ function DatabaseMenu(props: {
           })}
         >
           <Box sx={modalStyle} width="40%">
+            <ModalHeader
+              title={(function () {
+                let name = 'database';
+                switch (kind) {
+                  case DataSourceKind.Postgres:
+                  case DataSourceKind.Cockroach:
+                  case DataSourceKind.MsSql:
+                    name = 'schema';
+                    break;
+                }
+                return `create ${name}`;
+              })()}
+              handleClose={() => {
+                setShowCreateSchema(false);
+              }}
+            ></ModalHeader>
             <CreateSchema
               uuid={uuid}
               handleClose={() => {
@@ -1342,7 +1368,12 @@ function CatalogMenu(props: {
           })}
         >
           <Box sx={modalStyle} width="50%">
-            <ModalHeader title="Create Database"></ModalHeader>
+            <ModalHeader
+              handleClose={() => {
+                setShowCreateDB(false);
+              }}
+              title="Create Database"
+            ></ModalHeader>
             <CreateDatabase
               uuid={uuid}
               handleClose={() => {

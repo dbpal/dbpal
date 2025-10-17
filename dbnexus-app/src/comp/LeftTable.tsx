@@ -942,7 +942,12 @@ function TableMenu(props: {
           })}
         >
           <Box sx={modalStyle} width="45%">
-            <ModalHeader title="Duplicate"></ModalHeader>
+            <ModalHeader
+              title="Duplicate"
+              handleClose={() => {
+                setShowDup(false);
+              }}
+            ></ModalHeader>
             <DupTable
               table={table}
               uuid={uuid}
@@ -963,7 +968,12 @@ function TableMenu(props: {
           })}
         >
           <Box sx={modalStyle} width="45%">
-            <ModalHeader title="Rename"></ModalHeader>
+            <ModalHeader
+              handleClose={() => {
+                setShowRename(false);
+              }}
+              title="Rename"
+            ></ModalHeader>
             <RenameTable
               uuid={uuid}
               table={table}
@@ -985,6 +995,9 @@ function TableMenu(props: {
         >
           <Box sx={modalStyle} width="45%">
             <ExportTableOrView
+              handleClose={() => {
+                setShowExport(false);
+              }}
               uuid={uuid}
               name={table}
               supportKind={getSupportExportKind(kind, true)}
@@ -1002,7 +1015,12 @@ function TableMenu(props: {
           })}
         >
           <Box sx={modalStyle} width="45%">
-            <ModalHeader title="Drop Table"></ModalHeader>
+            <ModalHeader
+              handleClose={() => {
+                setShowDrop(false);
+              }}
+              title="Drop Table"
+            ></ModalHeader>
             <DropTable
               uuid={uuid}
               table={table}
@@ -1311,7 +1329,12 @@ function RedisTables() {
           })}
         >
           <Box sx={modalStyle} width="45%">
-            <ModalHeader title="Edit key match string"></ModalHeader>
+            <ModalHeader
+              handleClose={() => {
+                setShowEditFilter(false);
+              }}
+              title="Edit key match string"
+            ></ModalHeader>
             <TextField
               value={filter}
               fullWidth
