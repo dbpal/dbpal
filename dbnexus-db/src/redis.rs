@@ -1197,16 +1197,23 @@ impl RedisDB {
         &self, filter: Option<&str>, max: usize,
     ) -> anyhow::Result<RedisListTable> {
         let mut conn = self.get_conn().await?;
-        let tables: Vec<String> = conn.keys(filter.unwrap_or("*")).await?;
+        let mut stream: AsyncIter<'_, String> = conn.scan_match(filter.unwrap_or("*")).await?;
         let mut ret = RedisListTable::default();
         let mut count: usize = 0;
         let mut has_more = false;
-        for table in tables.into_iter() {
+        let mut tables_no_table = vec![];
+        while let Some(table) = stream.next_item().await {
+            let table = table?;
+            tables_no_table.push(table);
             if count >= max {
                 has_more = true;
                 break;
             }
-            let typ = Self::get_key_type(&mut conn, table.as_str()).await?;
+            count += 1;
+        }
+        drop(stream);
+        for table in tables_no_table {
+            let typ = Self::get_key_type(&mut conn, &table).await?;
             match typ {
                 RedisType::String => ret.string_tables.push(table),
                 RedisType::List => ret.list_tables.push(table),
@@ -1214,7 +1221,6 @@ impl RedisDB {
                 RedisType::Hash => ret.hash_tables.push(table),
                 RedisType::Zset => ret.zset_tables.push(table),
             }
-            count += 1;
         }
         ret.has_more = has_more;
         anyhow::Ok(ret)

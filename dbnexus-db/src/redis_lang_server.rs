@@ -15,6 +15,9 @@ use crate::language_server::{
     CompletionItem, CompletionKind, CompletionList, GetKeyWords, LanguageServer, in_pos,
 };
 use crate::redis::{RedisDB, RedisToken, get_command_from_sql};
+
+const MAX_COMPLETION_ITEMS: usize = 200;
+
 impl RedisDB {
     fn get_query_conn(&self) -> anyhow::Result<Arc<Mutex<MultiplexedConnection>>> {
         let conn = self.query_connection.get(&self.completion_id.get());
@@ -28,113 +31,130 @@ impl RedisDB {
             }
         }
     }
-    async fn completion_keys(&self, pattern: &str) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn completion_keys(&self, pattern: &str) -> anyhow::Result<CompletionList> {
         log::trace!("completion on keys pattern:{}", pattern);
         let conn = self.get_query_conn()?;
         let mut conn = conn.lock().await;
-
-        let keys: Vec<Vec<u8>> = conn.keys(format!("*{}*", pattern)).await?;
-        let keys = {
-            let mut ks = vec![];
-            for k in keys {
-                if let Ok(x) = String::from_utf8(k) {
-                    ks.push(x)
+        let mut stream = conn.scan_match(format!("*{}*", pattern)).await?;
+        let mut incomplete = false;
+        let mut items = Vec::new();
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            if let Ok(x) = String::from_utf8(item) {
+                items.push(CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Trigger,
+                    desc: None,
+                });
+                if items.len() >= MAX_COMPLETION_ITEMS {
+                    incomplete = true;
+                    break;
                 }
             }
-            ks
-        };
-        let mut ret = Vec::new();
-        for key in keys.into_iter() {
-            ret.push(CompletionItem {
-                item: key.into(),
-                kind: CompletionKind::Table,
-                desc: None,
-            })
         }
-        anyhow::Ok(ret)
+        anyhow::Ok(CompletionList { items, incomplete })
     }
 
     async fn completion_hash_keys(
         &self, hash_key: &str, p: &str,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<CompletionList> {
         let conn = self.get_query_conn()?;
         let mut conn = conn.lock().await;
         let mut stream: AsyncIter<'_, Vec<u8>> =
             conn.hscan_match(hash_key, format!("*{}*", p)).await?;
         let mut keys = vec![];
+        let mut incomplete = false;
         while let Some(k) = stream.next().await {
             let k = k?;
             if let Ok(x) = String::from_utf8(k) {
-                keys.push(x)
+                keys.push(x);
+                if keys.len() >= MAX_COMPLETION_ITEMS {
+                    incomplete = true;
+                    break;
+                }
             }
         }
-        anyhow::Ok(
-            keys.into_iter()
+        anyhow::Ok(CompletionList {
+            items: keys
+                .into_iter()
                 .map(|x| CompletionItem {
                     kind: CompletionKind::Column,
                     item: x.into(),
                     desc: None,
                 })
-                .collect(),
-        )
+                .collect::<Vec<_>>(),
+            incomplete,
+        })
     }
 
-    async fn completion_set_member(
-        &self, key: &str, p: &str,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    async fn completion_set_member(&self, key: &str, p: &str) -> anyhow::Result<CompletionList> {
         let conn = self.get_query_conn()?;
         let mut conn = conn.lock().await;
         let mut stream = conn
             .sscan_match::<_, _, Vec<u8>>(key, format!("*{}*", p))
             .await?;
         let mut keys = vec![];
+        let mut incomplete = false;
         while let Some(k) = stream.next().await {
             let k = k?;
             if let Ok(x) = String::from_utf8(k) {
-                keys.push(x)
+                keys.push(x);
+                if keys.len() >= MAX_COMPLETION_ITEMS {
+                    incomplete = true;
+                    break;
+                }
             }
         }
-        anyhow::Ok(
-            keys.into_iter()
+        anyhow::Ok(CompletionList {
+            items: keys
+                .into_iter()
                 .map(|x| CompletionItem {
                     kind: CompletionKind::Column,
                     item: x.into(),
                     desc: None,
                 })
                 .collect(),
-        )
+            incomplete,
+        })
     }
 
     async fn completion_zset_member(
         &self, key: &str, member: &str,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
+    ) -> anyhow::Result<CompletionList> {
         let conn = self.get_query_conn()?;
         let mut conn = conn.lock().await;
         let mut stream = conn
             .zscan_match::<_, _, (Vec<u8>, f64)>(key, format!("*{}*", member))
             .await?;
         let mut keys = vec![];
+        let mut incomplete = false;
         while let Some(item) = stream.next_item().await {
             let item = item?;
             let (key, score) = item;
             if let Ok(x) = String::from_utf8(key) {
-                keys.push((score, x))
+                keys.push((score, x));
+                if keys.len() >= MAX_COMPLETION_ITEMS {
+                    incomplete = true;
+                    break;
+                }
             }
         }
-        anyhow::Ok(
-            keys.into_iter()
+        anyhow::Ok(CompletionList {
+            items: keys
+                .into_iter()
                 .map(|(score, key)| CompletionItem {
                     kind: CompletionKind::Column,
                     item: key.into(),
                     desc: Some(score.to_string().into()),
                 })
                 .collect(),
-        )
+            incomplete,
+        })
     }
 
     fn make_auto_completion_fn_by_command<'a, 'b>(
         &'a self, command: &str, patterns: &'b [String],
-    ) -> anyhow::Result<Vec<BoxFuture<'b, anyhow::Result<Vec<CompletionItem>>>>>
+    ) -> anyhow::Result<Vec<BoxFuture<'b, anyhow::Result<CompletionList>>>>
     where
         'a: 'b,
     {
@@ -142,15 +162,15 @@ impl RedisDB {
         #[derive(Clone, Copy, Debug)]
         struct Dummy {}
         impl Future for Dummy {
-            type Output = anyhow::Result<Vec<CompletionItem>>;
+            type Output = anyhow::Result<CompletionList>;
 
             fn poll(self: Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-                Poll::Ready(anyhow::Ok(vec![]))
+                Poll::Ready(anyhow::Ok(vec![].into()))
             }
         }
         let dummy = Box::pin(Dummy {});
 
-        let fns: Vec<BoxFuture<'_, anyhow::Result<Vec<CompletionItem>>>> = match command
+        let fns: Vec<BoxFuture<'_, anyhow::Result<CompletionList>>> = match command
             .to_uppercase()
             .as_str()
         {
@@ -169,33 +189,36 @@ impl RedisDB {
             "BGSAVE" => {
                 vec![
                     async move {
-                        anyhow::Ok(vec![
-                            CompletionItem {
-                                item: "SCHEDULE".into(),
-                                kind: CompletionKind::Text,
-                                desc: None,
-                            },
-                            CompletionItem {
-                                item: "FORCE".into(),
-                                kind: CompletionKind::Text,
-                                desc: None,
-                            },
-                            CompletionItem {
-                                item: "SCHEDULE FORCE".into(),
-                                kind: CompletionKind::Text,
-                                desc: None,
-                            },
-                            CompletionItem {
-                                item: "SCHEDULE CRON".into(),
-                                kind: CompletionKind::Text,
-                                desc: None,
-                            },
-                            CompletionItem {
-                                item: "SCHEDULE INTERVAL".into(),
-                                kind: CompletionKind::Text,
-                                desc: None,
-                            },
-                        ])
+                        anyhow::Ok(
+                            vec![
+                                CompletionItem {
+                                    item: "SCHEDULE".into(),
+                                    kind: CompletionKind::Text,
+                                    desc: None,
+                                },
+                                CompletionItem {
+                                    item: "FORCE".into(),
+                                    kind: CompletionKind::Text,
+                                    desc: None,
+                                },
+                                CompletionItem {
+                                    item: "SCHEDULE FORCE".into(),
+                                    kind: CompletionKind::Text,
+                                    desc: None,
+                                },
+                                CompletionItem {
+                                    item: "SCHEDULE CRON".into(),
+                                    kind: CompletionKind::Text,
+                                    desc: None,
+                                },
+                                CompletionItem {
+                                    item: "SCHEDULE INTERVAL".into(),
+                                    kind: CompletionKind::Text,
+                                    desc: None,
+                                },
+                            ]
+                            .into(),
+                        )
                     }
                     .boxed(),
                 ]
@@ -224,7 +247,7 @@ impl RedisDB {
             "BITOP" => {
                 let mut vs = vec![
                     async move {
-                        anyhow::Ok(vec![
+                        let ret = vec![
                             CompletionItem {
                                 item: "AND".into(),
                                 kind: CompletionKind::Text,
@@ -265,7 +288,8 @@ impl RedisDB {
                                 kind: CompletionKind::Text,
                                 desc: None,
                             },
-                        ])
+                        ];
+                        anyhow::Ok(CompletionList::from(ret))
                     }
                     .boxed(),
                 ];
@@ -329,7 +353,8 @@ impl RedisDB {
                                     kind: CompletionKind::Command,
                                     desc: None,
                                 })
-                                .collect::<Vec<_>>(),
+                                .collect::<Vec<_>>()
+                                .into(),
                         )
                     }
                     .boxed(),
@@ -339,7 +364,7 @@ impl RedisDB {
                 vec![
                     async move {
                         /*
-                          帮我列出所有redis的CLUSTER的子命令 rust数组
+                            帮我列出所有redis的CLUSTER的子命令 rust数组
                         */
                         /// Redis 7.x CLUSTER 命令的全部子命令
                         pub const CLUSTER_SUBCOMMANDS: &[&str] = &[
@@ -377,7 +402,8 @@ impl RedisDB {
                                     kind: CompletionKind::Command,
                                     desc: None,
                                 })
-                                .collect::<Vec<_>>(),
+                                .collect::<Vec<_>>()
+                                .into(),
                         )
                     }
                     .boxed(),
@@ -399,7 +425,56 @@ impl RedisDB {
                                     kind: CompletionKind::Command,
                                     desc: None,
                                 })
-                                .collect::<Vec<_>>(),
+                                .collect::<Vec<_>>()
+                                .into(),
+                        )
+                    }
+                    .boxed(),
+                ]
+            }
+            "FUNCTION" => {
+                const SUBCOMMANDS: &[&str] = &[
+                    "DELETE", "DUMP", "FLUSH", "HELP", "KILL", "LIST", "LOAD", "RESTORE", "STATS",
+                ];
+                vec![
+                    async move {
+                        anyhow::Ok(
+                            SUBCOMMANDS
+                                .iter()
+                                .map(|x| CompletionItem {
+                                    item: (*x).into(),
+
+                                    kind: CompletionKind::Command,
+                                    desc: None,
+                                })
+                                .collect::<Vec<_>>()
+                                .into(),
+                        )
+                    }
+                    .boxed(),
+                ]
+            }
+            "ACL" => {
+                /*
+                    ai redis 给我所有acl命令的子命令rust数组
+                */
+                const ACL_SUBCOMMANDS: [&str; 13] = [
+                    "CAT", "DELUSER", "DRYRUN", "GETUSER", "GENPASS", "LIST", "LOAD", "LOG",
+                    "SAVE", "SETUSER", "USERS", "WHOAMI", "HELP",
+                ];
+                vec![
+                    async move {
+                        anyhow::Ok(
+                            ACL_SUBCOMMANDS
+                                .iter()
+                                .map(|x| CompletionItem {
+                                    item: (*x).into(),
+
+                                    kind: CompletionKind::Command,
+                                    desc: None,
+                                })
+                                .collect::<Vec<_>>()
+                                .into(),
                         )
                     }
                     .boxed(),
@@ -638,7 +713,8 @@ impl RedisDB {
                                     kind: CompletionKind::Command,
                                     desc: None,
                                 })
-                                .collect(),
+                                .collect::<Vec<_>>()
+                                .into(),
                         )
                     }
                     .boxed(),
@@ -721,7 +797,8 @@ impl RedisDB {
                                         kind: CompletionKind::Command,
                                         desc: None,
                                     })
-                                    .collect(),
+                                    .collect::<Vec<_>>()
+                                    .into(),
                             )
                         }
                         .boxed(),
@@ -862,7 +939,8 @@ impl RedisDB {
                                         kind: CompletionKind::Command,
                                         desc: None,
                                     })
-                                    .collect(),
+                                    .collect::<Vec<_>>()
+                                    .into(),
                             )
                         }
                         .boxed(),
@@ -902,7 +980,8 @@ impl RedisDB {
                                         kind: CompletionKind::Command,
                                         desc: None,
                                     })
-                                    .collect(),
+                                    .collect::<Vec<_>>()
+                                    .into(),
                             )
                         }
                         .boxed(),
@@ -979,7 +1058,8 @@ impl RedisDB {
                                         kind: CompletionKind::Command,
                                         desc: None,
                                     })
-                                    .collect(),
+                                    .collect::<Vec<_>>()
+                                    .into(),
                             )
                         }
                         .boxed(),
@@ -1097,6 +1177,10 @@ impl RedisDB {
                 }
                 ret
             }
+            "COPY" => patterns
+                .iter()
+                .map(|p| async move { self.completion_keys(p).await }.boxed())
+                .collect(),
             "ZREM" => patterns
                 .iter()
                 .enumerate()
@@ -1206,7 +1290,7 @@ impl LanguageServer for RedisDB {
                         },
                         value.len() as u64,
                     ) {
-                        return anyhow::Ok(static_redis_command_completion_items().into());
+                        return anyhow::Ok(static_redis_command_completion_items());
                     }
                     value.clone().to_uppercase()
                 }
@@ -1250,105 +1334,9 @@ impl LanguageServer for RedisDB {
         }
         // lexer command
         let ret = static_redis_command_completion_items();
-        anyhow::Ok(ret.into())
+        anyhow::Ok(ret)
     }
 }
-
-// redis给我一个列表一些特殊的字符串在redis中有些特殊含义比如nx 之类的但是都不在命令列表里  完整rust数组呢
-/// 所有在 Redis 命令参数中拥有特殊含义的非命令字符串
-pub const REDIS_SPECIAL_ARGS: &[&str] = &[
-    // SET / SETNX / SETEX / PSETEX 等
-    "NX",      // 仅当 key 不存在时才操作
-    "XX",      // 仅当 key 已存在时才操作
-    "EX",      // 过期时间（秒）
-    "PX",      // 过期时间（毫秒）
-    "EXAT",    // 绝对 Unix 时间戳（秒）
-    "PXAT",    // 绝对 Unix 时间戳（毫秒）
-    "KEEPTTL", // 保留原 TTL（覆盖时不重置过期时间）
-    // SORT 命令
-    "ASC",
-    "DESC",
-    "ALPHA",
-    // LIMIT 子句（SORT / ZINTERSTORE / ZUNIONSTORE 等）
-    "LIMIT",
-    // BITFIELD / BITFIELD_RO
-    "WRAP",
-    "SAT",
-    "FAIL",
-    // CLIENT KILL
-    "SKIPME",
-    // ACL SETUSER
-    "ON",
-    "OFF",
-    "RESET",
-    "ALLKEYS",
-    "ALLCOMMANDS",
-    "NOPASS",
-    // CLUSTER 相关
-    "HARD",
-    "SOFT",
-    // RESTORE
-    "REPLACE",
-    "ABSTTL",
-    // EXPIRE / EXPIREAT / PEXPIRE / PEXPIREAT
-    "GT", // 仅当新 TTL 大于当前 TTL 时生效
-    "LT", // 仅当新 TTL 小于当前 TTL 时生效
-    "NX", // 仅当 key 没有 TTL 时才设置
-    "XX", // 仅当 key 已有 TTL 时才设置
-    // SCRIPT DEBUG
-    "YES",
-    "SYNC",
-    "NO",
-    // ACL LOG
-    "RESET",
-    // ACL DELUSER / DELUSER
-    "FORCE",
-    // ACL LIST
-    "USERS",
-    // OBJECT
-    "REFCOUNT",
-    "ENCODING",
-    "IDLETIME",
-    "FREQ",
-    // CLIENT REPLY
-    "ON",
-    "OFF",
-    "SKIP",
-    // CONFIG GET/SET
-    "SET",
-    "RESETSTAT",
-    "REWRITE",
-    // SLOWLOG
-    "LEN",
-    "RESET",
-    // MIGRATE
-    "COPY",
-    "REPLACE",
-    "AUTH",
-    "AUTH2",
-    "KEYS",
-    // RESTORE-ASKING 内部标记
-    "ASKING",
-    // PUB/SUB
-    "CHANNELS",
-    "NUMSUB",
-    "NUMPAT",
-    // MEMORY
-    "USAGE",
-    "STATS",
-    "PURGE",
-    "MALLOC-STATS",
-    "DOCTOR",
-    // LATENCY
-    "LATEST",
-    "HISTORY",
-    "GRAPH",
-    "RESET",
-    "DOCTOR",
-    "HELP",
-    "WITH",
-    "SCORE",
-];
 
 #[cfg(test)]
 mod tests {
@@ -1415,13 +1403,12 @@ mod tests {
     }
 }
 
-fn static_redis_command_completion_items() -> Vec<CompletionItem> {
+fn static_redis_command_completion_items() -> CompletionList {
     static ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
     ITEMS
         .get_or_init(|| {
             REDIS_COMMANDS
                 .iter()
-                .chain(REDIS_SPECIAL_ARGS.iter())
                 .map(|x| CompletionItem {
                     item: (*x).into(),
                     kind: CompletionKind::Command,
@@ -1430,9 +1417,12 @@ fn static_redis_command_completion_items() -> Vec<CompletionItem> {
                 .collect::<Vec<_>>()
         })
         .clone()
+        .into()
 }
 
 pub const REDIS_COMMANDS: &[&str] = &[
+    "ACL",
+    "COPY",
     "APPEND",
     "ASKING",
     "AUTH",
@@ -1449,7 +1439,6 @@ pub const REDIS_COMMANDS: &[&str] = &[
     "CLUSTER",
     "CONFIG",
     "DBSIZE",
-    "DEBUG",
     "DECR",
     "DECRBY",
     "DEL",
@@ -1457,6 +1446,7 @@ pub const REDIS_COMMANDS: &[&str] = &[
     "DUMP",
     "ECHO",
     "EVAL",
+    "FAILOVER",
     "EVALSHA",
     "EXEC",
     "EXISTS",
@@ -1464,6 +1454,7 @@ pub const REDIS_COMMANDS: &[&str] = &[
     "EXPIREAT",
     "FLUSHALL",
     "FLUSHDB",
+    "FUNCTION",
     "GEOADD",
     "GEODIST",
     "GEOHASH",

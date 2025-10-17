@@ -326,3 +326,9 @@ ZSCORE zset
 1 ZSCORE ; 12 value_zset
 ZUNIONSTORE value_zset  value_zset 
 1 ZUNIONSTORE  ; 23  value_zset ; 35 value_zset
+ACL CAT
+1 ACL ; 5 CAT
+COPY value_zset value_zset
+1 COPY ; 10 value_zset ; 18 value_zset
+FUNCTION list
+1 FUNCTION ; 14 list

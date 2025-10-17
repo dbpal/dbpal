@@ -1610,23 +1610,22 @@ mod tests {
     fn test_detect_auto_increment() {
         let x = extract_auto_increment_key(
             r#"
-    CREATE TABLE users (
-        id INTEGER PRIMARY KEY autoincrement,
-        name TEXT,
-        age INTEGER
-      )
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY autoincrement,
+            name TEXT,
+            age INTEGER
+        )
     "#,
         )
         .unwrap();
         assert!(x == Some("id".to_string()));
         let x = extract_auto_increment_key(
             r#"
-    CREATE TABLE users (
-        id INTEGER PRIMARY KEY,
-        name TEXT,
-        age INTEGER
-      )
-    "#,
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            age INTEGER
+        )"#,
         )
         .unwrap();
         assert!(x == None);
@@ -1756,6 +1755,8 @@ mod tests {
     async fn test_do_has_data() {
         let db = make_test_object().await;
         let query_id = db.open_connection().await.unwrap();
+        let mut conn = db.get_conn().await.unwrap();
+
         for i in 0..10 {
             let table_name = format!("has_data_{}", i);
             let err = db.drop_table(&table_name, false).await;
@@ -1788,7 +1789,10 @@ mod tests {
                     rand::random::<f64>() * 100000f64,
                     rand::random::<f64>() * 1100000f64,
                 );
-                db.query_sql(query_id.clone(), &sql).await.unwrap();
+                sqlx::query(AssertSqlSafe(sql.as_str()))
+                    .execute(conn.deref_mut())
+                    .await
+                    .unwrap();
             }
         }
     }
