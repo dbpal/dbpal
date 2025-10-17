@@ -1177,12 +1177,12 @@ mod tests {
     }
 }
 
-static REDIS_COMMANDS_FILES: include_dir::Dir =
+pub static REDIS_COMMANDS_MD_FILES: include_dir::Dir =
     include_dir::include_dir!("$CARGO_MANIFEST_DIR/../redis-doc/commands");
 
 fn get_commands_from_docs() -> Vec<String> {
     let mut ret = vec![];
-    for en in REDIS_COMMANDS_FILES.entries() {
+    for en in REDIS_COMMANDS_MD_FILES.entries() {
         match en {
             include_dir::DirEntry::Dir(..) => {}
             include_dir::DirEntry::File(file) => {
@@ -1216,7 +1216,7 @@ fn is_simple_command(command: &str) -> bool {
 fn get_simple_command_sub(command: &str) -> Vec<&'static str> {
     let match_str = format!("{}-", command.to_lowercase());
     let mut ret = vec![];
-    for en in REDIS_COMMANDS_FILES.entries() {
+    for en in REDIS_COMMANDS_MD_FILES.entries() {
         match en {
             include_dir::DirEntry::Dir(..) => {}
             include_dir::DirEntry::File(file) => {

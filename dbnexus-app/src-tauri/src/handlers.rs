@@ -25,6 +25,7 @@ use dbnexus_db::mssql::SqlServerDB;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable, RedisToken};
+use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use dbnexus_db::sqlite::SqliteDB;
 use font_kit::error::SelectionError;
 use include_dir::{Dir, include_dir};
@@ -64,7 +65,6 @@ pub fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str>, Err
 #[tauri::command]
 
 pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
-    static REDIS_DOC_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../redis-doc/commands");
     let tokens = RedisToken::tokenize(line, 1).map_err(|e| ErrorFrontend::from(e))?;
     if tokens.is_empty() {
         return Err(ErrorFrontend::from("no tokens found,empty line??"));
@@ -72,7 +72,7 @@ pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
 
     let command = tokens[0].value().to_lowercase();
     if tokens.len() >= 2 {
-        let file = REDIS_DOC_FILES
+        let file = REDIS_COMMANDS_MD_FILES
             .get_file(format!("{}-{}.md", command, tokens[1].value().to_lowercase()).as_str());
         match file {
             Some(file) => {
@@ -84,13 +84,13 @@ pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
         }
     }
     let exact_file = format!("{}.md", command);
-    match REDIS_DOC_FILES.get_file(&exact_file) {
+    match REDIS_COMMANDS_MD_FILES.get_file(&exact_file) {
         Some(file) => {
             let sub_match = format!("{}-", command);
             let mut ret = format!("## {}\n", tokens[0].value());
             ret.push_str(file.contents_utf8().unwrap());
             // try match sub markdown
-            for en in REDIS_DOC_FILES.entries() {
+            for en in REDIS_COMMANDS_MD_FILES.entries() {
                 match en {
                     include_dir::DirEntry::Dir(..) => {}
                     include_dir::DirEntry::File(file) => {
