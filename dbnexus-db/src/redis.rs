@@ -22,8 +22,6 @@ use crate::db::{
 use crate::helper::{NextId, OffsetLimitIter, create_csv};
 use crate::meta_value::MetaValue;
 
-/// https://stackoverflow.com/questions/30611215/redis-how-to-limit-the-return-number-of-keys-command
-
 #[derive(Clone)]
 pub struct RedisDB {
     config: RedisDBConfig,

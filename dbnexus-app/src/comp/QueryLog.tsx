@@ -43,9 +43,9 @@ import {
   QueryLogHandler,
   saveAndSetSize,
   SavePageSize,
+  SaveQueryLogConfigure,
   secondConfirm,
   SettingContext,
-  UserSetting,
 } from './helper.ts';
 import { ModalHeader, ResizeParentHeight } from './CommonComp.tsx';
 import { BsFillLightbulbFill } from 'react-icons/bs';
@@ -179,7 +179,7 @@ function QueryLog(props: {
     }
   }, [modalBox]);
   const [dom, setDom] = useState<HTMLDivElement>(null);
-
+  const [saveQueryLog, setSaveQueryLog] = useState(SaveQueryLogConfigure.get());
   return (
     <Paper
       style={{
@@ -264,17 +264,11 @@ function QueryLog(props: {
             <FormControlLabel
               control={
                 <Switch
-                  checked={setting.saveQueryLog}
+                  checked={saveQueryLog}
                   onChange={() => {
-                    UserSetting.set({
-                      saveQueryLog: !setting.saveQueryLog,
-                    } as UserSetting).catch((e) => {
-                      showNotification(
-                        'error',
-                        'save auto save query log error',
-                        e
-                      );
-                    });
+                    let newValue = !saveQueryLog;
+                    SaveQueryLogConfigure.set(newValue);
+                    setSaveQueryLog(newValue);
                   }}
                 />
               }
@@ -293,8 +287,8 @@ function QueryLog(props: {
             onRowDoubleClick={onRowDoubleClick}
             columns={columns}
             rows={logs}
-            rowHeight={setting.datagridRowHeightXXX()}
-            columnHeaderHeight={setting.datagridRowHeightXXX()}
+            rowHeight={setting.appearance.datagridRowHeightXXX()}
+            columnHeaderHeight={setting.appearance.datagridRowHeightXXX()}
             pageSizeOptions={pageSizeOptions}
             paginationModel={paginationModel}
             onPaginationModelChange={onPaginationModelChange}

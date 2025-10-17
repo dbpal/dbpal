@@ -4,7 +4,6 @@ import {
   ReactNode,
   useContext,
   useEffect,
-  useRef,
   useState,
 } from 'react';
 
@@ -44,6 +43,7 @@ import {
   textEllipsisStyle,
   appStore,
   registeredThemes,
+  UserSettingAppearance,
 } from './helper';
 import { Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
@@ -58,124 +58,27 @@ import {
 import { message } from '@tauri-apps/plugin-dialog';
 import InfoIcon from '@mui/icons-material/Info';
 import { Editor } from '@monaco-editor/react';
-function ModifySetting() {
+
+function Appearance() {
+  const setting = UserSettingAppearance.get();
   const { showNotification } = useContext(NotificationContext);
-  const [fontWeight, setFontWeight] = useState('normal');
-  const [fontSize, setFontSize] = useState(16);
-  const [editorOptions, setEditorOptions] = useState('');
-  const [showEditorOptions, setShowEditorOptions] = useState(false);
-  const [showEditBgColor, setShowEditBgColor] = useState(false);
-  const [fontFamily, setFontFamily] = useState<string>('');
   const [allFonts, setAllFonts] = useState<string[]>([]);
   const [fontMatch, setFontMatch] = useState<string>('');
-  const [tabSize, setTabSize] = useState(2);
-  const [bgColor, setBgColor] = useState('');
+  const [showEditBgColor, setShowEditBgColor] = useState(false);
+  const [fontWeight, setFontWeight] = useState(setting.fontFamily);
+  const [fontSize, setFontSize] = useState(setting.fontSize);
+  const [bgColor, setBgColor] = useState(
+    setting.theme == 'dark' ? setting.darkBgColor : setting.lightBgColor
+  );
   const [bgColorErr, setBgColorErr] = useState('');
-  const [csvDelimiter, setCsvDelimiter] = useState(',');
-  const [includeHeader, setIncludeHeader] = useState(true);
-  const bgColorTextField = useRef<HTMLInputElement>(null);
-  const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState('2');
-  const [maxTreeSize, setMaxTreeSize] = useState('50');
-  const [maxTabTitleLength, setMaxTabTitleLength] = useState('12');
-  const [autoStart, setAutoStart] = useState(false);
-  const [customEditorTheme, setCustomEditorTheme] = useState('');
-  const setting = useContext(SettingContext);
-  useEffect(() => {
-    invoke<string[]>('all_font_family', {})
-      .then((fonts) => {
-        setAllFonts(fonts);
-      })
-      .catch((e) => {
-        showNotification('error', 'list all fonts failed', e);
-      });
-  }, []);
-  const reload = async () => {
-    try {
-      setFontWeight(setting.fontWeight);
-      setFontSize(setting.fontSize);
-      setFontFamily(setting.fontFamily);
-      setTabSize(setting.tabSize);
-      if (setting.isDark()) {
-        setBgColor(setting.darkBgColor);
-      } else {
-        setBgColor(setting.lightBgColor);
-      }
-      setCsvDelimiter(setting.csvDelimiter);
-      setIncludeHeader(setting.includeHeader);
-      setMaxTreeSize(setting.maxTreeSize.toString());
-      setDatagridRowHeightFactor(setting.datagridRowHeightFactor.toString());
-      setMaxTabTitleLength(setting.maxTabTitleLength + '');
-      setAutoStart(setting.autoStart);
-      setCustomEditorTheme(setting.customEditorTheme);
-      const content = JSON.stringify(
-        setting.editorOption ? setting.editorOption : {},
-        null,
-        setting.tabSize
-      );
-      if (content) {
-        setEditorOptions(content);
-      }
-    } catch (e) {
-      showNotification('error', 'get user config failed', e);
-      return;
-    }
-  };
-  useEffect(() => {
-    reload();
-  }, []);
-
-  const handleSave = async () => {
-    if (bgColorErr) {
-      bgColorTextField.current.focus();
-      return;
-    }
-    if (isNaN(parseFloat(datagridRowHeightFactor))) {
-      showNotification('error', 'datagrid row height factor must be a number');
-      return;
-    }
-    if (isNaN(parseInt(maxTreeSize))) {
-      showNotification('error', 'max tree size must be a number');
-      return;
-    }
-    try {
-      const e = await validJson(editorOptions);
-      if (e) {
-        showNotification('error', 'not a valid json', e.msg);
-        return;
-      }
-    } catch (e) {
-      showNotification('error', 'call valid json error', e);
-      return;
-    }
-    const s = {
-      fontWeight,
-      fontSize,
-      fontFamily,
-      tabSize,
-      editorOption: JSON.parse(editorOptions),
-      csvDelimiter: csvDelimiter,
-      includeHeader: includeHeader,
-      datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
-      maxTreeSize: parseInt(maxTreeSize),
-      theme: setting.theme,
-      maxTabTitleLength: parseInt(maxTabTitleLength),
-      autoStart,
-      customEditorTheme,
-    } as UserSetting;
-    if (setting.theme == 'dark') {
-      s.darkBgColor = bgColor;
-    } else {
-      s.lightBgColor = bgColor;
-    }
-    UserSetting.set(s)
-      .then(() => {
-        showNotification('success', 'Save Setting OK');
-      })
-      .catch((e) => {
-        showNotification('success', 'Save Setting Failure', e);
-      });
-  };
-  const headerSize = '16rem';
+  const [fontFamily, setFontFamily] = useState(setting.fontFamily);
+  const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState(
+    setting.datagridRowHeightFactor + ''
+  );
+  const [maxTreeSize, setMaxTreeSize] = useState(setting.maxTreeSize + '');
+  const [maxTabTitleLength, setMaxTabTitleLength] = useState(
+    setting.maxTabTitleLength + ''
+  );
   useEffect(() => {
     if (!bgColor) {
       setBgColorErr('');
@@ -194,13 +97,35 @@ function ModifySetting() {
     }
     setBgColorErr('');
   }, [bgColor]);
-  const theme = useTheme();
+
+  useEffect(() => {
+    invoke<string[]>('all_font_family', {})
+      .then((fonts) => {
+        setAllFonts(fonts);
+      })
+      .catch((e) => {
+        showNotification('error', 'list all fonts failed', e);
+      });
+  }, []);
+
+  const handleSave = () => {
+    let x = {
+      theme: setting.theme,
+      fontFamily,
+      fontSize,
+      fontWeight,
+      darkBgColor: setting.isDark() ? bgColor : setting.darkBgColor,
+      lightBgColor: !setting.isDark() ? bgColor : setting.lightBgColor,
+      datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
+      maxTreeSize: parseInt(maxTreeSize),
+      maxTabTitleLength: parseInt(maxTabTitleLength),
+    } as UserSettingAppearance;
+    Object.setPrototypeOf(x, UserSettingAppearance.prototype);
+    x.save();
+  };
 
   return (
-    <Stack
-      spacing={1}
-      style={{ backgroundColor: bgColorErr ? undefined : bgColor }}
-    >
+    <>
       <Divider textAlign="left">appearance</Divider>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right" style={{ fontSize }}>
@@ -349,7 +274,6 @@ function ModifySetting() {
           onChange={(e) => {
             setBgColor(e.target.value);
           }}
-          inputRef={bgColorTextField}
           style={{ width: '10rem' }}
           error={!!bgColorErr}
           slotProps={{
@@ -397,6 +321,18 @@ function ModifySetting() {
           error={isNaN(parseInt(maxTabTitleLength))}
         ></TextField>
       </Stack>
+    </>
+  );
+}
+
+function EditorSetting() {
+  const [editorOptions, setEditorOptions] = useState('');
+  const [showEditorOptions, setShowEditorOptions] = useState(false);
+  const [tabSize, setTabSize] = useState(2);
+  const [customEditorTheme, setCustomEditorTheme] = useState('');
+
+  return (
+    <>
       <Divider textAlign="left" style={{ marginTop: '20px' }}>
         editor
       </Divider>
@@ -485,8 +421,8 @@ function ModifySetting() {
         <Tooltip
           title={
             <EditorThemeDemo
+              fontSize={15}
               width="55vw"
-              fontSize={fontSize}
               theme={customEditorTheme}
             ></EditorThemeDemo>
           }
@@ -501,6 +437,96 @@ function ModifySetting() {
           </span>
         </Tooltip>
       </Stack>
+    </>
+  );
+}
+
+const headerSize = '16rem';
+function ModifySetting() {
+  const { showNotification } = useContext(NotificationContext);
+
+  const [csvDelimiter, setCsvDelimiter] = useState(',');
+  const [includeHeader, setIncludeHeader] = useState(true);
+  const [autoStart, setAutoStart] = useState(false);
+
+  const setting = useContext(SettingContext);
+
+  const reload = async () => {
+    try {
+      setCsvDelimiter(setting.csvDelimiter);
+      setIncludeHeader(setting.includeHeader);
+      setAutoStart(setting.autoStart);
+
+      const content = JSON.stringify(
+        setting.editorOption ? setting.editorOption : {},
+        null,
+        setting.tabSize
+      );
+      if (content) {
+        setEditorOptions(content);
+      }
+    } catch (e) {
+      showNotification('error', 'get user config failed', e);
+      return;
+    }
+  };
+  useEffect(() => {
+    reload();
+  }, []);
+
+  // const handleSave = async () => {
+  //   if (isNaN(parseFloat(datagridRowHeightFactor))) {
+  //     showNotification('error', 'datagrid row height factor must be a number');
+  //     return;
+  //   }
+  //   if (isNaN(parseInt(maxTreeSize))) {
+  //     showNotification('error', 'max tree size must be a number');
+  //     return;
+  //   }
+  //   try {
+  //     const e = await validJson(editorOptions);
+  //     if (e) {
+  //       showNotification('error', 'not a valid json', e.msg);
+  //       return;
+  //     }
+  //   } catch (e) {
+  //     showNotification('error', 'call valid json error', e);
+  //     return;
+  //   }
+  //   const s = {
+  //     fontWeight,
+  //     fontSize,
+  //     fontFamily,
+  //     tabSize,
+  //     editorOption: JSON.parse(editorOptions),
+  //     csvDelimiter: csvDelimiter,
+  //     includeHeader: includeHeader,
+  //     datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
+  //     maxTreeSize: parseInt(maxTreeSize),
+  //     theme: setting.theme,
+  //     maxTabTitleLength: parseInt(maxTabTitleLength),
+  //     autoStart,
+  //     customEditorTheme,
+  //   } as UserSetting;
+  //   if (setting.theme == 'dark') {
+  //     s.darkBgColor = bgColor;
+  //   } else {
+  //     s.lightBgColor = bgColor;
+  //   }
+  //   UserSetting.set(s)
+  //     .then(() => {
+  //       showNotification('success', 'Save Setting OK');
+  //     })
+  //     .catch((e) => {
+  //       showNotification('success', 'Save Setting Failure', e);
+  //     });
+  // };
+
+  const theme = useTheme();
+  return (
+    <Stack spacing={1}>
+      <Appearance />
+
       <Divider textAlign="left" style={{ marginTop: '20px' }}>
         export
       </Divider>
@@ -548,7 +574,7 @@ function ModifySetting() {
       <Stack direction="row">
         <Button
           onClick={() => {
-            handleSave();
+            // handleSave();
           }}
         >
           save
@@ -819,35 +845,29 @@ function SettingComp(props: { children: ReactNode }) {
   const { children } = props;
   const [setting, setSetting] = useState<UserSetting>(null);
   const reload = () => {
-    UserSetting.get()
-      .then((setting) => {
-        setSetting(setting);
-        document.documentElement.style.fontSize = setting.fontSize + 'px';
-        document.documentElement.style.fontFamily = setting.fontFamily;
-        document.documentElement.style.fontWeight = setting.fontWeight;
-        if (setting.autoStart) {
-          if (!isEnabledApp()) {
-            enableApp().catch((e) => {
-              console.log('enable app autostart failed', e);
-              message(`enable app autostart failed ${e.toString()}`, {
-                kind: 'error',
-              });
-            });
-          }
-        } else {
-          if (isEnabledApp()) {
-            disableApp().catch((e) => {
-              console.log('disable app autostart failed', e);
-              message('disable app autostart failed', { kind: 'error' });
-            });
-          }
-        }
-      })
-      .catch((e) => {
-        message(`list user settings failed ${e.toString()}`, { kind: 'error' });
-        console.log('list user setting failed', e);
-        setSetting(new UserSetting());
-      });
+    let setting = new UserSetting();
+    setSetting(setting);
+    document.documentElement.style.fontSize =
+      setting.appearance.fontSize + 'px';
+    document.documentElement.style.fontFamily = setting.appearance.fontFamily;
+    document.documentElement.style.fontWeight = setting.appearance.fontWeight;
+    if (setting.autoStart) {
+      if (!isEnabledApp()) {
+        enableApp().catch((e) => {
+          console.log('enable app autostart failed', e);
+          message(`enable app autostart failed ${e.toString()}`, {
+            kind: 'error',
+          });
+        });
+      }
+    } else {
+      if (isEnabledApp()) {
+        disableApp().catch((e) => {
+          console.log('disable app autostart failed', e);
+          message('disable app autostart failed', { kind: 'error' });
+        });
+      }
+    }
   };
   useEffect(() => {
     const unlisten = appStore.onKeyChange<UserSetting>(

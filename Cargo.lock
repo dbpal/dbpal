@@ -1729,6 +1729,7 @@ dependencies = [
  "hex",
  "humansize",
  "humantime",
+ "include_dir",
  "ipnetwork",
  "lazy_static",
  "libduckdb-sys",

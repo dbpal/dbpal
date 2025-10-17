@@ -30,8 +30,6 @@ CONFIG get
 1 CONFIG ; 11 get 
 DBSIZE
 1 DBSIZE
-DEBUG ob
-1 DEBUG ; 9 object
 DECR str
 1 DECR ; 9 value_string
 DECRBY str

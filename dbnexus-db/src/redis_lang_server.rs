@@ -3,6 +3,7 @@ use std::pin::Pin;
 
 use std::sync::{Arc, OnceLock};
 use std::task::Poll;
+use std::vec;
 
 use futures_core::future::BoxFuture;
 use futures_util::{FutureExt, StreamExt};
@@ -12,7 +13,7 @@ use tokio::sync::Mutex;
 
 use crate::db::{GetBackendKind, not_support_feature};
 use crate::language_server::{
-    CompletionItem, CompletionKind, CompletionList, GetKeyWords, LanguageServer, in_pos,
+    CompletionItem, CompletionKind, CompletionList, LanguageServer, in_pos,
 };
 use crate::redis::{RedisDB, RedisToken, get_command_from_sql};
 
@@ -32,7 +33,7 @@ impl RedisDB {
         }
     }
     async fn completion_keys(&self, pattern: &str) -> anyhow::Result<CompletionList> {
-        log::trace!("completion on keys pattern:{}", pattern);
+        log::trace!("completion on key pattern:{}", pattern);
         let conn = self.get_query_conn()?;
         let mut conn = conn.lock().await;
         let mut stream = conn.scan_match(format!("*{}*", pattern)).await?;
@@ -43,7 +44,7 @@ impl RedisDB {
             if let Ok(x) = String::from_utf8(item) {
                 items.push(CompletionItem {
                     item: x.into(),
-                    kind: CompletionKind::Trigger,
+                    kind: CompletionKind::Table,
                     desc: None,
                 });
                 if items.len() >= MAX_COMPLETION_ITEMS {
@@ -62,20 +63,20 @@ impl RedisDB {
         let mut conn = conn.lock().await;
         let mut stream: AsyncIter<'_, Vec<u8>> =
             conn.hscan_match(hash_key, format!("*{}*", p)).await?;
-        let mut keys = vec![];
+        let mut ret = vec![];
         let mut incomplete = false;
         while let Some(k) = stream.next().await {
             let k = k?;
             if let Ok(x) = String::from_utf8(k) {
-                keys.push(x);
-                if keys.len() >= MAX_COMPLETION_ITEMS {
+                ret.push(x);
+                if ret.len() >= MAX_COMPLETION_ITEMS {
                     incomplete = true;
                     break;
                 }
             }
         }
         anyhow::Ok(CompletionList {
-            items: keys
+            items: ret
                 .into_iter()
                 .map(|x| CompletionItem {
                     kind: CompletionKind::Column,
@@ -93,20 +94,20 @@ impl RedisDB {
         let mut stream = conn
             .sscan_match::<_, _, Vec<u8>>(key, format!("*{}*", p))
             .await?;
-        let mut keys = vec![];
+        let mut members = vec![];
         let mut incomplete = false;
         while let Some(k) = stream.next().await {
             let k = k?;
             if let Ok(x) = String::from_utf8(k) {
-                keys.push(x);
-                if keys.len() >= MAX_COMPLETION_ITEMS {
+                members.push(x);
+                if members.len() >= MAX_COMPLETION_ITEMS {
                     incomplete = true;
                     break;
                 }
             }
         }
         anyhow::Ok(CompletionList {
-            items: keys
+            items: members
                 .into_iter()
                 .map(|x| CompletionItem {
                     kind: CompletionKind::Column,
@@ -126,21 +127,21 @@ impl RedisDB {
         let mut stream = conn
             .zscan_match::<_, _, (Vec<u8>, f64)>(key, format!("*{}*", member))
             .await?;
-        let mut keys = vec![];
+        let mut members = vec![];
         let mut incomplete = false;
         while let Some(item) = stream.next_item().await {
             let item = item?;
             let (key, score) = item;
             if let Ok(x) = String::from_utf8(key) {
-                keys.push((score, x));
-                if keys.len() >= MAX_COMPLETION_ITEMS {
+                members.push((score, x));
+                if members.len() >= MAX_COMPLETION_ITEMS {
                     incomplete = true;
                     break;
                 }
             }
         }
         anyhow::Ok(CompletionList {
-            items: keys
+            items: members
                 .into_iter()
                 .map(|(score, key)| CompletionItem {
                     kind: CompletionKind::Column,
@@ -153,11 +154,34 @@ impl RedisDB {
     }
 
     fn make_auto_completion_fn_by_command<'a, 'b>(
-        &'a self, command: &str, patterns: &'b [String],
+        &'a self, command: &'b str, patterns: &'b [String],
     ) -> anyhow::Result<Vec<BoxFuture<'b, anyhow::Result<CompletionList>>>>
     where
         'a: 'b,
     {
+        if is_simple_command(command) {
+            return anyhow::Ok(vec![
+                async {
+                    let x: Vec<_> = get_simple_command_sub(command)
+                        .iter()
+                        .map(|x| x.to_uppercase())
+                        .collect();
+                    anyhow::Ok(CompletionList {
+                        items: x
+                            .into_iter()
+                            .map(|x| CompletionItem {
+                                kind: CompletionKind::Command,
+                                item: x.into(),
+                                desc: None,
+                            })
+                            .collect(),
+                        incomplete: false,
+                    })
+                }
+                .boxed(),
+            ]);
+        }
+
         /// dummy auto completion don't return anything
         #[derive(Clone, Copy, Debug)]
         struct Dummy {}
@@ -325,161 +349,6 @@ impl RedisDB {
                     _ => dummy.clone(),
                 })
                 .collect::<Vec<_>>(),
-            "CLIENT" => {
-                vec![
-                    async move {
-                        /*
-                            帮我列出所有redis的client的子命令用rust数组
-                        */
-                        const CLIENT_SUBCOMMANDS: &[&str] = &[
-                            "LIST",
-                            "SETNAME",
-                            "GETNAME",
-                            "KILL",
-                            "ID",
-                            "REPLY",
-                            "PAUSE",
-                            "UNPAUSE",
-                            "TRACKING",
-                            "TRACKINGINFO",
-                            "GETREDIR",
-                        ];
-
-                        anyhow::Ok(
-                            CLIENT_SUBCOMMANDS
-                                .iter()
-                                .map(|x| CompletionItem {
-                                    item: (*x).into(),
-                                    kind: CompletionKind::Command,
-                                    desc: None,
-                                })
-                                .collect::<Vec<_>>()
-                                .into(),
-                        )
-                    }
-                    .boxed(),
-                ]
-            }
-            "CLUSTER" => {
-                vec![
-                    async move {
-                        /*
-                            帮我列出所有redis的CLUSTER的子命令 rust数组
-                        */
-                        /// Redis 7.x CLUSTER 命令的全部子命令
-                        pub const CLUSTER_SUBCOMMANDS: &[&str] = &[
-                            "ADDSLOTS",
-                            "ADDSLOTSRANGE",
-                            "BUMPEPOCH",
-                            "COUNT-FAILURE-REPORTS",
-                            "COUNTKEYSINSLOT",
-                            "DELSLOTS",
-                            "DELSLOTSRANGE",
-                            "FAILOVER",
-                            "FLUSHSLOTS",
-                            "FORGET",
-                            "GETKEYSINSLOT",
-                            "INFO",
-                            "KEYSLOT",
-                            "MEET",
-                            "MYID",
-                            "NODES",
-                            "REPLICATE",
-                            "RESET",
-                            "SAVECONFIG",
-                            "SET-CONFIG-EPOCH",
-                            "SETSLOT",
-                            "SLAVES",
-                            "REPLICAS",
-                            "SLOTS",
-                        ];
-                        anyhow::Ok(
-                            CLUSTER_SUBCOMMANDS
-                                .iter()
-                                .map(|x| CompletionItem {
-                                    item: (*x).into(),
-
-                                    kind: CompletionKind::Command,
-                                    desc: None,
-                                })
-                                .collect::<Vec<_>>()
-                                .into(),
-                        )
-                    }
-                    .boxed(),
-                ]
-            }
-
-            "CONFIG" => {
-                vec![
-                    async move {
-                        const CONFIG_SUBCOMMANDS: &[&str] =
-                            &["GET", "SET", "RESETSTAT", "REWRITE", "HELP"];
-
-                        anyhow::Ok(
-                            CONFIG_SUBCOMMANDS
-                                .iter()
-                                .map(|x| CompletionItem {
-                                    item: (*x).into(),
-
-                                    kind: CompletionKind::Command,
-                                    desc: None,
-                                })
-                                .collect::<Vec<_>>()
-                                .into(),
-                        )
-                    }
-                    .boxed(),
-                ]
-            }
-            "FUNCTION" => {
-                const SUBCOMMANDS: &[&str] = &[
-                    "DELETE", "DUMP", "FLUSH", "HELP", "KILL", "LIST", "LOAD", "RESTORE", "STATS",
-                ];
-                vec![
-                    async move {
-                        anyhow::Ok(
-                            SUBCOMMANDS
-                                .iter()
-                                .map(|x| CompletionItem {
-                                    item: (*x).into(),
-
-                                    kind: CompletionKind::Command,
-                                    desc: None,
-                                })
-                                .collect::<Vec<_>>()
-                                .into(),
-                        )
-                    }
-                    .boxed(),
-                ]
-            }
-            "ACL" => {
-                /*
-                    ai redis 给我所有acl命令的子命令rust数组
-                */
-                const ACL_SUBCOMMANDS: [&str; 13] = [
-                    "CAT", "DELUSER", "DRYRUN", "GETUSER", "GENPASS", "LIST", "LOAD", "LOG",
-                    "SAVE", "SETUSER", "USERS", "WHOAMI", "HELP",
-                ];
-                vec![
-                    async move {
-                        anyhow::Ok(
-                            ACL_SUBCOMMANDS
-                                .iter()
-                                .map(|x| CompletionItem {
-                                    item: (*x).into(),
-
-                                    kind: CompletionKind::Command,
-                                    desc: None,
-                                })
-                                .collect::<Vec<_>>()
-                                .into(),
-                        )
-                    }
-                    .boxed(),
-                ]
-            }
             "DECR" | "DECRBY" => {
                 let key = patterns.first();
                 match key {
@@ -685,6 +554,9 @@ impl RedisDB {
                 ret
             }
             "INFO" => {
+                // https://github.com/redis/redis-doc/blob/master/commands/info.md
+                // info has no separate documentation for each command
+                // so simple command completion will not working
                 vec![
                     async move {
                         const INFO_SECTIONS: &[&str] = &[
@@ -921,75 +793,6 @@ impl RedisDB {
                 }
                 ret
             }
-            "SCRIPT" => {
-                let mut ret = Vec::with_capacity(2);
-                if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            // redis给我SCRIPT 的子命令rust数组
-                            /// Redis 7.x SCRIPT 命令的全部子命令
-                            pub const SCRIPT_SUBCOMMANDS: &[&str] =
-                                &["LOAD", "EXISTS", "FLUSH", "KILL", "DEBUG", "HELP"];
-
-                            anyhow::Ok(
-                                SCRIPT_SUBCOMMANDS
-                                    .iter()
-                                    .map(|x| CompletionItem {
-                                        item: (*x).into(),
-                                        kind: CompletionKind::Command,
-                                        desc: None,
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .into(),
-                            )
-                        }
-                        .boxed(),
-                    );
-                }
-
-                ret
-            }
-            "DEBUG" => {
-                let mut ret = Vec::with_capacity(1);
-                if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            // redis给我debug 的子命令rust数组
-                            pub const DEBUG_SUBCOMMANDS: &[&str] = &[
-                                "HELP",
-                                "SEGFAULT",
-                                "OOM",
-                                "ASSERT",
-                                "RELOAD",
-                                "LOADAOF",
-                                "OBJECT",
-                                "SDSLEN",
-                                "POPULATE",
-                                "DIGEST",
-                                "SLEEP",
-                                "LEAK",
-                                "STRUCTSIZE",
-                                "PAUSE",
-                            ];
-
-                            anyhow::Ok(
-                                DEBUG_SUBCOMMANDS
-                                    .iter()
-                                    .map(|x| CompletionItem {
-                                        item: (*x).into(),
-                                        kind: CompletionKind::Command,
-                                        desc: None,
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .into(),
-                            )
-                        }
-                        .boxed(),
-                    );
-                }
-
-                ret
-            }
             "SDIFF" => patterns
                 .iter()
                 .map(|p| async move { self.completion_keys(p).await }.boxed())
@@ -1037,35 +840,6 @@ impl RedisDB {
                             .boxed(),
                     );
                 }
-                ret
-            }
-            "SLOWLOG" => {
-                let mut ret = Vec::with_capacity(2);
-                if !patterns.is_empty() {
-                    ret.push(
-                        async move {
-                            pub const SLOWLOG_SUBCOMMANDS: &[&str] = &[
-                                "GET",   // SLOWLOG GET [count]
-                                "LEN",   // SLOWLOG LEN
-                                "RESET", // SLOWLOG RESET
-                                "HELP",  // SLOWLOG HELP
-                            ];
-                            anyhow::Ok(
-                                SLOWLOG_SUBCOMMANDS
-                                    .iter()
-                                    .map(|x| CompletionItem {
-                                        item: (*x).into(),
-                                        kind: CompletionKind::Command,
-                                        desc: None,
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .into(),
-                            )
-                        }
-                        .boxed(),
-                    );
-                }
-
                 ret
             }
             "SMEMBERS" => {
@@ -1224,14 +998,6 @@ impl RedisDB {
 }
 
 #[async_trait::async_trait]
-
-impl GetKeyWords for RedisDB {
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(REDIS_COMMANDS.iter().map(|x| x.to_string()).collect())
-    }
-}
-
-#[async_trait::async_trait]
 impl LanguageServer for RedisDB {
     fn extract_table_select_selection(&self, _sql: &str) -> anyhow::Result<Option<String>> {
         not_support_feature(self.backend_name())
@@ -1340,14 +1106,14 @@ impl LanguageServer for RedisDB {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
+    use super::*;
     use crate::{
         db::{QuerySql, SchemaTrait},
         enable_test_log,
         language_server::completion_test::test_file_auto_completion,
         redis::make_test_object,
     };
+    use std::path::Path;
 
     #[tokio::test]
     async fn test_auto_completion() {
@@ -1401,16 +1167,79 @@ mod tests {
         )
         .await;
     }
+
+    #[test]
+    fn test_get_simple_command_sub() {
+        let x = get_simple_command_sub("config");
+        for x in x {
+            println!("{}", x);
+        }
+    }
+}
+
+static REDIS_COMMANDS_FILES: include_dir::Dir =
+    include_dir::include_dir!("$CARGO_MANIFEST_DIR/../redis-doc/commands");
+
+fn get_commands_from_docs() -> Vec<String> {
+    let mut ret = vec![];
+    for en in REDIS_COMMANDS_FILES.entries() {
+        match en {
+            include_dir::DirEntry::Dir(..) => {}
+            include_dir::DirEntry::File(file) => {
+                let name = file.path().file_name().map(|x| x.to_str()).flatten();
+                if let Some(name) = name {
+                    if name.ends_with(".md") {
+                        if name.starts_with("_index") {
+                            continue;
+                        }
+                        if name.contains("-") {
+                            // this is sub command
+                            continue;
+                        }
+                        ret.push(name[..name.len() - 3].to_uppercase());
+                    }
+                }
+            }
+        }
+    }
+    ret
+}
+
+fn is_simple_command(command: &str) -> bool {
+    static SIMPLE: &'static [&'static str] = &[
+        "ACL", "CLIENT", "CLUSTER", "COMMAND", "CONFIG", "FUNCTION", "LATENCY", "MEMORY", "MODULE",
+        "PUBSUB", "SCRIPT", "XGROUP", "XINFO", "SLOWLOG",
+    ];
+    SIMPLE.iter().any(|x| x.eq_ignore_ascii_case(command))
+}
+
+fn get_simple_command_sub(command: &str) -> Vec<&'static str> {
+    let match_str = format!("{}-", command.to_lowercase());
+    let mut ret = vec![];
+    for en in REDIS_COMMANDS_FILES.entries() {
+        match en {
+            include_dir::DirEntry::Dir(..) => {}
+            include_dir::DirEntry::File(file) => {
+                let name = file.path().file_name().map(|x| x.to_str()).flatten();
+                if let Some(name) = name {
+                    if name.starts_with(&match_str) {
+                        ret.push(&name[match_str.len()..name.len() - 3]);
+                    }
+                }
+            }
+        }
+    }
+    ret
 }
 
 fn static_redis_command_completion_items() -> CompletionList {
     static ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
     ITEMS
         .get_or_init(|| {
-            REDIS_COMMANDS
-                .iter()
-                .map(|x| CompletionItem {
-                    item: (*x).into(),
+            get_commands_from_docs()
+                .into_iter()
+                .map(|command| CompletionItem {
+                    item: command.into(),
                     kind: CompletionKind::Command,
                     desc: None,
                 })
@@ -1419,165 +1248,3 @@ fn static_redis_command_completion_items() -> CompletionList {
         .clone()
         .into()
 }
-
-pub const REDIS_COMMANDS: &[&str] = &[
-    "ACL",
-    "COPY",
-    "APPEND",
-    "ASKING",
-    "AUTH",
-    "BGREWRITEAOF",
-    "BGSAVE",
-    "BITCOUNT",
-    "BITFIELD",
-    "BITOP",
-    "BITPOS",
-    "BLPOP",
-    "BRPOP",
-    "BRPOPLPUSH",
-    "CLIENT",
-    "CLUSTER",
-    "CONFIG",
-    "DBSIZE",
-    "DECR",
-    "DECRBY",
-    "DEL",
-    "DISCARD",
-    "DUMP",
-    "ECHO",
-    "EVAL",
-    "FAILOVER",
-    "EVALSHA",
-    "EXEC",
-    "EXISTS",
-    "EXPIRE",
-    "EXPIREAT",
-    "FLUSHALL",
-    "FLUSHDB",
-    "FUNCTION",
-    "GEOADD",
-    "GEODIST",
-    "GEOHASH",
-    "GEOPOS",
-    "GEORADIUS",
-    "GEORADIUSBYMEMBER",
-    "GET",
-    "GETBIT",
-    "GETRANGE",
-    "GETSET",
-    "HDEL",
-    "HEXISTS",
-    "HGET",
-    "HGETALL",
-    "HINCRBY",
-    "HINCRBYFLOAT",
-    "HKEYS",
-    "HLEN",
-    "HMGET",
-    "HMSET",
-    "HSCAN",
-    "HSET",
-    "HSETNX",
-    "HSTRLEN",
-    "HVALS",
-    "INCR",
-    "INCRBY",
-    "INCRBYFLOAT",
-    "INFO",
-    "KEYS",
-    "LASTSAVE",
-    "LINDEX",
-    "LINSERT",
-    "LLEN",
-    "LPOP",
-    "LPUSH",
-    "LPUSHX",
-    "LRANGE",
-    "LREM",
-    "LSET",
-    "LTRIM",
-    "MGET",
-    "MIGRATE",
-    "MOVE",
-    "MSET",
-    "MSETNX",
-    "MULTI",
-    "OBJECT",
-    "PERSIST",
-    "PEXPIRE",
-    "PEXPIREAT",
-    "PFADD",
-    "PFCOUNT",
-    "PFMERGE",
-    "PING",
-    "PSETEX",
-    "PTTL",
-    "PUBLISH",
-    "RANDOMKEY",
-    "READONLY",
-    "READWRITE",
-    "RENAME",
-    "RENAMENX",
-    "RESTORE",
-    "ROLE",
-    "RPOP",
-    "RPOPLPUSH",
-    "RPUSH",
-    "RPUSHX",
-    "SADD",
-    "SAVE",
-    "SCAN",
-    "SCARD",
-    "SCRIPT",
-    "SDIFF",
-    "SDIFFSTORE",
-    "SET",
-    "SETBIT",
-    "SETEX",
-    "SETNX",
-    "SETRANGE",
-    "SHUTDOWN",
-    "SINTER",
-    "SINTERSTORE",
-    "SISMEMBER",
-    "SLAVEOF",
-    "SLOWLOG",
-    "SMEMBERS",
-    "SMOVE",
-    "SORT",
-    "SPOP",
-    "SRANDMEMBER",
-    "SREM",
-    "SSCAN",
-    "STRLEN",
-    "SUNION",
-    "SUNIONSTORE",
-    "SYNC",
-    "TIME",
-    "TOUCH",
-    "TTL",
-    "TYPE",
-    "UNLINK",
-    "ZADD",
-    "ZCARD",
-    "ZCOUNT",
-    "ZINCRBY",
-    "ZINTERSTORE",
-    "ZLEXCOUNT",
-    "ZRANGE",
-    "ZRANGEBYLEX",
-    "ZRANGEBYSCORE",
-    "ZRANK",
-    "ZREM",
-    "ZREMRANGEBYLEX",
-    "ZREMRANGEBYRANK",
-    "ZREMRANGEBYSCORE",
-    "ZREVRANGE",
-    "ZREVRANGEBYLEX",
-    "ZREVRANGEBYSCORE",
-    "ZREVRANK",
-    "ZSCAN",
-    "ZSCORE",
-    "ZUNIONSTORE",
-    "SELECT",
-];

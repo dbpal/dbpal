@@ -1214,8 +1214,8 @@ function RedisListTable(props: {
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
-            rowHeight={setting.datagridRowHeightXXX()}
-            columnHeaderHeight={setting.datagridRowHeightXXX()}
+            rowHeight={setting.appearance.datagridRowHeightXXX()}
+            columnHeaderHeight={setting.appearance.datagridRowHeightXXX()}
             checkboxSelection={false}
             disableMultipleRowSelection
             disableColumnFilter
@@ -1548,8 +1548,8 @@ function RedisZsetTable(props: {
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
-            rowHeight={setting.datagridRowHeightXXX()}
-            columnHeaderHeight={setting.datagridRowHeightXXX()}
+            rowHeight={setting.appearance.datagridRowHeightXXX()}
+            columnHeaderHeight={setting.appearance.datagridRowHeightXXX()}
             rows={resp.data}
             checkboxSelection={false}
             editMode="row"
@@ -1830,8 +1830,8 @@ function RedisHashTable(props: {
             showCellVerticalBorder
             showColumnVerticalBorder
             slotProps={slotProps}
-            rowHeight={setting.datagridRowHeightXXX()}
-            columnHeaderHeight={setting.datagridRowHeightXXX()}
+            rowHeight={setting.appearance.datagridRowHeightXXX()}
+            columnHeaderHeight={setting.appearance.datagridRowHeightXXX()}
             rows={resp.data}
             checkboxSelection={false}
             editMode="row"

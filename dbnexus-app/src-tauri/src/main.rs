@@ -141,7 +141,7 @@ impl log::Log for AppLogger {
             record.args()
         );
         #[cfg(debug_assertions)]
-        eprintln!("{}", log_str);
+        println!("{}", log_str);
         let mut sender = log_channel_store().lock().unwrap();
         match sender.deref_mut() {
             Some(x) => {

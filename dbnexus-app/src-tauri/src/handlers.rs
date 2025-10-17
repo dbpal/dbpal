@@ -64,7 +64,7 @@ pub fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str>, Err
 #[tauri::command]
 
 pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
-    static REDIS_DOC_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../redis-doc/commands");
+    static REDIS_DOC_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../redis-doc/commands");
     let tokens = RedisToken::tokenize(line, 1).map_err(|e| ErrorFrontend::from(e))?;
     if tokens.is_empty() {
         return Err(ErrorFrontend::from("no tokens found,empty line??"));

@@ -91,6 +91,7 @@ rsfbclient = { version = "0.25.1", default-features = false, features = [
 ] }
 rsfbclient-rust = "*"
 rust_xlsxwriter = "0.90.0"
+include_dir.workspace = true
 [dev-dependencies]
 opener = "*"
 

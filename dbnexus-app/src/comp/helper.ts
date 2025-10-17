@@ -733,52 +733,92 @@ class MongoTableHandler {
   }
 }
 
-class UserSetting {
-  theme: string = 'light';
+class UserSettingAppearance {
   fontSize: number = 15;
   fontWeight: string = 'normal';
   fontFamily: string = '';
-  tabSize: number = 4;
   lightBgColor: string = '';
   darkBgColor: string = '';
-  csvDelimiter: string = ',';
-  includeHeader: boolean = true;
   datagridRowHeightFactor = 2;
   maxTreeSize: number = 150;
-  saveQueryLog: boolean = false;
   maxTabTitleLength: number = 12;
-  autoStart: boolean = false;
-  customEditorTheme: string = '';
-  editorOption: editor.IStandaloneEditorConstructionOptions = {};
-  editorTheme(): string {
-    if (this.customEditorTheme) {
-      return this.customEditorTheme;
-    }
-    return this.isDark() ? 'vs-dark' : 'light';
+  theme: string = 'light';
+  static key = "dbpal-user-appearance-setting";
+  save() {
+    localStorage.setItem(UserSettingAppearance.key, JSON.stringify(this));
   }
-
-  isDark(): boolean {
-    return this.theme === 'dark'
+  isDark() {
+    return this.theme == 'dark'
   }
   // 可能和以前的设置冲突
   datagridRowHeightXXX() {
     return Math.ceil(this.fontSize * this.datagridRowHeightFactor)
   }
-  static async get(): Promise<UserSetting> {
-    let x = await appStore.get<object>(AppStoreKey.UserSetting);
-    if (!x) {
-      x = {};
+  static get(): UserSettingAppearance {
+    try {
+      let x = JSON.parse(localStorage.getItem(UserSettingAppearance.key));
+      Object.setPrototypeOf(x, UserSettingAppearance.prototype);
+      return x;
+    } catch (e) {
+      // ignore
+      return new UserSettingAppearance();
     }
-    const r = new UserSetting();
-    for (const key in x) {
-      r[key] = x[key];
-    }
-    return r;
   }
-  static async set(x: object): Promise<void> {
-    const old = await UserSetting.get();
-    const s = { ...old, ...x };
-    return appStore.set(AppStoreKey.UserSetting, s);
+}
+
+class UserSettingExport {
+  csvDelimiter: string = ',';
+  includeHeader: boolean = true;
+  static key = "dbpal-export-appearance-setting";
+  save() {
+    localStorage.setItem(UserSettingExport.key, JSON.stringify(this));
+  }
+  static get() {
+    try {
+      let x = JSON.parse(localStorage.getItem(UserSettingExport.key));
+      return x;
+    } catch (e) {
+      // ignore
+      return new UserSettingAppearance();
+    }
+  }
+}
+
+class UserSettingEditor {
+  customEditorTheme: string = '';
+  editorOption: editor.IStandaloneEditorConstructionOptions = {};
+  static key = "dbpal-editor-setting";
+  save() {
+    localStorage.setItem(UserSettingEditor.key, JSON.stringify(this));
+  }
+
+
+
+  static get() {
+    try {
+      let x = JSON.parse(localStorage.getItem(UserSettingEditor.key));
+      return x;
+    } catch (e) {
+      // ignore
+      return new UserSettingAppearance();
+    }
+  }
+}
+
+class UserSetting {
+  autoStart: boolean = false;
+  editor = UserSettingEditor.get();
+  appearance: UserSettingAppearance = UserSettingAppearance.get();
+
+
+  editorTheme(): string {
+    if (this.editor.customEditorTheme) {
+      return this.editor.customEditorTheme;
+    }
+    return this.isDark() ? 'vs-dark' : 'light';
+  }
+  isDark(): boolean {
+    return this.appearance.isDark();
   }
 }
 
@@ -872,13 +912,30 @@ function makeGetParserErr(uuid) {
     });
   };
 }
-function makeExecuteSql(uuid, saveQueryLog: boolean) {
+
+
+class SaveQueryLogConfigure {
+  static key = "dbpal-save-query-log";
+  static get() {
+    try {
+      return '1' == localStorage.getItem(SaveQueryLogConfigure.key);
+    } catch (e) {
+      console.log("get query log failed");
+      return false;
+    }
+  }
+  static set(save: boolean) {
+    localStorage.setItem(SaveQueryLogConfigure.key, save ? '1' : "0");
+  }
+}
+
+function makeExecuteSql(uuid) {
   return (sql: string): Promise<any> => {
     return invoke<any>('execute_sql_no_open_conn', {
       name: uuid,
       sql,
     }).then(e => {
-      if (saveQueryLog) {
+      if (SaveQueryLogConfigure.get()) {
         new QueryLogHandler(uuid,).save(sql, rustResultOk(e));
       }
       return e
@@ -1008,15 +1065,15 @@ async function webviewWIndowInit(isMain: boolean) {
       if (!theme) {
         return;
       }
-      const set = await UserSetting.get();
+      const set = await UserSettingAppearance.get();
       set.theme = theme;
-      appStore.set(AppStoreKey.UserSetting, set);
+      set.save();
     });
 
     currentWebview.onThemeChanged(async (msg) => {
-      const set = await UserSetting.get();
+      const set = UserSettingAppearance.get();
       set.theme = msg.payload;
-      appStore.set(AppStoreKey.UserSetting, set);
+      set.save();
     });
   }
   if (!import.meta.env.DEV) {
@@ -1255,6 +1312,9 @@ export {
   ViewKind,
   registeredThemes,
   getLanguageFromDataSourceKind,
+  SaveQueryLogConfigure,
+  UserSettingAppearance,
+  UserSettingExport
 };
 
 

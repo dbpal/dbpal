@@ -34,6 +34,7 @@ import {
   generateRandomString,
   LoggerLevel,
   QueryLogHandler,
+  SaveQueryLogConfigure,
   SettingContext,
   TabActiveContext,
 } from './helper';
@@ -153,14 +154,14 @@ function MongoQuery(props: {
     try {
       eval(code);
     } catch (e) {
-      if (setting.saveQueryLog) {
+      if (SaveQueryLogConfigure.get()) {
         new QueryLogHandler(uuid).save(code, false, showNotification);
       }
       setErr(e);
       console.log('mongo query error:', e);
       return;
     }
-    if (setting.saveQueryLog) {
+    if (SaveQueryLogConfigure.get()) {
       new QueryLogHandler(uuid).save(code, true);
     }
     showNotification(
@@ -171,11 +172,11 @@ function MongoQuery(props: {
 
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
-      fontSize: setting.fontSize,
-      fontWeight: setting.fontWeight,
-      fontFamily: setting.fontFamily,
-      tabSize: setting.tabSize,
-      ...setting.editorOption,
+      fontSize: setting.appearance.fontSize,
+      fontWeight: setting.appearance.fontWeight,
+      fontFamily: setting.appearance.fontFamily,
+      tabSize: setting.editor.tabSize,
+      ...setting.editor.editorOption,
     };
   }, [setting]);
   const vis = useContext(TabActiveContext);

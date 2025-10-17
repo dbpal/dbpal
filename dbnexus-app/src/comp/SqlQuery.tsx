@@ -54,6 +54,7 @@ import {
   getLanguageFromDataSourceKind,
   QueryLogHandler,
   rustResultOk,
+  SaveQueryLogConfigure,
   secondConfirm,
   SetCloseConfirmTextContext,
   SettingContext,
@@ -320,7 +321,7 @@ function SqlQuery(props: {
     conn
       .executeOP(text)
       .then((e) => {
-        if (setting.saveQueryLog) {
+        if (SaveQueryLogConfigure.get()) {
           queryLogHandler.current.save(text, rustResultOk(e), showNotification);
         }
         setResp([e]);
@@ -351,7 +352,7 @@ function SqlQuery(props: {
     conn
       .queryOP(text, append)
       .then((resp) => {
-        if (setting.saveQueryLog) {
+        if (SaveQueryLogConfigure.get()) {
           queryLogHandler.current.save(
             text,
             rustResultOk(resp),
@@ -435,11 +436,11 @@ function SqlQuery(props: {
   const editorOptions =
     useMemo((): editor.IStandaloneEditorConstructionOptions => {
       return {
-        fontSize: setting.fontSize,
-        fontWeight: setting.fontWeight,
-        fontFamily: setting.fontFamily,
-        tabSize: setting.tabSize,
-        ...setting.editorOption,
+        fontSize: setting.appearance.fontSize,
+        fontWeight: setting.appearance.fontWeight,
+        fontFamily: setting.appearance.fontFamily,
+        tabSize: setting.editor.tabSize,
+        ...setting.editor.editorOption,
       };
     }, [setting]);
 
