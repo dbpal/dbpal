@@ -1396,10 +1396,7 @@ impl QuerySql for RedisDB {
             let mut redis_cmd = redis::cmd(c[0].as_str());
             redis_cmd.arg(args);
             if command_return_multi_value(c[0].as_str()) {
-                let stream = redis_cmd
-                    .clone()
-                    .iter_async::<Value>(conn.deref_mut())
-                    .await;
+                let stream = redis_cmd.iter_async::<Value>(conn.deref_mut()).await;
                 match stream {
                     Ok(mut stream) => {
                         let mut values = vec![];

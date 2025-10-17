@@ -15,14 +15,16 @@ import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
 import {
   Button,
-  Chip,
+  FormControl,
   FormControlLabel,
   IconButton,
+  InputLabel,
   ListItemIcon,
   ListItemText,
   MenuItem,
   Radio,
   RadioGroup,
+  Select,
   TextField,
   Tooltip,
   Typography,
@@ -207,30 +209,25 @@ function CreateSchema(props: {
     }
     return (
       <Stack spacing={1}>
-        <Stack direction="row" style={{ flexWrap: 'wrap' }}>
-          {range
-            .filter((e) => !schemaSet.has(e))
-            .map((e) => (
-              <Chip
-                key={e}
-                onClick={() => {
-                  setSchema(e);
-                }}
-                label={e}
-                variant="outlined"
-              ></Chip>
-            ))}
-        </Stack>
-        <Stack>
-          <TextField
+        <FormControl>
+          <InputLabel> database </InputLabel>
+          <Select
             value={schema}
             onChange={(e) => {
               setSchema(e.target.value);
             }}
-            inputRef={schemaDom}
-            label="name"
-          ></TextField>
-        </Stack>
+          >
+            {range
+              .filter((e) => {
+                return !schemaSet.has(e);
+              })
+              .map((e) => (
+                <MenuItem key={e} value={e}>
+                  {e}
+                </MenuItem>
+              ))}
+          </Select>
+        </FormControl>
         <Stack direction="row">
           <Button
             onClick={() => {
