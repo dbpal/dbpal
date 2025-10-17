@@ -298,13 +298,14 @@ function MongoBsonEditor(props: {
     }
   }, []);
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
+    const { fontSize, fontFamily, fontWeight } = setting.appearance;
     return {
       readOnly: !setOP,
-      fontSize: setting.fontSize,
-      fontWeight: setting.fontWeight,
-      fontFamily: setting.fontFamily,
-      tabSize: setting.tabSize,
-      ...setting.editorOption,
+      fontSize,
+      fontWeight,
+      fontFamily,
+      tabSize: setting.editor.tabSize,
+      ...setting.editor.editorOption,
     };
   }, [setting]);
   return (
@@ -1319,8 +1320,8 @@ function MongoTableList(props: {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeHeader,
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;

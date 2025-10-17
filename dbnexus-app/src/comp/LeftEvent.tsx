@@ -85,7 +85,7 @@ function EventsTree() {
       {evens
         .filter((event) => matchPattern(event.name))
         .map((event, index) => {
-          if (index >= setting.maxTreeSize) {
+          if (index >= setting.appearance.maxTreeSize) {
             return;
           }
           return (
@@ -119,7 +119,7 @@ function EventsTree() {
         })}
       <ExceedMaxTreeItem
         exceed={exceed}
-        maxTreeSize={setting.maxTreeSize}
+        maxTreeSize={setting.appearance.maxTreeSize}
       ></ExceedMaxTreeItem>
     </TreeItem>
   );

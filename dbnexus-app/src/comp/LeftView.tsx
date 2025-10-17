@@ -164,7 +164,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       {views
         .filter((e) => matchPattern(e.name))
         .map((e, index) => {
-          if (index >= setting.maxTreeSize) {
+          if (index >= setting.appearance.maxTreeSize) {
             return;
           }
           return (
@@ -179,7 +179,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
         })}
       <ExceedMaxTreeItem
         exceed={exceed}
-        maxTreeSize={setting.maxTreeSize}
+        maxTreeSize={setting.appearance.maxTreeSize}
       ></ExceedMaxTreeItem>
     </TreeItem>
   );
@@ -393,8 +393,8 @@ function ColumnsContent(props: { uuid: string; view: string }) {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeHeader,
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;

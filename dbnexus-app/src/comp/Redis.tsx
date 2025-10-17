@@ -818,8 +818,8 @@ function RedisSetTable(props: {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeHeader,
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -1159,8 +1159,8 @@ function RedisListTable(props: {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeHeader,
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -1411,8 +1411,8 @@ function RedisZsetTable(props: {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeHeader,
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -1742,8 +1742,8 @@ function RedisHashTable(props: {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeHeader,
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;

@@ -743,7 +743,7 @@ class UserSettingAppearance {
   maxTreeSize: number = 150;
   maxTabTitleLength: number = 12;
   theme: string = 'light';
-  static key = "dbpal-user-appearance-setting";
+  static key = "dbpal-appearance-setting";
   save() {
     localStorage.setItem(UserSettingAppearance.key, JSON.stringify(this));
   }
@@ -756,9 +756,10 @@ class UserSettingAppearance {
   }
   static get(): UserSettingAppearance {
     try {
-      let x = JSON.parse(localStorage.getItem(UserSettingAppearance.key));
-      Object.setPrototypeOf(x, UserSettingAppearance.prototype);
-      return x;
+      let setting = JSON.parse(localStorage.getItem(UserSettingAppearance.key));
+      setting = { ... new UserSetting(), ...setting };
+      Object.setPrototypeOf(setting, UserSettingAppearance.prototype);
+      return setting;
     } catch (e) {
       // ignore
       return new UserSettingAppearance();
@@ -769,35 +770,38 @@ class UserSettingAppearance {
 class UserSettingExport {
   csvDelimiter: string = ',';
   includeHeader: boolean = true;
-  static key = "dbpal-export-appearance-setting";
+  static key = "dbpal-export-setting";
   save() {
     localStorage.setItem(UserSettingExport.key, JSON.stringify(this));
   }
-  static get() {
+  static get(): UserSettingExport {
     try {
-      let x = JSON.parse(localStorage.getItem(UserSettingExport.key));
-      return x;
+      let setting = JSON.parse(localStorage.getItem(UserSettingExport.key));
+      setting = { ... new UserSettingExport(), ...setting };
+      Object.setPrototypeOf(setting, UserSettingExport.prototype);
+      return setting
     } catch (e) {
       // ignore
-      return new UserSettingAppearance();
+      return new UserSettingExport();
     }
   }
 }
 
+
+
 class UserSettingEditor {
-  customEditorTheme: string = '';
-  editorOption: editor.IStandaloneEditorConstructionOptions = {};
+  tabSize: number = 4;
+  theme: string = '';
+  editorOption: any = null;
   static key = "dbpal-editor-setting";
   save() {
     localStorage.setItem(UserSettingEditor.key, JSON.stringify(this));
   }
 
-
-
   static get() {
     try {
       let x = JSON.parse(localStorage.getItem(UserSettingEditor.key));
-      return x;
+      return { ...  new UserSettingEditor(), ...x };
     } catch (e) {
       // ignore
       return new UserSettingAppearance();
@@ -806,11 +810,10 @@ class UserSettingEditor {
 }
 
 class UserSetting {
-  autoStart: boolean = false;
   editor = UserSettingEditor.get();
   appearance: UserSettingAppearance = UserSettingAppearance.get();
-
-
+  autoStart: boolean = false;
+  export = UserSettingExport.get();
   editorTheme(): string {
     if (this.editor.customEditorTheme) {
       return this.editor.customEditorTheme;
@@ -819,6 +822,9 @@ class UserSetting {
   }
   isDark(): boolean {
     return this.appearance.isDark();
+  }
+  datagridRowHeightXXX() {
+    return this.appearance.datagridRowHeightXXX()
   }
 }
 
@@ -1314,7 +1320,8 @@ export {
   getLanguageFromDataSourceKind,
   SaveQueryLogConfigure,
   UserSettingAppearance,
-  UserSettingExport
+  UserSettingExport,
+  UserSettingEditor
 };
 
 

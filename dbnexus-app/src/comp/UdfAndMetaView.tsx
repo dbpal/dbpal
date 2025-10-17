@@ -12,7 +12,6 @@ import {
   getLanguageFromDataSourceKind,
   makeExecuteSql,
   makeGetParserErr,
-  SettingContext,
 } from './helper';
 import { MultiQueryResp } from './QueryResp';
 import { editor } from 'monaco-editor';
@@ -27,14 +26,14 @@ function DefAndMetasView(props: {
   showReload?: boolean;
 }) {
   const { reloadOP, kind, showReload, uuid } = props;
-  const setting = useContext(SettingContext);
-  const executeOP = makeExecuteSql(uuid, setting.saveQueryLog);
+  const executeOP = makeExecuteSql(uuid);
   const getParseErr = makeGetParserErr(uuid);
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas>({
     def: '',
     metas: [],
   });
+
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [queryResp, setQueryResp] = useState<any[]>([]);
   const { showNotification } = useContext(NotificationContext);

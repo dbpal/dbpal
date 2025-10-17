@@ -172,7 +172,7 @@ function TablesTree(props: { typ: TableType }) {
       {tables
         .filter((e) => matchPattern(e.name))
         .map((e, index) => {
-          if (index >= setting.maxTreeSize) {
+          if (index >= setting.appearance.maxTreeSize) {
             return;
           }
           return (
@@ -186,7 +186,7 @@ function TablesTree(props: { typ: TableType }) {
         })}
       <ExceedMaxTreeItem
         exceed={exceed}
-        maxTreeSize={setting.maxTreeSize}
+        maxTreeSize={setting.appearance.maxTreeSize}
       ></ExceedMaxTreeItem>
     </TreeItem>
   );

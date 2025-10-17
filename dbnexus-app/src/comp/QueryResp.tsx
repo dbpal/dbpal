@@ -217,8 +217,8 @@ function QueryResp_(props: { data: MuiDataGridData }) {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeHeader,
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;

@@ -143,7 +143,7 @@ function TabsWithContent_(props: {
                   }}
                   style={{
                     padding: '0px',
-                    maxWidth: setting.maxTabTitleLength + 'rem',
+                    maxWidth: setting.appearance.maxTabTitleLength + 'rem',
                   }}
                   icon={tab.icon}
                   variant={index == selectIndex ? 'filled' : 'outlined'}

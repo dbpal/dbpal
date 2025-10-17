@@ -247,8 +247,8 @@ function ColumnsStructure(props: {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeHeader,
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -572,8 +572,8 @@ function IndexesStructure(props: {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeHeader,
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;
@@ -1590,8 +1590,8 @@ function TriggersStructure(props: {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeHeader,
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;

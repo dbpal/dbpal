@@ -315,13 +315,14 @@ function SimpleFlexEditor(props: {
   }, [errPos]);
 
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
+    const { fontSize, fontFamily, fontWeight } = setting.appearance;
     return {
-      fontSize: setting.fontSize,
-      fontWeight: setting.fontWeight,
-      fontFamily: setting.fontFamily,
+      fontSize,
+      fontWeight,
+      fontFamily,
       readOnly,
-      tabSize: setting.tabSize,
-      ...setting.editorOption,
+      tabSize: setting.editor.tabSize,
+      ...setting.editor.editorOption,
     };
   }, [setting]);
 
@@ -682,7 +683,7 @@ function AppMarkDown(props: {
           const match = /language-(\w+)/.exec(className || '');
           return match ? (
             <SyntaxHighlighter
-              style={setting.theme == 'light' ? oneLight : oneDark} // Apply the chosen theme
+              style={setting.isDark() ? oneDark : oneLight} // Apply the chosen theme
               language={match[1]}
               PreTag="div"
               {...props}

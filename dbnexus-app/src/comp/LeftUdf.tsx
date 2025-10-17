@@ -92,7 +92,7 @@ function UdfsTree() {
       {udfs
         .filter((e) => matchPattern(e.name))
         .map((udf, index) => {
-          if (index >= setting.maxTreeSize) {
+          if (index >= setting.appearance.maxTreeSize) {
             return;
           }
           return (
@@ -128,7 +128,7 @@ function UdfsTree() {
         })}
       <ExceedMaxTreeItem
         exceed={exceed}
-        maxTreeSize={setting.maxTreeSize}
+        maxTreeSize={setting.appearance.maxTreeSize}
       ></ExceedMaxTreeItem>
     </TreeItem>
   );
@@ -397,7 +397,7 @@ function CassandraAggregatesTree() {
       {aggs
         .filter((e) => matchPattern(e.name))
         .map((agg, index) => {
-          if (index >= setting.maxTreeSize) {
+          if (index >= setting.appearance.maxTreeSize) {
             return;
           }
           return (
@@ -439,7 +439,7 @@ function CassandraAggregatesTree() {
         })}
       <ExceedMaxTreeItem
         exceed={exceed}
-        maxTreeSize={setting.maxTreeSize}
+        maxTreeSize={setting.appearance.maxTreeSize}
       ></ExceedMaxTreeItem>
     </TreeItem>
   );

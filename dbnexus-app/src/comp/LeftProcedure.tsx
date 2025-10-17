@@ -91,7 +91,7 @@ function ProceduresTree() {
       {ps
         .filter((e) => matchPattern(e.name))
         .map((p, index) => {
-          if (index >= setting.maxTreeSize) {
+          if (index >= setting.appearance.maxTreeSize) {
             return;
           }
           return (
@@ -128,7 +128,7 @@ function ProceduresTree() {
           );
         })}
       <ExceedMaxTreeItem
-        maxTreeSize={setting.maxTreeSize}
+        maxTreeSize={setting.appearance.maxTreeSize}
         exceed={exceed}
       ></ExceedMaxTreeItem>
     </TreeItem>

@@ -101,7 +101,7 @@ function SequenceTree() {
       {seq
         .filter((e) => matchPattern(e.name))
         .map((seq, index) => {
-          if (index >= setting.maxTreeSize) {
+          if (index >= setting.appearance.maxTreeSize) {
             return;
           }
           return (
@@ -135,7 +135,7 @@ function SequenceTree() {
         })}
       <ExceedMaxTreeItem
         exceed={exceed}
-        maxTreeSize={setting.maxTreeSize}
+        maxTreeSize={setting.appearance.maxTreeSize}
       ></ExceedMaxTreeItem>
     </TreeItem>
   );

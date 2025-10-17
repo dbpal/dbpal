@@ -23,6 +23,8 @@ import {
   Slider,
   Stack,
   Switch,
+  Tab,
+  Tabs,
   TextField,
   Theme,
   ThemeProvider,
@@ -44,6 +46,8 @@ import {
   appStore,
   registeredThemes,
   UserSettingAppearance,
+  UserSettingExport,
+  UserSettingEditor,
 } from './helper';
 import { Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
@@ -123,10 +127,8 @@ function Appearance() {
     Object.setPrototypeOf(x, UserSettingAppearance.prototype);
     x.save();
   };
-
   return (
-    <>
-      <Divider textAlign="left">appearance</Divider>
+    <Stack spacing={1} style={{ height: '100%' }}>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right" style={{ fontSize }}>
           font size:
@@ -321,18 +323,30 @@ function Appearance() {
           error={isNaN(parseInt(maxTabTitleLength))}
         ></TextField>
       </Stack>
-    </>
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Button onClick={handleSave}> save </Button>
+      </Stack>
+    </Stack>
   );
 }
 
 function EditorSetting() {
   const [editorOptions, setEditorOptions] = useState('');
-  const [showEditorOptions, setShowEditorOptions] = useState(false);
+  const [showEditOption, setShowEditOption] = useState(false);
   const [tabSize, setTabSize] = useState(2);
   const [customEditorTheme, setCustomEditorTheme] = useState('');
-
+  const muiTheme = useTheme();
+  const handleSave = () => {
+    let obj = {
+      tabSize,
+      theme: customEditorTheme,
+      editorOption: JSON.parse(editorOptions),
+    } as UserSettingEditor;
+    Object.setPrototypeOf(obj, UserSettingEditor.prototype);
+    obj.save();
+  };
   return (
-    <>
+    <Stack spacing={1}>
       <Divider textAlign="left" style={{ marginTop: '20px' }}>
         editor
       </Divider>
@@ -366,9 +380,9 @@ function EditorSetting() {
             <Stack direction="row" style={{ alignItems: 'center' }}>
               <IconButton
                 onClick={() => {
-                  setShowEditorOptions((e) => !e);
+                  setShowEditOption((e) => !e);
                 }}
-                color={showEditorOptions ? 'success' : 'primary'}
+                color={showEditOption ? 'success' : 'primary'}
               >
                 <EditIcon> </EditIcon>
               </IconButton>
@@ -378,14 +392,14 @@ function EditorSetting() {
             {editorOptions && (
               <EditorOptions
                 handleClose={() => {
-                  setShowEditorOptions(false);
+                  setShowEditOption(false);
                 }}
                 style={{
                   height: '40vh',
-                  border: '2px solid' + theme.palette.success.main,
+                  border: '2px solid' + muiTheme.palette.success.main,
                   borderRadius: '8px',
                   padding: '8px',
-                  display: showEditorOptions ? 'flex' : 'none',
+                  display: showEditOption ? 'flex' : 'none',
                   transform: 'all 0.7s ease',
                 }}
                 editorOptions={editorOptions}
@@ -437,99 +451,28 @@ function EditorSetting() {
           </span>
         </Tooltip>
       </Stack>
-    </>
+      <Stack direction="row">
+        <Button onClick={handleSave}> save </Button>
+      </Stack>
+    </Stack>
   );
 }
 
 const headerSize = '16rem';
-function ModifySetting() {
-  const { showNotification } = useContext(NotificationContext);
 
+function ExportSetting() {
   const [csvDelimiter, setCsvDelimiter] = useState(',');
   const [includeHeader, setIncludeHeader] = useState(true);
   const [autoStart, setAutoStart] = useState(false);
 
-  const setting = useContext(SettingContext);
-
-  const reload = async () => {
-    try {
-      setCsvDelimiter(setting.csvDelimiter);
-      setIncludeHeader(setting.includeHeader);
-      setAutoStart(setting.autoStart);
-
-      const content = JSON.stringify(
-        setting.editorOption ? setting.editorOption : {},
-        null,
-        setting.tabSize
-      );
-      if (content) {
-        setEditorOptions(content);
-      }
-    } catch (e) {
-      showNotification('error', 'get user config failed', e);
-      return;
-    }
+  const handleSave = () => {
+    let x = { csvDelimiter, includeHeader } as UserSettingExport;
+    Object.setPrototypeOf(x, UserSettingExport.prototype);
+    x.save();
   };
-  useEffect(() => {
-    reload();
-  }, []);
 
-  // const handleSave = async () => {
-  //   if (isNaN(parseFloat(datagridRowHeightFactor))) {
-  //     showNotification('error', 'datagrid row height factor must be a number');
-  //     return;
-  //   }
-  //   if (isNaN(parseInt(maxTreeSize))) {
-  //     showNotification('error', 'max tree size must be a number');
-  //     return;
-  //   }
-  //   try {
-  //     const e = await validJson(editorOptions);
-  //     if (e) {
-  //       showNotification('error', 'not a valid json', e.msg);
-  //       return;
-  //     }
-  //   } catch (e) {
-  //     showNotification('error', 'call valid json error', e);
-  //     return;
-  //   }
-  //   const s = {
-  //     fontWeight,
-  //     fontSize,
-  //     fontFamily,
-  //     tabSize,
-  //     editorOption: JSON.parse(editorOptions),
-  //     csvDelimiter: csvDelimiter,
-  //     includeHeader: includeHeader,
-  //     datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
-  //     maxTreeSize: parseInt(maxTreeSize),
-  //     theme: setting.theme,
-  //     maxTabTitleLength: parseInt(maxTabTitleLength),
-  //     autoStart,
-  //     customEditorTheme,
-  //   } as UserSetting;
-  //   if (setting.theme == 'dark') {
-  //     s.darkBgColor = bgColor;
-  //   } else {
-  //     s.lightBgColor = bgColor;
-  //   }
-  //   UserSetting.set(s)
-  //     .then(() => {
-  //       showNotification('success', 'Save Setting OK');
-  //     })
-  //     .catch((e) => {
-  //       showNotification('success', 'Save Setting Failure', e);
-  //     });
-  // };
-
-  const theme = useTheme();
   return (
-    <Stack spacing={1}>
-      <Appearance />
-
-      <Divider textAlign="left" style={{ marginTop: '20px' }}>
-        export
-      </Divider>
+    <Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <Typography width={headerSize} textAlign="right">
           csv delimiter:
@@ -572,14 +515,29 @@ function ModifySetting() {
       </Stack>
       <Divider />
       <Stack direction="row">
-        <Button
-          onClick={() => {
-            // handleSave();
-          }}
-        >
-          save
-        </Button>
+        <Button onClick={handleSave}>save</Button>
       </Stack>
+    </Stack>
+  );
+}
+
+function ModifySetting() {
+  const { showNotification } = useContext(NotificationContext);
+  const ss = ['apprearance', 'editor', 'export'];
+  const [tab, setTab] = useState(ss[0]);
+
+  return (
+    <Stack spacing={1} style={{ height: '100%' }}>
+      <Tabs
+        value={tab}
+        onChange={(_, value) => {
+          setTab(value);
+        }}
+      >
+        {ss.map((e) => (
+          <Tab value={e} label={e} key={e} />
+        ))}
+      </Tabs>
     </Stack>
   );
 }
@@ -799,34 +757,18 @@ function makeComponents(fontWeight) {
   return components;
 }
 
-const lightTheme = (appFontWeight, fontFamily, bgColor) => {
-  const color = bgColor ? bgColor : '#fff';
-
+const darkTheme = (appearance: UserSettingAppearance) => {
+  let color;
+  if (appearance.isDark()) {
+    color = appearance.darkBgColor;
+  } else {
+    color = appearance.lightBgColor;
+  }
+  const { fontWeight, fontFamily } = appearance;
   return createTheme({
     typography: {
       allVariants: {
-        fontWeight: appFontWeight,
-      },
-      fontFamily,
-    },
-    palette: {
-      mode: 'light',
-      background: {
-        default: color,
-        paper: color,
-      },
-    },
-    components: makeComponents(appFontWeight),
-  });
-};
-
-const darkTheme = (appFontWeight, fontFamily, bgColor) => {
-  const color = bgColor ? bgColor : '#000';
-
-  return createTheme({
-    typography: {
-      allVariants: {
-        fontWeight: appFontWeight,
+        fontWeight,
       },
       fontFamily,
     },
@@ -837,7 +779,7 @@ const darkTheme = (appFontWeight, fontFamily, bgColor) => {
         paper: color,
       },
     },
-    components: makeComponents(appFontWeight),
+    components: makeComponents(fontWeight),
   });
 };
 
@@ -887,21 +829,7 @@ function SettingComp(props: { children: ReactNode }) {
   }, []);
   return (
     setting && (
-      <ThemeProvider
-        theme={
-          setting.isDark()
-            ? darkTheme(
-                setting.fontWeight,
-                setting.fontFamily,
-                setting.darkBgColor
-              )
-            : lightTheme(
-                setting.fontWeight,
-                setting.fontFamily,
-                setting.lightBgColor
-              )
-        }
-      >
+      <ThemeProvider theme={darkTheme(setting.appearance)}>
         <CssBaseline />
         <SettingContext.Provider value={setting}>
           {children}

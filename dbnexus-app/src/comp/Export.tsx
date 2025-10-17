@@ -45,8 +45,10 @@ function ExportView(props: {
   let lastKind = supportKind.find((k) => k === lastExportKind);
   const [kind, setKind] = useState(lastExportKind ? lastKind : supportKind[0]);
   const setting = useContext(SettingContext);
-  const [includeHeader, setIncludeHeader] = useState(setting.includeHeader);
-  const [delimiter, setDelimiter] = useState(setting.csvDelimiter);
+  const [includeHeader, setIncludeHeader] = useState(
+    setting.export.includeHeader
+  );
+  const [delimiter, setDelimiter] = useState(setting.export.csvDelimiter);
   const [pretty, setPretty] = useState(true);
   const [includeTableSchema, setIncludeTableSchema] = useState(false);
   const { showNotification } = useContext(NotificationContext);

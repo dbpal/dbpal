@@ -186,7 +186,7 @@ function SetFilterSort(props: {
               label == 'filter'
                 ? `SELECT * FROM ${tableName} WHERE ${value}`
                 : `SELECT * FROM ${tableName} ORDER BY ${value}`,
-              { tabSize: setting.tabSize, insertSpaces: true }
+              { tabSize: setting.editor.tabSize, insertSpaces: true }
             ) + ' '
           }
           handleEditor={(e) => {
@@ -663,8 +663,8 @@ function SqlTableView_(props: {
       },
       toolbar: {
         csvOptions: {
-          delimiter: setting.csvDelimiter,
-          includeHeaders: setting.includeHeader,
+          delimiter: setting.export.csvDelimiter,
+          includeHeaders: setting.export.includeHeader,
         },
       },
     } as GridSlotsComponentsProps;

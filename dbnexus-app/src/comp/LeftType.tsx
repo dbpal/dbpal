@@ -85,7 +85,7 @@ function TypesTree() {
       {types
         .filter((typ) => matchPattern(typ.name))
         .map((typ, index) => {
-          if (index >= setting.maxTreeSize) {
+          if (index >= setting.appearance.maxTreeSize) {
             return;
           }
           return (
@@ -119,7 +119,7 @@ function TypesTree() {
         })}
       <ExceedMaxTreeItem
         exceed={exceed}
-        maxTreeSize={setting.maxTreeSize}
+        maxTreeSize={setting.appearance.maxTreeSize}
       ></ExceedMaxTreeItem>
     </TreeItem>
   );
