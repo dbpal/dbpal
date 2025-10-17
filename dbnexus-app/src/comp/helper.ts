@@ -359,7 +359,7 @@ function isTypeLargeText(s: string): boolean {
 
 
 enum AppStoreKey {
-  UserSetting = 'user-settings',
+
   ConnectionConfig = 'connection-config',
   Zoom = "zoom",
   RedisShowDoc = "redis-show-doc",
@@ -745,7 +745,8 @@ class UserSettingAppearance {
   theme: string = 'light';
   static key = "dbpal-appearance-setting";
   save() {
-    localStorage.setItem(UserSettingAppearance.key, JSON.stringify(this));
+    console.log('save appearance setting', this);
+    localStorage.setItem(UserSettingAppearance.key, JSON.stringify({ ...this }));
   }
   isDark() {
     return this.theme == 'dark'
@@ -757,7 +758,7 @@ class UserSettingAppearance {
   static get(): UserSettingAppearance {
     try {
       let setting = JSON.parse(localStorage.getItem(UserSettingAppearance.key));
-      setting = { ... new UserSetting(), ...setting };
+      setting = { ... new UserSettingAppearance(), ...setting };
       Object.setPrototypeOf(setting, UserSettingAppearance.prototype);
       return setting;
     } catch (e) {
@@ -772,7 +773,7 @@ class UserSettingExport {
   includeHeader: boolean = true;
   static key = "dbpal-export-setting";
   save() {
-    localStorage.setItem(UserSettingExport.key, JSON.stringify(this));
+    localStorage.setItem(UserSettingExport.key, JSON.stringify({ ...this }));
   }
   static get(): UserSettingExport {
     try {
@@ -787,15 +788,13 @@ class UserSettingExport {
   }
 }
 
-
-
 class UserSettingEditor {
   tabSize: number = 4;
   theme: string = '';
   editorOption: any = null;
   static key = "dbpal-editor-setting";
   save() {
-    localStorage.setItem(UserSettingEditor.key, JSON.stringify(this));
+    localStorage.setItem(UserSettingEditor.key, JSON.stringify({ ... this }));
   }
 
   static get() {
@@ -804,7 +803,7 @@ class UserSettingEditor {
       return { ...  new UserSettingEditor(), ...x };
     } catch (e) {
       // ignore
-      return new UserSettingAppearance();
+      return new UserSettingEditor();
     }
   }
 }

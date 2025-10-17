@@ -34,7 +34,6 @@ import {
 } from '@mui/material';
 import { HexColorPicker } from 'react-colorful';
 import { NotificationContext } from './Notification';
-import { AppStoreKey } from './Common';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import {
   ErrAndLoc,
@@ -43,7 +42,6 @@ import {
   UserSetting,
   validJson,
   textEllipsisStyle,
-  appStore,
   registeredThemes,
   UserSettingAppearance,
   UserSettingExport,
@@ -757,12 +755,13 @@ function makeComponents(fontWeight) {
   return components;
 }
 
-const darkTheme = (appearance: UserSettingAppearance) => {
+const makeTheme = (appearance: UserSettingAppearance) => {
   let color;
+  console.log('appearance', appearance);
   if (appearance.isDark()) {
-    color = appearance.darkBgColor;
+    color = appearance.darkBgColor ? appearance.darkBgColor : '#1f1f1f';
   } else {
-    color = appearance.lightBgColor;
+    color = appearance.lightBgColor ? appearance.lightBgColor : '#fafafa';
   }
   const { fontWeight, fontFamily } = appearance;
   return createTheme({
@@ -773,7 +772,7 @@ const darkTheme = (appearance: UserSettingAppearance) => {
       fontFamily,
     },
     palette: {
-      mode: 'dark',
+      mode: appearance.isDark() ? 'dark' : 'light',
       background: {
         default: color,
         paper: color,
@@ -806,30 +805,16 @@ function SettingComp(props: { children: ReactNode }) {
       if (isEnabledApp()) {
         disableApp().catch((e) => {
           console.log('disable app autostart failed', e);
-          message('disable app autostart failed', { kind: 'error' });
         });
       }
     }
   };
   useEffect(() => {
-    const unlisten = appStore.onKeyChange<UserSetting>(
-      AppStoreKey.UserSetting,
-      () => {
-        reload();
-      }
-    );
-    return () => {
-      unlisten.then((e) => {
-        e();
-      });
-    };
-  }, []);
-  useEffect(() => {
     reload();
   }, []);
   return (
     setting && (
-      <ThemeProvider theme={darkTheme(setting.appearance)}>
+      <ThemeProvider theme={makeTheme(setting.appearance)}>
         <CssBaseline />
         <SettingContext.Provider value={setting}>
           {children}
