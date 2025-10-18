@@ -63,11 +63,11 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       message(msg, {
         kind: severity,
         buttons: {
-          ok: 'copy',
+          ok: 'copy error',
           cancel: 'dismiss',
         },
       }).then((e: MessageDialogResult) => {
-        if (e == 'copy') {
+        if (e == 'copy error') {
           handleCopyToClipboard(msg);
         }
       });

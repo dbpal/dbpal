@@ -1258,6 +1258,7 @@ function getLanguageFromDataSourceKind(kind: DataSourceKind): string {
 await setUpEditorThemes();
 
 const settingChangeEvent = "setting-change";
+const dataGridheaderFontSize = "0.8rem";
 
 export {
   TabsSetContext,
@@ -1332,7 +1333,8 @@ export {
   UserSettingExport,
   UserSettingEditor,
   settingChangeEvent,
-  UserSettingMisc
+  UserSettingMisc,
+  dataGridheaderFontSize,
 };
 
 

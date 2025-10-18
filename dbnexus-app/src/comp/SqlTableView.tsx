@@ -80,6 +80,7 @@ import {
   dataGridParentStyle,
   pageSizeOptions,
   getLanguageFromDataSourceKind,
+  dataGridheaderFontSize,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
@@ -401,7 +402,9 @@ function SqlTableView_(props: {
         return (
           <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
             <Tooltip title={makeTitle()}>
-              <Typography> {def.field}</Typography>
+              <Typography fontSize={dataGridheaderFontSize}>
+                {def.field}
+              </Typography>
             </Tooltip>
             {def.is_primary && <KeyIcon style={{ fontSize: '16px' }}></KeyIcon>}
           </Stack>

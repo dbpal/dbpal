@@ -48,6 +48,7 @@ import {
   UserSettingEditor,
   settingChangeEvent,
   UserSettingMisc,
+  dataGridheaderFontSize,
 } from './helper';
 import { Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
@@ -773,7 +774,7 @@ function makeComponents(fontWeight) {
           fontSize: '1rem',
         },
         columnHeaders: {
-          fontSize: '0.8rem',
+          fontSize: dataGridheaderFontSize,
           boxShadow: '0 1px 3px',
         },
       },
@@ -825,11 +826,10 @@ function makeComponents(fontWeight) {
 
 const makeTheme = (appearance: UserSettingAppearance) => {
   let color;
-  console.log('appearance', appearance);
   if (appearance.isDark()) {
-    color = appearance.darkBgColor ? appearance.darkBgColor : '#1f1f1f';
+    color = appearance.darkBgColor ? appearance.darkBgColor : '#000';
   } else {
-    color = appearance.lightBgColor ? appearance.lightBgColor : '#fafafa';
+    color = appearance.lightBgColor ? appearance.lightBgColor : '#fff';
   }
   const { fontWeight, fontFamily } = appearance;
   return createTheme({
