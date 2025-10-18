@@ -2967,8 +2967,8 @@ async fn random_sleep() {
     {
         let duration = {
             use rand::Rng;
-            let mut rng = rand::thread_rng();
-            let millis = rng.gen_range(500, 1700);
+            let mut rng = rand::rng();
+            let millis = rng.random_range(500..1700);
             let duration = std::time::Duration::from_millis(millis);
             duration
         };
@@ -2982,8 +2982,8 @@ fn random_error() -> Result<(), ErrorFrontend> {
     #[cfg(feature = "random-error")]
     {
         use rand::Rng;
-        let mut rng = rand::thread_rng();
-        let x: i8 = rng.gen_range(1, 100);
+        let mut rng = rand::rng();
+        let x: i8 = rng.random_range(1..100);
         if x > 50 {
             Err(ErrorFrontend {
                 reason: format!("random error of {}", x),

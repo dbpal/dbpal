@@ -535,6 +535,7 @@ function Left_() {
   const [matchPattern, setMatchPattern] = useState<string[]>(
     SaveMatchPattern.instance.get()
   );
+
   useEffect(() => {
     SaveMatchPattern.instance.save(matchPattern);
   }, [matchPattern]);

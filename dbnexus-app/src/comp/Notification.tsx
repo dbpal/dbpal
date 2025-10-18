@@ -1,24 +1,17 @@
 'use strict';
-import React, {
-  useState,
-  ReactNode,
-  createContext,
-  useEffect,
-  ReactElement,
-} from 'react';
+import React, { useState, ReactNode, createContext, ReactElement } from 'react';
 import {
   Snackbar,
   Alert,
   AlertTitle,
   Slide,
   Stack,
-  Button,
   Typography,
 } from '@mui/material';
 import { AlertColor } from '@mui/material/Alert';
 import { msgTimeout } from './Common';
 import { handleCopyToClipboard } from './helper';
-import { message } from '@tauri-apps/plugin-dialog';
+import { message, MessageDialogResult } from '@tauri-apps/plugin-dialog';
 
 interface NotificationContextProps {
   showNotification: (
@@ -48,25 +41,42 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const [notification, setNotification] = useState({
     severity: 'info' as AlertColor,
     title: '',
-    message: '' as any,
+    message: '' as ReactElement | string | null | undefined,
   });
 
   const showNotification = (
     severity: AlertColor,
     title: string,
-    message: string | Error | { reason: string } | ReactElement
+    msg: any | ReactElement
   ) => {
-    if (typeof message == 'object' && 'reason' in message) {
-      console.log('detail:', message);
+    if (typeof msg == 'object' && 'reason' in msg) {
+      console.log('detail:', msg);
       // this a error from the backend
       // we only show `reason` the short message
-      message = message['reason'];
+      msg = msg['reason'];
     }
-    if (typeof message == 'object' && message instanceof Error) {
-      // error  to string
-      message = message.toString();
+    if (
+      (severity == 'warning' || severity == 'error') &&
+      !React.isValidElement(msg)
+    ) {
+      msg = String(msg);
+      message(msg, {
+        kind: severity,
+        buttons: {
+          ok: 'copy',
+          cancel: 'dismiss',
+        },
+      }).then((e: MessageDialogResult) => {
+        if (e == 'copy') {
+          handleCopyToClipboard(msg);
+        }
+      });
+      return;
     }
-    setNotification({ severity, title, message });
+    if (!React.isValidElement(msg) && msg) {
+      msg = String(msg);
+    }
+    setNotification({ severity, title, message: msg });
     setOpen(true);
   };
 
@@ -78,10 +88,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const transition = (props: any) => {
     return <Slide {...props} direction="left" />;
   };
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    setCopied(false);
-  }, [notification]);
+
   return (
     <NotificationContext.Provider value={{ showNotification }}>
       {children}
@@ -92,7 +99,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
           onClose={handleClose}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
           sx={{ mb: 8 }} // 调整位置稍微高一些
-          slots={{ transition: copied ? undefined : transition }}
+          slots={{ transition }}
         >
           <Alert
             severity={notification.severity}
@@ -116,24 +123,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
                   {notification.message}
                 </Typography>
               )}
-              {notification.message &&
-                typeof notification.message == 'string' && (
-                  <Button
-                    onClick={() => {
-                      handleCopyToClipboard(
-                        notification.message,
-                        undefined,
-                        () => {
-                          setCopied(true);
-                        }
-                      );
-                    }}
-                    variant="text"
-                    color={copied ? 'success' : 'primary'}
-                  >
-                    {copied ? 'copied' : 'copy'}
-                  </Button>
-                )}
             </Stack>
           </Alert>
         </Snackbar>
