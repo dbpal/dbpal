@@ -1167,8 +1167,11 @@ class KeyPressed {
 class SomeTempStore {
   static id = "temp-store-kfsdfwerwerqqq";
   static set(data: any) {
-    if (!data) { throw new Error("data can not be null"); }
-    return localStorage.setItem(SomeTempStore.id, JSON.stringify(data));
+    if (data) {
+      localStorage.setItem(SomeTempStore.id, JSON.stringify(data));
+    } else {
+      localStorage.removeItem(SomeTempStore.id);
+    }
   }
   static get<T>(): T {
     try {

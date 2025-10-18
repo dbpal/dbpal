@@ -142,9 +142,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
     if (webview) {
       await webview.setFocus();
     } else {
-      if (conn) {
-        SomeTempStore.set(conn);
-      }
+      SomeTempStore.set(conn);
       const webview = new WebviewWindow(id, {
         title: conn ? `copy connection of '${conn.name}'` : 'add connection',
         url: 'add_connection.html',
