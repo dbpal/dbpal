@@ -853,7 +853,7 @@ const makeTheme = (appearance: UserSettingAppearance) => {
 function SettingComp(props: { children: ReactNode }) {
   const { children } = props;
   const [setting, setSetting] = useState<UserSetting>(null);
-  const reload = () => {
+  const reload = async () => {
     let setting = new UserSetting();
     setSetting(setting);
     document.documentElement.style.fontSize =
@@ -861,7 +861,7 @@ function SettingComp(props: { children: ReactNode }) {
     document.documentElement.style.fontFamily = setting.appearance.fontFamily;
     document.documentElement.style.fontWeight = setting.appearance.fontWeight;
     if (setting.misc.autoStart) {
-      if (!isEnabledApp()) {
+      if (!(await isEnabledApp())) {
         enableApp().catch((e) => {
           console.log('enable app autostart failed', e);
           message(`enable app autostart failed ${e.toString()}`, {
@@ -870,7 +870,7 @@ function SettingComp(props: { children: ReactNode }) {
         });
       }
     } else {
-      if (isEnabledApp()) {
+      if (await isEnabledApp()) {
         disableApp().catch((e) => {
           console.log('disable app autostart failed', e);
         });
