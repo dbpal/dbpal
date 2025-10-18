@@ -240,11 +240,10 @@ function Menu(props: { children: ReactNode }) {
 
 function SeparateWindow(props: { children }) {
   const { children } = props;
-
   return (
     <SettingComp>
-      <Menu>
-        <NotificationProvider>
+      <NotificationProvider>
+        <Menu>
           <div
             style={{
               padding: '0.5rem 1rem',
@@ -254,8 +253,8 @@ function SeparateWindow(props: { children }) {
           >
             {children}
           </div>
-        </NotificationProvider>
-      </Menu>
+        </Menu>
+      </NotificationProvider>
     </SettingComp>
   );
 }
