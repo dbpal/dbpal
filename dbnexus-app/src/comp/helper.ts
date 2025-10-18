@@ -1179,13 +1179,11 @@ class SomeTempStore {
       if (x) {
         // localStorage.removeItem(SomeTempStore.id);
         return JSON.parse(x) as T;
-      } else {
-        return null;
       }
     } catch (e) {
       console.log("get config failed", e);
-      return null;
     }
+    return null;
   }
 }
 
