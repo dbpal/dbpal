@@ -462,6 +462,8 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
 }
 
 function AddConnection(props: { handleClose: () => void; config?: object }) {
+  console.log('AddConnection', props.config);
+
   let { handleClose, config } = props;
   const isCopy = !!config;
   if (!config) {

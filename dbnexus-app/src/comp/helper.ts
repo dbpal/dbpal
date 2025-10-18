@@ -1167,8 +1167,11 @@ class KeyPressed {
 class SomeTempStore {
   static id = "temp-store-kfsdfwerwerqqq";
   static set(data: any) {
-    if (!data) { throw new Error("data can not be null"); }
-    return localStorage.setItem(SomeTempStore.id, JSON.stringify(data));
+    if (data) {
+      localStorage.setItem(SomeTempStore.id, JSON.stringify(data));
+    } else {
+      localStorage.removeItem(SomeTempStore.id);
+    }
   }
   static get<T>(): T {
     try {
@@ -1176,13 +1179,11 @@ class SomeTempStore {
       if (x) {
         // localStorage.removeItem(SomeTempStore.id);
         return JSON.parse(x) as T;
-      } else {
-        return null;
       }
     } catch (e) {
       console.log("get config failed", e);
-      return null;
     }
+    return null;
   }
 }
 
