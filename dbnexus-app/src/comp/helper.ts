@@ -1260,6 +1260,12 @@ await setUpEditorThemes();
 const settingChangeEvent = "setting-change";
 const dataGridheaderFontSize = "0.8rem";
 
+
+enum TableType {
+  Normal,
+  MongoTimeSerial,
+}
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -1335,6 +1341,7 @@ export {
   settingChangeEvent,
   UserSettingMisc,
   dataGridheaderFontSize,
+  TableType,
 };
 
 

@@ -79,6 +79,7 @@ import {
   secondConfirm,
   SettingContext,
   SomeTempStore,
+  TableType,
   TabsSetContext,
   UuidContext,
   WindowFocusContext,
@@ -102,7 +103,7 @@ import {
 } from './CommonComp.tsx';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
-import { RedisTables, TablesTree, TableType } from './LeftTable.tsx';
+import { RedisTables, TablesTree } from './LeftTable.tsx';
 import { ViewKind, ViewsTree } from './LeftView.tsx';
 import { CassandraAggregatesTree, UdfsTree } from './LeftUdf.tsx';
 import { ProceduresTree } from './LeftProcedure.tsx';

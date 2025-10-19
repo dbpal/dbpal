@@ -85,15 +85,11 @@ import {
   RedisTableType,
   SomeTempStore,
   NewWindowTableParameter,
+  TableType,
 } from './helper';
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from './CommonComp';
 import { TableStructure } from './TableStructure';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-
-enum TableType {
-  Normal,
-  MongoTimeSerial,
-}
 
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
@@ -1367,4 +1363,4 @@ function RedisTables() {
   );
 }
 
-export { TablesTree, TableType, RedisTables, makeRedisViewTable, AddTableView };
+export { TablesTree, RedisTables, makeRedisViewTable, AddTableView };
