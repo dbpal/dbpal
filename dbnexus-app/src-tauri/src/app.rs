@@ -482,7 +482,7 @@ impl DBPal {
         }
     }
 
-    pub async fn open_conn(&self, name: &str) -> anyhow::Result<DatabaseBackend> {
+    pub async fn establish_conn(&self, name: &str) -> anyhow::Result<DatabaseBackend> {
         let config = unsafe { Self::get_config_ref().as_ref().map(|x| x(name)) }.unwrap()?;
         #[cfg(debug_assertions)]
         println!("open config:{:?}", config);

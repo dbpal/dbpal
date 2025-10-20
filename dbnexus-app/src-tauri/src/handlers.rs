@@ -339,14 +339,16 @@ pub async fn create_schema(
 }
 
 #[tauri::command]
-pub async fn open_conn(name: String, app: tauri::State<'_, DBPal>) -> Result<(), ErrorFrontend> {
+pub async fn establish_conn(
+    name: String, app: tauri::State<'_, DBPal>,
+) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     log::info!("open connection:{}", name);
     let secs = 10;
     let name_clone = name.clone();
     tokio::time::timeout(Duration::from_secs(secs), async move {
-        app.open_conn(name.as_str())
+        app.establish_conn(name.as_str())
             .await
             .map_err(ErrorFrontend::from)
             .map(|_| ())

@@ -344,9 +344,9 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
       }
     }
     try {
-      await invoke('open_conn', { name });
+      await invoke('establish_conn', { name });
     } catch (e) {
-      showNotification('error', 'open connection failed', e);
+      showNotification('error', 'establish connection failed', e);
       return;
     }
     handleOpened();

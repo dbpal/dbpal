@@ -7,7 +7,6 @@ pub struct MongoDBConfig {
     pub username: Option<String>,
     pub password: Option<String>,
     pub save_password: bool,
-
     pub conn_timeout: Option<u64>,
     pub db: Option<String>,
     pub read_only: bool,
@@ -105,7 +104,6 @@ impl ClickHouseConfig {
 pub struct SqliteDBConfig {
     pub path: String,
     pub read_only: bool,
-
     pub conn_timeout: Option<u32>,
 }
 
