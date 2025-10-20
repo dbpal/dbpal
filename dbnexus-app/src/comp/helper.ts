@@ -1103,7 +1103,9 @@ class KeyPressed {
   static closeTab(e: KeyboardEvent) {
     return KeyPressed.matchControl(e, 'w')
   }
+
 }
+
 
 // some temp place for store some data
 // normally the store the data can be consume soon 

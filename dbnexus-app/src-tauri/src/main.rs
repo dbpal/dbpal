@@ -299,7 +299,7 @@ fn main_() {
                                 "add_config",
                                 "Add Connection",
                                 true,
-                                None as Option<&'static str>,
+                                Some(if is_macos() { "command+n" } else { "control+n" }),
                             )?,
                             &MenuItem::with_id(
                                 handle,

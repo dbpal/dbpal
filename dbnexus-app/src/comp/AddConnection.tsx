@@ -288,8 +288,7 @@ function SslFiles(props: {
           >
             <Chip
               label={
-                'CA Cert(optional):' +
-                (files.ssl_ca ? extractBaseName(files.ssl_ca) : '')
+                'CA Cert:' + (files.ssl_ca ? extractBaseName(files.ssl_ca) : '')
               }
               variant="outlined"
             ></Chip>
@@ -304,7 +303,7 @@ function SslFiles(props: {
                 }
               }}
               label={
-                'Certificate(optional):' +
+                'Certificate:' +
                 (files.ssl_cert ? extractBaseName(files.ssl_cert) : '')
               }
             ></Chip>
@@ -319,7 +318,7 @@ function SslFiles(props: {
                 }
               }}
               label={
-                'Key File(optional):' +
+                'Key File:' +
                 (files.ssl_key ? extractBaseName(files.ssl_key) : '')
               }
             ></Chip>
