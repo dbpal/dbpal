@@ -4,15 +4,6 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::Utc;
-use dashmap::DashMap;
-use futures_util::{StreamExt, TryStreamExt};
-use sqlx::mysql::{MySqlRow, MySqlSslMode};
-use sqlx::pool::{PoolConnection, PoolOptions};
-use sqlx::types::BigDecimal;
-use sqlx::{AssertSqlSafe, Column, Executor, MySqlConnection, Row, SqlSafeStr, TypeInfo};
-use tokio::sync::Mutex;
-
 use crate::MemoryLimit;
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
@@ -23,6 +14,14 @@ use crate::db::{
     SqlEvent, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
     UdfOrProcedureExtraParameter, XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data,
 };
+use chrono::Utc;
+use dashmap::DashMap;
+use futures_util::{StreamExt, TryStreamExt};
+use sqlx::mysql::MySqlRow;
+use sqlx::pool::{PoolConnection, PoolOptions};
+use sqlx::types::BigDecimal;
+use sqlx::{AssertSqlSafe, Column, Executor, MySqlConnection, Row, SqlSafeStr, TypeInfo};
+use tokio::sync::Mutex;
 
 use crate::helper::{NextId, create_csv};
 use crate::meta_value::MetaValue;
@@ -416,6 +415,15 @@ impl MysqlDB {
         self.export_query_result_as_csv(sql.as_str(), include_header, delimiter, sender)
             .await
     }
+    async fn export_table_as_xlsx(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!("SELECT * from `{}`", table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_xlsx(sql.as_str(), include_header, sender)
+            .await
+    }
 }
 
 impl MysqlDB {
@@ -738,12 +746,6 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(())
     }
 
-    async fn export_table_or_view_as_xlsx(
-        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(r#"SELECT * from `{}`"#, name);
-        ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
-    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -1069,7 +1071,10 @@ impl SchemaTrait for MysqlDB {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
-            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx not supported yet"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_table_as_xlsx(name, include_header, sender)
+                    .await
+            }
         }
     }
 
@@ -1458,19 +1463,22 @@ impl MysqlDB {
             .port(config.port)
             .username(&config.username);
         println!("ssl:{:?}", config.ssl);
-        if config.ssl.ssl_enable {
-            opts = opts.ssl_mode(MySqlSslMode::VerifyCa);
-            if let Some(ca) = config.ssl.ssl_ca.as_ref() {
-                opts = opts.ssl_ca(ca);
-            }
-            if let Some(cert) = config.ssl.ssl_cert.as_ref() {
-                opts = opts.ssl_client_cert(cert);
-            }
-            if let Some(key) = config.ssl.ssl_key.as_ref() {
-                opts = opts.ssl_client_key(key);
+
+        match config.ssl.mode {
+            crate::datasource_config::MySqlSslMode::Disabled => {}
+            _ => {
+                opts = opts.ssl_mode(config.ssl.mode.into());
+                if let Some(ca) = config.ssl.ssl_files.ssl_ca.as_ref() {
+                    opts = opts.ssl_ca(ca);
+                }
+                if let Some(cert) = config.ssl.ssl_files.ssl_cert.as_ref() {
+                    opts = opts.ssl_client_cert(cert);
+                }
+                if let Some(key) = config.ssl.ssl_files.ssl_key.as_ref() {
+                    opts = opts.ssl_client_key(key);
+                }
             }
         }
-
         if let Some(pass) = &config.password {
             opts = opts.password(pass);
         }
@@ -1572,10 +1580,11 @@ impl DBTrait for MysqlDB {
         anyhow::Ok(())
     }
 }
-#[async_trait::async_trait]
-impl ExportQueryResult for MysqlDB {
-    async fn export_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+
+impl MysqlDB {
+    async fn export_query_result_as_xlsx(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let mut first = true;
@@ -1590,11 +1599,15 @@ impl ExportQueryResult for MysqlDB {
                 for (index, col) in rows[0].columns().iter().enumerate() {
                     let col = col.name();
                     sender
-                        .send(XlsxEdit {
-                            row: row_num,
-                            column: index as rust_xlsxwriter::ColNum,
-                            content: col.to_owned(),
-                        })
+                        .send(
+                            XlsxEdit {
+                                row: row_num,
+                                column: index as rust_xlsxwriter::ColNum,
+                                content: col.to_owned(),
+                            }
+                            .to_string()
+                            .into(),
+                        )
                         .await?;
                 }
                 first = false;
@@ -1607,7 +1620,10 @@ impl ExportQueryResult for MysqlDB {
 
         anyhow::Ok(())
     }
+}
 
+#[async_trait::async_trait]
+impl ExportQueryResult for MysqlDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -1630,8 +1646,9 @@ impl ExportQueryResult for MysqlDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { .. } => {
-                anyhow::bail!("Exporting to xlsx is not supported")
+            ExportKind::Xlsx { include_header } => {
+                self.export_query_result_as_xlsx(sql, include_header, sender)
+                    .await
             }
         }
     }

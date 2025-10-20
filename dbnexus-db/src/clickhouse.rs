@@ -66,6 +66,20 @@ impl ClickHouseDB {
         self.export_query_result_as_json_line(&sql, sender).await
     }
 
+    async fn export_table_as_xlsx(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"SELECT * from `{}`.`{}`"#,
+            self.config.db_str(),
+            table_name
+        );
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_xlsx(&sql, include_header, sender)
+            .await
+    }
+
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -176,12 +190,6 @@ impl ClickHouseDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for ClickHouseDB {
-    async fn export_table_or_view_as_xlsx(
-        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(r#"select * from `{}`.`{}`"#, self.config.db_str(), name);
-        ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
-    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -237,7 +245,10 @@ impl SchemaTrait for ClickHouseDB {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
-            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx export not supported"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_table_as_xlsx(name, include_header, sender)
+                    .await
+            }
         }
     }
 
@@ -760,21 +771,26 @@ impl ClickHouseDB {
         anyhow::Ok(())
     }
 }
-#[async_trait::async_trait]
-impl ExportQueryResult for ClickHouseDB {
-    async fn export_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+
+impl ClickHouseDB {
+    async fn export_query_result_as_xlsx(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let result = self.query_as_json(sql).await?;
         let mut row_number = 0;
         if include_header {
             for (index, c) in result.meta.iter().enumerate() {
                 sender
-                    .send(XlsxEdit {
-                        row: row_number,
-                        column: index as rust_xlsxwriter::ColNum,
-                        content: c.name.clone(),
-                    })
+                    .send(
+                        XlsxEdit {
+                            row: row_number,
+                            column: index as rust_xlsxwriter::ColNum,
+                            content: c.name.clone(),
+                        }
+                        .to_string()
+                        .into(),
+                    )
                     .await?;
             }
             row_number += 1;
@@ -784,11 +800,15 @@ impl ExportQueryResult for ClickHouseDB {
             for (col, d) in d.into_iter().enumerate() {
                 if let Some(d) = d {
                     sender
-                        .send(XlsxEdit {
-                            row: row_number,
-                            column: col as rust_xlsxwriter::ColNum,
-                            content: d,
-                        })
+                        .send(
+                            XlsxEdit {
+                                row: row_number,
+                                column: col as rust_xlsxwriter::ColNum,
+                                content: d,
+                            }
+                            .to_string()
+                            .into(),
+                        )
                         .await?;
                 }
             }
@@ -796,6 +816,10 @@ impl ExportQueryResult for ClickHouseDB {
         }
         anyhow::Ok(())
     }
+}
+
+#[async_trait::async_trait]
+impl ExportQueryResult for ClickHouseDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -818,7 +842,10 @@ impl ExportQueryResult for ClickHouseDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx export is not supported"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_query_result_as_xlsx(sql, include_header, sender)
+                    .await
+            }
         }
     }
 }

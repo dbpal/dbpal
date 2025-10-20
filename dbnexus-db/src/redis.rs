@@ -36,12 +36,12 @@ impl RedisDB {
     pub async fn new(config: RedisDBConfig) -> anyhow::Result<Self> {
         let conn_str = config.make_conn_string();
         log::info!("connect to redis var:{:?}", conn_str);
-
         let client = redis::Client::open(conn_str.as_str())?;
         let mut conn_config = ConnectionManagerConfig::default();
         if let Some(timeout) = config.conn_timeout {
             conn_config = conn_config.set_connection_timeout(Duration::from_millis(timeout as u64));
         }
+
         let m = redis::aio::ConnectionManager::new_with_config(client, conn_config).await?;
         anyhow::Ok(Self {
             config,
@@ -784,12 +784,22 @@ impl ExportQueryResult for RedisDB {
             }
             ExportKind::JsonLine => self.export_query_result_as_jsonline(sql, sender).await,
             ExportKind::Sql { .. } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { .. } => anyhow::bail!("export as xlsx is not supported "),
+            ExportKind::Xlsx { include_header } => {
+                self.export_query_result_as_xlsx(sql, include_header, sender)
+                    .await
+            }
         }
     }
 
-    async fn export_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        Box::new(Clone::clone(self))
+    }
+}
+
+impl RedisDB {
+    async fn export_query_result_as_xlsx(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         if include_header {
             anyhow::bail!("Redis does not support exporting header");
@@ -810,19 +820,19 @@ impl ExportQueryResult for RedisDB {
         while let Some(value) = stream.next().await {
             let value = value?;
             sender
-                .send(XlsxEdit {
-                    row,
-                    column: 0,
-                    content: value,
-                })
+                .send(
+                    XlsxEdit {
+                        row,
+                        column: 0,
+                        content: value,
+                    }
+                    .to_string()
+                    .into(),
+                )
                 .await?;
             row += 1;
         }
         anyhow::Ok(())
-    }
-
-    fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
     }
 }
 
@@ -830,10 +840,10 @@ impl RedisDB {
     pub const MAX_RETURNING: usize = 2000;
 }
 
-#[async_trait::async_trait]
-impl SchemaTrait for RedisDB {
-    async fn export_table_or_view_as_xlsx(
-        &self, key: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+impl RedisDB {
+    async fn export_table_as_xlsx(
+        &self, key: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         if include_header {
             anyhow::bail!("redis have no header")
@@ -844,11 +854,15 @@ impl SchemaTrait for RedisDB {
             RedisType::String => {
                 let value: String = conn.get(key).await?;
                 sender
-                    .send(XlsxEdit {
-                        row: 0,
-                        column: 0,
-                        content: value,
-                    })
+                    .send(
+                        XlsxEdit {
+                            row: 0,
+                            column: 0,
+                            content: value,
+                        }
+                        .to_string()
+                        .into(),
+                    )
                     .await?;
             }
 
@@ -857,11 +871,15 @@ impl SchemaTrait for RedisDB {
                 for i in 0..total {
                     let value: Vec<u8> = conn.lindex(key, i).await?;
                     sender
-                        .send(XlsxEdit {
-                            row: i as u32,
-                            column: 0,
-                            content: to_string_or_hex(value),
-                        })
+                        .send(
+                            XlsxEdit {
+                                row: i as u32,
+                                column: 0,
+                                content: to_string_or_hex(value),
+                            }
+                            .to_string()
+                            .into(),
+                        )
                         .await?;
                 }
             }
@@ -871,11 +889,15 @@ impl SchemaTrait for RedisDB {
                 while let Some(set) = iter.next().await {
                     let set = set?;
                     sender
-                        .send(XlsxEdit {
-                            row: row_num,
-                            column: 0,
-                            content: to_string_or_hex(set),
-                        })
+                        .send(
+                            XlsxEdit {
+                                row: row_num,
+                                column: 0,
+                                content: to_string_or_hex(set),
+                            }
+                            .to_string()
+                            .into(),
+                        )
                         .await?;
                     row_num += 1;
                 }
@@ -886,11 +908,15 @@ impl SchemaTrait for RedisDB {
                 while let Some(value) = stream.next().await {
                     let value = value?;
                     sender
-                        .send(XlsxEdit {
-                            row: offset / 2,
-                            column: (offset % 2) as rust_xlsxwriter::ColNum,
-                            content: to_string_or_hex(value),
-                        })
+                        .send(
+                            XlsxEdit {
+                                row: offset / 2,
+                                column: (offset % 2) as rust_xlsxwriter::ColNum,
+                                content: to_string_or_hex(value),
+                            }
+                            .to_string()
+                            .into(),
+                        )
                         .await?;
                     offset += 1;
                 }
@@ -901,11 +927,15 @@ impl SchemaTrait for RedisDB {
                 while let Some(value) = stream.next().await {
                     let value = value?;
                     sender
-                        .send(XlsxEdit {
-                            row: offset / 2,
-                            column: (offset % 2) as rust_xlsxwriter::ColNum,
-                            content: to_string_or_hex(value),
-                        })
+                        .send(
+                            XlsxEdit {
+                                row: offset / 2,
+                                column: (offset % 2) as rust_xlsxwriter::ColNum,
+                                content: to_string_or_hex(value),
+                            }
+                            .to_string()
+                            .into(),
+                        )
                         .await?;
                     offset += 1;
                 }
@@ -913,6 +943,10 @@ impl SchemaTrait for RedisDB {
         }
         anyhow::Ok(())
     }
+}
+
+#[async_trait::async_trait]
+impl SchemaTrait for RedisDB {
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
         let mut conn = self.get_conn().await?;
         let e = conn.exists(table).await?;
@@ -1010,7 +1044,9 @@ impl SchemaTrait for RedisDB {
                 include_table_schema: _,
             } => self.export_table_to_command(key, sender).await,
             ExportKind::JsonLine => self.export_table_as_json_line(key, sender).await,
-            ExportKind::Xlsx { .. } => anyhow::bail!("Not implemented yet"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_table_as_xlsx(key, include_header, sender).await
+            }
         }
     }
 
@@ -1877,6 +1913,7 @@ pub(crate) async fn make_test_object() -> RedisDB {
         read_only: false,
         conn_timeout: Some(5000),
         save_password: true,
+        enable_ssl: false,
     })
     .await
     .unwrap();

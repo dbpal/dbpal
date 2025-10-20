@@ -200,10 +200,6 @@ pub trait SchemaTrait:
         not_support_feature(self.backend_name())
     }
 
-    async fn export_table_or_view_as_xlsx(
-        &self, _name: &str, _include_header: bool, _sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    ) -> anyhow::Result<()>;
-
     async fn show_view(
         &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
         _page_size: usize, _extra: Option<ShowTableExtraArgs>,
@@ -227,35 +223,6 @@ pub trait SchemaTrait:
         if !self.table_exists(table_name).await? {
             anyhow::bail!("table not exists")
         }
-        if let ExportKind::Xlsx { include_header } = kind {
-            let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
-            let h1 = {
-                let x = SchemaTrait::clone(self);
-                let table_name = table_name.to_string();
-
-                let h1 = tokio::spawn(async move {
-                    x.export_table_or_view_as_xlsx(&table_name, include_header, sender)
-                        .await
-                });
-                h1
-            };
-            let h2 = {
-                let filepath = filepath.to_string();
-                tokio::spawn(async move {
-                    let mut workbook = rust_xlsxwriter::Workbook::new();
-                    let sheet = workbook.add_worksheet();
-                    while let Some(r) = receiver.recv().await {
-                        block_in_place(|| sheet.write_string(r.row, r.column, &r.content))?;
-                    }
-                    workbook.save(&filepath)?;
-                    anyhow::Ok(())
-                })
-            };
-            h1.await??;
-            h2.await??;
-            return anyhow::Ok(());
-        }
-
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
         let h1 = {
             let x = SchemaTrait::clone(self);
@@ -269,11 +236,26 @@ pub trait SchemaTrait:
         let h2 = {
             let filepath = filepath.to_string();
             tokio::spawn(async move {
-                let mut file = tokio::fs::File::create(&filepath).await?;
-                while let Some(r) = receiver.recv().await {
-                    file.write_all(r.as_bytes()).await?;
+                match kind {
+                    ExportKind::Xlsx { .. } => {
+                        let filepath = filepath.to_string();
+                        let mut workbook = rust_xlsxwriter::Workbook::new();
+                        let sheet = workbook.add_worksheet();
+                        while let Some(r) = receiver.recv().await {
+                            let x = XlsxEdit::from(r);
+                            block_in_place(|| sheet.write_string(x.row, x.column, x.content))?;
+                        }
+                        workbook.save(&filepath)?;
+                        anyhow::Ok(())
+                    }
+                    _ => {
+                        let mut file = tokio::fs::File::create(&filepath).await?;
+                        while let Some(r) = receiver.recv().await {
+                            file.write_all(r.as_bytes()).await?;
+                        }
+                        anyhow::Ok(())
+                    }
                 }
-                anyhow::Ok(())
             })
         };
         h1.await??;
@@ -806,18 +788,40 @@ pub struct XlsxEdit {
     pub content: String,
 }
 
+impl std::fmt::Display for XlsxEdit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}:{}", self.row, self.column, self.content)
+    }
+}
+
+impl From<Cow<'static, str>> for XlsxEdit {
+    fn from(value: Cow<'static, str>) -> Self {
+        let v: Vec<_> = value.splitn(3, ':').collect();
+        XlsxEdit {
+            row: v[0].parse().unwrap(),
+            column: v[1].parse().unwrap(),
+            content: v[2].to_string(),
+        }
+    }
+}
+
 pub(crate) async fn export_query_as_xlsx_send_data(
-    row_num: &mut u32, data: Vec<Vec<Option<String>>>, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    row_num: &mut u32, data: Vec<Vec<Option<String>>>,
+    sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
 ) -> anyhow::Result<()> {
     for data in data {
         for (col, d) in data.into_iter().enumerate() {
             if let Some(d) = d {
                 sender
-                    .send(XlsxEdit {
-                        row: *row_num,
-                        column: col as rust_xlsxwriter::ColNum,
-                        content: d,
-                    })
+                    .send(
+                        XlsxEdit {
+                            row: *row_num,
+                            column: col as rust_xlsxwriter::ColNum,
+                            content: d,
+                        }
+                        .to_string()
+                        .into(),
+                    )
                     .await?;
             }
         }
@@ -827,16 +831,21 @@ pub(crate) async fn export_query_as_xlsx_send_data(
 }
 
 pub(crate) fn export_query_as_xlsx_send_blocking_data(
-    row_num: &mut u32, data: Vec<Vec<Option<String>>>, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+    row_num: &mut u32, data: Vec<Vec<Option<String>>>,
+    sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
 ) -> anyhow::Result<()> {
     for data in data {
         for (col, d) in data.into_iter().enumerate() {
             if let Some(d) = d {
-                sender.blocking_send(XlsxEdit {
-                    row: *row_num,
-                    column: col as rust_xlsxwriter::ColNum,
-                    content: d,
-                })?;
+                sender.blocking_send(
+                    XlsxEdit {
+                        row: *row_num,
+                        column: col as rust_xlsxwriter::ColNum,
+                        content: d,
+                    }
+                    .to_string()
+                    .into(),
+                )?;
             }
         }
         *row_num += 1;
@@ -878,11 +887,6 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         &self, sql: &str, kind: ExportKind, file: &str,
     ) -> anyhow::Result<()> {
         log::info!("sql:{}", sql);
-        if let ExportKind::Xlsx { include_header } = &kind {
-            return self
-                .export_query_result_to_xlsx(sql, *include_header, file)
-                .await;
-        }
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
         let j1 = {
             let x = self.clone();
@@ -892,43 +896,24 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         let j2 = {
             let filepath = file.to_string();
             tokio::spawn(async move {
-                let mut file = tokio::fs::File::create(&filepath).await?;
-                while let Some(r) = receiver.recv().await {
-                    file.write_all(r.as_bytes()).await?;
+                match kind {
+                    ExportKind::Xlsx { .. } => {
+                        let mut workbook = rust_xlsxwriter::workbook::Workbook::new();
+                        // Add a worksheet to the workbook.
+                        let worksheet = workbook.add_worksheet();
+                        while let Some(edit) = receiver.recv().await {
+                            let edit = XlsxEdit::from(edit);
+                            worksheet.write_string(edit.row, edit.column, edit.content)?;
+                        }
+                        workbook.save(&filepath)?;
+                    }
+                    _ => {
+                        let mut file = tokio::fs::File::create(&filepath).await?;
+                        while let Some(r) = receiver.recv().await {
+                            file.write_all(r.as_bytes()).await?;
+                        }
+                    }
                 }
-                anyhow::Ok(())
-            })
-        };
-        j1.await??;
-        j2.await??;
-        anyhow::Ok(())
-    }
-
-    async fn export_as_xlsx(
-        &self, _sql: &str, _include_header: bool, _sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    ) -> anyhow::Result<()>;
-
-    async fn export_query_result_to_xlsx(
-        &self, sql: &str, include_header: bool, file: &str,
-    ) -> anyhow::Result<()> {
-        log::info!("sql:{}", sql);
-        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
-        let j1 = {
-            let x = self.clone();
-            let sql = sql.to_string();
-            tokio::spawn(async move { x.export_as_xlsx(&sql, include_header, sender).await })
-        };
-        let j2 = {
-            let file = file.to_owned();
-            tokio::spawn(async move {
-                let mut workbook = rust_xlsxwriter::workbook::Workbook::new();
-                // Add a worksheet to the workbook.
-                let worksheet = workbook.add_worksheet();
-
-                while let Some(edit) = receiver.recv().await {
-                    worksheet.write_string(edit.row, edit.column, edit.content)?;
-                }
-                workbook.save(file)?;
                 anyhow::Ok(())
             })
         };
@@ -965,7 +950,6 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
 
     async fn open_connection(&self) -> anyhow::Result<u32>;
 
-    #[must_use]
     async fn re_connect(&self, id: u32) -> anyhow::Result<u32>;
 
     async fn close_connection(&self, id: u32) -> anyhow::Result<()>;
@@ -1200,9 +1184,9 @@ impl QueryResp {
             fields,
             total,
             sql,
-            cache_time: None,
             data,
             has_more: false,
+            cache_time: None,
         };
         ret.check()?;
         anyhow::Ok(ret)

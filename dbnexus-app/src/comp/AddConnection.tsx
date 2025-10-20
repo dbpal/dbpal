@@ -27,7 +27,7 @@ import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
 import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
-import { AppStoreKey, extractBaseName, msgTimeout } from './Common';
+import { AppStoreKey, extractBaseName } from './Common';
 import { appStore, DataSourceKind, errToString } from './helper';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { platform } from '@tauri-apps/plugin-os';
@@ -219,22 +219,6 @@ function UserAndPassword(props: {
   );
 }
 
-//@ts-ignore
-function EnableSSL(props: { useSSL; setUseSSL }) {
-  const { useSSL, setUseSSL } = props;
-  return (
-    <FormControlLabel
-      control={
-        <Switch
-          checked={useSSL}
-          onChange={(e) => setUseSSL(e.target.checked)}
-        />
-      }
-      label="Enable SSL"
-    />
-  );
-}
-
 function Https(props: { https; setHttps }) {
   const { https, setHttps } = props;
   return (
@@ -247,15 +231,20 @@ function Https(props: { https; setHttps }) {
   );
 }
 
-function TrustCert(props: { trustCert; setTrustCert }) {
-  const { trustCert, setTrustCert } = props;
+function SqlServerCert(props: { data: SqlServerCertData; setData }) {
+  const { data, setData } = props;
   return (
     <Stack direction="row" style={{ alignItems: 'center' }}>
       <FormControlLabel
         control={
           <Switch
-            checked={trustCert}
-            onChange={(e) => setTrustCert(e.target.checked)}
+            checked={data.trust_cert}
+            onChange={(e) =>
+              setData({
+                ...data,
+                trust_cert: e.target.checked,
+              } as SqlServerCertData)
+            }
           />
         }
         label="Trust Cert"
@@ -272,26 +261,85 @@ function TrustCert(props: { trustCert; setTrustCert }) {
   );
 }
 
-function EnableSSlCert(props: {
-  sslCa;
-  setSslCa;
-  sslCert;
-  setSslCert;
-  enableSsl;
-  setEnableSsl;
-  sslKey;
-  setSslKey;
+interface SqlServerCertData {
+  trust_cert: boolean;
+  cert_ca: string | null;
+}
+
+function SslFiles(props: {
+  files: types.SSLFiles;
+  setFiles;
+  enabled: boolean;
 }) {
-  const {
-    sslCa,
-    setSslCa,
-    sslCert,
-    setSslCert,
-    sslKey,
-    setSslKey,
-    enableSsl,
-    setEnableSsl,
-  } = props;
+  const { files, setFiles, enabled } = props;
+
+  return (
+    enabled && (
+      <>
+        <Stack direction="row" spacing={1} style={{ flexWrap: 'wrap' }}>
+          <Tooltip
+            title={files.ssl_ca}
+            onClick={async () => {
+              const file = await selectOneFile();
+              if (file) {
+                setFiles({ ...files, ssl_ca: file });
+              }
+            }}
+          >
+            <Chip
+              label={
+                'CA Cert(optional):' +
+                (files.ssl_ca ? extractBaseName(files.ssl_ca) : '')
+              }
+              variant="outlined"
+            ></Chip>
+          </Tooltip>
+          <Tooltip title={files.ssl_cert}>
+            <Chip
+              variant="outlined"
+              onClick={async () => {
+                const file = await selectOneFile();
+                if (file) {
+                  setFiles({ ...files, ssl_cert: file });
+                }
+              }}
+              label={
+                'Certificate(optional):' +
+                (files.ssl_cert ? extractBaseName(files.ssl_cert) : '')
+              }
+            ></Chip>
+          </Tooltip>
+          <Tooltip title={files.ssl_key}>
+            <Chip
+              variant="outlined"
+              onClick={async () => {
+                const file = await selectOneFile();
+                if (file) {
+                  setFiles({ ...files, ssl_key: file });
+                }
+              }}
+              label={
+                'Key File(optional):' +
+                (files.ssl_key ? extractBaseName(files.ssl_key) : '')
+              }
+            ></Chip>
+          </Tooltip>
+        </Stack>
+      </>
+    )
+  );
+}
+
+function PGSSl(props: { ssl: types.PgSsl; setSsl: any }) {
+  const { ssl, setSsl } = props;
+  const modes = [
+    'disable',
+    'allow',
+    'prefer',
+    'require',
+    'verifyca',
+    'verifyfull',
+  ] as types.PgSslMode[];
 
   return (
     <Stack
@@ -299,64 +347,64 @@ function EnableSSlCert(props: {
       spacing={1}
       style={{ alignItems: 'center', flexWrap: 'wrap' }}
     >
-      <>
-        <Checkbox
-          checked={enableSsl}
-          onChange={(e) => {
-            setEnableSsl(e.target.checked);
-          }}
-        ></Checkbox>
-        enable ssl
-      </>
-      {enableSsl && (
-        <Stack direction="row" spacing={1} style={{ flexWrap: 'wrap' }}>
-          <Tooltip
-            title={sslCa}
-            onClick={async () => {
-              const file = await selectOneFile();
-              if (file) {
-                setSslCa(file);
-              }
-            }}
-          >
-            <Chip
-              label={
-                'CA Cert(optional):' + (sslCa ? extractBaseName(sslCa) : '')
-              }
-              variant="outlined"
-            ></Chip>
-          </Tooltip>
-          <Tooltip title={sslCert}>
-            <Chip
-              variant="outlined"
-              onClick={async () => {
-                const file = await selectOneFile();
-                if (file) {
-                  setSslCert(file);
-                }
-              }}
-              label={
-                'Certificate(optional):' +
-                (sslCert ? extractBaseName(sslCert) : '')
-              }
-            ></Chip>
-          </Tooltip>
-          <Tooltip title={sslKey}>
-            <Chip
-              variant="outlined"
-              onClick={async () => {
-                const file = await selectOneFile();
-                if (file) {
-                  setSslKey(file);
-                }
-              }}
-              label={
-                'Key File(optional):' + (sslKey ? extractBaseName(sslKey) : '')
-              }
-            ></Chip>
-          </Tooltip>
-        </Stack>
-      )}
+      <FormControl style={{ flex: 1 }}>
+        <InputLabel> ssl mode </InputLabel>
+        <Select
+          value={ssl.mode}
+          label="candidates"
+          onChange={(e) =>
+            setSsl({ ...ssl, mode: e.target.value } as types.PgSsl)
+          }
+        >
+          {modes.map((e) => (
+            <MenuItem value={e} key={e}>
+              {e}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
+      <SslFiles enabled={ssl.mode != 'disable'} files={ssl} setFiles={setSsl} />
+    </Stack>
+  );
+}
+
+function MysqlSSl(props: { ssl: types.MysqlSsl; setSsl: any }) {
+  const { ssl, setSsl } = props;
+  const modes = [
+    'disabled',
+    'preferred',
+    'required',
+    'verifyca',
+    'verifyidentity',
+  ] as types.MySqlSslMode[];
+  return (
+    <Stack
+      direction="row"
+      spacing={1}
+      style={{ alignItems: 'center', flexWrap: 'wrap' }}
+    >
+      <FormControl style={{ flex: 1 }}>
+        <InputLabel> ssl mode </InputLabel>
+        <Select
+          value={ssl.mode}
+          label="candidates"
+          onChange={(e) =>
+            setSsl({ ...ssl, mode: e.target.value } as types.MysqlSsl)
+          }
+        >
+          {modes.map((e) => (
+            <MenuItem value={e} key={e}>
+              {e}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+      <SslFiles
+        enabled={ssl.mode != 'disabled'}
+        files={ssl}
+        setFiles={setSsl}
+      />
     </Stack>
   );
 }
@@ -462,8 +510,6 @@ function Schema(props: { schema; setSchema; candidates: string[] }) {
 }
 
 function AddConnection(props: { handleClose: () => void; config?: object }) {
-  console.log('AddConnection', props.config);
-
   let { handleClose, config } = props;
   const isCopy = !!config;
   if (!config) {
@@ -496,14 +542,27 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
   const [path, setPath] = useState(getConfig('path'));
   const { showNotification } = useContext(NotificationContext);
   const [testStatus, setTestStatus] = useState<string | true | null>(null);
-  const [trustCert, setTrustCert] = useState(getConfig('trust_cert', false));
+  const [sqlserverCert, setSqlServerCert] = useState<SqlServerCertData>({
+    trust_cert: getConfig('trust_cert', false),
+    cert_ca: getConfig('cert_ca', ''),
+  });
   const [databaseCandidates, setDatabaseCandidates] = useState([]);
   const [schema, setSchema] = useState(getConfig('schema'));
   const [https, setHttps] = useState(getConfig('https', false));
-  const [sslCa, setSslCa] = useState(getConfig('ssl_ca'));
-  const [sslCert, setSslCert] = useState(getConfig('ssl_cert'));
-  const [sslKey, setSslKey] = useState(getConfig('ssl_key'));
-  const [sslEnable, setSslEnable] = useState(false);
+
+  const [pgSsl, setPgSsl] = useState<types.PgSsl>({
+    mode: 'disable',
+    ssl_ca: null,
+    ssl_cert: null,
+    ssl_key: null,
+  });
+  const [mysqlSsl, setMysqlSsl] = useState<types.MysqlSsl>({
+    mode: 'disabled',
+    ssl_ca: null,
+    ssl_cert: null,
+    ssl_key: null,
+  });
+
   const toggleTriggerReload = () => {
     setTriggerReload((e) => !e);
   };
@@ -555,6 +614,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           auth_token: authToken,
           read_only: readOnly,
           name: connectionName,
+
           conn_timeout: connTimeout_null,
         };
 
@@ -591,10 +651,6 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           read_only: readOnly,
           name: connectionName,
           save_password: savePassword,
-          ssl_enable: sslEnable,
-          ssl_ca: sslCa,
-          ssl_cert: sslCert,
-          ssl_key: sslKey,
           conn_timeout: connTimeout_null,
         };
       case DataSourceKind.Cassandra:
@@ -664,11 +720,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           name: connectionName,
           schema: schema_null,
           save_password: savePassword,
-          ssl_enable: sslEnable,
-          ssl_ca: sslCa,
-          ssl_cert: sslCert,
-          ssl_key: sslKey,
           conn_timeout: connTimeout_null,
+          ...pgSsl,
         };
       case DataSourceKind.Cockroach:
         if (!host) {
@@ -686,11 +739,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           name: connectionName,
           schema: schema_null,
           save_password: savePassword,
-          ssl_enable: sslEnable,
-          ssl_ca: sslCa,
-          ssl_cert: sslCert,
-          ssl_key: sslKey,
           conn_timeout: connTimeout_null,
+          ...pgSsl,
         };
       case DataSourceKind.Sqlite:
         if (!path) {
@@ -766,7 +816,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           db: db_null,
           username: user,
           password: password,
-          trust_cert: trustCert,
+          trust_cert: sqlserverCert.trust_cert,
+          cert_ca: sqlserverCert.cert_ca,
           schema: null,
           save_password: savePassword,
           conn_timeout: connTimeout_null,
@@ -808,7 +859,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           setTestLoading(false);
           setTimeout(() => {
             setTestStatus(null);
-          }, msgTimeout);
+          }, 5000);
         });
     }
   };
@@ -874,8 +925,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
     if (!connections) {
       connections = [];
     }
-    if (!validConnectionName(connectionName)) {
-      showNotification('error', 'not valid connection name');
+    if (connectionName.includes('/')) {
+      showNotification('error', `connection name can't  contains '/'`);
       connectionNameDom.current.focus();
       return;
     }
@@ -1020,16 +1071,7 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             candidates={databaseCandidates}
             setDatabase={setDatabase}
           ></Database>
-          <EnableSSlCert
-            enableSsl={sslEnable}
-            setEnableSsl={setSslEnable}
-            sslCa={sslCa}
-            setSslCa={setSslCa}
-            sslCert={sslCert}
-            setSslCert={setSslCert}
-            sslKey={sslKey}
-            setSslKey={setSslKey}
-          ></EnableSSlCert>
+          <MysqlSSl ssl={mysqlSsl} setSsl={setMysqlSsl} />
         </>
       )}
 
@@ -1107,16 +1149,8 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
               candidates={schemaCandidates}
             ></Schema>
           )}
-          <EnableSSlCert
-            enableSsl={sslEnable}
-            setEnableSsl={setSslEnable}
-            sslCa={sslCa}
-            setSslCa={setSslCa}
-            sslCert={sslCert}
-            setSslCert={setSslCert}
-            sslKey={sslKey}
-            setSslKey={setSslKey}
-          ></EnableSSlCert>
+
+          <PGSSl ssl={pgSsl} setSsl={setPgSsl}></PGSSl>
         </>
       )}
       {connectionType === DataSourceKind.ClickHouse && (
@@ -1246,10 +1280,10 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
             setDatabase={setDatabase}
             candidates={databaseCandidates}
           ></Database>
-          <TrustCert
-            trustCert={trustCert}
-            setTrustCert={setTrustCert}
-          ></TrustCert>
+          <SqlServerCert
+            data={sqlserverCert}
+            setData={setSqlServerCert}
+          ></SqlServerCert>
         </>
       )}
 
@@ -1326,7 +1360,6 @@ function AddConnection(props: { handleClose: () => void; config?: object }) {
           label="Connection Name"
           value={connectionName}
           inputRef={connectionNameDom}
-          error={connectionName ? !validConnectionName(connectionName) : false}
           required
           onChange={(e) => setConnectionName(e.target.value)}
           slotProps={{
@@ -1532,12 +1565,6 @@ function LibSql(props: {
       )}
     </>
   );
-}
-
-// TODO we can support more
-function validConnectionName(str: string) {
-  const regex = /^[a-zA-Z0-9_$-]+$/;
-  return regex.test(str);
 }
 
 export { AddConnection };

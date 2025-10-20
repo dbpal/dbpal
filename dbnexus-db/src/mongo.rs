@@ -9,7 +9,7 @@ use dashmap::DashSet;
 use futures_util::StreamExt;
 use mongodb::IndexModel;
 use mongodb::bson::{Document, doc};
-use mongodb::options::{IndexOptions, ServerAddress};
+use mongodb::options::{IndexOptions, ServerAddress, Tls, TlsOptions};
 use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
 
 use crate::TEST_HOST;
@@ -17,7 +17,7 @@ use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
     GetBackendKind, Index, IndexKind, ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableExtraArgs, SqlExecuteRet, XlsxEdit, not_support_feature,
+    ServerMetas, ShowTableExtraArgs, SqlExecuteRet, not_support_feature,
 };
 use crate::language_server::{GetKeyWords, LanguageServer};
 use crate::meta_value::MetaValue;
@@ -36,28 +36,37 @@ impl std::fmt::Debug for MongoDB {
 }
 
 impl MongoDB {
-    pub fn new(ds: MongoDBConfig) -> anyhow::Result<Self> {
+    pub fn new(config: MongoDBConfig) -> anyhow::Result<Self> {
         let mut opts = mongodb::options::ClientOptions::default();
         opts.max_connecting = Some(100);
         opts.hosts = vec![ServerAddress::Tcp {
-            host: ds.host.to_string(),
-            port: Some(ds.port),
+            host: config.host.to_string(),
+            port: Some(config.port),
         }];
-        opts.connect_timeout = ds.conn_timeout.map(Duration::from_millis);
-        if let Some(user) = &ds.username {
+        opts.connect_timeout = config.conn_timeout.map(Duration::from_millis);
+        if let Some(user) = &config.username {
             let b = mongodb::options::Credential::builder();
             let b = b.username(Some(user.to_owned()));
-            let b = b.password(Some(ds.password.as_deref().unwrap_or("").to_owned()));
+            let b = b.password(Some(config.password.as_deref().unwrap_or("").to_owned()));
             let x = b.build();
             opts.credential = Some(x);
         }
-
+        if config.ssl.enable {
+            let mut tls_option = TlsOptions::default();
+            if let Some(ca) = config.ssl.ssl_files.ssl_ca.as_ref() {
+                tls_option.ca_file_path = Some(Path::new(ca).to_path_buf());
+            }
+            if let Some(key) = config.ssl.ssl_files.ssl_key.as_ref() {
+                tls_option.cert_key_file_path = Some(Path::new(key).to_path_buf());
+            }
+            opts.tls = Some(Tls::Enabled(tls_option));
+        }
         let client = mongodb::Client::with_options(opts)?;
 
         anyhow::Ok(Self {
             client,
-            db_name: ds.db.clone(),
-            read_only: ds.read_only,
+            db_name: config.db.clone(),
+            read_only: config.read_only,
             created_databases: Default::default(),
         })
     }
@@ -105,11 +114,6 @@ impl ReadOnlyTrait for MongoDB {
 impl ExportQueryResult for MongoDB {
     async fn export_query_result(
         &self, _sql: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-    ) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
-    }
-    async fn export_as_xlsx(
-        &self, _sql: &str, _include_header: bool, _sender: tokio::sync::mpsc::Sender<XlsxEdit>,
     ) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
@@ -614,11 +618,6 @@ impl MongoDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for MongoDB {
-    async fn export_table_or_view_as_xlsx(
-        &self, _name: &str, _include_header: bool, _sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    ) -> anyhow::Result<()> {
-        not_support_feature(self.backend_name())
-    }
     async fn duplicate_table(&self, old_collection: &str, dup: &str) -> anyhow::Result<()> {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
@@ -873,6 +872,7 @@ pub(crate) fn make_test_object() -> MongoDB {
         db: Some("test".to_string()),
         read_only: false,
         save_password: true,
+        ssl: Default::default(),
     });
     x.unwrap()
 }

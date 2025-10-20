@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -423,8 +424,8 @@ impl BackendCrashMsg {
     }
     pub(crate) fn get(&self, id: u32) -> String {
         self.backend_crash_msg
-            .remove(&id)
-            .map(|x| x.1)
+            .get(&id)
+            .map(|x| x.deref().clone())
             .unwrap_or_default()
     }
 }

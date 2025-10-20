@@ -248,13 +248,13 @@ function backendCompletionItemToEditor(
       case 'Constraint':
         return languages.CompletionItemKind.Operator;
       case 'Partition':
-        return languages.CompletionItemKind.Constant;
+        return languages.CompletionItemKind.Operator;
       case 'PrepareStatement':
         return languages.CompletionItemKind.Function;
       case 'Pragma':
         return languages.CompletionItemKind.Keyword;
       case 'Policy':
-        return languages.CompletionItemKind.Keyword;
+        return languages.CompletionItemKind.Operator;
       case 'Variable':
         return languages.CompletionItemKind.Variable;
       case 'Rule':
@@ -262,7 +262,7 @@ function backendCompletionItemToEditor(
       case 'ClickHouseTableProjection':
         return languages.CompletionItemKind.Property;
       case 'Prepare':
-        return languages.CompletionItemKind.Reference;
+        return languages.CompletionItemKind.Function;
       case 'Module':
         return languages.CompletionItemKind.Module;
       case 'Domain':
@@ -722,18 +722,13 @@ class UserSettingAppearance {
   datagridRowHeightFactor = 2;
   maxTreeSize: number = 150;
   maxTabTitleLength: number = 12;
-  theme: string = 'light';
   static key = "dbpal-appearance-setting";
   save() {
-    console.log('save appearance setting', this);
     localStorage.setItem(UserSettingAppearance.key, JSON.stringify({ ...this }));
     notifySettingChange();
   }
-  isDark() {
-    return this.theme == 'dark'
-  }
   // 可能和以前的设置冲突
-  datagridRowHeightXXX() {
+  datagridRowHeight() {
     return Math.ceil(this.fontSize * this.datagridRowHeightFactor)
   }
   static get(): UserSettingAppearance {
@@ -800,16 +795,21 @@ class UserSetting {
     if (this.editor.theme) {
       return this.editor.theme;
     }
-    return this.isDark() ? 'vs-dark' : 'light';
-  }
-  isDark(): boolean {
-    return this.appearance.isDark();
+    return isDarkTheme() ? 'vs-dark' : 'light';
   }
   datagridRowHeightXXX() {
-    return this.appearance.datagridRowHeightXXX()
+    return this.appearance.datagridRowHeight()
   }
 }
 
+
+
+let appTheme = 'light';
+
+function isDarkTheme() {
+
+  return appTheme == 'dark';
+}
 
 class UserSettingMisc {
   static key = "dbpal-misc-setting"
@@ -1051,61 +1051,6 @@ export type MuiDataGridData = {
   "has_more": boolean;
 };
 
-async function webviewWIndowInit(isMain: boolean) {
-  const currentWebview = await WebviewWindow.getCurrent();
-  appStore.get<number>("zoom").then(async (zoom) => {
-    if (zoom) {
-      try { await currentWebview.setZoom(zoom); } catch (e) {
-        console.log("set zoom failed", e);
-      }
-    }
-  });
-  if (['windows', 'linux'].includes(platform())) {
-    document.addEventListener('keydown', function (event) {
-      if (event.key === 'F11') {
-        currentWebview.isFullscreen().then((isFull) => {
-          currentWebview.setFullscreen(!isFull);
-        });
-      }
-    });
-  }
-
-
-  if (isMain) {
-    currentWebview.theme().then(async (theme) => {
-      if (!theme) {
-        return;
-      }
-      const set = await UserSettingAppearance.get();
-      set.theme = theme;
-      set.save();
-    });
-
-    currentWebview.onThemeChanged(async (msg) => {
-      const set = UserSettingAppearance.get();
-      set.theme = msg.payload;
-      set.save();
-    });
-  }
-  if (!import.meta.env.DEV) {
-    document.addEventListener('contextmenu', function (event) {
-      event.preventDefault();
-    });
-
-    document.addEventListener('keydown', function (event) {
-      // Prevent F5 or Ctrl+R (Windows/Linux) and Command+R (Mac) from refreshing the page
-      if (
-        event.key === 'F5' ||
-        (event.ctrlKey && event.key === 'r') ||
-        (event.metaKey && event.key === 'r')
-      ) {
-        event.preventDefault();
-      }
-    });
-  }
-}
-
-
 enum RedisTableType {
   String = 'string',
   List = 'list',
@@ -1202,7 +1147,7 @@ interface NewWindowTableParameter {
   isTable?: boolean
 }
 
-interface DetachQueyRespViewPara {
+interface DetachQueyRespViewParameter {
   uuid: string,
   queryId: number,
   eventName: string,
@@ -1211,8 +1156,8 @@ interface DetachQueyRespViewPara {
 const dataGridParentStyle = {
   display: 'flex',
   flexDirection: 'column',
-  height: '100px',
   flexGrow: 1,
+  height: "100px",
   flexShrink: 1,
   // 这个值用 0% 在windows也有问题好像会把datagrid变得很高 用0 都可以 用0% 都不可以 然而flex为1 设置的值是0% 可能是兼容性的问题
   flexBasis: '0'
@@ -1221,7 +1166,6 @@ enum ViewKind {
   Normal,
   Materialized,
 }
-
 
 const registeredThemes = [];
 async function setUpEditorThemes() {
@@ -1237,12 +1181,12 @@ async function setUpEditorThemes() {
       registeredThemes.push(key);
     }
   } catch (e) {
-    message("set up editor themes failed", { kind: 'error' });
+    message("set up editor themes failed,err:" + String(e), { kind: 'error' });
     console.log("set up editor themes failed", e);
   }
-
 }
 
+await setUpEditorThemes();
 function getLanguageFromDataSourceKind(kind: DataSourceKind): string {
   switch (kind) {
     case DataSourceKind.Redis:
@@ -1255,11 +1199,8 @@ function getLanguageFromDataSourceKind(kind: DataSourceKind): string {
   }
 }
 
-await setUpEditorThemes();
-
 const settingChangeEvent = "setting-change";
 const dataGridheaderFontSize = "0.8rem";
-
 
 enum TableType {
   Normal,
@@ -1320,7 +1261,6 @@ export {
   SaveAlign,
   SaveMatchPattern,
   SaveLeftTopShow,
-  webviewWIndowInit,
   RedisTableType,
   extractFieldAndIDFromMouseEvent,
   editorPositionToEnd,
@@ -1342,8 +1282,75 @@ export {
   UserSettingMisc,
   dataGridheaderFontSize,
   TableType,
+  appTheme,
+  isDarkTheme
 };
 
 
-export type { ErrAndLoc, NewWindowTableParameter, DetachQueyRespViewPara }
+export type {
+  ErrAndLoc,
+  NewWindowTableParameter,
+  DetachQueyRespViewParameter
+}
 
+async function webviewWIndowInit() {
+  const currentWebview = await WebviewWindow.getCurrent();
+  appStore.get<number>("zoom").then(async (zoom) => {
+    if (zoom) {
+      try { await currentWebview.setZoom(zoom); } catch (e) {
+        console.log("set zoom failed", e);
+      }
+    }
+  });
+  if (['windows', 'linux'].includes(platform())) {
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'F11') {
+        currentWebview.isFullscreen().then((isFull) => {
+          currentWebview.setFullscreen(!isFull);
+        });
+      }
+    });
+  }
+  currentWebview.theme().then(async (theme) => {
+    if (!theme) {
+      return;
+    }
+    appTheme = theme;
+    notifySettingChange();
+  });
+  currentWebview.onThemeChanged(async (msg) => {
+    appTheme = msg.payload;
+    notifySettingChange();
+  });
+
+  if (platform() == "linux") { //  https://github.com/tauri-apps/tauri/issues/9427 
+    setInterval(() => {
+      currentWebview.theme().then((theme) => {
+        if (appTheme == theme) {
+          return
+        }
+        appTheme = theme;
+        notifySettingChange();
+      })
+    }, 1000);
+  }
+
+  if (!import.meta.env.DEV) {
+    document.addEventListener('contextmenu', function (event) {
+      event.preventDefault();
+    });
+
+    document.addEventListener('keydown', function (event) {
+      // Prevent F5 or Ctrl+R (Windows/Linux) and Command+R (Mac) from refreshing the page
+      if (
+        event.key === 'F5' ||
+        (event.ctrlKey && event.key === 'r') ||
+        (event.metaKey && event.key === 'r')
+      ) {
+        event.preventDefault();
+      }
+    });
+  }
+}
+
+webviewWIndowInit();

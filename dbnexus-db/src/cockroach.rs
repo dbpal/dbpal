@@ -13,7 +13,7 @@ use crate::db::{
     CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind,
     Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait,
     SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
-    UdfOrProcedureExtraParameter, XlsxEdit,
+    UdfOrProcedureExtraParameter,
 };
 use crate::meta_value::MetaValue;
 use crate::pg::PostGresDB;
@@ -120,11 +120,6 @@ impl QuerySql for CockRoachDB {
 #[async_trait::async_trait]
 
 impl ExportQueryResult for CockRoachDB {
-    async fn export_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    ) -> anyhow::Result<()> {
-        ExportQueryResult::export_as_xlsx(self.db.as_ref(), sql, include_header, sender).await
-    }
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -224,12 +219,6 @@ pub(crate) const COCKROACH_TYPES: &[&str] = &[
 #[async_trait::async_trait]
 
 impl SchemaTrait for CockRoachDB {
-    async fn export_table_or_view_as_xlsx(
-        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    ) -> anyhow::Result<()> {
-        SchemaTrait::export_table_or_view_as_xlsx(self.db.as_ref(), name, include_header, sender)
-            .await
-    }
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
         self.db.list_created_types().await
     }

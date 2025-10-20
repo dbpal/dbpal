@@ -7,7 +7,7 @@ use std::time::Duration;
 use dashmap::DashMap;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlx::pool::{PoolConnection, PoolOptions};
-use sqlx::postgres::{PgRow, PgSslMode};
+use sqlx::postgres::PgRow;
 use sqlx::{AssertSqlSafe, Column, Executor, PgConnection, Postgres, Row, SqlSafeStr};
 use tokio::sync::Mutex;
 
@@ -243,6 +243,20 @@ impl PostGresDB {
         );
         log::info!("sql:{}", sql);
         self.export_query_result_as_json(&sql, pretty, sender).await
+    }
+
+    async fn export_table_as_xlsx(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            "SELECT * from \"{}\".\"{}\"",
+            self.config.schema_str(),
+            table_name
+        );
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_xlsx(&sql, include_header, sender)
+            .await
     }
 
     async fn export_query_result_as_csv(
@@ -522,12 +536,6 @@ impl PostGresDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
-    async fn export_table_or_view_as_xlsx(
-        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(r#"SELECT * from "{}"."{}""#, self.config.schema_str(), name);
-        ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
-    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -1072,7 +1080,10 @@ impl SchemaTrait for PostGresDB {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
-            ExportKind::Xlsx { .. } => anyhow::bail!("Not supported"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_table_as_xlsx(name, include_header, sender)
+                    .await
+            }
         }
     }
 
@@ -1661,16 +1672,19 @@ impl PostGresDB {
             opts = opts.database(db);
         }
         println!("ssl:{:?}", config.ssl);
-        if config.ssl.ssl_enable {
-            opts = opts.ssl_mode(PgSslMode::VerifyCa);
-            if let Some(ca) = config.ssl.ssl_ca.as_ref() {
-                opts = opts.ssl_root_cert(ca);
-            }
-            if let Some(cert) = config.ssl.ssl_cert.as_ref() {
-                opts = opts.ssl_client_cert(cert);
-            }
-            if let Some(key) = config.ssl.ssl_key.as_ref() {
-                opts = opts.ssl_client_key(key);
+        match config.ssl.mode {
+            crate::datasource_config::PgSslMode::Disable => {}
+            _ => {
+                opts = opts.ssl_mode(config.ssl.mode.into());
+                if let Some(ca) = config.ssl.ssl_files.ssl_ca.as_ref() {
+                    opts = opts.ssl_root_cert(ca);
+                }
+                if let Some(cert) = config.ssl.ssl_files.ssl_cert.as_ref() {
+                    opts = opts.ssl_client_cert(cert);
+                }
+                if let Some(key) = config.ssl.ssl_files.ssl_key.as_ref() {
+                    opts = opts.ssl_client_key(key);
+                }
             }
         }
         let mut pool_opts = PoolOptions::new();
@@ -1786,11 +1800,11 @@ async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Re
     .await?;
     anyhow::Ok(())
 }
-#[async_trait::async_trait]
 
-impl ExportQueryResult for PostGresDB {
-    async fn export_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+impl PostGresDB {
+    async fn export_query_result_as_xlsx(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let mut first = true;
@@ -1805,11 +1819,15 @@ impl ExportQueryResult for PostGresDB {
             if first && !rows.is_empty() && include_header {
                 for (index, col) in rows[0].columns().iter().enumerate() {
                     sender
-                        .send(XlsxEdit {
-                            row: row_num,
-                            column: index as rust_xlsxwriter::ColNum,
-                            content: col.name().to_string(),
-                        })
+                        .send(
+                            XlsxEdit {
+                                row: row_num,
+                                column: index as rust_xlsxwriter::ColNum,
+                                content: col.name().to_string(),
+                            }
+                            .to_string()
+                            .into(),
+                        )
                         .await?;
                 }
                 row_num += 1;
@@ -1821,7 +1839,10 @@ impl ExportQueryResult for PostGresDB {
         }
         anyhow::Ok(())
     }
+}
+#[async_trait::async_trait]
 
+impl ExportQueryResult for PostGresDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -1844,7 +1865,10 @@ impl ExportQueryResult for PostGresDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx not supported"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_query_result_as_xlsx(sql, include_header, sender)
+                    .await
+            }
         }
     }
 }

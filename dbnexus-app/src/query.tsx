@@ -7,13 +7,10 @@ import {
   secondConfirm,
   SetCloseConfirmTextContext,
   SomeTempStore,
-  webviewWIndowInit,
 } from './comp/helper.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { AllKindQuery } from './comp/Left.tsx';
-
-webviewWIndowInit(false);
 
 const sqlData = SomeTempStore.get<FavoriteSql>();
 

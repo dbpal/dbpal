@@ -10,7 +10,7 @@ use dashmap::DashMap;
 use oracle::pool::Pool;
 use oracle::{Connection, Row};
 use tokio::sync::Mutex;
-use tokio::task::block_in_place;
+use tokio::task::{block_in_place, spawn_blocking};
 
 use crate::datasource_config::OracleDBConfig;
 use crate::db::{
@@ -98,15 +98,14 @@ impl OracleDB {
     }
 }
 
-const QUERY_AUTO_COMMIT: bool = true;
-#[async_trait::async_trait]
-impl ExportQueryResult for OracleDB {
-    async fn export_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+impl OracleDB {
+    async fn export_query_result_as_xlsx(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
         let sql = sql.to_owned();
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             let mut rows = conn.query(&sql, &[])?;
             let mut row_num = 0;
             let mut first = true;
@@ -114,11 +113,15 @@ impl ExportQueryResult for OracleDB {
                 let row = row?;
                 if include_header && first {
                     for (index, col) in rows.column_info().iter().enumerate() {
-                        sender.blocking_send(XlsxEdit {
-                            row: row_num,
-                            column: index as rust_xlsxwriter::ColNum,
-                            content: col.name().to_owned(),
-                        })?;
+                        sender.blocking_send(
+                            XlsxEdit {
+                                row: row_num,
+                                column: index as rust_xlsxwriter::ColNum,
+                                content: col.name().to_owned(),
+                            }
+                            .to_string()
+                            .into(),
+                        )?;
                     }
                     first = false;
                     row_num += 1;
@@ -130,7 +133,11 @@ impl ExportQueryResult for OracleDB {
         })
         .await?
     }
+}
 
+const QUERY_AUTO_COMMIT: bool = true;
+#[async_trait::async_trait]
+impl ExportQueryResult for OracleDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -153,7 +160,10 @@ impl ExportQueryResult for OracleDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx export is not supported for oracle"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_query_result_as_xlsx(sql, include_header, sender)
+                    .await
+            }
         }
     }
 }
@@ -737,7 +747,7 @@ impl OracleDB {
         let __self = Clone::clone(self);
         let table_name = table_name.to_owned();
         log::info!("sql:{}", sql);
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             if include_table_schema {
                 sender.blocking_send(Cow::Owned(ss.create_table.clone()))?;
                 sender.blocking_send(";\n".into())?;
@@ -770,7 +780,7 @@ impl OracleDB {
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
         let sql = sql.to_owned();
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             let rows = conn.query(&sql, &[])?;
             for row in rows {
                 let row = row?;
@@ -797,7 +807,7 @@ impl OracleDB {
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
         let sql = sql.to_owned();
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             sender.blocking_send("[".into())?;
             let mut first = true;
             let rows = block_in_place(|| conn.query(&sql, &[]))?;
@@ -844,7 +854,7 @@ impl OracleDB {
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
         let sql = sql.to_owned();
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             let mut first = true;
             let rows = conn.query(&sql, &[])?;
             for row in rows {
@@ -876,6 +886,19 @@ impl OracleDB {
             &sql,
             include_header, // we have emit header before
             delimiter,
+            sender,
+        )
+        .await
+    }
+    async fn export_table_as_xlsx(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_xlsx(
+            &sql,
+            include_header, // we have emit header before
             sender,
         )
         .await
@@ -983,13 +1006,6 @@ impl ReadOnlyTrait for OracleDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for OracleDB {
-    async fn export_table_or_view_as_xlsx(
-        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(r#"SELECT * from "{}"."{}""#, self.schema_str(), name);
-        ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
-    }
-
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -1117,7 +1133,10 @@ impl SchemaTrait for OracleDB {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
-            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx export not supported yet"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_table_as_xlsx(name, include_header, sender)
+                    .await
+            }
         }
     }
 

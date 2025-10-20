@@ -169,7 +169,6 @@ function TabsWithContent_(props: {
           );
         })}
       </Tabs>
-
       <div style={{ flex: 1 }}>
         {tabs.map((tab, index) => (
           <TabActiveContext.Provider key={tab.id} value={selectIndex == index}>

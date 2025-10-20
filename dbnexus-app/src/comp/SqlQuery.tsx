@@ -47,7 +47,7 @@ import { QueryLog } from './QueryLog.tsx';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import {
   DataSourceKind,
-  DetachQueyRespViewPara,
+  DetachQueyRespViewParameter,
   ErrAndLoc,
   generateRandomString,
   getEditorText,
@@ -510,7 +510,7 @@ function SqlQuery(props: {
         uuid,
         queryId: conn.queryId,
         eventName: queryRespViewEventName.current,
-      } as DetachQueyRespViewPara);
+      } as DetachQueyRespViewParameter);
       const webview = new WebviewWindow(generateRandomString(), {
         title: makeWindowTitle(uuid, conn.queryId),
         url: 'query_response.html',
@@ -576,7 +576,11 @@ function SqlQuery(props: {
           <Stack
             direction="row"
             spacing={1}
-            sx={{ alignItems: 'center', flexWrap: 'wrap' }}
+            sx={{
+              alignItems: 'center',
+              overflow: 'scroll',
+              paddingBottom: '0.7rem',
+            }}
           >
             {conn && (
               <>

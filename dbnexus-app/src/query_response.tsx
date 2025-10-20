@@ -1,11 +1,7 @@
 'use strict';
 import ReactDOM from 'react-dom/client';
 
-import {
-  DetachQueyRespViewPara,
-  SomeTempStore,
-  webviewWIndowInit,
-} from './comp/helper.ts';
+import { DetachQueyRespViewParameter, SomeTempStore } from './comp/helper.ts';
 import { SeparateWindow } from './comp/MainPage.tsx';
 import React, { useEffect, useState } from 'react';
 import { MultiQueryResp } from './comp/QueryResp.tsx';
@@ -14,8 +10,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { Typography } from '@mui/material';
 import { listenOK, newQueryIDName, reloadData } from './comp/SqlQuery.tsx';
 
-webviewWIndowInit(false);
-let { uuid, queryId, eventName } = SomeTempStore.get<DetachQueyRespViewPara>();
+let { uuid, queryId, eventName } =
+  SomeTempStore.get<DetachQueyRespViewParameter>();
 
 function QueryResponse() {
   const [resp, setResp] = useState([]);
@@ -44,6 +40,7 @@ function QueryResponse() {
       }
       console.error('unhandled event:', e.payload);
     });
+    // notify the parent I setup ok.
     emit(eventName, listenOK);
     return () => {
       unlisten.then((e) => {

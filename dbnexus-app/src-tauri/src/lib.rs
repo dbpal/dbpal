@@ -3,7 +3,9 @@ pub mod handlers;
 
 #[cfg(test)]
 mod tests {
-    use dbnexus_db::datasource_config::{CassandraDBConfig, EnableSsl, LibSqlDBConfigSource};
+    use dbnexus_db::datasource_config::{
+        CassandraDBConfig, LibSqlDBConfigSource, MySqlSslMode, MysqlSsl, PgSsl, PgSslMode, SSLFiles,
+    };
     use dbnexus_db::db::{
         ColumnType, CreateTableAndIndexSql, CreatedTypeDef, SequenceDetail, ShowTableExtraArgs,
         SqlEvent,
@@ -65,13 +67,17 @@ mod tests {
             &CassandraDBConfig::INFO,
             &LibSqlDBConfigSource::INFO,
             &CreateTableAndIndexSql::INFO,
-            &EnableSsl::INFO,
+            &PgSsl::INFO,
+            &MysqlSsl::INFO,
             &ColumnType::INFO,
             &SequenceDetail::INFO,
             &CreatedTypeDef::INFO,
             &ShowTableExtraArgs::INFO,
             &SqlEvent::INFO,
             &CompletionList::INFO,
+            &PgSslMode::INFO,
+            &MySqlSslMode::INFO,
+            &SSLFiles::INFO,
         ];
 
         let options: DefinitionFileOptions = DefinitionFileOptions::default();

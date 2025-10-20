@@ -155,7 +155,7 @@ impl DuckDB {
         let handle = Clone::clone(self);
         let sql = sql.to_owned();
 
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             let conn = handle.get_conn()?;
             let mut stmt = conn.prepare(&sql)?;
             stmt.execute([])?;
@@ -185,7 +185,7 @@ impl DuckDB {
         let handle = Clone::clone(self);
         let sql = sql.to_owned();
         sender.send("[".into()).await?;
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             let conn = handle.get_conn()?;
             let mut stmt = conn.prepare(&sql)?;
             stmt.execute([])?;
@@ -224,7 +224,7 @@ impl DuckDB {
         let handle = Clone::clone(self);
         let sql = sql.to_owned();
 
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             let conn = handle.get_conn()?;
             let mut stmt = conn.prepare(&sql)?;
             // after  `execute` can call column_names
@@ -877,7 +877,7 @@ impl DuckDB {
         for f in fs.iter() {
             parsed_types.push(parse_type(&f.typ)?);
         }
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             let conn = handle.get_conn()?;
 
             let sql = format!(

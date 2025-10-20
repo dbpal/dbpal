@@ -9,9 +9,10 @@ import {
   Typography,
 } from '@mui/material';
 import { AlertColor } from '@mui/material/Alert';
-import { msgTimeout } from './Common';
 import { handleCopyToClipboard } from './helper';
 import { message, MessageDialogResult } from '@tauri-apps/plugin-dialog';
+
+const msgTimeout = 10000;
 
 interface NotificationContextProps {
   showNotification: (
@@ -23,7 +24,7 @@ interface NotificationContextProps {
 
 export const NotificationContext = createContext<NotificationContextProps>({
   showNotification: (...args) => {
-    message('should not call this function is is bug ,args :', {
+    message('should not call this function is is bug', {
       kind: 'error',
     });
     console.log('message args:', args);
@@ -59,11 +60,12 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       (severity == 'warning' || severity == 'error') &&
       !React.isValidElement(msg)
     ) {
-      msg = String(msg);
+      msg = msg ? String(msg) : '';
       message(msg, {
         kind: severity,
+        title,
         buttons: {
-          ok: 'copy error',
+          ok: msg ? 'copy error' : 'ok',
           cancel: 'dismiss',
         },
       }).then((e: MessageDialogResult) => {

@@ -11,8 +11,16 @@ pub struct MongoDBConfig {
     pub conn_timeout: Option<u64>,
     pub db: Option<String>,
     pub read_only: bool,
+    #[serde(flatten)]
+    pub ssl: MongoSsl,
 }
 
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef, Default)]
+pub struct MongoSsl {
+    pub enable: bool,
+    #[serde(flatten)]
+    pub ssl_files: SSLFiles,
+}
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 pub struct MysqlDBConfig {
     pub host: String,
@@ -23,9 +31,15 @@ pub struct MysqlDBConfig {
     pub db: Option<String>,
     pub read_only: bool,
     #[serde(flatten)]
-    pub ssl: EnableSsl,
-
+    pub ssl: MysqlSsl,
     pub conn_timeout: Option<u32>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef, Default)]
+pub struct MysqlSsl {
+    pub mode: MySqlSslMode,
+    #[serde(flatten)]
+    pub ssl_files: SSLFiles,
 }
 
 impl MysqlDBConfig {
@@ -78,7 +92,6 @@ pub struct ClickHouseConfig {
     pub db: Option<String>,
     pub read_only: bool,
     pub https: bool,
-
     pub conn_timeout: Option<u32>,
 }
 
@@ -113,7 +126,6 @@ pub struct FireBirdConfig {
     pub save_password: bool,
     pub db: String,
     pub read_only: bool,
-
     pub conn_timeout: Option<u32>,
 }
 
@@ -138,7 +150,7 @@ pub struct RedisDBConfig {
     pub save_password: bool,
     pub db: Option<String>,
     pub read_only: bool,
-
+    pub enable_ssl: bool,
     pub conn_timeout: Option<u32>,
 }
 
@@ -158,11 +170,12 @@ impl RedisDBConfig {
             read_only: false,
             save_password: true,
             conn_timeout: None,
+            enable_ssl: false,
         }
     }
 
     pub(crate) fn make_conn_string(&self) -> String {
-        let mut ret = "redis://".to_owned();
+        let mut ret = format!("redis{}://", if self.enable_ssl { "s" } else { "" });
         if let Some(username) = &self.username {
             ret.push_str(username);
             if let Some(pass) = &self.password {
@@ -245,14 +258,19 @@ pub struct PGDBConfig {
     pub schema: Option<String>,
     pub read_only: bool,
     #[serde(flatten)]
-    pub ssl: EnableSsl,
-
+    pub ssl: PgSsl,
     pub conn_timeout: Option<u32>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef, Default)]
-pub struct EnableSsl {
-    pub ssl_enable: bool,
+pub struct PgSsl {
+    pub mode: PgSslMode,
+    #[serde(flatten)]
+    pub ssl_files: SSLFiles,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, TypeDef)]
+pub struct SSLFiles {
     pub ssl_ca: Option<String>,
     pub ssl_cert: Option<String>,
     pub ssl_key: Option<String>,
@@ -279,8 +297,8 @@ pub struct SqlServerDBConfig {
     pub trust_cert: bool,
     pub schema: Option<String>,
     pub read_only: bool,
-
     pub conn_timeout: Option<u32>,
+    pub cert_ca: Option<String>,
 }
 
 impl SqlServerDBConfig {
@@ -301,13 +319,12 @@ pub struct OracleDBConfig {
     pub host: String,
     pub port: u16,
     pub schema: Option<String>,
-
     pub conn_timeout: Option<u32>,
     pub read_only: bool,
     pub db: String,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, typescript_type_def::TypeDef)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 pub struct CassandraDBConfig {
     pub host: String,
     pub port: Option<u16>,
@@ -316,12 +333,101 @@ pub struct CassandraDBConfig {
     pub save_password: bool,
     pub db: Option<String>,
     pub read_only: bool,
-
+    pub ssl: CassandraSsl,
     pub conn_timeout: Option<u32>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+pub struct CassandraSsl {
+    #[serde(flatten)]
+    pub ssl_files: SSLFiles,
 }
 
 impl CassandraDBConfig {
     pub(crate) fn key_space_str(&self) -> &str {
         self.db.as_deref().unwrap()
+    }
+}
+
+// this struct copied from sqlx postgres
+#[derive(Clone, Copy, Debug, Default, serde::Deserialize, serde::Serialize, TypeDef)]
+#[serde(rename_all = "lowercase")]
+pub enum PgSslMode {
+    /// Only try a non-SSL connection.
+    ///
+    #[default]
+    Disable,
+
+    /// First try a non-SSL connection; if that fails, try an SSL connection.
+    Allow,
+
+    /// First try an SSL connection; if that fails, try a non-SSL connection.
+    ///
+    /// This is the default if no other mode is specified
+    Prefer,
+
+    /// Only try an SSL connection. If a root CA file is present, verify the connection
+    /// in the same way as if `VerifyCa` was specified.
+    Require,
+
+    /// Only try an SSL connection, and verify that the server certificate is issued by a
+    /// trusted certificate authority (CA).
+    VerifyCa,
+
+    /// Only try an SSL connection; verify that the server certificate is issued by a trusted
+    /// CA and that the requested server host name matches that in the certificate.
+    VerifyFull,
+}
+
+impl From<PgSslMode> for sqlx::postgres::PgSslMode {
+    fn from(x: PgSslMode) -> Self {
+        match x {
+            PgSslMode::Disable => sqlx::postgres::PgSslMode::Disable,
+            PgSslMode::Allow => sqlx::postgres::PgSslMode::Allow,
+            PgSslMode::Prefer => sqlx::postgres::PgSslMode::Prefer,
+            PgSslMode::Require => sqlx::postgres::PgSslMode::Require,
+            PgSslMode::VerifyCa => sqlx::postgres::PgSslMode::VerifyCa,
+            PgSslMode::VerifyFull => sqlx::postgres::PgSslMode::VerifyFull,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, serde::Serialize, serde ::Deserialize, TypeDef)]
+#[serde(rename_all = "lowercase")]
+pub enum MySqlSslMode {
+    #[default]
+    /// Establish an unencrypted connection.
+    Disabled,
+
+    /// Establish an encrypted connection if the server supports encrypted connections, falling
+    /// back to an unencrypted connection if an encrypted connection cannot be established.
+    ///
+    /// This is the default if `ssl_mode` is not specified.
+    Preferred,
+
+    /// Establish an encrypted connection if the server supports encrypted connections.
+    /// The connection attempt fails if an encrypted connection cannot be established.
+    Required,
+
+    /// Like `Required`, but additionally verify the server Certificate Authority (CA)
+    /// certificate against the configured CA certificates. The connection attempt fails
+    /// if no valid matching CA certificates are found.
+    VerifyCa,
+
+    /// Like `VerifyCa`, but additionally perform host name identity verification by
+    /// checking the host name the client uses for connecting to the server against the
+    /// identity in the certificate that the server sends to the client.
+    VerifyIdentity,
+}
+
+impl From<MySqlSslMode> for sqlx::mysql::MySqlSslMode {
+    fn from(value: MySqlSslMode) -> Self {
+        match value {
+            MySqlSslMode::Disabled => sqlx::mysql::MySqlSslMode::Disabled,
+            MySqlSslMode::Preferred => sqlx::mysql::MySqlSslMode::Preferred,
+            MySqlSslMode::Required => sqlx::mysql::MySqlSslMode::Required,
+            MySqlSslMode::VerifyCa => sqlx::mysql::MySqlSslMode::VerifyCa,
+            MySqlSslMode::VerifyIdentity => sqlx::mysql::MySqlSslMode::VerifyIdentity,
+        }
     }
 }

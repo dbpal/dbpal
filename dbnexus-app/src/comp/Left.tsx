@@ -138,7 +138,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   }, [show]);
 
   const showAddConnection = async (conn?: types.DBConnectionConfig) => {
-    const id = addConnectionID + (conn ? conn.name : '');
+    const id = addConnectionID + '-' + (conn ? conn.name : '');
     const webview = await WebviewWindow.getByLabel(id);
     if (webview) {
       await webview.setFocus();
@@ -518,8 +518,8 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
           showCellVerticalBorder
           showColumnVerticalBorder
           slotProps={slotProps}
-          rowHeight={setting.appearance.datagridRowHeightXXX()}
-          columnHeaderHeight={setting.appearance.datagridRowHeightXXX()}
+          rowHeight={setting.appearance.datagridRowHeight()}
+          columnHeaderHeight={setting.appearance.datagridRowHeight()}
           columns={cols}
           rows={conns}
           onColumnResize={onColumnResize}
@@ -896,8 +896,8 @@ function FavoriteSqlList(props: { handleClose }) {
           showCellVerticalBorder
           showColumnVerticalBorder
           slotProps={slotProps}
-          rowHeight={setting.appearance.datagridRowHeightXXX()}
-          columnHeaderHeight={setting.appearance.datagridRowHeightXXX()}
+          rowHeight={setting.appearance.datagridRowHeight()}
+          columnHeaderHeight={setting.appearance.datagridRowHeight()}
           columns={columns}
           rows={fs}
           onColumnResize={onColumnResize}
@@ -1480,7 +1480,7 @@ function openNewQuery(
   newWindow: boolean
 ) {
   if (newWindow) {
-    SomeTempStore.set({ uuid, kind });
+    SomeTempStore.set({ uuid, kind } as FavoriteSql);
     const webview = new WebviewWindow(generateRandomString(), {
       title: `query window of '${uuid}'`,
       url: 'query.html',

@@ -169,7 +169,7 @@ impl ServerMetas for SqlServerDB {
 
 impl SqlServerDB {
     pub async fn new(c: SqlServerDBConfig) -> anyhow::Result<Self> {
-        let manager = bb8_tiberius::ConnectionManager::new(make_config(&c));
+        let manager = bb8_tiberius::ConnectionManager::new(make_config(&c)?);
         let mut builder = bb8::Pool::builder();
         if let Some(x) = c.conn_timeout {
             builder = builder.connection_timeout(Duration::from_millis(x as u64));
@@ -188,7 +188,10 @@ impl SqlServerDB {
     }
 }
 
-fn make_config(c: &SqlServerDBConfig) -> tiberius::Config {
+fn make_config(c: &SqlServerDBConfig) -> anyhow::Result<tiberius::Config> {
+    if c.trust_cert && c.cert_ca.is_some() {
+        anyhow::bail!("can't be able both trust_cert and cert_ca")
+    }
     let mut config = tiberius::Config::new();
     config.host(&c.host);
     config.port(c.port);
@@ -204,7 +207,10 @@ fn make_config(c: &SqlServerDBConfig) -> tiberius::Config {
     if c.trust_cert {
         config.trust_cert(); // on production, it is not a good idea to do this
     }
-    config
+    if let Some(x) = &c.cert_ca {
+        config.trust_cert_ca(x);
+    }
+    anyhow::Ok(config)
 }
 
 fn get_column_type_string(c: tiberius::ColumnType) -> String {
@@ -525,12 +531,6 @@ impl SqlServerDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for SqlServerDB {
-    async fn export_table_or_view_as_xlsx(
-        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(r#"SELECT * from "{}""#, name);
-        ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
-    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -784,7 +784,10 @@ impl SchemaTrait for SqlServerDB {
                 self.export_table_as_sql(table_name, include_table_schema, sender)
                     .await
             }
-            ExportKind::Xlsx { .. } => anyhow::bail!("Not support xlsx export"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_table_as_xlsx(table_name, include_header, sender)
+                    .await
+            }
         }
     }
 
@@ -1614,6 +1617,16 @@ impl SqlServerDB {
         self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
             .await
     }
+
+    async fn export_table_as_xlsx(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!("SELECT * from {}", table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_xlsx(&sql, include_header, sender)
+            .await
+    }
 }
 
 impl SqlServerDB {
@@ -1621,7 +1634,7 @@ impl SqlServerDB {
     /// because `query_connection` use in `SqlServer`,
     /// we can't create self reference struct in rust.
     async fn new_tcp_conn(&self) -> anyhow::Result<Connection> {
-        let config = make_config(&self.config);
+        let config = make_config(&self.config)?;
         let tcp = TcpStream::connect(config.get_addr()).await?;
         tcp.set_nodelay(true)?;
 
@@ -1636,10 +1649,10 @@ impl SqlServerDB {
 
 type Connection = Client<Compat<TcpStream>>;
 
-#[async_trait::async_trait]
-impl ExportQueryResult for SqlServerDB {
-    async fn export_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+impl SqlServerDB {
+    async fn export_query_result_as_xlsx(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
@@ -1662,11 +1675,15 @@ impl ExportQueryResult for SqlServerDB {
                         if first && include_header {
                             for (index, col) in meta.columns().iter().enumerate() {
                                 sender
-                                    .send(XlsxEdit {
-                                        row: row_num,
-                                        column: index as rust_xlsxwriter::ColNum,
-                                        content: col.name().to_owned(),
-                                    })
+                                    .send(
+                                        XlsxEdit {
+                                            row: row_num,
+                                            column: index as rust_xlsxwriter::ColNum,
+                                            content: col.name().to_owned(),
+                                        }
+                                        .to_string()
+                                        .into(),
+                                    )
                                     .await?;
                             }
                             first = false
@@ -1681,6 +1698,10 @@ impl ExportQueryResult for SqlServerDB {
         }
         anyhow::Ok(())
     }
+}
+
+#[async_trait::async_trait]
+impl ExportQueryResult for SqlServerDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -1703,7 +1724,10 @@ impl ExportQueryResult for SqlServerDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx export is not supported"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_query_result_as_xlsx(sql, include_header, sender)
+                    .await
+            }
         }
     }
 }
@@ -2016,6 +2040,7 @@ pub(crate) async fn make_test_object() -> SqlServerDB {
         schema: Some(SqlServerDB::DBO_SCHEMA.to_string()),
         read_only: false,
         save_password: true,
+        cert_ca: None,
     })
     .await
     .unwrap();

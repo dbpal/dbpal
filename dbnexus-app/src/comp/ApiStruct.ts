@@ -8,14 +8,45 @@ export namespace types {
         "read_only": boolean;
         "conn_timeout": (types.U32 | null);
     };
-    export type EnableSsl = {
-        "ssl_enable": boolean;
+    export type SSLFiles = {
         "ssl_ca": (string | null);
         "ssl_cert": (string | null);
         "ssl_key": (string | null);
     };
+    export type MySqlSslMode = (
+    /**
+     * Establish an unencrypted connection.
+     */
+"disabled" | 
+    /**
+     * Establish an encrypted connection if the server supports encrypted connections, falling
+     * back to an unencrypted connection if an encrypted connection cannot be established.
+     * 
+     * This is the default if `ssl_mode` is not specified.
+     */
+"preferred" | 
+    /**
+     * Establish an encrypted connection if the server supports encrypted connections.
+     * The connection attempt fails if an encrypted connection cannot be established.
+     */
+"required" | 
+    /**
+     * Like `Required`, but additionally verify the server Certificate Authority (CA)
+     * certificate against the configured CA certificates. The connection attempt fails
+     * if no valid matching CA certificates are found.
+     */
+"verifyca" | 
+    /**
+     * Like `VerifyCa`, but additionally perform host name identity verification by
+     * checking the host name the client uses for connecting to the server against the
+     * identity in the certificate that the server sends to the client.
+     */
+"verifyidentity");
+    export type MysqlSsl = (types.SSLFiles & {
+        "mode": types.MySqlSslMode;
+    });
     export type U16 = number;
-    export type MysqlDBConfig = (types.EnableSsl & {
+    export type MysqlDBConfig = (types.MysqlSsl & {
         "host": string;
         "port": types.U16;
         "username": string;
@@ -25,7 +56,40 @@ export namespace types {
         "read_only": boolean;
         "conn_timeout": (types.U32 | null);
     });
-    export type PGDBConfig = (types.EnableSsl & {
+    export type PgSslMode = (
+    /**
+     * Only try a non-SSL connection.
+     */
+"disable" | 
+    /**
+     * First try a non-SSL connection; if that fails, try an SSL connection.
+     */
+"allow" | 
+    /**
+     * First try an SSL connection; if that fails, try a non-SSL connection.
+     * 
+     * This is the default if no other mode is specified
+     */
+"prefer" | 
+    /**
+     * Only try an SSL connection. If a root CA file is present, verify the connection
+     * in the same way as if `VerifyCa` was specified.
+     */
+"require" | 
+    /**
+     * Only try an SSL connection, and verify that the server certificate is issued by a
+     * trusted certificate authority (CA).
+     */
+"verifyca" | 
+    /**
+     * Only try an SSL connection; verify that the server certificate is issued by a trusted
+     * CA and that the requested server host name matches that in the certificate.
+     */
+"verifyfull");
+    export type PgSsl = (types.SSLFiles & {
+        "mode": types.PgSslMode;
+    });
+    export type PGDBConfig = (types.PgSsl & {
         "host": string;
         "port": types.U16;
         "username": string;
@@ -47,9 +111,13 @@ export namespace types {
         "schema": (string | null);
         "read_only": boolean;
         "conn_timeout": (types.U32 | null);
+        "cert_ca": (string | null);
     };
+    export type MongoSsl = (types.SSLFiles & {
+        "enable": boolean;
+    });
     export type U64 = number;
-    export type MongoDBConfig = {
+    export type MongoDBConfig = (types.MongoSsl & {
         "host": string;
         "port": types.U16;
         "username": (string | null);
@@ -58,7 +126,7 @@ export namespace types {
         "conn_timeout": (types.U64 | null);
         "db": (string | null);
         "read_only": boolean;
-    };
+    });
     export type RedisDBConfig = {
         "host": string;
         "port": (types.U16 | null);
@@ -67,6 +135,7 @@ export namespace types {
         "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
+        "enable_ssl": boolean;
         "conn_timeout": (types.U32 | null);
     };
     export type OracleDBConfig = {
@@ -80,6 +149,7 @@ export namespace types {
         "read_only": boolean;
         "db": string;
     };
+    export type CassandraSsl = types.SSLFiles;
     export type CassandraDBConfig = {
         "host": string;
         "port": (types.U16 | null);
@@ -88,6 +158,7 @@ export namespace types {
         "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
+        "ssl": types.CassandraSsl;
         "conn_timeout": (types.U32 | null);
     };
     export type ClickHouseConfig = {

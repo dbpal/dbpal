@@ -12,7 +12,6 @@
     "core:tray:default",
     "core:window:allow-set-title",
     "dialog:default",
-    "shell:default",
     "store:default",
     "opener:allow-default-urls",
     "clipboard-manager:allow-read-text",

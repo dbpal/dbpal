@@ -137,10 +137,8 @@ async fn make_session(
     config: &CassandraDBConfig, max_pool_size: usize,
 ) -> anyhow::Result<AppSession> {
     let mut node_builder = NodeTcpConfigBuilder::new();
-
     node_builder = node_builder
         .with_contact_point(format!("{}:{}", config.host, config.port.unwrap_or(9042)).into());
-
     if config.username.is_some() && config.password.is_some() {
         let a = StaticPasswordAuthenticatorProvider::new(
             config.username.as_deref().unwrap(),
@@ -779,11 +777,10 @@ fn sql_to_each(sql: &str) -> Vec<&str> {
         .collect()
 }
 
-#[async_trait::async_trait]
-
-impl ExportQueryResult for CassandraDB {
+impl CassandraDB {
     async fn export_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let resp = self.session.query(sql).await?.response_body()?;
         let meta = resp.as_rows_metadata().cloned();
@@ -796,11 +793,15 @@ impl ExportQueryResult for CassandraDB {
         if include_header {
             for (index, col) in meta.col_specs.iter().enumerate() {
                 sender
-                    .send(XlsxEdit {
-                        row: 0,
-                        column: index as rust_xlsxwriter::ColNum,
-                        content: col.name.clone(),
-                    })
+                    .send(
+                        XlsxEdit {
+                            row: 0,
+                            column: index as rust_xlsxwriter::ColNum,
+                            content: col.name.clone(),
+                        }
+                        .to_string()
+                        .into(),
+                    )
                     .await?;
             }
             row_num += 1;
@@ -813,6 +814,11 @@ impl ExportQueryResult for CassandraDB {
 
         anyhow::Ok(())
     }
+}
+
+#[async_trait::async_trait]
+
+impl ExportQueryResult for CassandraDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -835,7 +841,9 @@ impl ExportQueryResult for CassandraDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx not supported"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_as_xlsx(sql, include_header, sender).await
+            }
         }
     }
 }
@@ -1183,6 +1191,15 @@ impl CassandraDB {
         self.export_query_result_as_json_line(&sql, sender).await
     }
 
+    async fn export_table_as_xlsx(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
+        self.export_as_xlsx(&sql, include_header, sender).await
+    }
+
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -1311,16 +1328,6 @@ impl CassandraDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for CassandraDB {
-    async fn export_table_or_view_as_xlsx(
-        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"select * from "{}"."{}""#,
-            self.config.key_space_str(),
-            name
-        );
-        ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
-    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -1369,7 +1376,10 @@ impl SchemaTrait for CassandraDB {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
-            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx export not supported"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_table_as_xlsx(name, include_header, sender)
+                    .await
+            }
         }
     }
 
@@ -1984,7 +1994,10 @@ fn extract_parameters_from_server(argument_types: List) -> anyhow::Result<Vec<St
 
 #[cfg(test)]
 pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
-    use crate::TEST_HOST;
+    use crate::{
+        TEST_HOST,
+        datasource_config::{CassandraSsl, SSLFiles},
+    };
 
     let ss = CassandraDB::new(CassandraDBConfig {
         host: TEST_HOST.to_string(),
@@ -1995,6 +2008,13 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         db,
         conn_timeout: Some(5000),
         save_password: true,
+        ssl: CassandraSsl {
+            ssl_files: SSLFiles {
+                ssl_ca: None,
+                ssl_cert: None,
+                ssl_key: None,
+            },
+        },
     })
     .await
     .unwrap();

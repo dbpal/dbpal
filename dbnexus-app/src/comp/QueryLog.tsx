@@ -191,7 +191,7 @@ function QueryLog(props: {
         display: showQueryLog ? 'flex' : 'none',
         flexDirection: 'column',
         height: '400px',
-        maxHeight: '80vh',
+        maxHeight: '40vh',
       }}
       hidden={true}
       ref={setDom}
@@ -287,8 +287,8 @@ function QueryLog(props: {
             onRowDoubleClick={onRowDoubleClick}
             columns={columns}
             rows={logs}
-            rowHeight={setting.appearance.datagridRowHeightXXX()}
-            columnHeaderHeight={setting.appearance.datagridRowHeightXXX()}
+            rowHeight={setting.appearance.datagridRowHeight()}
+            columnHeaderHeight={setting.appearance.datagridRowHeight()}
             pageSizeOptions={pageSizeOptions}
             paginationModel={paginationModel}
             onPaginationModelChange={onPaginationModelChange}

@@ -49,6 +49,8 @@ import {
   settingChangeEvent,
   UserSettingMisc,
   dataGridheaderFontSize,
+  isDarkTheme,
+  appTheme,
 } from './helper';
 import { Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
@@ -73,7 +75,7 @@ function AppearanceSetting() {
   const [fontWeight, setFontWeight] = useState(setting.fontWeight);
   const [fontSize, setFontSize] = useState(setting.fontSize);
   const [bgColor, setBgColor] = useState(
-    setting.theme == 'dark' ? setting.darkBgColor : setting.lightBgColor
+    isDarkTheme() ? setting.darkBgColor : setting.lightBgColor
   );
   const [bgColorErr, setBgColorErr] = useState('');
   const [fontFamily, setFontFamily] = useState(setting.fontFamily);
@@ -94,10 +96,10 @@ function AppearanceSetting() {
       return;
     }
     if (
-      (setting.theme == 'dark' && ColorFn.isLightHex(bgColor)) ||
-      (setting.theme == 'light' && !ColorFn.isLightHex(bgColor))
+      (isDarkTheme() && ColorFn.isLightHex(bgColor)) ||
+      (!isDarkTheme() && !ColorFn.isLightHex(bgColor))
     ) {
-      setBgColorErr(`please set a ${setting.theme} background color`);
+      setBgColorErr(`please set a '${appTheme}' background color`);
       return;
     }
     setBgColorErr('');
@@ -116,12 +118,11 @@ function AppearanceSetting() {
   const handleSave = () => {
     try {
       let x = {
-        theme: setting.theme,
         fontFamily,
         fontSize,
         fontWeight,
-        darkBgColor: setting.isDark() ? bgColor : setting.darkBgColor,
-        lightBgColor: !setting.isDark() ? bgColor : setting.lightBgColor,
+        darkBgColor: isDarkTheme() ? bgColor : setting.darkBgColor,
+        lightBgColor: !isDarkTheme() ? bgColor : setting.lightBgColor,
         datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
         maxTreeSize: parseInt(maxTreeSize),
         maxTabTitleLength: parseInt(maxTabTitleLength),
@@ -826,7 +827,7 @@ function makeComponents(fontWeight) {
 
 const makeTheme = (appearance: UserSettingAppearance) => {
   let color;
-  if (appearance.isDark()) {
+  if (isDarkTheme()) {
     color = appearance.darkBgColor ? appearance.darkBgColor : '#000';
   } else {
     color = appearance.lightBgColor ? appearance.lightBgColor : '#fff';
@@ -840,7 +841,7 @@ const makeTheme = (appearance: UserSettingAppearance) => {
       fontFamily,
     },
     palette: {
-      mode: appearance.isDark() ? 'dark' : 'light',
+      mode: isDarkTheme() ? 'dark' : 'light',
       background: {
         default: color,
         paper: color,

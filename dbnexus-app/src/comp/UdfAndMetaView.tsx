@@ -208,7 +208,6 @@ function TriggerDetail(props: {
   kind: DataSourceKind;
 }) {
   const { reloadOP, uuid, kind } = props;
-
   return (
     <DefAndMetasView
       kind={kind}

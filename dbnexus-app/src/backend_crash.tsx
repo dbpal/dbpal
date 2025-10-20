@@ -1,26 +1,31 @@
 'use strict';
 import ReactDOM from 'react-dom/client';
-import React from 'react';
-import { webviewWIndowInit } from './comp/helper.ts';
+import React, { useContext, useEffect, useState } from 'react';
 import { SeparateWindow } from './comp/MainPage.tsx';
 import { BackendCrash } from './comp/BackendCrash.tsx';
 import { invoke } from '@tauri-apps/api/core';
+import { NotificationContext } from './comp/Notification.tsx';
 
-webviewWIndowInit(false);
 const params = new URLSearchParams(location.search);
 const id = parseInt(params.get('id'));
-let msg: string;
 
-try {
-  msg = await invoke<string>('get_backend_crash', { id });
-} catch (e) {
-  console.log('error', e);
+function View() {
+  const [msg, setMsg] = useState('');
+  const { showNotification } = useContext(NotificationContext);
+  useEffect(() => {
+    invoke<string>('get_backend_crash', { id })
+      .then((x) => setMsg(x))
+      .catch((e) => {
+        showNotification('error', 'get panic info failed', e);
+      });
+  }, []);
+  return <BackendCrash msg={msg}></BackendCrash>;
 }
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <SeparateWindow>
-      <BackendCrash msg={msg}></BackendCrash>
+      <View></View>
     </SeparateWindow>
   </React.StrictMode>
 );

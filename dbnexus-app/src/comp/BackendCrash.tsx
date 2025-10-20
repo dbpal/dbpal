@@ -33,7 +33,7 @@ function BackendCrash(props: { msg: string }) {
       <Paper
         elevation={8}
         style={{
-          overflow: 'scroll',
+          overflow: 'auto',
           width: '100%',
           flex: 1,
           padding: '4px',

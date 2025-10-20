@@ -34,6 +34,7 @@ import {
   DataSourceKind,
   editorSetPositionAndReveal,
   generateRandomString,
+  isDarkTheme,
   isMacOs,
   KeyPressed,
   secondConfirm,
@@ -588,7 +589,6 @@ function LoadStoreFileForQuery(props: {
       if (!active) {
         return;
       }
-
       if (KeyPressed.isFileSave(e)) {
         e.preventDefault();
         handleSave();
@@ -645,7 +645,6 @@ function AppMarkDown(props: {
   handlePathUrl: (href: string) => void;
 }) {
   const { doc, handlePathUrl } = props;
-  const setting = useContext(SettingContext);
 
   const CustomLink = (props: { href: string; children: ReactNode }) => {
     const { href, children } = props;
@@ -680,7 +679,7 @@ function AppMarkDown(props: {
           const match = /language-(\w+)/.exec(className || '');
           return match ? (
             <SyntaxHighlighter
-              style={setting.isDark() ? oneDark : oneLight} // Apply the chosen theme
+              style={isDarkTheme() ? oneDark : oneLight} // Apply the chosen theme
               language={match[1]}
               PreTag="div"
               {...props}

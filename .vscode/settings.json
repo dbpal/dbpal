@@ -382,6 +382,7 @@
     "SONAME",
     "SORT",
     "SPID",
+    "splitn",
     "SPOP",
     "SQLCODE",
     "sqlparser",

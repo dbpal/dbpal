@@ -180,13 +180,17 @@ fn set_webview_zoom(handle: &AppHandle, zoom: f64) {
     }
 }
 
+fn panic_test() {
+    #[cfg(debug_assertions)]
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        panic!("this is a log from backend");
+    });
+}
+
 fn main_() {
     // logger_test();
-    // #[cfg(debug_assertions)]
-    // std::thread::spawn(|| {
-    //     std::thread::sleep(std::time::Duration::from_secs(5));
-    //     panic!("this is a log from backend");
-    // });
+    panic_test();
 
     let dbpal = DBPal::new();
     let dbpal_clone = dbpal.clone();
@@ -276,7 +280,6 @@ fn main_() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())

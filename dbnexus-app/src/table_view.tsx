@@ -6,7 +6,6 @@ import {
   MongoTableHandler,
   NewWindowTableParameter,
   SomeTempStore,
-  webviewWIndowInit,
 } from './comp/helper.ts';
 import { SqlTableView } from './comp/SqlTableView.tsx';
 import {
@@ -23,8 +22,6 @@ import {
 import { SeparateWindow } from './comp/MainPage.tsx';
 import { MongoTable } from './comp/MongoDB.tsx';
 import { makeRedisViewTable } from './comp/LeftTable.tsx';
-
-webviewWIndowInit(false);
 
 const { uuid, kind, table, redisTableType, isTable } =
   SomeTempStore.get<NewWindowTableParameter>();

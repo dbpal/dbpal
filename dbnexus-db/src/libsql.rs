@@ -57,10 +57,10 @@ fn get_row_types(r: &Row) -> Vec<Field> {
     ret
 }
 
-#[async_trait::async_trait]
-impl ExportQueryResult for LibSqlDB {
-    async fn export_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+impl LibSqlDB {
+    async fn export_query_result_as_xlsx(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
         let mut stream = conn.query(sql, params!()).await?;
@@ -70,11 +70,15 @@ impl ExportQueryResult for LibSqlDB {
             if first && include_header {
                 for index in 0..row.column_count() {
                     sender
-                        .send(XlsxEdit {
-                            row: row_num,
-                            column: index as rust_xlsxwriter::ColNum,
-                            content: row.column_name(index).unwrap_or_default().to_owned(),
-                        })
+                        .send(
+                            XlsxEdit {
+                                row: row_num,
+                                column: index as rust_xlsxwriter::ColNum,
+                                content: row.column_name(index).unwrap_or_default().to_owned(),
+                            }
+                            .to_string()
+                            .into(),
+                        )
                         .await?;
                 }
                 first = false;
@@ -86,7 +90,10 @@ impl ExportQueryResult for LibSqlDB {
         }
         anyhow::Ok(())
     }
+}
 
+#[async_trait::async_trait]
+impl ExportQueryResult for LibSqlDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -109,7 +116,10 @@ impl ExportQueryResult for LibSqlDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx export is not supported"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_query_result_as_xlsx(sql, include_header, sender)
+                    .await
+            }
         }
     }
 }
@@ -460,12 +470,6 @@ impl ServerMetas for LibSqlDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for LibSqlDB {
-    async fn export_table_or_view_as_xlsx(
-        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(r#"SELECT * from "{}""#, name);
-        ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
-    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -633,7 +637,10 @@ impl SchemaTrait for LibSqlDB {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
-            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx not supported"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_query_result_as_xlsx(name, include_header, sender)
+                    .await
+            }
         }
     }
 

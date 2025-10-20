@@ -104,9 +104,9 @@ function SelectAlign(props: {
 }) {
   const theme = useTheme();
   const { align, handleChange } = props;
-  const handleChangeXXX = (a) => {
-    SaveAlign.instance.save(a);
-    handleChange(a);
+  const handleChangeXXX = (align: string) => {
+    SaveAlign.instance.save(align);
+    handleChange(align);
   };
   const style = { cursor: 'pointer' };
 
@@ -540,8 +540,8 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
         showCellVerticalBorder
         showColumnVerticalBorder
         slotProps={slotProps}
-        rowHeight={setting.appearance.datagridRowHeightXXX()}
-        columnHeaderHeight={setting.appearance.datagridRowHeightXXX()}
+        rowHeight={setting.appearance.datagridRowHeight()}
+        columnHeaderHeight={setting.appearance.datagridRowHeight()}
         columns={columns}
         rows={values}
         onColumnResize={onColumnResize}

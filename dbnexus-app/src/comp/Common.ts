@@ -8,6 +8,19 @@ import { createContext } from 'react';
 import { TabContent } from './Tabs';
 import { invoke } from '@tauri-apps/api/core';
 import { message } from '@tauri-apps/plugin-dialog';
+
+
+import {
+  appStore,
+  AppStoreKey,
+  backendCompletionItemToEditor,
+  DataSourceKind,
+  MuiDataGridData,
+  secondConfirm,
+} from './helper';
+import { GridColDef } from '@mui/x-data-grid';
+import { loader } from '@monaco-editor/react';
+
 const modalStyle: SxProps = {
   position: 'fixed',
   transform: 'translate(50%, 50%)',
@@ -27,17 +40,6 @@ const modalStyle: SxProps = {
   flexDirection: 'column',
   animation: 'modalAnimation 0.6s ease-out',
 };
-
-import {
-  appStore,
-  AppStoreKey,
-  backendCompletionItemToEditor,
-  DataSourceKind,
-  MuiDataGridData,
-  secondConfirm,
-} from './helper';
-import { GridColDef } from '@mui/x-data-grid';
-import { loader } from '@monaco-editor/react';
 
 const getNamedConfig = async (
   name: string
@@ -96,7 +98,6 @@ async function dropSchema({ uuid, schema, showNotification, okCallback }) {
     });
 }
 
-const msgTimeout = 10000;
 
 function tabsHasId(tabs: TabContent[], id: string): number | null {
   for (let i = 0; i < tabs.length; i++) {
@@ -113,7 +114,7 @@ interface DefAndMetas {
   metas?: types.MetaValue[];
 }
 
-const OpenedContext = createContext<{ opened: boolean; setOpened }>(null);
+const OpenedContext = createContext<{ opened: boolean; setOpened: any }>(null);
 
 function reloadOK(showNotification) {
   showNotification('success', 'data loaded.');
@@ -127,7 +128,7 @@ const autoCompletion = async (
     const sql = modal.getValue();
     const name = SetAutoCompletionName.get(modal.id);
     if (!name) {
-      message("auto completion name is null this is a bug", { kind: 'error' });
+      console.error("editor id map to backend name is nul,this is internal bug");
       return;
     }
     const completionItem = await invoke<types.CompletionList>(
@@ -153,24 +154,10 @@ const autoCompletion = async (
 loader
   .init()
   .then((monaco) => {
-
     monaco.languages.registerCompletionItemProvider(
-      { language: 'sql' },
+      'sql',
       {
         triggerCharacters: ['.'],
-        provideCompletionItems(model,
-          position: Position,
-          _context: any,
-          _token: CancellationToken
-        ) {
-          return autoCompletion(model, position);
-        },
-      }
-    );
-    monaco.languages.registerCompletionItemProvider(
-      { language: 'redis' },
-      {
-
         provideCompletionItems(model,
           position: Position,
           _context: any,
@@ -184,7 +171,7 @@ loader
       provideDocumentFormattingEdits(model, options, _) {
         const name = SetAutoCompletionName.get(model.id);
         if (!name) {
-          message("auto completion name is null this is a bug", { kind: 'error' });
+          console.error("editor id map to backend name is nul,this is internal bug");
           return;
         }
         let text = makeFormatFn(name.kind)(model.getValue(), { insertSpaces: options.insertSpaces, tabSize: options.tabSize });
@@ -194,6 +181,19 @@ loader
         return [{ range: model.getFullModelRange(), text }]
       },
     });
+    monaco.languages.registerCompletionItemProvider(
+      'redis',
+      {
+
+        provideCompletionItems(model,
+          position: Position,
+          _context: any,
+          _token: CancellationToken
+        ) {
+          return autoCompletion(model, position);
+        },
+      }
+    );
   });
 
 function makeFormatFn(kind: DataSourceKind) {
@@ -238,7 +238,7 @@ function makeFormatFn(kind: DataSourceKind) {
         useTabs: !opts.insertSpaces,
       });
     } catch (e) {
-      message('format failed error:' + e.toString(), { kind: 'error' })
+      message('format failed error:' + String(e), { kind: 'error' })
       console.log('format sql failed error:', e);
       return sql;
     }
@@ -270,7 +270,6 @@ class QueryConn implements IQueryConn {
   queryId: number;
   uuid: string;
   kind: DataSourceKind;
-
 
   constructor(uuid, queryId: number, kind: DataSourceKind) {
     this.queryId = queryId;
@@ -391,8 +390,6 @@ type MakeIQueryConn = () => Promise<IQueryConn>;
 const keyNotInTable = 'KWfCwJ62hRf6TKuvMcsQ3eXGtD1tdg2J';
 
 type EscDownEvent = { preventDefault: () => void };
-
-
 
 function makeExtractTableSelectWhere(uuid) {
   return (sql: string) => {
@@ -534,7 +531,6 @@ type FieldAndGridField = types.Field & GridColDef;
 export {
   modalStyle,
   tabsHasId,
-  msgTimeout,
   OpenedContext,
   getNamedConfig,
   dropDatabase,

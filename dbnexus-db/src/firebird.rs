@@ -29,7 +29,7 @@ use r2d2::{Pool, PooledConnection};
 use rsfbclient::{Execute, FbError, Queryable, Row, SqlType, builder_pure_rust};
 use rsfbclient_rust::RustFbClient;
 use tokio::sync::Mutex;
-use tokio::task::block_in_place;
+use tokio::task::{block_in_place, spawn_blocking};
 
 use crate::MemoryLimit;
 use crate::datasource_config::FireBirdConfig;
@@ -180,7 +180,7 @@ impl FireBirdDB {
         let firebird = Clone::clone(self);
         let sql = sql.to_owned();
 
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             let mut conn = firebird.get_conn()?;
             let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
@@ -207,7 +207,7 @@ impl FireBirdDB {
     ) -> anyhow::Result<()> {
         let firebird = Clone::clone(self);
         let sql = sql.to_owned();
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             let mut conn = firebird.get_conn()?;
 
             sender.blocking_send("[".into())?;
@@ -248,7 +248,7 @@ impl FireBirdDB {
     ) -> anyhow::Result<()> {
         let firebird = Clone::clone(self);
         let sql = sql.to_owned();
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             let mut conn = firebird.get_conn()?;
             let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
@@ -289,14 +289,15 @@ fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Value> {
     }
     anyhow::Ok(serde_json::Value::Object(m))
 }
-#[async_trait::async_trait]
-impl ExportQueryResult for FireBirdDB {
-    async fn export_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+
+impl FireBirdDB {
+    async fn export_query_result_as_xlsx(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn()?;
         let sql = sql.to_owned();
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             let mut row_num = 0;
             let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
@@ -305,11 +306,15 @@ impl ExportQueryResult for FireBirdDB {
                 let row = row?;
                 if first && include_header {
                     for (index, col) in row.cols.iter().enumerate() {
-                        sender.blocking_send(XlsxEdit {
-                            row: row_num,
-                            column: index as rust_xlsxwriter::ColNum,
-                            content: col.name.clone(),
-                        })?;
+                        sender.blocking_send(
+                            XlsxEdit {
+                                row: row_num,
+                                column: index as rust_xlsxwriter::ColNum,
+                                content: col.name.clone(),
+                            }
+                            .to_string()
+                            .into(),
+                        )?;
                     }
                     first = false;
                 }
@@ -320,6 +325,10 @@ impl ExportQueryResult for FireBirdDB {
         })
         .await?
     }
+}
+
+#[async_trait::async_trait]
+impl ExportQueryResult for FireBirdDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -342,7 +351,10 @@ impl ExportQueryResult for FireBirdDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx export not supported"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_query_result_as_xlsx(sql, include_header, sender)
+                    .await
+            }
         }
     }
 }
@@ -542,6 +554,16 @@ impl FireBirdDB {
         self.export_query_result_as_json_line(&sql, sender).await
     }
 
+    async fn export_table_as_xlsx(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!("SELECT * from {}", table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_xlsx(&sql, include_header, sender)
+            .await
+    }
+
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -552,7 +574,7 @@ impl FireBirdDB {
         let table_name = table_name.to_owned();
         let firebird = Clone::clone(self);
         let cols = SchemaTrait::show_table_columns(self, &table_name).await?;
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             let mut types = HashMap::new();
             cols.iter().for_each(|x| {
                 types.insert(&x.field, x);
@@ -588,13 +610,6 @@ impl FireBirdDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for FireBirdDB {
-    async fn export_table_or_view_as_xlsx(
-        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(r#"select * from "{}""#, name);
-        ExportQueryResult::export_as_xlsx(self, &sql, include_header, sender).await
-    }
-
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -618,7 +633,10 @@ impl SchemaTrait for FireBirdDB {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
-            ExportKind::Xlsx { .. } => anyhow::bail!("xlsx Not supported"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_table_as_xlsx(name, include_header, sender)
+                    .await
+            }
         }
     }
 

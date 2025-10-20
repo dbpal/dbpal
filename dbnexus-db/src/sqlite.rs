@@ -215,7 +215,8 @@ impl SqliteDB {
     }
 
     async fn export_query_result_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql))
@@ -228,11 +229,15 @@ impl SqliteDB {
             if first && !rows.is_empty() && include_header {
                 for (index, col) in rows[0].columns().iter().enumerate() {
                     sender
-                        .send(XlsxEdit {
-                            row: row_num,
-                            column: index as rust_xlsxwriter::ColNum,
-                            content: col.name().to_string(),
-                        })
+                        .send(
+                            XlsxEdit {
+                                row: row_num,
+                                column: index as rust_xlsxwriter::ColNum,
+                                content: col.name().to_string(),
+                            }
+                            .to_string()
+                            .into(),
+                        )
                         .await?;
                 }
                 row_num += 1;
@@ -251,6 +256,15 @@ impl SqliteDB {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
         self.export_query_result_as_csv(&sql, include_header, delimiter, sender.clone())
+            .await
+    }
+    async fn export_table_as_xlsx(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_xlsx(&sql, include_header, sender.clone())
             .await
     }
 }
@@ -447,14 +461,6 @@ impl SqliteDB {
 }
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
-    async fn export_table_or_view_as_xlsx(
-        &self, name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(r#"SELECT * FROM "{}""#, name);
-        self.export_query_result_as_xlsx(&sql, include_header, sender)
-            .await
-    }
-
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
@@ -650,7 +656,10 @@ impl SchemaTrait for SqliteDB {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
-            ExportKind::Xlsx { .. } => anyhow::bail!("should not been called"),
+            ExportKind::Xlsx { include_header } => {
+                self.export_table_as_xlsx(name, include_header, sender)
+                    .await
+            }
         }
     }
 
@@ -1253,18 +1262,13 @@ pub(crate) fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<Str
     };
     anyhow::Ok(None)
 }
+
 #[async_trait::async_trait]
 impl ExportQueryResult for SqliteDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
 
-    async fn export_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<XlsxEdit>,
-    ) -> anyhow::Result<()> {
-        self.export_query_result_as_xlsx(sql, include_header, sender)
-            .await
-    }
     async fn export_query_result(
         &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1283,8 +1287,9 @@ impl ExportQueryResult for SqliteDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { .. } => {
-                anyhow::bail!("should not been called")
+            ExportKind::Xlsx { include_header } => {
+                self.export_query_result_as_xlsx(sql, include_header, sender)
+                    .await
             }
         }
     }
