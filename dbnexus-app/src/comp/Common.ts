@@ -8,6 +8,9 @@ import { createContext } from 'react';
 import { TabContent } from './Tabs';
 import { invoke } from '@tauri-apps/api/core';
 import { message } from '@tauri-apps/plugin-dialog';
+import * as keyring from "tauri-plugin-keyring-api";
+
+
 
 import {
   appDatabase,
@@ -553,29 +556,35 @@ function makeTableInsertFn(uuid, table) {
 type FieldAndGridField = types.Field & GridColDef;
 
 class PassWordManager {
-  static password = new Map<string, string>();
-  static saveTypedPassword(name: string, pass: string) {
-    PassWordManager.password.set(name, pass);
-  }
 
+  static service = "site.dbpal.dev";
+  static password = new Map<string, string>();
+  static async savePassword(name: string, pass: string, save2KeyRing: boolean) {
+    PassWordManager.password.set(name, pass);
+    if (save2KeyRing) {
+      console.log("save password to keyring ", name, pass);
+      await keyring.setPassword(PassWordManager.service, name, pass);
+    }
+
+  }
   static async getPassword(name: string) {
     if (PassWordManager.password.has(name)) {
       return PassWordManager.password.get(name);
     }
     try {
-      return invoke('get_password', { name });
+      return await keyring.getPassword(PassWordManager.service, name);
     } catch (e) {
       console.log("get password failed,this is fine maybe this connection don't have password ");
     }
     return null
   }
-
-
-
-  static delete_keyring_password(name: string) {
-    invoke('delete_password', { name }).catch(e => {
-      console.log(`delete password failed,this is fine maybe this connection don't have password`, e);
-    })
+  static async deletePassword(name: string) {
+    try {
+      PassWordManager.password.delete(name);
+      return await keyring.deletePassword(PassWordManager.service, name);
+    } catch (e) {
+      console.log("delete password failure", e);
+    }
   }
 }
 

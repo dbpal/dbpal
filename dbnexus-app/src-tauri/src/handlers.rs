@@ -31,8 +31,6 @@ use font_kit::error::SelectionError;
 use include_dir::{Dir, include_dir};
 use tauri::ipc::Channel;
 
-pub const PASSWORD_KEY: &str = "site.dbpal.dev";
-
 pub fn log_channel_store() -> &'static std::sync::Mutex<Option<Channel<String>>> {
     static X: std::sync::Mutex<Option<Channel<String>>> = std::sync::Mutex::new(None);
     &X
@@ -163,29 +161,6 @@ pub async fn get_query_cache(
     Ok(x)
 }
 
-#[tauri::command]
-pub async fn delete_password(name: String) -> Result<(), ErrorFrontend> {
-    let entry = keyring::Entry::new(PASSWORD_KEY, &name)?;
-    entry.delete_credential()?;
-    Ok(())
-}
-
-#[tauri::command]
-pub fn get_password(name: String) -> Result<String, ErrorFrontend> {
-    let passwd = keyring::Entry::new(PASSWORD_KEY, &name)
-        .ok()
-        .map(|x| x.get_password().ok())
-        .flatten()
-        .unwrap_or_default();
-    Ok(passwd)
-}
-
-#[tauri::command]
-pub async fn save_password(name: String, pass: String) -> Result<(), ErrorFrontend> {
-    let entry = keyring::Entry::new(PASSWORD_KEY, &name)?;
-    entry.set_password(&pass)?;
-    Ok(())
-}
 #[tauri::command]
 pub async fn page_init_callback(app: tauri::State<'_, DBPal>) -> Result<(), ()> {
     log::info!("page init call clear all open connection.");
@@ -2914,15 +2889,6 @@ impl From<bson::oid::Error> for ErrorFrontend {
 }
 impl From<serde_json::Error> for ErrorFrontend {
     fn from(value: serde_json::Error) -> Self {
-        Self {
-            reason: format!("{}", value),
-            detail: format!("{:?}", value),
-        }
-    }
-}
-
-impl From<keyring::Error> for ErrorFrontend {
-    fn from(value: keyring::Error) -> Self {
         Self {
             reason: format!("{}", value),
             detail: format!("{:?}", value),

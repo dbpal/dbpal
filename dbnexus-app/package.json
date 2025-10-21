@@ -42,6 +42,7 @@
     "react-syntax-highlighter": "^15.6.6",
     "sql-formatter": "^15.6.10",
     "styled-components": "^6.1.19",
+    "tauri-plugin-keyring-api": "^0.1.1",
     "wildcard-match": "^5.1.4"
   },
   "devDependencies": {

@@ -52,6 +52,7 @@
     "autostart:allow-enable",
     "autostart:allow-disable",
     "autostart:allow-is-enabled",
-    "core:window:allow-show"
+    "core:window:allow-show",
+    "keyring:default"
   ]
 }

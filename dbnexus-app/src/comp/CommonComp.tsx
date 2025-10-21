@@ -75,7 +75,11 @@ import {
 
 import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
-import { ConnectHandler, PassWordManager } from './Common';
+import {
+  ConnectHandler,
+  connectionChangeEvent,
+  PassWordManager,
+} from './Common';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { editor, Position } from 'monaco-editor';
 import { FaAlignLeft } from 'react-icons/fa';
@@ -85,6 +89,7 @@ import { openPath } from '@tauri-apps/plugin-opener';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { FaMarkdown } from 'react-icons/fa';
+import { emit } from '@tauri-apps/api/event';
 
 function MenuExportMarkDownTable({ showExportMarkDown }) {
   return (
@@ -348,7 +353,7 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
       return;
     }
     if (inputPass) {
-      PassWordManager.saveTypedPassword(name, inputPass);
+      PassWordManager.savePassword(name, inputPass, false);
     }
     handleOpened();
   };
@@ -397,19 +402,12 @@ function MenuDeleteConfig({ name }) {
       return;
     }
     try {
-      await invoke('delete_password', { name });
-    } catch (e) {
-      console.log(
-        'delete password err:',
-        e,
-        "this should be fine maybe this connection don't have password"
-      );
-    }
-    try {
       await invoke('close_conn', { name });
       await FavoriteSql.deleteByConnectionName(name);
       await QueryLogHandler.deleteByConnectionName(name);
       await ConnectHandler.deleteConn(name);
+      await PassWordManager.deletePassword(name);
+      emit(connectionChangeEvent, '');
     } catch (e) {
       showNotification('error', 'drop connection failed', e);
     }

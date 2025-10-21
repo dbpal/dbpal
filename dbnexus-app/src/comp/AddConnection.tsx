@@ -39,6 +39,7 @@ import {
   ConnectHandler,
   connectionChangeEvent,
   extractBaseName,
+  PassWordManager,
 } from './Common';
 import { DataSourceKind, errToString } from './helper';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -844,11 +845,8 @@ const AddConnectionContext = createContext<{
 // add connection run in separete window
 let globalMakeConfig: MakeConfig = null;
 
-function TestConnAndSave(props: {
-  connectionNameDom;
-  handleClose: () => void;
-}) {
-  const { connectionNameDom, handleClose } = props;
+function TestConnAndSave(props: { connectionNameDom }) {
+  const { connectionNameDom } = props;
   const [testLoading, setTestLoading] = useState(false);
   const [testStatus, setTestStatus] = useState<string | true | null>(null);
   const { showNotification } = useContext(NotificationContext);
@@ -894,24 +892,9 @@ function TestConnAndSave(props: {
       connectionNameDom.current.focus();
       return;
     }
-    if (password && !savePassword) {
+    if (password) {
       try {
-        await invoke('save_entered_password', {
-          name: config.name,
-          pass: password,
-          conn: config,
-        });
-      } catch (e) {
-        showNotification('error', 'save entered password failed', e);
-        return;
-      }
-    }
-    if (password && savePassword) {
-      try {
-        await invoke('save_password', {
-          name: config.name,
-          pass: password,
-        });
+        PassWordManager.savePassword(config.name, password, savePassword);
       } catch (e) {
         showNotification('error', 'save password failed', e);
         return;
@@ -923,8 +906,8 @@ function TestConnAndSave(props: {
     ConnectHandler.save(config)
       .then((_) => {
         showNotification('success', 'Add Connection OK');
-        handleClose();
         emit(connectionChangeEvent, '');
+        // handleClose();
       })
       .catch((e) => {
         showNotification('error', 'Add Connection failure', e);
@@ -1443,10 +1426,7 @@ function AddConnection(props: {
         </Stack>
       </AddConnectionContext>
 
-      <TestConnAndSave
-        handleClose={handleClose}
-        connectionNameDom={connectionNameDom}
-      ></TestConnAndSave>
+      <TestConnAndSave connectionNameDom={connectionNameDom}></TestConnAndSave>
     </Stack>
   );
 }

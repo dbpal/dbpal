@@ -578,7 +578,7 @@ function SqlQuery(props: {
             spacing={1}
             sx={{
               alignItems: 'center',
-              overflow: 'scroll',
+              overflow: 'auto',
               paddingBottom: '0.7rem',
             }}
           >
