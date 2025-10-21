@@ -1263,12 +1263,6 @@ function AddConnection(props: {
   );
   const connectionNameDom = useRef<HTMLInputElement>(null);
   const [readOnly, setReadOnly] = useState(config?.read_only);
-  const theme = useTheme();
-  const tabCss: CSSProperties = {
-    padding: '1rem',
-
-    borderRadius: '0.7rem',
-  };
   return (
     <Stack spacing={1}>
       <FormControl fullWidth>
@@ -1369,13 +1363,14 @@ function AddConnection(props: {
         }}
       >
         <Stack
-          style={{
-            ...tabCss,
-            border: '2px solid  ' + theme.palette.success.main,
-          }}
+          // style={{
+          //   ...tabCss,
+          //   border: '2px solid  ' + theme.palette.success.main,
+          // }}
           spacing={1}
         >
           <Typography variant="h6"> server info </Typography>
+          <Divider></Divider>
           {(connectionType === DataSourceKind.Mysql ||
             connectionType === DataSourceKind.MariaDB ||
             connectionType === DataSourceKind.TiDB) && (

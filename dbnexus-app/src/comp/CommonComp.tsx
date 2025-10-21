@@ -587,7 +587,7 @@ function ModalHeader(props: { title: string; handleClose: () => void }) {
         {title}
       </Typography>
       <Tooltip title={'close this modal,esc can close this modal too'}>
-        <IconButton color="warning" onClick={handleClose}>
+        <IconButton color="secondary" onClick={handleClose}>
           <CloseIcon> </CloseIcon>
         </IconButton>
       </Tooltip>
@@ -684,7 +684,7 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
               )}
             </Stack>
 
-            <Divider style={{ borderWidth: '2px' }} />
+            <Divider />
             <pre
               style={{
                 overflow: 'auto',

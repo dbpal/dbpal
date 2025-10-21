@@ -293,14 +293,20 @@ pub async fn establish_conn(
     println!("open connection:{:?}", config);
     let secs = 10;
 
-    tokio::time::timeout(Duration::from_secs(secs), async move {
-        app.establish_conn(config.clone())
+    tokio::time::timeout(Duration::from_secs(secs), async {
+        app.establish_conn(&config)
             .await
             .map_err(ErrorFrontend::from)
             .map(|_| ())
     })
     .await
-    .map_err(|_| ErrorFrontend::from(format!("open connection not finished in {}s", secs)))?
+    .map_err(|_| {
+        ErrorFrontend::from(format!(
+            "'{}' open connection not finished in {}s",
+            config.get_name(),
+            secs
+        ))
+    })?
 }
 
 #[tauri::command]
@@ -2897,8 +2903,7 @@ impl From<serde_json::Error> for ErrorFrontend {
 }
 
 async fn random_sleep() {
-    #[cfg(feature = "random-sleep")]
-    {
+    if cfg!(feature = "random-sleep") {
         let duration = {
             use rand::Rng;
             let mut rng = rand::rng();
@@ -2911,21 +2916,22 @@ async fn random_sleep() {
 }
 
 fn random_error() -> Result<(), ErrorFrontend> {
-    #[cfg(not(feature = "random-error"))]
-    return Ok(());
-    #[cfg(feature = "random-error")]
-    {
-        use rand::Rng;
-        let mut rng = rand::rng();
-        let x: i8 = rng.random_range(1..100);
-        if x > 50 {
-            Err(ErrorFrontend {
-                reason: format!("random error of {}", x),
-                detail: "".to_string(),
-            })
-        } else {
-            Ok(())
+    if cfg!(feature = "random-error") {
+        {
+            use rand::Rng;
+            let mut rng = rand::rng();
+            let x: i8 = rng.random_range(1..100);
+            if x > 50 {
+                Err(ErrorFrontend {
+                    reason: format!("random error of {}", x),
+                    detail: "".to_string(),
+                })
+            } else {
+                Ok(())
+            }
         }
+    } else {
+        return Ok(());
     }
 }
 

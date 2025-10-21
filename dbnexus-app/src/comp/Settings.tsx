@@ -763,6 +763,16 @@ function makeComponents(fontWeight) {
         },
       },
     },
+    MuiDivider: {
+      styleOverrides: {
+        root: {
+          borderBottomWidth: '3px', // 横向
+        },
+        vertical: {
+          borderRightWidth: '3px', // 竖向
+        },
+      },
+    },
     //@ts-ignore
     MuiDataGrid: {
       styleOverrides: {

@@ -191,7 +191,7 @@ function QueryLog(props: {
         display: showQueryLog ? 'flex' : 'none',
         flexDirection: 'column',
         height: '400px',
-        maxHeight: '40vh',
+        maxHeight: '80vh',
       }}
       hidden={true}
       ref={setDom}
