@@ -1464,10 +1464,10 @@ impl MysqlDB {
             .username(&config.username);
         println!("ssl:{:?}", config.ssl);
 
-        match config.ssl.mode {
+        match config.ssl.ssl_mode {
             crate::datasource_config::MySqlSslMode::Disabled => {}
             _ => {
-                opts = opts.ssl_mode(config.ssl.mode.into());
+                opts = opts.ssl_mode(config.ssl.ssl_mode.into());
                 if let Some(ca) = config.ssl.ssl_files.ssl_ca.as_ref() {
                     opts = opts.ssl_ca(ca);
                 }

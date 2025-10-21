@@ -288,7 +288,7 @@ class QueryConn implements IQueryConn {
       DataSourceKind.TiDB,
       DataSourceKind.Postgres,
       DataSourceKind.Cockroach,
-      DataSourceKind.MsSql,
+      DataSourceKind.SqlServer,
     ].includes(this.kind);
   }
 

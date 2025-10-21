@@ -25,7 +25,7 @@ impl DBConnectionConfig {
             | DBConnectionConfig::MariaDB { name, .. }
             | DBConnectionConfig::Tidb { name, .. }
             | DBConnectionConfig::Postgres { name, .. }
-            | DBConnectionConfig::MsSql { name, .. }
+            | DBConnectionConfig::SqlServer { name, .. }
             | DBConnectionConfig::Mongo { name, .. }
             | DBConnectionConfig::Redis { name, .. }
             | DBConnectionConfig::Oracle { name, .. }
@@ -72,7 +72,7 @@ pub enum DBConnectionConfig {
         conn: PGDBConfig,
         name: String,
     },
-    MsSql {
+    SqlServer {
         #[serde(flatten)]
         conn: SqlServerDBConfig,
         name: String,
@@ -144,7 +144,7 @@ impl DBConnectionConfig {
             DBConnectionConfig::Postgres { conn, .. } => {
                 conn.password = Some(pass);
             }
-            DBConnectionConfig::MsSql { conn, .. } => {
+            DBConnectionConfig::SqlServer { conn, .. } => {
                 conn.password = Some(pass);
             }
             DBConnectionConfig::Mongo { conn, .. } => {
@@ -239,7 +239,7 @@ impl DBConnectionConfig {
                     Some(_) => anyhow::Ok(DatabaseBackend::Schema(o as Arc<dyn SchemaTrait>)),
                 }
             }
-            DBConnectionConfig::MsSql { conn, name: _ } => {
+            DBConnectionConfig::SqlServer { conn, name: _ } => {
                 let o = Arc::new(dbnexus_db::mssql::SqlServerDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
                     return anyhow::Ok(DatabaseBackend::Catalog(o as Arc<dyn CatalogTrait>));

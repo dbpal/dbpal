@@ -529,7 +529,7 @@ function ViewMenu(props: {
     switch (kind) {
       case DataSourceKind.MariaDB:
       case DataSourceKind.Mysql:
-      case DataSourceKind.MsSql:
+      case DataSourceKind.SqlServer:
       case DataSourceKind.Sqlite:
       case DataSourceKind.Postgres:
       case DataSourceKind.Oracle:

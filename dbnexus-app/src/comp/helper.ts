@@ -318,7 +318,7 @@ enum DataSourceKind {
   TiDB = "tidb",
   Sqlite = "sqlite",
   Postgres = "postgres",
-  MsSql = "mssql",
+  SqlServer = "sqlserver",
   Redis = "redis",
   Mongo = "mongo",
   Oracle = "oracle",

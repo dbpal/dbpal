@@ -428,7 +428,7 @@ function ConnConfigInfo(props: { uuid }) {
         case DataSourceKind.Oracle:
         case DataSourceKind.ClickHouse:
         case DataSourceKind.FireBird:
-        case DataSourceKind.MsSql:
+        case DataSourceKind.SqlServer:
           configMetas = [
             { name: 'host', value: config.host } as types.MetaValue,
             { name: 'port', value: config.port + '' } as types.MetaValue,
@@ -699,6 +699,22 @@ function AppMarkDown(props: {
   );
 }
 
+function UrlDocument(props: { url: string }) {
+  const { url } = props;
+  return (
+    <Tooltip title={url}>
+      <InfoIcon
+        href={url}
+        style={{ cursor: 'pointer' }}
+        onClick={(e) => {
+          e.preventDefault();
+          openUrl(url);
+        }}
+      ></InfoIcon>
+    </Tooltip>
+  );
+}
+
 export {
   CreateDatabase,
   CreateSchema,
@@ -708,4 +724,5 @@ export {
   ConnConfigInfo,
   LoadStoreFileForQuery,
   AppMarkDown,
+  UrlDocument,
 };

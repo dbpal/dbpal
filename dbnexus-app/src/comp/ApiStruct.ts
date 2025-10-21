@@ -14,36 +14,36 @@ export namespace types {
         "ssl_key": (string | null);
     };
     export type MySqlSslMode = (
-    /**
-     * Establish an unencrypted connection.
-     */
-"disabled" | 
-    /**
-     * Establish an encrypted connection if the server supports encrypted connections, falling
-     * back to an unencrypted connection if an encrypted connection cannot be established.
-     * 
-     * This is the default if `ssl_mode` is not specified.
-     */
-"preferred" | 
-    /**
-     * Establish an encrypted connection if the server supports encrypted connections.
-     * The connection attempt fails if an encrypted connection cannot be established.
-     */
-"required" | 
-    /**
-     * Like `Required`, but additionally verify the server Certificate Authority (CA)
-     * certificate against the configured CA certificates. The connection attempt fails
-     * if no valid matching CA certificates are found.
-     */
-"verifyca" | 
-    /**
-     * Like `VerifyCa`, but additionally perform host name identity verification by
-     * checking the host name the client uses for connecting to the server against the
-     * identity in the certificate that the server sends to the client.
-     */
-"verifyidentity");
+        /**
+         * Establish an unencrypted connection.
+         */
+        "disabled" |
+        /**
+         * Establish an encrypted connection if the server supports encrypted connections, falling
+         * back to an unencrypted connection if an encrypted connection cannot be established.
+         * 
+         * This is the default if `ssl_mode` is not specified.
+         */
+        "preferred" |
+        /**
+         * Establish an encrypted connection if the server supports encrypted connections.
+         * The connection attempt fails if an encrypted connection cannot be established.
+         */
+        "required" |
+        /**
+         * Like `Required`, but additionally verify the server Certificate Authority (CA)
+         * certificate against the configured CA certificates. The connection attempt fails
+         * if no valid matching CA certificates are found.
+         */
+        "verifyca" |
+        /**
+         * Like `VerifyCa`, but additionally perform host name identity verification by
+         * checking the host name the client uses for connecting to the server against the
+         * identity in the certificate that the server sends to the client.
+         */
+        "verifyidentity");
     export type MysqlSsl = (types.SSLFiles & {
-        "mode": types.MySqlSslMode;
+        "ssl_mode": types.MySqlSslMode;
     });
     export type U16 = number;
     export type MysqlDBConfig = (types.MysqlSsl & {
@@ -57,37 +57,37 @@ export namespace types {
         "conn_timeout": (types.U32 | null);
     });
     export type PgSslMode = (
-    /**
-     * Only try a non-SSL connection.
-     */
-"disable" | 
-    /**
-     * First try a non-SSL connection; if that fails, try an SSL connection.
-     */
-"allow" | 
-    /**
-     * First try an SSL connection; if that fails, try a non-SSL connection.
-     * 
-     * This is the default if no other mode is specified
-     */
-"prefer" | 
-    /**
-     * Only try an SSL connection. If a root CA file is present, verify the connection
-     * in the same way as if `VerifyCa` was specified.
-     */
-"require" | 
-    /**
-     * Only try an SSL connection, and verify that the server certificate is issued by a
-     * trusted certificate authority (CA).
-     */
-"verifyca" | 
-    /**
-     * Only try an SSL connection; verify that the server certificate is issued by a trusted
-     * CA and that the requested server host name matches that in the certificate.
-     */
-"verifyfull");
+        /**
+         * Only try a non-SSL connection.
+         */
+        "disable" |
+        /**
+         * First try a non-SSL connection; if that fails, try an SSL connection.
+         */
+        "allow" |
+        /**
+         * First try an SSL connection; if that fails, try a non-SSL connection.
+         * 
+         * This is the default if no other mode is specified
+         */
+        "prefer" |
+        /**
+         * Only try an SSL connection. If a root CA file is present, verify the connection
+         * in the same way as if `VerifyCa` was specified.
+         */
+        "require" |
+        /**
+         * Only try an SSL connection, and verify that the server certificate is issued by a
+         * trusted certificate authority (CA).
+         */
+        "verifyca" |
+        /**
+         * Only try an SSL connection; verify that the server certificate is issued by a trusted
+         * CA and that the requested server host name matches that in the certificate.
+         */
+        "verifyfull");
     export type PgSsl = (types.SSLFiles & {
-        "mode": types.PgSslMode;
+        "ssl_mode": types.PgSslMode;
     });
     export type PGDBConfig = (types.PgSsl & {
         "host": string;
@@ -203,6 +203,7 @@ export namespace types {
         "read_only": boolean;
         "db": (string | null);
         "schema": (string | null);
+        "conn_timeout": (types.U32 | null);
     };
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
@@ -229,7 +230,7 @@ export namespace types {
     } & (types.PGDBConfig & {
         "name": string;
     })) | ({
-        "conn_type": "mssql";
+        "conn_type": "sqlserver";
     } & (types.SqlServerDBConfig & {
         "name": string;
     })) | ({

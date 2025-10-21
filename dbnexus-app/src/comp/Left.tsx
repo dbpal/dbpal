@@ -149,6 +149,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
         url: 'add_connection.html',
         width: 800,
         height: 600,
+        maximizable: true,
       });
       webview.once('tauri://created', () =>
         console.log('create add connection view successfully')
@@ -944,7 +945,7 @@ function OneConfig_(props: { config: types.DBConnectionConfig }) {
         ) : (
           <DatabaseTree></DatabaseTree>
         );
-      case DataSourceKind.MsSql:
+      case DataSourceKind.SqlServer:
         if (!config.db) {
           return <CatalogTree />;
         }
@@ -984,7 +985,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     DataSourceKind.MariaDB,
     DataSourceKind.Mysql,
     DataSourceKind.Postgres,
-    DataSourceKind.MsSql,
+    DataSourceKind.SqlServer,
     DataSourceKind.Oracle,
     DataSourceKind.Cockroach,
   ]);
@@ -994,7 +995,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     DataSourceKind.MariaDB,
     DataSourceKind.Mysql,
     DataSourceKind.Postgres,
-    DataSourceKind.MsSql,
+    DataSourceKind.SqlServer,
     DataSourceKind.Oracle,
     DataSourceKind.Cassandra,
     DataSourceKind.Cockroach,
@@ -1130,7 +1131,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
           <ViewsTree viewKind={ViewKind.Materialized} />
         </>
       )}
-      {opened && kind == DataSourceKind.MsSql && (
+      {opened && kind == DataSourceKind.SqlServer && (
         <>
           <TablesTree typ={TableType.Normal} />
           <ViewsTree viewKind={ViewKind.Normal} />
@@ -1282,7 +1283,7 @@ function DatabaseMenu(props: {
                 switch (kind) {
                   case DataSourceKind.Postgres:
                   case DataSourceKind.Cockroach:
-                  case DataSourceKind.MsSql:
+                  case DataSourceKind.SqlServer:
                     name = 'schema';
                     break;
                 }
@@ -1398,7 +1399,7 @@ function AllKindQuery(props: {
   let content: ReactNode;
   const { showNotification } = useContext(NotificationContext);
   switch (kind) {
-    case DataSourceKind.MsSql:
+    case DataSourceKind.SqlServer:
     case DataSourceKind.Sqlite:
     case DataSourceKind.Mysql:
     case DataSourceKind.MariaDB:

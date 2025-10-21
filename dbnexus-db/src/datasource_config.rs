@@ -36,7 +36,7 @@ pub struct MysqlDBConfig {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef, Default)]
 pub struct MysqlSsl {
-    pub mode: MySqlSslMode,
+    pub ssl_mode: MySqlSslMode,
     #[serde(flatten)]
     pub ssl_files: SSLFiles,
 }
@@ -113,6 +113,7 @@ pub struct DuckDBConfig {
     pub read_only: bool,
     pub db: Option<String>,
     pub schema: Option<String>,
+    pub conn_timeout: Option<u32>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
@@ -262,7 +263,7 @@ pub struct PGDBConfig {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef, Default)]
 pub struct PgSsl {
-    pub mode: PgSslMode,
+    pub ssl_mode: PgSslMode,
     #[serde(flatten)]
     pub ssl_files: SSLFiles,
 }
@@ -348,12 +349,11 @@ impl CassandraDBConfig {
 }
 
 // this struct copied from sqlx postgres
-#[derive(Clone, Copy, Debug, Default, serde::Deserialize, serde::Serialize, TypeDef)]
+#[derive(Clone, Copy, Default, Debug, serde::Deserialize, serde::Serialize, TypeDef)]
 #[serde(rename_all = "lowercase")]
 pub enum PgSslMode {
     /// Only try a non-SSL connection.
     ///
-    #[default]
     Disable,
 
     /// First try a non-SSL connection; if that fails, try an SSL connection.
@@ -362,6 +362,7 @@ pub enum PgSslMode {
     /// First try an SSL connection; if that fails, try a non-SSL connection.
     ///
     /// This is the default if no other mode is specified
+    #[default]
     Prefer,
 
     /// Only try an SSL connection. If a root CA file is present, verify the connection
@@ -393,7 +394,6 @@ impl From<PgSslMode> for sqlx::postgres::PgSslMode {
 #[derive(Debug, Clone, Copy, Default, serde::Serialize, serde ::Deserialize, TypeDef)]
 #[serde(rename_all = "lowercase")]
 pub enum MySqlSslMode {
-    #[default]
     /// Establish an unencrypted connection.
     Disabled,
 
@@ -401,6 +401,7 @@ pub enum MySqlSslMode {
     /// back to an unencrypted connection if an encrypted connection cannot be established.
     ///
     /// This is the default if `ssl_mode` is not specified.
+    #[default]
     Preferred,
 
     /// Establish an encrypted connection if the server supports encrypted connections.

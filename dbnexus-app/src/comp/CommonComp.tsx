@@ -286,7 +286,7 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
   const { handleCreate, kind } = props;
   let name;
   switch (kind) {
-    case DataSourceKind.MsSql:
+    case DataSourceKind.SqlServer:
     case DataSourceKind.Postgres:
     case DataSourceKind.DuckDB:
     case DataSourceKind.Cockroach:

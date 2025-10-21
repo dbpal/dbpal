@@ -1672,20 +1672,15 @@ impl PostGresDB {
             opts = opts.database(db);
         }
         println!("ssl:{:?}", config.ssl);
-        match config.ssl.mode {
-            crate::datasource_config::PgSslMode::Disable => {}
-            _ => {
-                opts = opts.ssl_mode(config.ssl.mode.into());
-                if let Some(ca) = config.ssl.ssl_files.ssl_ca.as_ref() {
-                    opts = opts.ssl_root_cert(ca);
-                }
-                if let Some(cert) = config.ssl.ssl_files.ssl_cert.as_ref() {
-                    opts = opts.ssl_client_cert(cert);
-                }
-                if let Some(key) = config.ssl.ssl_files.ssl_key.as_ref() {
-                    opts = opts.ssl_client_key(key);
-                }
-            }
+        opts = opts.ssl_mode(config.ssl.ssl_mode.into());
+        if let Some(ca) = config.ssl.ssl_files.ssl_ca.as_ref() {
+            opts = opts.ssl_root_cert(ca);
+        }
+        if let Some(cert) = config.ssl.ssl_files.ssl_cert.as_ref() {
+            opts = opts.ssl_client_cert(cert);
+        }
+        if let Some(key) = config.ssl.ssl_files.ssl_key.as_ref() {
+            opts = opts.ssl_client_key(key);
         }
         let mut pool_opts = PoolOptions::new();
         if let Some(x) = config.conn_timeout {

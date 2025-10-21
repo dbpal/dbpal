@@ -83,7 +83,7 @@ function ColumnsStructure(props: {
   const [row, setRow] = useState<types.Field>(null);
   const supportModifyColumn = new Set([
     DataSourceKind.MariaDB,
-    DataSourceKind.MsSql,
+    DataSourceKind.SqlServer,
     DataSourceKind.Mysql,
     DataSourceKind.Postgres,
     DataSourceKind.Cockroach,
@@ -1726,7 +1726,7 @@ function TableStructure(props: {
     DataSourceKind.MariaDB,
     DataSourceKind.TiDB,
     DataSourceKind.Mysql,
-    DataSourceKind.MsSql,
+    DataSourceKind.SqlServer,
     DataSourceKind.LibSql,
     DataSourceKind.Sqlite,
     DataSourceKind.Oracle,
@@ -1748,7 +1748,7 @@ function TableStructure(props: {
     DataSourceKind.Sqlite,
     DataSourceKind.LibSql,
     DataSourceKind.Oracle,
-    DataSourceKind.MsSql,
+    DataSourceKind.SqlServer,
     DataSourceKind.Postgres,
   ].includes(kind);
   if (supportTrigger) {

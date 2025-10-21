@@ -491,7 +491,7 @@ function SqlQuery(props: {
     DataSourceKind.TiDB,
     DataSourceKind.Mysql,
     DataSourceKind.Oracle,
-    DataSourceKind.MsSql,
+    DataSourceKind.SqlServer,
     DataSourceKind.Postgres,
     DataSourceKind.ClickHouse,
     DataSourceKind.FireBird,
