@@ -1259,7 +1259,7 @@ function AddConnection(props: {
   );
   const [connectionName, setConnectionName] = useState(config?.name);
   const [connTimeout, setConnTimeout] = useState<string>(
-    config ? config.conn_timeout.toString() : ''
+    config && config.conn_timeout ? config.conn_timeout.toString() : ''
   );
   const connectionNameDom = useRef<HTMLInputElement>(null);
   const [readOnly, setReadOnly] = useState(config?.read_only);

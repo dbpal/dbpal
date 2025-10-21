@@ -44,6 +44,7 @@ import {
   modalHandleClose,
   ConnectHandler,
   connectionChangeEvent,
+  PassWordManager,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -411,10 +412,12 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   }
 
   const useRow = async (conn) => {
-    const password = await invoke<string>('get_password', { name: conn.name });
-    const x = { ...conn };
-    x['password'] = password;
-    setCopyConn(x);
+    const password = await PassWordManager.getPassword(conn.name);
+    const cop = { ...conn };
+    if (password) {
+      cop['password'] = password;
+    }
+    setCopyConn(cop);
     handleClose();
   };
   const slotProps = useMemo(() => {
