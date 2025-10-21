@@ -1,12 +1,5 @@
 'use strict';
-import {
-  createContext,
-  CSSProperties,
-  RefObject,
-  useContext,
-  useRef,
-  useState,
-} from 'react';
+import { createContext, RefObject, useContext, useRef, useState } from 'react';
 import ClearIcon from '@mui/icons-material/Clear';
 import {
   TextField,
@@ -27,7 +20,6 @@ import {
   Tooltip,
   InputAdornment,
   IconButton,
-  useTheme,
 } from '@mui/material';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -504,12 +496,10 @@ function Mysql(props: { config?: types.MysqlDBConfig; kind: DataSourceKind }) {
   if (kind == DataSourceKind.TiDB) {
     defaultPort = 4000;
   }
-  const [host, setHost] = useState(config?.host ? config.host : '');
+  const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || defaultPort) + '');
-  const [user, setUser] = useState(config?.username);
-  const [password, setPassword] = useState(
-    config?.password ? config.password : ''
-  );
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
   const [database, setDatabase] = useState(config?.db);
   const [ssl, setSsl] = useState<types.MysqlSsl>({
     ssl_mode: config?.ssl_mode || 'preferred',
@@ -517,9 +507,7 @@ function Mysql(props: { config?: types.MysqlDBConfig; kind: DataSourceKind }) {
     ssl_cert: config?.ssl_cert,
     ssl_key: config?.ssl_key,
   });
-  const [savePassword, setSavePassword] = useState(
-    config ? config.save_password : true
-  );
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
 
   function makeConfig(): types.DBConnectionConfig {
     let x: types.MysqlDBConfig = {
@@ -580,16 +568,12 @@ function Mysql(props: { config?: types.MysqlDBConfig; kind: DataSourceKind }) {
 
 function Oracle(props: { config?: types.OracleDBConfig }) {
   const { config } = props;
-  const [host, setHost] = useState(config?.host ? config.host : '');
+  const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 1521) + '');
-  const [user, setUser] = useState(config?.username ? config.username : '');
-  const [password, setPassword] = useState(
-    config?.password ? config.password : ''
-  );
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
   const [database, setDatabase] = useState(config?.db);
-  const [savePassword, setSavePassword] = useState(
-    config ? config.save_password : true
-  );
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const [schema, setSchema] = useState(config?.schema);
   const { connTimeOut, connectionName, readOnly } =
     useContext(AddConnectionContext);
@@ -658,16 +642,12 @@ function Oracle(props: { config?: types.OracleDBConfig }) {
 
 function ClickHouse(props: { config?: types.ClickHouseConfig }) {
   const { config } = props;
-  const [host, setHost] = useState(config?.host ? config.host : '');
+  const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 3306) + '');
-  const [user, setUser] = useState(config?.username ? config.username : '');
-  const [password, setPassword] = useState(
-    config?.password ? config.password : ''
-  );
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
   const [database, setDatabase] = useState(config?.db);
-  const [savePassword, setSavePassword] = useState(
-    config ? config.save_password : true
-  );
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const [https, setHttps] = useState(config?.https);
   const { connTimeOut, connectionName, readOnly } =
     useContext(AddConnectionContext);
@@ -717,13 +697,11 @@ function ClickHouse(props: { config?: types.ClickHouseConfig }) {
 
 function PostGres(props: { config?: types.PGDBConfig; kind: DataSourceKind }) {
   const { config, kind } = props;
-  const [host, setHost] = useState(config?.host ? config.host : '');
+  const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState<string>((config?.port || 5432) + '');
 
-  const [user, setUser] = useState(config?.username ? config.username : '');
-  const [password, setPassword] = useState(
-    config?.password ? config.password : ''
-  );
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
   const [database, setDatabase] = useState(config?.db);
   const [ssl, setSSl] = useState<types.PgSsl>({
     ssl_mode: config?.ssl_mode || 'prefer',
@@ -734,9 +712,7 @@ function PostGres(props: { config?: types.PGDBConfig; kind: DataSourceKind }) {
   const [schema, setSchema] = useState(config?.schema);
   const { connTimeOut, connectionName, readOnly } =
     useContext(AddConnectionContext);
-  const [savePassword, setSavePassword] = useState(
-    config ? config.save_password : true
-  );
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
 
   function makeConfig(): types.DBConnectionConfig {
     let x: types.PGDBConfig = {
@@ -944,17 +920,27 @@ function TestConnAndSave(props: { connectionNameDom }) {
   );
 }
 
+function getHost(config?: { host: string }) {
+  return config?.host ? config.host : '';
+}
+
+function getUser(config?: { username: string }) {
+  return config?.username ? config.username : '';
+}
+function getPassword(config?: { password: string }) {
+  return config?.password ? config.password : '';
+}
+function getSavePassword(config?: { save_password: boolean }) {
+  return config ? config.save_password : true;
+}
+
 function FireBird(props: { config?: types.FireBirdConfig }) {
   const { config } = props;
-  const [host, setHost] = useState(config?.host ? config.host : '');
+  const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 3050) + '');
-  const [user, setUser] = useState(config?.username ? config.username : '');
-  const [password, setPassword] = useState(
-    config?.password ? config.password : ''
-  );
-  const [savePassword, setSavePassword] = useState(
-    config ? config.save_password : true
-  );
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const { connTimeOut, connectionName, readOnly } =
     useContext(AddConnectionContext);
   const [database, setDatabase] = useState('');
@@ -1003,15 +989,11 @@ function FireBird(props: { config?: types.FireBirdConfig }) {
 
 function Redis(props: { config?: types.RedisDBConfig }) {
   const { config } = props;
-  const [host, setHost] = useState(config?.host ? config.host : '');
+  const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 6379) + '');
-  const [user, setUser] = useState(config?.username ? config.username : '');
-  const [password, setPassword] = useState(
-    config?.password ? config.password : '' + ''
-  );
-  const [savePassword, setSavePassword] = useState(
-    config ? config.save_password : true
-  );
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config) + '');
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const [database, setDatabase] = useState('');
   const { connectionName, connTimeOut, readOnly } =
     useContext(AddConnectionContext);
@@ -1071,15 +1053,11 @@ function Redis(props: { config?: types.RedisDBConfig }) {
 
 function MongoDb(props: { config?: types.MongoDBConfig }) {
   const { config } = props;
-  const [host, setHost] = useState(config?.host ? config.host : '');
+  const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 27017) + '');
-  const [user, setUser] = useState(config?.username ? config.username : '');
-  const [password, setPassword] = useState(
-    config?.password ? config.password : ''
-  );
-  const [savePassword, setSavePassword] = useState(
-    config ? config.save_password : true
-  );
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const [database, setDatabase] = useState('');
 
   const { connTimeOut, connectionName, readOnly } =
@@ -1125,15 +1103,11 @@ function MongoDb(props: { config?: types.MongoDBConfig }) {
 
 function Cassandra(props: { config?: types.CassandraDBConfig }) {
   const { config } = props;
-  const [host, setHost] = useState(config?.host ? config.host : '');
+  const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 9042) + '');
-  const [user, setUser] = useState(config?.username ? config.username : '');
-  const [password, setPassword] = useState(
-    config?.password ? config.password : ''
-  );
-  const [savePassword, setSavePassword] = useState(
-    config ? config.save_password : true
-  );
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const [database, setDatabase] = useState('');
   const { connTimeOut, connectionName, readOnly } =
     useContext(AddConnectionContext);
@@ -1182,15 +1156,11 @@ function Cassandra(props: { config?: types.CassandraDBConfig }) {
 
 function SqlServer(props: { config?: types.SqlServerDBConfig }) {
   const { config } = props;
-  const [host, setHost] = useState(config?.host ? config.host : '');
+  const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 1433) + '');
-  const [user, setUser] = useState(config?.username ? config.username : '');
-  const [password, setPassword] = useState(
-    config?.password ? config.password : ''
-  );
-  const [savePassword, setSavePassword] = useState(
-    config ? config.save_password : true
-  );
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
 
   const [database, setDatabase] = useState('');
   const [sqlserverCert, setSqlServerCert] = useState<SqlServerCertData>({
