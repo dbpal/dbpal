@@ -51,8 +51,6 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { IoTimerOutline } from 'react-icons/io5';
 import {
-  appStore,
-  AppStoreKey,
   ColumnWidth,
   ContextMenuContext,
   dataGridParentStyle,
@@ -77,7 +75,7 @@ import {
 
 import { TbDatabasePlus } from 'react-icons/tb';
 import LinkIcon from '@mui/icons-material/Link';
-import { getNamedConfig } from './Common';
+import { ConnectHandler, PassWordManager } from './Common';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { editor, Position } from 'monaco-editor';
 import { FaAlignLeft } from 'react-icons/fa';
@@ -318,36 +316,39 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
 
   const handleOpenXXX = async () => {
     // try promote use to enter a password.
-    const config = await getNamedConfig(name);
+    const config = await ConnectHandler.getByName(name);
     if (!config) {
       return;
     }
-    const has = await invoke('has_entered_password', { name: name });
-    if (!has) {
-      const key = 'save_password';
-      if (false === config[key]) {
-        const pass = window.prompt(`enter password for '${name}'`);
+    const key = 'save_password';
+    let inputPass = '';
+    if (false === config[key]) {
+      const pass = PassWordManager.getPassword(name);
+      if (!pass) {
+        inputPass = window.prompt(`enter password for '${name}'`);
         // macos will return null directly
-        if (pass == null) {
+        if (inputPass == null) {
           return;
         }
-        try {
-          await invoke('save_entered_password', {
-            name: name,
-            conn: config,
-            pass: pass,
-          });
-        } catch (e) {
-          showNotification('error', 'password not correct???', e);
-          return;
-        }
+        config['password'] = inputPass;
+      } else {
+        config['password'] = pass;
+      }
+    } else {
+      // get password from keyring
+      const pass = await PassWordManager.getPassword(name);
+      if (pass) {
+        config['password'] = pass;
       }
     }
     try {
-      await invoke('establish_conn', { name });
+      await invoke('establish_conn', { config });
     } catch (e) {
       showNotification('error', 'establish connection failed', e);
       return;
+    }
+    if (inputPass) {
+      PassWordManager.saveTypedPassword(name, inputPass);
     }
     handleOpened();
   };
@@ -405,14 +406,10 @@ function MenuDeleteConfig({ name }) {
       );
     }
     try {
-      const old = await appStore.get<types.DBConnectionConfig[]>(
-        AppStoreKey.ConnectionConfig
-      );
-      const newData = old.filter((e) => e.name != name);
       await invoke('close_conn', { name });
       await FavoriteSql.deleteByConnectionName(name);
-      await QueryLogHandler.deleteByConnectionname(name);
-      await appStore.set(AppStoreKey.ConnectionConfig, newData);
+      await QueryLogHandler.deleteByConnectionName(name);
+      await ConnectHandler.deleteConn(name);
     } catch (e) {
       showNotification('error', 'drop connection failed', e);
     }

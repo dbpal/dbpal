@@ -35,12 +35,16 @@ import { NotificationContext } from './Notification';
 import { types } from './ApiStruct';
 import { message, open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
-import { AppStoreKey, extractBaseName } from './Common';
-import { appStore, DataSourceKind, errToString } from './helper';
+import {
+  ConnectHandler,
+  connectionChangeEvent,
+  extractBaseName,
+} from './Common';
+import { DataSourceKind, errToString } from './helper';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { platform } from '@tauri-apps/plugin-os';
 import { UrlDocument } from './CommonComp2';
-
+import { emit } from '@tauri-apps/api/event';
 async function selectOneFile() {
   const selected = await open({
     multiple: false,
@@ -885,19 +889,8 @@ function TestConnAndSave(props: {
     }
     const password = config['password'];
     const savePassword = config['save_password'];
-    let connections = await appStore.get<types.DBConnectionConfig[]>(
-      AppStoreKey.ConnectionConfig
-    );
-    if (!connections) {
-      connections = [];
-    }
     if (config.name.includes('/')) {
       showNotification('error', `connection name can't  contains '/'`);
-      connectionNameDom.current.focus();
-      return;
-    }
-    if (connections.find((e) => e.name == config.name)) {
-      showNotification('error', 'name already been taken');
       connectionNameDom.current.focus();
       return;
     }
@@ -927,12 +920,11 @@ function TestConnAndSave(props: {
     if (password) {
       config['password'] = '';
     }
-    connections = [config, ...connections];
-    appStore
-      .set(AppStoreKey.ConnectionConfig, connections)
+    ConnectHandler.save(config)
       .then((_) => {
         showNotification('success', 'Add Connection OK');
         handleClose();
+        emit(connectionChangeEvent, '');
       })
       .catch((e) => {
         showNotification('error', 'Add Connection failure', e);

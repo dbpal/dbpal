@@ -45,7 +45,7 @@ import {
 import { Editor, Monaco } from '@monaco-editor/react';
 import { editor, Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
-import { extractBaseName, getNamedConfig, reloadOK } from './Common';
+import { ConnectHandler, extractBaseName, reloadOK } from './Common';
 import types from './ApiStruct';
 import { MetaValueView } from './CommonComp';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
@@ -414,7 +414,7 @@ function ConnConfigInfo(props: { uuid }) {
       const metas = await invoke<types.MetaValue[]>('server_metas', {
         name: uuid,
       });
-      const config = await getNamedConfig(uuid);
+      const config = await ConnectHandler.getByName(uuid);
       let configMetas = [];
       switch (config.conn_type) {
         case DataSourceKind.Mysql:

@@ -9,9 +9,8 @@ import { TabContent } from './Tabs';
 import { invoke } from '@tauri-apps/api/core';
 import { message } from '@tauri-apps/plugin-dialog';
 
-
 import {
-  appStore,
+  appDatabase,
   AppStoreKey,
   backendCompletionItemToEditor,
   DataSourceKind,
@@ -41,17 +40,42 @@ const modalStyle: SxProps = {
   animation: 'modalAnimation 0.6s ease-out',
 };
 
-const getNamedConfig = async (
-  name: string
-): Promise<types.DBConnectionConfig> => {
-  const x = await appStore.get<types.DBConnectionConfig[]>(
-    AppStoreKey.ConnectionConfig
-  );
-  if (!x) {
-    return undefined;
+
+class Connection {
+  id: number;
+  name: string;
+  config: string;
+
+}
+
+class ConnectHandler {
+
+  static async getByName(name: string): Promise<types.DBConnectionConfig> {
+    try {
+      let x = await appDatabase.select<Connection[]>("select * from connection where name=?", [name]);
+      if (x.length != 1) {
+        message("database should return one result", { kind: "error" });
+        return null;
+      }
+      let c = JSON.parse(x[0].config);
+      return c as types.DBConnectionConfig;
+    } catch (e) {
+      message(`get connection failed`, { kind: "error" });
+      console.log("get connection failed,err:", e);
+    }
+    return null
   }
-  return x.find((x) => x.name == name);
-};
+  static async deleteConn(name: string) {
+    return appDatabase.execute("delete from connection where name = ?", [name]);
+  }
+  static async getAll(): Promise<types.DBConnectionConfig[]> {
+    let c = await appDatabase.select<Connection[]>("select * from connection order by id desc");
+    return c.map((x) => JSON.parse(x.config));
+  }
+  static async save(config: types.DBConnectionConfig) {
+    return appDatabase.execute("insert into connection(name,config) values(?,?)", [config.name, JSON.stringify(config)]);
+  }
+}
 
 async function dropDatabase(props: {
   uuid: string;
@@ -528,11 +552,40 @@ function makeTableInsertFn(uuid, table) {
 
 type FieldAndGridField = types.Field & GridColDef;
 
+class PassWordManager {
+  static password = new Map<string, string>();
+  static saveTypedPassword(name: string, pass: string) {
+    PassWordManager.password.set(name, pass);
+  }
+
+  static async getPassword(name: string) {
+    if (PassWordManager.password.has(name)) {
+      return PassWordManager.password.get(name);
+    }
+    try {
+      return invoke('get_password', { name });
+    } catch (e) {
+      console.log("get password failed,this is fine maybe this connection don't have password ");
+    }
+    return null
+  }
+
+
+
+  static delete_keyring_password(name: string) {
+    invoke('delete_password', { name }).catch(e => {
+      console.log(`delete password failed,this is fine maybe this connection don't have password`, e);
+    })
+  }
+}
+
+const connectionChangeEvent = "connection-has-changged";
+
 export {
   modalStyle,
   tabsHasId,
   OpenedContext,
-  getNamedConfig,
+  ConnectHandler,
   dropDatabase,
   dropSchema,
   reloadOK,
@@ -554,6 +607,8 @@ export {
   makePutValueInSql,
   makeShowTableColumn,
   makeTableInsertFn,
+  PassWordManager,
+  connectionChangeEvent
 };
 
 export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent, FieldAndGridField };

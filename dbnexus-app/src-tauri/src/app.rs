@@ -120,57 +120,6 @@ pub enum DBConnectionConfig {
 }
 
 impl DBConnectionConfig {
-    pub fn need_password(&mut self) -> bool {
-        match self {
-            DBConnectionConfig::Sqlite { .. } => false,
-            DBConnectionConfig::DuckDB { .. } => false,
-            DBConnectionConfig::LibSql { .. } => false,
-            _ => true,
-        }
-    }
-
-    pub fn set_password(&mut self, pass: String) {
-        match self {
-            DBConnectionConfig::Sqlite { .. } => {}
-            DBConnectionConfig::Mysql { conn, .. } => {
-                conn.password = Some(pass);
-            }
-            DBConnectionConfig::MariaDB { conn, .. } => {
-                conn.password = Some(pass);
-            }
-            DBConnectionConfig::Tidb { conn, .. } => {
-                conn.password = Some(pass);
-            }
-            DBConnectionConfig::Postgres { conn, .. } => {
-                conn.password = Some(pass);
-            }
-            DBConnectionConfig::SqlServer { conn, .. } => {
-                conn.password = Some(pass);
-            }
-            DBConnectionConfig::Mongo { conn, .. } => {
-                conn.password = Some(pass);
-            }
-            DBConnectionConfig::Redis { conn, .. } => {
-                conn.password = Some(pass);
-            }
-            DBConnectionConfig::Oracle { conn, .. } => {
-                conn.password = pass;
-            }
-            DBConnectionConfig::FireBird { conn, .. } => {
-                conn.password = pass;
-            }
-            DBConnectionConfig::Cassandra { conn, .. } => conn.password = Some(pass),
-            DBConnectionConfig::DuckDB { .. } => {}
-            DBConnectionConfig::ClickHouse { conn, .. } => conn.password = Some(pass),
-            DBConnectionConfig::LibSql { .. } => {}
-            DBConnectionConfig::CockRoach { conn, .. } => {
-                conn.password = Some(pass);
-            }
-        }
-    }
-}
-
-impl DBConnectionConfig {
     pub async fn open(&self) -> anyhow::Result<DatabaseBackend> {
         match self {
             DBConnectionConfig::Sqlite { conn, name: _ } => {
@@ -369,7 +318,6 @@ impl From<Arc<dyn dbnexus_db::db::SchemaTrait>> for DatabaseBackend {
 pub struct DBPal {
     /// all the databases
     pub backend: Arc<Mutex<HashMap<String, DatabaseBackend>>>,
-    pub saved_password: Arc<DashMap<String, String>>,
     pub backend_crash_msg: BackendCrashMsg,
     pub query_cache: QueryCache,
 }
@@ -435,7 +383,6 @@ impl DBPal {
         Default::default()
     }
 }
-type GetConfigFN = Box<dyn Fn(&str) -> anyhow::Result<DBConnectionConfig>>;
 
 pub(crate) fn name_to_parts(name: &str) -> Vec<&str> {
     name.split("/").collect()
@@ -449,12 +396,6 @@ fn name_starts(name: &str, prefix: &str) -> bool {
 }
 
 impl DBPal {
-    pub unsafe fn get_config_ref() -> &'static mut Option<GetConfigFN> {
-        static mut GET_CONFIG_FN: Option<GetConfigFN> = None;
-        #[allow(static_mut_refs)] // this var will init once by main
-        &mut GET_CONFIG_FN
-    }
-
     #[allow(unused)]
     pub async fn print_keys(&self) {
         for k in self.backend.lock().await.keys() {
@@ -482,17 +423,16 @@ impl DBPal {
         }
     }
 
-    pub async fn establish_conn(&self, name: &str) -> anyhow::Result<DatabaseBackend> {
-        let config = unsafe { Self::get_config_ref().as_ref().map(|x| x(name)) }.unwrap()?;
-        #[cfg(debug_assertions)]
-        println!("open config:{:?}", config);
+    pub async fn establish_conn(
+        &self, config: DBConnectionConfig,
+    ) -> anyhow::Result<DatabaseBackend> {
         let db = config.open().await?;
         // make sure connection is ok
         db.check_conn().await?;
         self.backend
             .lock()
             .await
-            .insert(name.to_string(), db.clone());
+            .insert(config.get_name().to_owned(), db.clone());
         return anyhow::Ok(db);
     }
 

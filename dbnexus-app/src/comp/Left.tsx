@@ -35,7 +35,6 @@ import {
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { GrConnect } from 'react-icons/gr';
 import {
-  AppStoreKey,
   OpenedContext,
   modalStyle,
   dropDatabase,
@@ -43,6 +42,8 @@ import {
   QueryConn,
   EscDownEvent,
   modalHandleClose,
+  ConnectHandler,
+  connectionChangeEvent,
 } from './Common';
 import { LuDatabase } from 'react-icons/lu';
 import { FaDatabase } from 'react-icons/fa';
@@ -60,7 +61,6 @@ import { TabContent } from './Tabs';
 import wcmatch from 'wildcard-match';
 
 import {
-  appStore,
   ColumnWidth,
   ConnTypeContext,
   connTypeToDataSourceKind,
@@ -481,9 +481,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
 
   const handleReload = async () => {
     try {
-      const conns = await appStore.get<types.DBConnectionConfig[]>(
-        AppStoreKey.ConnectionConfig
-      );
+      const conns = await ConnectHandler.getAll();
       setConns(conns);
     } catch (e) {
       showNotification('error', 'get connections failed', e);
@@ -543,8 +541,7 @@ function Left_() {
   }, [matchPattern]);
 
   const handleReload = async () => {
-    appStore
-      .get<types.DBConnectionConfig[]>(AppStoreKey.ConnectionConfig)
+    ConnectHandler.getAll()
       .then((e) => {
         if (!e) {
           e = [];
@@ -559,9 +556,17 @@ function Left_() {
     handleReload();
   }, []);
 
-  appStore.onKeyChange(AppStoreKey.ConnectionConfig, () => {
-    handleReload();
-  });
+  useEffect(() => {
+    const unlisten = listen(connectionChangeEvent, () => {
+      handleReload();
+    });
+    return () => {
+      unlisten.then((e) => {
+        e();
+      });
+    };
+  }, []);
+
   const matchFN = useCallback(
     (x: string) => {
       if (matchPattern.length == 0) {

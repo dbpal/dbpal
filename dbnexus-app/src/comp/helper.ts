@@ -20,55 +20,6 @@ const appStore = await load('store.json');
 
 const appDatabase = await Database.load('sqlite:dbpal.sqlite.db');
 
-function setUpDatabase() {
-  const sqls = [`
-  CREATE TABLE if not EXISTS query_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    uuid TEXT NOT NULL, -- uuid like mysql/xxx
-    name text not null,  -- name like mysql
-    sql text NOT NULL,
-    create_at DATETIME NOT NULL DEFAULT current_timestamp,
-    success integer NOT NULL
-  );` ,
-    `CREATE INDEX if not EXISTS index_query_log_uuid ON query_log (uuid);`,
-    `
-  CREATE TABLE if not EXISTS element_size ( 
-    name TEXT PRIMARY KEY not NULL,
-    width INTEGER NULL,
-    height INTEGER NULL
-  )
-    `  , `
-  CREATE TABLE if not EXISTS column_width ( 
-    name TEXT PRIMARY KEY not NULL,
-    width INTEGER NOT NULL
-  )
-    `  , `
-  CREATE table if NOT EXISTS favorite_sql (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    uuid TEXT not NULL,
-    kind text not NULL,
-    sql text not NULL,
-    name text not NULL,
-    connection_name text not NULL,
-    last_modified datetime not NULL DEFAULT current_timestamp
-  )
-    ` , `
-      CREATE INDEX if not EXISTS index_favorite_sql_uuid ON favorite_sql (uuid);
-    `  ,
-    `
-      CREATE UNIQUE INDEX if not EXISTS index_favorite_sql_uuid_name ON favorite_sql (uuid,name);
-    `];
-  sqls.forEach(async (sql) => {
-    try {
-      await (appDatabase).execute(sql)
-    } catch (e) {
-      console.log("apply sql failed,this maybe a error", e)
-    }
-  })
-}
-
-
-
 function rustResultOk(x: any): boolean {
   if (x instanceof Array) {
     for (const e of x) {
@@ -108,7 +59,7 @@ class QueryLogHandler {
   async delete(): Promise<QueryResult> {
     return (appDatabase).execute("delete from query_log where uuid=?", [this.uuid]);
   }
-  static async deleteByConnectionname(name): Promise<QueryResult> {
+  static async deleteByConnectionName(name): Promise<QueryResult> {
     return (appDatabase).execute("delete from query_log where name=?", [name]);
   }
 }
@@ -360,7 +311,6 @@ function isTypeLargeText(s: string): boolean {
 
 
 enum AppStoreKey {
-  ConnectionConfig = 'connection-config',
   LoggerLevel = "logger-level",
 }
 
@@ -1272,7 +1222,6 @@ export {
   isMacOs,
   LoggerLevel,
   SaveLoggerStreamPinToBotton,
-  setUpDatabase,
   ViewKind,
   registeredThemes,
   getLanguageFromDataSourceKind,
@@ -1285,7 +1234,8 @@ export {
   dataGridheaderFontSize,
   TableType,
   appTheme,
-  isDarkTheme
+  isDarkTheme,
+  appDatabase
 };
 
 

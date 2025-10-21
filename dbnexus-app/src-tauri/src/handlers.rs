@@ -149,35 +149,12 @@ pub fn log_channel(on_event: Channel<String>) {
 }
 
 #[tauri::command]
-pub fn has_entered_password(
-    app: tauri::State<'_, DBPal>, name: String,
-) -> Result<bool, ErrorFrontend> {
-    let has = app.saved_password.get(&name).is_some();
-    Ok(has)
-}
-
-#[tauri::command]
 pub async fn all_font_family() -> Result<Vec<String>, ErrorFrontend> {
     let source = font_kit::source::SystemSource::new();
     let fonts = source.all_families().map_err(ErrorFrontend::from)?;
     Ok(fonts)
 }
 
-#[tauri::command]
-pub async fn save_entered_password(
-    app: tauri::State<'_, DBPal>, mut conn: DBConnectionConfig, name: String, pass: String,
-) -> Result<(), ErrorFrontend> {
-    conn.set_password(pass.clone());
-    let o = conn.open().await.map_err(ErrorFrontend::from)?;
-    match o {
-        DatabaseBackend::Catalog(x) => x.check_conn().await,
-        DatabaseBackend::DataBase(x) => x.check_conn().await,
-        DatabaseBackend::Schema(x) => x.check_conn().await,
-    }
-    .map_err(ErrorFrontend::from)?;
-    app.saved_password.insert(name, pass);
-    Ok(())
-}
 #[tauri::command]
 pub async fn get_query_cache(
     name: String, query_id: u32, app: tauri::State<'_, DBPal>,
@@ -187,21 +164,14 @@ pub async fn get_query_cache(
 }
 
 #[tauri::command]
-pub async fn delete_password(
-    name: String, app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
-    app.saved_password.remove(&name);
-
+pub async fn delete_password(name: String) -> Result<(), ErrorFrontend> {
     let entry = keyring::Entry::new(PASSWORD_KEY, &name)?;
     entry.delete_credential()?;
     Ok(())
 }
 
 #[tauri::command]
-pub fn get_password(name: String, app: tauri::State<'_, DBPal>) -> Result<String, ErrorFrontend> {
-    if let Some(x) = app.saved_password.get(&name) {
-        return Ok(x.clone());
-    }
+pub fn get_password(name: String) -> Result<String, ErrorFrontend> {
     let passwd = keyring::Entry::new(PASSWORD_KEY, &name)
         .ok()
         .map(|x| x.get_password().ok())
@@ -340,26 +310,22 @@ pub async fn create_schema(
 
 #[tauri::command]
 pub async fn establish_conn(
-    name: String, app: tauri::State<'_, DBPal>,
+    config: DBConnectionConfig, app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    log::info!("open connection:{}", name);
+    #[cfg(debug_assertions)]
+    println!("open connection:{:?}", config);
     let secs = 10;
-    let name_clone = name.clone();
+
     tokio::time::timeout(Duration::from_secs(secs), async move {
-        app.establish_conn(name.as_str())
+        app.establish_conn(config.clone())
             .await
             .map_err(ErrorFrontend::from)
             .map(|_| ())
     })
     .await
-    .map_err(|_| {
-        ErrorFrontend::from(format!(
-            "'{name_clone}' open connection not finished in {}s",
-            secs
-        ))
-    })?
+    .map_err(|_| ErrorFrontend::from(format!("open connection not finished in {}s", secs)))?
 }
 
 #[tauri::command]

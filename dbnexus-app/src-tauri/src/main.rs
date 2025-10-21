@@ -3,17 +3,11 @@
 
 mod app;
 mod handlers;
-use std::backtrace::Backtrace;
-use std::ops::DerefMut;
-use std::panic;
-use std::str::FromStr;
-use std::sync::Arc;
-
 use crate::app::generate_random_string;
 use crate::handlers::log_channel_store;
-use app::{DBConnectionConfig, DBPal};
+use app::DBPal;
 use handlers::{
-    PASSWORD_KEY, add_table_column, all_font_family, auto_completion, cassandra_drop_aggregate,
+    add_table_column, all_font_family, auto_completion, cassandra_drop_aggregate,
     cassandra_invalid_table_or_view_caching, cassandra_list_aggregate, cassandra_show_aggregate,
     check_conn, close_conn, close_log_channel, command_panic, config_list_database_or_schema,
     conn_opened, create_database, create_index, create_schema, create_table_and_index_sql,
@@ -23,11 +17,11 @@ use handlers::{
     enable_trigger, establish_conn, execute_sql, execute_sql_no_open_conn,
     export_query_result_to_file, export_table_or_view, extract_table_select_selection,
     extract_table_select_sort, get_backend_crash, get_password, get_query_cache, get_redis_doc,
-    has_entered_password, is_dangerous_sql, list_created_types, list_data_types, list_database,
-    list_event, list_materialized_view, list_procedure, list_schema, list_sequence,
-    list_sql_current_values, list_table, list_udf, list_view, log_channel, modify_table_column,
-    monaco_editor_themes, mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id,
-    mongo_insert, mongo_list_time_serial_collection, mongo_query_collection_count_docs,
+    is_dangerous_sql, list_created_types, list_data_types, list_database, list_event,
+    list_materialized_view, list_procedure, list_schema, list_sequence, list_sql_current_values,
+    list_table, list_udf, list_view, log_channel, modify_table_column, monaco_editor_themes,
+    mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id, mongo_insert,
+    mongo_list_time_serial_collection, mongo_query_collection_count_docs,
     mongo_query_collection_create_index, mongo_query_collection_create_search_index,
     mongo_query_collection_delete_many, mongo_query_collection_delete_one,
     mongo_query_collection_distinct, mongo_query_collection_drop,
@@ -46,14 +40,20 @@ use handlers::{
     redis_hash_replace, redis_list_lpush, redis_list_remove, redis_list_rpush, redis_list_set,
     redis_list_table, redis_set_add, redis_set_del, redis_set_replace, redis_string_set,
     redis_zset_add, redis_zset_del, redis_zset_replace, redis_zset_show_table, rename_index,
-    rename_sequence, rename_table, save_entered_password, save_password, server_metas,
-    show_indexes, show_procedure, show_table, show_table_columns, show_trigger, show_udf,
-    show_view, show_view_columns, sql_parse_error, table_delete, table_insert, table_update,
-    test_connection, truncate_table, valid_json,
+    rename_sequence, rename_table, save_password, server_metas, show_indexes, show_procedure,
+    show_table, show_table_columns, show_trigger, show_udf, show_view, show_view_columns,
+    sql_parse_error, table_delete, table_insert, table_update, test_connection, truncate_table,
+    valid_json,
 };
+use std::backtrace::Backtrace;
+use std::ops::DerefMut;
+use std::panic;
+use std::str::FromStr;
+use std::sync::Arc;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Wry};
 use tauri_plugin_store::{Store, StoreExt};
+mod migration;
 
 fn main() {
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -232,49 +232,17 @@ fn main_() {
         };
         log::set_boxed_logger(Box::new(logger)).unwrap();
         log::set_max_level(log::LevelFilter::Trace);
-
-        *unsafe { DBPal::get_config_ref() } = Some(Box::new(move |name| {
-            let configs: Vec<DBConnectionConfig> = serde_json::from_value(
-                store
-                    .get("connection-config")
-                    .unwrap_or(serde_json::Value::Array(vec![])),
-            )?;
-
-            for mut c in configs.into_iter() {
-                if c.get_name() != name {
-                    continue;
-                }
-                if c.need_password() {
-                    if let Some(pass) = dbpal_clone.saved_password.get(&c.get_name().to_string()) {
-                        c.set_password(pass.clone());
-                    } else {
-                        match keyring::Entry::new(PASSWORD_KEY, name) {
-                            Ok(en) => match en.get_password() {
-                                Ok(pass) => c.set_password(pass),
-                                Err(err) => {
-                                    log::error!("get password for '{}' failed,err:{}", name, err)
-                                }
-                            },
-                            Err(err) => {
-                                log::error!(
-                                    "get password entry failed:{} maybe user don't set a password should be fine",
-                                    err
-                                )
-                            }
-                        };
-                    }
-                }
-                return anyhow::Ok(c);
-            }
-            anyhow::bail!(format!("config named '{}' not found", name))
-        }));
         Ok(())
     };
     let log_window_id = generate_random_string(10);
     let setting_window_id = generate_random_string(10);
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::Builder::new().build())
-        .plugin(tauri_plugin_sql::Builder::new().build())
+        .plugin(
+            tauri_plugin_sql::Builder::new()
+                .add_migrations("sqlite:dbpal.sqlite.db", migration::migrations())
+                .build(),
+        )
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
@@ -628,8 +596,6 @@ fn main_() {
             conn_opened,
             create_table_and_index_sql,
             execute_sql,
-            save_entered_password,
-            has_entered_password,
             query_get_commit,
             query_set_autocommit,
             query_commit,

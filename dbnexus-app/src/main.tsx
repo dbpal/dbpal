@@ -5,9 +5,8 @@ import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { App } from './comp/MainPage';
 import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
-import { secondConfirm, setUpDatabase } from './comp/helper.ts';
+import { secondConfirm } from './comp/helper.ts';
 
-await setUpDatabase();
 const currentWebview = WebviewWindow.getCurrent();
 
 currentWebview.onCloseRequested(async (event) => {
