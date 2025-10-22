@@ -86,6 +86,8 @@ function AppearanceSetting() {
   const [maxTabTitleLength, setMaxTabTitleLength] = useState(
     setting.maxTabTitleLength + ''
   );
+  const [inputStyle, setInputStyle] = useState(setting.inputStyle);
+
   useEffect(() => {
     if (!bgColor) {
       setBgColorErr('');
@@ -125,6 +127,7 @@ function AppearanceSetting() {
         lightBgColor: !isDarkTheme() ? bgColor : setting.lightBgColor,
         datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
         maxTreeSize: parseInt(maxTreeSize),
+        inputStyle,
         maxTabTitleLength: parseInt(maxTabTitleLength),
       } as UserSettingAppearance;
       Object.setPrototypeOf(x, UserSettingAppearance.prototype);
@@ -330,6 +333,24 @@ function AppearanceSetting() {
           }}
           error={isNaN(parseInt(maxTabTitleLength))}
         ></TextField>
+      </Stack>
+
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <Typography width={headerSize} textAlign="right">
+          input style:
+        </Typography>
+
+        <Select
+          onChange={(e) => setInputStyle(e.target.value)}
+          style={{ minWidth: '25rem', flex: 0.5 }}
+          value={inputStyle}
+        >
+          {['standard', 'filled', 'outlined'].map((s) => (
+            <MenuItem value={s} key={s}>
+              {s}
+            </MenuItem>
+          ))}
+        </Select>
       </Stack>
       <Divider></Divider>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
@@ -704,7 +725,7 @@ function EditorOptions(props: {
   );
 }
 
-function makeComponents(fontWeight) {
+function makeComponents(fontWeight: string | number, inputStyle: string) {
   const components: Components<
     Omit<Theme, 'components' | 'palette'> & CssVarsTheme
   > = {
@@ -807,10 +828,14 @@ function makeComponents(fontWeight) {
       },
       defaultProps: {
         size: 'small',
+        variant: inputStyle as 'filled',
       },
     },
     MuiSelect: {
-      defaultProps: { size: 'small' },
+      defaultProps: {
+        size: 'small',
+        variant: inputStyle as 'filled',
+      },
     },
 
     MuiChip: {
@@ -857,7 +882,7 @@ const makeTheme = (appearance: UserSettingAppearance) => {
         paper: color,
       },
     },
-    components: makeComponents(fontWeight),
+    components: makeComponents(fontWeight, appearance.inputStyle),
   });
 };
 

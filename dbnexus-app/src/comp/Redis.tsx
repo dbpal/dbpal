@@ -848,7 +848,6 @@ function RedisSetTable(props: {
         >
           <TextField
             label="key match could be *key,key*,*key*"
-            variant="outlined"
             value={keyMatch}
             onChange={(event) => {
               setKeyMatch(event.target.value);
@@ -1440,7 +1439,6 @@ function RedisZsetTable(props: {
       <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <TextField
           label="key match could be *key,key*,*key*"
-          variant="outlined"
           value={keyMatch}
           onChange={(event) => {
             setKeyMatch(event.target.value);
@@ -1465,7 +1463,6 @@ function RedisZsetTable(props: {
         />
         <TextField
           label="minimum value(float64)"
-          variant="outlined"
           value={min}
           error={minErr}
           onChange={(event) => {
@@ -1496,7 +1493,6 @@ function RedisZsetTable(props: {
         />
         <TextField
           label="maximum value(float64)"
-          variant="outlined"
           value={max}
           error={maxErr}
           onChange={(event) => {

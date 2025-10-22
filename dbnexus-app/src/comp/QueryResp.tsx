@@ -141,7 +141,8 @@ function QueryResp_(props: { data: MuiDataGridData }) {
   const setting = useContext(SettingContext);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
   useEffect(() => {
-    const insert_seq = !oldData.fields.find((e) => e.field == 'seq');
+    const insert_seq =
+      !oldData.fields.find((e) => e.field == 'seq') && oldData.data.length > 10;
     if (insert_seq) {
       oldData.fields = [
         {

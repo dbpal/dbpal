@@ -672,6 +672,7 @@ class UserSettingAppearance {
   datagridRowHeightFactor = 2;
   maxTreeSize: number = 150;
   maxTabTitleLength: number = 12;
+  inputStyle: string = "standard";
   static key = "dbpal-appearance-setting";
   save() {
     localStorage.setItem(UserSettingAppearance.key, JSON.stringify({ ...this }));
