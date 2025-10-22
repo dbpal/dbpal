@@ -1126,7 +1126,6 @@ function SqlTableViewData(props: {
         <Button loading={loading} onClick={handleModify}>
           {buttonName}
         </Button>
-
         <TextField
           value={filter}
           onChange={(e) => {

@@ -342,7 +342,7 @@ function AppearanceSetting() {
 
         <Select
           onChange={(e) => setInputStyle(e.target.value)}
-          style={{ minWidth: '25rem', flex: 0.5 }}
+          style={{ width: '13rem' }}
           value={inputStyle}
         >
           {['standard', 'filled', 'outlined'].map((s) => (
