@@ -306,29 +306,30 @@ pub struct PoolManager {
 
 impl bb8::ManageConnection for PoolManager {
     type Connection = Connection;
-    type Error = libsql::Error;
+    type Error = anyhow::Error;
 
     async fn connect(&self) -> Result<Self::Connection, Self::Error> {
         let replica = self.config.replica;
         let conn = match &self.config.source {
-            LibSqlDBConfigSource::Local { path } => {
-                let b = if replica {
-                    libsql::Builder::new_local_replica(path).build().await?
-                } else {
-                    libsql::Builder::new_local(path).build().await?
-                };
-                b.connect()?
+            LibSqlDBConfigSource::Local { .. } => {
+                // let b = if replica {
+                //     libsql::Builder::new_local_replica(path).build().await?
+                // } else {
+                //     libsql::Builder::new_local(path).build().await?
+                // };
+                // b.connect()?
+                anyhow::bail!("local db not supported yet");
             }
+
             LibSqlDBConfigSource::Remote {
-                url,
-                auth_token,
-                path,
+                url, auth_token, ..
             } => {
                 let conn = if replica {
-                    libsql::Builder::new_remote_replica(path, url.clone(), auth_token.clone())
-                        .build()
-                        .await?
-                        .connect()?
+                    // libsql::Builder::new_remote_replica(path, url.clone(), auth_token.clone())
+                    //     .build()
+                    //     .await?
+                    //     .connect()?
+                    anyhow::bail!("remote db not supported yet");
                 } else {
                     libsql::Builder::new_remote(url.clone(), auth_token.clone())
                         .build()
@@ -376,7 +377,11 @@ impl LibSqlDB {
     }
 
     pub(crate) async fn get_conn(&self) -> anyhow::Result<bb8::PooledConnection<'_, PoolManager>> {
-        let conn = self.pool.get().await?;
+        let conn = self
+            .pool
+            .get()
+            .await
+            .map_err(|e| anyhow::Error::msg(format!("{:?}", e)))?;
         anyhow::Ok(conn)
     }
 }
