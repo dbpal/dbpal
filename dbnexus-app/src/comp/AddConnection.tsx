@@ -527,8 +527,7 @@ function Mysql(props: { config?: types.MysqlDBConfig; kind: DataSourceKind }) {
           conn_type: kind,
           name: connectionName,
           ...x,
-        } as types.DBConnectionConfig;
-
+        };
       default:
         message('pass wrong kind of parameter, kind:' + kind, {
           kind: 'error',
@@ -726,15 +725,13 @@ function PostGres(props: { config?: types.PGDBConfig; kind: DataSourceKind }) {
       ...ssl,
     };
     switch (kind) {
-      case DataSourceKind.Mysql:
-      case DataSourceKind.MariaDB:
-      case DataSourceKind.TiDB:
+      case DataSourceKind.Postgres:
+      case DataSourceKind.Cockroach:
         return {
           conn_type: kind,
           name: connectionName,
           ...x,
-        } as types.DBConnectionConfig;
-
+        };
       default:
         message('pass wrong kind of parameter, kind:' + kind, {
           kind: 'error',
@@ -1409,8 +1406,6 @@ function AddConnection(props: {
     </Stack>
   );
 }
-
-function require(showNotification) {}
 
 function LibSql(props: { config?: types.LibSqlDBConfig }) {
   const { config } = props;
