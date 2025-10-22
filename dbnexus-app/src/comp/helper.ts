@@ -1162,7 +1162,7 @@ enum TableType {
 const shrinkAble: CSSProperties = {
   flexShrink: 1,
   overflow: "hidden",
-  minWidth: "4rem"
+  minWidth: "3rem"
 }
 
 export {
