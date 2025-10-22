@@ -2,10 +2,12 @@
 
 export default types;
 export namespace types {
+    export type U32 = number;
+    export type ConnTimeOut = types.U32;
     export type SqliteDBConfig = {
         "path": string;
         "read_only": boolean;
-        "conn_timeout": (number | null);
+        "conn_timeout": (types.ConnTimeOut | null);
     };
     export type SSLFiles = {
         "ssl_ca": (string | null);
@@ -53,7 +55,7 @@ export namespace types {
         "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
-        "conn_timeout": (number | null);
+        "conn_timeout": (types.ConnTimeOut | null);
     });
     export type PgSslMode = (
     /**
@@ -97,7 +99,7 @@ export namespace types {
         "db": (string | null);
         "schema": (string | null);
         "read_only": boolean;
-        "conn_timeout": (number | null);
+        "conn_timeout": (types.ConnTimeOut | null);
     });
     export type SqlServerDBConfig = {
         "host": string;
@@ -109,7 +111,7 @@ export namespace types {
         "trust_cert": boolean;
         "schema": (string | null);
         "read_only": boolean;
-        "conn_timeout": (number | null);
+        "conn_timeout": (types.ConnTimeOut | null);
         "cert_ca": (string | null);
     };
     export type MongoSsl = (types.SSLFiles & {
@@ -121,7 +123,7 @@ export namespace types {
         "username": (string | null);
         "password": (string | null);
         "save_password": boolean;
-        "conn_timeout": (number | null);
+        "conn_timeout": (types.ConnTimeOut | null);
         "db": (string | null);
         "read_only": boolean;
     });
@@ -134,7 +136,7 @@ export namespace types {
         "db": (string | null);
         "read_only": boolean;
         "enable_ssl": boolean;
-        "conn_timeout": (number | null);
+        "conn_timeout": (types.ConnTimeOut | null);
     };
     export type OracleDBConfig = {
         "username": string;
@@ -143,7 +145,7 @@ export namespace types {
         "host": string;
         "port": types.U16;
         "schema": (string | null);
-        "conn_timeout": (number | null);
+        "conn_timeout": (types.ConnTimeOut | null);
         "read_only": boolean;
         "db": string;
     };
@@ -157,7 +159,7 @@ export namespace types {
         "db": (string | null);
         "read_only": boolean;
         "ssl": types.CassandraSsl;
-        "conn_timeout": (number | null);
+        "conn_timeout": (types.ConnTimeOut | null);
     };
     export type ClickHouseConfig = {
         "host": string;
@@ -168,7 +170,7 @@ export namespace types {
         "db": (string | null);
         "read_only": boolean;
         "https": boolean;
-        "conn_timeout": (number | null);
+        "conn_timeout": (types.ConnTimeOut | null);
     };
     export type LibSqlDBConfigSource = (({
         "source": "local";
@@ -184,7 +186,7 @@ export namespace types {
     export type LibSqlDBConfig = (types.LibSqlDBConfigSource & {
         "replica": boolean;
         "read_only": boolean;
-        "conn_timeout": (number | null);
+        "conn_timeout": (types.ConnTimeOut | null);
     });
     export type FireBirdConfig = {
         "host": string;
@@ -194,14 +196,14 @@ export namespace types {
         "save_password": boolean;
         "db": string;
         "read_only": boolean;
-        "conn_timeout": (number | null);
+        "conn_timeout": (types.ConnTimeOut | null);
     };
     export type DuckDBConfig = {
         "path": string;
         "read_only": boolean;
         "db": (string | null);
         "schema": (string | null);
-        "conn_timeout": (number | null);
+        "conn_timeout": (types.ConnTimeOut | null);
     };
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";

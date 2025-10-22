@@ -35,7 +35,17 @@ pub struct MysqlDBConfig {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde:: Serialize, serde::Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    serde:: Serialize,
+    serde::Deserialize,
+    TypeDef,
 )]
 #[serde(transparent)]
 pub struct ConnTimeOut(pub u32);
