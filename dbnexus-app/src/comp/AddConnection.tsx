@@ -13,8 +13,6 @@ import {
   MenuItem,
   Stack,
   Divider,
-  RadioGroup,
-  Radio,
   Checkbox,
   Chip,
   Tooltip,
@@ -1412,21 +1410,44 @@ function AddConnection(props: {
   );
 }
 
+function require(showNotification) {}
+
 function LibSql(props: { config?: types.LibSqlDBConfig }) {
   const { config } = props;
-  const [url, setUrl] = useState(
-    config && config.source == 'remote' && config.url
+  const urlOld = config && config.source == 'remote' && config.url;
+  const [url, setUrl] = useState(urlOld ? urlOld : '');
+  // const [replica, setReplica] = useState(config?.replica);
+  let oldAuth = config && config.source == 'remote' && config.auth_token;
+  const [authToken, setAuthToken] = useState(oldAuth ? oldAuth : '');
+  const [libSqlModel, _setLibSqlModal] = useState<'remote' | 'local'>(
+    config?.source || 'remote'
   );
-  const [replica, setReplica] = useState(config?.replica);
-  const [authToken, setAuthToken] = useState(
-    config && config.source == 'remote' && config.auth_token
-  );
-  const [libSqlModel, setLibSqlModal] = useState(config?.source || 'remote');
   const [path, setPath] = useState(config?.path);
-  const models = ['remote', 'local'];
+  const { connTimeOut, connectionName, readOnly } =
+    useContext(AddConnectionContext);
+
+  function makeConfig(): types.DBConnectionConfig {
+    const x: types.DBConnectionConfig = {
+      conn_type: 'libsql',
+      name: connectionName,
+      conn_timeout: connTimeOut,
+      source: libSqlModel,
+      url: url,
+      auth_token: authToken,
+      replica: false,
+      read_only: readOnly,
+      path: path ? path : null,
+    };
+    console.log('makeConfig', x);
+    return x;
+  }
+
+  globalMakeConfig = makeConfig;
+
+  // const models = ['remote', 'local'];
   return (
     <>
-      <RadioGroup
+      {/* <RadioGroup
         row
         onChange={(e) => {
           setLibSqlModal(e.target.value as 'remote');
@@ -1436,7 +1457,7 @@ function LibSql(props: { config?: types.LibSqlDBConfig }) {
         {models.map((e) => (
           <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
         ))}
-      </RadioGroup>
+      </RadioGroup> */}
 
       {libSqlModel === 'local' && (
         <SelectPath
@@ -1498,7 +1519,7 @@ function LibSql(props: { config?: types.LibSqlDBConfig }) {
               }}
             ></TextField>
           </Stack>
-          <Stack
+          {/* <Stack
             direction="row"
             style={{ alignItems: 'center' }}
             spacing={1}
@@ -1519,7 +1540,7 @@ function LibSql(props: { config?: types.LibSqlDBConfig }) {
                 required={false}
               ></SelectPath>
             )}
-          </Stack>
+          </Stack> */}
         </>
       )}
     </>

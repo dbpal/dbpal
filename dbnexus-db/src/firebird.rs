@@ -1076,7 +1076,7 @@ impl FireBirdDB {
         let mut builder = r2d2::Pool::builder();
         builder = builder.max_size(POOL_MAX_CONNECTIONS);
         if let Some(x) = config.conn_timeout {
-            builder = builder.connection_timeout(Duration::from_millis(x as u64));
+            builder = builder.connection_timeout(x.into());
         }
         let pool = builder.build(PoolManager {
             config: config.clone(),
@@ -1122,7 +1122,7 @@ pub(crate) fn make_test_object() -> FireBirdDB {
         password: "root".to_string(),
         db: "/var/lib/firebird/data/test.fdb".to_string(),
         read_only: false,
-        conn_timeout: Some(5000),
+        conn_timeout: Some(5000.into()),
         save_password: true,
     })
     .unwrap()

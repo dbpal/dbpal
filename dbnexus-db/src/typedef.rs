@@ -4,6 +4,7 @@ use typescript_type_def::type_expr::{
     TypeName, TypeObject, TypeString, TypeUnion,
 };
 
+use crate::datasource_config::ConnTimeOut;
 use crate::db::HumanSize;
 use crate::language_server::CompletionItem;
 use crate::meta_value::MetaValue;
@@ -121,6 +122,16 @@ impl TypeDef for HumanSize {
         r#ref: TypeExpr::Name(TypeName {
             path: &[],
             name: Ident("string"),
+            generic_args: &[],
+        }),
+    });
+}
+
+impl TypeDef for ConnTimeOut {
+    const INFO: TypeInfo = TypeInfo::Native(NativeTypeInfo {
+        r#ref: TypeExpr::Name(TypeName {
+            path: &[],
+            name: Ident("number"),
             generic_args: &[],
         }),
     });

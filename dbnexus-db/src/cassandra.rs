@@ -153,7 +153,7 @@ async fn make_session(
         TcpSessionBuilder::new(RoundRobinLoadBalancingStrategy::new(), cluster_config);
     let mut b = ConnectionPoolConfigBuilder::new();
     if let Some(conn_timeout) = config.conn_timeout {
-        b = b.with_connect_timeout(Some(Duration::from_millis(conn_timeout as u64)));
+        b = b.with_connect_timeout(Some(conn_timeout.into()));
         b = b.with_local_size(max_pool_size);
     }
     session_builder = session_builder.with_connection_pool_config(b.build());
@@ -168,7 +168,7 @@ impl CassandraDB {
         let session = tokio::time::timeout(
             config
                 .conn_timeout
-                .map(|x| Duration::from_millis(x as u64))
+                .map(|x| x.into())
                 .unwrap_or(Duration::from_secs(3)),
             async { make_session(&config, POOL_MAX_CONNECTIONS as usize).await },
         )
@@ -2006,7 +2006,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         password: Some("cassandra".to_string()),
         read_only: false,
         db,
-        conn_timeout: Some(5000),
+        conn_timeout: Some(5000.into()),
         save_password: true,
         ssl: CassandraSsl {
             ssl_files: SSLFiles {

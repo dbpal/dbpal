@@ -50,7 +50,7 @@ pub(crate) async fn make_test_object() -> CockRoachDB {
         read_only: false,
         save_password: true,
         ssl: Default::default(),
-        conn_timeout: Some(5000),
+        conn_timeout: Some(5000.into()),
     })
     .await
     .unwrap();

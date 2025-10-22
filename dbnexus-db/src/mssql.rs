@@ -172,7 +172,7 @@ impl SqlServerDB {
         let manager = bb8_tiberius::ConnectionManager::new(make_config(&c)?);
         let mut builder = bb8::Pool::builder();
         if let Some(x) = c.conn_timeout {
-            builder = builder.connection_timeout(Duration::from_millis(x as u64));
+            builder = builder.connection_timeout(x.into());
         }
         let pool = builder
             .max_size(POOL_MAX_CONNECTIONS)
@@ -2031,7 +2031,7 @@ impl CatalogTrait for SqlServerDB {
 pub(crate) async fn make_test_object() -> SqlServerDB {
     let ss = SqlServerDB::new(SqlServerDBConfig {
         host: TEST_HOST.to_string(),
-        conn_timeout: Some(5000),
+        conn_timeout: Some(5000.into()),
         port: 1433,
         username: Some("sa".to_string()),
         password: Some("sfdewRE123".to_string()),

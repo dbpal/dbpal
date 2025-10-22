@@ -39,7 +39,7 @@ impl RedisDB {
         let client = redis::Client::open(conn_str.as_str())?;
         let mut conn_config = ConnectionManagerConfig::default();
         if let Some(timeout) = config.conn_timeout {
-            conn_config = conn_config.set_connection_timeout(Duration::from_millis(timeout as u64));
+            conn_config = conn_config.set_connection_timeout(timeout.into());
         }
 
         let m = redis::aio::ConnectionManager::new_with_config(client, conn_config).await?;
@@ -1911,7 +1911,7 @@ pub(crate) async fn make_test_object() -> RedisDB {
         password: None,
         db: Some("db0".to_string()),
         read_only: false,
-        conn_timeout: Some(5000),
+        conn_timeout: Some(5000.into()),
         save_password: true,
         enable_ssl: false,
     })

@@ -7,7 +7,7 @@ pub struct MongoDBConfig {
     pub username: Option<String>,
     pub password: Option<String>,
     pub save_password: bool,
-    pub conn_timeout: Option<u64>,
+    pub conn_timeout: Option<ConnTimeOut>,
     pub db: Option<String>,
     pub read_only: bool,
     #[serde(flatten)]
@@ -31,7 +31,25 @@ pub struct MysqlDBConfig {
     pub read_only: bool,
     #[serde(flatten)]
     pub ssl: MysqlSsl,
-    pub conn_timeout: Option<u32>,
+    pub conn_timeout: Option<ConnTimeOut>,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde:: Serialize, serde::Deserialize,
+)]
+#[serde(transparent)]
+pub struct ConnTimeOut(pub u32);
+
+impl From<i32> for ConnTimeOut {
+    fn from(value: i32) -> Self {
+        ConnTimeOut(value as u32)
+    }
+}
+
+impl From<ConnTimeOut> for std::time::Duration {
+    fn from(value: ConnTimeOut) -> Self {
+        std::time::Duration::from_micros(value.0 as u64)
+    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef, Default)]
@@ -53,8 +71,7 @@ pub struct LibSqlDBConfig {
     #[serde(flatten)]
     pub source: LibSqlDBConfigSource,
     pub read_only: bool,
-
-    pub conn_timeout: Option<u32>,
+    pub conn_timeout: Option<ConnTimeOut>,
 }
 #[derive(Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 #[serde(tag = "source", rename_all = "lowercase")]
@@ -65,7 +82,7 @@ pub enum LibSqlDBConfigSource {
     Remote {
         url: String,
         auth_token: String,
-        path: String,
+        path: Option<String>,
     },
 }
 
@@ -74,7 +91,7 @@ impl std::fmt::Debug for LibSqlDBConfigSource {
         match self {
             LibSqlDBConfigSource::Local { path } => write!(f, "{}", path),
             LibSqlDBConfigSource::Remote { url, path, .. } => {
-                write!(f, "url:{} path:{}", url, path)
+                write!(f, "url:{} path:{:?}", url, path)
             }
         }
     }
@@ -91,7 +108,7 @@ pub struct ClickHouseConfig {
     pub db: Option<String>,
     pub read_only: bool,
     pub https: bool,
-    pub conn_timeout: Option<u32>,
+    pub conn_timeout: Option<ConnTimeOut>,
 }
 
 impl ClickHouseConfig {
@@ -104,7 +121,7 @@ impl ClickHouseConfig {
 pub struct SqliteDBConfig {
     pub path: String,
     pub read_only: bool,
-    pub conn_timeout: Option<u32>,
+    pub conn_timeout: Option<ConnTimeOut>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
@@ -113,7 +130,7 @@ pub struct DuckDBConfig {
     pub read_only: bool,
     pub db: Option<String>,
     pub schema: Option<String>,
-    pub conn_timeout: Option<u32>,
+    pub conn_timeout: Option<ConnTimeOut>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
@@ -125,7 +142,7 @@ pub struct FireBirdConfig {
     pub save_password: bool,
     pub db: String,
     pub read_only: bool,
-    pub conn_timeout: Option<u32>,
+    pub conn_timeout: Option<ConnTimeOut>,
 }
 
 impl DuckDBConfig {
@@ -150,7 +167,7 @@ pub struct RedisDBConfig {
     pub db: Option<String>,
     pub read_only: bool,
     pub enable_ssl: bool,
-    pub conn_timeout: Option<u32>,
+    pub conn_timeout: Option<ConnTimeOut>,
 }
 
 impl RedisDBConfig {
@@ -258,7 +275,7 @@ pub struct PGDBConfig {
     pub read_only: bool,
     #[serde(flatten)]
     pub ssl: PgSsl,
-    pub conn_timeout: Option<u32>,
+    pub conn_timeout: Option<ConnTimeOut>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef, Default)]
@@ -296,7 +313,7 @@ pub struct SqlServerDBConfig {
     pub trust_cert: bool,
     pub schema: Option<String>,
     pub read_only: bool,
-    pub conn_timeout: Option<u32>,
+    pub conn_timeout: Option<ConnTimeOut>,
     pub cert_ca: Option<String>,
 }
 
@@ -318,7 +335,7 @@ pub struct OracleDBConfig {
     pub host: String,
     pub port: u16,
     pub schema: Option<String>,
-    pub conn_timeout: Option<u32>,
+    pub conn_timeout: Option<ConnTimeOut>,
     pub read_only: bool,
     pub db: String,
 }
@@ -333,7 +350,7 @@ pub struct CassandraDBConfig {
     pub db: Option<String>,
     pub read_only: bool,
     pub ssl: CassandraSsl,
-    pub conn_timeout: Option<u32>,
+    pub conn_timeout: Option<ConnTimeOut>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]

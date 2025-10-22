@@ -1487,7 +1487,7 @@ impl MysqlDB {
         }
         let mut pool_options = PoolOptions::new();
         if let Some(x) = config.conn_timeout {
-            pool_options = pool_options.acquire_timeout(Duration::from_millis(x as u64));
+            pool_options = pool_options.acquire_timeout(x.into());
         }
         pool_options = pool_options.max_connections(POOL_MAX_CONNECTIONS);
         let pool = pool_options.connect_with(opts).await?;
@@ -2865,7 +2865,7 @@ mod tests {
 
     pub(crate) fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {
-            conn_timeout: Some(5000),
+            conn_timeout: Some(5000.into()),
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
             password: Some("root".to_string()),

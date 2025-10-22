@@ -1184,7 +1184,7 @@ impl SqliteDB {
         let mut opts: PoolOptions<sqlx::sqlite::Sqlite> = PoolOptions::new();
         opts = opts.max_connections(POOL_MAX_CONNECTIONS);
         if let Some(timeout) = conn.conn_timeout {
-            opts = opts.acquire_timeout(Duration::from_millis(timeout as u64));
+            opts = opts.acquire_timeout(timeout.into());
         }
         let pool = opts.connect(conn.path.as_str()).await?;
 
@@ -1506,7 +1506,7 @@ pub(crate) async fn make_test_object() -> SqliteDB {
         SqliteDBConfig {
             path,
             read_only: false,
-            conn_timeout: Some(5000),
+            conn_timeout: Some(5000.into()),
         },
         false,
     )

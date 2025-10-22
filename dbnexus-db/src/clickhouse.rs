@@ -980,7 +980,7 @@ impl ClickHouseDB {
         let client = {
             let mut b = reqwest::Client::builder();
             if let Some(x) = config.conn_timeout {
-                b = b.connect_timeout(Duration::from_millis(x as u64));
+                b = b.connect_timeout(x.into());
             }
             b = b.pool_max_idle_per_host(10);
             b.build()?
@@ -1280,7 +1280,7 @@ impl SqlBuilder for ClickHouseDB {
 #[cfg(test)]
 pub(crate) fn make_test_object() -> ClickHouseDB {
     ClickHouseDB::new(ClickHouseConfig {
-        conn_timeout: Some(5000),
+        conn_timeout: Some(5000.into()),
         host: "127.0.0.1".to_string(),
         port: 8123,
         read_only: false,

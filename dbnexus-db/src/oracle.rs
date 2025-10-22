@@ -1752,10 +1752,8 @@ impl OracleDB {
     pub(crate) async fn get_conn(&self) -> anyhow::Result<oracle::Connection> {
         let mut conn: oracle::Connection = match self.config.conn_timeout {
             Some(timeout) => {
-                tokio::time::timeout(Duration::from_millis(timeout as u64), async {
-                    block_in_place(|| self.pool.get())
-                })
-                .await?
+                tokio::time::timeout(timeout.into(), async { block_in_place(|| self.pool.get()) })
+                    .await?
             }
             None => block_in_place(|| self.pool.get()),
         }?;
@@ -1777,7 +1775,7 @@ impl OracleDB {
 pub(crate) fn make_test_object(schema: Option<String>) -> OracleDB {
     let x = OracleDB::new(
         OracleDBConfig {
-            conn_timeout: Some(5000),
+            conn_timeout: Some(5000.into()),
             username: "system".to_string(),
             password: "welcome123".to_string(),
             schema,

@@ -359,7 +359,7 @@ impl LibSqlDB {
         };
         let mut builder = bb8::Pool::builder();
         if let Some(x) = config.conn_timeout {
-            builder = builder.connection_timeout(Duration::from_millis(x as u64));
+            builder = builder.connection_timeout(x.into());
         }
         builder = builder.max_size(POOL_MAX_CONNECTIONS);
         let pool = builder.build(manager).await?;
@@ -1172,12 +1172,12 @@ fn encode_row_as_json(r: &Row) -> anyhow::Result<serde_json::Value> {
 // this test no need clean up, we use memory sqlite db.
 pub(crate) async fn make_test_object() -> LibSqlDB {
     LibSqlDB::new(LibSqlDBConfig {
-        conn_timeout: Some(5000),
+        conn_timeout: Some(5000.into()),
         replica: false,
         source: LibSqlDBConfigSource::Remote {
             url: "http://localhost:8080".to_string(),
             auth_token: "".to_string(),
-            path: "".to_string(),
+            path: None,
         },
         read_only: false,
     })

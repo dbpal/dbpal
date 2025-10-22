@@ -2,11 +2,10 @@
 
 export default types;
 export namespace types {
-    export type U32 = number;
     export type SqliteDBConfig = {
         "path": string;
         "read_only": boolean;
-        "conn_timeout": (types.U32 | null);
+        "conn_timeout": (number | null);
     };
     export type SSLFiles = {
         "ssl_ca": (string | null);
@@ -14,34 +13,34 @@ export namespace types {
         "ssl_key": (string | null);
     };
     export type MySqlSslMode = (
-        /**
-         * Establish an unencrypted connection.
-         */
-        "disabled" |
-        /**
-         * Establish an encrypted connection if the server supports encrypted connections, falling
-         * back to an unencrypted connection if an encrypted connection cannot be established.
-         * 
-         * This is the default if `ssl_mode` is not specified.
-         */
-        "preferred" |
-        /**
-         * Establish an encrypted connection if the server supports encrypted connections.
-         * The connection attempt fails if an encrypted connection cannot be established.
-         */
-        "required" |
-        /**
-         * Like `Required`, but additionally verify the server Certificate Authority (CA)
-         * certificate against the configured CA certificates. The connection attempt fails
-         * if no valid matching CA certificates are found.
-         */
-        "verifyca" |
-        /**
-         * Like `VerifyCa`, but additionally perform host name identity verification by
-         * checking the host name the client uses for connecting to the server against the
-         * identity in the certificate that the server sends to the client.
-         */
-        "verifyidentity");
+    /**
+     * Establish an unencrypted connection.
+     */
+"disabled" | 
+    /**
+     * Establish an encrypted connection if the server supports encrypted connections, falling
+     * back to an unencrypted connection if an encrypted connection cannot be established.
+     * 
+     * This is the default if `ssl_mode` is not specified.
+     */
+"preferred" | 
+    /**
+     * Establish an encrypted connection if the server supports encrypted connections.
+     * The connection attempt fails if an encrypted connection cannot be established.
+     */
+"required" | 
+    /**
+     * Like `Required`, but additionally verify the server Certificate Authority (CA)
+     * certificate against the configured CA certificates. The connection attempt fails
+     * if no valid matching CA certificates are found.
+     */
+"verifyca" | 
+    /**
+     * Like `VerifyCa`, but additionally perform host name identity verification by
+     * checking the host name the client uses for connecting to the server against the
+     * identity in the certificate that the server sends to the client.
+     */
+"verifyidentity");
     export type MysqlSsl = (types.SSLFiles & {
         "ssl_mode": types.MySqlSslMode;
     });
@@ -54,38 +53,38 @@ export namespace types {
         "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
-        "conn_timeout": (types.U32 | null);
+        "conn_timeout": (number | null);
     });
     export type PgSslMode = (
-        /**
-         * Only try a non-SSL connection.
-         */
-        "disable" |
-        /**
-         * First try a non-SSL connection; if that fails, try an SSL connection.
-         */
-        "allow" |
-        /**
-         * First try an SSL connection; if that fails, try a non-SSL connection.
-         * 
-         * This is the default if no other mode is specified
-         */
-        "prefer" |
-        /**
-         * Only try an SSL connection. If a root CA file is present, verify the connection
-         * in the same way as if `VerifyCa` was specified.
-         */
-        "require" |
-        /**
-         * Only try an SSL connection, and verify that the server certificate is issued by a
-         * trusted certificate authority (CA).
-         */
-        "verifyca" |
-        /**
-         * Only try an SSL connection; verify that the server certificate is issued by a trusted
-         * CA and that the requested server host name matches that in the certificate.
-         */
-        "verifyfull");
+    /**
+     * Only try a non-SSL connection.
+     */
+"disable" | 
+    /**
+     * First try a non-SSL connection; if that fails, try an SSL connection.
+     */
+"allow" | 
+    /**
+     * First try an SSL connection; if that fails, try a non-SSL connection.
+     * 
+     * This is the default if no other mode is specified
+     */
+"prefer" | 
+    /**
+     * Only try an SSL connection. If a root CA file is present, verify the connection
+     * in the same way as if `VerifyCa` was specified.
+     */
+"require" | 
+    /**
+     * Only try an SSL connection, and verify that the server certificate is issued by a
+     * trusted certificate authority (CA).
+     */
+"verifyca" | 
+    /**
+     * Only try an SSL connection; verify that the server certificate is issued by a trusted
+     * CA and that the requested server host name matches that in the certificate.
+     */
+"verifyfull");
     export type PgSsl = (types.SSLFiles & {
         "ssl_mode": types.PgSslMode;
     });
@@ -98,7 +97,7 @@ export namespace types {
         "db": (string | null);
         "schema": (string | null);
         "read_only": boolean;
-        "conn_timeout": (types.U32 | null);
+        "conn_timeout": (number | null);
     });
     export type SqlServerDBConfig = {
         "host": string;
@@ -110,20 +109,19 @@ export namespace types {
         "trust_cert": boolean;
         "schema": (string | null);
         "read_only": boolean;
-        "conn_timeout": (types.U32 | null);
+        "conn_timeout": (number | null);
         "cert_ca": (string | null);
     };
     export type MongoSsl = (types.SSLFiles & {
         "enable": boolean;
     });
-    export type U64 = number;
     export type MongoDBConfig = (types.MongoSsl & {
         "host": string;
         "port": types.U16;
         "username": (string | null);
         "password": (string | null);
         "save_password": boolean;
-        "conn_timeout": (types.U64 | null);
+        "conn_timeout": (number | null);
         "db": (string | null);
         "read_only": boolean;
     });
@@ -136,7 +134,7 @@ export namespace types {
         "db": (string | null);
         "read_only": boolean;
         "enable_ssl": boolean;
-        "conn_timeout": (types.U32 | null);
+        "conn_timeout": (number | null);
     };
     export type OracleDBConfig = {
         "username": string;
@@ -145,7 +143,7 @@ export namespace types {
         "host": string;
         "port": types.U16;
         "schema": (string | null);
-        "conn_timeout": (types.U32 | null);
+        "conn_timeout": (number | null);
         "read_only": boolean;
         "db": string;
     };
@@ -159,7 +157,7 @@ export namespace types {
         "db": (string | null);
         "read_only": boolean;
         "ssl": types.CassandraSsl;
-        "conn_timeout": (types.U32 | null);
+        "conn_timeout": (number | null);
     };
     export type ClickHouseConfig = {
         "host": string;
@@ -170,7 +168,7 @@ export namespace types {
         "db": (string | null);
         "read_only": boolean;
         "https": boolean;
-        "conn_timeout": (types.U32 | null);
+        "conn_timeout": (number | null);
     };
     export type LibSqlDBConfigSource = (({
         "source": "local";
@@ -181,12 +179,12 @@ export namespace types {
     } & {
         "url": string;
         "auth_token": string;
-        "path": string;
+        "path": (string | null);
     }));
     export type LibSqlDBConfig = (types.LibSqlDBConfigSource & {
         "replica": boolean;
         "read_only": boolean;
-        "conn_timeout": (types.U32 | null);
+        "conn_timeout": (number | null);
     });
     export type FireBirdConfig = {
         "host": string;
@@ -196,14 +194,14 @@ export namespace types {
         "save_password": boolean;
         "db": string;
         "read_only": boolean;
-        "conn_timeout": (types.U32 | null);
+        "conn_timeout": (number | null);
     };
     export type DuckDBConfig = {
         "path": string;
         "read_only": boolean;
         "db": (string | null);
         "schema": (string | null);
-        "conn_timeout": (types.U32 | null);
+        "conn_timeout": (number | null);
     };
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
@@ -295,6 +293,7 @@ export namespace types {
         "kind": types.IndexKind;
         "columns": (string)[];
     };
+    export type U64 = number;
     export type SqlExecuteRet = {
         "sql": string;
         "changes": (types.U64 | null);
