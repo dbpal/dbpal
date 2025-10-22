@@ -56,10 +56,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       // we only show `reason` the short message
       msg = msg['reason'];
     }
-    if (
-      (severity == 'warning' || severity == 'error') &&
-      !React.isValidElement(msg)
-    ) {
+    if (severity == 'error' && !React.isValidElement(msg)) {
       msg = msg ? String(msg) : '';
       message(msg, {
         kind: severity,

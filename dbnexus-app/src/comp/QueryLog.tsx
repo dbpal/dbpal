@@ -70,7 +70,6 @@ function QueryLog(props: {
   const [page, setPage] = useState(0); // datagrid start with 0
   const [pageSize, setPagesize] = useState(SavePageSize.instance.get());
   const [logs, setLogs] = useState([]);
-  const [loaded, setLoaded] = useState(false);
   const [matchSql, setMatchSql] = useState('');
   const [orderBy, setOrderBy] = useState('');
   const [total, setTotal] = useState(0);
@@ -113,7 +112,6 @@ function QueryLog(props: {
         orderBy
       );
       setLogs(logs);
-      setLoaded(true);
     } catch (e) {
       showNotification('error', 'get query log error', e);
       return;
@@ -278,27 +276,26 @@ function QueryLog(props: {
         </Stack>
       </Stack>
 
-      {loaded && (
-        <DataGrid
-          showToolbar
-          showCellVerticalBorder
-          showColumnVerticalBorder
-          onRowDoubleClick={onRowDoubleClick}
-          columns={columns}
-          rows={logs}
-          style={dataGridStyle}
-          rowHeight={setting.appearance.datagridRowHeight()}
-          columnHeaderHeight={setting.appearance.datagridRowHeight()}
-          pageSizeOptions={pageSizeOptions}
-          paginationModel={paginationModel}
-          onPaginationModelChange={onPaginationModelChange}
-          initialState={initialState}
-          onColumnResize={onColumnResize}
-          onSortModelChange={onSortModelChange}
-          rowCount={total}
-          paginationMode="server"
-        ></DataGrid>
-      )}
+      <DataGrid
+        showToolbar
+        showCellVerticalBorder
+        showColumnVerticalBorder
+        onRowDoubleClick={onRowDoubleClick}
+        columns={columns}
+        rows={logs}
+        style={dataGridStyle}
+        rowHeight={setting.appearance.datagridRowHeight()}
+        columnHeaderHeight={setting.appearance.datagridRowHeight()}
+        pageSizeOptions={pageSizeOptions}
+        paginationModel={paginationModel}
+        onPaginationModelChange={onPaginationModelChange}
+        initialState={initialState}
+        onColumnResize={onColumnResize}
+        onSortModelChange={onSortModelChange}
+        rowCount={total}
+        paginationMode="server"
+      ></DataGrid>
+
       {dom && (
         <ResizeParentHeight
           box={dom}

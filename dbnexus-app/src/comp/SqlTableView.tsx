@@ -1377,7 +1377,7 @@ function Menu(props: {
             setShowFilter(false);
           })}
         >
-          <Box sx={modalStyle}>
+          <Box sx={modalStyle} width="45vw">
             <ModalHeader
               title="Quick Filter"
               handleClose={() => {

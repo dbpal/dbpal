@@ -58,6 +58,7 @@ import {
   secondConfirm,
   SetCloseConfirmTextContext,
   SettingContext,
+  shrinkAble,
   SomeTempStore,
   TabActiveContext,
 } from './helper.ts';
@@ -146,6 +147,7 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
           label={`${commit ? 'auto' : 'manual'}-commit`}
           color={commit ? 'info' : 'success'}
           variant={commit ? 'outlined' : 'filled'}
+          style={shrinkAble}
         ></Chip>
       </Tooltip>
 
@@ -729,6 +731,7 @@ function SqlQuery(props: {
                   onClick={() => {
                     toggleQueryRespView(true);
                   }}
+                  style={shrinkAble}
                   label={
                     queryRespView ? 'close response window' : 'detach response'
                   }

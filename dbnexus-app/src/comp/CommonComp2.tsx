@@ -547,7 +547,7 @@ function LoadStoreFileForQuery(props: {
   const handleSave = async () => {
     const content = getQuery();
     if (!content) {
-      showNotification('error', `can't save empty content`);
+      showNotification('warning', `can't save empty content`);
       return;
     }
     try {

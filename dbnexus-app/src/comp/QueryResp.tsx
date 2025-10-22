@@ -140,13 +140,38 @@ function QueryResp_(props: { data: MuiDataGridData }) {
   const [data, setData] = useState<MuiDataGridData>(null);
   const setting = useContext(SettingContext);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
-
   useEffect(() => {
-    oldData.data.forEach((e, index) => {
-      e[keyNotInTable] = index;
-    });
+    const insert_seq = !oldData.fields.find((e) => e.field == 'seq');
+    if (insert_seq) {
+      oldData.fields = [
+        {
+          field: 'seq',
+          data_type: 'number',
+          width: 100,
+          renderHeader: () => {
+            return (
+              <Tooltip title="auto generate sequence">
+                <span> seq</span>
+              </Tooltip>
+            );
+          },
+        } as any as types.Field,
+        ...oldData.fields,
+      ];
+      oldData.data.forEach((e, index) => {
+        e['seq'] = index;
+      });
+    } else {
+      oldData.data.forEach((e, index) => {
+        e[keyNotInTable] = index;
+      });
+    }
+
     const considerSmallDataSet = smallDataSet(oldData.fields);
     oldData.fields.forEach((field) => {
+      if (field.field == 'seq' && insert_seq) {
+        return;
+      }
       if (considerSmallDataSet) {
         field['flex'] = 1;
       } else {
@@ -165,9 +190,10 @@ function QueryResp_(props: { data: MuiDataGridData }) {
       };
     });
     setData(oldData);
+    oldData.inserted_seq = insert_seq;
   }, [oldData]);
-  const [viewInModal, setViewInModal] = useState<object>(null);
 
+  const [viewInModal, setViewInModal] = useState<object>(null);
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
       if (smallDataSet(data.fields)) {
@@ -265,7 +291,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
 
           <DataGrid
             showToolbar
-            getRowId={getRowId}
+            getRowId={data.inserted_seq ? getRowIdSeq : getRowId}
             slots={slots}
             sortModel={sortModel}
             onSortModelChange={onSortModelChange}
@@ -335,6 +361,10 @@ function QueryResp_(props: { data: MuiDataGridData }) {
 
 function getRowId(row) {
   return row[keyNotInTable];
+}
+
+function getRowIdSeq(row) {
+  return row['seq'];
 }
 
 const styleForTrans: CSSProperties = {

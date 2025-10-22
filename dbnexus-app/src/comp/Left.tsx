@@ -891,7 +891,16 @@ function FavoriteSqlList(props: { handleClose }) {
               <Typography color="info">use</Typography>
             </Tooltip>
             <Tooltip title="right click a row to query in new window.">
-              <Typography color="info">query new window</Typography>
+              <Typography
+                color="info"
+                style={{
+                  border: '1px solid',
+                  borderRadius: '5px',
+                  padding: '2px',
+                }}
+              >
+                query new window
+              </Typography>
             </Tooltip>
           </>
         )}

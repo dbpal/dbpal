@@ -999,6 +999,7 @@ export type MuiDataGridData = {
   "total": number | null;
   "cache_time": types.U64 | null;
   "has_more": boolean;
+  inserted_seq?: boolean
 };
 
 enum RedisTableType {
@@ -1160,7 +1161,8 @@ enum TableType {
 
 const shrinkAble: CSSProperties = {
   flexShrink: 1,
-  overflow: "hidden"
+  overflow: "hidden",
+  minWidth: "4rem"
 }
 
 export {

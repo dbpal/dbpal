@@ -437,7 +437,7 @@ function DbSchemaCadidates(props: {
         setCadidates(e);
       })
       .catch((e) => {
-        showNotification('error', `list ${label} failed`, e);
+        showNotification('warning', `list ${label} failed`, e);
       });
   };
   return (
@@ -840,7 +840,7 @@ function TestConnAndSave(props: { connectionNameDom }) {
         })
         .catch((e) => {
           setTestStatus(errToString(e));
-          showNotification('error', 'test connection failed', e);
+          showNotification('warning', 'test connection failed', e);
         })
         .finally(() => {
           setTestLoading(false);
@@ -858,7 +858,7 @@ function TestConnAndSave(props: { connectionNameDom }) {
     }
     if (!config.name) {
       connectionNameDom.current.focus();
-      showNotification('error', 'Connection Name is empty.');
+      showNotification('warning', 'Connection Name is empty.');
       return;
     }
     const password = config['password'];

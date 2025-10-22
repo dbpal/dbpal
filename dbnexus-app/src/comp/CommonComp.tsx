@@ -117,21 +117,21 @@ function SelectAlign(props: {
   return (
     <Stack direction="row" fontSize="1.5rem" spacing={1}>
       <FaAlignLeft
-        color={align == 'left' && theme.palette.success.main}
+        color={align == 'left' ? theme.palette.success.main : undefined}
         onClick={() => {
           handleChangeXXX('left');
         }}
         style={style}
       />
       <FaAlignCenter
-        color={align == 'center' && theme.palette.success.main}
+        color={align == 'center' ? theme.palette.success.main : undefined}
         onClick={() => {
           handleChangeXXX('center');
         }}
         style={style}
       />
       <FaAlignRight
-        color={align == 'right' && theme.palette.success.main}
+        color={align == 'right' ? theme.palette.success.main : undefined}
         onClick={() => {
           handleChangeXXX('right');
         }}
@@ -846,7 +846,7 @@ function ExecutingTime(props: {
         <Chip
           color="success"
           label={<span ref={executeTimeRef}> </span>}
-          style={{ minWidth: '3rem', ...shrinkAble }}
+          style={shrinkAble}
           icon={<IoTimerOutline fontSize="1.2rem" />}
         ></Chip>
       </Tooltip>
@@ -989,7 +989,7 @@ function OpenFileWithDefaultApp({ file }) {
             openPath(file)
               .then(() => {})
               .catch((e) => {
-                showNotification('error', 'open export file failed', e);
+                showNotification('warning', 'open export file failed', e);
               });
           }}
           variant="text"
@@ -1047,7 +1047,7 @@ function ExportMarkDownTable(props: {
   };
   const handleExport = async (toClipBoard: boolean) => {
     if (includes.length == 0) {
-      showNotification('error', 'Please select column');
+      showNotification('warning', 'Please select column');
       return;
     }
     const markdown = makeMarkDownStr();

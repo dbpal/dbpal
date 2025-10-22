@@ -8,7 +8,7 @@ license.workspace = true
 
 
 [dependencies]
-sqlx = { git = "https://github.com/launchbadge/sqlx", branch = "main", features = [
+sqlx = { version = "0.9.0-alpha.1", features = [
     "runtime-tokio",
     "postgres",
     "sqlite",
@@ -21,10 +21,9 @@ sqlx = { git = "https://github.com/launchbadge/sqlx", branch = "main", features 
     "uuid",
     "json",
     "tls-rustls",
+
 ] }
-sqlx-core = { git = "https://github.com/launchbadge/sqlx", branch = "main", features = [
-    "any",
-] }
+sqlx-core = { version = "0.9.0-alpha.1", features = ["any"] }
 bb8 = "0.9"
 anyhow.workspace = true
 serde.workspace = true
@@ -46,7 +45,7 @@ hex.workspace = true
 mac_address = "1.1.5"
 ipnetwork = "0.21"
 chrono = "0.4.34"
-bit-vec = "0.6.3"
+bit-vec = "=0.6.3"
 uuid.workspace = true
 serde_json.workspace = true
 sqlparser = { version = "0.59.0", features = ["serde"] }

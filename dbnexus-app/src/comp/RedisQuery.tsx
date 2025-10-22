@@ -5,8 +5,8 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 import { SqlQuery } from './SqlQuery.tsx';
 import { MakeIQueryConn } from './Common.ts';
-import { DataSourceKind, ErrAndLoc } from './helper.ts';
-import { Chip } from '@mui/material';
+import { DataSourceKind, ErrAndLoc, shrinkAble } from './helper.ts';
+import { Chip, Tooltip } from '@mui/material';
 import { invoke } from '@tauri-apps/api/core';
 import { AppMarkDown } from './CommonComp2.tsx';
 import { message } from '@tauri-apps/plugin-dialog';
@@ -99,13 +99,16 @@ function RedisQuery(props: {
           kind={DataSourceKind.Redis}
           extras={
             <>
-              <Chip
-                onClick={() => {
-                  setShowDoc((e) => !e);
-                }}
-                color={showDoc ? 'success' : 'primary'}
-                label={`${showDoc ? 'hidden' : 'show'} doc`}
-              ></Chip>
+              <Tooltip title="toggle show redis document">
+                <Chip
+                  onClick={() => {
+                    setShowDoc((e) => !e);
+                  }}
+                  style={shrinkAble}
+                  color={showDoc ? 'success' : 'primary'}
+                  label={`${showDoc ? 'hidden' : 'show'} doc`}
+                ></Chip>
+              </Tooltip>
             </>
           }
         ></SqlQuery>
