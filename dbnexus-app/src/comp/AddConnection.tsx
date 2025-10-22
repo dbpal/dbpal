@@ -347,7 +347,7 @@ function PGSSL(props: { ssl: types.PgSsl; setSsl: any }) {
       spacing={1}
       style={{ alignItems: 'center', flexWrap: 'wrap' }}
     >
-      <FormControl style={{ flex: 1 }}>
+      <FormControl style={{ width: '12rem' }}>
         <InputLabel> ssl mode </InputLabel>
         <Select
           value={ssl.ssl_mode}
@@ -388,7 +388,7 @@ function MysqlSSl(props: { ssl: types.MysqlSsl; setSsl: any }) {
       spacing={1}
       style={{ alignItems: 'center', flexWrap: 'wrap' }}
     >
-      <FormControl style={{ flex: 1 }}>
+      <FormControl style={{ width: '12rem' }}>
         <InputLabel> ssl mode </InputLabel>
         <Select
           value={ssl.ssl_mode}

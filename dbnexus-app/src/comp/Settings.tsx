@@ -86,7 +86,7 @@ function AppearanceSetting() {
   const [maxTabTitleLength, setMaxTabTitleLength] = useState(
     setting.maxTabTitleLength + ''
   );
-  const [inputStyle, setInputStyle] = useState(setting.inputStyle);
+  const [intputVariant, setInputVariant] = useState(setting.intputVariant);
 
   useEffect(() => {
     if (!bgColor) {
@@ -127,7 +127,7 @@ function AppearanceSetting() {
         lightBgColor: !isDarkTheme() ? bgColor : setting.lightBgColor,
         datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
         maxTreeSize: parseInt(maxTreeSize),
-        inputStyle,
+        intputVariant,
         maxTabTitleLength: parseInt(maxTabTitleLength),
       } as UserSettingAppearance;
       Object.setPrototypeOf(x, UserSettingAppearance.prototype);
@@ -339,11 +339,10 @@ function AppearanceSetting() {
         <Typography width={headerSize} textAlign="right">
           input style:
         </Typography>
-
         <Select
-          onChange={(e) => setInputStyle(e.target.value)}
+          onChange={(e) => setInputVariant(e.target.value)}
           style={{ width: '13rem' }}
-          value={inputStyle}
+          value={intputVariant}
         >
           {['standard', 'filled', 'outlined'].map((s) => (
             <MenuItem value={s} key={s}>
@@ -351,6 +350,10 @@ function AppearanceSetting() {
             </MenuItem>
           ))}
         </Select>
+        <TextField
+          value={'this is demo'}
+          variant={intputVariant as 'filled'}
+        ></TextField>
       </Stack>
       <Divider></Divider>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
@@ -725,7 +728,7 @@ function EditorOptions(props: {
   );
 }
 
-function makeComponents(fontWeight: string | number, inputStyle: string) {
+function makeComponents(fontWeight: string | number, intputVariant: string) {
   const components: Components<
     Omit<Theme, 'components' | 'palette'> & CssVarsTheme
   > = {
@@ -828,13 +831,13 @@ function makeComponents(fontWeight: string | number, inputStyle: string) {
       },
       defaultProps: {
         size: 'small',
-        variant: inputStyle as 'filled',
+        variant: intputVariant as 'filled',
       },
     },
     MuiSelect: {
       defaultProps: {
         size: 'small',
-        variant: inputStyle as 'filled',
+        variant: intputVariant as 'filled',
       },
     },
 
@@ -882,7 +885,7 @@ const makeTheme = (appearance: UserSettingAppearance) => {
         paper: color,
       },
     },
-    components: makeComponents(fontWeight, appearance.inputStyle),
+    components: makeComponents(fontWeight, appearance.intputVariant),
   });
 };
 

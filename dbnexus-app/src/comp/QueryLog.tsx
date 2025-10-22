@@ -219,17 +219,15 @@ function QueryLog(props: {
             <span>esc</span>
           </Tooltip>
         </Stack>
-
-        <Stack direction="row" spacing={1}>
-          <Tooltip title={`filter ${sqlDesc}`}>
-            <TextField
-              value={matchSql}
-              onChange={(e) => {
-                setMatchSql(e.target.value);
-              }}
-              style={{ flex: 1, maxWidth: '20rem' }}
-            ></TextField>
-          </Tooltip>
+        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+          filter {sqlDesc}:
+          <TextField
+            value={matchSql}
+            onChange={(e) => {
+              setMatchSql(e.target.value);
+            }}
+            style={{ flex: 1, maxWidth: '20rem' }}
+          ></TextField>
           {total > 0 && (
             <Button
               onClick={async () => {

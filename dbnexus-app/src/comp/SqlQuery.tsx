@@ -577,7 +577,7 @@ function SqlQuery(props: {
 
           <Stack
             direction="row"
-            spacing={1}
+            spacing={0.5}
             sx={{
               alignItems: 'center',
               overflow: 'auto',
