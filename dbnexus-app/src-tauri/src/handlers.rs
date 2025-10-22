@@ -5,7 +5,6 @@ use std::time::Duration;
 use crate::app::{
     self, CachedQueryResp, DBConnectionConfig, DBPal, DatabaseBackend, name_to_parts,
 };
-use bson::{Document, doc};
 use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
@@ -29,6 +28,7 @@ use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use dbnexus_db::sqlite::SqliteDB;
 use font_kit::error::SelectionError;
 use include_dir::{Dir, include_dir};
+use mongodb::bson::{self, Document, doc};
 use tauri::ipc::Channel;
 
 pub fn log_channel_store() -> &'static std::sync::Mutex<Option<Channel<String>>> {

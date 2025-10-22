@@ -886,7 +886,6 @@ dependencies = [
  "ahash 0.8.12",
  "base64 0.22.1",
  "bitvec",
- "chrono",
  "getrandom 0.2.16",
  "getrandom 0.3.4",
  "hex",
@@ -1731,7 +1730,6 @@ dependencies = [
  "bb8",
  "bb8-tiberius",
  "bit-vec",
- "bson",
  "cdrs-tokio",
  "chrono",
  "clickhouse",
@@ -1783,7 +1781,6 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "bson",
  "chrono",
  "dashmap",
  "dbnexus-db",

@@ -1,5 +1,5 @@
-use bson::{Bson, Document, doc};
 use futures_util::StreamExt;
+use mongodb::bson::{Bson, Document, doc};
 use mongodb::results::{
     CreateIndexResult, DeleteResult, InsertManyResult, InsertOneResult, UpdateResult,
 };

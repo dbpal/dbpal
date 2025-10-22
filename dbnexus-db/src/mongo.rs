@@ -7,10 +7,10 @@ use std::time::Duration;
 use bson::Bson;
 use dashmap::DashSet;
 use futures_util::StreamExt;
-use mongodb::IndexModel;
 use mongodb::bson::{Document, doc};
 use mongodb::options::{IndexOptions, ServerAddress, Tls, TlsOptions};
 use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
+use mongodb::{IndexModel, bson};
 
 use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
@@ -880,13 +880,14 @@ pub(crate) fn make_test_object() -> MongoDB {
 #[cfg(test)]
 mod tests {
 
+    use bson::oid::ObjectId;
+    use bson::spec::BinarySubtype;
+    use bson::{Binary, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid, doc};
+    use mongodb::bson;
     use std::str::FromStr;
     use std::time::SystemTime;
     use std::vec;
 
-    use bson::oid::ObjectId;
-    use bson::spec::BinarySubtype;
-    use bson::{Binary, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid, doc};
     use mongodb::options::TimeseriesOptions;
 
     use super::make_test_object;

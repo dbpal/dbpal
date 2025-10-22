@@ -28,7 +28,6 @@ lazy_static.workspace = true
 log.workspace = true
 uuid.workspace = true
 typescript-type-def = "*"
-bson.workspace = true
 hex.workspace = true
 mongodb.workspace = true
 rand.workspace = true
