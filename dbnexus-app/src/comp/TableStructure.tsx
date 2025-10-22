@@ -19,7 +19,7 @@ import {
 import {
   ColumnWidth,
   ContextMenuContext,
-  dataGridParentStyle,
+  dataGridStyle,
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
   handleCopyToClipboard,
@@ -300,21 +300,20 @@ function ColumnsStructure(props: {
         )}
       </Stack>
 
-      <div style={{ ...dataGridParentStyle }}>
-        <DataGrid
-          showToolbar
-          getRowId={getRowId}
-          slotProps={slotProps}
-          onColumnResize={onColumnResize}
-          showCellVerticalBorder
-          showColumnVerticalBorder
-          rowHeight={setting.appearance.datagridRowHeight()}
-          columnHeaderHeight={setting.appearance.datagridRowHeight()}
-          columns={cols}
-          rows={fields}
-          onRowDoubleClick={onRowDoubleClick}
-        ></DataGrid>
-      </div>
+      <DataGrid
+        showToolbar
+        getRowId={getRowId}
+        slotProps={slotProps}
+        onColumnResize={onColumnResize}
+        showCellVerticalBorder
+        showColumnVerticalBorder
+        rowHeight={setting.appearance.datagridRowHeight()}
+        columnHeaderHeight={setting.appearance.datagridRowHeight()}
+        columns={cols}
+        rows={fields}
+        onRowDoubleClick={onRowDoubleClick}
+        style={dataGridStyle}
+      ></DataGrid>
 
       {showAdd && (
         <Modal
@@ -620,20 +619,19 @@ function IndexesStructure(props: {
         </Button>
       </Stack>
 
-      <div style={{ ...dataGridParentStyle }}>
-        <DataGrid
-          showToolbar
-          getRowId={getRowId}
-          slotProps={slotProps}
-          onColumnResize={onColumnResize}
-          showCellVerticalBorder
-          showColumnVerticalBorder
-          rowHeight={setting.appearance.datagridRowHeight()}
-          columnHeaderHeight={setting.appearance.datagridRowHeight()}
-          columns={cols}
-          rows={indexes}
-        ></DataGrid>
-      </div>
+      <DataGrid
+        showToolbar
+        getRowId={getRowId}
+        slotProps={slotProps}
+        onColumnResize={onColumnResize}
+        showCellVerticalBorder
+        showColumnVerticalBorder
+        rowHeight={setting.appearance.datagridRowHeight()}
+        columnHeaderHeight={setting.appearance.datagridRowHeight()}
+        columns={cols}
+        rows={indexes}
+        style={dataGridStyle}
+      ></DataGrid>
 
       {showAdd && kind == DataSourceKind.Mongo && (
         <Modal
@@ -1650,21 +1648,20 @@ function TriggersStructure(props: {
         )}
       </Stack>
 
-      <div style={{ ...dataGridParentStyle }}>
-        <DataGrid
-          showToolbar
-          getRowId={getRowId}
-          slotProps={slotProps}
-          onColumnResize={onColumnResize}
-          showCellVerticalBorder
-          showColumnVerticalBorder
-          rowHeight={setting.appearance.datagridRowHeight()}
-          columnHeaderHeight={setting.appearance.datagridRowHeight()}
-          columns={cols}
-          rows={triggers}
-          onRowDoubleClick={onRowDoubleClick}
-        ></DataGrid>
-      </div>
+      <DataGrid
+        showToolbar
+        getRowId={getRowId}
+        slotProps={slotProps}
+        onColumnResize={onColumnResize}
+        showCellVerticalBorder
+        showColumnVerticalBorder
+        rowHeight={setting.appearance.datagridRowHeight()}
+        columnHeaderHeight={setting.appearance.datagridRowHeight()}
+        columns={cols}
+        rows={triggers}
+        onRowDoubleClick={onRowDoubleClick}
+        style={dataGridStyle}
+      ></DataGrid>
 
       {row && (
         <Modal

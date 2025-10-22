@@ -36,7 +36,7 @@ import DoneIcon from '@mui/icons-material/Done';
 import CloseIcon from '@mui/icons-material/Close';
 import {
   ColumnWidth,
-  dataGridParentStyle,
+  dataGridStyle,
   DataSourceKind,
   getLanguageFromDataSourceKind,
   pageSizeOptions,
@@ -279,26 +279,25 @@ function QueryLog(props: {
       </Stack>
 
       {loaded && (
-        <div style={{ ...dataGridParentStyle }}>
-          <DataGrid
-            showToolbar
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            onRowDoubleClick={onRowDoubleClick}
-            columns={columns}
-            rows={logs}
-            rowHeight={setting.appearance.datagridRowHeight()}
-            columnHeaderHeight={setting.appearance.datagridRowHeight()}
-            pageSizeOptions={pageSizeOptions}
-            paginationModel={paginationModel}
-            onPaginationModelChange={onPaginationModelChange}
-            initialState={initialState}
-            onColumnResize={onColumnResize}
-            onSortModelChange={onSortModelChange}
-            rowCount={total}
-            paginationMode="server"
-          ></DataGrid>
-        </div>
+        <DataGrid
+          showToolbar
+          showCellVerticalBorder
+          showColumnVerticalBorder
+          onRowDoubleClick={onRowDoubleClick}
+          columns={columns}
+          rows={logs}
+          style={dataGridStyle}
+          rowHeight={setting.appearance.datagridRowHeight()}
+          columnHeaderHeight={setting.appearance.datagridRowHeight()}
+          pageSizeOptions={pageSizeOptions}
+          paginationModel={paginationModel}
+          onPaginationModelChange={onPaginationModelChange}
+          initialState={initialState}
+          onColumnResize={onColumnResize}
+          onSortModelChange={onSortModelChange}
+          rowCount={total}
+          paginationMode="server"
+        ></DataGrid>
       )}
       {dom && (
         <ResizeParentHeight

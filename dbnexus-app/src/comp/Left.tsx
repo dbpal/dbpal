@@ -66,7 +66,7 @@ import {
   ConnTypeContext,
   connTypeToDataSourceKind,
   ContextMenuContext,
-  dataGridParentStyle,
+  dataGridStyle,
   DataSourceKind,
   extractConfigNameFromUuid,
   extractFieldAndIDFromMouseEvent,
@@ -511,23 +511,22 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
         </Tooltip>
       </Stack>
 
-      <div style={{ ...dataGridParentStyle }}>
-        <DataGrid
-          showToolbar
-          getRowId={getRowId}
-          sortModel={sortModel}
-          onSortModelChange={onSortModelChange}
-          showCellVerticalBorder
-          showColumnVerticalBorder
-          slotProps={slotProps}
-          rowHeight={setting.appearance.datagridRowHeight()}
-          columnHeaderHeight={setting.appearance.datagridRowHeight()}
-          columns={cols}
-          rows={conns}
-          onColumnResize={onColumnResize}
-          onRowDoubleClick={onRowDoubleClick}
-        ></DataGrid>
-      </div>
+      <DataGrid
+        showToolbar
+        getRowId={getRowId}
+        style={dataGridStyle}
+        sortModel={sortModel}
+        onSortModelChange={onSortModelChange}
+        showCellVerticalBorder
+        showColumnVerticalBorder
+        slotProps={slotProps}
+        rowHeight={setting.appearance.datagridRowHeight()}
+        columnHeaderHeight={setting.appearance.datagridRowHeight()}
+        columns={cols}
+        rows={conns}
+        onColumnResize={onColumnResize}
+        onRowDoubleClick={onRowDoubleClick}
+      ></DataGrid>
     </Stack>
   );
 }
@@ -897,22 +896,21 @@ function FavoriteSqlList(props: { handleClose }) {
           </>
         )}
       </Stack>
-      <div style={{ ...dataGridParentStyle }}>
-        <DataGrid
-          showToolbar
-          sortModel={sortModel}
-          onSortModelChange={onSortModelChange}
-          showCellVerticalBorder
-          showColumnVerticalBorder
-          slotProps={slotProps}
-          rowHeight={setting.appearance.datagridRowHeight()}
-          columnHeaderHeight={setting.appearance.datagridRowHeight()}
-          columns={columns}
-          rows={fs}
-          onColumnResize={onColumnResize}
-          onRowDoubleClick={onRowDoubleClick}
-        ></DataGrid>
-      </div>
+      <DataGrid
+        showToolbar
+        sortModel={sortModel}
+        onSortModelChange={onSortModelChange}
+        showCellVerticalBorder
+        showColumnVerticalBorder
+        slotProps={slotProps}
+        rowHeight={setting.appearance.datagridRowHeight()}
+        columnHeaderHeight={setting.appearance.datagridRowHeight()}
+        columns={columns}
+        rows={fs}
+        style={dataGridStyle}
+        onColumnResize={onColumnResize}
+        onRowDoubleClick={onRowDoubleClick}
+      ></DataGrid>
     </Stack>
   );
 }

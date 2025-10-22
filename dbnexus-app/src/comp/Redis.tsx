@@ -56,7 +56,7 @@ import {
   SavePageSize,
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
-  dataGridParentStyle,
+  dataGridStyle,
   pageSizeOptions,
 } from './helper.ts';
 
@@ -890,27 +890,22 @@ function RedisSetTable(props: {
       </Stack>
 
       {resp && (
-        <div
-          style={{
-            ...dataGridParentStyle,
-          }}
-        >
-          <DataGrid
-            showToolbar
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            slotProps={slotProps}
-            rowHeight={settings.datagridRowHeightXXX()}
-            columnHeaderHeight={settings.datagridRowHeightXXX()}
-            rows={resp.data}
-            editMode="row"
-            checkboxSelection={false}
-            onRowDoubleClick={onRowDoubleClick}
-            columns={resp.fields}
-            paginationMode="client"
-            disableColumnFilter
-          ></DataGrid>
-        </div>
+        <DataGrid
+          showToolbar
+          showCellVerticalBorder
+          showColumnVerticalBorder
+          slotProps={slotProps}
+          rowHeight={settings.datagridRowHeightXXX()}
+          columnHeaderHeight={settings.datagridRowHeightXXX()}
+          rows={resp.data}
+          editMode="row"
+          checkboxSelection={false}
+          onRowDoubleClick={onRowDoubleClick}
+          columns={resp.fields}
+          paginationMode="client"
+          disableColumnFilter
+          style={dataGridStyle}
+        ></DataGrid>
       )}
 
       {selectRow && (
@@ -1213,34 +1208,29 @@ function RedisListTable(props: {
       </Stack>
 
       {resp && (
-        <div
-          style={{
-            ...dataGridParentStyle,
-          }}
-        >
-          <DataGrid
-            showToolbar
-            loading={loading}
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            slotProps={slotProps}
-            rowHeight={setting.appearance.datagridRowHeight()}
-            columnHeaderHeight={setting.appearance.datagridRowHeight()}
-            checkboxSelection={false}
-            disableMultipleRowSelection
-            disableColumnFilter
-            rows={resp.data}
-            onColumnResize={onColumnResize}
-            columns={resp.fields}
-            paginationModel={paginationModel}
-            onRowDoubleClick={onRowDoubleClick}
-            pageSizeOptions={pageSizeOptions}
-            onPaginationModelChange={onPaginationModelChange}
-            sortingMode="server"
-            paginationMode="client"
-            onSortModelChange={onSortModelChange}
-          ></DataGrid>
-        </div>
+        <DataGrid
+          showToolbar
+          loading={loading}
+          showCellVerticalBorder
+          showColumnVerticalBorder
+          slotProps={slotProps}
+          rowHeight={setting.appearance.datagridRowHeight()}
+          columnHeaderHeight={setting.appearance.datagridRowHeight()}
+          checkboxSelection={false}
+          disableMultipleRowSelection
+          disableColumnFilter
+          rows={resp.data}
+          onColumnResize={onColumnResize}
+          columns={resp.fields}
+          paginationModel={paginationModel}
+          onRowDoubleClick={onRowDoubleClick}
+          pageSizeOptions={pageSizeOptions}
+          onPaginationModelChange={onPaginationModelChange}
+          sortingMode="server"
+          paginationMode="client"
+          style={dataGridStyle}
+          onSortModelChange={onSortModelChange}
+        ></DataGrid>
       )}
 
       {selectRow && (
@@ -1551,29 +1541,24 @@ function RedisZsetTable(props: {
       </Stack>
 
       {resp && (
-        <div
-          style={{
-            ...dataGridParentStyle,
-          }}
-        >
-          <DataGrid
-            showToolbar
-            onColumnResize={onColumnResize}
-            loading={loading}
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            slotProps={slotProps}
-            rowHeight={setting.appearance.datagridRowHeight()}
-            columnHeaderHeight={setting.appearance.datagridRowHeight()}
-            rows={resp.data}
-            checkboxSelection={false}
-            editMode="row"
-            onRowDoubleClick={onRowDoubleClick}
-            columns={resp.fields}
-            disableColumnFilter
-            paginationMode="client"
-          ></DataGrid>
-        </div>
+        <DataGrid
+          showToolbar
+          onColumnResize={onColumnResize}
+          loading={loading}
+          showCellVerticalBorder
+          showColumnVerticalBorder
+          slotProps={slotProps}
+          rowHeight={setting.appearance.datagridRowHeight()}
+          columnHeaderHeight={setting.appearance.datagridRowHeight()}
+          rows={resp.data}
+          checkboxSelection={false}
+          editMode="row"
+          onRowDoubleClick={onRowDoubleClick}
+          columns={resp.fields}
+          disableColumnFilter
+          style={dataGridStyle}
+          paginationMode="client"
+        ></DataGrid>
       )}
 
       {selectRow && (
@@ -1838,29 +1823,24 @@ function RedisHashTable(props: {
       </Stack>
 
       {resp && (
-        <div
-          style={{
-            ...dataGridParentStyle,
-          }}
-        >
-          <DataGrid
-            showToolbar
-            onColumnResize={onColumnResize}
-            loading={loading}
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            slotProps={slotProps}
-            rowHeight={setting.appearance.datagridRowHeight()}
-            columnHeaderHeight={setting.appearance.datagridRowHeight()}
-            rows={resp.data}
-            checkboxSelection={false}
-            editMode="row"
-            onRowDoubleClick={onRowDoubleClick}
-            columns={resp.fields}
-            paginationMode="client"
-            disableColumnFilter
-          ></DataGrid>
-        </div>
+        <DataGrid
+          showToolbar
+          onColumnResize={onColumnResize}
+          loading={loading}
+          showCellVerticalBorder
+          showColumnVerticalBorder
+          slotProps={slotProps}
+          rowHeight={setting.appearance.datagridRowHeight()}
+          columnHeaderHeight={setting.appearance.datagridRowHeight()}
+          rows={resp.data}
+          checkboxSelection={false}
+          editMode="row"
+          onRowDoubleClick={onRowDoubleClick}
+          columns={resp.fields}
+          paginationMode="client"
+          disableColumnFilter
+          style={dataGridStyle}
+        ></DataGrid>
       )}
 
       {selectRow && (

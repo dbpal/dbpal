@@ -54,8 +54,12 @@ use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Wry};
 use tauri_plugin_store::{Store, StoreExt};
 mod migration;
+use rustls::crypto::{CryptoProvider, aws_lc_rs};
 
 fn main() {
+    CryptoProvider::install_default(aws_lc_rs::default_provider())
+        .expect("Failed to install default crypto provider");
+
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .thread_stack_size(4 * 1024 * 1024)

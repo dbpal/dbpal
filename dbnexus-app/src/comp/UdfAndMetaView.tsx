@@ -79,59 +79,61 @@ function DefAndMetasView(props: {
       style={{ height: '100%' }}
     >
       <Panel style={{ display: 'flex', flexDirection: 'column' }}>
-        <Stack direction="row" spacing={1}>
-          {showReload && (
-            <Button
-              loading={loading}
-              color="primary"
-              onClick={() => {
-                handleReload(true);
+        <Stack spacing={1} height="100%">
+          <Stack direction="row" spacing={1}>
+            {showReload && (
+              <Button
+                loading={loading}
+                color="primary"
+                onClick={() => {
+                  handleReload(true);
+                }}
+              >
+                reload
+              </Button>
+            )}
+            <Tooltip title="execute the sql">
+              <Button
+                loading={executeLoading}
+                color="success"
+                style={{
+                  minWidth: '3rem',
+                }}
+                onClick={() => {
+                  handleExecute();
+                }}
+              >
+                execute!
+              </Button>
+            </Tooltip>
+          </Stack>
+          {detail.def && (
+            <SimpleFlexEditor
+              language={getLanguageFromDataSourceKind(kind)}
+              value={detail.def}
+              handleEditor={(ed) => {
+                editor.current = ed;
+                SetAutoCompletionName.set(
+                  ed.getModel().id,
+                  new NameAndQueryId(uuid, kind)
+                );
               }}
-            >
-              reload
-            </Button>
+              handleValue={(sql) => {
+                getParseErr(sql).then((e) => {
+                  setParseErr(e);
+                });
+              }}
+              barLeft=<Stack direction="row" flex={1}>
+                {parseErr && (
+                  <PossibleParseError
+                    parseErr={parseErr}
+                    editor={editor.current}
+                  ></PossibleParseError>
+                )}
+              </Stack>
+            ></SimpleFlexEditor>
           )}
-          <Tooltip title="execute the sql">
-            <Button
-              loading={executeLoading}
-              color="success"
-              style={{
-                minWidth: '3rem',
-              }}
-              onClick={() => {
-                handleExecute();
-              }}
-            >
-              execute!
-            </Button>
-          </Tooltip>
         </Stack>
-        {detail.def && (
-          <SimpleFlexEditor
-            language={getLanguageFromDataSourceKind(kind)}
-            value={detail.def}
-            handleEditor={(ed) => {
-              editor.current = ed;
-              SetAutoCompletionName.set(
-                ed.getModel().id,
-                new NameAndQueryId(uuid, kind)
-              );
-            }}
-            handleValue={(sql) => {
-              getParseErr(sql).then((e) => {
-                setParseErr(e);
-              });
-            }}
-            barLeft=<Stack direction="row" flex={1}>
-              {parseErr && (
-                <PossibleParseError
-                  parseErr={parseErr}
-                  editor={editor.current}
-                ></PossibleParseError>
-              )}
-            </Stack>
-          ></SimpleFlexEditor>
-        )}
       </Panel>
 
       {(queryResp.length > 0 || (detail.metas && detail.metas.length > 0)) && (

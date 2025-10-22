@@ -77,10 +77,11 @@ import {
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
   editorPositionToEnd,
-  dataGridParentStyle,
+  dataGridStyle,
   pageSizeOptions,
   getLanguageFromDataSourceKind,
   dataGridheaderFontSize,
+  shrinkAble,
 } from './helper';
 import { FaCopy } from 'react-icons/fa6';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
@@ -708,11 +709,7 @@ function SqlTableView_(props: {
   }, []);
   return (
     <Stack spacing={1} style={{ height: '100%' }}>
-      <Stack
-        direction="row"
-        spacing={1}
-        style={{ flexWrap: 'wrap', alignItems: 'center' }}
-      >
+      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
         <Button
           loading={loading}
           color="primary"
@@ -722,13 +719,13 @@ function SqlTableView_(props: {
         >
           reload
         </Button>
-
         <Tooltip title="filter something like 'age=18'">
           <Chip
             label={where}
             onClick={() => {
               setShowSetWhere(true);
             }}
+            style={shrinkAble}
             size="medium"
             color="primary"
             icon={<FilterAltIcon />}
@@ -741,6 +738,7 @@ function SqlTableView_(props: {
             onClick={() => {
               setShowSetSort(true);
             }}
+            style={shrinkAble}
             size="medium"
             color="secondary"
             variant="outlined"
@@ -761,7 +759,7 @@ function SqlTableView_(props: {
             {resp.cache_time && (
               <>
                 <Tooltip title="last cache time">
-                  <Typography color="info">
+                  <Typography color="info" style={shrinkAble}>
                     {new Date(resp.cache_time * 1000).toLocaleString()}
                   </Typography>
                 </Tooltip>
@@ -826,35 +824,31 @@ function SqlTableView_(props: {
           <ExecutingTime loading={loading} title="loading time"></ExecutingTime>
         </Stack>
       </Stack>
-      <div
-        style={{
-          ...dataGridParentStyle,
-        }}
-      >
-        <DataGrid
-          showToolbar
-          slots={slots}
-          showCellVerticalBorder
-          showColumnVerticalBorder
-          slotProps={slotProps}
-          rowHeight={setting.appearance.datagridRowHeight()}
-          columnHeaderHeight={setting.appearance.datagridRowHeight()}
-          getRowId={getRowId}
-          paginationModel={paginationModel}
-          pageSizeOptions={pageSizeOptions}
-          paginationMode="server"
-          onPaginationModelChange={onPaginationModelChange}
-          checkboxSelection={false}
-          rowCount={resp.total}
-          sortingMode="server"
-          onSortModelChange={onSortModelChange}
-          columns={resp.fields}
-          rows={resp.data}
-          onColumnResize={onColumnResize}
-          processRowUpdate={handleProcessRowUpdate}
-          onProcessRowUpdateError={onProcessRowUpdateError}
-        ></DataGrid>
-      </div>
+
+      <DataGrid
+        showToolbar
+        slots={slots}
+        showCellVerticalBorder
+        showColumnVerticalBorder
+        slotProps={slotProps}
+        style={dataGridStyle}
+        rowHeight={setting.appearance.datagridRowHeight()}
+        columnHeaderHeight={setting.appearance.datagridRowHeight()}
+        getRowId={getRowId}
+        paginationModel={paginationModel}
+        pageSizeOptions={pageSizeOptions}
+        paginationMode="server"
+        onPaginationModelChange={onPaginationModelChange}
+        checkboxSelection={false}
+        rowCount={resp.total}
+        sortingMode="server"
+        onSortModelChange={onSortModelChange}
+        columns={resp.fields}
+        rows={resp.data}
+        onColumnResize={onColumnResize}
+        processRowUpdate={handleProcessRowUpdate}
+        onProcessRowUpdateError={onProcessRowUpdateError}
+      ></DataGrid>
 
       {viewInModal && (
         <Modal

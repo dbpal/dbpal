@@ -38,6 +38,7 @@ redis = { version = "*", features = [
     "connection-manager",
     "safe_iterators",
     "tokio-rustls-comp",
+
 ] }
 
 dashmap.workspace = true

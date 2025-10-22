@@ -52,7 +52,7 @@ import {
   ColumnWidth,
   ConnTypeContext,
   ContextMenuContext,
-  dataGridParentStyle,
+  dataGridStyle,
   DataSourceKind,
   extractFieldAndIDFromMouseEvent,
   generateRandomString,
@@ -411,20 +411,19 @@ function ColumnsContent(props: { uuid: string; view: string }) {
           reload
         </Button>
       </Stack>
-      <div style={{ ...dataGridParentStyle }}>
-        <DataGrid
-          showToolbar
-          getRowId={getRowId}
-          slotProps={slotProps}
-          onColumnResize={onColumnResize}
-          showCellVerticalBorder
-          showColumnVerticalBorder
-          rowHeight={setting.appearance.datagridRowHeight()}
-          columnHeaderHeight={setting.appearance.datagridRowHeight()}
-          columns={cols}
-          rows={fields}
-        ></DataGrid>
-      </div>
+      <DataGrid
+        showToolbar
+        getRowId={getRowId}
+        slotProps={slotProps}
+        onColumnResize={onColumnResize}
+        showCellVerticalBorder
+        showColumnVerticalBorder
+        rowHeight={setting.appearance.datagridRowHeight()}
+        columnHeaderHeight={setting.appearance.datagridRowHeight()}
+        columns={cols}
+        rows={fields}
+        style={dataGridStyle}
+      ></DataGrid>
     </Stack>
   );
 }

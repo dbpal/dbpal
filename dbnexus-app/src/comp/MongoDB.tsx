@@ -84,8 +84,9 @@ import {
   validJson,
   SavePageSize,
   MuiDataGridData,
-  dataGridParentStyle,
+  dataGridStyle,
   pageSizeOptions,
+  shrinkAble,
 } from './helper';
 import { EditorBar, SimpleFlexEditor } from './CommonComp2';
 import { message } from '@tauri-apps/plugin-dialog';
@@ -507,6 +508,7 @@ function MongoTableToolBar(props: {
           onClick={() => {
             setShowModifyFilter(true);
           }}
+          style={shrinkAble}
           size="medium"
           color="primary"
           icon={<FilterAltIcon />}
@@ -521,6 +523,7 @@ function MongoTableToolBar(props: {
           onClick={() => {
             setShowModifySort(true);
           }}
+          style={shrinkAble}
           size="medium"
           color="secondary"
           variant="outlined"
@@ -1363,30 +1366,29 @@ function MongoTableList(props: {
   return (
     <Stack style={{ height: '100%' }}>
       {resp && (
-        <div style={{ ...dataGridParentStyle }}>
-          <DataGrid
-            showToolbar
-            loading={loading}
-            slots={slots}
-            showCellVerticalBorder
-            showColumnVerticalBorder
-            slotProps={slotProps}
-            getRowId={getRowId}
-            rowHeight={setting.appearance.datagridRowHeight()}
-            columnHeaderHeight={setting.appearance.datagridRowHeight()}
-            rowCount={resp.total}
-            columns={resp.fields}
-            rows={resp.data}
-            pageSizeOptions={pageSizeOptions}
-            paginationMode="server"
-            paginationModel={paginationModel}
-            onPaginationModelChange={onPaginationModelChange}
-            onRowDoubleClick={onRowDoubleClick}
-            sortingMode="server"
-            onSortModelChange={onSortModelChange}
-            onColumnResize={onColumnResize}
-          ></DataGrid>
-        </div>
+        <DataGrid
+          showToolbar
+          loading={loading}
+          slots={slots}
+          style={dataGridStyle}
+          showCellVerticalBorder
+          showColumnVerticalBorder
+          slotProps={slotProps}
+          getRowId={getRowId}
+          rowHeight={setting.appearance.datagridRowHeight()}
+          columnHeaderHeight={setting.appearance.datagridRowHeight()}
+          rowCount={resp.total}
+          columns={resp.fields}
+          rows={resp.data}
+          pageSizeOptions={pageSizeOptions}
+          paginationMode="server"
+          paginationModel={paginationModel}
+          onPaginationModelChange={onPaginationModelChange}
+          onRowDoubleClick={onRowDoubleClick}
+          sortingMode="server"
+          onSortModelChange={onSortModelChange}
+          onColumnResize={onColumnResize}
+        ></DataGrid>
       )}
       {selectModifyDoc && (
         <Modal

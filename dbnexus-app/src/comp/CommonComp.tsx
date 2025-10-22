@@ -53,7 +53,7 @@ import { IoTimerOutline } from 'react-icons/io5';
 import {
   ColumnWidth,
   ContextMenuContext,
-  dataGridParentStyle,
+  dataGridStyle,
   DataSourceKind,
   editorSetPositionAndReveal,
   ErrAndLoc,
@@ -70,6 +70,7 @@ import {
   SaveDomSizes,
   secondConfirm,
   SettingContext,
+  shrinkAble,
   textEllipsisStyle,
 } from './helper';
 
@@ -527,21 +528,20 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
     }
   }, []);
   return (
-    <div style={{ ...dataGridParentStyle }}>
-      <DataGrid
-        showToolbar
-        sortModel={sortModel}
-        onSortModelChange={onSortModelChange}
-        showCellVerticalBorder
-        showColumnVerticalBorder
-        slotProps={slotProps}
-        rowHeight={setting.appearance.datagridRowHeight()}
-        columnHeaderHeight={setting.appearance.datagridRowHeight()}
-        columns={columns}
-        rows={values}
-        onColumnResize={onColumnResize}
-      ></DataGrid>
-    </div>
+    <DataGrid
+      showToolbar
+      style={dataGridStyle}
+      sortModel={sortModel}
+      onSortModelChange={onSortModelChange}
+      showCellVerticalBorder
+      showColumnVerticalBorder
+      slotProps={slotProps}
+      rowHeight={setting.appearance.datagridRowHeight()}
+      columnHeaderHeight={setting.appearance.datagridRowHeight()}
+      columns={columns}
+      rows={values}
+      onColumnResize={onColumnResize}
+    ></DataGrid>
   );
 }
 
@@ -846,18 +846,21 @@ function ExecutingTime(props: {
         <Chip
           color="success"
           label={<span ref={executeTimeRef}> </span>}
-          style={{ minWidth: '6rem' }}
+          style={{ minWidth: '3rem', ...shrinkAble }}
           icon={<IoTimerOutline fontSize="1.2rem" />}
         ></Chip>
       </Tooltip>
       {!disableTime && (
         <Tooltip title="loaded at">
-          <Typography>{lastLoadTime.toLocaleString()}</Typography>
+          <Typography style={shrinkAble}>
+            {lastLoadTime.toLocaleString()}
+          </Typography>
         </Tooltip>
       )}
     </>
   );
 }
+
 function CopyMenuItem(props: GridColumnMenuItemProps) {
   const { colDef } = props;
   const { showNotification } = useContext(NotificationContext);

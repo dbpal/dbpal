@@ -24,7 +24,7 @@ import {
   ColumnWidth,
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
-  dataGridParentStyle,
+  dataGridStyle,
 } from './helper.ts';
 import {
   DataGrid,
@@ -262,28 +262,24 @@ function QueryResp_(props: { data: MuiDataGridData }) {
               sql: {data.sql}
             </Typography>
           )}
-          <div
-            style={{
-              ...dataGridParentStyle,
-            }}
-          >
-            <DataGrid
-              showToolbar
-              getRowId={getRowId}
-              slots={slots}
-              sortModel={sortModel}
-              onSortModelChange={onSortModelChange}
-              showCellVerticalBorder
-              showColumnVerticalBorder
-              slotProps={slotProps}
-              rowHeight={setting.appearance.datagridRowHeight()}
-              columnHeaderHeight={setting.appearance.datagridRowHeight()}
-              columns={data.fields}
-              rows={data.data}
-              filterMode="client" // 使用客户端过滤
-              onColumnResize={onColumnResize}
-            ></DataGrid>
-          </div>
+
+          <DataGrid
+            showToolbar
+            getRowId={getRowId}
+            slots={slots}
+            sortModel={sortModel}
+            onSortModelChange={onSortModelChange}
+            showCellVerticalBorder
+            showColumnVerticalBorder
+            slotProps={slotProps}
+            style={dataGridStyle}
+            rowHeight={setting.appearance.datagridRowHeight()}
+            columnHeaderHeight={setting.appearance.datagridRowHeight()}
+            columns={data.fields}
+            rows={data.data}
+            filterMode="client" // 使用客户端过滤
+            onColumnResize={onColumnResize}
+          ></DataGrid>
         </Stack>
       )}
 

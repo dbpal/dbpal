@@ -1105,9 +1105,7 @@ interface DetachQueyRespViewParameter {
   eventName: string,
 }
 
-const dataGridParentStyle = {
-  display: 'flex',
-  flexDirection: 'column',
+const dataGridStyle = {
   flexGrow: 1,
   height: "100px",
   flexShrink: 1,
@@ -1157,6 +1155,12 @@ const dataGridheaderFontSize = "0.8rem";
 enum TableType {
   Normal,
   MongoTimeSerial,
+}
+
+
+const shrinkAble: CSSProperties = {
+  flexShrink: 1,
+  overflow: "hidden"
 }
 
 export {
@@ -1218,7 +1222,7 @@ export {
   editorPositionToEnd,
   KeyPressed,
   SomeTempStore,
-  dataGridParentStyle,
+  dataGridStyle,
   isMacOs,
   LoggerLevel,
   SaveLoggerStreamPinToBotton,
@@ -1235,7 +1239,8 @@ export {
   TableType,
   appTheme,
   isDarkTheme,
-  appDatabase
+  appDatabase,
+  shrinkAble
 };
 
 
