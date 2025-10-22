@@ -485,7 +485,7 @@ const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
     })
     .catch((e) => {
       if (showNotification) {
-        showNotification('error', 'copy to clipboard failed', e);
+        showNotification('warning', 'copy to clipboard failed', e);
       }
     });
 };
@@ -858,7 +858,7 @@ function getEditorText(
   }
   text = text.trim();
   if (!text) {
-    showNotification('error', 'empty statement');
+    showNotification('warning', 'empty statement');
     return undefined;
   }
   return text;

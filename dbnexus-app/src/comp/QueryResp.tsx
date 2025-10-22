@@ -151,7 +151,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
           renderHeader: () => {
             return (
               <Tooltip title="auto generate sequence">
-                <span> seq</span>
+                <span> seq </span>
               </Tooltip>
             );
           },

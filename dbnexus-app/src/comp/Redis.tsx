@@ -91,7 +91,7 @@ function RedisAddList(props: {
   const handleAdd = () => {
     const content = valueRef.current.getValue();
     if (!content) {
-      showNotification('error', 'Please input value');
+      showNotification('warning', 'Please input value');
       return;
     }
     setLoading(true);
@@ -100,7 +100,7 @@ function RedisAddList(props: {
         showNotification('success', 'Push OK');
       })
       .catch((e) => {
-        showNotification('error', 'Push OK', e);
+        showNotification('error', 'Push Failure', e);
       })
       .finally(() => {
         setLoading(false);
@@ -206,7 +206,7 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
   const handleAdd = () => {
     const c = valueRef.current.getValue();
     if (!c) {
-      showNotification('error', 'please input value');
+      showNotification('warning', 'please input value');
       return;
     }
     setLoading(true);
@@ -249,7 +249,7 @@ function RedisAddHash(props: {
         showNotification('success', 'Add OK');
       })
       .catch((e) => {
-        showNotification('success', 'Add Error', e);
+        showNotification('error', 'Add Error', e);
       })
       .finally(() => {
         setLoading(false);
@@ -298,7 +298,7 @@ function RedisAddZset(props: {
         showNotification('success', 'Add OK');
       })
       .catch((e) => {
-        showNotification('success', 'Add Failure', e);
+        showNotification('error', 'Add Failure', e);
       })
       .finally(() => {
         setLoading(false);
@@ -368,7 +368,7 @@ function RedisEditHash(props: {
         handleClose();
       })
       .catch((e) => {
-        showNotification('success', 'Modify failure', e);
+        showNotification('error', 'Modify failure', e);
       })
       .finally(() => {
         setLoading(false);
@@ -650,7 +650,7 @@ function RedisEditList(props: {
         handleClose();
       })
       .catch((e) => {
-        showNotification('success', 'Modify Failure', e);
+        showNotification('error', 'Modify Failure', e);
       })
       .finally(() => {
         setLoading(false);
@@ -686,7 +686,7 @@ function RedisEditSet(props: {
         handleClose();
       })
       .catch((e) => {
-        showNotification('success', 'Modify Failure', e);
+        showNotification('error', 'Modify Failure', e);
       })
       .finally(() => {
         setLoading(false);

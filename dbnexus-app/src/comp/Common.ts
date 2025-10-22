@@ -97,13 +97,13 @@ async function dropDatabase(props: {
   }
   invoke('drop_database', { name: uuid, database })
     .then(() => {
-      showNotification('success', 'Drop OK');
+      showNotification('success', 'drop ok');
       if (okCallback) {
         okCallback();
       }
     })
     .catch((e) => {
-      showNotification('error', 'Drop failed', e);
+      showNotification('error', 'drop failed', e);
     });
 }
 

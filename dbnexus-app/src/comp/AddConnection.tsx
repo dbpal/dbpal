@@ -853,7 +853,7 @@ function TestConnAndSave(props: { connectionNameDom }) {
     }
     if (!config.name) {
       connectionNameDom.current.focus();
-      showNotification('warning', 'Connection Name is empty.');
+      showNotification('warning', 'connection name is empty.');
       return;
     }
     const password = config['password'];
@@ -876,12 +876,12 @@ function TestConnAndSave(props: { connectionNameDom }) {
     }
     ConnectHandler.save(config)
       .then((_) => {
-        showNotification('success', 'Add Connection OK');
+        showNotification('success', 'add connection OK');
         emit(connectionChangeEvent, '');
         // handleClose();
       })
       .catch((e) => {
-        showNotification('error', 'Add Connection failure', e);
+        showNotification('error', 'add connection failure', e);
       });
   };
   return (

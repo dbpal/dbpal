@@ -50,7 +50,7 @@ pub fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str>, Err
                     .map(|x| x.to_str())
                     .flatten()
                     .unwrap();
-                if name.ends_with("themelist.json") {
+                if name == "themelist.json" {
                     continue;
                 }
                 let name = &name[..name.len() - 5];
@@ -60,8 +60,8 @@ pub fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str>, Err
     }
     Ok(ret)
 }
-#[tauri::command]
 
+#[tauri::command]
 pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
     let tokens = RedisToken::tokenize(line, 1).map_err(|e| ErrorFrontend::from(e))?;
     if tokens.is_empty() {

@@ -98,11 +98,11 @@ function ExportView(props: {
       await exportOP(config, file);
     } catch (e) {
       setLoading(false);
-      showNotification('error', 'Export Failure', e);
+      showNotification('error', 'export failure', e);
       return;
     }
     setLoading(false);
-    showNotification('success', 'Export OK');
+    showNotification('success', 'export OK');
     setFile(file);
   };
 

@@ -254,7 +254,7 @@ function MongoQuery(props: {
             onClick={() => {
               const value = editor.current.getValue();
               if (!value) {
-                showNotification('error', "can't save empty statement.");
+                showNotification('warning', "can't save empty statement.");
                 return;
               }
               if (favoriteName) {
@@ -394,7 +394,7 @@ function MongoQuery(props: {
                   color="primary"
                   onClick={() => {
                     if (!favoriteName) {
-                      showNotification('error', "name can't be empty");
+                      showNotification('warning', "name can't be empty");
                       return;
                     }
                     saveFavoriteSql(favoriteName, editor.current.getValue());

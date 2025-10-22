@@ -71,7 +71,7 @@ function CreateDatabase({ uuid, handleClose }) {
   const handleCreate = () => {
     if (!database) {
       databaseDom.current.focus();
-      showNotification('error', 'database name is empty');
+      showNotification('warning', 'database name is empty');
       return;
     }
 
@@ -135,7 +135,7 @@ function CreateSchema(props: {
       return;
     }
     if (schemaSet.has(schema)) {
-      showNotification('error', `'${schema}' already exists.`);
+      showNotification('warning', `'${schema}' already exists.`);
       return;
     }
     let extra = null;
@@ -150,12 +150,12 @@ function CreateSchema(props: {
     }
     invoke('create_schema', { name: uuid, schema, extra })
       .then(() => {
-        showNotification('success', 'Create OK');
+        showNotification('success', 'create  ok');
         handleClose();
         handleReload();
       })
       .catch((e) => {
-        showNotification('error', 'Create Failure', e);
+        showNotification('error', 'create failure', e);
       });
   };
 

@@ -307,7 +307,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
           <Button
             onClick={() => {
               if (matchPattern.find((e) => e == matchPatterInput)) {
-                showNotification('error', 'the value already exists');
+                showNotification('warning', 'the value already exists');
                 return;
               }
               if (!matchPatterInput) {

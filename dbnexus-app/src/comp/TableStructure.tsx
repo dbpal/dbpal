@@ -273,7 +273,7 @@ function ColumnsStructure(props: {
   useEffect(() => {
     if (row) {
       if ([DataSourceKind.Sqlite, DataSourceKind.LibSql].includes(kind)) {
-        showNotification('error', `${kind} not support modify column`);
+        showNotification('warning', `${kind} not support modify column`);
       }
     }
   }, [row]);
@@ -399,7 +399,7 @@ function RenameIndex(props: {
   const { showNotification } = useContext(NotificationContext);
   const handleRename = () => {
     if (newName == indexName) {
-      showNotification('error', 'name not change');
+      showNotification('warning', 'name not change');
       return;
     }
     setLoading(true);
@@ -746,7 +746,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
   const handleAdd = async (keys) => {
     try {
       if (!indexName) {
-        showNotification('error', "index name can't be none");
+        showNotification('warning', "index name can't be none");
         indexNameDom.current.focus();
         return;
       }
@@ -858,12 +858,12 @@ function AddIndex(props: {
   }, []);
   const handleAdd = async () => {
     if (!indexName) {
-      showNotification('error', "index name can't be none");
+      showNotification('warning', "index name can't be none");
       indexNameDom.current.focus();
       return;
     }
     if (includes.length == 0) {
-      showNotification('error', 'select at least one column');
+      showNotification('warning', 'select at least one column');
       return;
     }
     try {
@@ -953,7 +953,7 @@ function TableAddColumn(props: {
       return;
     }
     if (!typ) {
-      showNotification('error', 'type is empty');
+      showNotification('warning', 'type is empty');
       return;
     }
     setLoading(true);
@@ -1104,7 +1104,7 @@ function SqlDefaultValue(props: {
         setCurrentValue(ts);
       })
       .catch((e) => {
-        showNotification('error', 'list sql current values failed', e);
+        showNotification('warning', 'list sql current values failed', e);
       });
   }, []);
 
@@ -1173,7 +1173,7 @@ function ModifyTableColumn(props: {
   const [nullness, setNullness] = useState('');
   const handleModify = () => {
     if (newName == col && !newTyp) {
-      showNotification('error', 'nothing is changed');
+      showNotification('warning', 'nothing is changed');
       return;
     }
     if (!newName) {

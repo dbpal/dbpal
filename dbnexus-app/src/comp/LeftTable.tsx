@@ -1051,12 +1051,12 @@ function DupTable(props: {
     setLoading(true);
     invoke('duplicate_table', { name: uuid, from: table, to: name })
       .then(() => {
-        showNotification('success', 'Duplicate OK');
+        showNotification('success', 'duplicate OK');
         reloadTables();
         handleClose();
       })
       .catch((e) => {
-        showNotification('error', 'Duplicate failure', e);
+        showNotification('error', 'duplicate failure', e);
       })
       .finally(() => {
         setLoading(false);
@@ -1107,12 +1107,12 @@ function RenameTable(props: {
     setLoading(true);
     invoke('rename_table', { name: uuid, old: table, new: newName })
       .then(() => {
-        showNotification('success', 'Rename OK');
+        showNotification('success', 'rename OK');
         reloadTables();
         handleClose();
       })
       .catch((e) => {
-        showNotification('error', 'Rename failure', e);
+        showNotification('error', 'rename failure', e);
       })
       .finally(() => {
         setLoading(false);
