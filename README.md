@@ -72,3 +72,7 @@ https://github.com/tauri-apps/tauri/issues/13749
 
 
 CONFIG HELP redis返回的值不对啊
+
+
+列出重复的依赖
+cargo tree -d
