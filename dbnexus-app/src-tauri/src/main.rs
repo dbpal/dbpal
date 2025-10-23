@@ -423,7 +423,7 @@ fn main_() {
             if event.id.0 == "zoom_in" {
                 match get_configured_zoom(handle) {
                     Ok(x) => {
-                        let mut zoom = x - 0.1;
+                        let mut zoom = x - 0.03;
                         let min = 0.3;
                         if zoom < min {
                             zoom = min;
@@ -441,7 +441,7 @@ fn main_() {
             if event.id.0 == "zoom_out" {
                 match get_configured_zoom(handle) {
                     Ok(x) => {
-                        let mut zoom = x + 0.1;
+                        let mut zoom = x + 0.03;
                         let max = 2f64;
                         if zoom > max {
                             zoom = max;

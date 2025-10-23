@@ -571,10 +571,16 @@ function TrueOrFalse(props: { value: boolean }) {
 
 function ModalHeader(props: { title: string; handleClose: () => void }) {
   const { title, handleClose } = props;
+  const theme = useTheme();
   return (
     <Stack
       direction="row"
-      style={{ justifyContent: 'space-between', alignItems: 'center' }}
+      style={{
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottom: '3px solid ' + theme.palette.success.main,
+        marginBottom: '0.4rem',
+      }}
     >
       <Typography
         variant="h6"
@@ -645,8 +651,12 @@ function ResizeWrapper(props: {
   );
 }
 
-function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
-  const { fields, x, isTable } = props;
+function ViewRowInModal(props: {
+  fields: types.Field[];
+  data: object;
+  isTable?;
+}) {
+  const { fields, data, isTable } = props;
   const theme = useTheme();
   return (
     <Stack spacing={1}>
@@ -692,7 +702,7 @@ function ViewRowInModal(props: { fields: types.Field[]; x: object; isTable? }) {
                 color: theme.palette.success.main,
               }}
             >
-              {x[f.field]}
+              {data[f.field]}
             </pre>
           </Stack>
         );

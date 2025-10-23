@@ -103,6 +103,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
           <Alert
             severity={notification.severity}
             sx={{ maxWidth: '60vw', minWidth: '15vw' }}
+            onClose={() => {
+              handleClose();
+            }}
           >
             {/* 设置更宽的宽度 */}
             {notification.title && (

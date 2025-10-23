@@ -332,7 +332,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
             ></ModalHeader>
             <ViewRowInModal
               fields={data.fields}
-              x={viewInModal}
+              data={viewInModal}
             ></ViewRowInModal>
           </Box>
         </Modal>

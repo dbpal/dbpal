@@ -872,7 +872,7 @@ function SqlTableView_(props: {
             ></ModalHeader>
             <ViewRowInModal
               fields={resp.fields}
-              x={viewInModal}
+              data={viewInModal}
               isTable={isTable}
             ></ViewRowInModal>
           </Box>
