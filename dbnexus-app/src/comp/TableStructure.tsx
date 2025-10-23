@@ -1,5 +1,6 @@
 'use strict';
 import {
+  CSSProperties,
   ReactNode,
   useCallback,
   useContext,
@@ -37,17 +38,16 @@ import {
   GridSlotsComponentsProps,
 } from '@mui/x-data-grid';
 import {
+  Autocomplete,
   Box,
   Button,
   Checkbox,
   Chip,
   Divider,
-  FormControl,
   FormControlLabel,
   FormLabel,
   IconButton,
   InputAdornment,
-  InputLabel,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -55,7 +55,6 @@ import {
   Modal,
   Radio,
   RadioGroup,
-  Select,
   Stack,
   TextField,
   Tooltip,
@@ -278,8 +277,8 @@ function ColumnsStructure(props: {
     }
   }, [row]);
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+    <Stack style={{ height: '100%' }}>
+      <Stack direction="row" style={{ alignItems: 'center' }}>
         <Button loading={loading} onClick={handleReload}>
           reload
         </Button>
@@ -423,7 +422,7 @@ function RenameIndex(props: {
       });
   };
   return (
-    <Stack spacing={1}>
+    <Stack>
       <TextField
         label="new name"
         value={newName}
@@ -431,7 +430,7 @@ function RenameIndex(props: {
           setNewname(e.target.value);
         }}
       ></TextField>
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         <Button color="primary" loading={loading} onClick={handleRename}>
           rename
         </Button>
@@ -604,8 +603,8 @@ function IndexesStructure(props: {
     }
   }, [modalBox]);
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
-      <Stack direction="row" spacing={1}>
+    <Stack style={{ height: '100%' }}>
+      <Stack direction="row">
         <Button loading={loading} onClick={handleReload}>
           reload
         </Button>
@@ -766,7 +765,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
   };
 
   return (
-    <Stack spacing={1} flex={1}>
+    <Stack flex={1}>
       <TextField
         value={indexName}
         onChange={(e) => {
@@ -883,7 +882,7 @@ function AddIndex(props: {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <TextField
         value={indexName}
         onChange={(e) => {
@@ -924,8 +923,6 @@ function AddIndex(props: {
     </Stack>
   );
 }
-
-const typeHint = 'some type require specify a size like `varchar(128)`';
 
 function TableAddColumn(props: {
   table: string;
@@ -984,7 +981,7 @@ function TableAddColumn(props: {
   const supportNull = kindSupportNull(kind);
   const supportDefault = kindSupportDefault(kind);
   return (
-    <Stack spacing={1}>
+    <Stack>
       <TextField
         value={name}
         required
@@ -1010,47 +1007,24 @@ function TableAddColumn(props: {
         }}
         label="column name"
       ></TextField>
-      <TableTypes
-        uuid={uuid}
-        handleChange={(e) => {
-          setTyp(e);
-        }}
-        type={typ}
-      ></TableTypes>
-      {/*   TODO some mariadb require a length parameter    */}
-      <Stack direction="row" spacing={1}>
-        <TextField
-          fullWidth
-          value={typ}
-          onChange={(e) => setTyp(e.target.value)}
-          label="type"
-          helperText={typeHint}
-          slotProps={{
-            input: {
-              endAdornment: typ && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setTyp('');
-                    }}
-                    edge="end"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
+      <Stack direction="row" style={{ alignItems: 'center' }}>
+        <TypeSelect
+          uuid={uuid}
+          handleChange={(e) => {
+            setTyp(e);
           }}
-        ></TextField>
+          style={{ flex: 1 }}
+          type={typ}
+        ></TypeSelect>
+        {supportNull && (
+          <ColumnNullness
+            nullness={nullness}
+            handleNullness={(e) => {
+              setNullness(e);
+            }}
+          ></ColumnNullness>
+        )}
       </Stack>
-      {supportNull && (
-        <ColumnNullness
-          nullness={nullness}
-          handleNullness={(e) => {
-            setNullness(e);
-          }}
-        ></ColumnNullness>
-      )}
 
       {supportDefault && (
         <SqlDefaultValue
@@ -1059,27 +1033,20 @@ function TableAddColumn(props: {
           setDefaultValue={setDefaultValue}
         ></SqlDefaultValue>
       )}
-
       {supportAfter && (
-        <FormControl style={{ minWidth: '180px' }}>
-          <InputLabel>Select After Column</InputLabel>
-          <Select
-            value={after}
-            onChange={(e) => {
-              setAfter(e.target.value);
-            }}
-            label="Select After Column"
-          >
-            <MenuItem value="">none</MenuItem>
-            {fields.map((e) => (
-              <MenuItem key={e.field} value={e.field}>
-                {e.field}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <Autocomplete
+          freeSolo={false}
+          options={fields.map((e) => e.field)}
+          style={{ width: '22rem' }}
+          value={after}
+          renderInput={(params) => (
+            <TextField {...params} label="after column" />
+          )}
+          onChange={(_, field) => {
+            setAfter(field);
+          }}
+        />
       )}
-
       <Divider />
       <Stack direction="row">
         <Button loading={loading} color="primary" onClick={handleAdd}>
@@ -1104,12 +1071,12 @@ function SqlDefaultValue(props: {
         setCurrentValue(ts);
       })
       .catch((e) => {
-        showNotification('warning', 'list sql current values failed', e);
+        showNotification('success', 'list sql current values failed', e);
       });
   }, []);
 
   return (
-    <Stack direction="row" spacing={1}>
+    <Stack direction="row">
       <TextField
         label="default value"
         value={defaultValue}
@@ -1134,23 +1101,18 @@ function SqlDefaultValue(props: {
           },
         }}
       ></TextField>
-      <FormControl style={{ flex: 1 }}>
-        <InputLabel>some predefined value can pick </InputLabel>
-        <Select
-          value={defaultValue}
-          label="font family"
-          onChange={(e) => setDefaultValue(e.target.value as string)}
-        >
-          <MenuItem value=""> </MenuItem>
-          {currentValue.map((e) => {
-            return (
-              <MenuItem key={e} value={e}>
-                {e}
-              </MenuItem>
-            );
-          })}
-        </Select>
-      </FormControl>
+      <Autocomplete
+        freeSolo
+        options={currentValue}
+        style={{ width: '22rem' }}
+        value={defaultValue}
+        renderInput={(params) => (
+          <TextField {...params} label="some predefined value can pick" />
+        )}
+        onChange={(_, value) => {
+          setDefaultValue(value);
+        }}
+      />
     </Stack>
   );
 }
@@ -1206,7 +1168,7 @@ function ModifyTableColumn(props: {
   };
   const supportModifyType = kind != DataSourceKind.Cassandra;
   return (
-    <Stack spacing={1}>
+    <Stack>
       <TextField
         fullWidth
         label="New Name"
@@ -1248,43 +1210,17 @@ function ModifyTableColumn(props: {
           label="modify TYPE"
         />
       )}
+
       {modifyType && (
-        <Stack spacing={1}>
-          <TableTypes
+        <Stack direction="row" style={{ alignItems: 'center' }}>
+          <TypeSelect
             uuid={uuid}
             handleChange={(e) => {
               setNewTyp(e);
             }}
+            style={{ flex: 1 }}
             type={typ}
-          ></TableTypes>
-
-          <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
-            <TextField
-              label="Type"
-              value={newTyp}
-              onChange={(e) => {
-                setNewTyp(e.target.value);
-              }}
-              fullWidth
-              helperText={typeHint}
-              slotProps={{
-                input: {
-                  endAdornment: newTyp && (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => {
-                          setNewTyp('');
-                        }}
-                        edge="end"
-                      >
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            ></TextField>
-          </Stack>
+          ></TypeSelect>
           {kindSupportNull(kind) && (
             <ColumnNullness
               nullness={nullness}
@@ -1293,7 +1229,7 @@ function ModifyTableColumn(props: {
           )}
         </Stack>
       )}
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         <Button loading={loading} color="error" onClick={handleModify}>
           modify
         </Button>
@@ -1302,11 +1238,15 @@ function ModifyTableColumn(props: {
   );
 }
 
-function TableTypes(props: { handleChange; uuid; type }) {
-  const { handleChange, uuid, type } = props;
+function TypeSelect(props: {
+  handleChange;
+  uuid;
+  type;
+  style?: CSSProperties;
+}) {
+  const { handleChange, uuid, type, style } = props;
   const [types, setTypes] = useState<string[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const [match, setMatch] = useState('');
   useEffect(() => {
     invoke<string[]>('list_data_types', { name: uuid })
       .then((ts) => {
@@ -1317,59 +1257,21 @@ function TableTypes(props: { handleChange; uuid; type }) {
       });
   }, []);
   return (
-    <Stack
-      direction="row"
-      spacing={1}
-      style={{ flexWrap: 'wrap', alignItems: 'center' }}
-    >
-      <TextField
-        style={{ width: '16rem' }}
-        label="type match"
-        value={match}
-        onChange={(e) => {
-          setMatch(e.target.value);
-        }}
-        slotProps={{
-          input: {
-            endAdornment: match && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setMatch('');
-                  }}
-                  edge="end"
-                >
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
-      ></TextField>
-      <FormControl style={{ flex: 1 }}>
-        <InputLabel>select type</InputLabel>
-        <Select
-          value={type}
-          onChange={(e) => {
-            handleChange(e.target.value as string);
-          }}
-        >
-          {types
-            .filter((type) => {
-              if (match) {
-                return type.toLowerCase().includes(match.toLowerCase());
-              } else {
-                return true;
-              }
-            })
-            .map((type) => (
-              <MenuItem key={type} value={type}>
-                {type}
-              </MenuItem>
-            ))}
-        </Select>
-      </FormControl>
-    </Stack>
+    <Autocomplete
+      freeSolo
+      options={types}
+      style={{ width: '22rem', ...style }}
+      value={type}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label={`type def may require size varchar(100)`}
+        />
+      )}
+      onChange={(_, type) => {
+        handleChange(type);
+      }}
+    />
   );
 }
 
@@ -1636,8 +1538,8 @@ function TriggersStructure(props: {
   }, [modalBox]);
 
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+    <Stack style={{ height: '100%' }}>
+      <Stack direction="row" style={{ alignItems: 'center' }}>
         <Button loading={loading} onClick={handleReload}>
           reload
         </Button>
@@ -1753,8 +1655,8 @@ function TableStructure(props: {
   }
 
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
-      <Stack direction="row" spacing={1} style={{ justifyContent: 'center' }}>
+    <Stack style={{ height: '100%' }}>
+      <Stack direction="row" style={{ justifyContent: 'center' }}>
         {structures.map((e) => (
           <Chip
             onClick={() => {

@@ -206,7 +206,7 @@ function SetFilterSort(props: {
           language={getLanguageFromDataSourceKind(kind)}
         ></SimpleFlexEditor>
 
-        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+        <Stack direction="row" style={{ alignItems: 'center' }}>
           <Button onClick={handleSet}>set {label}</Button>
           <Button
             onClick={() => {
@@ -253,8 +253,8 @@ function EditInModal(props: { content: string; handleModify }) {
   }, [value, language]);
 
   return (
-    <Stack flex={1} spacing={1}>
-      <Stack direction="row" spacing={1}>
+    <Stack flex={1}>
+      <Stack direction="row">
         {editInModalLanguages.map((e) => (
           <Chip
             key={e.language}
@@ -293,7 +293,7 @@ function EditInModal(props: { content: string; handleModify }) {
         }
       ></SimpleFlexEditor>
       <Divider />
-      <Stack spacing={1} direction="row">
+      <Stack direction="row">
         <Button
           onClick={() => {
             handleModify(value);
@@ -401,7 +401,7 @@ function SqlTableView_(props: {
           return ret;
         };
         return (
-          <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+          <Stack direction="row" style={{ alignItems: 'center' }}>
             <Tooltip title={makeTitle()}>
               <Typography fontSize={dataGridheaderFontSize}>
                 {def.field}
@@ -708,8 +708,8 @@ function SqlTableView_(props: {
     return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
   }, []);
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+    <Stack style={{ height: '100%' }}>
+      <Stack direction="row" style={{ alignItems: 'center' }}>
         <Button
           loading={loading}
           color="primary"
@@ -796,7 +796,7 @@ function SqlTableView_(props: {
         )}
       </Stack>
 
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography
           sx={{
             cursor: 'pointer',
@@ -815,7 +815,6 @@ function SqlTableView_(props: {
 
         <Stack
           direction="row"
-          spacing={1}
           style={{
             justifyContent: 'flex-end',
             alignItems: 'center',
@@ -1076,7 +1075,7 @@ function SqlTableViewData(props: {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       {fields
         .filter(
           (f) =>
@@ -1088,7 +1087,6 @@ function SqlTableViewData(props: {
             <Stack
               key={f.field}
               direction="row"
-              spacing={1}
               sx={{ alignContent: 'center', justifyContent: 'center' }}
             >
               <TextField
@@ -1122,7 +1120,7 @@ function SqlTableViewData(props: {
           );
         })}
       <Divider />
-      <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
+      <Stack direction="row" style={{ alignItems: 'flex-start' }}>
         <Button loading={loading} onClick={handleModify}>
           {buttonName}
         </Button>
@@ -1451,7 +1449,7 @@ function FilterOnValue(props: {
   };
   return (
     <Stack spacing={2}>
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         {compares.map((x) => (
           <Chip
             key={x}
@@ -1464,7 +1462,7 @@ function FilterOnValue(props: {
           ></Chip>
         ))}
       </Stack>
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         {['null', 'not null'].map((e) => (
           <Chip
             label={e}
@@ -1477,7 +1475,7 @@ function FilterOnValue(props: {
         ))}
       </Stack>
       {formatValue.endsWith("'") && (
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row">
           {['starts', 'ends', 'contains'].map((e) => (
             <Chip
               label={e}
@@ -1492,7 +1490,7 @@ function FilterOnValue(props: {
       )}
 
       <Divider />
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+      <Stack direction="row" style={{ alignItems: 'center' }}>
         <Button
           onClick={() => {
             setWhere(where());

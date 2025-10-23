@@ -71,7 +71,6 @@ function UdfsTree() {
     <TreeItem
       itemId={treeID.current}
       label=<Stack
-        spacing={1}
         direction="row"
         sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
@@ -101,7 +100,6 @@ function UdfsTree() {
               itemId={udfIdGenerate(kind, udf, uuid, 'udf')}
               label=<Stack
                 direction="row"
-                spacing={0.5}
                 sx={{ alignItems: 'center' }}
                 onContextMenu={(e) => {
                   setUpMenu({
@@ -376,7 +374,6 @@ function CassandraAggregatesTree() {
     <TreeItem
       itemId={idPrefix}
       label=<Stack
-        spacing={1}
         direction="row"
         sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
@@ -412,7 +409,6 @@ function CassandraAggregatesTree() {
               itemId={getItemId(agg)}
               label=<Stack
                 direction="row"
-                spacing={0.5}
                 sx={{ alignItems: 'center' }}
                 onContextMenu={(e) => {
                   setUpMenu({

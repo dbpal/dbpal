@@ -107,8 +107,8 @@ function RedisAddList(props: {
       });
   };
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
-      <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+    <Stack style={{ height: '100%' }}>
+      <Stack direction="row" style={{ alignItems: 'center' }}>
         <Typography color="info"> direction: </Typography>
         <RadioGroup
           row
@@ -124,7 +124,7 @@ function RedisAddList(props: {
 
       <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
 
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         <Button loading={loading} color="primary" onClick={handleAdd}>
           push
         </Button>
@@ -171,7 +171,6 @@ function RedisStringTable(props: {
   };
   return (
     <Stack
-      spacing={1}
       style={{
         overflow: 'auto',
         height: '100%',
@@ -183,7 +182,7 @@ function RedisStringTable(props: {
           valueRef={valueRef}
         ></RedisValueEditor>
       )}
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         <Button
           loading={loading}
           color="primary"
@@ -222,10 +221,10 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
       });
   };
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
+    <Stack style={{ height: '100%' }}>
       <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
 
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         <Button color="primary" loading={loading} onClick={handleAdd}>
           add
         </Button>
@@ -257,7 +256,7 @@ function RedisAddHash(props: {
   };
 
   return (
-    <Stack spacing={1} height={'100%'}>
+    <Stack height={'100%'}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <RedisValueEditor
           value=""
@@ -273,7 +272,7 @@ function RedisAddHash(props: {
         ></RedisValueEditor>
       </div>
 
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         <Button loading={loading} color="primary" onClick={handleAdd}>
           Add
         </Button>
@@ -306,9 +305,9 @@ function RedisAddZset(props: {
   };
 
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
+    <Stack style={{ height: '100%' }}>
       <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
+      <Stack direction="row" style={{ alignItems: 'flex-start' }}>
         <Button loading={loading} color="primary" onClick={handleAdd}>
           Add
         </Button>
@@ -376,7 +375,7 @@ function RedisEditHash(props: {
   };
 
   return (
-    <Stack spacing={1} flex={1}>
+    <Stack flex={1}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <RedisValueEditor
           value={oldKey}
@@ -392,7 +391,7 @@ function RedisEditHash(props: {
         ></RedisValueEditor>
       </div>
 
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         <Button loading={loading} color="primary" onClick={handleModify}>
           modify
         </Button>
@@ -431,9 +430,9 @@ function RedisEditZset(props: {
   };
 
   return (
-    <Stack spacing={1} flex={1}>
+    <Stack flex={1}>
       <RedisValueEditor value={oldKey} valueRef={newKey}></RedisValueEditor>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
+      <Stack direction="row" style={{ alignItems: 'flex-start' }}>
         <Button loading={loading} color="primary" onClick={handleModify}>
           modify
         </Button>
@@ -551,8 +550,8 @@ function RedisValueEditor(props: {
     valueRef.current.mode = editModel;
   }, [editModel]);
   return (
-    <Stack spacing={1} flex={1}>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+    <Stack flex={1}>
+      <Stack direction="row" style={{ alignItems: 'center' }}>
         <Typography
           variant="h6"
           color="info"
@@ -657,9 +656,9 @@ function RedisEditList(props: {
       });
   };
   return (
-    <Stack spacing={1} flex={1}>
+    <Stack flex={1}>
       <RedisValueEditor value={oldValue} valueRef={newValue}></RedisValueEditor>
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         <Button loading={loading} color="primary" onClick={handleModify}>
           modify
         </Button>
@@ -694,9 +693,9 @@ function RedisEditSet(props: {
   };
 
   return (
-    <Stack spacing={1} flex={1}>
+    <Stack flex={1}>
       <RedisValueEditor value={oldValue} valueRef={newValue}></RedisValueEditor>
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         <Button loading={loading} color="primary" onClick={handleModify}>
           modify
         </Button>
@@ -835,17 +834,12 @@ function RedisSetTable(props: {
   }, [modalBox]);
 
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
+    <Stack style={{ height: '100%' }}>
       <Stack
         direction="row"
-        spacing={1}
         style={{ alignItems: 'center', justifyContent: 'space-between' }}
       >
-        <Stack
-          spacing={1}
-          direction="row"
-          style={{ alignItems: 'center', width: '50%' }}
-        >
+        <Stack direction="row" style={{ alignItems: 'center', width: '50%' }}>
           <TextField
             label="key match could be *key,key*,*key*"
             value={keyMatch}
@@ -882,7 +876,7 @@ function RedisSetTable(props: {
           <DoubleClickToModify></DoubleClickToModify>
         </Stack>
 
-        <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+        <Stack direction="row" style={{ alignItems: 'center' }}>
           <ExecutingTime loading={loading} title="loading time" />
         </Stack>
         {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
@@ -1000,7 +994,7 @@ function RedisListTableContextMenu(props: {
                 setShowDel(null);
               }}
             ></ModalHeader>
-            <Stack spacing={1}>
+            <Stack>
               <TextField
                 value={count}
                 label="delete count"
@@ -1183,12 +1177,12 @@ function RedisListTable(props: {
     }
   }, []);
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
+    <Stack style={{ height: '100%' }}>
       <Stack
         direction="row"
         style={{ justifyContent: 'space-between', alignItems: 'center' }}
       >
-        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+        <Stack direction="row" style={{ alignItems: 'center' }}>
           <Button
             color="primary"
             onClick={() => {
@@ -1201,7 +1195,7 @@ function RedisListTable(props: {
           <DoubleClickToModify></DoubleClickToModify>
         </Stack>
 
-        <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+        <Stack direction="row" style={{ alignItems: 'center' }}>
           <ExecutingTime loading={loading} title="loading time" />
         </Stack>
       </Stack>
@@ -1435,8 +1429,8 @@ function RedisZsetTable(props: {
     }
   }, []);
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+    <Stack style={{ height: '100%' }}>
+      <Stack direction="row" style={{ alignItems: 'center' }}>
         <TextField
           label="key match could be *key,key*,*key*"
           value={keyMatch}
@@ -1763,18 +1757,13 @@ function RedisHashTable(props: {
     }
   }, []);
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
+    <Stack style={{ height: '100%' }}>
       <Stack
         direction="row"
-        spacing={1}
         alignItems="center"
         style={{ justifyContent: 'space-between' }}
       >
-        <Stack
-          direction="row"
-          spacing={1}
-          style={{ width: '55%', alignItems: 'center' }}
-        >
+        <Stack direction="row" style={{ width: '55%', alignItems: 'center' }}>
           <TextField
             label="key match could be *key,key*,*key*"
             variant="outlined"
@@ -1813,7 +1802,7 @@ function RedisHashTable(props: {
           {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
         </Stack>
 
-        <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+        <Stack direction="row" style={{ alignItems: 'center' }}>
           <ExecutingTime loading={loading} title="loading time" />
         </Stack>
       </Stack>

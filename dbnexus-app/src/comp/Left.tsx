@@ -1,20 +1,18 @@
 'use strict';
 import {
+  Autocomplete,
   Box,
   Button,
   Chip,
   CircularProgress,
   Divider,
-  FormControl,
   IconButton,
   InputAdornment,
-  InputLabel,
   ListItemIcon,
   ListItemText,
   MenuItem,
   MenuList,
   Modal,
-  Select,
   Stack,
   TextField,
   Tooltip,
@@ -150,7 +148,6 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
         url: 'add_connection.html',
         width: 800,
         height: 600,
-        maximizable: true,
       });
       webview.once('tauri://created', () =>
         console.log('create add connection view successfully')
@@ -177,7 +174,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   };
   const theme = useTheme();
   return (
-    <Stack spacing={1} style={{ padding: '2px' }}>
+    <Stack style={{ padding: '2px' }}>
       <Stack>
         {show ? (
           <IconButton onClick={toggleShow}>
@@ -241,7 +238,6 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
       </Stack>
 
       <Stack
-        spacing={1}
         style={{
           display: show ? 'flex' : 'none',
           border: '2px solid ' + theme.palette.success.main,
@@ -255,7 +251,6 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
         <Stack
           direction="row"
           style={{ flexWrap: 'wrap', alignItems: 'center' }}
-          spacing={1}
         >
           {matchPattern.length > 1 && (
             <IconButton
@@ -279,7 +274,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
             />
           ))}
         </Stack>
-        <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
+        <Stack direction="row" style={{ alignItems: 'flex-start' }}>
           <TextField
             fullWidth
             value={matchPatterInput}
@@ -495,7 +490,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   }, []);
 
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
+    <Stack style={{ height: '100%' }}>
       <Stack direction="row">
         {conns.length == 0 && (
           <Button
@@ -850,22 +845,20 @@ function FavoriteSqlList(props: { handleClose }) {
   };
 
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
-        <FormControl style={{ width: '15rem' }}>
-          <InputLabel> connection name </InputLabel>
-          <Select
-            value={uuidFilter}
-            onChange={(e) => setUuidFilter(e.target.value)}
-          >
-            <MenuItem value=""></MenuItem>
-            {distinctUuid.map((e) => (
-              <MenuItem value={e} key={e}>
-                {e}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+    <Stack style={{ height: '100%' }}>
+      <Stack direction="row" style={{ alignItems: 'center' }}>
+        <Autocomplete
+          options={distinctUuid}
+          style={{ width: '22rem' }}
+          value={uuidFilter}
+          renderInput={(params) => (
+            <TextField {...params} label="filter connection name" />
+          )}
+          freeSolo={false}
+          onChange={(_, uuid) => {
+            setUuidFilter(uuid);
+          }}
+        />
 
         <Button
           onClick={() => {
@@ -1038,7 +1031,6 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     <TreeItem
       itemId={idForTree.current}
       label=<Stack
-        spacing={1}
         direction="row"
         onContextMenu={(e) => {
           setUpMenu({
@@ -1662,7 +1654,6 @@ function CatalogTree(_props: {}) {
       itemId={name}
       label=<Stack
         direction="row"
-        spacing={1}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -1742,7 +1733,6 @@ function DatabaseTree(props: {
     <TreeItem
       itemId={name}
       label=<Stack
-        spacing={1}
         direction="row"
         alignContent="baseline"
         onContextMenu={(e) => {

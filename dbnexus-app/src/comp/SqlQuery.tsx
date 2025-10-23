@@ -121,6 +121,14 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   };
 
   const rollbackTx = async () => {
+    const confirm = await secondConfirm({
+      title: 'Rollback Transaction',
+      confirmText: 'Rollback',
+      kind: 'info',
+    });
+    if (!confirm) {
+      return;
+    }
     try {
       await conn.rollback();
       showNotification('success', 'rollback ok');
@@ -577,7 +585,6 @@ function SqlQuery(props: {
 
           <Stack
             direction="row"
-            spacing={0.5}
             sx={{
               alignItems: 'center',
               overflow: 'auto',
@@ -844,7 +851,7 @@ function SqlQuery(props: {
                 setShowFavoriteName(false);
               }}
             ></ModalHeader>
-            <Stack spacing={1}>
+            <Stack>
               <TextField
                 fullWidth
                 label="name"

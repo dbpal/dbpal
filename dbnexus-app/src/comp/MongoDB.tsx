@@ -329,7 +329,7 @@ function MongoBsonEditor(props: {
       <EditorBar
         pos={pos}
         left={
-          <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+          <Stack direction="row" style={{ alignItems: 'center' }}>
             {setOP && (
               <Button
                 loading={loading}
@@ -490,11 +490,7 @@ function MongoTableToolBar(props: {
         alignItems: 'center',
       }}
     >
-      <Stack
-        direction="row"
-        spacing={1}
-        style={{ flexWrap: 'wrap', alignItems: 'center' }}
-      >
+      <Stack direction="row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
         <Button loading={loading} color="primary" onClick={handleReload}>
           reload
         </Button>
@@ -531,7 +527,7 @@ function MongoTableToolBar(props: {
         ></Chip>
         {someNotice}
       </Stack>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+      <Stack direction="row" style={{ alignItems: 'center' }}>
         <ButtonGroup sx={{ gap: 0.5 }}>
           <IconButton
             disabled={viewModel == MongoDataViewModel.Object}
@@ -868,8 +864,8 @@ function MongoTableListMenuFilter(props: {
   }, [compare, value]);
 
   return (
-    <Stack spacing={1}>
-      <Stack direction="row" spacing={1}>
+    <Stack>
+      <Stack direction="row">
         {compares.map((x) => (
           <Chip
             key={x}
@@ -881,7 +877,7 @@ function MongoTableListMenuFilter(props: {
           ></Chip>
         ))}
       </Stack>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+      <Stack direction="row" style={{ alignItems: 'center' }}>
         {['null', 'not null'].map((e) => (
           <Chip
             label={e}
@@ -893,7 +889,7 @@ function MongoTableListMenuFilter(props: {
         ))}
       </Stack>
       {typeof value == 'string' && (
-        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+        <Stack direction="row" style={{ alignItems: 'center' }}>
           {['starts', 'contains', 'ends'].map((e) => (
             <Chip
               label={e}
@@ -907,7 +903,7 @@ function MongoTableListMenuFilter(props: {
         </Stack>
       )}
 
-      <Stack direction="row" style={{ alignItems: 'center' }} spacing={1}>
+      <Stack direction="row" style={{ alignItems: 'center' }}>
         <Button
           onClick={() => {
             setFilter(doc);
@@ -986,7 +982,7 @@ function MongoTableJson(props: {
     handleReload(true);
   }, [triggerReload]);
   return (
-    <Stack spacing={1}>
+    <Stack>
       {jsons.docs.map((doc) => {
         return (
           <ResizeWrapper
@@ -1076,7 +1072,7 @@ function JsonEditor(props: {
       handleValue={(v) => {
         setNewValue(v);
       }}
-      barLeft=<Stack direction="row" alignItems="center" spacing={1}>
+      barLeft=<Stack direction="row" alignItems="center">
         {modifyOP && (
           <Button
             disabled={!!jsonErr}
@@ -1135,7 +1131,7 @@ function BsonJsonPagination({
   setPageSize,
 }) {
   return (
-    <Stack direction="row" spacing={1} alignItems="center">
+    <Stack direction="row" alignItems="center">
       <Pagination
         page={page}
         defaultPage={1}
@@ -1515,7 +1511,7 @@ function MongoTableObject(props: {
     handleReload(true);
   }, [triggerReload]);
   return (
-    <Stack spacing={1}>
+    <Stack>
       {docs.docs.map((doc) => {
         return (
           <ResizeWrapper
@@ -1594,7 +1590,7 @@ function MongoTable(props: {
     oldViewModel = viewModel;
   }, [viewModel]);
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
+    <Stack style={{ height: '100%' }}>
       <MongoTableToolBar
         addOP={async () => {}}
         sort={sort}
@@ -1621,7 +1617,6 @@ function MongoTable(props: {
       ></MongoTableToolBar>
       <Stack
         direction="row"
-        spacing={1}
         style={{ justifyContent: 'flex-end', alignItems: 'center' }}
       >
         <ExecutingTime loading={loading} title="loading time" />

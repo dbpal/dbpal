@@ -18,6 +18,7 @@ import {
   Tooltip,
   InputAdornment,
   IconButton,
+  Autocomplete,
 } from '@mui/material';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -277,7 +278,7 @@ function SslFiles(props: {
   return (
     enabled && (
       <>
-        <Stack direction="row" spacing={1} style={{ flexWrap: 'wrap' }}>
+        <Stack direction="row" style={{ flexWrap: 'wrap' }}>
           <Tooltip
             title={files.ssl_ca}
             onClick={async () => {
@@ -342,11 +343,7 @@ function PGSSL(props: { ssl: types.PgSsl; setSsl: any }) {
   ] as types.PgSslMode[];
 
   return (
-    <Stack
-      direction="row"
-      spacing={1}
-      style={{ alignItems: 'center', flexWrap: 'wrap' }}
-    >
+    <Stack direction="row" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
       <FormControl style={{ width: '12rem' }}>
         <InputLabel> ssl mode </InputLabel>
         <Select
@@ -383,11 +380,7 @@ function MysqlSSl(props: { ssl: types.MysqlSsl; setSsl: any }) {
     'verifyidentity',
   ] as types.MySqlSslMode[];
   return (
-    <Stack
-      direction="row"
-      spacing={1}
-      style={{ alignItems: 'center', flexWrap: 'wrap' }}
-    >
+    <Stack direction="row" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
       <FormControl style={{ width: '12rem' }}>
         <InputLabel> ssl mode </InputLabel>
         <Select
@@ -439,23 +432,19 @@ function DbSchemaCadidates(props: {
       });
   };
   return (
-    <Stack direction="row" spacing={1}>
-      {candidates.length > 0 && (
-        <FormControl style={{ flex: 1 }}>
-          <InputLabel> candidates </InputLabel>
-          <Select
-            value={name}
-            label="candidates"
-            onChange={(e) => setName(e.target.value)}
-          >
-            {candidates.map((e) => (
-              <MenuItem value={e} key={e}>
-                {e}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      )}
+    <Stack direction="row">
+      <Autocomplete
+        options={candidates}
+        style={{ flex: 1 }}
+        value={name}
+        renderInput={(params) => (
+          <TextField {...params} label={`${label} candidates`} />
+        )}
+        freeSolo
+        onChange={(_, name) => {
+          setName(name);
+        }}
+      />
 
       <TextField
         label={label}
@@ -537,7 +526,7 @@ function Mysql(props: { config?: types.MysqlDBConfig; kind: DataSourceKind }) {
   globalMakeConfig = makeConfig;
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <HostAndPort
         host={host}
         port={port}
@@ -592,7 +581,7 @@ function Oracle(props: { config?: types.OracleDBConfig }) {
   }
   globalMakeConfig = makeConfig;
   return (
-    <Stack spacing={1}>
+    <Stack>
       <Typography
         color="info"
         style={{ cursor: 'pointer' }}
@@ -666,7 +655,7 @@ function ClickHouse(props: { config?: types.ClickHouseConfig }) {
   globalMakeConfig = makeConfig;
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <HostAndPort
         host={host}
         port={port}
@@ -741,7 +730,7 @@ function PostGres(props: { config?: types.PGDBConfig; kind: DataSourceKind }) {
   globalMakeConfig = makeConfig;
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <HostAndPort
         host={host}
         port={port}
@@ -793,7 +782,7 @@ function Sqlite(props: { config?: types.SqliteDBConfig }) {
   globalMakeConfig = makeConfig;
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <SelectPath
         path={path}
         setPath={setPath}
@@ -885,9 +874,9 @@ function TestConnAndSave(props: { connectionNameDom }) {
       });
   };
   return (
-    <Stack spacing={1}>
+    <Stack>
       <Divider></Divider>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+      <Stack direction="row" style={{ alignItems: 'center' }}>
         <Button
           color="primary"
           onClick={() => {
@@ -963,7 +952,7 @@ function FireBird(props: { config?: types.FireBirdConfig }) {
   globalMakeConfig = makeConfig;
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <HostAndPort
         host={host}
         port={port}
@@ -1019,7 +1008,7 @@ function Redis(props: { config?: types.RedisDBConfig }) {
   globalMakeConfig = makeConfig;
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <HostAndPort
         host={host}
         port={port}
@@ -1080,7 +1069,7 @@ function MongoDb(props: { config?: types.MongoDBConfig }) {
   globalMakeConfig = makeConfig;
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <HostAndPort
         host={host}
         port={port}
@@ -1133,7 +1122,7 @@ function Cassandra(props: { config?: types.CassandraDBConfig }) {
   globalMakeConfig = makeConfig;
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <HostAndPort
         host={host}
         port={port}
@@ -1195,7 +1184,7 @@ function SqlServer(props: { config?: types.SqlServerDBConfig }) {
   globalMakeConfig = makeConfig;
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <HostAndPort
         host={host}
         port={port}
@@ -1247,7 +1236,7 @@ function AddConnection(props: {
   const connectionNameDom = useRef<HTMLInputElement>(null);
   const [readOnly, setReadOnly] = useState(config?.read_only);
   return (
-    <Stack spacing={1}>
+    <Stack>
       <FormControl fullWidth>
         <InputLabel>Connection Type</InputLabel>
         <Select
@@ -1275,7 +1264,7 @@ function AddConnection(props: {
           <MenuItem value={DataSourceKind.Cockroach}> Cockroach </MenuItem>
         </Select>
       </FormControl>
-      <Stack direction="row" style={{ alignItems: 'flex-start' }} spacing={2}>
+      <Stack direction="row" style={{ alignItems: 'flex-start' }}>
         <TextField
           label="Connection Name"
           value={connectionName}
@@ -1346,11 +1335,10 @@ function AddConnection(props: {
         }}
       >
         <Stack
-          // style={{
-          //   ...tabCss,
-          //   border: '2px solid  ' + theme.palette.success.main,
-          // }}
-          spacing={1}
+        // style={{
+        //   ...tabCss,
+        //   border: '2px solid  ' + theme.palette.success.main,
+        // }}
         >
           <Typography variant="h6"> server info </Typography>
           <Divider></Divider>
@@ -1466,7 +1454,7 @@ function LibSql(props: { config?: types.LibSqlDBConfig }) {
       )}
       {libSqlModel === 'remote' && (
         <>
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row">
             <TextField
               value={url}
               label="url"
@@ -1519,7 +1507,7 @@ function LibSql(props: { config?: types.LibSqlDBConfig }) {
           {/* <Stack
             direction="row"
             style={{ alignItems: 'center' }}
-            spacing={1}
+            
             flex={1}
           >
             <Checkbox

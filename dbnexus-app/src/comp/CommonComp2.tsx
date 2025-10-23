@@ -14,17 +14,15 @@ import InfoIcon from '@mui/icons-material/Info';
 import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
 import {
+  Autocomplete,
   Button,
-  FormControl,
   FormControlLabel,
   IconButton,
-  InputLabel,
   ListItemIcon,
   ListItemText,
   MenuItem,
   Radio,
   RadioGroup,
-  Select,
   TextField,
   Tooltip,
   Typography,
@@ -87,7 +85,7 @@ function CreateDatabase({ uuid, handleClose }) {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <Stack>
         <TextField
           inputRef={databaseDom}
@@ -162,7 +160,7 @@ function CreateSchema(props: {
   if (kind === DataSourceKind.Cassandra) {
     //
     return (
-      <Stack spacing={1}>
+      <Stack>
         <RadioGroup
           row
           onChange={(e) => {
@@ -209,26 +207,19 @@ function CreateSchema(props: {
       range.push('db' + i);
     }
     return (
-      <Stack spacing={1}>
-        <FormControl>
-          <InputLabel> database </InputLabel>
-          <Select
-            value={schema}
-            onChange={(e) => {
-              setSchema(e.target.value);
-            }}
-          >
-            {range
-              .filter((e) => {
-                return !schemaSet.has(e);
-              })
-              .map((e) => (
-                <MenuItem key={e} value={e}>
-                  {e}
-                </MenuItem>
-              ))}
-          </Select>
-        </FormControl>
+      <Stack>
+        <Autocomplete
+          options={range.filter((e) => {
+            return !schemaSet.has(e);
+          })}
+          freeSolo={false}
+          fullWidth
+          value={schema}
+          renderInput={(params) => <TextField {...params} label="database" />}
+          onChange={(_, schema) => {
+            setSchema(schema);
+          }}
+        />
         <Stack direction="row">
           <Button
             onClick={() => {
@@ -243,7 +234,7 @@ function CreateSchema(props: {
   }
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <Stack>
         <TextField
           value={schema}
@@ -357,7 +348,6 @@ function EditorBar(props: { left?: any; pos: Position }) {
 
       <Stack
         direction="row"
-        spacing={1}
         style={{ paddingLeft: '2rem', paddingRight: '3rem' }}
       >
         <span>Ln {pos ? pos.lineNumber : ''}</span>
@@ -466,7 +456,7 @@ function ConnConfigInfo(props: { uuid }) {
   }, []);
 
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
+    <Stack style={{ height: '100%' }}>
       <Stack direction="row">
         <Button
           color="primary"

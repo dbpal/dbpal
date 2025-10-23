@@ -276,7 +276,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
       }}
     >
       {data && (
-        <Stack spacing={1} flex={1}>
+        <Stack flex={1}>
           {data.sql && (
             <Typography
               color="info"

@@ -213,11 +213,8 @@ function MongoQuery(props: {
   }, [keyEscCancelLog]);
 
   return (
-    <Stack
-      spacing={1}
-      style={{ position: 'relative', height: height ? height : '90vh' }}
-    >
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+    <Stack style={{ position: 'relative', height: height ? height : '90vh' }}>
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
         <QueryLog
           showQueryLog={showQueryLog}
           setShowQueryLog={setShowQueryLog}
@@ -338,7 +335,7 @@ function MongoQuery(props: {
         }}
         elevation={16}
       >
-        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+        <Stack direction="row" style={{ alignItems: 'center' }}>
           <IconButton
             onClick={() => {
               setShowLog(false);
@@ -379,7 +376,7 @@ function MongoQuery(props: {
                 setShowFavoriteName(false);
               }}
             ></ModalHeader>
-            <Stack spacing={1}>
+            <Stack>
               <TextField
                 fullWidth
                 label="name"

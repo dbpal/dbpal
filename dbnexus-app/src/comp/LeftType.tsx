@@ -65,7 +65,6 @@ function TypesTree() {
       itemId={idForTrees.current}
       label=<Stack
         direction="row"
-        spacing={1}
         sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
@@ -109,7 +108,6 @@ function TypesTree() {
                   });
                 }}
                 sx={{ alignItems: 'center' }}
-                spacing={0.5}
               >
                 <PiTreeStructureFill />
                 <span> {typ.name} </span>

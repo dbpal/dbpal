@@ -202,9 +202,8 @@ function QueryLog(props: {
           padding: '0px 4px',
           justifyContent: 'space-between',
         }}
-        spacing={1}
       >
-        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+        <Stack direction="row" style={{ alignItems: 'center' }}>
           <IconButton
             onClick={() => {
               setShowQueryLog(false);
@@ -219,7 +218,7 @@ function QueryLog(props: {
             <span>esc</span>
           </Tooltip>
         </Stack>
-        <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+        <Stack direction="row" style={{ alignItems: 'center' }}>
           filter {sqlDesc}:
           <TextField
             value={matchSql}

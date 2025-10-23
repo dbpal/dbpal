@@ -11,8 +11,8 @@ function BackendCrash(props: { msg: string }) {
 
   const { showNotification } = useContext(NotificationContext);
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
-      <Stack direction="row" spacing={1}>
+    <Stack style={{ height: '100%' }}>
+      <Stack direction="row">
         <Button
           onClick={() => {
             openUrl('https://github.com/dbpal/docs/issues');

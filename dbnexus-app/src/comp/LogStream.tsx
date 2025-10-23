@@ -24,7 +24,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import { Channel, invoke } from '@tauri-apps/api/core';
 function LogTip({ width }) {
   return (
-    <Stack style={{ width }} spacing={1}>
+    <Stack style={{ width }}>
       <Typography variant="h6">
         The rust backend can generate various logs,it is useful for debug a lot
         of problem.
@@ -86,8 +86,8 @@ function LogStream() {
   }, [pinToBotton]);
 
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+    <Stack style={{ height: '100%' }}>
+      <Stack direction="row" style={{ alignItems: 'center' }}>
         <IconButton
           onClick={() => {
             editorSetPositionAndReveal(editor, new Position(1, 1));

@@ -31,20 +31,15 @@ export const NotificationContext = createContext<NotificationContextProps>({
   },
 });
 
-interface NotificationProviderProps {
-  children: ReactNode;
-}
+function NotificationProvider(props: { children: ReactNode }) {
+  const { children } = props;
 
-export const NotificationProvider: React.FC<NotificationProviderProps> = ({
-  children,
-}) => {
   const [open, setOpen] = useState(false);
   const [notification, setNotification] = useState({
     severity: 'info' as AlertColor,
     title: '',
     message: '' as ReactElement | string | null | undefined,
   });
-
   const showNotification = (
     severity: AlertColor,
     title: string,
@@ -113,11 +108,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
                 {notification.title}
               </AlertTitle>
             )}
-            <Stack
-              direction="row"
-              spacing={1}
-              style={{ alignItems: 'flex-start' }}
-            >
+            <Stack direction="row" style={{ alignItems: 'flex-start' }}>
               {React.isValidElement(notification.message) ? (
                 notification.message
               ) : (
@@ -131,4 +122,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       )}
     </NotificationContext.Provider>
   );
-};
+}
+
+export { NotificationProvider };

@@ -71,7 +71,6 @@ function ProceduresTree() {
       itemId={idForTrees.current}
       label=<Stack
         direction="row"
-        spacing={1}
         sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
@@ -116,7 +115,6 @@ function ProceduresTree() {
                   });
                 }}
                 sx={{ alignItems: 'center' }}
-                spacing={0.5}
               >
                 <SiProcessingfoundation></SiProcessingfoundation>
                 <UdfNameAndParameters

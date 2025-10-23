@@ -110,12 +110,12 @@ function ExportView(props: {
     setFile('');
   }, [kind]);
   return (
-    <Stack spacing={1}>
+    <Stack>
       <ModalHeader
         title={`export ${name}`}
         handleClose={handleClose}
       ></ModalHeader>
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         {supportKind.map((e) => (
           <Chip
             onClick={() => {
@@ -128,7 +128,7 @@ function ExportView(props: {
         ))}
       </Stack>
       {kind == 'csv' && (
-        <Stack spacing={1}>
+        <Stack>
           <IncludeHeader
             includeHeader={includeHeader}
             setIncludeHeader={setIncludeHeader}
@@ -147,7 +147,7 @@ function ExportView(props: {
         </Stack>
       )}
       {kind == 'xlsx' && (
-        <Stack spacing={1}>
+        <Stack>
           <IncludeHeader
             includeHeader={includeHeader}
             setIncludeHeader={setIncludeHeader}

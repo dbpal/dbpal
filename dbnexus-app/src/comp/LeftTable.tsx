@@ -146,7 +146,6 @@ function TablesTree(props: { typ: TableType }) {
     <TreeItem
       itemId={tablesId.current}
       label=<Stack
-        spacing={1}
         direction="row"
         sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
@@ -204,7 +203,6 @@ function TableTree(props: {
       label={
         <Stack
           direction="row"
-          spacing={1}
           justifyContent="space-between"
           onContextMenu={(e) => {
             setUpMenu({
@@ -220,7 +218,7 @@ function TableTree(props: {
             });
           }}
         >
-          <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+          <Stack direction="row" style={{ alignItems: 'center' }}>
             <TableViewIcon> </TableViewIcon> <span>{table}</span>
           </Stack>
           <span> {size} </span>
@@ -283,7 +281,7 @@ function DropTable(props: {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       {supportCascade() && (
         <FormControlLabel
           control={
@@ -295,7 +293,7 @@ function DropTable(props: {
           label="CASCADE"
         />
       )}
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         <Button loading={loading} color="error" onClick={handleDrop}>
           drop
         </Button>
@@ -1064,7 +1062,7 @@ function DupTable(props: {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <TextField
         value={name}
         label="duplicate name"
@@ -1072,7 +1070,7 @@ function DupTable(props: {
           setName(e.target.value);
         }}
       ></TextField>
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         <Button loading={loading} color="primary" onClick={handleRename}>
           duplicate
         </Button>
@@ -1120,7 +1118,7 @@ function RenameTable(props: {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <TextField
         value={newName}
         label="New Name"
@@ -1128,7 +1126,7 @@ function RenameTable(props: {
           setNewName(e.target.value);
         }}
       ></TextField>
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         <Button loading={loading} color="primary" onClick={handleRename}>
           rename
         </Button>
@@ -1169,7 +1167,6 @@ function RedisOneTableKind(props: {
     <TreeItem
       itemId={tablesID.current}
       label=<Stack
-        spacing={1}
         direction="row"
         sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {

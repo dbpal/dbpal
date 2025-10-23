@@ -144,7 +144,6 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       itemId={itemId}
       label=<Stack
         direction="row"
-        spacing={1}
         onContextMenu={(e) => {
           setUpMenu({
             content: (
@@ -217,7 +216,7 @@ function StatementStructure(props: {
   }, []);
 
   return (
-    <Stack spacing={1} height="60vh" style={{ height: '100%' }}>
+    <Stack style={{ height: '100%' }}>
       <Stack direction="row">
         <Button
           loading={loading}
@@ -270,8 +269,8 @@ function ViewStructure(props: {
   }
 
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
-      <Stack direction="row" spacing={1} style={{ justifyContent: 'center' }}>
+    <Stack style={{ height: '100%' }}>
+      <Stack direction="row" style={{ justifyContent: 'center' }}>
         {structures.map((e) => (
           <Chip
             onClick={() => {
@@ -405,8 +404,8 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   }, []);
 
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
-      <Stack direction="row" spacing={1}>
+    <Stack style={{ height: '100%' }}>
+      <Stack direction="row">
         <Button loading={loading} onClick={handleReload}>
           reload
         </Button>
@@ -454,7 +453,6 @@ function ViewTree(props: {
       label={
         <Stack
           direction="row"
-          spacing={1}
           sx={{ justifyContent: 'space-between' }}
           onContextMenu={(e) => {
             setUpMenu({
@@ -471,7 +469,7 @@ function ViewTree(props: {
             });
           }}
         >
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row">
             {icon} <span> {view} </span>
           </Stack>
           {viewKind == ViewKind.Materialized && <span> {size} </span>}

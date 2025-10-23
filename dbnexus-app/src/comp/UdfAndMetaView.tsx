@@ -79,8 +79,8 @@ function DefAndMetasView(props: {
       style={{ height: '100%' }}
     >
       <Panel style={{ display: 'flex', flexDirection: 'column' }}>
-        <Stack spacing={1} height="100%">
-          <Stack direction="row" spacing={1}>
+        <Stack height="100%">
+          <Stack direction="row">
             {showReload && (
               <Button
                 loading={loading}

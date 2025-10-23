@@ -81,7 +81,6 @@ function SequenceTree() {
       itemId={idForTree.current}
       label=<Stack
         direction="row"
-        spacing={1}
         sx={{ alignItems: 'center' }}
         onContextMenu={(e) => {
           setUpMenu({
@@ -110,7 +109,6 @@ function SequenceTree() {
               itemId={getItemId(seq)}
               style={{ alignItems: 'center' }}
               label=<Stack
-                spacing={1}
                 direction="row"
                 onContextMenu={(e) => {
                   setUpMenu({
@@ -254,7 +252,7 @@ function SequenceMenu(props: {
           })}
         >
           <Box sx={modalStyle} width="45%">
-            <Stack spacing={1}>
+            <Stack>
               {supportCascade && (
                 <Stack>
                   <FormControlLabel

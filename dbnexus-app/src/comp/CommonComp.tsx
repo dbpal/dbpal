@@ -12,10 +12,8 @@ import {
   useTheme,
   Button,
   TextField,
-  InputLabel,
-  Select,
-  FormControl,
   IconButton,
+  Autocomplete,
 } from '@mui/material';
 import {
   CSSProperties,
@@ -115,7 +113,7 @@ function SelectAlign(props: {
   const style = { cursor: 'pointer' };
 
   return (
-    <Stack direction="row" fontSize="1.5rem" spacing={1}>
+    <Stack direction="row" fontSize="1.5rem">
       <FaAlignLeft
         color={align == 'left' ? theme.palette.success.main : undefined}
         onClick={() => {
@@ -143,26 +141,17 @@ function SelectAlign(props: {
 
 const LogLevelSelection = ({ handleChange, level }) => {
   const levels = ['trace', 'debug', 'info', 'warn', 'error'];
-
   return (
-    <Stack style={{ minWidth: '13rem' }}>
-      <FormControl fullWidth>
-        <InputLabel>logger level</InputLabel>
-        <Select
-          value={level}
-          label="logger level"
-          onChange={(e) => handleChange(e.target.value)}
-        >
-          {levels.map((e) => {
-            return (
-              <MenuItem key={e} value={e}>
-                {e}
-              </MenuItem>
-            );
-          })}
-        </Select>
-      </FormControl>
-    </Stack>
+    <Autocomplete
+      options={levels}
+      style={{ width: '14rem' }}
+      value={level}
+      freeSolo={false}
+      renderInput={(params) => <TextField {...params} label="logger level" />}
+      onChange={(_, level) => {
+        handleChange(level);
+      }}
+    />
   );
 };
 
@@ -377,7 +366,7 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
 
 function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
   return (
-    <Stack direction="row" spacing={1}>
+    <Stack direction="row">
       {options.map((e) => (
         <Chip
           label={e}
@@ -659,7 +648,7 @@ function ViewRowInModal(props: {
   const { fields, data, isTable } = props;
   const theme = useTheme();
   return (
-    <Stack spacing={1}>
+    <Stack>
       {fields.map((f) => {
         return (
           <Stack
@@ -672,7 +661,6 @@ function ViewRowInModal(props: {
           >
             <Stack
               direction="row"
-              spacing={1}
               style={{ alignItems: 'center' }}
               divider={<span>|</span>}
             >
@@ -911,12 +899,8 @@ function SelectColumns(props: {
   const { fields, includes, setIncludes } = props;
   const [matchStr, setMatchStr] = useState('');
   return (
-    <Stack spacing={1}>
-      <Stack
-        direction="row"
-        style={{ flexWrap: 'wrap', alignItems: 'center' }}
-        spacing={1}
-      >
+    <Stack>
+      <Stack direction="row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
         <Typography color="info">includes:</Typography>
         {includes.length > 0 && (
           <IconButton
@@ -939,7 +923,7 @@ function SelectColumns(props: {
           ></Chip>
         ))}
       </Stack>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
+      <Stack direction="row" style={{ alignItems: 'flex-start' }}>
         <Button
           onClick={() => {
             setIncludes(
@@ -964,11 +948,7 @@ function SelectColumns(props: {
           helperText="only for candidate field"
         ></TextField>
       </Stack>
-      <Stack
-        direction="row"
-        style={{ flexWrap: 'wrap', alignItems: 'center' }}
-        spacing={1}
-      >
+      <Stack direction="row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
         <Typography>candidates:</Typography>
         {fields
           .filter((f) => includes.find((e) => e == f.field) == undefined)
@@ -1085,7 +1065,7 @@ function ExportMarkDownTable(props: {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack>
       <SelectColumns
         fields={fields}
         includes={includes}
@@ -1093,7 +1073,7 @@ function ExportMarkDownTable(props: {
       ></SelectColumns>
       <OpenFileWithDefaultApp file={file} />
       <Divider></Divider>
-      <Stack direction="row" spacing={1} style={{ alignItems: 'center' }}>
+      <Stack direction="row" style={{ alignItems: 'center' }}>
         <Button
           onClick={() => {
             handleExport(false);

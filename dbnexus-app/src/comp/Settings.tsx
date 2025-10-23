@@ -8,6 +8,7 @@ import {
 } from 'react';
 
 import {
+  Autocomplete,
   Button,
   Chip,
   Components,
@@ -18,8 +19,6 @@ import {
   FormControlLabel,
   IconButton,
   InputAdornment,
-  MenuItem,
-  Select,
   Slider,
   Stack,
   Switch,
@@ -41,7 +40,6 @@ import {
   SettingContext,
   UserSetting,
   validJson,
-  textEllipsisStyle,
   registeredThemes,
   UserSettingAppearance,
   UserSettingExport,
@@ -70,7 +68,6 @@ function AppearanceSetting() {
   const setting = UserSettingAppearance.get();
   const { showNotification } = useContext(NotificationContext);
   const [allFonts, setAllFonts] = useState<string[]>([]);
-  const [fontMatch, setFontMatch] = useState<string>('');
   const [showEditBgColor, setShowEditBgColor] = useState(false);
   const [fontWeight, setFontWeight] = useState(setting.fontWeight);
   const [fontSize, setFontSize] = useState(setting.fontSize);
@@ -139,8 +136,8 @@ function AppearanceSetting() {
     showNotification('success', 'save setting success');
   };
   return (
-    <Stack spacing={1} style={{ height: '100%', textAlign: 'right' }}>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+    <Stack style={{ height: '100%', textAlign: 'right' }}>
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography width={headerSize} style={{ fontSize }}>
           font size:
         </Typography>
@@ -155,7 +152,7 @@ function AppearanceSetting() {
           max={30}
         ></Slider>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography width={headerSize} style={{ fontWeight }}>
           font weight:
         </Typography>
@@ -182,67 +179,30 @@ function AppearanceSetting() {
           }}
         ></TextField>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography width={headerSize} style={{ fontFamily }}>
           font family:
         </Typography>
-        {allFonts.length > 0 && (
-          <Select
-            onChange={(e) => setFontFamily(e.target.value as string)}
-            style={{ minWidth: '12rem' }}
-            value={fontFamily}
-          >
-            <MenuItem style={{ fontFamily: undefined }} value=""></MenuItem>
-            {allFonts
-              .filter((f) => {
-                if (fontMatch) {
-                  return f.toLowerCase().includes(fontMatch.toLowerCase());
-                } else {
-                  return true;
-                }
-              })
-              .map((f) => {
-                return (
-                  <MenuItem style={{ fontFamily: f }} value={f} key={f}>
-                    {f}
-                  </MenuItem>
-                );
-              })}
-          </Select>
-        )}
-
-        <TextField
-          label="match font"
-          value={fontMatch}
-          style={{ width: '13rem', fontFamily }}
-          onChange={(e) => {
-            setFontMatch(e.target.value);
+        <Autocomplete
+          options={allFonts}
+          style={{ flex: 1 }}
+          value={fontFamily}
+          renderInput={(params) => (
+            <TextField {...params} label="font family" />
+          )}
+          renderOption={(props, option) => (
+            <li {...props} style={{ fontFamily: option }}>
+              <span style={{ width: '22rem' }}>{option} </span>
+              SELECT * FROM employees WHERE gender = 'M' LIMIT 100
+            </li>
+          )}
+          freeSolo={false}
+          onChange={(_, f) => {
+            setFontFamily(f);
           }}
-          slotProps={{
-            input: {
-              endAdornment: fontMatch && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setFontMatch('');
-                    }}
-                    edge="end"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
-        ></TextField>
-        <Typography
-          color="success"
-          style={{ ...textEllipsisStyle, fontFamily }}
-        >
-          select * from employees
-        </Typography>
+        />
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography width={headerSize}>table row height factor:</Typography>
         <TextField
           value={datagridRowHeightFactor}
@@ -256,7 +216,7 @@ function AppearanceSetting() {
           <Typography> ?? </Typography>
         </Tooltip>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography width={headerSize}>background color:</Typography>
         <div style={{ position: 'relative' }}>
           <IconButton
@@ -305,7 +265,7 @@ function AppearanceSetting() {
         <div style={{ position: 'relative' }}></div>
         {bgColorErr && <Typography color="error"> {bgColorErr} </Typography>}
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography width={headerSize}>max tree size:</Typography>
         <TextField
           value={maxTreeSize}
@@ -316,7 +276,7 @@ function AppearanceSetting() {
           error={isNaN(parseInt(maxTreeSize))}
         ></TextField>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography width={headerSize}>max tab title length:</Typography>
         <TextField
           value={maxTabTitleLength}
@@ -327,26 +287,30 @@ function AppearanceSetting() {
         ></TextField>
       </Stack>
 
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography width={headerSize}>input style:</Typography>
-        <Select
-          onChange={(e) => setInputVariant(e.target.value)}
-          style={{ width: '13rem' }}
+        <Autocomplete
+          options={['standard', 'filled', 'outlined']}
+          style={{ width: '22rem' }}
           value={intputVariant}
-        >
-          {['standard', 'filled', 'outlined'].map((s) => (
-            <MenuItem value={s} key={s}>
-              {s}
-            </MenuItem>
-          ))}
-        </Select>
+          renderInput={(params) => (
+            <TextField {...params} label="input variant" />
+          )}
+          freeSolo={false}
+          onChange={(_, variant) => {
+            if (!variant) {
+              return;
+            }
+            setInputVariant(variant);
+          }}
+        />
         <TextField
           value={'this is demo'}
           variant={intputVariant as 'filled'}
         ></TextField>
       </Stack>
       <Divider></Divider>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Button onClick={handleSave}> save </Button>
       </Stack>
     </Stack>
@@ -361,6 +325,7 @@ function EditorSetting() {
   const [showEditOption, setShowEditOption] = useState(false);
   const [tabSize, setTabSize] = useState(setting.tabSize);
   const [customEditorTheme, setCustomEditorTheme] = useState(setting.theme);
+  const [highligthTheme, setHighlightTheme] = useState('');
   const muiTheme = useTheme();
   const { showNotification } = useContext(NotificationContext);
   const handleSave = () => {
@@ -379,8 +344,8 @@ function EditorSetting() {
     showNotification('success', 'save setting ok');
   };
   return (
-    <Stack spacing={1} style={{ textAlign: 'right' }}>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+    <Stack style={{ textAlign: 'right' }}>
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography width={headerSize}>tab size:</Typography>
 
         {[2, 4, 8].map((e) => (
@@ -394,15 +359,15 @@ function EditorSetting() {
           ></Chip>
         ))}
       </Stack>
-      <Stack spacing={1}>
-        <Stack direction="row" spacing={1} style={{ alignItems: 'flex-start' }}>
+      <Stack>
+        <Stack direction="row" style={{ alignItems: 'flex-start' }}>
           <Tooltip
             title="dbpal use monaco editor as build in editor"
             placement="top"
           >
             <Typography width={headerSize}>monaco editor options:</Typography>
           </Tooltip>
-          <Stack style={{ flex: 1 }} spacing={1}>
+          <Stack style={{ flex: 1 }}>
             <Stack direction="row" style={{ alignItems: 'center' }}>
               <IconButton
                 onClick={() => {
@@ -436,30 +401,24 @@ function EditorSetting() {
         </Stack>
       </Stack>
 
-      <Stack direction="row" sx={{ alignItems: 'flex-start' }} spacing={1}>
+      <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
         <Typography width={headerSize}>editor theme:</Typography>
-        <Stack
-          spacing={1}
-          direction="row"
-          style={{ flex: 1, alignItems: 'flex-start' }}
-        >
-          <Select
-            onChange={(e) => setCustomEditorTheme(e.target.value)}
-            style={{ minWidth: '25rem', flex: 0.5 }}
+        <Stack direction="row" style={{ flex: 1, alignItems: 'flex-start' }}>
+          <Autocomplete
+            options={registeredThemes}
+            style={{ width: '22rem' }}
             value={customEditorTheme}
-          >
-            <MenuItem value=""></MenuItem>
-            {['vs', 'vs-dark', 'hc-black', 'hc-light'].map((theme) => (
-              <MenuItem value={theme}>{theme}</MenuItem>
-            ))}
-            {registeredThemes.map((theme) => {
-              return (
-                <MenuItem value={theme} key={theme}>
-                  {theme}
-                </MenuItem>
-              );
-            })}
-          </Select>
+            renderInput={(params) => (
+              <TextField {...params} label="editor theme" />
+            )}
+            freeSolo={false}
+            onChange={(_, theme) => {
+              setCustomEditorTheme(theme);
+            }}
+            onHighlightChange={(_, theme) => {
+              setHighlightTheme(theme);
+            }}
+          />
           <EditorThemeDemo
             style={{
               flexGrow: 1,
@@ -467,7 +426,7 @@ function EditorSetting() {
               width: '100px',
               height: '15vh',
             }}
-            theme={customEditorTheme}
+            theme={highligthTheme ? highligthTheme : customEditorTheme}
           ></EditorThemeDemo>
         </Stack>
       </Stack>
@@ -499,8 +458,8 @@ function ExportSetting() {
   };
 
   return (
-    <Stack spacing={1} style={{ textAlign: 'right' }}>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+    <Stack style={{ textAlign: 'right' }}>
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography width={headerSize}>csv delimiter:</Typography>
         <TextField
           value={csvDelimiter}
@@ -509,7 +468,7 @@ function ExportSetting() {
           helperText="only accept one character"
         ></TextField>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography width={headerSize}>include header:</Typography>
         <FormControlLabel
           control={
@@ -545,8 +504,8 @@ function MiscSetting() {
     showNotification('success', 'save setting ok');
   };
   return (
-    <Stack spacing={1} style={{ textAlign: 'right' }}>
-      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+    <Stack style={{ textAlign: 'right' }}>
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography width={headerSize}>auto start:</Typography>
 
         <Switch
@@ -568,7 +527,7 @@ function ModifySetting() {
   const ss = ['appearance', 'editor', 'export', 'misc'];
   const [tab, setTab] = useState(ss[0]);
   return (
-    <Stack spacing={1}>
+    <Stack>
       <Tabs
         value={tab}
         onChange={(_, value) => {
@@ -615,7 +574,7 @@ function EditorThemeDemo(props: { style: CSSProperties; theme: string }) {
   const { fontWeight, fontSize, fontFamily } = setting.appearance;
   const { theme, style } = props;
   return (
-    <Stack style={style} spacing={1}>
+    <Stack style={style}>
       <Editor
         value={`select * from employees where id is not null limit 10;`}
         width="99%"
@@ -648,8 +607,8 @@ function EditorOptions(props: {
       });
   }, [value]);
   return (
-    <Stack spacing={1} style={style}>
-      <Stack direction="row" spacing={1}>
+    <Stack style={style}>
+      <Stack direction="row">
         <Chip
           color="info"
           style={{ cursor: 'pointer' }}
@@ -686,7 +645,7 @@ function EditorOptions(props: {
         }
       ></SimpleFlexEditor>
       <Divider />
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row">
         <Button
           onClick={async () => {
             try {
@@ -765,6 +724,9 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
         },
       },
     },
+    MuiSlider: {
+      defaultProps: { size: 'small' },
+    },
     MuiDivider: {
       styleOverrides: {
         root: {
@@ -791,6 +753,9 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
           boxShadow: '0 1px 3px',
         },
       },
+    },
+    MuiStack: {
+      defaultProps: { spacing: 0.5 },
     },
     MuiMenuList: {
       styleOverrides: {

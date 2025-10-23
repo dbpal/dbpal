@@ -114,7 +114,7 @@ function TabsWithContent_(props: {
   const windowFocus = useContext(WindowFocusContext);
   const setting = useContext(SettingContext);
   return (
-    <Stack spacing={1} style={{ width: '100%', height: '100%' }}>
+    <Stack style={{ width: '100%', height: '100%' }}>
       <Tabs
         value={selectIndex}
         variant="scrollable"
