@@ -139,9 +139,9 @@ function AppearanceSetting() {
     showNotification('success', 'save setting success');
   };
   return (
-    <Stack spacing={1} style={{ height: '100%' }}>
+    <Stack spacing={1} style={{ height: '100%', textAlign: 'right' }}>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right" style={{ fontSize }}>
+        <Typography width={headerSize} style={{ fontSize }}>
           font size:
         </Typography>
         <Chip label={fontSize} style={{ fontSize }} />
@@ -156,7 +156,7 @@ function AppearanceSetting() {
         ></Slider>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right" style={{ fontWeight }}>
+        <Typography width={headerSize} style={{ fontWeight }}>
           font weight:
         </Typography>
         <TextField
@@ -183,7 +183,7 @@ function AppearanceSetting() {
         ></TextField>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right" style={{ fontFamily }}>
+        <Typography width={headerSize} style={{ fontFamily }}>
           font family:
         </Typography>
         {allFonts.length > 0 && (
@@ -243,9 +243,7 @@ function AppearanceSetting() {
         </Typography>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          table row height factor:
-        </Typography>
+        <Typography width={headerSize}>table row height factor:</Typography>
         <TextField
           value={datagridRowHeightFactor}
           onChange={(e) => {
@@ -259,9 +257,7 @@ function AppearanceSetting() {
         </Tooltip>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          background color:
-        </Typography>
+        <Typography width={headerSize}>background color:</Typography>
         <div style={{ position: 'relative' }}>
           <IconButton
             color={showEditBgColor ? 'success' : 'primary'}
@@ -310,9 +306,7 @@ function AppearanceSetting() {
         {bgColorErr && <Typography color="error"> {bgColorErr} </Typography>}
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          max tree size:
-        </Typography>
+        <Typography width={headerSize}>max tree size:</Typography>
         <TextField
           value={maxTreeSize}
           onChange={(e) => {
@@ -323,9 +317,7 @@ function AppearanceSetting() {
         ></TextField>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          max tab title length:
-        </Typography>
+        <Typography width={headerSize}>max tab title length:</Typography>
         <TextField
           value={maxTabTitleLength}
           onChange={(e) => {
@@ -336,9 +328,7 @@ function AppearanceSetting() {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          input style:
-        </Typography>
+        <Typography width={headerSize}>input style:</Typography>
         <Select
           onChange={(e) => setInputVariant(e.target.value)}
           style={{ width: '13rem' }}
@@ -389,11 +379,9 @@ function EditorSetting() {
     showNotification('success', 'save setting ok');
   };
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ textAlign: 'right' }}>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          tab size:
-        </Typography>
+        <Typography width={headerSize}>tab size:</Typography>
 
         {[2, 4, 8].map((e) => (
           <Chip
@@ -412,9 +400,7 @@ function EditorSetting() {
             title="dbpal use monaco editor as build in editor"
             placement="top"
           >
-            <Typography width={headerSize} textAlign="right">
-              monaco editor options:
-            </Typography>
+            <Typography width={headerSize}>monaco editor options:</Typography>
           </Tooltip>
           <Stack style={{ flex: 1 }} spacing={1}>
             <Stack direction="row" style={{ alignItems: 'center' }}>
@@ -451,9 +437,7 @@ function EditorSetting() {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: 'flex-start' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          editor theme:
-        </Typography>
+        <Typography width={headerSize}>editor theme:</Typography>
         <Stack
           spacing={1}
           direction="row"
@@ -515,11 +499,9 @@ function ExportSetting() {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ textAlign: 'right' }}>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          csv delimiter:
-        </Typography>
+        <Typography width={headerSize}>csv delimiter:</Typography>
         <TextField
           value={csvDelimiter}
           onChange={(e) => setCsvDelimiter(e.target.value)}
@@ -528,9 +510,7 @@ function ExportSetting() {
         ></TextField>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          include header:
-        </Typography>
+        <Typography width={headerSize}>include header:</Typography>
         <FormControlLabel
           control={
             <Switch
@@ -565,11 +545,9 @@ function MiscSetting() {
     showNotification('success', 'save setting ok');
   };
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} style={{ textAlign: 'right' }}>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
-        <Typography width={headerSize} textAlign="right">
-          auto start:
-        </Typography>
+        <Typography width={headerSize}>auto start:</Typography>
 
         <Switch
           checked={autoStart}

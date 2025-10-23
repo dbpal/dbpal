@@ -1073,6 +1073,8 @@ function MongoDb(props: { config?: types.MongoDBConfig }) {
       username: user ? user : null,
       password: password ? password : null,
       conn_timeout: connTimeOut,
+      port: parseInt(port),
+      save_password: savePassword,
     };
   }
   globalMakeConfig = makeConfig;
