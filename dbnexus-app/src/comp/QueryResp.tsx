@@ -135,6 +135,8 @@ function smallDataSet(fields: types.Field[]) {
   return fields.length <= 4;
 }
 
+const seqField = 'seq';
+
 function QueryResp_(props: { data: MuiDataGridData }) {
   const { data: oldData } = props;
   const [data, setData] = useState<MuiDataGridData>(null);
@@ -142,13 +144,14 @@ function QueryResp_(props: { data: MuiDataGridData }) {
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
   useEffect(() => {
     const insert_seq =
-      !oldData.fields.find((e) => e.field == 'seq') && oldData.data.length > 10;
+      !oldData.fields.find((e) => e.field == seqField) &&
+      oldData.data.length > 10;
     if (insert_seq) {
       oldData.fields = [
         {
-          field: 'seq',
+          field: seqField,
           data_type: 'number',
-          width: 100,
+          width: 85,
           renderHeader: () => {
             return (
               <Tooltip title="auto generate sequence">
@@ -170,7 +173,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
 
     const considerSmallDataSet = smallDataSet(oldData.fields);
     oldData.fields.forEach((field) => {
-      if (field.field == 'seq' && insert_seq) {
+      if (field.field == seqField && insert_seq) {
         return;
       }
       if (considerSmallDataSet) {
@@ -365,7 +368,7 @@ function getRowId(row) {
 }
 
 function getRowIdSeq(row) {
-  return row['seq'];
+  return row[seqField];
 }
 
 const styleForTrans: CSSProperties = {

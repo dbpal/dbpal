@@ -288,7 +288,7 @@ function AppearanceSetting() {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: 'center' }}>
-        <Typography width={headerSize}>input style:</Typography>
+        <Typography width={headerSize}>input variant:</Typography>
         <Autocomplete
           options={['standard', 'filled', 'outlined']}
           style={{ width: '22rem' }}
@@ -325,7 +325,7 @@ function EditorSetting() {
   const [showEditOption, setShowEditOption] = useState(false);
   const [tabSize, setTabSize] = useState(setting.tabSize);
   const [customEditorTheme, setCustomEditorTheme] = useState(setting.theme);
-  const [highligthTheme, setHighlightTheme] = useState('');
+  const [highLightTheme, setHighlightTheme] = useState('');
   const muiTheme = useTheme();
   const { showNotification } = useContext(NotificationContext);
   const handleSave = () => {
@@ -426,7 +426,7 @@ function EditorSetting() {
               width: '100px',
               height: '15vh',
             }}
-            theme={highligthTheme ? highligthTheme : customEditorTheme}
+            theme={highLightTheme ? highLightTheme : customEditorTheme}
           ></EditorThemeDemo>
         </Stack>
       </Stack>

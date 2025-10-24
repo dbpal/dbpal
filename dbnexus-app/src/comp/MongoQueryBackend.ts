@@ -4,7 +4,16 @@
 import { loader } from '@monaco-editor/react';
 import { invoke } from '@tauri-apps/api/core';
 import { BSON } from 'bson';
-import { IFind, IFindOne, IMongoCollection, IMongoDB } from './MongoInterface';
+import { IFindBuilder, IFindOneBuilder, IMongoCollection, IMongoDB } from './MongoInterface';
+
+import interfaceText from "./MongoInterface.ts?raw";
+
+function removeFirstAndLastLine(text: string) {
+  const lines = text.split('\n'); // 按换行分割
+  if (lines.length <= 2) return ''; // 如果只有一两行，返回空
+  return lines.slice(1, -2).join('\n'); // 去掉首尾行
+}
+
 
 class MongoDBQuery implements IMongoDB {
   uuid: string;
@@ -51,7 +60,8 @@ class MongoDBQueryFindCommon {
   _min: BSON.Document | null = null;
   _sort: BSON.Document | null = null;
   _projection: BSON.Document | null = null;
-  _skip: number | undefined = undefined;
+  _skip: number | null = null;
+  _hint: BSON.Document | null = null;
   skip(x: number) {
     this._skip = x;
     // this as any make pass the type system because `MongoDBQueryFindCommon`
@@ -60,20 +70,26 @@ class MongoDBQueryFindCommon {
   }
   max(doc: BSON.Document) {
     this._max = doc;
-    return this as any;
+    return this;
   }
   min(doc: BSON.Document) {
     this._min = doc;
-    return this as any;
+    return this;
   }
   projection(doc: BSON.Document) {
     this._projection = doc;
-    return this as any;
+    return this;
   }
   sort(doc: BSON.Document) {
     this._sort = doc;
-    return this as any;
+    return this;
   }
+
+  hint(x: Document) {
+    this._hint = x;
+    return this;
+  }
+
   makeCommonArg(): Record<string, unknown> {
     return {
       name: this.uuid,
@@ -84,28 +100,35 @@ class MongoDBQueryFindCommon {
       min: BSON.serialize(this._min),
       max: BSON.serialize(this._max),
       skip: this._skip,
+      hint: BSON.serialize(this._hint),
     }
   }
 }
 
 
-class MongoDBQueryFind extends MongoDBQueryFindCommon implements IFind {
-  _limit: number | undefined = undefined;
-  limit(x: number) {
-    this._limit = x;
-    return this;
-  }
-  find() {
+class MongoDBQueryFind extends MongoDBQueryFindCommon implements IFindBuilder {
+  limit: number;
+  async find() {
     const x = this.makeCommonArg();
-    x.limit = this._limit;
+    x.limit = this.limit;
     return invoke<number[][]>('mongo_query_collection_find', x).then(e => {
       const x = e.map(x => new Uint8Array(x)).map((e) => BSON.deserialize(e));
       return x
     })
   }
+
+  constructor(uuid: string,
+    col: string, filter: BSON.Document, limit: number) {
+    if (typeof limit != "number") { throw new Error('limit must be number'); }
+    if (limit <= 0) { throw new Error('limit must be positive') };
+    super(uuid, col, filter);
+    this.limit = limit;
+  }
+
 }
 
-class MongoDBQueryFindOne extends MongoDBQueryFindCommon implements IFindOne {
+
+class MongoDBQueryFindOne extends MongoDBQueryFindCommon implements IFindOneBuilder {
   find() {
     const x = this.makeCommonArg();
     return invoke<number[]>('mongo_query_collection_find_one', x).then(e => {
@@ -158,8 +181,8 @@ class MongoDBQueryCollection implements IMongoCollection {
   dropSearchIndex(index: string) {
     return invoke<void>('mongo_query_collection_drop_search_index', { name: this.uuid, col: this.col, index })
   }
-  find(filter: BSON.Document) {
-    return new MongoDBQueryFind(this.uuid, this.col, filter)
+  find(filter: BSON.Document, limit: number) {
+    return new MongoDBQueryFind(this.uuid, this.col, filter, limit)
   }
   findOne(filter: BSON.Document) {
     return new MongoDBQueryFindOne(this.uuid, this.col, filter)
@@ -226,173 +249,12 @@ class MongoDBQueryCollection implements IMongoCollection {
 }
 
 
-class BsonExtraDataType {
-  newLong(...args): BSON.Long {
-    //@ts-ignore
-    return new BSON.Long(...args)
-  }
-
-  newObjectID(inputId?: string | number | BSON.ObjectId | BSON.ObjectIdLike | Uint8Array): BSON.ObjectId {
-    return new BSON.ObjectId(inputId);
-  }
-  newInt32(...args): BSON.Int32 {
-    //@ts-ignore
-    return new BSON.Int32(...args);
-  }
-
-  newTimeStamp(...args): BSON.Timestamp {
-    //@ts-ignore
-    return new BSON.Timestamp(...args)
-  }
-  newDecimal128(bytes: Uint8Array | string): BSON.Decimal128 {
-    return new BSON.Decimal128(bytes);
-  }
-  newJavaScriptCode(code: string | Function, scope?: Document | null): BSON.Code {
-    return new BSON.Code(code, scope);
-  }
-  newBinary(...args): BSON.Binary {
-    //@ts-ignore
-    return new BSON.Binary(...args);
-  }
-  binaryCreateFromHexString(hex: string, subType?: number): BSON.Binary {
-    return BSON.Binary.createFromHexString(hex, subType);
-  }
-  binaryCreateFromBase64(base64: string, subType?: number): BSON.Binary {
-    return BSON.Binary.createFromBase64(base64, subType);
-  }
-  binaryFromInt8Array(array: Int8Array): BSON.Binary {
-    return BSON.Binary.fromInt8Array(array)
-  }
-  binaryFromFloat32Array(array: Float32Array): BSON.Binary {
-    return BSON.Binary.fromFloat32Array(array)
-  }
-}
-
 function initMongoQueryGlobals() {
   loader.init().then((monaco) => {
-    monaco.languages.typescript.javascriptDefaults.addExtraLib(`
-  interface ILogger {
-    trace: (...msg: any[]) => void;
-    debug: (...msg: any[]) => void;
-    log: (...msg: any[]) => void;
-    info: (...msg: any[]) => void;
-    warn: (...msg: any[]) => void;
-    error: (...msg: any[]) => void;
-  }
-
-interface IMongoDB {
-  collection: (name: string) => IMongoCollection;
-  createCollection: (name: string) => IMongoCollection;
-  drop: () => Promise<void>;
-  listCollectionNames: () => Promise<string[]>;
-  runCommand: (doc: BSON.Document) => Promise<BSON.Document>;
-}
-
-interface IMongoCollection {
-  cuntDocuments: () => Promise<number>;
-  createIndex: (index: BSON.Document) => Promise<string>;
-  createSearchIndex: (
-    index: BSON.Document,
-    name: string | null
-  ) => Promise<string>;
-  deleteMany: (filter: BSON.Document) => Promise<BSON.Document>;
-  deleteOne: (filter: BSON.Document) => Promise<BSON.Document>;
-  distinct: (field: string, filter: BSON.Document) => Promise<any[]>;
-  drop: () => Promise<void>;
-  dropIndex: (name: string) => Promise<void>;
-  dropIndexes: () => Promise<void>;
-  dropSearchIndex: (name: string) => Promise<void>;
-  find: (filter: BSON.Document) => IFind;
-  findOne: (filter: BSON.Document) => IFindOne;
-  findOneAndDelete: (filter: BSON.Document) => Promise<BSON.Document | null>;
-  findAndReplace: (
-    filter: BSON.Document,
-    replacement: BSON.Document
-  ) => Promise<BSON.Document | null>;
-  insertMany: (docs: BSON.Document[] | BSON.Document) => Promise<any>;
-  insertOne: (doc: BSON.Document) => Promise<any>;
-  listIndexNames: () => Promise<string[]>;
-  listIndexes: () => Promise<any[]>;
-  listSearchIndexes: () => Promise<BSON.Document[]>;
-  // collection name;
-  name(): string;
-  replaceOne: (
-    query: BSON.Document,
-    replacement: BSON.Document
-  ) => Promise<any>;
-  updateMany: (
-    query: BSON.Document,
-    doc: BSON.Document
-  ) => Promise<any>;
-  updateOne: (
-    query: BSON.Document,
-    docs: BSON.Document
-  ) => Promise<any>;
-}
-
-interface IFindCommon {
-  max: (doc: BSON.Document) => IFind;
-  min: (doc: BSON.Document) => IFind;
-  projection: (doc: BSON.Document) => IFind;
-  sort: (doc: BSON.Document) => IFind;
-  skip: (x: number) => IFind;
-}
-interface IFindOne extends IFindCommon {
-  find: () => Promise<BSON.Document>;
-}
-
-interface IFind extends IFindCommon {
-  limit: (x: number) => IFind;
-  find: () => Promise<BSON.Document[]>;
-}
-
-
-class BsonExtraDataType {
-  newLong(...args): BSON.Long {
-    //@ts-ignore
-    return new BSON.Long(...args)
-  }
-
-  newObjectID(inputId?: string | number | BSON.ObjectId | BSON.ObjectIdLike | Uint8Array): BSON.ObjectId {
-    return new BSON.ObjectId(inputId);
-  }
-  newInt32(...args): BSON.Int32 {
-    //@ts-ignore
-    return new BSON.Int32(...args);
-  }
-
-  newTimeStamp(...args): BSON.Timestamp {
-    //@ts-ignore
-    return new BSON.Timestamp(...args)
-  }
-  newDecimal128(bytes: Uint8Array | string): BSON.Decimal128 {
-    return new BSON.Decimal128(bytes);
-  }
-  newJavaScriptCode(code: string | Function, scope?: Document | null): BSON.Code {
-    return new BSON.Code(code, scope);
-  }
-  newBinary(...args): BSON.Binary {
-    //@ts-ignore
-    return new BSON.Binary(...args);
-  }
-  binaryCreateFromHexString(hex: string, subType?: number): BSON.Binary {
-    return BSON.Binary.createFromHexString(hex, subType);
-  }
-  binaryCreateFromBase64(base64: string, subType?: number): BSON.Binary {
-    return BSON.Binary.createFromBase64(base64, subType);
-  }
-  binaryFromInt8Array(array: Int8Array): BSON.Binary {
-    return BSON.Binary.fromInt8Array(array)
-  }
-  binaryFromFloat32Array(array: Float32Array): BSON.Binary {
-    return BSON.Binary.fromFloat32Array(array)
-  }
-}
-    let db : IMongoDB;
-    let logger : ILogger;
-    let bsonExtraDataType : BsonExtraDataType
-  
-  
+    monaco.languages.typescript.javascriptDefaults.addExtraLib(removeFirstAndLastLine(interfaceText) + `
+    const db : IMongoDB;
+    const bsonExtraDataType : BsonExtraDataType;
+    const cleanFns : (()=> void)[];
         `);
   }).catch((e) => {
     console.log('init monaco language error:', e)
@@ -400,4 +262,4 @@ class BsonExtraDataType {
 }
 
 
-export { initMongoQueryGlobals, MongoDBQuery, BsonExtraDataType };
+export { initMongoQueryGlobals, MongoDBQuery };

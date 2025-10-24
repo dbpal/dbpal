@@ -1,5 +1,6 @@
 use futures_util::StreamExt;
 use mongodb::bson::{Bson, Document, doc};
+use mongodb::options::Hint;
 use mongodb::results::{
     CreateIndexResult, DeleteResult, InsertManyResult, InsertOneResult, UpdateResult,
 };
@@ -122,7 +123,8 @@ impl MongoDB {
 
     pub async fn query_collection_find(
         &self, col: &str, projection: Option<Document>, filter: Document, sort: Option<Document>,
-        max: Option<Document>, min: Option<Document>, limit: Option<i64>, skip: Option<u64>,
+        max: Option<Document>, min: Option<Document>, hint: Option<Document>, limit: Option<i64>,
+        skip: Option<u64>,
     ) -> anyhow::Result<Vec<Document>> {
         log::info!(
             "find parameter project:{:?} filter:{:?} sort:{:?} max:{:?} min:{:?} limit:{:?} skip:{:?}",
@@ -141,19 +143,22 @@ impl MongoDB {
             f = f.projection(projection)
         }
         if let Some(sort) = sort {
-            f = f.sort(sort)
+            f = f.sort(sort);
         }
         if let Some(max) = max {
-            f = f.max(max)
+            f = f.max(max);
         }
         if let Some(min) = min {
-            f = f.min(min)
+            f = f.min(min);
         }
         if let Some(limit) = limit {
-            f = f.limit(limit)
+            f = f.limit(limit);
+        }
+        if let Some(hint) = hint {
+            f = f.hint(Hint::Keys(hint));
         }
         if let Some(skip) = skip {
-            f = f.skip(skip)
+            f = f.skip(skip);
         }
         let mut cursor = f.await?;
         let mut ret = Vec::new();
@@ -166,7 +171,7 @@ impl MongoDB {
 
     pub async fn query_collection_find_one(
         &self, col: &str, projection: Option<Document>, filter: Document, sort: Option<Document>,
-        max: Option<Document>, min: Option<Document>, skip: Option<u64>,
+        max: Option<Document>, min: Option<Document>, hint: Option<Document>, skip: Option<u64>,
     ) -> anyhow::Result<Option<Document>> {
         log::info!(
             "find parameter project:{:?} filter:{:?} sort:{:?} max:{:?} min:{:?} skip:{:?}",
@@ -184,17 +189,20 @@ impl MongoDB {
             f = f.projection(projection)
         }
         if let Some(sort) = sort {
-            f = f.sort(sort)
+            f = f.sort(sort);
+        }
+        if let Some(hint) = hint {
+            f = f.hint(Hint::Keys(hint));
         }
         if let Some(max) = max {
-            f = f.max(max)
+            f = f.max(max);
         }
         if let Some(min) = min {
-            f = f.min(min)
+            f = f.min(min);
         }
 
         if let Some(skip) = skip {
-            f = f.skip(skip)
+            f = f.skip(skip);
         }
         let ret = f.await?;
         anyhow::Ok(ret)

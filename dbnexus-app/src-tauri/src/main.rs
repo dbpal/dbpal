@@ -352,13 +352,6 @@ fn main_() {
                         &[
                             &MenuItem::with_id(
                                 handle,
-                                "open_dev_tools",
-                                "open dev tools(all windows)",
-                                true,
-                                None as Option<&'static str>,
-                            )?,
-                            &MenuItem::with_id(
-                                handle,
                                 "open_logger_window",
                                 "open logger window",
                                 true,
@@ -413,12 +406,6 @@ fn main_() {
             }
             if event.id.0 == "relauch" {
                 handle.restart();
-            }
-            if event.id.0 == "open_dev_tools" {
-                let views = handle.webview_windows();
-                for view in views.values() {
-                    view.open_devtools();
-                }
             }
             if event.id.0 == "zoom_in" {
                 match get_configured_zoom(handle) {

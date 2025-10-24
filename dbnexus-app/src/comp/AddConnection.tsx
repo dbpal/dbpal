@@ -1050,9 +1050,15 @@ function MongoDb(props: { config?: types.MongoDBConfig }) {
   const [password, setPassword] = useState(getPassword(config));
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
   const [database, setDatabase] = useState(getDB(config));
-
+  const [enableSSL, setEnableSSL] = useState(false);
   const { connTimeOut, connectionName, readOnly } =
     useContext(AddConnectionContext);
+
+  const [sslFiles, setSslFile] = useState<types.SSLFiles>({
+    ssl_ca: null,
+    ssl_cert: null,
+    ssl_key: null,
+  });
   function makeConfig(): types.DBConnectionConfig {
     return {
       conn_type: 'mongo',
@@ -1064,10 +1070,12 @@ function MongoDb(props: { config?: types.MongoDBConfig }) {
       conn_timeout: connTimeOut,
       port: parseInt(port),
       save_password: savePassword,
+      enable_ssl: enableSSL,
+      db: database ? database : null,
+      ...sslFiles,
     };
   }
   globalMakeConfig = makeConfig;
-
   return (
     <Stack>
       <HostAndPort
@@ -1090,6 +1098,23 @@ function MongoDb(props: { config?: types.MongoDBConfig }) {
         label="database"
         makeConfig={makeConfig}
       ></DbSchemaCadidates>
+      <Stack direction="row" alignItems="center">
+        <FormControlLabel
+          style={{ width: '180px' }}
+          control={
+            <Switch
+              checked={enableSSL}
+              onChange={(e) => setEnableSSL(e.target.checked)}
+            />
+          }
+          label="Enable SSL"
+        />
+        <SslFiles
+          enabled={enableSSL}
+          files={sslFiles}
+          setFiles={setSslFile}
+        ></SslFiles>
+      </Stack>
     </Stack>
   );
 }

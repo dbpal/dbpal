@@ -940,7 +940,9 @@ function TableAddColumn(props: {
   const [after, setAfter] = useState('');
   const [defaultValue, setDefaultValue] = useState('');
   const supportAfter =
-    kind == DataSourceKind.Mysql || kind == DataSourceKind.MariaDB;
+    kind == DataSourceKind.Mysql ||
+    kind == DataSourceKind.MariaDB ||
+    kind == DataSourceKind.TiDB;
   const nameDom = useRef(null);
   const [loading, setLoading] = useState(false);
   const handleAdd = () => {

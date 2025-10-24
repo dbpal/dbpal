@@ -43,6 +43,7 @@ impl MongoDB {
             host: config.host.to_string(),
             port: Some(config.port),
         }];
+
         opts.connect_timeout = config.conn_timeout.map(|x| Duration::from(x));
         if let Some(user) = &config.username {
             let b = mongodb::options::Credential::builder();
@@ -51,7 +52,7 @@ impl MongoDB {
             let x = b.build();
             opts.credential = Some(x);
         }
-        if config.ssl.enable {
+        if config.ssl.enable_ssl {
             let mut tls_option = TlsOptions::default();
             if let Some(ca) = config.ssl.ssl_files.ssl_ca.as_ref() {
                 tls_option.ca_file_path = Some(Path::new(ca).to_path_buf());

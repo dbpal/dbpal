@@ -115,7 +115,7 @@ export namespace types {
         "cert_ca": (string | null);
     };
     export type MongoSsl = (types.SSLFiles & {
-        "enable": boolean;
+        "enable_ssl": boolean;
     });
     export type MongoDBConfig = (types.MongoSsl & {
         "host": string;

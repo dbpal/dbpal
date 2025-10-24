@@ -86,6 +86,7 @@ import {
   SomeTempStore,
   NewWindowTableParameter,
   TableType,
+  shrinkAble,
 } from './helper';
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from './CommonComp';
 import { TableStructure } from './TableStructure';
@@ -221,7 +222,7 @@ function TableTree(props: {
           <Stack direction="row" style={{ alignItems: 'center' }}>
             <TableViewIcon> </TableViewIcon> <span>{table}</span>
           </Stack>
-          <span> {size} </span>
+          <span style={{ ...shrinkAble, minWidth: 0 }}> {size} </span>
         </Stack>
       }
     ></TreeItem>

@@ -1785,15 +1785,20 @@ pub async fn mongo_query_collection_drop_search_index(
 
 #[tauri::command]
 pub async fn mongo_query_collection_find(
-    name: String, col: String, query: Vec<u8>, projection: Option<Vec<u8>>, sort: Option<Vec<u8>>,
-    min: Option<Vec<u8>>, max: Option<Vec<u8>>, limit: Option<i64>, skip: Option<u64>,
-    app: tauri::State<'_, DBPal>,
+    name: String, col: String, query: Vec<u8>, hint: Option<Vec<u8>>, projection: Option<Vec<u8>>,
+    sort: Option<Vec<u8>>, min: Option<Vec<u8>>, max: Option<Vec<u8>>, limit: Option<i64>,
+    skip: Option<u64>, app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<Vec<u8>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
 
     let max = if let Some(max) = max.as_ref() {
         Some(parse_bson_doc(max)?)
+    } else {
+        None
+    };
+    let hint = if let Some(hint) = hint.as_ref() {
+        Some(parse_bson_doc(hint)?)
     } else {
         None
     };
@@ -1820,7 +1825,7 @@ pub async fn mongo_query_collection_find(
         .map_err(|e| e.to_string())?;
     let docs = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => {
-            x.query_collection_find(&col, projection, filter, sort, max, min, limit, skip)
+            x.query_collection_find(&col, projection, filter, sort, max, min, hint, limit, skip)
                 .await
         }
         None => return Err(format!("db '{}' not mongo", name).into()),
@@ -1835,14 +1840,20 @@ pub async fn mongo_query_collection_find(
 
 #[tauri::command]
 pub async fn mongo_query_collection_find_one(
-    name: String, col: String, query: Vec<u8>, projection: Option<Vec<u8>>, sort: Option<Vec<u8>>,
-    min: Option<Vec<u8>>, max: Option<Vec<u8>>, skip: Option<u64>, app: tauri::State<'_, DBPal>,
+    name: String, col: String, query: Vec<u8>, hint: Option<Vec<u8>>, projection: Option<Vec<u8>>,
+    sort: Option<Vec<u8>>, min: Option<Vec<u8>>, max: Option<Vec<u8>>, skip: Option<u64>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<Option<Vec<u8>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
 
     let max = if let Some(max) = max.as_ref() {
         Some(parse_bson_doc(max)?)
+    } else {
+        None
+    };
+    let hint = if let Some(hint) = hint.as_ref() {
+        Some(parse_bson_doc(hint)?)
     } else {
         None
     };
@@ -1869,7 +1880,7 @@ pub async fn mongo_query_collection_find_one(
         .map_err(|e| e.to_string())?;
     let ret = match db.as_any().downcast_ref::<MongoDB>() {
         Some(x) => {
-            x.query_collection_find_one(&col, projection, filter, sort, max, min, skip)
+            x.query_collection_find_one(&col, projection, filter, sort, max, min, hint, skip)
                 .await
         }
         None => return Err(format!("db '{}' not mongo", name).into()),

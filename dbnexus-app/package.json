@@ -16,9 +16,9 @@
     "@mui/icons-material": "^7.3.4",
     "@mui/material": "^7.3.4",
     "@mui/styled-engine-sc": "^7.3.3",
-    "@mui/x-data-grid": "^8.14.1",
-    "@mui/x-tree-view": "^8.14.1",
-    "@tauri-apps/api": "^2.8.0",
+    "@mui/x-data-grid": "^8.15.0",
+    "@mui/x-tree-view": "^8.15.0",
+    "@tauri-apps/api": "^2.9.0",
     "@tauri-apps/plugin-autostart": "~2.5.0",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.0",
     "@tauri-apps/plugin-dialog": "^2.4.0",
@@ -28,10 +28,10 @@
     "@tauri-apps/plugin-process": "~2.3.0",
     "@tauri-apps/plugin-sql": "~2.3.0",
     "@tauri-apps/plugin-store": "~2.4.0",
+    "@types/esprima": "^4.0.6",
     "bson": "^6.10.4",
     "esprima": "^4.0.1",
-    "loglevel": "^1.9.2",
-    "monaco-editor": "=0.53.0",
+    "monaco-editor": "^0.53.0",
     "react": "^19.2.0",
     "react-colorful": "^5.6.1",
     "react-dom": "^19.2.0",
@@ -46,14 +46,14 @@
     "wildcard-match": "^5.1.4"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.8.4",
-    "@types/node": "^22.18.11",
+    "@tauri-apps/cli": "^2.9.1",
+    "@types/node": "^22.18.12",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.0.4",
     "internal-ip": "^8.0.1",
     "rollup-plugin-visualizer": "^6.0.5",
     "typescript": "^5.9.3",
-    "vite": "^7.1.10"
+    "vite": "^7.1.12"
   }
 }

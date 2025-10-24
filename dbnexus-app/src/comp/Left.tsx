@@ -274,7 +274,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
             />
           ))}
         </Stack>
-        <Stack direction="row" style={{ alignItems: 'flex-start' }}>
+        <Stack direction="row" style={{ alignItems: 'flex-end' }} spacing={1}>
           <TextField
             fullWidth
             value={matchPatterInput}
@@ -306,10 +306,10 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
                 return;
               }
               if (!matchPatterInput) {
-                showNotification('error', 'please input match pattern');
+                showNotification('warning', 'please input match pattern');
                 return;
               }
-              setMatchPattern((e) => [...e, matchPatterInput]);
+              setMatchPattern((e: string[]) => [...e, matchPatterInput]);
             }}
             variant="outlined"
           >

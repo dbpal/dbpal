@@ -16,7 +16,7 @@ pub struct MongoDBConfig {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef, Default)]
 pub struct MongoSsl {
-    pub enable: bool,
+    pub enable_ssl: bool,
     #[serde(flatten)]
     pub ssl_files: SSLFiles,
 }

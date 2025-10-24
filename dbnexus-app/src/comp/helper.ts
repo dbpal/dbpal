@@ -1259,6 +1259,7 @@ async function webviewWIndowInit() {
     if (zoom) {
       try { await currentWebview.setZoom(zoom); } catch (e) {
         console.log("set zoom failed", e);
+        message("set zoom failed : " + String(e), { kind: "error" })
       }
     }
   });
@@ -1282,7 +1283,6 @@ async function webviewWIndowInit() {
     appTheme = msg.payload;
     notifySettingChange();
   });
-
   if (platform() == "linux") { //  https://github.com/tauri-apps/tauri/issues/9427 
     setInterval(() => {
       currentWebview.theme().then((theme) => {

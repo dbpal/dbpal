@@ -12,6 +12,8 @@ import {
   Double,
   Document,
 } from 'bson';
+
+
 class MongoBsonObject {
   constructor(
     public elements: MongoBsonKV[],

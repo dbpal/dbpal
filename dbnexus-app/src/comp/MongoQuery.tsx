@@ -5,127 +5,58 @@ import {
   Button,
   IconButton,
   Modal,
-  Paper,
   Stack,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import { editor, Position, Range } from 'monaco-editor';
-import * as loglevel from 'loglevel';
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import {
-  initMongoQueryGlobals,
-  MongoDBQuery,
-  BsonExtraDataType,
-} from './MongoQueryBackend';
+import { editor, Position } from 'monaco-editor';
+import { useContext, useMemo, useRef, useState } from 'react';
+import { initMongoQueryGlobals, MongoDBQuery } from './MongoQueryBackend';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 import {
   DataSourceKind,
-  generateRandomString,
-  LoggerLevel,
   QueryLogHandler,
   SaveQueryLogConfigure,
   SettingContext,
-  TabActiveContext,
 } from './helper';
 import { EscDownEvent, modalHandleClose, modalStyle } from './Common';
 import { NotificationContext } from './Notification';
-import { LogLevelSelection, ModalHeader } from './CommonComp';
+import { ModalHeader } from './CommonComp';
 import * as esprima from 'esprima';
 import { FaBookmark } from 'react-icons/fa';
-import { EditorBar, LoadStoreFileForQuery } from './CommonComp2';
+import {
+  EditorBar,
+  LoadStoreFileForQuery,
+  SimpleFlexEditor,
+} from './CommonComp2';
 import { QueryLog } from './QueryLog';
-initMongoQueryGlobals();
+import InfoIcon from '@mui/icons-material/Info';
 
-function makeLog(level, ...msg: any[]): string {
-  const encode = (e): string => {
-    switch (typeof e) {
-      case 'undefined':
-        return 'undefined';
-      case 'boolean':
-        return e.toString();
-      case 'number':
-      case 'bigint':
-        return e.toString();
-      case 'string':
-        return e;
-      default:
-        return JSON.stringify(e);
-    }
-  };
-  const msg2 = msg.flat();
-  const str = msg2.map((e) => encode(e)).join(' ');
-  return `${new Date().toLocaleString()}-${level} ${str}\n`;
-}
+import intervalCleanTest from '../../tests/interval_clean_test.js?raw';
+import { BsonExtraDataType } from './MongoInterface';
+
+initMongoQueryGlobals();
 
 function MongoQuery(props: {
   uuid: string;
   favoriteName?: string;
   saveFavoriteSql: (name: string, sql: string) => void;
   value?: string;
-  height?: string;
 }) {
-  const {
-    uuid,
-    favoriteName: oldFavoriteName,
-    saveFavoriteSql,
-    value,
-    height,
-  } = props;
+  const { uuid, favoriteName: oldFavoriteName, saveFavoriteSql, value } = props;
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
   const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
   const [showQueryLog, setShowQueryLog] = useState(false);
-  const [showLog, setShowLog] = useState(false);
   const [err, setErr] = useState(null);
-  const [loggerEditor, setLoggerEditor] = useState(null);
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
-  const [loggerPos, setLoggerPos] = useState<Position>(null);
   const [executeTimes, setExecuteTimes] = useState(0);
-  const [logger, _setLogger] = useState(
-    loglevel.getLogger(generateRandomString(10))
-  );
   const setting = useContext(SettingContext);
-  const [loggerLevel, setLoggerLevel] = useState(LoggerLevel.level);
-  const [db, _] = useState(new MongoDBQuery(uuid));
-  const [bsonExtraDataType, _setBsonExtraDataTypes] = useState(
-    new BsonExtraDataType()
-  );
-
-  useEffect(() => {
-    logger.setLevel(loggerLevel as loglevel.LogLevelDesc);
-    LoggerLevel.set(loggerLevel);
-  }, [loggerLevel]);
-
-  const logEditorOnMount = (
-    editor: editor.IStandaloneCodeEditor,
-    _monaco: Monaco
-  ) => {
-    setLoggerEditor(editor);
-    logger.methodFactory = (level) => {
-      return (...args) => {
-        const l = makeLog(level, args);
-        modifyEditorContent(editor, l);
-      };
-    };
-    // we need set up level when `methodFactory` is changed
-    // otherwise logger will not working why
-    // looks a bug to me.
-    logger.setLevel('trace');
-    editor.onDidChangeCursorPosition(() => {
-      setLoggerPos(editor.getPosition());
-    });
-  };
+  const [db] = useState(new MongoDBQuery(uuid));
+  const [cleanFns] = useState([]);
+  const [bsonExtraDataType] = useState(new BsonExtraDataType());
   const { showNotification } = useContext(NotificationContext);
   const jsCodeMount = (ed: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
     editor.current = ed;
@@ -137,18 +68,16 @@ function MongoQuery(props: {
   const handleExecute = () => {
     const code = editor.current.getValue();
     if (!code.trim()) {
-      showNotification('error', "can't execute empty statement");
+      showNotification('warning', "can't execute empty statement");
       return;
     }
-    modifyEditorContent(loggerEditor);
-    setErr(null);
 
+    setErr(null);
     try {
       // capture some error from `esprima parser`.
       esprima.parseScript(code);
     } catch (e) {
       setErr(`${e.lineNumber}:${e.column} ${e.description}`);
-      return;
     }
     setExecuteTimes((e) => e + 1);
     try {
@@ -179,41 +108,8 @@ function MongoQuery(props: {
       ...setting.editor.editorOption,
     };
   }, [setting]);
-  const vis = useContext(TabActiveContext);
-  const keyEscCancelQueryLog = useCallback(
-    (e) => {
-      if (e.key === 'Escape' && vis && showQueryLog) {
-        setShowQueryLog(false);
-        e.preventDefault();
-      }
-    },
-    [vis, showQueryLog]
-  );
-  useEffect(() => {
-    document.addEventListener('keydown', keyEscCancelQueryLog);
-    return () => {
-      document.removeEventListener('keydown', keyEscCancelQueryLog);
-    };
-  }, [keyEscCancelQueryLog]);
-
-  const keyEscCancelLog = useCallback(
-    (e) => {
-      if (e.key === 'Escape' && vis && showLog) {
-        setShowLog(false);
-        e.preventDefault();
-      }
-    },
-    [vis, showLog]
-  );
-  useEffect(() => {
-    document.addEventListener('keydown', keyEscCancelLog);
-    return () => {
-      document.removeEventListener('keydown', keyEscCancelLog);
-    };
-  }, [keyEscCancelLog]);
-
   return (
-    <Stack style={{ position: 'relative', height: height ? height : '90vh' }}>
+    <Stack style={{ position: 'relative', height: '100%' }}>
       <Stack direction="row" sx={{ alignItems: 'center' }}>
         <QueryLog
           showQueryLog={showQueryLog}
@@ -233,13 +129,6 @@ function MongoQuery(props: {
             <PlayArrowIcon />
           </IconButton>
         </Tooltip>
-
-        <LogLevelSelection
-          level={loggerLevel}
-          handleChange={(level) => {
-            setLoggerLevel(level);
-          }}
-        ></LogLevelSelection>
         <Tooltip
           title={
             !favoriteName
@@ -265,9 +154,9 @@ function MongoQuery(props: {
             <FaBookmark style={{ fontSize: '1.3rem' }} />
           </IconButton>
         </Tooltip>
-
         <LoadStoreFileForQuery
           getQuery={() => {
+            editor.current.getAction('editor.action.formatDocument').run();
             return editor.current.getValue();
           }}
           kind={DataSourceKind.Mongo}
@@ -275,15 +164,6 @@ function MongoQuery(props: {
             editor.current.setValue(text);
           }}
         ></LoadStoreFileForQuery>
-        <Button
-          onClick={() => {
-            setShowLog((e) => !e);
-          }}
-          variant="outlined"
-          color={showLog ? 'success' : 'secondary'}
-        >
-          show log
-        </Button>
         <Tooltip title="query log">
           <IconButton
             onClick={() => {
@@ -294,6 +174,54 @@ function MongoQuery(props: {
             <EventNoteIcon></EventNoteIcon>
           </IconButton>
         </Tooltip>
+
+        <Button
+          onClick={() => {
+            for (const callback of cleanFns) {
+              callback();
+              try {
+              } catch (e) {
+                showNotification('error', 'clean error', e);
+              }
+            }
+            cleanFns.length = 0; // clean function
+          }}
+          variant="outlined"
+        >
+          call clean function
+        </Button>
+
+        <Tooltip
+          title=<CleanFunctionDoc width="55vw"></CleanFunctionDoc>
+          slotProps={{
+            tooltip: {
+              style: { maxWidth: '55vw' },
+            },
+          }}
+        >
+          <InfoIcon> </InfoIcon>
+        </Tooltip>
+        <Tooltip
+          title=<Stack width="55vw" style={{ maxHeight: '50vh' }}>
+            <Typography color="info ">
+              we are still using `console` to debug.
+            </Typography>
+            <Typography variant="h6">
+              open dev tools:Keyboard Shortcuts:
+            </Typography>
+            <pre>
+              Windows and Linux: Press Ctrl + Shift + i. macOS: Press Command +
+              Option + i.
+            </pre>
+          </Stack>
+          slotProps={{
+            tooltip: {
+              style: { maxWidth: '55vw' },
+            },
+          }}
+        >
+          <span>debug???</span>
+        </Tooltip>
       </Stack>
 
       <div
@@ -301,7 +229,6 @@ function MongoQuery(props: {
           display: 'flex',
           flexDirection: 'column',
           flex: 1,
-          width: '100%',
         }}
       >
         <div style={{ height: '100px', flex: 1 }}>
@@ -321,46 +248,6 @@ function MongoQuery(props: {
           pos={pos}
         ></EditorBar>
       </div>
-      <Paper
-        style={{
-          width: '80%',
-          position: 'absolute',
-          height: '75vh',
-          top: 0,
-          right: 0,
-          display: showLog ? 'flex' : 'none',
-          flexDirection: 'column',
-          zIndex: 14,
-          opacity: showLog ? 0.8 : 0,
-        }}
-        elevation={16}
-      >
-        <Stack direction="row" style={{ alignItems: 'center' }}>
-          <IconButton
-            onClick={() => {
-              setShowLog(false);
-            }}
-          >
-            <CloseIcon> </CloseIcon>
-          </IconButton>
-
-          <Tooltip title="esc can close log too">
-            <span>esc</span>
-          </Tooltip>
-        </Stack>
-        <div style={{ height: '100px', flex: 1 }}>
-          <Editor
-            options={options}
-            width="99%"
-            height="99%"
-            language="log"
-            theme={setting.editorTheme()}
-            onMount={logEditorOnMount}
-          ></Editor>
-        </div>
-
-        <EditorBar pos={loggerPos}></EditorBar>
-      </Paper>
       {showSetFavoriteName && (
         <Modal
           open={showSetFavoriteName}
@@ -369,7 +256,7 @@ function MongoQuery(props: {
             setShowFavoriteName(false);
           })}
         >
-          <Box sx={modalStyle} width="45%">
+          <Box sx={modalStyle} width="45vw">
             <ModalHeader
               title="Set Favorite Name"
               handleClose={() => {
@@ -406,35 +293,24 @@ function MongoQuery(props: {
         </Modal>
       )}
       {/* // we must use db etc ...  */}
-      {db && <div></div>}
-      {bsonExtraDataType && <div></div>}
+      {db && <span></span>}
+      {bsonExtraDataType && <span></span>}
+      {cleanFns && <span></span>}
     </Stack>
   );
 }
 
-function modifyEditorContent(
-  editor: editor.IStandaloneCodeEditor,
-  text = undefined //undefined  means clean text
-) {
-  if (!text) {
-    editor.setValue('');
-    return;
-  }
-  const model = editor.getModel();
-  if (model) {
-    const lastLine = model.getLineCount();
-    const lastCol = model.getLineMaxColumn(lastLine);
-    const edits: editor.IIdentifiedSingleEditOperation[] = [
-      {
-        range: new Range(lastLine, lastCol, lastLine, lastCol),
-        text: (lastCol > 1 ? '\n' : '') + text,
-        forceMoveMarkers: true, // 关键：保证光标、选区、标记跟着走
-      },
-    ];
-    model.applyEdits(edits);
-  } else {
-    editor.setValue(text);
-  }
+function CleanFunctionDoc(props: { width: string }) {
+  const { width } = props;
+  return (
+    <Stack width={width} height="40vh">
+      <SimpleFlexEditor
+        language="javascript"
+        value={intervalCleanTest}
+        readOnly
+      />
+    </Stack>
+  );
 }
 
 export { MongoQuery };

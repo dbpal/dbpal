@@ -60,7 +60,6 @@ import {
   SettingContext,
   shrinkAble,
   SomeTempStore,
-  TabActiveContext,
 } from './helper.ts';
 import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
 import { ExportView } from './Export.tsx';
@@ -476,23 +475,6 @@ function SqlQuery(props: {
       );
     }
   }, [conn, editor]);
-  const vis = useContext(TabActiveContext);
-  const keyEscCancelQueryLog = useCallback(
-    (e) => {
-      if (e.key === 'Escape' && vis && showQueryLog) {
-        setShowQueryLog(false);
-        e.preventDefault();
-      }
-    },
-    [vis, showQueryLog]
-  );
-
-  useEffect(() => {
-    document.addEventListener('keydown', keyEscCancelQueryLog);
-    return () => {
-      document.removeEventListener('keydown', keyEscCancelQueryLog);
-    };
-  }, [keyEscCancelQueryLog]);
 
   const supportExplain = [
     DataSourceKind.Sqlite,
