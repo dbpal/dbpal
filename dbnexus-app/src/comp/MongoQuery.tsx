@@ -21,6 +21,7 @@ import EventNoteIcon from '@mui/icons-material/EventNote';
 import {
   DataSourceKind,
   ErrAndLoc,
+  isMacOs,
   pathSeparator,
   QueryLogHandler,
   SaveQueryLogConfigure,
@@ -56,7 +57,9 @@ class CompilerOutput {
   constructor(public out: ChildProcess<string>, public jsCode?: string) {}
 
   errMsg(): string {
-    return `${this.out.stdout}\n${this.out.stderr}`;
+    return this.out.stderr
+      ? `${this.out.stdout}\n${this.out.stderr}`
+      : this.out.stdout;
   }
 }
 
@@ -441,15 +444,21 @@ function MongoQuery(props: {
 
         <Button
           onClick={() => {
+            let has_err = false;
             for (const callback of cleanFns) {
-              callback();
               try {
+                callback();
               } catch (e) {
+                has_err = true;
                 showNotification('error', 'clean error', e);
               }
             }
             cleanFns.length = 0; // clean function
+            if (!has_err) {
+              showNotification('success', 'call those function finished');
+            }
           }}
+          disabled={cleanFns.length == 0}
           variant="outlined"
         >
           call clean function
@@ -466,21 +475,18 @@ function MongoQuery(props: {
           <InfoIcon> </InfoIcon>
         </Tooltip>
         <Tooltip
-          title=<Stack width="55vw" style={{ maxHeight: '50vh' }}>
+          title=<Stack width="40vw">
             <Typography color="info ">
               we are still using `console` to debug.
             </Typography>
             <Typography variant="h6">
-              open dev tools:Keyboard Shortcuts:
+              open dev tools:
+              {isMacOs() ? 'Command +Option + i' : 'Ctrl + Shift + i'}
             </Typography>
-            <pre>
-              Windows and Linux: Press Ctrl + Shift + i. macOS: Press Command +
-              Option + i.
-            </pre>
           </Stack>
           slotProps={{
             tooltip: {
-              style: { maxWidth: '55vw' },
+              style: { maxWidth: '40vw' },
             },
           }}
         >
