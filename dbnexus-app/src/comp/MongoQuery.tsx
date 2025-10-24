@@ -31,7 +31,6 @@ import {
 import { EscDownEvent, modalHandleClose, modalStyle } from './Common';
 import { NotificationContext } from './Notification';
 import { ModalHeader } from './CommonComp';
-import * as esprima from 'esprima';
 import { FaBookmark } from 'react-icons/fa';
 import { EditorBar, LoadStoreFile, SimpleFlexEditor } from './CommonComp2';
 import { QueryLog } from './QueryLog';
@@ -62,6 +61,9 @@ class CompilerOutput {
       : this.out.stdout;
   }
 }
+function dropLastLine(str) {
+  return str.split(/\r?\n/).slice(0, -1).join('\n');
+}
 
 async function compile(value: string): Promise<CompilerOutput> {
   // dir
@@ -86,6 +88,7 @@ async function compile(value: string): Promise<CompilerOutput> {
   }
 
   op[compilerOptions]['outDir'] = './dist';
+  op[compilerOptions]['sourceMap'] = true;
   op[compilerOptions]['typeRoots'] = ['./types'];
   await writeTextFile(optionFilePath, JSON.stringify(op, null, 2), {
     create: true,
@@ -115,8 +118,20 @@ async function compile(value: string): Promise<CompilerOutput> {
   const code = await readTextFile(
     rootPath + pathSeparator() + 'dist' + pathSeparator() + 'main.js'
   );
-  return new CompilerOutput(out, code);
+  const sourceMap = await readTextFile(
+    rootPath + pathSeparator() + 'dist' + pathSeparator() + 'main.js.map'
+  );
+
+  let codeWithMap = dropLastLine(code);
+  codeWithMap +=
+    '//# sourceMappingURL=data:application/json;charset=utf-8;base64,' +
+    btoa(sourceMap);
+  return new CompilerOutput(out, codeWithMap);
 }
+
+compile(`const a :number = 1;`).then((e) => {
+  console.log(e);
+});
 
 class SaveTsOption {
   static key = 'dbpal-ts-options';
@@ -297,7 +312,6 @@ function MongoQuery(props: {
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
   const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
   const [showQueryLog, setShowQueryLog] = useState(false);
-  const [err, setErr] = useState(null);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
   const [executeTimes, setExecuteTimes] = useState(0);
@@ -326,15 +340,7 @@ function MongoQuery(props: {
       return;
     }
 
-    if (ts == TsOrJs.js) {
-      setErr(null);
-      try {
-        // capture some error from `esprima parser`.
-        esprima.parseScript(code);
-      } catch (e) {
-        setErr(`${e.lineNumber}:${e.column} ${e.description}`);
-      }
-    } else {
+    if (ts == TsOrJs.ts) {
       const out = await compile(code);
       if (out.out.code != 0) {
         showNotification('error', 'compile failed', out.errMsg());
@@ -343,18 +349,9 @@ function MongoQuery(props: {
       code = out.jsCode;
     }
     setExecuteTimes((e) => e + 1);
-    try {
-      eval(code);
-    } catch (e) {
-      if (SaveQueryLogConfigure.get()) {
-        new QueryLogHandler(uuid).save(code, false, showNotification);
-      }
-      setErr(e);
-      console.error('mongo query error:', e);
-      return;
-    }
+    eval(code);
     if (SaveQueryLogConfigure.get()) {
-      new QueryLogHandler(uuid).save(code, true);
+      new QueryLogHandler(uuid).save(code, true, showNotification);
     }
     showNotification(
       'success',
@@ -508,11 +505,7 @@ function MongoQuery(props: {
           value={value}
           theme={setting.editorTheme()}
         ></Editor>
-
-        <EditorBar
-          left={err && <Typography color="error">{err.toString()}</Typography>}
-          pos={pos}
-        ></EditorBar>
+        <EditorBar pos={pos}></EditorBar>
       </div>
       {showSetFavoriteName && (
         <Modal
