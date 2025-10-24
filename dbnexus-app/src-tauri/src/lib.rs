@@ -5,7 +5,7 @@ pub mod handlers;
 mod tests {
     use dbnexus_db::datasource_config::{
         CassandraDBConfig, LibSqlDBConfigSource, MySqlSslMode, MysqlSsl, PgSsl, PgSslMode, SSLFiles,
-    }; 
+    };
     use dbnexus_db::db::{
         ColumnType, CreateTableAndIndexSql, CreatedTypeDef, SequenceDetail, ShowTableExtraArgs,
         SqlEvent,

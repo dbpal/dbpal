@@ -27,7 +27,7 @@ export const NotificationContext = createContext<NotificationContextProps>({
     message('should not call this function is is bug', {
       kind: 'error',
     });
-    console.log('message args:', args);
+    console.error('message args:', args);
   },
 });
 
@@ -46,7 +46,7 @@ function NotificationProvider(props: { children: ReactNode }) {
     msg: any | ReactElement
   ) => {
     if (typeof msg == 'object' && 'reason' in msg) {
-      console.log('detail:', msg);
+      console.error('detail:', msg);
       // this a error from the backend
       // we only show `reason` the short message
       msg = msg['reason'];

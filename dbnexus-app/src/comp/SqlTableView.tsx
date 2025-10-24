@@ -243,13 +243,9 @@ function EditInModal(props: { content: string; handleModify }) {
       setJsonErr(null);
       return;
     }
-    validJson(value)
-      .then((e) => {
-        setJsonErr(e);
-      })
-      .catch((e) => {
-        console.log('call valid json error', e);
-      });
+    validJson(value).then((e) => {
+      setJsonErr(e);
+    });
   }, [value, language]);
 
   return (
@@ -1059,14 +1055,14 @@ function SqlTableViewData(props: {
     setLoading(true);
     handleData(args)
       .then(() => {
-        console.log('insert done');
+        console.info('insert done');
         showNotification('success', `${buttonName} OK`);
         if (handleClose) {
           handleClose();
         }
       })
       .catch((e) => {
-        console.log('insert failed');
+        console.error('insert failed');
         showNotification('error', `${buttonName} failure`, e);
       })
       .finally(() => {

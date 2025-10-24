@@ -241,6 +241,7 @@ fn main_() {
     let log_window_id = generate_random_string(10);
     let setting_window_id = generate_random_string(10);
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(
             tauri_plugin_sql::Builder::new()

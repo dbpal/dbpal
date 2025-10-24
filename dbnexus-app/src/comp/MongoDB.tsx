@@ -245,7 +245,7 @@ function initMongoBsonLanguage() {
       });
     })
     .catch((e) => {
-      console.log('init monaco language error:', e);
+      console.error('init monaco language error:', e);
     });
 }
 

@@ -18,16 +18,8 @@ async function testCol() {
         a: 100,
         y: 10000,
         c: 'ssss',
-        intValue: bsonExtraDataType.newInt32(123),
-        longValue: bsonExtraDataType.newLong(123),
-        idValue: bsonExtraDataType.newObjectID(),
-        tsValue: bsonExtraDataType.newTimeStamp(bsonExtraDataType.newLong(1234)),
-        codeValue: bsonExtraDataType.newJavaScriptCode('let a = 1;'),
-        bValue1: bsonExtraDataType.newBinary([1, 2, 3], 10),
-        bValue2: bsonExtraDataType.binaryCreateFromHexString('aa'),
-        bValue3: bsonExtraDataType.binaryCreateFromBase64('SGVsbG8='),
-        bValue4: bsonExtraDataType.binaryFromInt8Array(new Int8Array([1, 2, 3, 4])),
-        bValue5: bsonExtraDataType.binaryFromFloat32Array(new Float32Array([1, 2, 3, 4]))
+        intValue: new bson.BSON.Int32(123),
+        longValue: new bson.BSON.Long(456),
     });
     console.info('insert ret is:', insertRet);
     const count = await collection.cuntDocuments();
@@ -62,13 +54,13 @@ async function testCol() {
         const updateManyRet = await collection.updateMany({ a: 1 }, { $set: { status: "completed" } });
         console.info('update many ret:', updateManyRet);
     } catch (e) {
-        console.log("@@@@@@@@@@@@@@@@@@@", e);
+        console.info("@@@@@@@@@@@@@@@@@@@", e);
     }
     try {
         const updateOneRet = await collection.updateOne({ a: 1 }, { $set: { status: "completed" } });
         console.info('update one ret:', updateOneRet);
     } catch (e) {
-        console.log("@@@@@@@@@@@@@@@@@@@", e);
+        console.info("@@@@@@@@@@@@@@@@@@@", e);
     }
     let findManyResult = await collection.find({}, 100).find();
     console.info("find many result:", findManyResult);
@@ -89,7 +81,7 @@ async function testLimitOffsetPara() {
     // we have 10 record in database 
     try {
         let r = await col.find({ a: 1 }, 10).projection({ a: 1 }).find();
-        console.log("@@@@@@@@@@@@", r);
+        console.info("@@@@@@@@@@@@", r);
         console.assert(r[0]["a"] == 1);
         r = await col.find({}, 10).max({ a: 5 }).min({ a: 1 }).hint({ a: 1 }).find();
         console.assert(r.length == 4);
@@ -102,7 +94,7 @@ async function testLimitOffsetPara() {
     }
     try {
         let r = await col.findOne({ a: 1 }).projection({ a: 1 }).find();
-        console.log("@@@@@@@@@@@@", r);
+        console.info("@@@@@@@@@@@@", r);
         console.assert(r["a"] == 1);
         r = await col.findOne({}, 10).max({ a: 5 }).min({ a: 1 }).hint({ a: 1 }).find();
         console.assert(r["a"] == 1);

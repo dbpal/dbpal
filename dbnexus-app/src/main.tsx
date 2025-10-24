@@ -33,10 +33,10 @@ currentWebview.onCloseRequested(async (event) => {
 if (import.meta.env.DEV) {
   invoke('page_init_callback')
     .then(() => {
-      console.log('page init callback successfully');
+      console.info('page init callback successfully');
     })
     .catch((e) => {
-      console.log('call page init failed', e);
+      console.error('call page init failed', e);
     });
 }
 

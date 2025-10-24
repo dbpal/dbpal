@@ -5,14 +5,15 @@ import { loader } from '@monaco-editor/react';
 import { invoke } from '@tauri-apps/api/core';
 import { BSON } from 'bson';
 import { IFindBuilder, IFindOneBuilder, IMongoCollection, IMongoDB } from './MongoInterface';
-
 import interfaceText from "./MongoInterface.ts?raw";
+
 
 function removeFirstAndLastLine(text: string) {
   const lines = text.split('\n'); // 按换行分割
   if (lines.length <= 2) return ''; // 如果只有一两行，返回空
-  return lines.slice(1, -2).join('\n'); // 去掉首尾行
+  return lines.slice(1, -1).join('\n'); // 去掉首尾行
 }
+
 
 
 class MongoDBQuery implements IMongoDB {
@@ -249,17 +250,20 @@ class MongoDBQueryCollection implements IMongoCollection {
 }
 
 
+
+
 function initMongoQueryGlobals() {
   loader.init().then((monaco) => {
-    monaco.languages.typescript.javascriptDefaults.addExtraLib(removeFirstAndLastLine(interfaceText) + `
+    const extraLib = removeFirstAndLastLine(interfaceText) + `
     const db : IMongoDB;
-    const bsonExtraDataType : BsonExtraDataType;
     const cleanFns : (()=> void)[];
-        `);
+    const bson : any;
+        ` ;
+    monaco.languages.typescript.javascriptDefaults.addExtraLib(extraLib);
+    monaco.languages.typescript.typescriptDefaults.addExtraLib(extraLib);
   }).catch((e) => {
     console.log('init monaco language error:', e)
   });
 }
-
 
 export { initMongoQueryGlobals, MongoDBQuery };

@@ -2,7 +2,6 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { internalIpV4 } from 'internal-ip';
 import { resolve } from 'path';
-import { visualizer } from 'rollup-plugin-visualizer'
 
 const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 
@@ -10,7 +9,7 @@ const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 export default defineConfig(async ({ command }) => {
   return {
     plugins: [
-      react(), visualizer({ open: true, gzipSize: true }),
+      react()
     ],
     build: {
       target: 'esnext',

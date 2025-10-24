@@ -700,7 +700,7 @@ function TableMenu(props: {
       maximized: true,
     });
     webview.once('tauri://created', () =>
-      console.log('create table view successfully')
+      console.info('create table view successfully')
     );
     webview.once('tauri://error', (e) => {
       showNotification('error', 'create webview failed', e.event.toString());
@@ -762,7 +762,7 @@ function TableMenu(props: {
       maximized: true,
     });
     webview.once('tauri://created', () =>
-      console.log('create add connection view successfully')
+      console.info('create add connection view successfully')
     );
     webview.once('tauri://error', (e) => {
       showNotification('error', 'create webview failed', e.event.toString());

@@ -7,6 +7,13 @@
     "random-error",
     "random-sleep"
   ],
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/bower_components": true,
+    "**/*.code-search": true,
+    "**/redis-doc": true,
+    "**/monaco-themes": true,
+  },
   "prettier.singleQuote": true,
   "cSpell.words": [
     "ABSTTL",

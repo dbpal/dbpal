@@ -558,8 +558,12 @@ function TrueOrFalse(props: { value: boolean }) {
   return value ? <CheckIcon> </CheckIcon> : <CloseIcon></CloseIcon>;
 }
 
-function ModalHeader(props: { title: string; handleClose: () => void }) {
-  const { title, handleClose } = props;
+function ModalHeader(props: {
+  title: string;
+  handleClose: () => void;
+  noTextTransform?: boolean;
+}) {
+  const { title, handleClose, noTextTransform } = props;
   const theme = useTheme();
   return (
     <Stack
@@ -576,7 +580,7 @@ function ModalHeader(props: { title: string; handleClose: () => void }) {
         style={{
           paddingBottom: '0.3rem',
           fontWeight: 'bold',
-          textTransform: 'capitalize',
+          textTransform: noTextTransform ? undefined : 'capitalize',
         }}
       >
         {title}

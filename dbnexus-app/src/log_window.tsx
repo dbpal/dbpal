@@ -21,8 +21,8 @@ currentWebView.onCloseRequested(async () => {
   try {
     await invoke('close_log_channel');
   } catch (e) {
-    console.log(e);
+    console.error(e);
     return;
   }
-  console.log('close log channel success');
+  console.info('close log channel success');
 });

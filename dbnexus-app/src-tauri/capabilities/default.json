@@ -54,6 +54,19 @@
     "autostart:allow-disable",
     "autostart:allow-is-enabled",
     "core:window:allow-show",
-    "keyring:default"
+    "keyring:default",
+    "core:webview:deny-clear-all-browsing-data",
+    "shell:default",
+    "shell:allow-execute",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "run-tsc",
+          "cmd": "tsc",
+          "args": true
+        }
+      ]
+    }
   ]
 }

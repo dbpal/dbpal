@@ -595,7 +595,7 @@ function ViewMenu(props: {
       height: 600,
     });
     webview.once('tauri://created', () =>
-      console.log('create table view successfully')
+      console.info('create table view successfully')
     );
     webview.once('tauri://error', (e) => {
       showNotification('error', 'create webview failed', e.payload.toString());

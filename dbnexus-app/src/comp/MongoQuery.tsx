@@ -1,43 +1,288 @@
 'use strict';
 import { Editor, Monaco } from '@monaco-editor/react';
 import {
+  Autocomplete,
   Box,
   Button,
   IconButton,
+  Link,
   Modal,
   Stack,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
+
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { editor, Position } from 'monaco-editor';
-import { useContext, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import { initMongoQueryGlobals, MongoDBQuery } from './MongoQueryBackend';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 import {
   DataSourceKind,
+  ErrAndLoc,
+  pathSeparator,
   QueryLogHandler,
   SaveQueryLogConfigure,
   SettingContext,
+  validJson,
 } from './helper';
 import { EscDownEvent, modalHandleClose, modalStyle } from './Common';
 import { NotificationContext } from './Notification';
 import { ModalHeader } from './CommonComp';
 import * as esprima from 'esprima';
 import { FaBookmark } from 'react-icons/fa';
-import {
-  EditorBar,
-  LoadStoreFileForQuery,
-  SimpleFlexEditor,
-} from './CommonComp2';
+import { EditorBar, LoadStoreFile, SimpleFlexEditor } from './CommonComp2';
 import { QueryLog } from './QueryLog';
 import InfoIcon from '@mui/icons-material/Info';
-
 import intervalCleanTest from '../../tests/interval_clean_test.js?raw';
-import { BsonExtraDataType } from './MongoInterface';
-
+import { tempDir } from '@tauri-apps/api/path';
+import {
+  exists,
+  mkdir,
+  readTextFile,
+  writeTextFile,
+} from '@tauri-apps/plugin-fs';
+import { ChildProcess, Command } from '@tauri-apps/plugin-shell';
+import { openUrl } from '@tauri-apps/plugin-opener';
 initMongoQueryGlobals();
+
+enum TsOrJs {
+  js = 'javascript',
+  ts = 'typescript',
+}
+
+class CompilerOutput {
+  constructor(public out: ChildProcess<string>, public jsCode?: string) {}
+
+  errMsg(): string {
+    return `${this.out.stdout}\n${this.out.stderr}`;
+  }
+}
+
+async function compile(value: string): Promise<CompilerOutput> {
+  // dir
+
+  const data_dir = await tempDir();
+  const rootPath = data_dir + 'dbpal-mongo-query-ts-compile';
+  if (!(await exists(rootPath))) {
+    await mkdir(rootPath);
+  }
+  console.info('root path is:', rootPath);
+  // write main.ts
+  const mainTsFilePath = rootPath + pathSeparator() + 'main.ts';
+  await writeTextFile(mainTsFilePath, value, { create: true, append: false });
+
+  // write config file
+  const optionFilePath = rootPath + pathSeparator() + 'tsconfig.json';
+  let op = JSON.parse(SaveTsOption.getStr());
+  // make sure compilerOptions.outDir
+  let compilerOptions = 'compilerOptions';
+  if (!(compilerOptions in op)) {
+    op[compilerOptions] = {};
+  }
+
+  op[compilerOptions]['outDir'] = './dist';
+  op[compilerOptions]['typeRoots'] = ['./types'];
+  await writeTextFile(optionFilePath, JSON.stringify(op, null, 2), {
+    create: true,
+    append: false,
+  });
+  let typesPath = rootPath + pathSeparator() + 'types';
+
+  if (!(await exists(typesPath))) {
+    await mkdir(typesPath);
+  }
+  const extraTypeFile = typesPath + pathSeparator() + 'extra.ts';
+  if (!(await exists(extraTypeFile))) {
+    await writeTextFile(
+      extraTypeFile,
+      `
+      let db : any;
+      let cleanFns : (()=> void)[];
+      let bson : any;
+      `
+    );
+  }
+  let cmd = Command.create('run-tsc', [], { cwd: rootPath });
+  const out = await cmd.execute();
+  if (out.code !== 0) {
+    return new CompilerOutput(out);
+  }
+  const code = await readTextFile(
+    rootPath + pathSeparator() + 'dist' + pathSeparator() + 'main.js'
+  );
+  return new CompilerOutput(out, code);
+}
+
+class SaveTsOption {
+  static key = 'dbpal-ts-options';
+
+  static getStr() {
+    try {
+      const op = localStorage.getItem(SaveTsOption.key);
+      if (op) {
+        return op;
+      }
+    } catch (e) {}
+    return '{\n}';
+  }
+  static get() {
+    const ts = SaveTsOption.getStr();
+    return JSON.parse(ts);
+  }
+  static set(x: object) {
+    localStorage.setItem(SaveTsOption.key, JSON.stringify(x, null));
+  }
+}
+
+function TsOption(props: { handleClose: () => void }) {
+  const { handleClose } = props;
+
+  const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
+  const setting = useContext(SettingContext);
+  const [value, setValue] = useState(
+    JSON.stringify(SaveTsOption.get(), null, setting.editor.tabSize)
+  );
+  const { showNotification } = useContext(NotificationContext);
+  const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
+  useEffect(() => {
+    (async () => {
+      const x = await validJson(value);
+      setJsonErr(x);
+    })();
+  }, [value]);
+
+  const handleSave = () => {
+    try {
+      SaveTsOption.set(JSON.parse(value));
+    } catch (e) {
+      showNotification('error', 'save option failed', e);
+      return;
+    }
+    showNotification('success', 'save option success');
+    handleClose();
+  };
+
+  return (
+    <Stack height="100%">
+      <SimpleFlexEditor
+        value={value}
+        language="json"
+        handleValue={(value) => {
+          setValue(value);
+        }}
+        errPos={jsonErrPos}
+        barLeft={
+          jsonErr && (
+            <Typography
+              color="error"
+              style={{ cursor: 'pointer' }}
+              onClick={() => {
+                if (!jsonErr) {
+                  return;
+                }
+                setJsonErrPos(new Position(jsonErr.line, jsonErr.column));
+              }}
+            >
+              {jsonErr.msg}
+            </Typography>
+          )
+        }
+      ></SimpleFlexEditor>
+      <Stack direction="row" style={{ alignItems: 'center' }}>
+        <Button onClick={handleSave}> save </Button>
+        <Link
+          href="#"
+          underline="hover"
+          onClick={(e) => {
+            e.preventDefault();
+            openUrl('https://www.typescriptlang.org/tsconfig/');
+          }}
+        >
+          options
+        </Link>
+      </Stack>
+    </Stack>
+  );
+}
+
+function TypeScript(props: {
+  ts: string;
+  setTS;
+  editor: editor.IStandaloneCodeEditor;
+}) {
+  const { ts, setTS, editor } = props;
+  const [showEditOption, setShowEditOption] = useState(false);
+  const { showNotification } = useContext(NotificationContext);
+  return (
+    <>
+      <Autocomplete
+        options={[TsOrJs.js, TsOrJs.ts]}
+        value={ts}
+        style={{ width: '12rem' }}
+        renderInput={(params) => (
+          <TextField {...params} label={'javascript or typescript'} />
+        )}
+        freeSolo={false}
+        onChange={(_, name) => {
+          (async () => {
+            if (name == TsOrJs.js) {
+              let result = await compile(editor.getValue());
+              if (result.out.code != 0) {
+                showNotification(
+                  'error',
+                  'typescript compile error,can safe change to javascript',
+                  result.errMsg()
+                );
+                return;
+              }
+              editor.setValue(result.jsCode);
+            }
+            setTS(name);
+          })();
+        }}
+      />
+      {ts == TsOrJs.ts && (
+        <Tooltip title="click this button to modify tsconfig.json">
+          <Button
+            variant="outlined"
+            onClick={() => {
+              setShowEditOption(true);
+            }}
+          >
+            tsconfig?
+          </Button>
+        </Tooltip>
+      )}
+
+      {showEditOption && (
+        <Modal
+          open={showEditOption}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowEditOption(false);
+          })}
+        >
+          <Box sx={modalStyle} width="75%" height="65vh">
+            <ModalHeader
+              title="edit tsconfig.json"
+              handleClose={() => {
+                setShowEditOption(false);
+              }}
+              noTextTransform
+            ></ModalHeader>
+            <TsOption
+              handleClose={() => {
+                setShowEditOption(false);
+              }}
+            ></TsOption>
+          </Box>
+        </Modal>
+      )}
+    </>
+  );
+}
 
 function MongoQuery(props: {
   uuid: string;
@@ -50,34 +295,49 @@ function MongoQuery(props: {
   const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
   const [showQueryLog, setShowQueryLog] = useState(false);
   const [err, setErr] = useState(null);
-  const editor = useRef<editor.IStandaloneCodeEditor>(null);
+  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
   const [executeTimes, setExecuteTimes] = useState(0);
   const setting = useContext(SettingContext);
   const [db] = useState(new MongoDBQuery(uuid));
   const [cleanFns] = useState([]);
-  const [bsonExtraDataType] = useState(new BsonExtraDataType());
   const { showNotification } = useContext(NotificationContext);
+  const [bson, setBson] = useState(null);
+  const [ts, setTS] = useState<TsOrJs>(TsOrJs.js);
   const jsCodeMount = (ed: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
-    editor.current = ed;
+    setEditor(ed);
     ed.focus();
     ed.onDidChangeCursorPosition(() => {
       setPos(ed.getPosition());
     });
   };
-  const handleExecute = () => {
-    const code = editor.current.getValue();
+
+  import('bson').then((e) => {
+    setBson(e);
+  });
+
+  const handleExecute = async () => {
+    let code = editor.getValue();
     if (!code.trim()) {
       showNotification('warning', "can't execute empty statement");
       return;
     }
 
-    setErr(null);
-    try {
-      // capture some error from `esprima parser`.
-      esprima.parseScript(code);
-    } catch (e) {
-      setErr(`${e.lineNumber}:${e.column} ${e.description}`);
+    if (ts == TsOrJs.js) {
+      setErr(null);
+      try {
+        // capture some error from `esprima parser`.
+        esprima.parseScript(code);
+      } catch (e) {
+        setErr(`${e.lineNumber}:${e.column} ${e.description}`);
+      }
+    } else {
+      const out = await compile(code);
+      if (out.out.code != 0) {
+        showNotification('error', 'compile failed', out.errMsg());
+        return;
+      }
+      code = out.jsCode;
     }
     setExecuteTimes((e) => e + 1);
     try {
@@ -87,7 +347,7 @@ function MongoQuery(props: {
         new QueryLogHandler(uuid).save(code, false, showNotification);
       }
       setErr(e);
-      console.log('mongo query error:', e);
+      console.error('mongo query error:', e);
       return;
     }
     if (SaveQueryLogConfigure.get()) {
@@ -108,17 +368,18 @@ function MongoQuery(props: {
       ...setting.editor.editorOption,
     };
   }, [setting]);
+
   return (
     <Stack style={{ position: 'relative', height: '100%' }}>
+      <QueryLog
+        showQueryLog={showQueryLog}
+        setShowQueryLog={setShowQueryLog}
+        uuid={uuid}
+        kind={DataSourceKind.Mongo}
+        executeTimes={executeTimes}
+      ></QueryLog>
       <Stack direction="row" sx={{ alignItems: 'center' }}>
-        <QueryLog
-          showQueryLog={showQueryLog}
-          setShowQueryLog={setShowQueryLog}
-          uuid={uuid}
-          kind={DataSourceKind.Mongo}
-          executeTimes={executeTimes}
-        ></QueryLog>
-
+        <TypeScript ts={ts} setTS={setTS} editor={editor}></TypeScript>
         <Tooltip title="execute">
           <IconButton
             onClick={() => {
@@ -138,7 +399,7 @@ function MongoQuery(props: {
         >
           <IconButton
             onClick={() => {
-              const value = editor.current.getValue();
+              const value = editor.getValue();
               if (!value) {
                 showNotification('warning', "can't save empty statement.");
                 return;
@@ -154,16 +415,19 @@ function MongoQuery(props: {
             <FaBookmark style={{ fontSize: '1.3rem' }} />
           </IconButton>
         </Tooltip>
-        <LoadStoreFileForQuery
+        <LoadStoreFile
           getQuery={() => {
-            editor.current.getAction('editor.action.formatDocument').run();
-            return editor.current.getValue();
+            return editor.getValue();
           }}
           kind={DataSourceKind.Mongo}
-          handleChange={(text) => {
-            editor.current.setValue(text);
+          handleLoadFile={(path, text) => {
+            if (path.endsWith('.ts')) {
+              setTS(TsOrJs.ts);
+            }
+            editor.setValue(text);
           }}
-        ></LoadStoreFileForQuery>
+        ></LoadStoreFile>
+
         <Tooltip title="query log">
           <IconButton
             onClick={() => {
@@ -223,25 +487,21 @@ function MongoQuery(props: {
           <span>debug???</span>
         </Tooltip>
       </Stack>
-
       <div
         style={{
-          display: 'flex',
-          flexDirection: 'column',
+          height: '100px',
           flex: 1,
         }}
       >
-        <div style={{ height: '100px', flex: 1 }}>
-          <Editor
-            width="99%"
-            height="99%"
-            onMount={jsCodeMount}
-            language="javascript"
-            options={options}
-            value={value}
-            theme={setting.editorTheme()}
-          ></Editor>
-        </div>
+        <Editor
+          width="99%"
+          height="99%"
+          onMount={jsCodeMount}
+          language={ts}
+          options={options}
+          value={value}
+          theme={setting.editorTheme()}
+        ></Editor>
 
         <EditorBar
           left={err && <Typography color="error">{err.toString()}</Typography>}
@@ -281,7 +541,7 @@ function MongoQuery(props: {
                       showNotification('warning', "name can't be empty");
                       return;
                     }
-                    saveFavoriteSql(favoriteName, editor.current.getValue());
+                    saveFavoriteSql(favoriteName, editor.getValue());
                     setShowFavoriteName(false);
                   }}
                 >
@@ -294,8 +554,8 @@ function MongoQuery(props: {
       )}
       {/* // we must use db etc ...  */}
       {db && <span></span>}
-      {bsonExtraDataType && <span></span>}
       {cleanFns && <span></span>}
+      {bson && <span></span>}
     </Stack>
   );
 }

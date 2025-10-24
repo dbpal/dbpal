@@ -46,13 +46,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { ConnectHandler, extractBaseName, reloadOK } from './Common';
 import types from './ApiStruct';
 import { MetaValueView } from './CommonComp';
-import { readFile, writeFile } from '@tauri-apps/plugin-fs';
-import {
-  save,
-  SaveDialogOptions,
-  open,
-  DialogFilter,
-} from '@tauri-apps/plugin-dialog';
+import { readFile, writeTextFile } from '@tauri-apps/plugin-fs';
+import { save, open, DialogFilter } from '@tauri-apps/plugin-dialog';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import ReactMarkdown from 'react-markdown';
 import {
@@ -375,7 +370,7 @@ function MenuConnectionInfo({ uuid }) {
       height: 600,
     });
     webview.once('tauri://created', () =>
-      console.log('create info view successfully')
+      console.info('create info view successfully')
     );
     webview.once('tauri://error', (e) => {
       showNotification('error', 'create webview failed', e.event.toString());
@@ -473,36 +468,24 @@ function ConnConfigInfo(props: { uuid }) {
   );
 }
 
-function LoadStoreFileForQuery(props: {
+function LoadStoreFile(props: {
   getQuery: () => string;
-  handleChange: (content) => void;
+  handleLoadFile: (path: string, content: string) => void;
   kind: DataSourceKind;
 }) {
-  const { getQuery, handleChange, kind } = props;
+  const { getQuery, handleLoadFile, kind } = props;
   const [file, setFile] = useState('');
   const { showNotification } = useContext(NotificationContext);
   const active = useContext(TabActiveContext);
-  const handleLoad = async () => {
-    // ok to load
-    try {
-      const file = await open();
-      if (file) {
-        const content = new TextDecoder().decode(await readFile(file));
-        handleChange(content);
-        setFile(file);
-      }
-    } catch (e) {
-      showNotification('error', 'error to open file', e);
-    }
-  };
-  const saveOpt = useMemo(() => {
+
+  const filters = useMemo(() => {
     let filters: DialogFilter[];
     switch (kind) {
       case DataSourceKind.Mongo:
         filters = [
           {
-            name: 'js',
-            extensions: ['js'],
+            name: 'javscript or typescrpt',
+            extensions: ['ts', 'js'],
           },
         ];
         break;
@@ -530,9 +513,22 @@ function LoadStoreFileForQuery(props: {
           },
         ];
     }
-
-    return { title: 'save query', filters } as SaveDialogOptions;
+    return filters;
   }, [kind]);
+
+  const handleLoad = async () => {
+    // ok to load
+    try {
+      const file = await open({ title: 'open file', filters });
+      if (file) {
+        const content = new TextDecoder().decode(await readFile(file));
+        handleLoadFile(file, content);
+        setFile(file);
+      }
+    } catch (e) {
+      showNotification('error', 'error to open file', e);
+    }
+  };
 
   const handleSave = async () => {
     const content = getQuery();
@@ -541,13 +537,13 @@ function LoadStoreFileForQuery(props: {
       return;
     }
     try {
-      const ofile = file ? file : await save(saveOpt);
+      const ofile = file ? file : await save({ title: 'save query', filters });
       if (ofile) {
-        await writeFile(ofile, new TextEncoder().encode(content), {
+        await writeTextFile(ofile, content, {
           create: true,
         });
         setFile(ofile);
-        handleChange(content);
+        handleLoadFile(ofile, content);
         showNotification('success', 'save file OK');
       }
     } catch (e) {
@@ -568,7 +564,7 @@ function LoadStoreFileForQuery(props: {
         }
       }
       setFile('');
-      handleChange('');
+      handleLoadFile('', '');
     } catch (e) {
       showNotification('error', 'close file failed', e);
     }
@@ -592,7 +588,7 @@ function LoadStoreFileForQuery(props: {
     return () => {
       document.removeEventListener('keydown', callback);
     };
-  }, [active, file]);
+  }, [active, file, getQuery, handleLoadFile]);
 
   return (
     <>
@@ -642,7 +638,7 @@ function AppMarkDown(props: {
     const handleClick = (event) => {
       event.preventDefault();
       // 在这里处理链接点击，比如使用 Tauri API 打开链接
-      console.log(`Link clicked: ${href}`);
+      console.info(`Link clicked: ${href}`);
       if (href.startsWith('http')) {
         openUrl(href)
           .then(() => {
@@ -712,7 +708,7 @@ export {
   EditorBar,
   MenuConnectionInfo,
   ConnConfigInfo,
-  LoadStoreFileForQuery,
+  LoadStoreFile,
   AppMarkDown,
   UrlDocument,
 };

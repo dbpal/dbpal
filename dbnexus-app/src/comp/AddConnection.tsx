@@ -37,12 +37,6 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { platform } from '@tauri-apps/plugin-os';
 import { UrlDocument } from './CommonComp2';
 import { emit } from '@tauri-apps/api/event';
-async function selectOneFile() {
-  const selected = await open({
-    multiple: false,
-  });
-  return selected;
-}
 
 function HostAndPort(props: { host; port; setHost; setPort; onBlur? }) {
   const { host, port, setHost, setPort, onBlur } = props;
@@ -121,7 +115,7 @@ function SelectPath(props: {
       ></TextField>
       <IconButton
         onClick={() => {
-          selectOneFile().then((e) => {
+          open({ multiple: false }).then((e) => {
             setPath(e);
           });
         }}
@@ -282,7 +276,7 @@ function SslFiles(props: {
           <Tooltip
             title={files.ssl_ca}
             onClick={async () => {
-              const file = await selectOneFile();
+              const file = await open({ multiple: false });
               if (file) {
                 setFiles({ ...files, ssl_ca: file });
               }
@@ -299,7 +293,7 @@ function SslFiles(props: {
             <Chip
               variant="outlined"
               onClick={async () => {
-                const file = await selectOneFile();
+                const file = await open({ multiple: false });
                 if (file) {
                   setFiles({ ...files, ssl_cert: file });
                 }
@@ -314,7 +308,7 @@ function SslFiles(props: {
             <Chip
               variant="outlined"
               onClick={async () => {
-                const file = await selectOneFile();
+                const file = await open({ multiple: false });
                 if (file) {
                   setFiles({ ...files, ssl_key: file });
                 }
@@ -816,7 +810,7 @@ function TestConnAndSave(props: { connectionNameDom }) {
       config.name = 'test_connection';
     }
     if (config) {
-      console.log('test config:', config);
+      console.info('test config:', config);
       setTestLoading(true);
       invoke('test_connection', { config })
         .then(() => {
@@ -1448,7 +1442,7 @@ function LibSql(props: { config?: types.LibSqlDBConfig }) {
       read_only: readOnly,
       path: path ? path : null,
     };
-    console.log('makeConfig', x);
+    console.info('makeConfig', x);
     return x;
   }
 

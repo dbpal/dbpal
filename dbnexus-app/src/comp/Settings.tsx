@@ -598,13 +598,9 @@ function EditorOptions(props: {
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
   useEffect(() => {
-    validJson(value)
-      .then((e) => {
-        setJsonErr(e);
-      })
-      .catch((e) => {
-        console.log('call valid json error', e);
-      });
+    validJson(value).then((e) => {
+      setJsonErr(e);
+    });
   }, [value]);
   return (
     <Stack style={style}>
@@ -845,7 +841,7 @@ function SettingComp(props: { children: ReactNode }) {
     if (setting.misc.autoStart) {
       if (!(await isEnabledApp())) {
         enableApp().catch((e) => {
-          console.log('enable app autostart failed', e);
+          console.error('enable app autostart failed', e);
           message(`enable app autostart failed ${e.toString()}`, {
             kind: 'error',
           });
@@ -854,7 +850,7 @@ function SettingComp(props: { children: ReactNode }) {
     } else {
       if (await isEnabledApp()) {
         disableApp().catch((e) => {
-          console.log('disable app autostart failed', e);
+          console.error('disable app autostart failed', e);
         });
       }
     }

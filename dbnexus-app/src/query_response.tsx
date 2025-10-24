@@ -35,7 +35,7 @@ function QueryResponse() {
       }
       if (typeof e.payload == 'object' && e.payload[newQueryIDName]) {
         queryId = e.payload[newQueryIDName];
-        console.log('send new query id:', queryId);
+        console.info('send new query id:', queryId);
         return;
       }
       console.error('unhandled event:', e.payload);

@@ -150,7 +150,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
         height: 600,
       });
       webview.once('tauri://created', () =>
-        console.log('create add connection view successfully')
+        console.info('create add connection view successfully')
       );
       webview.once('tauri://error', (e) => {
         showNotification('error', 'create webview failed', e.event.toString());
@@ -618,7 +618,7 @@ const makeConn = async (uuid: string, kind: DataSourceKind) => {
   const queryId = await invoke<number>('query_sql_open_connection', {
     name: uuid,
   });
-  console.log('open connection:', queryId);
+  console.info('open connection:', queryId);
   return new QueryConn(uuid, queryId, kind);
 };
 
@@ -759,7 +759,7 @@ function FavoriteSqlList(props: { handleClose }) {
       maximized: true,
     });
     webview.once('tauri://created', () =>
-      console.log('create query view successfully')
+      console.info('create query view successfully')
     );
     webview.once('tauri://error', (e) => {
       showNotification('error', 'create webview failed', e.event.toString());
@@ -972,8 +972,7 @@ function OneConfig_(props: { config: types.DBConnectionConfig }) {
         }
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
       default:
-        console.log('impl database kind:', config);
-        console.log(`impl this kind ${config.conn_type}`);
+        console.error('impl database kind:', config);
     }
   };
   return (
@@ -1474,7 +1473,7 @@ function AllKindQuery(props: {
       );
       break;
     default:
-      console.log(`impl this ${kind}`);
+      console.error(`impl this ${kind}`);
   }
   return <div style={{ height: '100%' }}> {content}</div>;
 }
@@ -1497,7 +1496,7 @@ function openNewQuery(
       maximized: true,
     });
     webview.once('tauri://created', () =>
-      console.log('create query view successfully')
+      console.info('create query view successfully')
     );
     webview.once('tauri://error', (e) => {
       showNotification('error', 'create webview failed', e.event.toString());

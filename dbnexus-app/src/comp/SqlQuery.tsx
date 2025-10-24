@@ -68,7 +68,7 @@ import {
   ModalHeader,
   PossibleParseError,
 } from './CommonComp.tsx';
-import { EditorBar, LoadStoreFileForQuery } from './CommonComp2.tsx';
+import { EditorBar, LoadStoreFile } from './CommonComp2.tsx';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
@@ -494,7 +494,7 @@ function SqlQuery(props: {
       try {
         queryRespView.close();
       } catch (e) {
-        console.log(e);
+        console.error(e);
         return;
       }
     } else {
@@ -513,10 +513,10 @@ function SqlQuery(props: {
         y,
       });
       webview.once('tauri://created', () => {
-        console.log('create query response view successfully');
+        console.info('create query response view successfully');
       });
       webview.once(queryRespViewEventName.current, (e) => {
-        console.log('query window send me something:', e.payload);
+        console.info('query window send me something:', e.payload);
         if (e.payload == listenOK) {
           setQueryRespView(webview);
         } else {
@@ -684,15 +684,15 @@ function SqlQuery(props: {
               </IconButton>
             </Tooltip>
             {editor && (
-              <LoadStoreFileForQuery
+              <LoadStoreFile
                 getQuery={() => {
                   return editor.getValue();
                 }}
-                handleChange={(content) => {
+                handleLoadFile={(_, content) => {
                   editor.setValue(content);
                 }}
                 kind={kind}
-              ></LoadStoreFileForQuery>
+              ></LoadStoreFile>
             )}
 
             <Tooltip title="query log">

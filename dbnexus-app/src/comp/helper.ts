@@ -49,7 +49,7 @@ class QueryLogHandler {
   async query(matchSql: string, page: number, pageSize: number, order_by: string): Promise<any[]> {
     const sql = `
     select * from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""} order by ${order_by ? order_by : 'create_at desc'} limit ${pageSize} offset ${pageSize * (page - 1)}`;
-    console.log("query log sql:", sql);
+    console.info("query log sql:", sql);
     return (appDatabase).select(sql, [this.uuid])
   }
   async queryCount(matchSql: string): Promise<number> {
@@ -429,7 +429,7 @@ class FavoriteSql {
     try {
       (appDatabase).execute(`delete from favorite_sql where connection_name=?`, [name]);
     } catch (e) {
-      console.log("delete all logs belong to a key failed", e);
+      console.error("delete all logs belong to a key failed", e);
       return
     }
   }
@@ -461,7 +461,7 @@ class ColumnWidth {
   async reset(): Promise<void> {
     this.width = {};
     return (appDatabase).execute("delete from column_width").then((x) => {
-      console.log("delete of", x.rowsAffected, "rows");
+      console.info("delete of", x.rowsAffected, "rows");
     })
   }
   static instance = new ColumnWidth();
@@ -881,7 +881,7 @@ class SaveQueryLogConfigure {
     try {
       return '1' == localStorage.getItem(SaveQueryLogConfigure.key);
     } catch (e) {
-      console.log("get query log failed");
+      console.error("get query log failed");
       return false;
     }
   }
@@ -907,7 +907,7 @@ function makeExecuteSql(uuid) {
 
 function getStackTrace() {
   const error = new Error();
-  console.log(error.stack);
+  console.error(error.stack);
 }
 
 
@@ -951,7 +951,7 @@ class SavePageSize {
         return x
       }
     } catch (e) {
-      console.log("get page size failed");
+      console.error("get page size failed");
     }
     return 100;
   }
@@ -1081,7 +1081,7 @@ class SomeTempStore {
         return JSON.parse(x) as T;
       }
     } catch (e) {
-      console.log("get config failed", e);
+      console.error("get config failed", e);
     }
     return null;
   }
@@ -1090,6 +1090,14 @@ class SomeTempStore {
 
 function isMacOs() {
   return platform() == 'macos';
+}
+
+function isWindows() {
+  return platform() == 'windows';
+}
+
+function pathSeparator() {
+  return isWindows() ? '\\' : '/';
 }
 
 
@@ -1134,7 +1142,7 @@ async function setUpEditorThemes() {
     }
   } catch (e) {
     message("set up editor themes failed,err:" + String(e), { kind: 'error' });
-    console.log("set up editor themes failed", e);
+    console.error("set up editor themes failed", e);
   }
 }
 
@@ -1243,7 +1251,9 @@ export {
   appTheme,
   isDarkTheme,
   appDatabase,
-  shrinkAble
+  shrinkAble,
+  isWindows,
+  pathSeparator
 };
 
 
@@ -1258,7 +1268,7 @@ async function webviewWIndowInit() {
   appStore.get<number>("zoom").then(async (zoom) => {
     if (zoom) {
       try { await currentWebview.setZoom(zoom); } catch (e) {
-        console.log("set zoom failed", e);
+        console.error("set zoom failed", e);
         message("set zoom failed : " + String(e), { kind: "error" })
       }
     }

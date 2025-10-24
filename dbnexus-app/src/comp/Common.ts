@@ -64,7 +64,7 @@ class ConnectHandler {
       return c as types.DBConnectionConfig;
     } catch (e) {
       message(`get connection failed`, { kind: "error" });
-      console.log("get connection failed,err:", e);
+      console.error("get connection failed,err:", e);
     }
     return null
   }
@@ -172,7 +172,7 @@ const autoCompletion = async (
     suggestions.incomplete = completionItem.incomplete;
     return suggestions;
   } catch (e) {
-    console.log('completion server error:', e);
+    console.error('completion server error:', e);
     return { suggestions: [] }
   }
 };
@@ -266,7 +266,7 @@ function makeFormatFn(kind: DataSourceKind) {
       });
     } catch (e) {
       message('format failed error:' + String(e), { kind: 'error' })
-      console.log('format sql failed error:', e);
+      console.error('format sql failed error:', e);
       return sql;
     }
   }
@@ -386,14 +386,14 @@ class QueryConn implements IQueryConn {
     return invoke('is_dangerous_sql', { name: this.uuid, sql });
   }
   destroy() {
-    console.log('destroy connection of:', this.queryId);
+    console.info('destroy connection of:', this.queryId);
     invoke('query_sql_close_connection', {
       name: this.uuid,
       queryId: this.queryId,
     })
       .then(() => { })
       .catch((e) => {
-        console.log('close connection failed,err', e);
+        console.error('close connection failed,err', e);
       });
   }
 }
@@ -562,7 +562,7 @@ class PassWordManager {
   static async savePassword(name: string, pass: string, save2KeyRing: boolean) {
     PassWordManager.password.set(name, pass);
     if (save2KeyRing) {
-      console.log("save password to keyring ", name, pass);
+      console.info("save password to keyring", name, pass);
       await keyring.setPassword(PassWordManager.service, name, pass);
     }
 
@@ -574,7 +574,7 @@ class PassWordManager {
     try {
       return await keyring.getPassword(PassWordManager.service, name);
     } catch (e) {
-      console.log("get password failed,this is fine maybe this connection don't have password ");
+      console.log("get password failed,this is fine maybe this connection don't have password");
     }
     return null
   }
