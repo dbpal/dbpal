@@ -57,6 +57,8 @@ mod migration;
 use rustls::crypto::{CryptoProvider, aws_lc_rs};
 
 fn main() {
+    // https://github.com/tauri-apps/tauri/issues/4788
+    let _ = fix_path_env::fix();
     CryptoProvider::install_default(aws_lc_rs::default_provider())
         .expect("Failed to install default crypto provider");
 

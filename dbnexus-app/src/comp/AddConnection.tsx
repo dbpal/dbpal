@@ -1135,7 +1135,7 @@ function Cassandra(props: { config?: types.CassandraDBConfig }) {
       read_only: readOnly,
       conn_timeout: connTimeOut,
       port: parseInt(port),
-    };
+    } as unknown as types.DBConnectionConfig;
   }
 
   globalMakeConfig = makeConfig;
