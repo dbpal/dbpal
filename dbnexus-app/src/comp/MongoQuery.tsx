@@ -149,7 +149,17 @@ class SaveTsOption {
         return op;
       }
     } catch (e) {}
-    return '{\n}';
+    return `
+      {
+    "compilerOptions": {
+        "target": "esnext",
+        "lib": [
+            "esnext",
+            "dom"
+        ]
+    }
+}
+    `;
   }
   static get() {
     const ts = SaveTsOption.getStr();
