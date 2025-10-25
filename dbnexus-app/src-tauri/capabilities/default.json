@@ -65,6 +65,11 @@
           "name": "run-tsc",
           "cmd": "tsc",
           "args": true
+        },
+        {
+          "name": "run-tsc-cmd",
+          "cmd": "tsc.cmd",
+          "args": true
         }
       ]
     }

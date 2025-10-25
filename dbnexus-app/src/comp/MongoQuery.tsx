@@ -23,6 +23,7 @@ import {
   DataSourceKind,
   ErrAndLoc,
   isMacOs,
+  isWindows,
   QueryLogHandler,
   SaveQueryLogConfigure,
   secondConfirm,
@@ -125,7 +126,7 @@ async function compile(
     );
   }
   const start = new Date();
-  let cmd = Command.create('run-tsc', [], { cwd: rootPath });
+  let cmd = Command.create(getCmd(), [], { cwd: rootPath });
   const out = await cmd.execute();
   //@ts-ignore
   let compileTime = new Date() - start;
@@ -177,8 +178,12 @@ class SaveTsOption {
   }
 }
 
+function getCmd() {
+  return isWindows() ? 'run-tsc-cmd' : 'run-tsc';
+}
+
 async function getTscVersion(): Promise<string> {
-  let cmd = Command.create('run-tsc', ['--version']);
+  let cmd = Command.create(getCmd(), ['--version']);
   const out = await cmd.execute();
   return out.stdout;
 }
@@ -423,7 +428,6 @@ function MongoQuery(props: {
     }
     setExecuteTimes((e) => e + 1);
     eval(code);
-
     showNotification(
       'success',
       'execute ok,but somehow async function or timeout function ... etc may running in background'
