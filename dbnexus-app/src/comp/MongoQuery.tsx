@@ -53,7 +53,11 @@ enum TsOrJs {
 }
 
 class CompilerOutput {
-  constructor(public out: ChildProcess<string>, public jsCode?: string) {}
+  constructor(
+    public out: ChildProcess<string>,
+    public compileTime: number,
+    public jsCode?: string
+  ) {}
 
   errMsg(): string {
     return this.out.stderr
@@ -113,15 +117,18 @@ async function compile(
       `
     );
   }
+  const start = new Date();
   let cmd = Command.create('run-tsc', [], { cwd: rootPath });
   const out = await cmd.execute();
+  //@ts-ignore
+  let compileTime = new Date() - start;
   if (out.code !== 0) {
-    return new CompilerOutput(out);
+    return new CompilerOutput(out, compileTime);
   }
   const code = await readTextFile(await join(rootPath, 'dist', 'main.js'));
 
   if (!sourceMap) {
-    return new CompilerOutput(out, code);
+    return new CompilerOutput(out, compileTime, code);
   }
 
   const sourceMapText = await readTextFile(
@@ -132,7 +139,7 @@ async function compile(
   codeWithMap +=
     '//# sourceMappingURL=data:application/json;charset=utf-8;base64,' +
     btoa(sourceMapText);
-  return new CompilerOutput(out, codeWithMap);
+  return new CompilerOutput(out, compileTime, codeWithMap);
 }
 
 compile(`const a :number = 1;`, true).then((e) => {
@@ -245,8 +252,9 @@ function TypeScript(props: {
   ts: string;
   setTS;
   editor: editor.IStandaloneCodeEditor;
+  compileTime?: number;
 }) {
-  const { ts, setTS, editor } = props;
+  const { ts, setTS, editor, compileTime } = props;
   const [showEditOption, setShowEditOption] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   return (
@@ -274,7 +282,7 @@ function TypeScript(props: {
               let result = await compile(editor.getValue(), false);
               if (result.out.code != 0) {
                 showNotification(
-                  'error',
+                  'warning',
                   'typescript compile error,can safe change to javascript',
                   result.errMsg()
                 );
@@ -286,7 +294,7 @@ function TypeScript(props: {
           })();
         }}
       />
-      {ts == TsOrJs.ts && (
+      {ts == TsOrJs.ts && compileTime && (
         <Tooltip title="click this button to modify tsconfig.json">
           <Button
             variant="outlined"
@@ -296,6 +304,12 @@ function TypeScript(props: {
           >
             tsconfig?
           </Button>
+        </Tooltip>
+      )}
+
+      {ts == TsOrJs.ts && (
+        <Tooltip title="compile time">
+          <Typography> {compileTime}ms </Typography>
         </Tooltip>
       )}
 
@@ -346,6 +360,8 @@ function MongoQuery(props: {
   const { showNotification } = useContext(NotificationContext);
   const [bson, setBson] = useState(null);
   const [ts, setTS] = useState<TsOrJs>(TsOrJs.js);
+  const [compileTime, setCompileTime] = useState<number | null>(null);
+
   const jsCodeMount = (ed: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
     setEditor(ed);
     ed.focus();
@@ -369,9 +385,10 @@ function MongoQuery(props: {
     if (ts == TsOrJs.ts) {
       const out = await compile(code, true);
       if (out.out.code != 0) {
-        showNotification('error', 'compile failed', out.errMsg());
+        showNotification('warning', 'compile failed', out.errMsg());
         return;
       }
+      setCompileTime(out.compileTime);
       code = out.jsCode;
     }
     setExecuteTimes((e) => e + 1);
@@ -395,9 +412,6 @@ function MongoQuery(props: {
     };
   }, [setting]);
 
-  useEffect(() => {
-    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!', ts);
-  }, [ts]);
   return (
     <Stack style={{ position: 'relative', height: '100%' }}>
       <QueryLog
@@ -408,7 +422,12 @@ function MongoQuery(props: {
         executeTimes={executeTimes}
       ></QueryLog>
       <Stack direction="row" sx={{ alignItems: 'center' }}>
-        <TypeScript ts={ts} setTS={setTS} editor={editor}></TypeScript>
+        <TypeScript
+          ts={ts}
+          setTS={setTS}
+          editor={editor}
+          compileTime={compileTime}
+        ></TypeScript>
         <Tooltip title="execute">
           <IconButton
             onClick={() => {
