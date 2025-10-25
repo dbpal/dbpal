@@ -150,7 +150,7 @@ class SaveTsOption {
       }
     } catch (e) {}
     return `
-      {
+{
     "compilerOptions": {
         "target": "esnext",
         "lib": [
