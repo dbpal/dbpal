@@ -638,7 +638,7 @@ function MongoQuery(props: {
 
 function CleanFunctionDoc() {
   return (
-    <Stack zIndex={16}>
+    <Stack>
       <SyntaxHighlighter
         style={syntaxHightLightTheme()} // Apply the chosen theme
         language={'javascript'}
