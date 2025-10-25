@@ -76,3 +76,7 @@ CONFIG HELP redis返回的值不对啊
 
 列出重复的依赖
 cargo tree -d
+
+
+
+querylog 要支持typescript保存 不然会被当成JavaScript

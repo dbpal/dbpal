@@ -250,8 +250,6 @@ class MongoDBQueryCollection implements IMongoCollection {
 }
 
 
-
-
 function initMongoQueryGlobals() {
   loader.init().then((monaco) => {
     const extraLib = removeFirstAndLastLine(interfaceText) + `

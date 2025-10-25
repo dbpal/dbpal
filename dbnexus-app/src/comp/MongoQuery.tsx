@@ -4,6 +4,7 @@ import {
   Autocomplete,
   Box,
   Button,
+  Chip,
   IconButton,
   Link,
   Modal,
@@ -32,10 +33,16 @@ import { EscDownEvent, modalHandleClose, modalStyle } from './Common';
 import { NotificationContext } from './Notification';
 import { ModalHeader } from './CommonComp';
 import { FaBookmark } from 'react-icons/fa';
-import { EditorBar, LoadStoreFile, SimpleFlexEditor } from './CommonComp2';
+import {
+  EditorBar,
+  LoadStoreFile,
+  SimpleFlexEditor,
+  syntaxHightLightTheme,
+} from './CommonComp2';
 import { QueryLog } from './QueryLog';
 import InfoIcon from '@mui/icons-material/Info';
 import intervalCleanTest from '../../tests/interval_clean_test.js?raw';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tempDir, join } from '@tauri-apps/api/path';
 import {
   exists,
@@ -126,25 +133,18 @@ async function compile(
     return new CompilerOutput(out, compileTime);
   }
   const code = await readTextFile(await join(rootPath, 'dist', 'main.js'));
-
   if (!sourceMap) {
     return new CompilerOutput(out, compileTime, code);
   }
-
   const sourceMapText = await readTextFile(
     await join(rootPath, 'dist', 'main.js.map')
   );
-
   let codeWithMap = dropLastLine(code);
   codeWithMap +=
     '//# sourceMappingURL=data:application/json;charset=utf-8;base64,' +
     btoa(sourceMapText);
   return new CompilerOutput(out, compileTime, codeWithMap);
 }
-
-compile(`const a :number = 1;`, true).then((e) => {
-  console.log(e);
-});
 
 class SaveTsOption {
   static key = 'dbpal-ts-options';
@@ -175,6 +175,12 @@ class SaveTsOption {
   static set(x: object) {
     localStorage.setItem(SaveTsOption.key, JSON.stringify(x, null));
   }
+}
+
+async function getTscVersion(): Promise<string> {
+  let cmd = Command.create('run-tsc', ['--version']);
+  const out = await cmd.execute();
+  return out.stdout;
 }
 
 function TsOption(props: { handleClose: () => void }) {
@@ -257,15 +263,28 @@ function TypeScript(props: {
   const { ts, setTS, editor, compileTime } = props;
   const [showEditOption, setShowEditOption] = useState(false);
   const { showNotification } = useContext(NotificationContext);
+  const [tscVersion, setTscVersion] = useState('');
+
+  useEffect(() => {
+    if (ts == TsOrJs.js) {
+      return;
+    }
+
+    getTscVersion()
+      .then((v) => {
+        setTscVersion(v);
+      })
+      .catch((e) => {
+        showNotification('error', 'is typescript  global installed?', e);
+      });
+  }, [ts]);
   return (
     <>
       <Autocomplete
         options={[TsOrJs.js, TsOrJs.ts]}
         value={ts}
         style={{ width: '12rem' }}
-        renderInput={(params) => (
-          <TextField {...params} label={'javascript or typescript'} />
-        )}
+        renderInput={(params) => <TextField {...params} label={'language'} />}
         freeSolo={false}
         onChange={(_, name) => {
           (async () => {
@@ -294,7 +313,12 @@ function TypeScript(props: {
           })();
         }}
       />
-      {ts == TsOrJs.ts && compileTime && (
+      {ts == TsOrJs.ts && tscVersion && (
+        <Tooltip title="typescript version">
+          <Chip color="success" label={tscVersion}></Chip>
+        </Tooltip>
+      )}
+      {ts == TsOrJs.ts && (
         <Tooltip title="click this button to modify tsconfig.json">
           <Button
             variant="outlined"
@@ -306,8 +330,7 @@ function TypeScript(props: {
           </Button>
         </Tooltip>
       )}
-
-      {ts == TsOrJs.ts && (
+      {ts == TsOrJs.ts && compileTime && (
         <Tooltip title="compile time">
           <Typography> {compileTime}ms </Typography>
         </Tooltip>
@@ -341,6 +364,7 @@ function TypeScript(props: {
   );
 }
 
+let lastLanguage = TsOrJs.js;
 function MongoQuery(props: {
   uuid: string;
   favoriteName?: string;
@@ -359,8 +383,12 @@ function MongoQuery(props: {
   const [cleanFns] = useState([]);
   const { showNotification } = useContext(NotificationContext);
   const [bson, setBson] = useState(null);
-  const [ts, setTS] = useState<TsOrJs>(TsOrJs.js);
+  const [ts, setTS] = useState<TsOrJs>(lastLanguage);
   const [compileTime, setCompileTime] = useState<number | null>(null);
+
+  useEffect(() => {
+    lastLanguage = ts;
+  }, [ts]);
 
   const jsCodeMount = (ed: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
     setEditor(ed);
@@ -381,21 +409,21 @@ function MongoQuery(props: {
       showNotification('warning', "can't execute empty statement");
       return;
     }
-
+    if (SaveQueryLogConfigure.get()) {
+      new QueryLogHandler(uuid).save(code, true, showNotification);
+    }
     if (ts == TsOrJs.ts) {
       const out = await compile(code, true);
+      setCompileTime(out.compileTime);
       if (out.out.code != 0) {
         showNotification('warning', 'compile failed', out.errMsg());
         return;
       }
-      setCompileTime(out.compileTime);
       code = out.jsCode;
     }
     setExecuteTimes((e) => e + 1);
     eval(code);
-    if (SaveQueryLogConfigure.get()) {
-      new QueryLogHandler(uuid).save(code, true, showNotification);
-    }
+
     showNotification(
       'success',
       'execute ok,but somehow async function or timeout function ... etc may running in background'
@@ -487,33 +515,34 @@ function MongoQuery(props: {
           </IconButton>
         </Tooltip>
 
-        <Button
-          onClick={() => {
-            let has_err = false;
-            for (const callback of cleanFns) {
-              try {
-                callback();
-              } catch (e) {
-                has_err = true;
-                showNotification('error', 'clean error', e);
+        {cleanFns.length > 0 && (
+          <Button
+            onClick={() => {
+              let has_err = false;
+              for (const callback of cleanFns) {
+                try {
+                  callback();
+                } catch (e) {
+                  has_err = true;
+                  showNotification('error', 'clean error', e);
+                }
               }
-            }
-            cleanFns.length = 0; // clean function
-            if (!has_err) {
-              showNotification('success', 'call those function finished');
-            }
-          }}
-          disabled={cleanFns.length == 0}
-          variant="outlined"
-        >
-          call clean function
-        </Button>
+              cleanFns.length = 0; // clean function
+              if (!has_err) {
+                showNotification('success', 'call those function finished');
+              }
+            }}
+            variant="outlined"
+          >
+            clear resource
+          </Button>
+        )}
 
         <Tooltip
-          title=<CleanFunctionDoc width="55vw"></CleanFunctionDoc>
+          title=<CleanFunctionDoc></CleanFunctionDoc>
           slotProps={{
             tooltip: {
-              style: { maxWidth: '55vw' },
+              style: { maxWidth: '60vw' },
             },
           }}
         >
@@ -607,15 +636,16 @@ function MongoQuery(props: {
   );
 }
 
-function CleanFunctionDoc(props: { width: string }) {
-  const { width } = props;
+function CleanFunctionDoc() {
   return (
-    <Stack width={width} height="40vh">
-      <SimpleFlexEditor
-        language="javascript"
-        value={intervalCleanTest}
-        readOnly
-      />
+    <Stack zIndex={16}>
+      <SyntaxHighlighter
+        style={syntaxHightLightTheme()} // Apply the chosen theme
+        language={'javascript'}
+        PreTag="div"
+      >
+        {intervalCleanTest}
+      </SyntaxHighlighter>
     </Stack>
   );
 }

@@ -631,7 +631,6 @@ function AppMarkDown(props: {
   handlePathUrl: (href: string) => void;
 }) {
   const { doc, handlePathUrl } = props;
-
   const CustomLink = (props: { href: string; children: ReactNode }) => {
     const { href, children } = props;
     const { showNotification } = useContext(NotificationContext);
@@ -665,7 +664,7 @@ function AppMarkDown(props: {
           const match = /language-(\w+)/.exec(className || '');
           return match ? (
             <SyntaxHighlighter
-              style={isDarkTheme() ? oneDark : oneLight} // Apply the chosen theme
+              style={syntaxHightLightTheme()} // Apply the chosen theme
               language={match[1]}
               PreTag="div"
               {...props}
@@ -683,6 +682,10 @@ function AppMarkDown(props: {
       children={doc}
     ></ReactMarkdown>
   );
+}
+
+function syntaxHightLightTheme() {
+  return isDarkTheme() ? oneDark : oneLight;
 }
 
 function UrlDocument(props: { url: string }) {
@@ -711,4 +714,5 @@ export {
   LoadStoreFile,
   AppMarkDown,
   UrlDocument,
+  syntaxHightLightTheme,
 };

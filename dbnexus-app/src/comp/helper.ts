@@ -42,7 +42,6 @@ class QueryLogHandler {
   async save(sql: string, success: boolean, showNotification?): Promise<void> {
     return (appDatabase).execute("insert into query_log (uuid,name,sql,success) values (?,?,?,?)", [this.uuid, this.name, sql, success ? 1 : 0]).then(() => { }).catch(e => {
       if (showNotification) { showNotification("error", "save query log failed", e); }
-
     });
   }
 
