@@ -22,9 +22,9 @@ import {
   DataSourceKind,
   ErrAndLoc,
   isMacOs,
-  pathSeparator,
   QueryLogHandler,
   SaveQueryLogConfigure,
+  secondConfirm,
   SettingContext,
   validJson,
 } from './helper';
@@ -36,7 +36,7 @@ import { EditorBar, LoadStoreFile, SimpleFlexEditor } from './CommonComp2';
 import { QueryLog } from './QueryLog';
 import InfoIcon from '@mui/icons-material/Info';
 import intervalCleanTest from '../../tests/interval_clean_test.js?raw';
-import { tempDir } from '@tauri-apps/api/path';
+import { tempDir, join } from '@tauri-apps/api/path';
 import {
   exists,
   mkdir,
@@ -65,21 +65,24 @@ function dropLastLine(str) {
   return str.split(/\r?\n/).slice(0, -1).join('\n');
 }
 
-async function compile(value: string): Promise<CompilerOutput> {
+async function compile(
+  value: string,
+  sourceMap: boolean
+): Promise<CompilerOutput> {
   // dir
 
   const data_dir = await tempDir();
-  const rootPath = data_dir + 'dbpal-mongo-query-ts-compile';
+  const rootPath = await join(data_dir, 'dbpal-mongo-query-ts-compile');
   if (!(await exists(rootPath))) {
     await mkdir(rootPath);
   }
   console.info('root path is:', rootPath);
   // write main.ts
-  const mainTsFilePath = rootPath + pathSeparator() + 'main.ts';
+  const mainTsFilePath = await join(rootPath, 'main.ts');
   await writeTextFile(mainTsFilePath, value, { create: true, append: false });
 
   // write config file
-  const optionFilePath = rootPath + pathSeparator() + 'tsconfig.json';
+  const optionFilePath = await join(rootPath, 'tsconfig.json');
   let op = JSON.parse(SaveTsOption.getStr());
   // make sure compilerOptions.outDir
   let compilerOptions = 'compilerOptions';
@@ -88,18 +91,18 @@ async function compile(value: string): Promise<CompilerOutput> {
   }
 
   op[compilerOptions]['outDir'] = './dist';
-  op[compilerOptions]['sourceMap'] = true;
+  op[compilerOptions]['sourceMap'] = sourceMap;
   op[compilerOptions]['typeRoots'] = ['./types'];
   await writeTextFile(optionFilePath, JSON.stringify(op, null, 2), {
     create: true,
     append: false,
   });
-  let typesPath = rootPath + pathSeparator() + 'types';
+  let typesPath = await join(rootPath, 'types');
 
   if (!(await exists(typesPath))) {
     await mkdir(typesPath);
   }
-  const extraTypeFile = typesPath + pathSeparator() + 'extra.ts';
+  const extraTypeFile = await join(typesPath, 'extra.ts');
   if (!(await exists(extraTypeFile))) {
     await writeTextFile(
       extraTypeFile,
@@ -115,21 +118,24 @@ async function compile(value: string): Promise<CompilerOutput> {
   if (out.code !== 0) {
     return new CompilerOutput(out);
   }
-  const code = await readTextFile(
-    rootPath + pathSeparator() + 'dist' + pathSeparator() + 'main.js'
-  );
-  const sourceMap = await readTextFile(
-    rootPath + pathSeparator() + 'dist' + pathSeparator() + 'main.js.map'
+  const code = await readTextFile(await join(rootPath, 'dist', 'main.js'));
+
+  if (!sourceMap) {
+    return new CompilerOutput(out, code);
+  }
+
+  const sourceMapText = await readTextFile(
+    await join(rootPath, 'dist', 'main.js.map')
   );
 
   let codeWithMap = dropLastLine(code);
   codeWithMap +=
     '//# sourceMappingURL=data:application/json;charset=utf-8;base64,' +
-    btoa(sourceMap);
+    btoa(sourceMapText);
   return new CompilerOutput(out, codeWithMap);
 }
 
-compile(`const a :number = 1;`).then((e) => {
+compile(`const a :number = 1;`, true).then((e) => {
   console.log(e);
 });
 
@@ -246,7 +252,16 @@ function TypeScript(props: {
         onChange={(_, name) => {
           (async () => {
             if (name == TsOrJs.js) {
-              let result = await compile(editor.getValue());
+              const confirm = await secondConfirm({
+                title: 'Warning',
+                content:
+                  'Switching to javascript may lose some type definitions',
+                kind: 'warning',
+              });
+              if (!confirm) {
+                return;
+              }
+              let result = await compile(editor.getValue(), false);
               if (result.out.code != 0) {
                 showNotification(
                   'error',
@@ -328,10 +343,11 @@ function MongoQuery(props: {
       setPos(ed.getPosition());
     });
   };
-
-  import('bson').then((e) => {
-    setBson(e);
-  });
+  useEffect(() => {
+    import('bson').then((e) => {
+      setBson(e);
+    });
+  }, []);
 
   const handleExecute = async () => {
     let code = editor.getValue();
@@ -341,7 +357,7 @@ function MongoQuery(props: {
     }
 
     if (ts == TsOrJs.ts) {
-      const out = await compile(code);
+      const out = await compile(code, true);
       if (out.out.code != 0) {
         showNotification('error', 'compile failed', out.errMsg());
         return;
@@ -369,6 +385,9 @@ function MongoQuery(props: {
     };
   }, [setting]);
 
+  useEffect(() => {
+    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!', ts);
+  }, [ts]);
   return (
     <Stack style={{ position: 'relative', height: '100%' }}>
       <QueryLog

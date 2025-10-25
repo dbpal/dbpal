@@ -1096,9 +1096,6 @@ function isWindows() {
   return platform() == 'windows';
 }
 
-function pathSeparator() {
-  return isWindows() ? '\\' : '/';
-}
 
 
 interface NewWindowTableParameter {
@@ -1253,7 +1250,6 @@ export {
   appDatabase,
   shrinkAble,
   isWindows,
-  pathSeparator
 };
 
 
