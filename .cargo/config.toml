@@ -10,7 +10,7 @@ opt-level = "z"
 
 
 [target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "link-arg=/STACK:8000000", "-C"]
+rustflags = ["-C", "link-arg=/STACK:8000000"]
 
 # 64 bit Mingw
 [target.x86_64-pc-windows-gnu]
