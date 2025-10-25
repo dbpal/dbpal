@@ -210,7 +210,6 @@ function QueryLog(props: {
         height: '400px',
         maxHeight: '80vh',
       }}
-      hidden={true}
       ref={setDom}
       elevation={16}
     >

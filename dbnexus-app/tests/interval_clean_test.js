@@ -5,7 +5,7 @@ const int = setInterval(() => {
         "interval running",
         new Date().toLocaleDateString());
 }, 1000);
-// push into this array `cleanFns`
+// can push into this array `cleanFns`
 // this will show a button on ui to call those functions
 cleanFns.push(() => {
     clearInterval(int)
