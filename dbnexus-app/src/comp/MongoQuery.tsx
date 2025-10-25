@@ -77,76 +77,6 @@ function dropLastLine(str) {
   return str.split(/\r?\n/).slice(0, -1).join('\n');
 }
 
-async function compile(
-  value: string,
-  sourceMap: boolean
-): Promise<CompilerOutput> {
-  // dir
-
-  const data_dir = await tempDir();
-  const rootPath = await join(data_dir, 'dbpal-mongo-query-ts-compile');
-  if (!(await exists(rootPath))) {
-    await mkdir(rootPath);
-  }
-  console.info('root path is:', rootPath);
-  // write main.ts
-  const mainTsFilePath = await join(rootPath, 'main.ts');
-  await writeTextFile(mainTsFilePath, value, { create: true, append: false });
-
-  // write config file
-  const optionFilePath = await join(rootPath, 'tsconfig.json');
-  let op = JSON.parse(SaveTsOption.getStr());
-  // make sure compilerOptions.outDir
-  let compilerOptions = 'compilerOptions';
-  if (!(compilerOptions in op)) {
-    op[compilerOptions] = {};
-  }
-
-  op[compilerOptions]['outDir'] = './dist';
-  op[compilerOptions]['sourceMap'] = sourceMap;
-  op[compilerOptions]['typeRoots'] = ['./types'];
-  await writeTextFile(optionFilePath, JSON.stringify(op, null, 2), {
-    create: true,
-    append: false,
-  });
-  let typesPath = await join(rootPath, 'types');
-
-  if (!(await exists(typesPath))) {
-    await mkdir(typesPath);
-  }
-  const extraTypeFile = await join(typesPath, 'extra.ts');
-  if (!(await exists(extraTypeFile))) {
-    await writeTextFile(
-      extraTypeFile,
-      `
-      let db : any;
-      let cleanFns : (()=> void)[];
-      let bson : any;
-      `
-    );
-  }
-  const start = new Date();
-  let cmd = Command.create(getCmd(), [], { cwd: rootPath });
-  const out = await cmd.execute();
-  //@ts-ignore
-  let compileTime = new Date() - start;
-  if (out.code !== 0) {
-    return new CompilerOutput(out, compileTime);
-  }
-  const code = await readTextFile(await join(rootPath, 'dist', 'main.js'));
-  if (!sourceMap) {
-    return new CompilerOutput(out, compileTime, code);
-  }
-  const sourceMapText = await readTextFile(
-    await join(rootPath, 'dist', 'main.js.map')
-  );
-  let codeWithMap = dropLastLine(code);
-  codeWithMap +=
-    '//# sourceMappingURL=data:application/json;charset=utf-8;base64,' +
-    btoa(sourceMapText);
-  return new CompilerOutput(out, compileTime, codeWithMap);
-}
-
 class SaveTsOption {
   static key = 'dbpal-ts-options';
 
@@ -178,14 +108,87 @@ class SaveTsOption {
   }
 }
 
-function getCmd() {
-  return isWindows() ? 'run-tsc-cmd' : 'run-tsc';
-}
+class TSCompiler {
+  static async compile(
+    value: string,
+    sourceMap: boolean
+  ): Promise<CompilerOutput> {
+    // dir
 
-async function getTscVersion(): Promise<string> {
-  let cmd = Command.create(getCmd(), ['--version']);
-  const out = await cmd.execute();
-  return out.stdout;
+    const data_dir = await tempDir();
+    const rootPath = await join(data_dir, 'dbpal-mongo-query-ts-compile');
+    if (!(await exists(rootPath))) {
+      await mkdir(rootPath);
+    }
+    console.info('root path is:', rootPath);
+    // write main.ts
+    const mainTsFilePath = await join(rootPath, 'main.ts');
+    await writeTextFile(mainTsFilePath, value, { create: true, append: false });
+
+    // write config file
+    const optionFilePath = await join(rootPath, 'tsconfig.json');
+    let op = JSON.parse(SaveTsOption.getStr());
+    // make sure compilerOptions.outDir
+    let compilerOptions = 'compilerOptions';
+    if (!(compilerOptions in op)) {
+      op[compilerOptions] = {};
+    }
+
+    op[compilerOptions]['outDir'] = './dist';
+    op[compilerOptions]['sourceMap'] = sourceMap;
+    op[compilerOptions]['typeRoots'] = ['./types'];
+    await writeTextFile(optionFilePath, JSON.stringify(op, null, 2), {
+      create: true,
+      append: false,
+    });
+    let typesPath = await join(rootPath, 'types');
+
+    if (!(await exists(typesPath))) {
+      await mkdir(typesPath);
+    }
+    const extraTypeFile = await join(typesPath, 'extra.ts');
+    if (!(await exists(extraTypeFile))) {
+      await writeTextFile(
+        extraTypeFile,
+        `
+      let db : any;
+      let cleanFns : (()=> void)[];
+      let bson : any;
+      `
+      );
+    }
+    const start = new Date();
+    let cmd = Command.create(TSCompiler.getCompilerCmd(), [], {
+      cwd: rootPath,
+    });
+    const out = await cmd.execute();
+    //@ts-ignore
+    let compileTime = new Date() - start;
+    if (out.code !== 0) {
+      return new CompilerOutput(out, compileTime);
+    }
+    const code = await readTextFile(await join(rootPath, 'dist', 'main.js'));
+    if (!sourceMap) {
+      return new CompilerOutput(out, compileTime, code);
+    }
+    const sourceMapText = await readTextFile(
+      await join(rootPath, 'dist', 'main.js.map')
+    );
+    let codeWithMap = dropLastLine(code);
+    codeWithMap +=
+      '//# sourceMappingURL=data:application/json;charset=utf-8;base64,' +
+      btoa(sourceMapText);
+    return new CompilerOutput(out, compileTime, codeWithMap);
+  }
+  static async getTscVersion(): Promise<string> {
+    let cmd = Command.create(TSCompiler.getCompilerCmd(), ['--version']);
+    const out = await cmd.execute();
+    return out.stdout;
+  }
+
+  static getCompilerCmd() {
+    return isWindows() ? 'run-tsc-cmd' : 'run-tsc';
+  }
 }
 
 function TsOption(props: { handleClose: () => void }) {
@@ -275,7 +278,7 @@ function TypeScript(props: {
       return;
     }
 
-    getTscVersion()
+    TSCompiler.getTscVersion()
       .then((v) => {
         setTscVersion(v);
       })
@@ -303,7 +306,7 @@ function TypeScript(props: {
               if (!confirm) {
                 return;
               }
-              let result = await compile(editor.getValue(), false);
+              let result = await TSCompiler.compile(editor.getValue(), false);
               if (result.out.code != 0) {
                 showNotification(
                   'warning',
@@ -418,7 +421,7 @@ function MongoQuery(props: {
       new QueryLogHandler(uuid).save(code, true, showNotification);
     }
     if (ts == TsOrJs.ts) {
-      const out = await compile(code, true);
+      const out = await TSCompiler.compile(code, true);
       setCompileTime(out.compileTime);
       if (out.out.code != 0) {
         showNotification('warning', 'compile failed', out.errMsg());
