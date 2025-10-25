@@ -133,7 +133,7 @@ function RedisQuery(props: {
               flexGrow: 1,
               flexShrink: 1,
               overflow: 'auto',
-              padding: '0.3rem',
+              padding: '0.4rem',
             }}
           >
             <AppMarkDown

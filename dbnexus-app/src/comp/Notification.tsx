@@ -97,7 +97,7 @@ function NotificationProvider(props: { children: ReactNode }) {
         >
           <Alert
             severity={notification.severity}
-            sx={{ maxWidth: '60vw', minWidth: '15vw' }}
+            sx={{ maxWidth: '45vw', minWidth: '15vw' }}
             onClose={() => {
               handleClose();
             }}
