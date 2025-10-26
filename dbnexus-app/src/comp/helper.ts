@@ -40,7 +40,7 @@ class QueryLogHandler {
     this.name = extractConfigNameFromUuid(uuid);
   }
   async save(sql: string, success: boolean, showNotification?): Promise<void> {
-    return (appDatabase).execute("insert into query_log (uuid,name,sql,success) values (?,?,?,?)", [this.uuid, this.name, sql, success ? 1 : 0]).then(() => { }).catch(e => {
+    return appDatabase.execute("insert into query_log (uuid,name,sql,success) values (?,?,?,?)", [this.uuid, this.name, sql, success ? 1 : 0]).then(() => { }).catch(e => {
       if (showNotification) { showNotification("error", "save query log failed", e); }
     });
   }
@@ -49,17 +49,17 @@ class QueryLogHandler {
     const sql = `
     select * from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""} order by ${order_by ? order_by : 'create_at desc'} limit ${pageSize} offset ${pageSize * (page - 1)}`;
     console.info("query log sql:", sql);
-    return (appDatabase).select(sql, [this.uuid])
+    return appDatabase.select(sql, [this.uuid])
   }
   async queryCount(matchSql: string): Promise<number> {
     let sql = `select count(*) as total from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""}`;
-    return (appDatabase).select(sql, [this.uuid]).then(e => e ? e[0].total : 0);
+    return appDatabase.select(sql, [this.uuid]).then(e => e ? e[0].total : 0);
   }
   async delete(): Promise<QueryResult> {
-    return (appDatabase).execute("delete from query_log where uuid=?", [this.uuid]);
+    return appDatabase.execute("delete from query_log where uuid=?", [this.uuid]);
   }
   static async deleteByConnectionName(name): Promise<QueryResult> {
-    return (appDatabase).execute("delete from query_log where name=?", [name]);
+    return appDatabase.execute("delete from query_log where name=?", [name]);
   }
 }
 
@@ -375,10 +375,10 @@ class SaveAlign {
 
 class SaveDomSizes {
   static async saveSize(key: string, size: UISize) {
-    return (appDatabase).execute("replace into element_size(name, width, height) values(?,?,?)", [key, Math.ceil(size.width), Math.ceil(size.height)]);
+    return appDatabase.execute("replace into element_size(name, width, height) values(?,?,?)", [key, Math.ceil(size.width), Math.ceil(size.height)]);
   }
   static async getSize(key: string): Promise<undefined | UISize> {
-    return (appDatabase).select("select width, height from element_size where name = ?", [key]).then((xs) => {
+    return appDatabase.select("select width, height from element_size where name = ?", [key]).then((xs) => {
       if (xs instanceof Array) { return xs[0] }
       return xs
     })
@@ -392,7 +392,8 @@ class FavoriteSql {
   }
   static async save(x: FavoriteSql, showNotification) {
     try {
-      await (appDatabase).execute("replace into favorite_sql(uuid,connection_name,name,kind,sql,last_modified) values(?,?,?,?,?,?)", [x.uuid, x.connection_name, x.name, x.kind, x.sql, x.last_modified]);
+      await appDatabase.execute("replace into favorite_sql(uuid,connection_name,name,kind,sql,last_modified) values(?,?,?,?,?,?)", [
+        x.uuid, x.connection_name, x.name, x.kind, x.sql, x.last_modified]);
       showNotification('success', "save favorite sql Ok");
     } catch (e) {
       showNotification('error', "save favorite sql failed", e);
@@ -401,7 +402,7 @@ class FavoriteSql {
   }
 
   static async getDistinctUuid() {
-    return (appDatabase).select<{ uuid: string }[]>("SELECT DISTINCT  uuid from favorite_sql").then(x => x.map(y => y.uuid))
+    return appDatabase.select<{ uuid: string }[]>("SELECT DISTINCT  uuid from favorite_sql").then(x => x.map(y => y.uuid))
   }
 
   // todo performance issue????
@@ -410,13 +411,13 @@ class FavoriteSql {
     if (uuid) {
       sql += " where uuid=?";
     }
-    return (appDatabase).select(sql, uuid ? [uuid] : []);
+    return appDatabase.select(sql, uuid ? [uuid] : []);
   }
 
 
   static async delete(id: number, showNotification) {
     try {
-      await (appDatabase).execute("delete from favorite_sql where id=?", [id]);
+      await appDatabase.execute("delete from favorite_sql where id=?", [id]);
     } catch (e) {
       showNotification('error', "save favorite sql failed", e);
       return
@@ -426,7 +427,7 @@ class FavoriteSql {
 
   static async deleteByConnectionName(name: string) {
     try {
-      (appDatabase).execute(`delete from favorite_sql where connection_name=?`, [name]);
+      appDatabase.execute(`delete from favorite_sql where connection_name=?`, [name]);
     } catch (e) {
       console.error("delete all logs belong to a key failed", e);
       return
@@ -435,7 +436,7 @@ class FavoriteSql {
 
   static async clearByUuid(showNotification, uuid: string) {
     try {
-      (appDatabase).execute(`delete from favorite_sql where uuid=?`, [uuid]);
+      appDatabase.execute(`delete from favorite_sql where uuid=?`, [uuid]);
     } catch (e) {
       showNotification('error', "clear favorite sql failed", e);
       return
@@ -451,7 +452,7 @@ class ColumnWidth {
   }
   async save(name: string, width: number) {
     this.width[name] = width;
-    (appDatabase).execute("replace into column_width(name,width) values(?,?)", [name, Math.ceil(width)])
+    appDatabase.execute("replace into column_width(name,width) values(?,?)", [name, Math.ceil(width)])
   }
 
   get(key): number {
@@ -459,7 +460,7 @@ class ColumnWidth {
   }
   async reset(): Promise<void> {
     this.width = {};
-    return (appDatabase).execute("delete from column_width").then((x) => {
+    return appDatabase.execute("delete from column_width").then((x) => {
       console.info("delete of", x.rowsAffected, "rows");
     })
   }
@@ -1317,5 +1318,5 @@ async function webviewWIndowInit() {
     });
   }
 }
-
 webviewWIndowInit();
+

@@ -57,6 +57,9 @@ mod migration;
 use rustls::crypto::{CryptoProvider, aws_lc_rs};
 
 fn main() {
+    // logger_test();
+    // panic_test();
+
     // https://github.com/tauri-apps/tauri/issues/4788
     let _ = fix_path_env::fix();
     CryptoProvider::install_default(aws_lc_rs::default_provider())
@@ -186,6 +189,7 @@ fn set_webview_zoom(handle: &AppHandle, zoom: f64) {
     }
 }
 
+#[allow(dead_code)]
 fn panic_test() {
     #[cfg(debug_assertions)]
     std::thread::spawn(|| {
@@ -195,9 +199,6 @@ fn panic_test() {
 }
 
 fn main_() {
-    // logger_test();
-    panic_test();
-
     let dbpal = DBPal::new();
     let dbpal_clone = dbpal.clone();
 
