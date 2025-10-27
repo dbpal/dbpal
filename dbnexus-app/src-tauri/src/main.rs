@@ -51,7 +51,7 @@ use std::panic;
 use std::str::FromStr;
 use std::sync::Arc;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Wry};
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Wry};
 use tauri_plugin_store::{Store, StoreExt};
 mod migration;
 use rustls::crypto::{CryptoProvider, aws_lc_rs};
@@ -165,30 +165,35 @@ impl log::Log for AppLogger {
 
 const STORE_FILE: &str = "store.json";
 
-fn get_configured_zoom(handle: &AppHandle) -> anyhow::Result<f64> {
-    let x = handle
-        .get_store(STORE_FILE)
-        .map(|store| store.get("zoom").and_then(|x| x.as_f64()));
-    Ok(x.flatten().unwrap_or(1.0))
-}
+mod zoom {
+    use tauri::{AppHandle, Manager};
+    use tauri_plugin_store::StoreExt;
 
-fn configure_zoom(handle: &AppHandle, zoom: f64) -> anyhow::Result<()> {
-    let store = handle.get_store(STORE_FILE);
-    if let Some(store) = store {
-        store.set("zoom", zoom);
+    use crate::STORE_FILE;
+
+    pub(crate) fn get_configured_zoom(handle: &AppHandle) -> anyhow::Result<f64> {
+        let x = handle
+            .get_store(STORE_FILE)
+            .map(|store| store.get("zoom").and_then(|x| x.as_f64()));
+        Ok(x.flatten().unwrap_or(1.0))
     }
-    Ok(())
-}
 
-fn set_webview_zoom(handle: &AppHandle, zoom: f64) {
-    let views = handle.webview_windows();
-    for view in views.values() {
-        if let Err(err) = view.set_zoom(zoom) {
-            log::error!("set view zoom failed:{}", err);
+    pub(crate) fn configure_zoom(handle: &AppHandle, zoom: f64) -> anyhow::Result<()> {
+        let store = handle.get_store(STORE_FILE);
+        if let Some(store) = store {
+            store.set("zoom", zoom);
+        }
+        Ok(())
+    }
+    pub(crate) fn set_webview_zoom(handle: &AppHandle, zoom: f64) {
+        let views = handle.webview_windows();
+        for view in views.values() {
+            if let Err(err) = view.set_zoom(zoom) {
+                log::error!("set view zoom failed:{}", err);
+            }
         }
     }
 }
-
 #[allow(dead_code)]
 fn panic_test() {
     #[cfg(debug_assertions)]
@@ -412,15 +417,15 @@ fn main_() {
                 handle.restart();
             }
             if event.id.0 == "zoom_in" {
-                match get_configured_zoom(handle) {
+                match zoom::get_configured_zoom(handle) {
                     Ok(x) => {
                         let mut zoom = x - 0.03;
                         let min = 0.3;
                         if zoom < min {
                             zoom = min;
                         }
-                        set_webview_zoom(handle, zoom);
-                        if let Err(err) = configure_zoom(handle, zoom) {
+                        zoom::set_webview_zoom(handle, zoom);
+                        if let Err(err) = zoom::configure_zoom(handle, zoom) {
                             log::error!("set zoom failed:{}", err);
                         }
                     }
@@ -430,15 +435,15 @@ fn main_() {
                 }
             }
             if event.id.0 == "zoom_out" {
-                match get_configured_zoom(handle) {
+                match zoom::get_configured_zoom(handle) {
                     Ok(x) => {
                         let mut zoom = x + 0.03;
                         let max = 2f64;
                         if zoom > max {
                             zoom = max;
                         }
-                        set_webview_zoom(handle, zoom);
-                        if let Err(err) = configure_zoom(handle, zoom) {
+                        zoom::set_webview_zoom(handle, zoom);
+                        if let Err(err) = zoom::configure_zoom(handle, zoom) {
                             log::error!("set zoom failed:{}", err);
                         }
                     }
@@ -449,8 +454,8 @@ fn main_() {
             }
             if event.id.0 == "zoom_reset" {
                 let zoom = 1f64;
-                set_webview_zoom(handle, zoom);
-                if let Err(err) = configure_zoom(handle, zoom) {
+                zoom::set_webview_zoom(handle, zoom);
+                if let Err(err) = zoom::configure_zoom(handle, zoom) {
                     log::error!("set zoom failed:{}", err);
                 }
             }

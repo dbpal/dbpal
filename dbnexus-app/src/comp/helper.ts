@@ -1320,3 +1320,9 @@ async function webviewWIndowInit() {
 }
 webviewWIndowInit();
 
+
+
+
+setTimeout(() => {
+  document.body.style.transition = "all 1s ease"
+}, 2000);
