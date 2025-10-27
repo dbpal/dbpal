@@ -49,6 +49,7 @@ import {
   dataGridheaderFontSize,
   isDarkTheme,
   appTheme,
+  appStore,
 } from './helper';
 import { Position } from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
@@ -84,7 +85,7 @@ function AppearanceSetting() {
     setting.maxTabTitleLength + ''
   );
   const [intputVariant, setInputVariant] = useState(setting.intputVariant);
-
+  const [zoom, setZoom] = useState(1);
   useEffect(() => {
     if (!bgColor) {
       setBgColorErr('');
@@ -101,8 +102,24 @@ function AppearanceSetting() {
       setBgColorErr(`please set a '${appTheme}' background color`);
       return;
     }
+
     setBgColorErr('');
   }, [bgColor]);
+
+  useEffect(() => {
+    let key = 'zoom';
+    appStore.get<number>(key).then((z) => {
+      setZoom(z);
+    });
+    const unlisten = appStore.onKeyChange<number>(key, (z) => {
+      setZoom(z);
+    });
+    return () => {
+      unlisten.then((f) => {
+        f();
+      });
+    };
+  }, []);
 
   useEffect(() => {
     invoke<string[]>('all_font_family', {})
@@ -139,7 +156,7 @@ function AppearanceSetting() {
     <Stack style={{ height: '100%', textAlign: 'right' }}>
       <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography width={headerSize} style={{ fontSize }}>
-          font size:
+          font size
         </Typography>
         <Chip label={fontSize} style={{ fontSize }} />
         <Slider
@@ -154,7 +171,7 @@ function AppearanceSetting() {
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography width={headerSize} style={{ fontWeight }}>
-          font weight:
+          font weight
         </Typography>
         <TextField
           value={fontWeight}
@@ -181,7 +198,7 @@ function AppearanceSetting() {
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Typography width={headerSize} style={{ fontFamily }}>
-          font family:
+          font family
         </Typography>
         <Autocomplete
           options={allFonts}
@@ -203,7 +220,7 @@ function AppearanceSetting() {
         />
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }}>
-        <Typography width={headerSize}>table row height factor:</Typography>
+        <Typography width={headerSize}>table row height factor </Typography>
         <TextField
           value={datagridRowHeightFactor}
           onChange={(e) => {
@@ -217,7 +234,7 @@ function AppearanceSetting() {
         </Tooltip>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }}>
-        <Typography width={headerSize}>background color:</Typography>
+        <Typography width={headerSize}>background color </Typography>
         <div style={{ position: 'relative' }}>
           <IconButton
             color={showEditBgColor ? 'success' : 'primary'}
@@ -266,7 +283,7 @@ function AppearanceSetting() {
         {bgColorErr && <Typography color="error"> {bgColorErr} </Typography>}
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }}>
-        <Typography width={headerSize}>max tree size:</Typography>
+        <Typography width={headerSize}>max tree size </Typography>
         <TextField
           value={maxTreeSize}
           onChange={(e) => {
@@ -277,7 +294,7 @@ function AppearanceSetting() {
         ></TextField>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }}>
-        <Typography width={headerSize}>max tab title length:</Typography>
+        <Typography width={headerSize}>max tab title length </Typography>
         <TextField
           value={maxTabTitleLength}
           onChange={(e) => {
@@ -288,7 +305,7 @@ function AppearanceSetting() {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: 'center' }}>
-        <Typography width={headerSize}>input variant:</Typography>
+        <Typography width={headerSize}>input variant</Typography>
         <Autocomplete
           options={['standard', 'filled', 'outlined']}
           style={{ width: '22rem' }}
@@ -308,6 +325,13 @@ function AppearanceSetting() {
           value={'this is demo'}
           variant={intputVariant as 'filled'}
         ></TextField>
+      </Stack>
+
+      <Stack direction="row" sx={{ alignItems: 'center' }}>
+        <Typography width={headerSize}>zoom</Typography>
+        <Tooltip title="current zoom level">
+          <Typography color="info"> {zoom}</Typography>
+        </Tooltip>
       </Stack>
       <Divider></Divider>
       <Stack direction="row" sx={{ alignItems: 'center' }}>
@@ -346,7 +370,7 @@ function EditorSetting() {
   return (
     <Stack style={{ textAlign: 'right' }}>
       <Stack direction="row" sx={{ alignItems: 'center' }}>
-        <Typography width={headerSize}>tab size:</Typography>
+        <Typography width={headerSize}>tab size </Typography>
 
         {[2, 4, 8].map((e) => (
           <Chip
@@ -365,7 +389,7 @@ function EditorSetting() {
             title="dbpal use monaco editor as build in editor"
             placement="top"
           >
-            <Typography width={headerSize}>monaco editor options:</Typography>
+            <Typography width={headerSize}>monaco editor options</Typography>
           </Tooltip>
           <Stack style={{ flex: 1 }}>
             <Stack direction="row" style={{ alignItems: 'center' }}>
@@ -402,7 +426,7 @@ function EditorSetting() {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
-        <Typography width={headerSize}>editor theme:</Typography>
+        <Typography width={headerSize}>editor theme </Typography>
         <Stack direction="row" style={{ flex: 1, alignItems: 'flex-start' }}>
           <Autocomplete
             options={registeredThemes}
@@ -460,7 +484,7 @@ function ExportSetting() {
   return (
     <Stack style={{ textAlign: 'right' }}>
       <Stack direction="row" sx={{ alignItems: 'center' }}>
-        <Typography width={headerSize}>csv delimiter:</Typography>
+        <Typography width={headerSize}>csv delimiter</Typography>
         <TextField
           value={csvDelimiter}
           onChange={(e) => setCsvDelimiter(e.target.value)}
@@ -469,7 +493,7 @@ function ExportSetting() {
         ></TextField>
       </Stack>
       <Stack direction="row" sx={{ alignItems: 'center' }}>
-        <Typography width={headerSize}>include header:</Typography>
+        <Typography width={headerSize}>include header</Typography>
         <FormControlLabel
           control={
             <Switch
@@ -506,7 +530,7 @@ function MiscSetting() {
   return (
     <Stack style={{ textAlign: 'right' }}>
       <Stack direction="row" sx={{ alignItems: 'center' }}>
-        <Typography width={headerSize}>auto start:</Typography>
+        <Typography width={headerSize}>auto start</Typography>
 
         <Switch
           checked={autoStart}
