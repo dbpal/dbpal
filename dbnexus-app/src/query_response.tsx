@@ -1,30 +1,29 @@
-'use strict';
-import ReactDOM from 'react-dom/client';
+"use strict";
+import ReactDOM from "react-dom/client";
 
-import { DetachQueyRespViewParameter, SomeTempStore } from './comp/helper.ts';
-import { SeparateWindow } from './comp/MainPage.tsx';
-import React, { useEffect, useState } from 'react';
-import { MultiQueryResp } from './comp/QueryResp.tsx';
-import { emit, listen } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
-import { Typography } from '@mui/material';
-import { listenOK, newQueryIDName, reloadData } from './comp/SqlQuery.tsx';
+import { DetachQueyRespViewParameter, SomeTempStore } from "./comp/helper.ts";
+import { SeparateWindow } from "./comp/MainPage.tsx";
+import React, { useEffect, useState } from "react";
+import { MultiQueryResp } from "./comp/QueryResp.tsx";
+import { emit, listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
+import { Typography } from "@mui/material";
+import { listenOK, newQueryIDName, reloadData } from "./comp/SqlQuery.tsx";
 
-let { uuid, queryId, eventName } =
-  SomeTempStore.get<DetachQueyRespViewParameter>();
+let { uuid, queryId, eventName } = SomeTempStore.get<DetachQueyRespViewParameter>();
 
 function QueryResponse() {
   const [resp, setResp] = useState([]);
   const handleReload = () => {
-    invoke<any>('get_query_cache', {
+    invoke<any>("get_query_cache", {
       name: uuid,
       queryId,
-    }).then((data) => {
+    }).then(data => {
       setResp(data);
     });
   };
   useEffect(() => {
-    const unlisten = listen<'listen_ok' | object | string>(eventName, (e) => {
+    const unlisten = listen<"listen_ok" | object | string>(eventName, e => {
       if (e.payload == listenOK) {
         // I send this message nothing to do here.
         return;
@@ -33,34 +32,34 @@ function QueryResponse() {
         handleReload();
         return;
       }
-      if (typeof e.payload == 'object' && e.payload[newQueryIDName]) {
+      if (typeof e.payload == "object" && e.payload[newQueryIDName]) {
         queryId = e.payload[newQueryIDName];
-        console.info('send new query id:', queryId);
+        console.info("send new query id:", queryId);
         return;
       }
-      console.error('unhandled event:', e.payload);
+      console.error("unhandled event:", e.payload);
     });
     // notify the parent I setup ok.
     emit(eventName, listenOK);
     return () => {
-      unlisten.then((e) => {
+      unlisten.then(e => {
         e();
       });
     };
   }, []);
 
   return (
-    <div style={{ height: '100%' }}>
+    <div style={{ height: "100%" }}>
       {resp.length == 0 && <Typography color="info"> No Data </Typography>}
       <MultiQueryResp data={resp}></MultiQueryResp>
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <SeparateWindow>
       <QueryResponse />
     </SeparateWindow>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

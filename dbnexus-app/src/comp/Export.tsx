@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 import {
   Checkbox,
   Chip,
@@ -7,15 +7,15 @@ import {
   IconButton,
   Stack,
   TextField,
-} from '@mui/material';
-import { useContext, useEffect, useState } from 'react';
-import types from './ApiStruct';
-import { NotificationContext } from './Notification';
-import { save } from '@tauri-apps/plugin-dialog';
-import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
-import { invoke } from '@tauri-apps/api/core';
-import { ModalHeader, OpenFileWithDefaultApp } from './CommonComp';
-import { generateDefaultFilename, SettingContext } from './helper';
+} from "@mui/material";
+import { useContext, useEffect, useState } from "react";
+import types from "./ApiStruct";
+import { NotificationContext } from "./Notification";
+import { save } from "@tauri-apps/plugin-dialog";
+import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
+import { invoke } from "@tauri-apps/api/core";
+import { ModalHeader, OpenFileWithDefaultApp } from "./CommonComp";
+import { generateDefaultFilename, SettingContext } from "./helper";
 
 function IncludeHeader({ includeHeader, setIncludeHeader }) {
   return (
@@ -23,7 +23,7 @@ function IncludeHeader({ includeHeader, setIncludeHeader }) {
       control={
         <Checkbox
           checked={includeHeader}
-          onChange={(e) => {
+          onChange={e => {
             setIncludeHeader(e.target.checked);
           }}
           name="myCheckbox"
@@ -35,7 +35,7 @@ function IncludeHeader({ includeHeader, setIncludeHeader }) {
   );
 }
 
-let lastExportKind = 'csv';
+let lastExportKind = "csv";
 function ExportView(props: {
   name: string;
   exportOP: (kind: types.ExportKind, file: string) => Promise<void>;
@@ -43,12 +43,10 @@ function ExportView(props: {
   handleClose: () => void;
 }) {
   const { exportOP, supportKind, name, handleClose } = props;
-  let lastKind = supportKind.find((k) => k === lastExportKind);
+  let lastKind = supportKind.find(k => k === lastExportKind);
   const [kind, setKind] = useState(lastExportKind ? lastKind : supportKind[0]);
   const setting = useContext(SettingContext);
-  const [includeHeader, setIncludeHeader] = useState(
-    setting.export.includeHeader
-  );
+  const [includeHeader, setIncludeHeader] = useState(setting.export.includeHeader);
   const [delimiter, setDelimiter] = useState(setting.export.csvDelimiter);
   const [pretty, setPretty] = useState(true);
   const [includeTableSchema, setIncludeTableSchema] = useState(false);
@@ -61,24 +59,24 @@ function ExportView(props: {
 
   const makeConfig = (): types.ExportKind | null => {
     switch (kind) {
-      case 'csv':
+      case "csv":
         if (delimiter.length > 1) {
-          showNotification('error', 'delimiter expect one character');
+          showNotification("error", "delimiter expect one character");
           return;
         }
         return {
-          export_kind: 'csv',
+          export_kind: "csv",
           include_header: includeHeader,
           delimiter,
         };
-      case 'sql':
-        return { export_kind: 'sql', include_table_schema: includeTableSchema };
-      case 'json':
-        return { export_kind: 'json', pretty };
-      case 'jsonline':
-        return { export_kind: 'jsonline' };
-      case 'xlsx':
-        return { export_kind: 'xlsx', include_header: includeHeader };
+      case "sql":
+        return { export_kind: "sql", include_table_schema: includeTableSchema };
+      case "json":
+        return { export_kind: "json", pretty };
+      case "jsonline":
+        return { export_kind: "jsonline" };
+      case "xlsx":
+        return { export_kind: "xlsx", include_header: includeHeader };
     }
   };
 
@@ -98,36 +96,33 @@ function ExportView(props: {
       await exportOP(config, file);
     } catch (e) {
       setLoading(false);
-      showNotification('error', 'export failure', e);
+      showNotification("error", "export failure", e);
       return;
     }
     setLoading(false);
-    showNotification('success', 'export OK');
+    showNotification("success", "export OK");
     setFile(file);
   };
 
   useEffect(() => {
-    setFile('');
+    setFile("");
   }, [kind]);
   return (
     <Stack>
-      <ModalHeader
-        title={`export ${name}`}
-        handleClose={handleClose}
-      ></ModalHeader>
+      <ModalHeader title={`export ${name}`} handleClose={handleClose}></ModalHeader>
       <Stack direction="row">
-        {supportKind.map((e) => (
+        {supportKind.map(e => (
           <Chip
             onClick={() => {
               setKind(e);
             }}
             key={e}
             label={e}
-            color={e == kind ? 'success' : 'default'}
+            color={e == kind ? "success" : "default"}
           ></Chip>
         ))}
       </Stack>
-      {kind == 'csv' && (
+      {kind == "csv" && (
         <Stack>
           <IncludeHeader
             includeHeader={includeHeader}
@@ -136,7 +131,7 @@ function ExportView(props: {
           <Stack direction="row">
             <TextField
               value={delimiter}
-              onChange={(e) => {
+              onChange={e => {
                 setDelimiter(e.target.value);
               }}
               label="delimiter"
@@ -146,7 +141,7 @@ function ExportView(props: {
           </Stack>
         </Stack>
       )}
-      {kind == 'xlsx' && (
+      {kind == "xlsx" && (
         <Stack>
           <IncludeHeader
             includeHeader={includeHeader}
@@ -154,13 +149,13 @@ function ExportView(props: {
           ></IncludeHeader>
         </Stack>
       )}
-      {kind == 'sql' && (
+      {kind == "sql" && (
         <Stack>
           <FormControlLabel
             control={
               <Checkbox
                 checked={includeTableSchema}
-                onChange={(e) => {
+                onChange={e => {
                   setIncludeTableSchema(e.target.checked);
                 }}
                 name="myCheckbox"
@@ -171,13 +166,13 @@ function ExportView(props: {
           />
         </Stack>
       )}
-      {kind == 'json' && (
+      {kind == "json" && (
         <Stack>
           <FormControlLabel
             control={
               <Checkbox
                 checked={pretty}
-                onChange={(e) => {
+                onChange={e => {
                   setPretty(e.target.checked);
                 }}
                 name="pretty"
@@ -190,7 +185,7 @@ function ExportView(props: {
       )}
       {/* json line have no settings */}
 
-      {kind == 'jsonline' && <></>}
+      {kind == "jsonline" && <></>}
 
       <Divider />
       <OpenFileWithDefaultApp file={file} />
@@ -219,7 +214,7 @@ function ExportTableOrView(props: {
   return (
     <ExportView
       exportOP={async (kind, filepath) => {
-        return await invoke('export_table_or_view', {
+        return await invoke("export_table_or_view", {
           name: uuid,
           tableOrView: name,
           filepath,

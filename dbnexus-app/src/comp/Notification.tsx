@@ -1,16 +1,9 @@
-'use strict';
-import React, { useState, ReactNode, createContext, ReactElement } from 'react';
-import {
-  Snackbar,
-  Alert,
-  AlertTitle,
-  Slide,
-  Stack,
-  Typography,
-} from '@mui/material';
-import { AlertColor } from '@mui/material/Alert';
-import { handleCopyToClipboard } from './helper';
-import { message, MessageDialogResult } from '@tauri-apps/plugin-dialog';
+"use strict";
+import React, { useState, ReactNode, createContext, ReactElement } from "react";
+import { Snackbar, Alert, AlertTitle, Slide, Stack, Typography } from "@mui/material";
+import { AlertColor } from "@mui/material/Alert";
+import { handleCopyToClipboard } from "./helper";
+import { message, MessageDialogResult } from "@tauri-apps/plugin-dialog";
 
 const msgTimeout = 10000;
 
@@ -18,16 +11,16 @@ interface NotificationContextProps {
   showNotification: (
     severity: AlertColor,
     title: string,
-    message?: string | Error | ReactElement
+    message?: string | Error | ReactElement,
   ) => void;
 }
 
 export const NotificationContext = createContext<NotificationContextProps>({
   showNotification: (...args) => {
-    message('should not call this function is is bug', {
-      kind: 'error',
+    message("should not call this function is is bug", {
+      kind: "error",
     });
-    console.error('message args:', args);
+    console.error("message args:", args);
   },
 });
 
@@ -36,32 +29,32 @@ function NotificationProvider(props: { children: ReactNode }) {
 
   const [open, setOpen] = useState(false);
   const [notification, setNotification] = useState({
-    severity: 'info' as AlertColor,
-    title: '',
-    message: '' as ReactElement | string | null | undefined,
+    severity: "info" as AlertColor,
+    title: "",
+    message: "" as ReactElement | string | null | undefined,
   });
   const showNotification = (
     severity: AlertColor,
     title: string,
-    msg: any | ReactElement
+    msg: any | ReactElement,
   ) => {
-    if (typeof msg == 'object' && 'reason' in msg) {
-      console.error('detail:', msg);
+    if (typeof msg == "object" && "reason" in msg) {
+      console.error("detail:", msg);
       // this a error from the backend
       // we only show `reason` the short message
-      msg = msg['reason'];
+      msg = msg["reason"];
     }
-    if (severity == 'error' && !React.isValidElement(msg)) {
-      msg = msg ? String(msg) : '';
+    if (severity == "error" && !React.isValidElement(msg)) {
+      msg = msg ? String(msg) : "";
       message(msg, {
         kind: severity,
         title,
         buttons: {
-          ok: msg ? 'copy error' : 'ok',
-          cancel: 'dismiss',
+          ok: msg ? "copy error" : "ok",
+          cancel: "dismiss",
         },
       }).then((e: MessageDialogResult) => {
-        if (e == 'copy error') {
+        if (e == "copy error") {
           handleCopyToClipboard(msg);
         }
       });
@@ -91,13 +84,13 @@ function NotificationProvider(props: { children: ReactNode }) {
           open={open}
           autoHideDuration={msgTimeout}
           onClose={handleClose}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
           sx={{ mb: 8 }} // 调整位置稍微高一些
           slots={{ transition }}
         >
           <Alert
             severity={notification.severity}
-            sx={{ maxWidth: '45vw', minWidth: '15vw' }}
+            sx={{ maxWidth: "45vw", minWidth: "15vw" }}
             onClose={() => {
               handleClose();
             }}
@@ -108,7 +101,7 @@ function NotificationProvider(props: { children: ReactNode }) {
                 {notification.title}
               </AlertTitle>
             )}
-            <Stack direction="row" style={{ alignItems: 'flex-start' }}>
+            <Stack direction="row" style={{ alignItems: "flex-start" }}>
               {React.isValidElement(notification.message) ? (
                 notification.message
               ) : (

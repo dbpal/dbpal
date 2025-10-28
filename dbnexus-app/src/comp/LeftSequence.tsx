@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 import {
   Box,
   Button,
@@ -10,24 +10,24 @@ import {
   Modal,
   Stack,
   Switch,
-} from '@mui/material';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import { useContext, useEffect, useRef, useState } from 'react';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import InfoIcon from '@mui/icons-material/Info';
+} from "@mui/material";
+import { TreeItem } from "@mui/x-tree-view/TreeItem";
+import { useContext, useEffect, useRef, useState } from "react";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import InfoIcon from "@mui/icons-material/Info";
 import {
   DefAndMetas,
   EscDownEvent,
   modalHandleClose,
   modalStyle,
   tabsHasId,
-} from './Common';
-import types from './ApiStruct';
-import { invoke } from '@tauri-apps/api/core';
-import { NotificationContext } from './Notification';
-import { TabContent } from './Tabs';
-import { DefAndMetasView } from './UdfAndMetaView';
-import { GiProgression } from 'react-icons/gi';
+} from "./Common";
+import types from "./ApiStruct";
+import { invoke } from "@tauri-apps/api/core";
+import { NotificationContext } from "./Notification";
+import { TabContent } from "./Tabs";
+import { DefAndMetasView } from "./UdfAndMetaView";
+import { GiProgression } from "react-icons/gi";
 import {
   ConnTypeContext,
   ContextMenuContext,
@@ -38,36 +38,36 @@ import {
   SettingContext,
   TabsSetContext,
   UuidContext,
-} from './helper';
+} from "./helper";
 
-import { ExceedMaxTreeItem, MenuRefresh } from './CommonComp';
+import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 function SequenceTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
-  const idPrefix = uuid + '-sequence-';
+  const idPrefix = uuid + "-sequence-";
   const [seq, setSeq] = useState<types.SequenceDetail[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
 
   const reload = () => {
-    invoke<types.SequenceDetail[]>('list_sequence', { name: uuid })
-      .then((ts) => {
+    invoke<types.SequenceDetail[]>("list_sequence", { name: uuid })
+      .then(ts => {
         setSeq(ts);
       })
-      .catch((e) => {
-        showNotification('error', 'list sequence failed', e);
+      .catch(e => {
+        showNotification("error", "list sequence failed", e);
       });
   };
 
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(seq.filter((e) => matchPattern(e.name)).length);
+    setExceed(seq.filter(e => matchPattern(e.name)).length);
   }, [seq, matchPattern]);
   const getItemId = (x: types.SequenceDetail) => {
     switch (kind) {
       default:
-        return idPrefix + '-' + x.name;
+        return idPrefix + "-" + x.name;
     }
   };
 
@@ -81,8 +81,8 @@ function SequenceTree() {
       itemId={idForTree.current}
       label=<Stack
         direction="row"
-        sx={{ alignItems: 'center' }}
-        onContextMenu={(e) => {
+        sx={{ alignItems: "center" }}
+        onContextMenu={e => {
           setUpMenu({
             content: (
               <MenuList>
@@ -98,7 +98,7 @@ function SequenceTree() {
       </Stack>
     >
       {seq
-        .filter((e) => matchPattern(e.name))
+        .filter(e => matchPattern(e.name))
         .map((seq, index) => {
           if (index >= setting.appearance.maxTreeSize) {
             return;
@@ -107,10 +107,10 @@ function SequenceTree() {
             <TreeItem
               key={seq.name}
               itemId={getItemId(seq)}
-              style={{ alignItems: 'center' }}
+              style={{ alignItems: "center" }}
               label=<Stack
                 direction="row"
-                onContextMenu={(e) => {
+                onContextMenu={e => {
                   setUpMenu({
                     content: (
                       <SequenceMenu
@@ -123,7 +123,7 @@ function SequenceTree() {
                     event: e,
                   });
                 }}
-                sx={{ alignItems: 'center' }}
+                sx={{ alignItems: "center" }}
               >
                 <GiProgression></GiProgression>
                 <span>{seq.name}</span>
@@ -143,12 +143,12 @@ function details2DefMetas(d: types.SequenceDetail): DefAndMetas {
   return {
     def: d.sql,
     metas: [
-      { name: 'data type', value: d.data_type },
-      { name: 'start_value', value: d.start_value },
-      { name: 'min value', value: d.min_value },
-      { name: 'max value', value: d.max_value },
-      { name: 'increment by', value: d.increment_by },
-      { name: 'last value', value: d.last_value },
+      { name: "data type", value: d.data_type },
+      { name: "start_value", value: d.start_value },
+      { name: "min value", value: d.min_value },
+      { name: "max value", value: d.max_value },
+      { name: "increment by", value: d.increment_by },
+      { name: "last value", value: d.last_value },
     ],
   };
 }
@@ -167,12 +167,12 @@ function SequenceMenu(props: {
   const supportCascade = [DataSourceKind.Postgres].includes(kind);
 
   const handleOpenDetails = () => {
-    const id = uuid + '-' + '-sequence-' + seq.name;
+    const id = uuid + "-" + "-sequence-" + seq.name;
     const index = tabsHasId(tabs, id);
-    if (typeof index == 'number') {
+    if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
+      setTabs(e => {
         setTimeout(() => {
           setSelectTab(tabs.length);
         }, 100);
@@ -191,7 +191,7 @@ function SequenceMenu(props: {
                 uuid={uuid}
               ></DefAndMetasView>
             ),
-            <GiProgression></GiProgression>
+            <GiProgression></GiProgression>,
           ),
         ];
       });
@@ -201,20 +201,20 @@ function SequenceMenu(props: {
   const handleDrop = async () => {
     const confirm = await secondConfirm({
       title: `Drop Sequence '${seq.name}'`,
-      confirmText: 'Drop',
-      kind: 'error',
+      confirmText: "Drop",
+      kind: "error",
     });
     if (!confirm) {
       return;
     }
-    invoke('drop_sequence', { name: uuid, seq: seq.name, cascade })
+    invoke("drop_sequence", { name: uuid, seq: seq.name, cascade })
       .then(() => {
-        showNotification('success', 'Drop sequence OK');
+        showNotification("success", "Drop sequence OK");
         reload();
         setShowDrop(false);
       })
-      .catch((e) => {
-        showNotification('error', 'Drop sequence Failure', e);
+      .catch(e => {
+        showNotification("error", "Drop sequence Failure", e);
       });
   };
   return (
@@ -232,7 +232,7 @@ function SequenceMenu(props: {
         </MenuItem>
 
         <MenuItem
-          sx={{ color: 'error.main' }}
+          sx={{ color: "error.main" }}
           onClick={() => {
             setShowDrop(true);
           }}
@@ -259,7 +259,7 @@ function SequenceMenu(props: {
                     control={
                       <Switch
                         checked={cascade}
-                        onChange={(e) => setCascade(e.target.checked)}
+                        onChange={e => setCascade(e.target.checked)}
                       />
                     }
                     label="CasCade"

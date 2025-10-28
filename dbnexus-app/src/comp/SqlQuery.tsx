@@ -1,7 +1,7 @@
-'use strict';
-import { Editor } from '@monaco-editor/react';
-import { MultiQueryResp } from './QueryResp';
-import EventNoteIcon from '@mui/icons-material/EventNote';
+"use strict";
+import { Editor } from "@monaco-editor/react";
+import { MultiQueryResp } from "./QueryResp";
+import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   Box,
   Chip,
@@ -12,11 +12,11 @@ import {
   TextField,
   Tooltip,
   Typography,
-} from '@mui/material';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+} from "@mui/material";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import { FaExclamation } from 'react-icons/fa';
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import { FaExclamation } from "react-icons/fa";
 import {
   ReactNode,
   RefObject,
@@ -26,9 +26,9 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
-import FastForwardIcon from '@mui/icons-material/FastForward';
-import { editor, Position } from 'monaco-editor';
+} from "react";
+import FastForwardIcon from "@mui/icons-material/FastForward";
+import { editor, Position } from "monaco-editor";
 import {
   EscDownEvent,
   IQueryConn,
@@ -37,14 +37,14 @@ import {
   modalStyle,
   NameAndQueryId,
   SetAutoCompletionName,
-} from './Common.ts';
-import { BsFillLightbulbFill } from 'react-icons/bs';
-import { FaBookmark } from 'react-icons/fa';
-import { FaUpload } from 'react-icons/fa';
-import { MdOutlineReply } from 'react-icons/md';
-import { NotificationContext } from './Notification.tsx';
-import { QueryLog } from './QueryLog.tsx';
-import RefreshIcon from '@mui/icons-material/Refresh';
+} from "./Common.ts";
+import { BsFillLightbulbFill } from "react-icons/bs";
+import { FaBookmark } from "react-icons/fa";
+import { FaUpload } from "react-icons/fa";
+import { MdOutlineReply } from "react-icons/md";
+import { NotificationContext } from "./Notification.tsx";
+import { QueryLog } from "./QueryLog.tsx";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   DataSourceKind,
   DetachQueyRespViewParameter,
@@ -60,16 +60,12 @@ import {
   SettingContext,
   shrinkAble,
   SomeTempStore,
-} from './helper.ts';
-import ArrowCircleDownRoundedIcon from '@mui/icons-material/ArrowCircleDownRounded';
-import { ExportView } from './Export.tsx';
-import {
-  ExecutingTime,
-  ModalHeader,
-  PossibleParseError,
-} from './CommonComp.tsx';
-import { EditorBar, LoadStoreFile } from './CommonComp2.tsx';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+} from "./helper.ts";
+import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
+import { ExportView } from "./Export.tsx";
+import { ExecutingTime, ModalHeader, PossibleParseError } from "./CommonComp.tsx";
+import { EditorBar, LoadStoreFile } from "./CommonComp2.tsx";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
@@ -81,68 +77,68 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
       const c = await conn.getAutoCommit();
       setCommit(c);
     } catch (e) {
-      showNotification('error', 'get commit modal failed', e);
+      showNotification("error", "get commit modal failed", e);
     }
   };
   useEffect(() => {
     setTxCount(0);
     if (commit) {
-      setCloseConfirm('');
+      setCloseConfirm("");
     } else {
       setCloseConfirm(
-        'In Transaction,better commit or rollback.uncommit transaction may lead database locks'
+        "In Transaction,better commit or rollback.uncommit transaction may lead database locks",
       );
     }
   }, [commit]);
 
   useEffect(() => {
     //这里的顺序很重要
-    setTxCount((e) => e + 1);
+    setTxCount(e => e + 1);
     handleQueryCommit();
   }, [executeTimes]);
 
   const commitTx = async () => {
     try {
       const confirm = await secondConfirm({
-        title: 'Commit Transaction',
-        confirmText: 'Commit',
-        kind: 'info',
+        title: "Commit Transaction",
+        confirmText: "Commit",
+        kind: "info",
       });
       if (!confirm) {
         return;
       }
       await conn.commit();
-      showNotification('success', 'commit ok');
+      showNotification("success", "commit ok");
       handleQueryCommit();
     } catch (e) {
-      showNotification('error', 'commit failed', e);
+      showNotification("error", "commit failed", e);
     }
   };
 
   const rollbackTx = async () => {
     const confirm = await secondConfirm({
-      title: 'Rollback Transaction',
-      confirmText: 'Rollback',
-      kind: 'info',
+      title: "Rollback Transaction",
+      confirmText: "Rollback",
+      kind: "info",
     });
     if (!confirm) {
       return;
     }
     try {
       await conn.rollback();
-      showNotification('success', 'rollback ok');
+      showNotification("success", "rollback ok");
       handleQueryCommit();
     } catch (e) {
-      showNotification('error', 'rollback failed', e);
+      showNotification("error", "rollback failed", e);
     }
   };
   const reverseCommitMode = async () => {
     try {
       await conn.setAutoCommit(!commit);
-      setCommit((e) => !e);
-      showNotification('success', 'set commit mode ok');
+      setCommit(e => !e);
+      showNotification("success", "set commit mode ok");
     } catch (e) {
-      showNotification('error', 'set commit failed', e);
+      showNotification("error", "set commit failed", e);
     }
   };
 
@@ -151,9 +147,9 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
       <Tooltip title="reverse commit mode">
         <Chip
           onClick={reverseCommitMode}
-          label={`${commit ? 'auto' : 'manual'}-commit`}
-          color={commit ? 'info' : 'success'}
-          variant={commit ? 'outlined' : 'filled'}
+          label={`${commit ? "auto" : "manual"}-commit`}
+          color={commit ? "info" : "success"}
+          variant={commit ? "outlined" : "filled"}
           style={shrinkAble}
         ></Chip>
       </Tooltip>
@@ -227,28 +223,28 @@ function SqlQuery(props: {
         editorRef.current = ed;
       }
       ed.focus();
-      ed.onDidChangeModelContent((_event) => {
+      ed.onDidChangeModelContent(_event => {
         const text = ed.getValue();
-        getParseErr(text).then((e) => {
+        getParseErr(text).then(e => {
           setParseErr(e);
         });
       });
 
-      ed.onDidChangeCursorPosition((_event) => {
+      ed.onDidChangeCursorPosition(_event => {
         const p = ed.getPosition();
         setPos(p);
       });
     },
-    []
+    [],
   );
 
   const handleReconnect = async () => {
     if (conn) {
       const confirm = await secondConfirm({
-        title: 'reconnection',
-        content: 'unsaved data may lost.',
-        confirmText: 'Connect',
-        kind: 'info',
+        title: "reconnection",
+        content: "unsaved data may lost.",
+        confirmText: "Connect",
+        kind: "info",
       });
       if (!confirm) {
         return;
@@ -257,47 +253,39 @@ function SqlQuery(props: {
     if (conn) {
       conn
         .reconnect()
-        .then((conn) => {
+        .then(conn => {
           setConn(conn);
           if (queryRespView) {
             // send new query id
-            queryRespView
-              .setTitle(makeWindowTitle(uuid, conn.queryId))
-              .catch((e) => {
-                showNotification(
-                  'error',
-                  'set query response view title failed',
-                  e
-                );
-              });
+            queryRespView.setTitle(makeWindowTitle(uuid, conn.queryId)).catch(e => {
+              showNotification("error", "set query response view title failed", e);
+            });
             const payload = {};
             payload[newQueryIDName] = conn.queryId;
-            queryRespView
-              .emit(queryRespViewEventName.current, payload)
-              .catch((e) => {
-                showNotification('error', 'send new query id failed', e);
-              });
+            queryRespView.emit(queryRespViewEventName.current, payload).catch(e => {
+              showNotification("error", "send new query id failed", e);
+            });
           }
-          showNotification('success', 'Reconnect OK');
+          showNotification("success", "Reconnect OK");
         })
-        .catch((e) => {
-          showNotification('error', 'Reconnect Failure', e);
+        .catch(e => {
+          showNotification("error", "Reconnect Failure", e);
         })
         .finally(() => {
           // trigger some reload like sqltransaction
-          setExecuteTimes((e) => e + 1);
+          setExecuteTimes(e => e + 1);
         });
     } else {
       makeConn()
-        .then((conn) => {
+        .then(conn => {
           setConn(conn);
-          showNotification('success', 'Reconnect OK');
+          showNotification("success", "Reconnect OK");
         })
-        .catch((e) => {
-          showNotification('error', 'Reconnect Failure', e);
+        .catch(e => {
+          showNotification("error", "Reconnect Failure", e);
         })
         .finally(() => {
-          setExecuteTimes((e) => e + 1);
+          setExecuteTimes(e => e + 1);
         });
     }
   };
@@ -305,8 +293,8 @@ function SqlQuery(props: {
     try {
       if (await conn.isDangerSql(text)) {
         return await secondConfirm({
-          confirmText: 'Execute',
-          title: 'This is a dangerous sql',
+          confirmText: "Execute",
+          title: "This is a dangerous sql",
           content: `Are u sure going to execute!!!!'`,
         });
       } else {
@@ -329,19 +317,19 @@ function SqlQuery(props: {
     setLoading(true);
     conn
       .executeOP(text)
-      .then((e) => {
+      .then(e => {
         if (SaveQueryLogConfigure.get()) {
           queryLogHandler.current.save(text, rustResultOk(e), showNotification);
         }
         setResp([e]);
-        showNotification('success', 'execute ok');
+        showNotification("success", "execute ok");
       })
-      .catch((e) => {
+      .catch(e => {
         setResp([]);
-        showNotification('error', 'query failed', e);
+        showNotification("error", "query failed", e);
       })
       .finally(() => {
-        setExecuteTimes((e) => e + 1);
+        setExecuteTimes(e => e + 1);
         setLoading(false);
       });
   };
@@ -360,27 +348,23 @@ function SqlQuery(props: {
     setLoading(true);
     conn
       .queryOP(text, append)
-      .then((resp) => {
+      .then(resp => {
         if (SaveQueryLogConfigure.get()) {
-          queryLogHandler.current.save(
-            text,
-            rustResultOk(resp),
-            showNotification
-          );
+          queryLogHandler.current.save(text, rustResultOk(resp), showNotification);
         }
         if (append) {
-          setResp((p) => [...p, ...resp]);
+          setResp(p => [...p, ...resp]);
         } else {
           setResp(resp);
         }
-        showNotification('success', 'Execute OK');
+        showNotification("success", "Execute OK");
       })
-      .catch((e) => {
+      .catch(e => {
         setResp([]);
-        showNotification('error', 'query failed', e);
+        showNotification("error", "query failed", e);
       })
       .finally(() => {
-        setExecuteTimes((e) => e + 1);
+        setExecuteTimes(e => e + 1);
         setLoading(false);
       });
   };
@@ -388,16 +372,16 @@ function SqlQuery(props: {
   // make connection for the first time
   useEffect(() => {
     makeConn()
-      .then((conn) => {
-        setConn((prev) => {
+      .then(conn => {
+        setConn(prev => {
           if (prev) {
             prev.destroy();
           }
           return conn;
         });
       })
-      .catch((e) => {
-        showNotification('error', 'make connection failed', e);
+      .catch(e => {
+        showNotification("error", "make connection failed", e);
       });
   }, []);
   // destroy connection
@@ -424,7 +408,7 @@ function SqlQuery(props: {
       setQueryRespView(null);
     });
     return () => {
-      unlisten.then((e) => {
+      unlisten.then(e => {
         e();
       });
     };
@@ -435,35 +419,32 @@ function SqlQuery(props: {
     if (!queryRespView) {
       return;
     }
-    queryRespView
-      .emit(queryRespViewEventName.current, reloadData)
-      .catch((e) => {
-        showNotification('error', 'emit query response failed', e);
-      });
+    queryRespView.emit(queryRespViewEventName.current, reloadData).catch(e => {
+      showNotification("error", "emit query response failed", e);
+    });
   }, [queryRespView, resp]);
 
-  const editorOptions =
-    useMemo((): editor.IStandaloneEditorConstructionOptions => {
-      return {
-        fontSize: setting.appearance.fontSize,
-        fontWeight: setting.appearance.fontWeight,
-        fontFamily: setting.appearance.fontFamily,
-        tabSize: setting.editor.tabSize,
-        ...setting.editor.editorOption,
-      };
-    }, [setting]);
+  const editorOptions = useMemo((): editor.IStandaloneEditorConstructionOptions => {
+    return {
+      fontSize: setting.appearance.fontSize,
+      fontWeight: setting.appearance.fontWeight,
+      fontFamily: setting.appearance.fontFamily,
+      tabSize: setting.editor.tabSize,
+      ...setting.editor.editorOption,
+    };
+  }, [setting]);
 
   const editorDivDom = useRef(null);
   useEffect(() => {
     if (editorDivDom.current && conn) {
       (editorDivDom.current as HTMLDivElement).addEventListener(
-        'keydown',
+        "keydown",
         function (event) {
-          if (event.ctrlKey && event.key.toLowerCase() === 'e') {
+          if (event.ctrlKey && event.key.toLowerCase() === "e") {
             event.preventDefault();
             handleQuery(false);
           }
-        }
+        },
       );
     }
   }, [conn]);
@@ -471,7 +452,7 @@ function SqlQuery(props: {
     if (conn && editor) {
       SetAutoCompletionName.set(
         editor.getModel().id,
-        new NameAndQueryId(uuid, kind, conn.queryId)
+        new NameAndQueryId(uuid, kind, conn.queryId),
       );
     }
   }, [conn, editor]);
@@ -505,26 +486,26 @@ function SqlQuery(props: {
       } as DetachQueyRespViewParameter);
       const webview = new WebviewWindow(generateRandomString(), {
         title: makeWindowTitle(uuid, conn.queryId),
-        url: 'query_response.html',
+        url: "query_response.html",
         width: 800,
         height: 600,
         maximized,
         x,
         y,
       });
-      webview.once('tauri://created', () => {
-        console.info('create query response view successfully');
+      webview.once("tauri://created", () => {
+        console.info("create query response view successfully");
       });
-      webview.once(queryRespViewEventName.current, (e) => {
-        console.info('query window send me something:', e.payload);
+      webview.once(queryRespViewEventName.current, e => {
+        console.info("query window send me something:", e.payload);
         if (e.payload == listenOK) {
           setQueryRespView(webview);
         } else {
-          console.log('query window send me something wrong:', e.payload);
+          console.log("query window send me something wrong:", e.payload);
         }
       });
-      webview.once('tauri://error', (e) => {
-        showNotification('error', 'create webview failed', e.event.toString());
+      webview.once("tauri://error", e => {
+        showNotification("error", "create webview failed", e.event.toString());
       });
     }
   };
@@ -532,26 +513,22 @@ function SqlQuery(props: {
   return (
     <div
       style={{
-        height: '100%',
-        overflow: 'auto',
-        position: hasPositionRelative ? undefined : 'relative',
-        display: 'flex',
-        flexDirection: 'column',
-        marginBottom: '300px',
+        height: "100%",
+        overflow: "auto",
+        position: hasPositionRelative ? undefined : "relative",
+        display: "flex",
+        flexDirection: "column",
+        marginBottom: "300px",
       }}
     >
-      <PanelGroup
-        direction="vertical"
-        style={{ flex: 1 }}
-        autoSaveId="sql-query"
-      >
+      <PanelGroup direction="vertical" style={{ flex: 1 }} autoSaveId="sql-query">
         <Panel
           minSize={10}
           maxSize={100}
           defaultSize={40}
           style={{
-            display: 'flex',
-            flexDirection: 'column',
+            display: "flex",
+            flexDirection: "column",
           }}
           collapsible
           collapsedSize={0}
@@ -568,9 +545,9 @@ function SqlQuery(props: {
           <Stack
             direction="row"
             sx={{
-              alignItems: 'center',
-              overflow: 'auto',
-              paddingBottom: '0.7rem',
+              alignItems: "center",
+              overflow: "auto",
+              paddingBottom: "0.7rem",
             }}
           >
             {conn && (
@@ -631,7 +608,7 @@ function SqlQuery(props: {
             {conn && conn.supportTransaction() && (
               <SqlTransaction executeTimes={executeTimes} conn={conn} />
             )}
-            <Tooltip title={'reconnect'}>
+            <Tooltip title={"reconnect"}>
               <IconButton
                 onClick={() => {
                   handleReconnect();
@@ -669,7 +646,7 @@ function SqlQuery(props: {
                 onClick={() => {
                   const value = editor.getValue();
                   if (!value) {
-                    showNotification('warning', "can't save empty statement.");
+                    showNotification("warning", "can't save empty statement.");
                     return;
                   }
                   if (favoriteName) {
@@ -680,7 +657,7 @@ function SqlQuery(props: {
                 }}
                 color="primary"
               >
-                <FaBookmark style={{ fontSize: '1.2rem' }} />
+                <FaBookmark style={{ fontSize: "1.2rem" }} />
               </IconButton>
             </Tooltip>
             {editor && (
@@ -698,7 +675,7 @@ function SqlQuery(props: {
             <Tooltip title="query log">
               <IconButton
                 onClick={() => {
-                  setShowQueryLog((prev) => !prev);
+                  setShowQueryLog(prev => !prev);
                 }}
                 color="primary"
               >
@@ -711,19 +688,17 @@ function SqlQuery(props: {
               <Tooltip
                 title={
                   queryRespView
-                    ? 'close query response view'
-                    : 'can open the query results in a separate window,can drag query response to a separate window too'
+                    ? "close query response view"
+                    : "can open the query results in a separate window,can drag query response to a separate window too"
                 }
               >
                 <Chip
-                  variant={queryRespView ? 'outlined' : 'filled'}
+                  variant={queryRespView ? "outlined" : "filled"}
                   onClick={() => {
                     toggleQueryRespView(true);
                   }}
                   style={shrinkAble}
-                  label={
-                    queryRespView ? 'close response window' : 'detach response'
-                  }
+                  label={queryRespView ? "close response window" : "detach response"}
                 ></Chip>
               </Tooltip>
             )}
@@ -739,7 +714,7 @@ function SqlQuery(props: {
             style={{
               flex: 1,
               minHeight: 0,
-              height: '100px',
+              height: "100px",
             }}
             ref={editorDivDom}
           >
@@ -778,17 +753,17 @@ function SqlQuery(props: {
 
         {!queryRespView && (
           <Panel
-            style={{ overflow: 'auto' }}
+            style={{ overflow: "auto" }}
             collapsible
             collapsedSize={0}
             maxSize={100}
             minSize={10}
             draggable
-            onDragEnd={(e) => {
+            onDragEnd={e => {
               toggleQueryRespView(false, e.screenX, e.screenY);
             }}
           >
-            <div style={{ height: '100%' }}>
+            <div style={{ height: "100%" }}>
               <MultiQueryResp data={resp}></MultiQueryResp>
             </div>
           </Panel>
@@ -805,7 +780,7 @@ function SqlQuery(props: {
         >
           <Box sx={modalStyle} width="45%">
             <ExportView
-              supportKind={['csv', 'json', 'jsonline', 'xlsx']}
+              supportKind={["csv", "json", "jsonline", "xlsx"]}
               exportOP={async (kind, file) => {
                 const sql = getEditorText(editor, showNotification);
                 return conn.exportQueryResult(sql, kind, file);
@@ -838,7 +813,7 @@ function SqlQuery(props: {
                 fullWidth
                 label="name"
                 value={favoriteName}
-                onChange={(e) => {
+                onChange={e => {
                   setFavoriteName(e.target.value);
                 }}
                 required
@@ -848,7 +823,7 @@ function SqlQuery(props: {
                   color="primary"
                   onClick={() => {
                     if (!favoriteName) {
-                      showNotification('warning', "name can't be empty");
+                      showNotification("warning", "name can't be empty");
                       return;
                     }
                     saveFavoriteSql(favoriteName, editor.getValue());
@@ -866,9 +841,9 @@ function SqlQuery(props: {
   );
 }
 
-const listenOK = 'listen_ok';
-const newQueryIDName = 'new_query_id';
-const reloadData = 'reload_data';
+const listenOK = "listen_ok";
+const newQueryIDName = "new_query_id";
+const reloadData = "reload_data";
 function makeWindowTitle(uuid, queryid): string {
   return `query result ${uuid}#${queryid}`;
 }

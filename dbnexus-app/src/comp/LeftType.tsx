@@ -1,22 +1,16 @@
-'use strict';
-import {
-  ListItemIcon,
-  ListItemText,
-  MenuItem,
-  MenuList,
-  Stack,
-} from '@mui/material';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import { useContext, useEffect, useRef, useState } from 'react';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import InfoIcon from '@mui/icons-material/Info';
-import { DefAndMetas, tabsHasId } from './Common';
-import types from './ApiStruct';
-import { invoke } from '@tauri-apps/api/core';
-import { NotificationContext } from './Notification';
-import { TabContent } from './Tabs';
-import { DefAndMetasView } from './UdfAndMetaView';
-import { PiTreeStructureFill } from 'react-icons/pi';
+"use strict";
+import { ListItemIcon, ListItemText, MenuItem, MenuList, Stack } from "@mui/material";
+import { TreeItem } from "@mui/x-tree-view/TreeItem";
+import { useContext, useEffect, useRef, useState } from "react";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import InfoIcon from "@mui/icons-material/Info";
+import { DefAndMetas, tabsHasId } from "./Common";
+import types from "./ApiStruct";
+import { invoke } from "@tauri-apps/api/core";
+import { NotificationContext } from "./Notification";
+import { TabContent } from "./Tabs";
+import { DefAndMetasView } from "./UdfAndMetaView";
+import { PiTreeStructureFill } from "react-icons/pi";
 import {
   ConnTypeContext,
   ContextMenuContext,
@@ -27,8 +21,8 @@ import {
   SettingContext,
   TabsSetContext,
   UuidContext,
-} from './helper';
-import { ExceedMaxTreeItem, MenuRefresh } from './CommonComp';
+} from "./helper";
+import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 function TypesTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -37,18 +31,18 @@ function TypesTree() {
   const setting = useContext(SettingContext);
 
   const reload = () => {
-    invoke<types.CreatedTypeDef[]>('list_created_types', { name: uuid })
-      .then((ts) => {
+    invoke<types.CreatedTypeDef[]>("list_created_types", { name: uuid })
+      .then(ts => {
         setTypes(ts);
       })
-      .catch((e) => {
-        showNotification('error', 'list types failed', e);
+      .catch(e => {
+        showNotification("error", "list types failed", e);
       });
   };
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(types.filter((e) => matchPattern(e.name)).length);
+    setExceed(types.filter(e => matchPattern(e.name)).length);
   }, [types, matchPattern]);
 
   const getItemId = (x: types.CreatedTypeDef) => {
@@ -65,8 +59,8 @@ function TypesTree() {
       itemId={idForTrees.current}
       label=<Stack
         direction="row"
-        sx={{ alignItems: 'center' }}
-        onContextMenu={(e) => {
+        sx={{ alignItems: "center" }}
+        onContextMenu={e => {
           setUpMenu({
             content: (
               <MenuList>
@@ -82,7 +76,7 @@ function TypesTree() {
       </Stack>
     >
       {types
-        .filter((typ) => matchPattern(typ.name))
+        .filter(typ => matchPattern(typ.name))
         .map((typ, index) => {
           if (index >= setting.appearance.maxTreeSize) {
             return;
@@ -91,10 +85,10 @@ function TypesTree() {
             <TreeItem
               key={typ.name}
               itemId={getItemId(typ)}
-              style={{ alignItems: 'center' }}
+              style={{ alignItems: "center" }}
               label=<Stack
                 direction="row"
-                onContextMenu={(e) => {
+                onContextMenu={e => {
                   setUpMenu({
                     content: (
                       <TypeMenu
@@ -107,7 +101,7 @@ function TypesTree() {
                     event: e,
                   });
                 }}
-                sx={{ alignItems: 'center' }}
+                sx={{ alignItems: "center" }}
               >
                 <PiTreeStructureFill />
                 <span> {typ.name} </span>
@@ -133,12 +127,12 @@ function TypeMenu(props: {
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
-    const id = uuid + '-' + '-type-' + createdType.name;
+    const id = uuid + "-" + "-type-" + createdType.name;
     const index = tabsHasId(tabs, id);
-    if (typeof index == 'number') {
+    if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
+      setTabs(e => {
         setTimeout(() => {
           setSelectTab(tabs.length);
         }, 100);
@@ -159,7 +153,7 @@ function TypeMenu(props: {
                 uuid={uuid}
               ></DefAndMetasView>
             ),
-            <PiTreeStructureFill />
+            <PiTreeStructureFill />,
           ),
         ];
       });
@@ -168,21 +162,21 @@ function TypeMenu(props: {
   const handleDrop = async () => {
     const confirm = await secondConfirm({
       title: `Drop type '${createdType.name}'`,
-      confirmText: 'Drop',
-      kind: 'error',
+      confirmText: "Drop",
+      kind: "error",
     });
     if (!confirm) {
       return;
     }
 
-    invoke('drop_created_type', { name: uuid, typeName: createdType.name })
+    invoke("drop_created_type", { name: uuid, typeName: createdType.name })
       .then(() => {
-        showNotification('success', 'Drop type OK');
+        showNotification("success", "Drop type OK");
         reload();
       })
 
-      .catch((e) => {
-        showNotification('error', 'Drop type Failure', e);
+      .catch(e => {
+        showNotification("error", "Drop type Failure", e);
       });
   };
   return (
@@ -199,7 +193,7 @@ function TypeMenu(props: {
       </MenuItem>
 
       <MenuItem
-        sx={{ color: 'error.main' }}
+        sx={{ color: "error.main" }}
         onClick={() => {
           handleDrop();
         }}

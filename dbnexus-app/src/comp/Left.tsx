@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 import {
   Autocomplete,
   Box,
@@ -18,8 +18,8 @@ import {
   Tooltip,
   Typography,
   useTheme,
-} from '@mui/material';
-import ClearIcon from '@mui/icons-material/Clear';
+} from "@mui/material";
+import ClearIcon from "@mui/icons-material/Clear";
 import {
   memo,
   ReactNode,
@@ -29,9 +29,9 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import { GrConnect } from 'react-icons/gr';
+} from "react";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import { GrConnect } from "react-icons/gr";
 import {
   OpenedContext,
   modalStyle,
@@ -43,21 +43,21 @@ import {
   ConnectHandler,
   connectionChangeEvent,
   PassWordManager,
-} from './Common';
-import { LuDatabase } from 'react-icons/lu';
-import { FaDatabase } from 'react-icons/fa';
-import { FaCopy } from 'react-icons/fa';
-import types from './ApiStruct';
-import { invoke } from '@tauri-apps/api/core';
-import { NotificationContext } from './Notification';
-import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import CloseIcon from '@mui/icons-material/Close';
-import logoImg from '../../icon.png';
+} from "./Common";
+import { LuDatabase } from "react-icons/lu";
+import { FaDatabase } from "react-icons/fa";
+import { FaCopy } from "react-icons/fa";
+import types from "./ApiStruct";
+import { invoke } from "@tauri-apps/api/core";
+import { NotificationContext } from "./Notification";
+import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
+import { TreeItem } from "@mui/x-tree-view/TreeItem";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import CloseIcon from "@mui/icons-material/Close";
+import logoImg from "../../icon.png";
 
-import { TabContent } from './Tabs';
-import wcmatch from 'wildcard-match';
+import { TabContent } from "./Tabs";
+import wcmatch from "wildcard-match";
 
 import {
   ColumnWidth,
@@ -82,12 +82,12 @@ import {
   TabsSetContext,
   UuidContext,
   WindowFocusContext,
-} from './helper';
-import { TbDatabaseSearch } from 'react-icons/tb';
-import { SqlQuery } from './SqlQuery';
-import { RedisQuery } from './RedisQuery';
-import { MongoQuery } from './MongoQuery.tsx';
-import React from 'react';
+} from "./helper";
+import { TbDatabaseSearch } from "react-icons/tb";
+import { SqlQuery } from "./SqlQuery";
+import { RedisQuery } from "./RedisQuery";
+import { MongoQuery } from "./MongoQuery.tsx";
+import React from "react";
 import {
   ConnPingTime,
   MenuCloseConn,
@@ -99,36 +99,32 @@ import {
   MenuOpenConn,
   MenuRefresh,
   ModalHeader,
-} from './CommonComp.tsx';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
-import { RedisTables, TablesTree } from './LeftTable.tsx';
-import { ViewKind, ViewsTree } from './LeftView.tsx';
-import { CassandraAggregatesTree, UdfsTree } from './LeftUdf.tsx';
-import { ProceduresTree } from './LeftProcedure.tsx';
+} from "./CommonComp.tsx";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
+import { RedisTables, TablesTree } from "./LeftTable.tsx";
+import { ViewKind, ViewsTree } from "./LeftView.tsx";
+import { CassandraAggregatesTree, UdfsTree } from "./LeftUdf.tsx";
+import { ProceduresTree } from "./LeftProcedure.tsx";
 import {
   DataGrid,
   GridColDef,
   GridSlotsComponentsProps,
   GridSortModel,
-} from '@mui/x-data-grid';
-import { listen } from '@tauri-apps/api/event';
-import { FaBookmark } from 'react-icons/fa';
-import { SequenceTree } from './LeftSequence.tsx';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { TypesTree } from './LeftType.tsx';
-import {
-  CreateDatabase,
-  CreateSchema,
-  MenuConnectionInfo,
-} from './CommonComp2.tsx';
-import { EventsTree } from './LeftEvent.tsx';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+} from "@mui/x-data-grid";
+import { listen } from "@tauri-apps/api/event";
+import { FaBookmark } from "react-icons/fa";
+import { SequenceTree } from "./LeftSequence.tsx";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { TypesTree } from "./LeftType.tsx";
+import { CreateDatabase, CreateSchema, MenuConnectionInfo } from "./CommonComp2.tsx";
+import { EventsTree } from "./LeftEvent.tsx";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 const addConnectionID = generateRandomString();
 function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   const { matchPattern, setMatchPattern } = props;
-  const [matchPatterInput, setMatchPatternInput] = useState('');
+  const [matchPatterInput, setMatchPatternInput] = useState("");
   const [showFavoriteSql, setShowFavoriteSql] = useState(false);
   const [showCopyConn, setShowCopyConn] = useState(false);
   const [show, setShow] = useState(SaveLeftTopShow.instance.get());
@@ -137,44 +133,44 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
   }, [show]);
 
   const showAddConnection = async (conn?: types.DBConnectionConfig) => {
-    const id = addConnectionID + '-' + (conn ? conn.name : '');
+    const id = addConnectionID + "-" + (conn ? conn.name : "");
     const webview = await WebviewWindow.getByLabel(id);
     if (webview) {
       await webview.setFocus();
     } else {
       SomeTempStore.set(conn);
       const webview = new WebviewWindow(id, {
-        title: conn ? `copy connection of '${conn.name}'` : 'add connection',
-        url: 'add_connection.html',
+        title: conn ? `copy connection of '${conn.name}'` : "add connection",
+        url: "add_connection.html",
         width: 800,
         height: 600,
       });
-      webview.once('tauri://created', () =>
-        console.info('create add connection view successfully')
+      webview.once("tauri://created", () =>
+        console.info("create add connection view successfully"),
       );
-      webview.once('tauri://error', (e) => {
-        showNotification('error', 'create webview failed', e.event.toString());
+      webview.once("tauri://error", e => {
+        showNotification("error", "create webview failed", e.event.toString());
       });
     }
   };
 
   useEffect(() => {
-    const unlisten = listen('add_config', () => {
+    const unlisten = listen("add_config", () => {
       showAddConnection();
     });
     return () => {
-      unlisten.then((callback) => {
+      unlisten.then(callback => {
         callback();
       });
     };
   }, []);
   const { showNotification } = useContext(NotificationContext);
   const toggleShow = () => {
-    setShow((e) => !e);
+    setShow(e => !e);
   };
   const theme = useTheme();
   return (
-    <Stack style={{ padding: '2px' }}>
+    <Stack style={{ padding: "2px" }}>
       <Stack>
         {show ? (
           <IconButton onClick={toggleShow}>
@@ -190,17 +186,17 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
       <Stack
         direction="row"
         style={{
-          justifyContent: 'center',
-          flexWrap: 'wrap',
-          display: show ? 'flex' : 'none',
+          justifyContent: "center",
+          flexWrap: "wrap",
+          display: show ? "flex" : "none",
         }}
       >
         <Tooltip title="DBPal site">
           <img
             src={logoImg}
-            style={{ width: '3.3rem', cursor: 'pointer' }}
+            style={{ width: "3.3rem", cursor: "pointer" }}
             onClick={() => {
-              openUrl('https://dbpal.site/');
+              openUrl("https://dbpal.site/");
             }}
             alt="logo"
           ></img>
@@ -212,7 +208,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
               showAddConnection();
             }}
           >
-            <GrConnect style={{ fontSize: '2.1rem' }}> </GrConnect>
+            <GrConnect style={{ fontSize: "2.1rem" }}> </GrConnect>
           </IconButton>
         </Tooltip>
 
@@ -222,7 +218,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
               setShowFavoriteSql(true);
             }}
           >
-            <FaBookmark style={{ fontSize: '2.1rem' }}> </FaBookmark>
+            <FaBookmark style={{ fontSize: "2.1rem" }}> </FaBookmark>
           </IconButton>
         </Tooltip>
 
@@ -232,26 +228,23 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
               setShowCopyConn(true);
             }}
           >
-            <FaCopy style={{ fontSize: '2.2rem' }}> </FaCopy>
+            <FaCopy style={{ fontSize: "2.2rem" }}> </FaCopy>
           </IconButton>
         </Tooltip>
       </Stack>
 
       <Stack
         style={{
-          display: show ? 'flex' : 'none',
-          border: '2px solid ' + theme.palette.success.main,
-          borderRadius: '0.5rem',
-          padding: '2px 0.5rem',
+          display: show ? "flex" : "none",
+          border: "2px solid " + theme.palette.success.main,
+          borderRadius: "0.5rem",
+          padding: "2px 0.5rem",
         }}
       >
         <Typography color="info">
           match pattern for table,view,udf,procedure etc
         </Typography>
-        <Stack
-          direction="row"
-          style={{ flexWrap: 'wrap', alignItems: 'center' }}
-        >
+        <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
           {matchPattern.length > 1 && (
             <IconButton
               onClick={() => {
@@ -267,19 +260,17 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
               label={e}
               color="success"
               onDelete={() => {
-                setMatchPattern((arr) =>
-                  arr.filter((_, eIndex) => eIndex !== index)
-                );
+                setMatchPattern(arr => arr.filter((_, eIndex) => eIndex !== index));
               }}
             />
           ))}
         </Stack>
-        <Stack direction="row" style={{ alignItems: 'flex-end' }} spacing={1}>
+        <Stack direction="row" style={{ alignItems: "flex-end" }} spacing={1}>
           <TextField
             fullWidth
             value={matchPatterInput}
             label="match pattern"
-            onChange={(e) => {
+            onChange={e => {
               setMatchPatternInput(e.target.value.trim());
             }}
             slotProps={{
@@ -288,7 +279,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
                   <InputAdornment position="end">
                     <IconButton
                       onClick={() => {
-                        setMatchPatternInput('');
+                        setMatchPatternInput("");
                       }}
                       edge="end"
                     >
@@ -301,12 +292,12 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
           ></TextField>
           <Button
             onClick={() => {
-              if (matchPattern.find((e) => e == matchPatterInput)) {
-                showNotification('warning', 'the value already exists');
+              if (matchPattern.find(e => e == matchPatterInput)) {
+                showNotification("warning", "the value already exists");
                 return;
               }
               if (!matchPatterInput) {
-                showNotification('warning', 'please input match pattern');
+                showNotification("warning", "please input match pattern");
                 return;
               }
               setMatchPattern((e: string[]) => [...e, matchPatterInput]);
@@ -360,7 +351,7 @@ function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
               handleClose={() => {
                 setShowCopyConn(false);
               }}
-              setCopyConn={(conn) => {
+              setCopyConn={conn => {
                 showAddConnection(conn);
               }}
             ></CopyConnection>
@@ -375,10 +366,10 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   const { handleClose, setCopyConn } = props;
   const [conns, setConns] = useState<types.DBConnectionConfig[]>([]);
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
-  const getRowId = useCallback((e) => {
+  const getRowId = useCallback(e => {
     return e.name;
   }, []);
-  const onSortModelChange = useCallback((e) => {
+  const onSortModelChange = useCallback(e => {
     setSortModel(e);
   }, []);
 
@@ -406,11 +397,11 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
     );
   }
 
-  const useRow = async (conn) => {
+  const useRow = async conn => {
     const password = await PassWordManager.getPassword(conn.name);
     const cop = { ...conn };
     if (password) {
-      cop['password'] = password;
+      cop["password"] = password;
     }
     setCopyConn(cop);
     handleClose();
@@ -418,7 +409,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
+        onContextMenu: e => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
           const field = extractFieldAndIDFromMouseEvent(e).field;
@@ -430,7 +421,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
             event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
       },
       toolbar: {
         csvOptions: {
@@ -443,24 +434,24 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
 
   const cols = useMemo(() => {
     const cols = [
-      { field: 'name' },
+      { field: "name" },
       {
-        field: 'conn_type',
+        field: "conn_type",
         renderHeader: () => {
-          return 'kind';
+          return "kind";
         },
       },
-      { field: 'host' },
-      { field: 'port' },
-      { field: 'path' },
+      { field: "host" },
+      { field: "port" },
+      { field: "path" },
       {
-        field: 'db',
+        field: "db",
         renderHeader: () => {
-          return 'database';
+          return "database";
         },
       },
     ] as GridColDef[];
-    cols.forEach((e) => {
+    cols.forEach(e => {
       const width = ColumnWidth.instance.get(e.field);
       if (width) {
         e.width = width;
@@ -473,7 +464,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
     ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
-  const onRowDoubleClick = useCallback((row) => {
+  const onRowDoubleClick = useCallback(row => {
     useRow(row.row);
   }, []);
 
@@ -482,7 +473,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
       const conns = await ConnectHandler.getAll();
       setConns(conns);
     } catch (e) {
-      showNotification('error', 'get connections failed', e);
+      showNotification("error", "get connections failed", e);
     }
   };
   useEffect(() => {
@@ -490,7 +481,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   }, []);
 
   return (
-    <Stack style={{ height: '100%' }}>
+    <Stack style={{ height: "100%" }}>
       <Stack direction="row">
         {conns.length == 0 && (
           <Button
@@ -530,7 +521,7 @@ function Left_() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [matchPattern, setMatchPattern] = useState<string[]>(
-    SaveMatchPattern.instance.get()
+    SaveMatchPattern.instance.get(),
   );
 
   useEffect(() => {
@@ -539,14 +530,14 @@ function Left_() {
 
   const handleReload = async () => {
     ConnectHandler.getAll()
-      .then((e) => {
+      .then(e => {
         if (!e) {
           e = [];
         }
         setConfigs(e);
       })
-      .catch((e) => {
-        showNotification('error', 'list all config failure', e);
+      .catch(e => {
+        showNotification("error", "list all config failure", e);
       });
   };
   useEffect(() => {
@@ -558,7 +549,7 @@ function Left_() {
       handleReload();
     });
     return () => {
-      unlisten.then((e) => {
+      unlisten.then(e => {
         e();
       });
     };
@@ -570,29 +561,26 @@ function Left_() {
         return true;
       }
       for (const mp of matchPattern) {
-        const matchFn = wcmatch('*' + mp + '*', { flags: 'i' });
+        const matchFn = wcmatch("*" + mp + "*", { flags: "i" });
         if (matchFn(x)) {
           return true;
         }
       }
       return false;
     },
-    [matchPattern]
+    [matchPattern],
   );
   const windowFocus = useContext(WindowFocusContext);
   return (
     <Stack
       style={{
-        overflow: 'auto',
-        opacity: windowFocus ? 1 : '0.6',
+        overflow: "auto",
+        opacity: windowFocus ? 1 : "0.6",
       }}
     >
-      <LeftTop
-        matchPattern={matchPattern}
-        setMatchPattern={setMatchPattern}
-      ></LeftTop>
+      <LeftTop matchPattern={matchPattern} setMatchPattern={setMatchPattern}></LeftTop>
       <Stack spacing={0.3}>
-        {configs.map((e) => {
+        {configs.map(e => {
           return (
             <MatchPatternContext.Provider value={matchFN} key={e.name}>
               <ConnTypeContext.Provider
@@ -615,10 +603,10 @@ function Left_() {
 }
 
 const makeConn = async (uuid: string, kind: DataSourceKind) => {
-  const queryId = await invoke<number>('query_sql_open_connection', {
+  const queryId = await invoke<number>("query_sql_open_connection", {
     name: uuid,
   });
-  console.info('open connection:', queryId);
+  console.info("open connection:", queryId);
   return new QueryConn(uuid, queryId, kind);
 };
 
@@ -672,34 +660,34 @@ function FavoriteSqlList(props: { handleClose }) {
   const { showNotification } = useContext(NotificationContext);
   const [fs, setFs] = useState<FavoriteSql[]>([]);
   const [sortModel, setSortModel] = useState<GridSortModel>([
-    { field: 'lastModified', sort: 'desc' },
+    { field: "lastModified", sort: "desc" },
   ]);
-  const [uuidFilter, setUuidFilter] = useState('');
+  const [uuidFilter, setUuidFilter] = useState("");
   const [distinctUuid, setDistinctUuid] = useState<string[]>([]);
   const setting = useContext(SettingContext);
-  const handleReload = async (showOK) => {
+  const handleReload = async showOK => {
     try {
       const us = await FavoriteSql.getDistinctUuid();
       setDistinctUuid(us);
       const fs = await FavoriteSql.getByUuid(uuidFilter);
       setFs(fs);
     } catch (e) {
-      showNotification('error', 'list all favorite sql failed', e);
+      showNotification("error", "list all favorite sql failed", e);
       return;
     }
     if (showOK) {
-      showNotification('success', 'fetch favorite sql ok');
+      showNotification("success", "fetch favorite sql ok");
     }
   };
 
   const { setTabs, setSelectTab } = useContext(TabsSetContext);
 
   const checkConnOpened = async (uuid: string) => {
-    const connOpened = await invoke<boolean>('conn_opened', { name: uuid });
+    const connOpened = await invoke<boolean>("conn_opened", { name: uuid });
     if (!connOpened) {
       showNotification(
-        'error',
-        `connection '${extractConfigNameFromUuid(uuid)}' not opened????`
+        "error",
+        `connection '${extractConfigNameFromUuid(uuid)}' not opened????`,
       );
       return false;
     } else {
@@ -711,7 +699,7 @@ function FavoriteSqlList(props: { handleClose }) {
       if (!(await checkConnOpened(row.uuid))) {
         return;
       }
-      setTabs((tabs) => {
+      setTabs(tabs => {
         const content = (
           <AllKindQuery
             kind={row.kind}
@@ -730,15 +718,15 @@ function FavoriteSqlList(props: { handleClose }) {
             generateRandomString(10),
             `${row.uuid}`,
             content,
-            <TbDatabaseSearch> </TbDatabaseSearch>
+            <TbDatabaseSearch> </TbDatabaseSearch>,
           ),
         ];
       });
     } catch (e) {
-      showNotification('error', 'use sql failure', e);
+      showNotification("error", "use sql failure", e);
     }
   };
-  const onSortModelChange = useCallback((e) => {
+  const onSortModelChange = useCallback(e => {
     setSortModel(e);
   }, []);
 
@@ -753,16 +741,16 @@ function FavoriteSqlList(props: { handleClose }) {
     SomeTempStore.set(row);
     const webview = new WebviewWindow(generateRandomString(), {
       title: `query window of '${row.uuid}'`,
-      url: 'query.html',
+      url: "query.html",
       width: 800,
       height: 600,
       maximized: true,
     });
-    webview.once('tauri://created', () =>
-      console.info('create query view successfully')
+    webview.once("tauri://created", () =>
+      console.info("create query view successfully"),
     );
-    webview.once('tauri://error', (e) => {
-      showNotification('error', 'create webview failed', e.event.toString());
+    webview.once("tauri://error", e => {
+      showNotification("error", "create webview failed", e.event.toString());
     });
     return;
   };
@@ -770,14 +758,14 @@ function FavoriteSqlList(props: { handleClose }) {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
+        onContextMenu: e => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
           const { field, id } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
-          const row = fs.find((e) => e.id === parseInt(id));
+          const row = fs.find(e => e.id === parseInt(id));
           setUpMenu({
             content: (
               <FavoriteSqlMenu
@@ -792,7 +780,7 @@ function FavoriteSqlList(props: { handleClose }) {
             event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
       },
       toolbar: {
         csvOptions: {
@@ -806,17 +794,17 @@ function FavoriteSqlList(props: { handleClose }) {
   const columns = useMemo(() => {
     const cols = [
       {
-        field: 'uuid',
+        field: "uuid",
         renderHeader: () => {
-          return 'connection name';
+          return "connection name";
         },
       },
-      { field: 'name' },
-      { field: 'kind' },
-      { field: 'sql' },
-      { field: 'lastModified' },
+      { field: "name" },
+      { field: "kind" },
+      { field: "sql" },
+      { field: "lastModified" },
     ] as GridColDef[];
-    cols.forEach((e) => {
+    cols.forEach(e => {
       const width = ColumnWidth.instance.get(e.field);
       if (width) {
         e.width = width;
@@ -828,15 +816,15 @@ function FavoriteSqlList(props: { handleClose }) {
     ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
-  const onRowDoubleClick = useCallback((row) => {
+  const onRowDoubleClick = useCallback(row => {
     useRow(row.row);
   }, []);
 
   const handleDelete = async () => {
     const confirm = await secondConfirm({
-      title: 'clean all favorite sql???',
-      confirmText: 'Clean',
-      kind: 'error',
+      title: "clean all favorite sql???",
+      confirmText: "Clean",
+      kind: "error",
     });
     if (!confirm) {
       return;
@@ -845,13 +833,13 @@ function FavoriteSqlList(props: { handleClose }) {
   };
 
   return (
-    <Stack style={{ height: '100%' }}>
-      <Stack direction="row" style={{ alignItems: 'center' }}>
+    <Stack style={{ height: "100%" }}>
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <Autocomplete
           options={distinctUuid}
-          style={{ width: '22rem' }}
+          style={{ width: "22rem" }}
           value={uuidFilter}
-          renderInput={(params) => (
+          renderInput={params => (
             <TextField {...params} label="filter connection name" />
           )}
           freeSolo={false}
@@ -887,9 +875,9 @@ function FavoriteSqlList(props: { handleClose }) {
               <Typography
                 color="info"
                 style={{
-                  border: '1px solid',
-                  borderRadius: '5px',
-                  padding: '2px',
+                  border: "1px solid",
+                  borderRadius: "5px",
+                  padding: "2px",
                 }}
               >
                 query new window
@@ -933,26 +921,14 @@ function OneConfig_(props: { config: types.DBConnectionConfig }) {
       case DataSourceKind.MariaDB:
       case DataSourceKind.Mysql:
       case DataSourceKind.TiDB:
-        return config.db ? (
-          <SchemaTree></SchemaTree>
-        ) : (
-          <DatabaseTree></DatabaseTree>
-        );
+        return config.db ? <SchemaTree></SchemaTree> : <DatabaseTree></DatabaseTree>;
       case DataSourceKind.Sqlite:
       case DataSourceKind.LibSql:
         return <SchemaTree></SchemaTree>;
       case DataSourceKind.Redis:
-        return config.db ? (
-          <SchemaTree></SchemaTree>
-        ) : (
-          <DatabaseTree></DatabaseTree>
-        );
+        return config.db ? <SchemaTree></SchemaTree> : <DatabaseTree></DatabaseTree>;
       case DataSourceKind.Mongo:
-        return config.db ? (
-          <SchemaTree></SchemaTree>
-        ) : (
-          <DatabaseTree></DatabaseTree>
-        );
+        return config.db ? <SchemaTree></SchemaTree> : <DatabaseTree></DatabaseTree>;
       case DataSourceKind.SqlServer:
         if (!config.db) {
           return <CatalogTree />;
@@ -972,7 +948,7 @@ function OneConfig_(props: { config: types.DBConnectionConfig }) {
         }
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
       default:
-        console.error('impl database kind:', config);
+        console.error("impl database kind:", config);
     }
   };
   return (
@@ -1019,9 +995,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     DataSourceKind.Cockroach,
     DataSourceKind.Cassandra,
   ].includes(kind);
-  const supportEvent = [DataSourceKind.Mysql, DataSourceKind.MariaDB].includes(
-    kind
-  );
+  const supportEvent = [DataSourceKind.Mysql, DataSourceKind.MariaDB].includes(kind);
 
   const { setUpMenu } = useContext(ContextMenuContext);
   const [loading, setLoading] = useState(false);
@@ -1031,7 +1005,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
       itemId={idForTree.current}
       label=<Stack
         direction="row"
-        onContextMenu={(e) => {
+        onContextMenu={e => {
           setUpMenu({
             content: (
               <SchemaMenu
@@ -1054,7 +1028,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
           });
         }}
         sx={{
-          alignItems: 'center',
+          alignItems: "center",
         }}
       >
         {schema && <LuDatabase></LuDatabase>}
@@ -1151,9 +1125,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
       )}
       {opened && <>{supportSequence && <SequenceTree />}</>}
 
-      {opened && kind == DataSourceKind.Cassandra && (
-        <CassandraAggregatesTree />
-      )}
+      {opened && kind == DataSourceKind.Cassandra && <CassandraAggregatesTree />}
       {opened && kind == DataSourceKind.Redis && <RedisTables />}
       {opened && supportType && <TypesTree />}
       {opened && supportEvent && <EventsTree />}
@@ -1194,28 +1166,14 @@ function DatabaseMenu(props: {
         {opened && kind != DataSourceKind.Mongo && (
           <MenuNewQuery
             handleNew={() => {
-              openNewQuery(
-                setSelectTab,
-                setTabs,
-                uuid,
-                kind,
-                showNotification,
-                false
-              );
+              openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification, false);
             }}
           ></MenuNewQuery>
         )}
         {opened && kind != DataSourceKind.Mongo && (
           <MenuNewQueryWindow
             handleNew={() => {
-              openNewQuery(
-                setSelectTab,
-                setTabs,
-                uuid,
-                kind,
-                showNotification,
-                true
-              );
+              openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification, true);
             }}
           ></MenuNewQueryWindow>
         )}
@@ -1238,22 +1196,17 @@ function DatabaseMenu(props: {
         )}
 
         {opened && <MenuRefresh reload={reload}></MenuRefresh>}
-        {opened && !database && (
-          <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>
-        )}
+        {opened && !database && <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>}
 
         {opened && !database && (
-          <MenuCloseConn
-            name={uuid}
-            handleClose={handleCloseConn}
-          ></MenuCloseConn>
+          <MenuCloseConn name={uuid} handleClose={handleCloseConn}></MenuCloseConn>
         )}
         {database && kind != DataSourceKind.DuckDB && (
           <MenuItem
             onClick={() => {
               // we are in database context uuid contains the database name
               // we need remove that
-              const index = uuid.indexOf('/');
+              const index = uuid.indexOf("/");
               dropDatabase({
                 uuid: uuid.substring(0, index),
                 database,
@@ -1285,12 +1238,12 @@ function DatabaseMenu(props: {
           <Box sx={modalStyle} width="40%">
             <ModalHeader
               title={(function () {
-                let name = 'database';
+                let name = "database";
                 switch (kind) {
                   case DataSourceKind.Postgres:
                   case DataSourceKind.Cockroach:
                   case DataSourceKind.SqlServer:
-                    name = 'schema';
+                    name = "schema";
                     break;
                 }
                 return `create ${name}`;
@@ -1325,15 +1278,8 @@ function CatalogMenu(props: {
   setLoading;
   kind: DataSourceKind;
 }) {
-  const {
-    uuid,
-    reload,
-    handleOpened,
-    opened,
-    handleCloseConn,
-    kind,
-    setLoading,
-  } = props;
+  const { uuid, reload, handleOpened, opened, handleCloseConn, kind, setLoading } =
+    props;
   const [showCreateDB, setShowCreateDB] = useState(false);
   return (
     <div>
@@ -1358,10 +1304,7 @@ function CatalogMenu(props: {
         {opened && <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>}
 
         {opened && (
-          <MenuCloseConn
-            name={uuid}
-            handleClose={handleCloseConn}
-          ></MenuCloseConn>
+          <MenuCloseConn name={uuid} handleClose={handleCloseConn}></MenuCloseConn>
         )}
         <Divider />
         <MenuDeleteConfig name={uuid}></MenuDeleteConfig>
@@ -1427,7 +1370,7 @@ function AllKindQuery(props: {
           saveFavoriteSql={async (name, sql) => {
             await FavoriteSql.save(
               new FavoriteSql(uuid, name, kind, sql),
-              showNotification
+              showNotification,
             );
           }}
           value={value}
@@ -1447,7 +1390,7 @@ function AllKindQuery(props: {
           saveFavoriteSql={async (name, sql) => {
             await FavoriteSql.save(
               new FavoriteSql(uuid, name, kind, sql),
-              showNotification
+              showNotification,
             );
           }}
           value={value}
@@ -1464,7 +1407,7 @@ function AllKindQuery(props: {
           saveFavoriteSql={async (name, sql) => {
             await FavoriteSql.save(
               new FavoriteSql(uuid, name, kind, sql),
-              showNotification
+              showNotification,
             );
           }}
           value={value}
@@ -1475,7 +1418,7 @@ function AllKindQuery(props: {
     default:
       console.error(`impl this ${kind}`);
   }
-  return <div style={{ height: '100%' }}> {content}</div>;
+  return <div style={{ height: "100%" }}> {content}</div>;
 }
 
 function openNewQuery(
@@ -1484,27 +1427,27 @@ function openNewQuery(
   uuid: string,
   kind: DataSourceKind,
   showNotification,
-  newWindow: boolean
+  newWindow: boolean,
 ) {
   if (newWindow) {
     SomeTempStore.set({ uuid, kind } as FavoriteSql);
     const webview = new WebviewWindow(generateRandomString(), {
       title: `query window of '${uuid}'`,
-      url: 'query.html',
+      url: "query.html",
       width: 800,
       height: 600,
       maximized: true,
     });
-    webview.once('tauri://created', () =>
-      console.info('create query view successfully')
+    webview.once("tauri://created", () =>
+      console.info("create query view successfully"),
     );
-    webview.once('tauri://error', (e) => {
-      showNotification('error', 'create webview failed', e.event.toString());
+    webview.once("tauri://error", e => {
+      showNotification("error", "create webview failed", e.event.toString());
     });
     return;
   }
-  console.log('open new query uuid:', uuid);
-  const id = uuid + '-query-' + generateRandomString();
+  console.log("open new query uuid:", uuid);
+  const id = uuid + "-query-" + generateRandomString();
   const content = <AllKindQuery kind={kind} uuid={uuid} />;
   setTabs((e: TabContent[]) => {
     setTimeout(() => {
@@ -1512,12 +1455,7 @@ function openNewQuery(
     }, 100);
     return [
       ...e,
-      new TabContent(
-        id,
-        `${uuid}`,
-        content,
-        <TbDatabaseSearch> </TbDatabaseSearch>
-      ),
+      new TabContent(id, `${uuid}`, content, <TbDatabaseSearch> </TbDatabaseSearch>),
     ];
   });
 }
@@ -1556,14 +1494,7 @@ function SchemaMenu(props: {
       {opened && (
         <MenuNewQuery
           handleNew={() => {
-            openNewQuery(
-              setSelectTab,
-              setTabs,
-              uuid,
-              kind,
-              showNotification,
-              false
-            );
+            openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification, false);
           }}
         ></MenuNewQuery>
       )}
@@ -1571,34 +1502,22 @@ function SchemaMenu(props: {
       {opened && (
         <MenuNewQueryWindow
           handleNew={() => {
-            openNewQuery(
-              setSelectTab,
-              setTabs,
-              uuid,
-              kind,
-              showNotification,
-              true
-            );
+            openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification, true);
           }}
         ></MenuNewQueryWindow>
       )}
 
-      {opened && !schema && (
-        <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>
-      )}
+      {opened && !schema && <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>}
 
       {!schema && opened && (
-        <MenuCloseConn
-          name={uuid}
-          handleClose={handleCloseConn}
-        ></MenuCloseConn>
+        <MenuCloseConn name={uuid} handleClose={handleCloseConn}></MenuCloseConn>
       )}
       {schema && kind != DataSourceKind.Oracle && (
         <MenuItem
           onClick={() => {
             // we are in database context uuid contains the database name
             // we need remove that
-            const index = uuid.lastIndexOf('/');
+            const index = uuid.lastIndexOf("/");
             dropSchema({
               uuid: uuid.substring(0, index),
               schema,
@@ -1628,12 +1547,12 @@ function CatalogTree(_props: {}) {
   const { kind } = useContext(ConnTypeContext);
   const handleReload = () => {
     setLoading(true);
-    invoke<string[]>('list_database', { name })
-      .then((ds) => {
+    invoke<string[]>("list_database", { name })
+      .then(ds => {
         setDatabases(ds);
       })
-      .catch((e) => {
-        showNotification('error', 'list database failed', e);
+      .catch(e => {
+        showNotification("error", "list database failed", e);
       })
       .finally(() => {
         setLoading(false);
@@ -1653,7 +1572,7 @@ function CatalogTree(_props: {}) {
       itemId={name}
       label=<Stack
         direction="row"
-        onContextMenu={(e) => {
+        onContextMenu={e => {
           setUpMenu({
             content: (
               <CatalogMenu
@@ -1681,9 +1600,9 @@ function CatalogTree(_props: {}) {
       </Stack>
       key={name}
     >
-      {databases.map((e) => {
+      {databases.map(e => {
         return (
-          <UuidContext.Provider key={e} value={{ uuid: name + '/' + e }}>
+          <UuidContext.Provider key={e} value={{ uuid: name + "/" + e }}>
             <DatabaseTree
               key={e}
               database={e}
@@ -1696,10 +1615,7 @@ function CatalogTree(_props: {}) {
   );
 }
 
-function DatabaseTree(props: {
-  database?: string;
-  reloadDatabase?: () => void;
-}) {
+function DatabaseTree(props: { database?: string; reloadDatabase?: () => void }) {
   const { uuid: name } = useContext(UuidContext);
   const { showNotification } = useContext(NotificationContext);
   const [schemas, setSchemas] = useState<string[]>([]);
@@ -1709,12 +1625,12 @@ function DatabaseTree(props: {
   const { kind } = useContext(ConnTypeContext);
   const handleReload = () => {
     setLoading(true);
-    invoke<string[]>('list_schema', { name })
-      .then((ds) => {
+    invoke<string[]>("list_schema", { name })
+      .then(ds => {
         setSchemas(ds);
       })
-      .catch((e) => {
-        showNotification('error', 'list schema failed', e);
+      .catch(e => {
+        showNotification("error", "list schema failed", e);
       })
       .finally(() => {
         setLoading(false);
@@ -1734,7 +1650,7 @@ function DatabaseTree(props: {
       label=<Stack
         direction="row"
         alignContent="baseline"
-        onContextMenu={(e) => {
+        onContextMenu={e => {
           setUpMenu({
             content: (
               <DatabaseMenu
@@ -1758,7 +1674,7 @@ function DatabaseTree(props: {
             event: e,
           });
         }}
-        sx={{ alignItems: 'center' }}
+        sx={{ alignItems: "center" }}
       >
         {database && <FaDatabase />}
         <span>{database ? database : name}</span>
@@ -1767,14 +1683,10 @@ function DatabaseTree(props: {
       </Stack>
       key={name + database}
     >
-      {schemas.map((e) => {
+      {schemas.map(e => {
         return (
-          <UuidContext.Provider key={e} value={{ uuid: name + '/' + e }}>
-            <SchemaTree
-              key={e}
-              schema={e}
-              reloadSchemas={handleReload}
-            ></SchemaTree>
+          <UuidContext.Provider key={e} value={{ uuid: name + "/" + e }}>
+            <SchemaTree key={e} schema={e} reloadSchemas={handleReload}></SchemaTree>
           </UuidContext.Provider>
         );
       })}

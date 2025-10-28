@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 import {
   ReactNode,
   useCallback,
@@ -6,7 +6,7 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
+} from "react";
 import {
   tabsHasId,
   modalStyle,
@@ -19,11 +19,11 @@ import {
   makePutValueInSql,
   SetAutoCompletionName,
   NameAndQueryId,
-} from './Common';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import { NotificationContext } from './Notification';
-import { invoke } from '@tauri-apps/api/core';
-import { IoConstructOutline } from 'react-icons/io5';
+} from "./Common";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import { NotificationContext } from "./Notification";
+import { invoke } from "@tauri-apps/api/core";
+import { IoConstructOutline } from "react-icons/io5";
 import {
   Box,
   Button,
@@ -37,17 +37,17 @@ import {
   Modal,
   Stack,
   Typography,
-} from '@mui/material';
-import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import ViewComfyAltIcon from '@mui/icons-material/ViewComfyAlt';
-import types from './ApiStruct';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import ListIcon from '@mui/icons-material/List';
-import { SqlTableView } from './SqlTableView';
-import { TabContent } from './Tabs';
-import { ExportTableOrView } from './Export';
+} from "@mui/material";
+import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import ViewComfyAltIcon from "@mui/icons-material/ViewComfyAlt";
+import types from "./ApiStruct";
+import { TreeItem } from "@mui/x-tree-view/TreeItem";
+import ListIcon from "@mui/icons-material/List";
+import { SqlTableView } from "./SqlTableView";
+import { TabContent } from "./Tabs";
+import { ExportTableOrView } from "./Export";
 import {
   ColumnWidth,
   ConnTypeContext,
@@ -68,17 +68,13 @@ import {
   TabsSetContext,
   UuidContext,
   ViewKind,
-} from './helper';
-import { ExceedMaxTreeItem, MenuRefresh } from './CommonComp';
-import { MongoTable } from './MongoDB';
+} from "./helper";
+import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
+import { MongoTable } from "./MongoDB";
 
-import {
-  DataGrid,
-  GridColDef,
-  GridSlotsComponentsProps,
-} from '@mui/x-data-grid';
-import { SimpleFlexEditor } from './CommonComp2';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { DataGrid, GridColDef, GridSlotsComponentsProps } from "@mui/x-data-grid";
+import { SimpleFlexEditor } from "./CommonComp2";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);
@@ -87,28 +83,28 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const [loading, setLoading] = useState(false);
   const setting = useContext(SettingContext);
 
-  let invokeName = '';
+  let invokeName = "";
   switch (viewKind) {
     case ViewKind.Normal:
-      invokeName = 'list_view';
+      invokeName = "list_view";
       break;
     case ViewKind.Materialized:
-      invokeName = 'list_materialized_view';
+      invokeName = "list_materialized_view";
       break;
   }
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(views.filter((e) => matchPattern(e.name)).length);
+    setExceed(views.filter(e => matchPattern(e.name)).length);
   }, [views, matchPattern]);
   const handleReload = () => {
     setLoading(true);
     invoke<types.ListTable[]>(invokeName, { name: uuid })
-      .then((ts) => {
+      .then(ts => {
         setViews(ts);
       })
-      .catch((e) => {
-        showNotification('error', 'list view failed', e);
+      .catch(e => {
+        showNotification("error", "list view failed", e);
       })
       .finally(() => {
         setLoading(false);
@@ -122,20 +118,20 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   let itemId;
   switch (viewKind) {
     case ViewKind.Normal:
-      itemId = uuid + '-views';
+      itemId = uuid + "-views";
       break;
     case ViewKind.Materialized:
-      itemId = uuid + '-materialized-views';
+      itemId = uuid + "-materialized-views";
       break;
   }
   let name;
   const icon = getIcon(viewKind);
   switch (viewKind) {
     case ViewKind.Normal:
-      name = 'views';
+      name = "views";
       break;
     case ViewKind.Materialized:
-      name = 'materialized views';
+      name = "materialized views";
       break;
   }
 
@@ -144,7 +140,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       itemId={itemId}
       label=<Stack
         direction="row"
-        onContextMenu={(e) => {
+        onContextMenu={e => {
           setUpMenu({
             content: (
               <MenuList>
@@ -161,7 +157,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       </Stack>
     >
       {views
-        .filter((e) => matchPattern(e.name))
+        .filter(e => matchPattern(e.name))
         .map((e, index) => {
           if (index >= setting.appearance.maxTreeSize) {
             return;
@@ -191,21 +187,21 @@ function StatementStructure(props: {
   viewKind: ViewKind;
 }) {
   const { uuid, kind, view, viewKind } = props;
-  const [sql, setSql] = useState('');
+  const [sql, setSql] = useState("");
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const handleReload = () => {
     setLoading(true);
-    invoke<string>('create_view_sql', {
+    invoke<string>("create_view_sql", {
       name: uuid,
       viewName: view,
       materialized: viewKind == ViewKind.Materialized,
     })
-      .then((e) => {
+      .then(e => {
         setSql(e);
       })
-      .catch((e) => {
-        showNotification('error', 'fetch create sql failed', e);
+      .catch(e => {
+        showNotification("error", "fetch create sql failed", e);
       })
       .finally(() => {
         setLoading(false);
@@ -216,7 +212,7 @@ function StatementStructure(props: {
   }, []);
 
   return (
-    <Stack style={{ height: '100%' }}>
+    <Stack style={{ height: "100%" }}>
       <Stack direction="row">
         <Button
           loading={loading}
@@ -232,10 +228,10 @@ function StatementStructure(props: {
           readOnly={true}
           language={getLanguageFromDataSourceKind(kind)}
           value={sql}
-          handleEditor={(editor) => {
+          handleEditor={editor => {
             SetAutoCompletionName.set(
               editor.getModel().id,
-              new NameAndQueryId(uuid, kind)
+              new NameAndQueryId(uuid, kind),
             );
           }}
         ></SimpleFlexEditor>
@@ -252,8 +248,8 @@ function ViewStructure(props: {
 }) {
   const { uuid, view, viewKind, kind } = props;
 
-  const [structure, setStructure] = useState('columns');
-  const structures = [{ name: 'columns' }];
+  const [structure, setStructure] = useState("columns");
+  const structures = [{ name: "columns" }];
 
   const supportStatement = [
     DataSourceKind.LibSql,
@@ -265,28 +261,28 @@ function ViewStructure(props: {
   ].includes(kind);
 
   if (supportStatement) {
-    structures.push({ name: 'statement' });
+    structures.push({ name: "statement" });
   }
 
   return (
-    <Stack style={{ height: '100%' }}>
-      <Stack direction="row" style={{ justifyContent: 'center' }}>
-        {structures.map((e) => (
+    <Stack style={{ height: "100%" }}>
+      <Stack direction="row" style={{ justifyContent: "center" }}>
+        {structures.map(e => (
           <Chip
             onClick={() => {
               setStructure(e.name);
             }}
-            color={structure == e.name ? 'success' : 'default'}
+            color={structure == e.name ? "success" : "default"}
             key={e.name}
             label={e.name}
             size="medium"
           ></Chip>
         ))}
       </Stack>
-      {structure == 'columns' && (
+      {structure == "columns" && (
         <ColumnsContent uuid={uuid} view={view}></ColumnsContent>
       )}
-      {structure == 'statement' && (
+      {structure == "statement" && (
         <StatementStructure
           uuid={uuid}
           kind={kind}
@@ -332,15 +328,15 @@ function ColumnsContent(props: { uuid: string; view: string }) {
 
   const handleReload = () => {
     setLoading(true);
-    invoke<types.Field[]>('show_view_columns', {
+    invoke<types.Field[]>("show_view_columns", {
       name: uuid,
       viewName: view,
     })
-      .then((fs) => {
+      .then(fs => {
         setFields(fs);
       })
-      .catch((e) => {
-        showNotification('error', 'list column failed', e);
+      .catch(e => {
+        showNotification("error", "list column failed", e);
       })
       .finally(() => {
         setLoading(false);
@@ -352,17 +348,17 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   }, []);
   const cols = useMemo(() => {
     return [
-      { field: 'field' },
+      { field: "field" },
       {
-        field: 'data_type',
+        field: "data_type",
         renderHeader: () => {
-          return 'data type';
+          return "data type";
         },
       },
       ,
     ] as GridColDef[];
   }, []);
-  cols.forEach((e) => {
+  cols.forEach(e => {
     const width = ColumnWidth.instance.get(e.field);
     if (width) {
       e.width = width;
@@ -374,7 +370,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
+        onContextMenu: e => {
           const { target } = e;
           {
             const field = extractFieldAndIDFromMouseEvent(e).field;
@@ -388,7 +384,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
             event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
       },
       toolbar: {
         csvOptions: {
@@ -399,12 +395,12 @@ function ColumnsContent(props: { uuid: string; view: string }) {
     } as GridSlotsComponentsProps;
   }, []);
 
-  const getRowId = useCallback((e) => {
-    return e['field'];
+  const getRowId = useCallback(e => {
+    return e["field"];
   }, []);
 
   return (
-    <Stack style={{ height: '100%' }}>
+    <Stack style={{ height: "100%" }}>
       <Stack direction="row">
         <Button loading={loading} onClick={handleReload}>
           reload
@@ -435,12 +431,7 @@ function getIcon(viewKind: ViewKind) {
       return <VisibilityIcon></VisibilityIcon>;
   }
 }
-function ViewTree(props: {
-  view: string;
-  reload;
-  viewKind: ViewKind;
-  size?: string;
-}) {
+function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: string }) {
   let { view, reload, viewKind, size } = props;
   const { uuid } = useContext(UuidContext);
   const { kind: conn_type } = useContext(ConnTypeContext);
@@ -449,12 +440,12 @@ function ViewTree(props: {
 
   return (
     <TreeItem
-      itemId={uuid + '-view-' + view}
+      itemId={uuid + "-view-" + view}
       label={
         <Stack
           direction="row"
-          sx={{ justifyContent: 'space-between' }}
-          onContextMenu={(e) => {
+          sx={{ justifyContent: "space-between" }}
+          onContextMenu={e => {
             setUpMenu({
               content: (
                 <ViewMenu
@@ -492,8 +483,8 @@ function ViewMenu(props: {
   const handleDrop = async () => {
     const confirm = await secondConfirm({
       title: `Drop view '${view}'`,
-      content: '',
-      confirmText: 'Drop',
+      content: "",
+      confirmText: "Drop",
     });
     ``;
     if (!confirm) {
@@ -502,25 +493,25 @@ function ViewMenu(props: {
     let invokeName;
     switch (viewKind) {
       case ViewKind.Normal:
-        invokeName = 'drop_view';
+        invokeName = "drop_view";
         break;
       case ViewKind.Materialized:
-        invokeName = 'drop_materialized_view';
+        invokeName = "drop_materialized_view";
         break;
     }
     invoke(invokeName, { name: uuid, viewName: view })
-      .then((_) => {
-        showNotification('success', 'Drop View OK');
+      .then(_ => {
+        showNotification("success", "Drop View OK");
         reload();
       })
-      .catch((e) => {
-        showNotification('error', 'Drop View Failure', e);
+      .catch(e => {
+        showNotification("error", "Drop View Failure", e);
       });
   };
   const { tabs, setTabs, setSelectTab } = useContext(TabsSetContext);
 
   const handleViewData = () => {
-    const id = uuid + '-view-' + generateRandomString();
+    const id = uuid + "-view-" + generateRandomString();
 
     let list: ReactNode = null;
     switch (kind) {
@@ -539,10 +530,7 @@ function ViewMenu(props: {
       case DataSourceKind.Cockroach:
         list = (
           <SqlTableView
-            invalidCassandraTableViewCache={makeInvalidCassandraTableCache(
-              uuid,
-              view
-            )}
+            invalidCassandraTableViewCache={makeInvalidCassandraTableCache(uuid, view)}
             isTable={false}
             extractTableSelectSort={makeExtractTableSelectSort(uuid)}
             extractTableSelectWhere={makeExtractTableSelectWhere(uuid)}
@@ -566,18 +554,15 @@ function ViewMenu(props: {
         );
         break;
       default:
-        showNotification('error', `data source ${kind} need impl view`);
+        showNotification("error", `data source ${kind} need impl view`);
     }
 
-    setTabs((e) => {
+    setTabs(e => {
       setTimeout(() => {
         setSelectTab(tabs.length);
       }, 100);
 
-      return [
-        ...e,
-        new TabContent(id, view, list, <VisibilityIcon> </VisibilityIcon>),
-      ];
+      return [...e, new TabContent(id, view, list, <VisibilityIcon> </VisibilityIcon>)];
     });
   };
 
@@ -589,26 +574,26 @@ function ViewMenu(props: {
     } as NewWindowTableParameter);
     const webview = new WebviewWindow(generateRandomString(), {
       title: view,
-      url: 'table_view.html',
+      url: "table_view.html",
       maximized: true,
       width: 800,
       height: 600,
     });
-    webview.once('tauri://created', () =>
-      console.info('create table view successfully')
+    webview.once("tauri://created", () =>
+      console.info("create table view successfully"),
     );
-    webview.once('tauri://error', (e) => {
-      showNotification('error', 'create webview failed', e.payload.toString());
+    webview.once("tauri://error", e => {
+      showNotification("error", "create webview failed", e.payload.toString());
     });
   };
 
   const handleStructure = () => {
-    const id = uuid + '-view-' + view + '-structure';
+    const id = uuid + "-view-" + view + "-structure";
     const index = tabsHasId(tabs, id);
-    if (typeof index == 'number') {
+    if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
+      setTabs(e => {
         setTimeout(() => {
           setSelectTab(tabs.length);
         }, 100);
@@ -626,7 +611,7 @@ function ViewMenu(props: {
                 viewKind={viewKind}
               ></ViewStructure>
             ),
-            <IoConstructOutline> </IoConstructOutline>
+            <IoConstructOutline> </IoConstructOutline>,
           ),
         ];
       });
@@ -641,10 +626,7 @@ function ViewMenu(props: {
             <ListIcon></ListIcon>
           </ListItemIcon>
           <ListItemText> View Data</ListItemText>
-          <Typography
-            variant="body2"
-            sx={{ color: 'text.secondary' }}
-          ></Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}></Typography>
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -659,9 +641,7 @@ function ViewMenu(props: {
 
         <MenuItem onClick={handleStructure}>
           <ListItemIcon>
-            <IoConstructOutline
-              style={{ fontSize: '1.2rem' }}
-            ></IoConstructOutline>
+            <IoConstructOutline style={{ fontSize: "1.2rem" }}></IoConstructOutline>
           </ListItemIcon>
           <ListItemText> Structure </ListItemText>
         </MenuItem>
@@ -689,7 +669,7 @@ function ViewMenu(props: {
         </MenuItem>
         <Divider />
         <MenuItem
-          sx={{ color: 'error.main' }}
+          sx={{ color: "error.main" }}
           onClick={() => {
             handleDrop();
           }}
@@ -698,10 +678,7 @@ function ViewMenu(props: {
             <DeleteForeverIcon color="error"></DeleteForeverIcon>
           </ListItemIcon>
           <ListItemText>Drop </ListItemText>
-          <Typography
-            variant="body2"
-            sx={{ color: 'text.secondary' }}
-          ></Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}></Typography>
         </MenuItem>
       </MenuList>
 

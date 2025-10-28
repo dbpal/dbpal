@@ -214,7 +214,7 @@ impl LangServerCommon for FireBirdDB {
         anyhow::Ok(rows.into_iter().map(|x| x.0.trim().to_owned()).collect())
     }
 }
-/// 给我firebird的完成的关键字列表rust数组 并且去掉了内置函数
+/// 给我firebird的完整的关键字列表rust数组 并且去掉了内置函数
 /// Firebird 4.0 **保留关键字**（不含内置函数）
 pub const FIREBIRD_KEYWORDS: &[&str] = &[
     "ACTIVE",

@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 import {
   RefObject,
   useCallback,
@@ -7,7 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
+} from "react";
 import {
   Button,
   Stack,
@@ -27,21 +27,21 @@ import {
   InputAdornment,
   IconButton,
   Divider,
-} from '@mui/material';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from './Common';
-import ClearIcon from '@mui/icons-material/Clear';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { NotificationContext } from './Notification';
+} from "@mui/material";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from "./Common";
+import ClearIcon from "@mui/icons-material/Clear";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { NotificationContext } from "./Notification";
 import {
   DataGrid,
   GridCallbackDetails,
   GridPaginationModel,
   GridSlotsComponentsProps,
   GridSortModel,
-} from '@mui/x-data-grid';
-import { BsFillLightbulbFill } from 'react-icons/bs';
+} from "@mui/x-data-grid";
+import { BsFillLightbulbFill } from "react-icons/bs";
 import {
   ColumnWidth,
   ContextMenuContext,
@@ -58,57 +58,57 @@ import {
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
   pageSizeOptions,
-} from './helper.ts';
+} from "./helper.ts";
 
-import { ExecutingTime, ModalHeader } from './CommonComp.tsx';
-import { editor, Position } from 'monaco-editor';
-import { SimpleFlexEditor } from './CommonComp2.tsx';
+import { ExecutingTime, ModalHeader } from "./CommonComp.tsx";
+import { editor, Position } from "monaco-editor";
+import { SimpleFlexEditor } from "./CommonComp2.tsx";
 
 class RedisZsetHashModifyReq {
   constructor(
     public oldKey: string,
     public newKey: string,
-    public value: string
+    public value: string,
   ) {}
 }
 
 enum RedisEditorMode {
-  Hex = 'hex',
-  Text = 'text',
-  Json = 'json',
+  Hex = "hex",
+  Text = "text",
+  Json = "json",
 }
 
-type ListPushDirection = 'left' | 'right';
+type ListPushDirection = "left" | "right";
 function RedisAddList(props: {
   lpushOP: (value: string) => Promise<void>;
   rpushOP: (value: string) => Promise<void>;
 }) {
   const { lpushOP, rpushOP } = props;
   const [loading, setLoading] = useState(false);
-  const [direction, setDirection] = useState<ListPushDirection>('left');
+  const [direction, setDirection] = useState<ListPushDirection>("left");
   const { showNotification } = useContext(NotificationContext);
   const valueRef = useRef(new EditorAndMode());
   const handleAdd = () => {
     const content = valueRef.current.getValue();
     if (!content) {
-      showNotification('warning', 'Please input value');
+      showNotification("warning", "Please input value");
       return;
     }
     setLoading(true);
-    (direction == 'left' ? lpushOP : rpushOP)(content)
+    (direction == "left" ? lpushOP : rpushOP)(content)
       .then(() => {
-        showNotification('success', 'Push OK');
+        showNotification("success", "Push OK");
       })
-      .catch((e) => {
-        showNotification('error', 'Push Failure', e);
+      .catch(e => {
+        showNotification("error", "Push Failure", e);
       })
       .finally(() => {
         setLoading(false);
       });
   };
   return (
-    <Stack style={{ height: '100%' }}>
-      <Stack direction="row" style={{ alignItems: 'center' }}>
+    <Stack style={{ height: "100%" }}>
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <Typography color="info"> direction: </Typography>
         <RadioGroup
           row
@@ -145,11 +145,11 @@ function RedisStringTable(props: {
   useEffect(() => {
     setLoading(true);
     loadContent()
-      .then((e) => {
+      .then(e => {
         setContent(e);
       })
-      .catch((e) => {
-        showNotification('error', 'load redis string data failed', e);
+      .catch(e => {
+        showNotification("error", "load redis string data failed", e);
       })
       .finally(() => {
         setLoading(false);
@@ -160,10 +160,10 @@ function RedisStringTable(props: {
     setLoading(true);
     modifyOP(valueRef.current.getValue())
       .then(() => {
-        showNotification('success', 'Modify OK');
+        showNotification("success", "Modify OK");
       })
-      .catch((e) => {
-        showNotification('error', 'Modify failure', e);
+      .catch(e => {
+        showNotification("error", "Modify failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -172,15 +172,12 @@ function RedisStringTable(props: {
   return (
     <Stack
       style={{
-        overflow: 'auto',
-        height: '100%',
+        overflow: "auto",
+        height: "100%",
       }}
     >
-      {typeof content == 'string' && (
-        <RedisValueEditor
-          value={content}
-          valueRef={valueRef}
-        ></RedisValueEditor>
+      {typeof content == "string" && (
+        <RedisValueEditor value={content} valueRef={valueRef}></RedisValueEditor>
       )}
       <Stack direction="row">
         <Button
@@ -205,23 +202,23 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
   const handleAdd = () => {
     const c = valueRef.current.getValue();
     if (!c) {
-      showNotification('warning', 'please input value');
+      showNotification("warning", "please input value");
       return;
     }
     setLoading(true);
     addOP(c)
       .then(() => {
-        showNotification('success', 'Add ok');
+        showNotification("success", "Add ok");
       })
-      .catch((e) => {
-        showNotification('error', 'Add error', e);
+      .catch(e => {
+        showNotification("error", "Add error", e);
       })
       .finally(() => {
         setLoading(false);
       });
   };
   return (
-    <Stack style={{ height: '100%' }}>
+    <Stack style={{ height: "100%" }}>
       <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
 
       <Stack direction="row">
@@ -233,9 +230,7 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
   );
 }
 
-function RedisAddHash(props: {
-  addOP: (key: string, value: string) => Promise<void>;
-}) {
+function RedisAddHash(props: { addOP: (key: string, value: string) => Promise<void> }) {
   const { addOP } = props;
   const [loading, setLoading] = useState(false);
   const key = useRef(new EditorAndMode());
@@ -245,10 +240,10 @@ function RedisAddHash(props: {
     setLoading(true);
     addOP(key.current.getValue(), value.current.getValue())
       .then(() => {
-        showNotification('success', 'Add OK');
+        showNotification("success", "Add OK");
       })
-      .catch((e) => {
-        showNotification('error', 'Add Error', e);
+      .catch(e => {
+        showNotification("error", "Add Error", e);
       })
       .finally(() => {
         setLoading(false);
@@ -256,20 +251,12 @@ function RedisAddHash(props: {
   };
 
   return (
-    <Stack height={'100%'}>
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <RedisValueEditor
-          value=""
-          header="key"
-          valueRef={key}
-        ></RedisValueEditor>
+    <Stack height={"100%"}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <RedisValueEditor value="" header="key" valueRef={key}></RedisValueEditor>
       </div>
-      <div style={{ flex: 1.5, display: 'flex', flexDirection: 'column' }}>
-        <RedisValueEditor
-          value=""
-          valueRef={value}
-          header="value"
-        ></RedisValueEditor>
+      <div style={{ flex: 1.5, display: "flex", flexDirection: "column" }}>
+        <RedisValueEditor value="" valueRef={value} header="value"></RedisValueEditor>
       </div>
 
       <Stack direction="row">
@@ -280,12 +267,10 @@ function RedisAddHash(props: {
     </Stack>
   );
 }
-function RedisAddZset(props: {
-  addOP: (key: string, value: number) => Promise<void>;
-}) {
+function RedisAddZset(props: { addOP: (key: string, value: number) => Promise<void> }) {
   const { addOP } = props;
   const [loading, setLoading] = useState(false);
-  const [score, setScore] = useState('');
+  const [score, setScore] = useState("");
   const valueRef = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
 
@@ -294,10 +279,10 @@ function RedisAddZset(props: {
     setLoading(true);
     addOP(valueRef.current.getValue(), parseFloat(score))
       .then(() => {
-        showNotification('success', 'Add OK');
+        showNotification("success", "Add OK");
       })
-      .catch((e) => {
-        showNotification('error', 'Add Failure', e);
+      .catch(e => {
+        showNotification("error", "Add Failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -305,9 +290,9 @@ function RedisAddZset(props: {
   };
 
   return (
-    <Stack style={{ height: '100%' }}>
+    <Stack style={{ height: "100%" }}>
       <RedisValueEditor valueRef={valueRef}></RedisValueEditor>
-      <Stack direction="row" style={{ alignItems: 'flex-start' }}>
+      <Stack direction="row" style={{ alignItems: "flex-start" }}>
         <Button loading={loading} color="primary" onClick={handleAdd}>
           Add
         </Button>
@@ -316,7 +301,7 @@ function RedisAddZset(props: {
           label="score"
           error={score ? isNaN(parseFloat(score)) : false}
           helperText="put a valid float64 value"
-          onChange={(event) => {
+          onChange={event => {
             setScore(event.target.value);
           }}
           slotProps={{
@@ -325,7 +310,7 @@ function RedisAddZset(props: {
                 <InputAdornment position="end">
                   <IconButton
                     onClick={() => {
-                      setScore('');
+                      setScore("");
                     }}
                     edge="end"
                   >
@@ -359,15 +344,15 @@ function RedisEditHash(props: {
       new RedisZsetHashModifyReq(
         oldKey,
         newkey.current.getValue(),
-        newValue.current.getValue()
-      )
+        newValue.current.getValue(),
+      ),
     )
       .then(() => {
-        showNotification('success', 'Modify OK');
+        showNotification("success", "Modify OK");
         handleClose();
       })
-      .catch((e) => {
-        showNotification('error', 'Modify failure', e);
+      .catch(e => {
+        showNotification("error", "Modify failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -376,14 +361,14 @@ function RedisEditHash(props: {
 
   return (
     <Stack flex={1}>
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <RedisValueEditor
           value={oldKey}
           valueRef={newkey}
           header="key"
         ></RedisValueEditor>
       </div>
-      <div style={{ flex: 1.6, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1.6, display: "flex", flexDirection: "column" }}>
         <RedisValueEditor
           value={oldValue}
           valueRef={newValue}
@@ -418,11 +403,11 @@ function RedisEditZset(props: {
     setLoading(true);
     modifyOP(oldKey, newKey.current.getValue(), parseInt(newValue))
       .then(() => {
-        showNotification('success', 'Modify OK');
+        showNotification("success", "Modify OK");
         handleClose();
       })
-      .catch((e) => {
-        showNotification('error', 'Modify Failure', e);
+      .catch(e => {
+        showNotification("error", "Modify Failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -432,7 +417,7 @@ function RedisEditZset(props: {
   return (
     <Stack flex={1}>
       <RedisValueEditor value={oldKey} valueRef={newKey}></RedisValueEditor>
-      <Stack direction="row" style={{ alignItems: 'flex-start' }}>
+      <Stack direction="row" style={{ alignItems: "flex-start" }}>
         <Button loading={loading} color="primary" onClick={handleModify}>
           modify
         </Button>
@@ -441,7 +426,7 @@ function RedisEditZset(props: {
           label="score"
           error={newValue ? isNaN(parseFloat(newValue)) : false}
           helperText="put a valid float64 value"
-          onChange={(event) => {
+          onChange={event => {
             setNewValue(event.target.value);
           }}
           slotProps={{
@@ -450,7 +435,7 @@ function RedisEditZset(props: {
                 <InputAdornment position="end">
                   <IconButton
                     onClick={() => {
-                      setNewValue('');
+                      setNewValue("");
                     }}
                     edge="end"
                   >
@@ -473,20 +458,18 @@ function RedisEditModeSelect(props: {
   const { mode, handleChange } = props;
   return (
     <>
-      {[RedisEditorMode.Text, RedisEditorMode.Json, RedisEditorMode.Hex].map(
-        (e) => {
-          return (
-            <Chip
-              key={e}
-              label={e}
-              onClick={() => {
-                handleChange(e);
-              }}
-              color={mode == e ? 'success' : 'default'}
-            ></Chip>
-          );
-        }
-      )}
+      {[RedisEditorMode.Text, RedisEditorMode.Json, RedisEditorMode.Hex].map(e => {
+        return (
+          <Chip
+            key={e}
+            label={e}
+            onClick={() => {
+              handleChange(e);
+            }}
+            color={mode == e ? "success" : "default"}
+          ></Chip>
+        );
+      })}
     </>
   );
 }
@@ -511,18 +494,16 @@ function RedisValueEditor(props: {
   header?: string;
 }) {
   let { value, valueRef, header } = props;
-  const [newValue, setNewValue] = useState<string>('');
-  const [editModel, setEditModel] = useState<RedisEditorMode>(
-    RedisEditorMode.Text
-  );
+  const [newValue, setNewValue] = useState<string>("");
+  const [editModel, setEditModel] = useState<RedisEditorMode>(RedisEditorMode.Text);
   const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   useEffect(() => {
     const v = hexTryToString(value);
-    if (typeof v === 'string') {
+    if (typeof v === "string") {
       let isJson = false;
       try {
-        isJson = typeof JSON.parse(v) == 'object';
+        isJson = typeof JSON.parse(v) == "object";
       } catch (e) {}
       if (isJson) {
         setEditModel(RedisEditorMode.Json);
@@ -542,7 +523,7 @@ function RedisValueEditor(props: {
       setJsonErr(null);
       return;
     }
-    validJson(newValue).then((e) => {
+    validJson(newValue).then(e => {
       setJsonErr(e);
     });
   }, [newValue, editModel]);
@@ -551,21 +532,20 @@ function RedisValueEditor(props: {
   }, [editModel]);
   return (
     <Stack flex={1}>
-      <Stack direction="row" style={{ alignItems: 'center' }}>
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <Typography
           variant="h6"
           color="info"
-          style={{ fontWeight: 'bold', textDecoration: 'underline' }}
+          style={{ fontWeight: "bold", textDecoration: "underline" }}
         >
           {header}
         </Typography>
         <RedisEditModeSelect
           mode={editModel}
-          handleChange={(mode) => {
+          handleChange={mode => {
             if (
               mode == RedisEditorMode.Hex &&
-              (editModel == RedisEditorMode.Json ||
-                editModel == RedisEditorMode.Text)
+              (editModel == RedisEditorMode.Json || editModel == RedisEditorMode.Text)
             ) {
               setNewValue(stringToHex(newValue));
             }
@@ -583,19 +563,19 @@ function RedisValueEditor(props: {
             <Chip
               label="try hexed.it"
               onClick={() => {
-                openUrl('https://hexed.it/');
+                openUrl("https://hexed.it/");
               }}
             ></Chip>
           </>
         )}
       </Stack>
       <SimpleFlexEditor
-        language={editModel == RedisEditorMode.Json ? 'json' : 'text'}
+        language={editModel == RedisEditorMode.Json ? "json" : "text"}
         value={newValue}
-        handleValue={(v) => {
+        handleValue={v => {
           setNewValue(v);
         }}
-        handleEditor={(ed) => {
+        handleEditor={ed => {
           valueRef.current.editor = ed;
         }}
         errPos={jsonErrPos}
@@ -604,7 +584,7 @@ function RedisValueEditor(props: {
             <Typography
               color="error"
               variant="body1"
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: "pointer" }}
               onClick={() => {
                 if (!jsonErr) {
                   return;
@@ -620,7 +600,7 @@ function RedisValueEditor(props: {
       {editModel == RedisEditorMode.Hex && (
         <Stack>
           <Divider></Divider>
-          <pre style={{ maxHeight: '10vh', overflow: 'auto' }}>
+          <pre style={{ maxHeight: "10vh", overflow: "auto" }}>
             {hexToString(newValue)}
           </pre>
         </Stack>
@@ -645,11 +625,11 @@ function RedisEditList(props: {
     setLoading(true);
     modifyOP(index, newValue.current.getValue())
       .then(() => {
-        showNotification('success', 'Modify OK', '');
+        showNotification("success", "Modify OK", "");
         handleClose();
       })
-      .catch((e) => {
-        showNotification('error', 'Modify Failure', e);
+      .catch(e => {
+        showNotification("error", "Modify Failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -681,11 +661,11 @@ function RedisEditSet(props: {
     setLoading(true);
     modifyOP(oldValue, newValue.current.getValue())
       .then(() => {
-        showNotification('success', 'Modify OK');
+        showNotification("success", "Modify OK");
         handleClose();
       })
-      .catch((e) => {
-        showNotification('error', 'Modify Failure', e);
+      .catch(e => {
+        showNotification("error", "Modify Failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -743,27 +723,27 @@ function RedisSetTable(props: {
   delOP: (value: string) => Promise<void>;
 }) {
   const { reloadOP, modifyOP, delOP } = props;
-  const [keyMatch, setKeyMatch] = useState('');
+  const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState<{ id; value }>(null);
   const [loading, setLoading] = useState(false);
-  const handleReload = (showOK) => {
+  const handleReload = showOK => {
     setLoading(true);
     reloadOP(keyMatch)
-      .then((resp) => {
+      .then(resp => {
         resp.data.forEach((e, index) => {
-          e['id'] = index;
+          e["id"] = index;
         });
-        resp.fields[0]['flex'] = 1;
-        resp.fields[0]['valueGetter'] = valueGetter;
+        resp.fields[0]["flex"] = 1;
+        resp.fields[0]["valueGetter"] = valueGetter;
         setResp(resp);
         if (showOK) {
           reloadOK(showNotification);
         }
       })
-      .catch((e) => {
-        showNotification('error', 'load data error', e);
+      .catch(e => {
+        showNotification("error", "load data error", e);
       })
       .finally(() => {
         setLoading(false);
@@ -775,17 +755,17 @@ function RedisSetTable(props: {
   }, []);
 
   const handleDel = async (id: string) => {
-    const del = resp.data.find((e) => e['id'] == id);
+    const del = resp.data.find(e => e["id"] == id);
     try {
       await delOP(del.value);
-      showNotification('success', 'Delete OK');
+      showNotification("success", "Delete OK");
     } catch (e) {
-      showNotification('error', 'delete failure', e);
+      showNotification("error", "delete failure", e);
     }
 
     handleReload(false);
   };
-  const onRowDoubleClick = useCallback((e) => {
+  const onRowDoubleClick = useCallback(e => {
     setSelectRow(e.row);
   }, []);
 
@@ -794,7 +774,7 @@ function RedisSetTable(props: {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
+        onContextMenu: e => {
           const { target } = e;
           const { field, id } = extractFieldAndIDFromMouseEvent(e);
           if (field) {
@@ -813,7 +793,7 @@ function RedisSetTable(props: {
             event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
       },
       toolbar: {
         csvOptions: {
@@ -828,22 +808,22 @@ function RedisSetTable(props: {
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modalBox) {
-      const clean = saveAndSetSize(modalBox, 'redis-edit');
+      const clean = saveAndSetSize(modalBox, "redis-edit");
       return clean;
     }
   }, [modalBox]);
 
   return (
-    <Stack style={{ height: '100%' }}>
+    <Stack style={{ height: "100%" }}>
       <Stack
         direction="row"
-        style={{ alignItems: 'center', justifyContent: 'space-between' }}
+        style={{ alignItems: "center", justifyContent: "space-between" }}
       >
-        <Stack direction="row" style={{ alignItems: 'center', width: '50%' }}>
+        <Stack direction="row" style={{ alignItems: "center", width: "50%" }}>
           <TextField
             label="key match could be *key,key*,*key*"
             value={keyMatch}
-            onChange={(event) => {
+            onChange={event => {
               setKeyMatch(event.target.value);
             }}
             style={{ flex: 1 }}
@@ -853,7 +833,7 @@ function RedisSetTable(props: {
                   <InputAdornment position="end">
                     <IconButton
                       onClick={() => {
-                        setKeyMatch('');
+                        setKeyMatch("");
                       }}
                       edge="end"
                     >
@@ -876,7 +856,7 @@ function RedisSetTable(props: {
           <DoubleClickToModify></DoubleClickToModify>
         </Stack>
 
-        <Stack direction="row" style={{ alignItems: 'center' }}>
+        <Stack direction="row" style={{ alignItems: "center" }}>
           <ExecutingTime loading={loading} title="loading time" />
         </Stack>
         {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
@@ -910,7 +890,7 @@ function RedisSetTable(props: {
           })}
         >
           <Box
-            sx={{ resize: 'both', ...modalStyle }}
+            sx={{ resize: "both", ...modalStyle }}
             width="80%"
             ref={setModalBox}
             height="70vh"
@@ -948,7 +928,7 @@ function RedisListTableContextMenu(props: {
   content;
 }) {
   const { delOP, content } = props;
-  const [count, setCount] = useState('1');
+  const [count, setCount] = useState("1");
   const [showDel, setShowDel] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   return (
@@ -998,13 +978,13 @@ function RedisListTableContextMenu(props: {
               <TextField
                 value={count}
                 label="delete count"
-                onChange={(e) => {
+                onChange={e => {
                   setCount(e.target.value);
                 }}
                 helperText=<span
-                  style={{ cursor: 'pointer' }}
+                  style={{ cursor: "pointer" }}
                   onClick={() => {
-                    openUrl('https://redis.io/docs/latest/commands/lrem/');
+                    openUrl("https://redis.io/docs/latest/commands/lrem/");
                   }}
                 >
                   count???
@@ -1047,25 +1027,25 @@ function RedisListTable(props: {
   const handleReload = (showReloadOK: boolean) => {
     setLoading(true);
     reloadOP()
-      .then((resp) => {
+      .then(resp => {
         resp.data.forEach((e, index) => {
-          e['id'] = index;
+          e["id"] = index;
         });
-        const seqWidth = ColumnWidth.instance.get('seq');
+        const seqWidth = ColumnWidth.instance.get("seq");
         if (seqWidth) {
-          resp.fields[0]['width'] = seqWidth;
+          resp.fields[0]["width"] = seqWidth;
         }
-        resp.fields[1]['sortable'] = false;
-        resp.fields[1]['flex'] = 1;
-        resp.fields[1]['valueGetter'] = valueGetter;
+        resp.fields[1]["sortable"] = false;
+        resp.fields[1]["flex"] = 1;
+        resp.fields[1]["valueGetter"] = valueGetter;
         setResp(resp);
         setRespOrigin(resp);
         if (showReloadOK) {
           reloadOK(showNotification);
         }
       })
-      .catch((e) => {
-        showNotification('error', 'load data error', e);
+      .catch(e => {
+        showNotification("error", "load data error", e);
       })
       .finally(() => {
         setLoading(false);
@@ -1077,29 +1057,29 @@ function RedisListTable(props: {
   }, []);
 
   const handleDel = async (id, deleteCount: number) => {
-    const del = resp.data.find((e) => e.id == id);
+    const del = resp.data.find(e => e.id == id);
     try {
       await delOP(deleteCount, del.value);
-      showNotification('success', 'Delete OK');
+      showNotification("success", "Delete OK");
     } catch (e) {
-      showNotification('error', 'Delete failure', e);
+      showNotification("error", "Delete failure", e);
     }
     handleReload(false);
   };
 
-  const onRowDoubleClick = useCallback((e) => {
+  const onRowDoubleClick = useCallback(e => {
     setSelectRow(e.row);
   }, []);
 
   const onPaginationModelChange = useCallback(
-    (e: GridPaginationModel, reason: GridCallbackDetails<'pagination'>) => {
+    (e: GridPaginationModel, reason: GridCallbackDetails<"pagination">) => {
       setPage(e.page);
       setPageSize(e.pageSize);
-      if (reason.reason == 'setPaginationModel') {
+      if (reason.reason == "setPaginationModel") {
         SavePageSize.instance.save(pageSize);
       }
     },
-    []
+    [],
   );
 
   const paginationModel = useMemo(() => {
@@ -1116,7 +1096,7 @@ function RedisListTable(props: {
         setResp(respOrigin);
         return;
       }
-      if (s.sort == 'asc') {
+      if (s.sort == "asc") {
         setResp(respOrigin);
         return;
       }
@@ -1127,14 +1107,14 @@ function RedisListTable(props: {
         data: respOrigin.data.slice().reverse(),
       } as MuiDataGridData);
     },
-    [respOrigin]
+    [respOrigin],
   );
 
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
+        onContextMenu: e => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
@@ -1144,7 +1124,7 @@ function RedisListTable(props: {
           setUpMenu({
             content: (
               <RedisListTableContextMenu
-                delOP={async (count) => {
+                delOP={async count => {
                   handleDel(id, count);
                 }}
                 content={content}
@@ -1153,7 +1133,7 @@ function RedisListTable(props: {
             event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
       },
       toolbar: {
         csvOptions: {
@@ -1167,22 +1147,22 @@ function RedisListTable(props: {
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modalBox) {
-      const clean = saveAndSetSize(modalBox, 'redis-edit');
+      const clean = saveAndSetSize(modalBox, "redis-edit");
       return clean;
     }
   }, [modalBox]);
   const onColumnResize = useCallback(({ colDef, width }) => {
-    if (colDef.field == 'seq') {
+    if (colDef.field == "seq") {
       ColumnWidth.instance.save(colDef.field, width);
     }
   }, []);
   return (
-    <Stack style={{ height: '100%' }}>
+    <Stack style={{ height: "100%" }}>
       <Stack
         direction="row"
-        style={{ justifyContent: 'space-between', alignItems: 'center' }}
+        style={{ justifyContent: "space-between", alignItems: "center" }}
       >
-        <Stack direction="row" style={{ alignItems: 'center' }}>
+        <Stack direction="row" style={{ alignItems: "center" }}>
           <Button
             color="primary"
             onClick={() => {
@@ -1195,7 +1175,7 @@ function RedisListTable(props: {
           <DoubleClickToModify></DoubleClickToModify>
         </Stack>
 
-        <Stack direction="row" style={{ alignItems: 'center' }}>
+        <Stack direction="row" style={{ alignItems: "center" }}>
           <ExecutingTime loading={loading} title="loading time" />
         </Stack>
       </Stack>
@@ -1235,7 +1215,7 @@ function RedisListTable(props: {
           })}
         >
           <Box
-            sx={{ resize: 'both', ...modalStyle }}
+            sx={{ resize: "both", ...modalStyle }}
             width="80%"
             height="70vh"
             ref={setModalBox}
@@ -1305,24 +1285,20 @@ function RedisZsetTable(props: {
   reloadOP: (
     keyMatch: string,
     min: number | null,
-    max: number | null
+    max: number | null,
   ) => Promise<MuiDataGridData>;
 
-  modifyOP: (
-    oldMember: string,
-    newKey: string,
-    newValue: number
-  ) => Promise<void>;
+  modifyOP: (oldMember: string, newKey: string, newValue: number) => Promise<void>;
 
   delOP: (key: string) => Promise<void>;
 }) {
   const { reloadOP, modifyOP, delOP } = props;
-  const [keyMatch, setKeyMatch] = useState('');
+  const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const [selectRow, setSelectRow] = useState<any>();
 
-  const [min, setMin] = useState('');
-  const [max, setMax] = useState('');
+  const [min, setMin] = useState("");
+  const [max, setMax] = useState("");
   const [minErr, setMinErr] = useState(false);
   const [maxErr, setMaxErr] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -1336,27 +1312,27 @@ function RedisZsetTable(props: {
     const maxValue = parseFloat(max);
     setLoading(true);
     reloadOP(keyMatch, minValue, maxValue)
-      .then((resp) => {
+      .then(resp => {
         resp.data.forEach((e, index) => {
-          e['id'] = index;
+          e["id"] = index;
         });
-        resp.fields[1]['flex'] = 1;
-        const scoreWidth = ColumnWidth.instance.get('score');
+        resp.fields[1]["flex"] = 1;
+        const scoreWidth = ColumnWidth.instance.get("score");
 
         if (scoreWidth) {
-          resp.fields[0]['width'] = scoreWidth;
+          resp.fields[0]["width"] = scoreWidth;
         }
-        resp.data.forEach((e) => {
-          e.score = parseFloat(e['score']);
+        resp.data.forEach(e => {
+          e.score = parseFloat(e["score"]);
         });
-        resp.fields[1]['valueGetter'] = valueGetter;
+        resp.fields[1]["valueGetter"] = valueGetter;
         setResp(resp);
         if (showOK) {
           reloadOK(showNotification);
         }
       })
-      .catch((e) => {
-        showNotification('error', 'load data error', e);
+      .catch(e => {
+        showNotification("error", "load data error", e);
       })
       .finally(() => {
         setLoading(false);
@@ -1368,17 +1344,17 @@ function RedisZsetTable(props: {
   }, []);
 
   const handleDel = async (id: string) => {
-    const del = resp.data.find((e) => e['id'] == id);
+    const del = resp.data.find(e => e["id"] == id);
     try {
       await delOP(del.key);
-      showNotification('success', 'Delete OK');
+      showNotification("success", "Delete OK");
     } catch (e) {
-      showNotification('error', 'delete failure', e);
+      showNotification("error", "delete failure", e);
     }
 
     handleReload(false);
   };
-  const onRowDoubleClick = useCallback((e) => {
+  const onRowDoubleClick = useCallback(e => {
     setSelectRow(e.row);
   }, []);
 
@@ -1386,7 +1362,7 @@ function RedisZsetTable(props: {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
+        onContextMenu: e => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
@@ -1405,7 +1381,7 @@ function RedisZsetTable(props: {
             event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
       },
       toolbar: {
         csvOptions: {
@@ -1419,22 +1395,22 @@ function RedisZsetTable(props: {
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modalBox) {
-      const clean = saveAndSetSize(modalBox, 'redis-edit');
+      const clean = saveAndSetSize(modalBox, "redis-edit");
       return clean;
     }
   }, [modalBox]);
   const onColumnResize = useCallback(({ colDef, width }) => {
-    if (colDef.field == 'score') {
+    if (colDef.field == "score") {
       ColumnWidth.instance.save(colDef.field, width);
     }
   }, []);
   return (
-    <Stack style={{ height: '100%' }}>
-      <Stack direction="row" style={{ alignItems: 'center' }}>
+    <Stack style={{ height: "100%" }}>
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <TextField
           label="key match could be *key,key*,*key*"
           value={keyMatch}
-          onChange={(event) => {
+          onChange={event => {
             setKeyMatch(event.target.value);
           }}
           slotProps={{
@@ -1443,7 +1419,7 @@ function RedisZsetTable(props: {
                 <InputAdornment position="end">
                   <IconButton
                     onClick={() => {
-                      setKeyMatch('');
+                      setKeyMatch("");
                     }}
                     edge="end"
                   >
@@ -1459,7 +1435,7 @@ function RedisZsetTable(props: {
           label="minimum value(float64)"
           value={min}
           error={minErr}
-          onChange={(event) => {
+          onChange={event => {
             if (event.target.value) {
               setMinErr(isNaN(parseFloat(event.target.value)));
             } else {
@@ -1473,7 +1449,7 @@ function RedisZsetTable(props: {
                 <InputAdornment position="end">
                   <IconButton
                     onClick={() => {
-                      setMin('');
+                      setMin("");
                     }}
                     edge="end"
                   >
@@ -1489,7 +1465,7 @@ function RedisZsetTable(props: {
           label="maximum value(float64)"
           value={max}
           error={maxErr}
-          onChange={(event) => {
+          onChange={event => {
             if (event.target.value) {
               setMaxErr(isNaN(parseFloat(event.target.value)));
             } else {
@@ -1503,7 +1479,7 @@ function RedisZsetTable(props: {
                 <InputAdornment position="end">
                   <IconButton
                     onClick={() => {
-                      setMax('');
+                      setMax("");
                     }}
                     edge="end"
                   >
@@ -1560,7 +1536,7 @@ function RedisZsetTable(props: {
           })}
         >
           <Box
-            sx={{ resize: 'both', ...modalStyle }}
+            sx={{ resize: "both", ...modalStyle }}
             width="80%"
             height="70vh"
             ref={setModalBox}
@@ -1640,51 +1616,47 @@ function NotReturnAllErr(props: { has_more: boolean }) {
   );
 }
 
-const valueGetter = (value) => {
+const valueGetter = value => {
   const x = hexTryToString(value);
-  if (typeof x === 'string') {
+  if (typeof x === "string") {
     return x;
   } else {
-    return 'binary value of ' + value;
+    return "binary value of " + value;
   }
 };
 function RedisHashTable(props: {
   reloadOP: (keyMatch: string) => Promise<MuiDataGridData>;
-  modifyOP: (
-    oldMember: string,
-    newMember: string,
-    newValue: string
-  ) => Promise<void>;
+  modifyOP: (oldMember: string, newMember: string, newValue: string) => Promise<void>;
 
   delOP: (key: string) => Promise<void>;
 }) {
   const { reloadOP, modifyOP, delOP } = props;
-  const [keyMatch, setKeyMatch] = useState('');
+  const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const setting = useContext(SettingContext);
-  const handleReload = (showOK) => {
+  const handleReload = showOK => {
     setLoading(true);
     reloadOP(keyMatch)
-      .then((resp) => {
+      .then(resp => {
         resp.data.forEach((e, index) => {
-          e['id'] = index;
+          e["id"] = index;
         });
-        const keyWidth = ColumnWidth.instance.get('key');
-        resp.fields[0]['width'] = keyWidth;
-        resp.fields[1]['flex'] = 1;
-        resp.fields[0]['valueGetter'] = valueGetter;
-        resp.fields[1]['valueGetter'] = valueGetter;
+        const keyWidth = ColumnWidth.instance.get("key");
+        resp.fields[0]["width"] = keyWidth;
+        resp.fields[1]["flex"] = 1;
+        resp.fields[0]["valueGetter"] = valueGetter;
+        resp.fields[1]["valueGetter"] = valueGetter;
 
         setResp(resp);
         if (showOK) {
           reloadOK(showNotification);
         }
       })
-      .catch((e) => {
-        showNotification('error', 'load data error', e);
+      .catch(e => {
+        showNotification("error", "load data error", e);
       })
       .finally(() => {
         setLoading(false);
@@ -1696,17 +1668,17 @@ function RedisHashTable(props: {
   }, []);
 
   const handleDel = async (id: string) => {
-    const del = resp.data.find((e) => e['id'] == id);
+    const del = resp.data.find(e => e["id"] == id);
     try {
       await delOP(del.key);
-      showNotification('success', 'Delete OK');
+      showNotification("success", "Delete OK");
     } catch (e) {
-      showNotification('error', 'Delete failure', e);
+      showNotification("error", "Delete failure", e);
     }
 
     handleReload(false);
   };
-  const onRowDoubleClick = useCallback((e) => {
+  const onRowDoubleClick = useCallback(e => {
     setSelectRow(e.row);
   }, []);
 
@@ -1714,7 +1686,7 @@ function RedisHashTable(props: {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
+        onContextMenu: e => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
@@ -1733,7 +1705,7 @@ function RedisHashTable(props: {
             event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
       },
       toolbar: {
         csvOptions: {
@@ -1747,28 +1719,28 @@ function RedisHashTable(props: {
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modalBox) {
-      const clean = saveAndSetSize(modalBox, 'redis-edit');
+      const clean = saveAndSetSize(modalBox, "redis-edit");
       return clean;
     }
   }, [modalBox]);
   const onColumnResize = useCallback(({ colDef, width }) => {
-    if (colDef.field == 'key') {
+    if (colDef.field == "key") {
       ColumnWidth.instance.save(colDef.field, width);
     }
   }, []);
   return (
-    <Stack style={{ height: '100%' }}>
+    <Stack style={{ height: "100%" }}>
       <Stack
         direction="row"
         alignItems="center"
-        style={{ justifyContent: 'space-between' }}
+        style={{ justifyContent: "space-between" }}
       >
-        <Stack direction="row" style={{ width: '55%', alignItems: 'center' }}>
+        <Stack direction="row" style={{ width: "55%", alignItems: "center" }}>
           <TextField
             label="key match could be *key,key*,*key*"
             variant="outlined"
             value={keyMatch}
-            onChange={(event) => {
+            onChange={event => {
               setKeyMatch(event.target.value);
             }}
             slotProps={{
@@ -1777,7 +1749,7 @@ function RedisHashTable(props: {
                   <InputAdornment position="end">
                     <IconButton
                       onClick={() => {
-                        setKeyMatch('');
+                        setKeyMatch("");
                       }}
                       edge="end"
                     >
@@ -1802,7 +1774,7 @@ function RedisHashTable(props: {
           {resp && <NotReturnAllErr has_more={resp.has_more}></NotReturnAllErr>}
         </Stack>
 
-        <Stack direction="row" style={{ alignItems: 'center' }}>
+        <Stack direction="row" style={{ alignItems: "center" }}>
           <ExecutingTime loading={loading} title="loading time" />
         </Stack>
       </Stack>
@@ -1837,7 +1809,7 @@ function RedisHashTable(props: {
           })}
         >
           <Box
-            sx={{ resize: 'both', ...modalStyle }}
+            sx={{ resize: "both", ...modalStyle }}
             width="80%"
             height="70vh"
             ref={setModalBox}
@@ -1849,7 +1821,7 @@ function RedisHashTable(props: {
               }}
             ></ModalHeader>
             <RedisEditHash
-              modifyOP={async (req) => {
+              modifyOP={async req => {
                 try {
                   await modifyOP(req.oldKey, req.newKey, req.value);
                 } catch (e) {

@@ -1,5 +1,5 @@
-'use strict';
-import { types } from './ApiStruct.ts';
+"use strict";
+import { types } from "./ApiStruct.ts";
 import {
   Alert,
   Box,
@@ -14,7 +14,7 @@ import {
   Tabs,
   Tooltip,
   Typography,
-} from '@mui/material';
+} from "@mui/material";
 import {
   handleCopyToClipboard,
   ContextMenuContext,
@@ -25,13 +25,13 @@ import {
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
-} from './helper.ts';
+} from "./helper.ts";
 import {
   DataGrid,
   GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
-} from '@mui/x-data-grid';
+} from "@mui/x-data-grid";
 import React, {
   CSSProperties,
   memo,
@@ -40,18 +40,13 @@ import React, {
   useEffect,
   useMemo,
   useState,
-} from 'react';
-import {
-  EscDownEvent,
-  keyNotInTable,
-  modalHandleClose,
-  modalStyle,
-} from './Common';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+} from "react";
+import { EscDownEvent, keyNotInTable, modalHandleClose, modalStyle } from "./Common";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import { NotificationContext } from './Notification.tsx';
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import { NotificationContext } from "./Notification.tsx";
 import {
   AppColumnMenu,
   ExportMarkDownTable,
@@ -59,8 +54,8 @@ import {
   MenuResetColumnWidths,
   ModalHeader,
   ViewRowInModal,
-} from './CommonComp.tsx';
-import VisibilityIcon from '@mui/icons-material/Visibility';
+} from "./CommonComp.tsx";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 
 function RespContextMenu(props: {
   content;
@@ -96,14 +91,14 @@ function RespContextMenu(props: {
 
       <MenuItem onClick={viewInModal}>
         <ListItemIcon>
-          <VisibilityIcon style={{ fontSize: '1.4rem' }}></VisibilityIcon>
+          <VisibilityIcon style={{ fontSize: "1.4rem" }}></VisibilityIcon>
         </ListItemIcon>
         <ListItemText> View in Modal </ListItemText>
       </MenuItem>
       <Divider />
       <MenuItem
         onClick={() => {
-          setSort([{ field, sort: 'asc' }] as GridSortModel);
+          setSort([{ field, sort: "asc" }] as GridSortModel);
         }}
       >
         <ListItemIcon>
@@ -113,7 +108,7 @@ function RespContextMenu(props: {
       </MenuItem>
       <MenuItem
         onClick={() => {
-          setSort([{ field, sort: 'desc' }] as GridSortModel);
+          setSort([{ field, sort: "desc" }] as GridSortModel);
         }}
       >
         <ListItemIcon>
@@ -124,9 +119,7 @@ function RespContextMenu(props: {
       <MenuExportMarkDownTable
         showExportMarkDown={showExportMarkDown}
       ></MenuExportMarkDownTable>
-      <MenuResetColumnWidths
-        reset={resetColumnWidthCallBack}
-      ></MenuResetColumnWidths>
+      <MenuResetColumnWidths reset={resetColumnWidthCallBack}></MenuResetColumnWidths>
     </MenuList>
   );
 }
@@ -135,7 +128,7 @@ function smallDataSet(fields: types.Field[]) {
   return fields.length <= 4;
 }
 
-const seqField = 'seq';
+const seqField = "seq";
 
 function QueryResp_(props: { data: MuiDataGridData }) {
   const { data: oldData } = props;
@@ -144,13 +137,12 @@ function QueryResp_(props: { data: MuiDataGridData }) {
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
   useEffect(() => {
     const insert_seq =
-      !oldData.fields.find((e) => e.field == seqField) &&
-      oldData.data.length > 10;
+      !oldData.fields.find(e => e.field == seqField) && oldData.data.length > 10;
     if (insert_seq) {
       oldData.fields = [
         {
           field: seqField,
-          data_type: 'number',
+          data_type: "number",
           width: 85,
           renderHeader: () => {
             return (
@@ -163,7 +155,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
         ...oldData.fields,
       ];
       oldData.data.forEach((e, index) => {
-        e['seq'] = index;
+        e["seq"] = index;
       });
     } else {
       oldData.data.forEach((e, index) => {
@@ -172,19 +164,19 @@ function QueryResp_(props: { data: MuiDataGridData }) {
     }
 
     const considerSmallDataSet = smallDataSet(oldData.fields);
-    oldData.fields.forEach((field) => {
+    oldData.fields.forEach(field => {
       if (field.field == seqField && insert_seq) {
         return;
       }
       if (considerSmallDataSet) {
-        field['flex'] = 1;
+        field["flex"] = 1;
       } else {
         const width = ColumnWidth.instance.get(field.field);
         if (width) {
-          field['width'] = width;
+          field["width"] = width;
         }
       }
-      field['renderHeader'] = (e) => {
+      field["renderHeader"] = e => {
         const def = e.colDef as types.Field;
         return (
           <Tooltip title={`${def.field} ${def.data_type}`}>
@@ -205,7 +197,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
       }
       ColumnWidth.instance.save(colDef.field, width);
     },
-    [data]
+    [data],
   );
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
@@ -213,12 +205,12 @@ function QueryResp_(props: { data: MuiDataGridData }) {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
+        onContextMenu: e => {
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
-          const row = { ...data.data.find((e) => e[keyNotInTable] == id) };
+          const row = { ...data.data.find(e => e[keyNotInTable] == id) };
           delete row[keyNotInTable];
           const content = row[field];
           setUpMenu({
@@ -231,7 +223,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
                 field={field}
                 setSort={setSortModel}
                 resetColumnWidthCallBack={() => {
-                  setData((e) => {
+                  setData(e => {
                     return resetMuiDataRespWidth(e);
                   });
                 }}
@@ -243,7 +235,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
             event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
       },
       toolbar: {
         csvOptions: {
@@ -254,13 +246,13 @@ function QueryResp_(props: { data: MuiDataGridData }) {
     } as GridSlotsComponentsProps;
   }, [data]);
 
-  const onSortModelChange = useCallback((e) => {
+  const onSortModelChange = useCallback(e => {
     setSortModel(e);
   }, []);
   const [viewInModalBox, setViewInModalBox] = useState(null);
   useEffect(() => {
     if (viewInModalBox) {
-      const x1 = saveAndSetSize(viewInModalBox, 'view-row-in-modal');
+      const x1 = saveAndSetSize(viewInModalBox, "view-row-in-modal");
       return () => {
         x1();
       };
@@ -273,9 +265,9 @@ function QueryResp_(props: { data: MuiDataGridData }) {
   return (
     <div
       style={{
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       {data && (
@@ -284,9 +276,9 @@ function QueryResp_(props: { data: MuiDataGridData }) {
             <Typography
               color="info"
               style={{
-                whiteSpace: 'nowrap',
-                textOverflow: 'ellipsis',
-                overflow: 'hidden',
+                whiteSpace: "nowrap",
+                textOverflow: "ellipsis",
+                overflow: "hidden",
               }}
             >
               sql: {data.sql}
@@ -322,7 +314,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
           })}
         >
           <Box
-            sx={{ resize: 'both', ...modalStyle }}
+            sx={{ resize: "both", ...modalStyle }}
             ref={setViewInModalBox}
             width="80%"
             height="30vh"
@@ -333,10 +325,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
                 setViewInModal(null);
               }}
             ></ModalHeader>
-            <ViewRowInModal
-              fields={data.fields}
-              data={viewInModal}
-            ></ViewRowInModal>
+            <ViewRowInModal fields={data.fields} data={viewInModal}></ViewRowInModal>
           </Box>
         </Modal>
       )}
@@ -372,9 +361,9 @@ function getRowIdSeq(row) {
 }
 
 const styleForTrans: CSSProperties = {
-  transition: 'all 0.5s ease',
-  position: 'relative',
-  overflow: 'hidden',
+  transition: "all 0.5s ease",
+  position: "relative",
+  overflow: "hidden",
 };
 
 function MultiQueryResp_(props: { data: any[] }) {
@@ -405,10 +394,7 @@ function MultiQueryResp_(props: { data: any[] }) {
   }
   if (data.length == 1) {
     return data[0].Err ? (
-      <Alert
-        style={{ top, opacity, left: top, ...styleForTrans }}
-        severity="error"
-      >
+      <Alert style={{ top, opacity, left: top, ...styleForTrans }} severity="error">
         {data[0].Err}
       </Alert>
     ) : (
@@ -418,7 +404,7 @@ function MultiQueryResp_(props: { data: any[] }) {
           opacity,
           left: top,
           ...styleForTrans,
-          height: '100%',
+          height: "100%",
         }}
       >
         <QueryResp data={data[0].Ok}></QueryResp>
@@ -436,9 +422,9 @@ function MultiQueryResp_(props: { data: any[] }) {
         top,
         opacity,
         left: top,
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
         ...styleForTrans,
       }}
     >
@@ -453,10 +439,10 @@ function MultiQueryResp_(props: { data: any[] }) {
         ))}
       </Tabs>
 
-      <div style={{ height: '100px', flex: 1 }}>
+      <div style={{ height: "100px", flex: 1 }}>
         {data.map((e, index) => {
           return (
-            <div hidden={value != index} key={index} style={{ height: '100%' }}>
+            <div hidden={value != index} key={index} style={{ height: "100%" }}>
               {e.Err ? (
                 <Alert severity="error">{e.Err}</Alert>
               ) : (

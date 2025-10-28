@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 import {
   Box,
   Button,
@@ -10,30 +10,23 @@ import {
   Switch,
   TextField,
   Tooltip,
-} from '@mui/material';
+} from "@mui/material";
 import {
   DataGrid,
   GridColDef,
   GridPaginationModel,
   GridSortModel,
-} from '@mui/x-data-grid';
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+} from "@mui/x-data-grid";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   EscDownEvent,
   modalHandleClose,
   modalStyle,
   NameAndQueryId,
   SetAutoCompletionName,
-} from './Common';
-import DoneIcon from '@mui/icons-material/Done';
-import CloseIcon from '@mui/icons-material/Close';
+} from "./Common";
+import DoneIcon from "@mui/icons-material/Done";
+import CloseIcon from "@mui/icons-material/Close";
 import {
   ColumnWidth,
   dataGridStyle,
@@ -47,14 +40,14 @@ import {
   secondConfirm,
   SettingContext,
   TabActiveContext,
-} from './helper.ts';
-import { ModalHeader, ResizeParentHeight } from './CommonComp.tsx';
-import { BsFillLightbulbFill } from 'react-icons/bs';
-import { NotificationContext } from './Notification.tsx';
-import { SimpleFlexEditor } from './CommonComp2.tsx';
+} from "./helper.ts";
+import { ModalHeader, ResizeParentHeight } from "./CommonComp.tsx";
+import { BsFillLightbulbFill } from "react-icons/bs";
+import { NotificationContext } from "./Notification.tsx";
+import { SimpleFlexEditor } from "./CommonComp2.tsx";
 
 const initialState: object = {
-  sorting: { sortModel: [{ field: 'create_at', sort: 'desc' }] },
+  sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
 };
 
 function QueryLog(props: {
@@ -65,40 +58,36 @@ function QueryLog(props: {
   queryId?: number;
   kind: DataSourceKind;
 }) {
-  const { uuid, showQueryLog, setShowQueryLog, executeTimes, queryId, kind } =
-    props;
-  const [selectSql, setSelectSql] = useState('');
+  const { uuid, showQueryLog, setShowQueryLog, executeTimes, queryId, kind } = props;
+  const [selectSql, setSelectSql] = useState("");
   const [page, setPage] = useState(0); // datagrid start with 0
   const [pageSize, setPagesize] = useState(SavePageSize.instance.get());
   const [logs, setLogs] = useState([]);
-  const [matchSql, setMatchSql] = useState('');
-  const [orderBy, setOrderBy] = useState('');
+  const [matchSql, setMatchSql] = useState("");
+  const [orderBy, setOrderBy] = useState("");
   const [total, setTotal] = useState(0);
-  const onRowDoubleClick = useCallback((e) => {
+  const onRowDoubleClick = useCallback(e => {
     setSelectSql(e.row.sql);
   }, []);
   const handler = useRef(new QueryLogHandler(uuid));
   const paginationModel = useMemo(() => {
     return { page: page, pageSize: pageSize };
   }, [page, pageSize]);
-  const onPaginationModelChange = useCallback(
-    (e: GridPaginationModel, reason) => {
-      setPage(e.page);
-      setPagesize(e.pageSize);
-      if (reason.reason == 'setPaginationModel') {
-        SavePageSize.instance.save(e.pageSize);
-      }
-    },
-    []
-  );
+  const onPaginationModelChange = useCallback((e: GridPaginationModel, reason) => {
+    setPage(e.page);
+    setPagesize(e.pageSize);
+    if (reason.reason == "setPaginationModel") {
+      SavePageSize.instance.save(e.pageSize);
+    }
+  }, []);
 
-  let sqlDesc = 'sql';
+  let sqlDesc = "sql";
   switch (kind) {
     case DataSourceKind.Redis:
-      sqlDesc = 'command';
+      sqlDesc = "command";
       break;
     case DataSourceKind.Mongo:
-      sqlDesc = 'code';
+      sqlDesc = "code";
       break;
   }
   const { showNotification } = useContext(NotificationContext);
@@ -106,34 +95,29 @@ function QueryLog(props: {
     try {
       const total = await handler.current.queryCount(matchSql);
       setTotal(total);
-      const logs = await handler.current.query(
-        matchSql,
-        page + 1,
-        pageSize,
-        orderBy
-      );
+      const logs = await handler.current.query(matchSql, page + 1, pageSize, orderBy);
       setLogs(logs);
     } catch (e) {
-      showNotification('error', 'get query log error', e);
+      showNotification("error", "get query log error", e);
       return;
     }
   };
   const columns = [
     {
-      field: 'create_at',
-      width: ColumnWidth.instance.get('create_at'),
+      field: "create_at",
+      width: ColumnWidth.instance.get("create_at"),
       renderHeader: () => {
-        return 'time';
+        return "time";
       },
-      renderCell: (params) => {
+      renderCell: params => {
         // 加z是utc时间
-        return <div>{new Date(params.value + 'Z').toLocaleString()}</div>;
+        return <div>{new Date(params.value + "Z").toLocaleString()}</div>;
       },
     },
     {
-      width: ColumnWidth.instance.get('success'),
-      field: 'success',
-      renderCell: (p) => {
+      width: ColumnWidth.instance.get("success"),
+      field: "success",
+      renderCell: p => {
         const success = p.row.success;
         if (success) {
           return <DoneIcon color="success"></DoneIcon>;
@@ -144,7 +128,7 @@ function QueryLog(props: {
       filterable: false,
     },
     {
-      field: 'sql',
+      field: "sql",
       flex: 1,
       renderHeader: () => {
         return sqlDesc;
@@ -161,37 +145,37 @@ function QueryLog(props: {
   const setting = useContext(SettingContext);
   const onColumnResize = useCallback(({ colDef, width }) => {
     const field = colDef.field;
-    if (field == 'create_at' || field == 'success') {
+    if (field == "create_at" || field == "success") {
       ColumnWidth.instance.save(field, width);
     }
   }, []);
   const onSortModelChange = useCallback((modal: GridSortModel) => {
-    modal = modal.filter((x) => x.sort);
-    const orderBy = modal.map((e) => `${e.field} ${e.sort}`).join(' ');
+    modal = modal.filter(x => x.sort);
+    const orderBy = modal.map(e => `${e.field} ${e.sort}`).join(" ");
     setOrderBy(orderBy);
   }, []);
   const [modalBox, setModalBox] = useState(null);
   useEffect(() => {
     if (modalBox) {
-      const clean = saveAndSetSize(modalBox, 'query-sql');
+      const clean = saveAndSetSize(modalBox, "query-sql");
       return clean;
     }
   }, [modalBox]);
   const vis = useContext(TabActiveContext);
   const keyEscCancelQueryLog = useCallback(
-    (e) => {
-      if (e.key === 'Escape' && vis && showQueryLog) {
+    e => {
+      if (e.key === "Escape" && vis && showQueryLog) {
         setShowQueryLog(false);
         e.preventDefault();
       }
     },
-    [vis, showQueryLog]
+    [vis, showQueryLog],
   );
 
   useEffect(() => {
-    document.addEventListener('keydown', keyEscCancelQueryLog);
+    document.addEventListener("keydown", keyEscCancelQueryLog);
     return () => {
-      document.removeEventListener('keydown', keyEscCancelQueryLog);
+      document.removeEventListener("keydown", keyEscCancelQueryLog);
     };
   }, [keyEscCancelQueryLog]);
 
@@ -200,15 +184,15 @@ function QueryLog(props: {
   return (
     <Paper
       style={{
-        position: 'absolute',
+        position: "absolute",
         right: 0,
         top: 0,
         zIndex: 13,
-        width: '75%',
-        display: showQueryLog ? 'flex' : 'none',
-        flexDirection: 'column',
-        height: '400px',
-        maxHeight: '80vh',
+        width: "75%",
+        display: showQueryLog ? "flex" : "none",
+        flexDirection: "column",
+        height: "400px",
+        maxHeight: "80vh",
       }}
       ref={setDom}
       elevation={16}
@@ -216,12 +200,12 @@ function QueryLog(props: {
       <Stack
         direction="row"
         style={{
-          alignItems: 'center',
-          padding: '0px 4px',
-          justifyContent: 'space-between',
+          alignItems: "center",
+          padding: "0px 4px",
+          justifyContent: "space-between",
         }}
       >
-        <Stack direction="row" style={{ alignItems: 'center' }}>
+        <Stack direction="row" style={{ alignItems: "center" }}>
           <IconButton
             onClick={() => {
               setShowQueryLog(false);
@@ -236,34 +220,31 @@ function QueryLog(props: {
             <span>esc</span>
           </Tooltip>
         </Stack>
-        <Stack direction="row" style={{ alignItems: 'center' }}>
+        <Stack direction="row" style={{ alignItems: "center" }}>
           filter {sqlDesc}:
           <TextField
             value={matchSql}
-            onChange={(e) => {
+            onChange={e => {
               setMatchSql(e.target.value);
             }}
-            style={{ flex: 1, maxWidth: '20rem' }}
+            style={{ flex: 1, maxWidth: "20rem" }}
           ></TextField>
           {total > 0 && (
             <Button
               onClick={async () => {
                 try {
                   const confirm = await secondConfirm({
-                    confirmText: 'delete',
-                    title: 'delete all query log?',
+                    confirmText: "delete",
+                    title: "delete all query log?",
                   });
                   if (!confirm) {
                     return;
                   }
                   const r = await handler.current.delete();
-                  showNotification(
-                    'success',
-                    `deleted ${r.rowsAffected} query log`
-                  );
+                  showNotification("success", `deleted ${r.rowsAffected} query log`);
                   setShowQueryLog(false);
                 } catch (e) {
-                  showNotification('error', 'delete failed', e);
+                  showNotification("error", "delete failed", e);
                   return;
                 }
               }}
@@ -271,9 +252,7 @@ function QueryLog(props: {
               delete
             </Button>
           )}
-          <Tooltip
-            title={`auto save query log to local database maybe danger.`}
-          >
+          <Tooltip title={`auto save query log to local database maybe danger.`}>
             <FormControlLabel
               control={
                 <Switch
@@ -325,11 +304,11 @@ function QueryLog(props: {
           open={!!selectSql}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
-            setSelectSql('');
+            setSelectSql("");
           })}
         >
           <Box
-            sx={{ resize: 'both', ...modalStyle }}
+            sx={{ resize: "both", ...modalStyle }}
             ref={setModalBox}
             width="60%"
             height="40vh"
@@ -337,15 +316,15 @@ function QueryLog(props: {
             <ModalHeader
               title="View SQL"
               handleClose={() => {
-                setSelectSql('');
+                setSelectSql("");
               }}
             ></ModalHeader>
             <SimpleFlexEditor
               value={selectSql}
-              handleEditor={(e) => {
+              handleEditor={e => {
                 SetAutoCompletionName.set(
                   e.getModel().id,
-                  new NameAndQueryId(uuid, kind, queryId)
+                  new NameAndQueryId(uuid, kind, queryId),
                 );
               }}
               language={getLanguageFromDataSourceKind(kind)}

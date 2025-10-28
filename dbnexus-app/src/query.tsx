@@ -1,16 +1,16 @@
-'use strict';
-import ReactDOM from 'react-dom/client';
-import React, { useEffect, useState } from 'react';
+"use strict";
+import ReactDOM from "react-dom/client";
+import React, { useEffect, useState } from "react";
 import {
   DataSourceKind,
   FavoriteSql,
   secondConfirm,
   SetCloseConfirmTextContext,
   SomeTempStore,
-} from './comp/helper.ts';
-import { SeparateWindow } from './comp/MainPage.tsx';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { AllKindQuery } from './comp/Left.tsx';
+} from "./comp/helper.ts";
+import { SeparateWindow } from "./comp/MainPage.tsx";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { AllKindQuery } from "./comp/Left.tsx";
 
 const sqlData = SomeTempStore.get<FavoriteSql>();
 
@@ -25,42 +25,37 @@ function Query(props: {
   favoriteName?: string;
 }) {
   const { uuid, kind, sql, favoriteName } = props;
-  const [closeConfirm, setCloseConfirm] = useState('');
+  const [closeConfirm, setCloseConfirm] = useState("");
   useEffect(() => {
     exitConfirmMessage = closeConfirm;
   }, [closeConfirm]);
   return (
     <SetCloseConfirmTextContext
-      value={(msg) => {
+      value={msg => {
         setCloseConfirm(msg);
       }}
     >
-      <AllKindQuery
-        uuid={uuid}
-        kind={kind}
-        value={sql}
-        favoriteName={favoriteName}
-      />
+      <AllKindQuery uuid={uuid} kind={kind} value={sql} favoriteName={favoriteName} />
     </SetCloseConfirmTextContext>
   );
 }
 
 const currentWebview = await WebviewWindow.getCurrent();
-currentWebview.onCloseRequested(async (event) => {
+currentWebview.onCloseRequested(async event => {
   if (!exitConfirmMessage) {
     return;
   }
   const confirm = await secondConfirm({
-    title: 'close the window',
+    title: "close the window",
     content: exitConfirmMessage,
-    confirmText: 'close',
+    confirmText: "close",
   });
   if (!confirm) {
     event.preventDefault();
   }
 });
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <SeparateWindow>
       <Query
@@ -70,5 +65,5 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         favoriteName={sqlData.name}
       ></Query>
     </SeparateWindow>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

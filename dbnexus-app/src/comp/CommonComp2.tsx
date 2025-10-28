@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 import {
   ReactNode,
   useCallback,
@@ -7,12 +7,12 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
-import { NotificationContext } from './Notification';
-import Stack from '@mui/material/Stack';
-import InfoIcon from '@mui/icons-material/Info';
-import CloseIcon from '@mui/icons-material/Close';
-import SaveIcon from '@mui/icons-material/Save';
+} from "react";
+import { NotificationContext } from "./Notification";
+import Stack from "@mui/material/Stack";
+import InfoIcon from "@mui/icons-material/Info";
+import CloseIcon from "@mui/icons-material/Close";
+import SaveIcon from "@mui/icons-material/Save";
 import {
   Autocomplete,
   Button,
@@ -26,8 +26,8 @@ import {
   TextField,
   Tooltip,
   Typography,
-} from '@mui/material';
-import AttachFileIcon from '@mui/icons-material/AttachFile';
+} from "@mui/material";
+import AttachFileIcon from "@mui/icons-material/AttachFile";
 import {
   DataSourceKind,
   editorSetPositionAndReveal,
@@ -39,43 +39,40 @@ import {
   SettingContext,
   SomeTempStore,
   TabActiveContext,
-} from './helper';
-import { Editor, Monaco } from '@monaco-editor/react';
-import { editor, Position } from 'monaco-editor';
-import { invoke } from '@tauri-apps/api/core';
-import { ConnectHandler, extractBaseName, reloadOK } from './Common';
-import types from './ApiStruct';
-import { MetaValueView } from './CommonComp';
-import { readFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { save, open, DialogFilter } from '@tauri-apps/plugin-dialog';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-import ReactMarkdown from 'react-markdown';
-import {
-  oneDark,
-  oneLight,
-} from 'react-syntax-highlighter/dist/esm/styles/prism';
+} from "./helper";
+import { Editor, Monaco } from "@monaco-editor/react";
+import { editor, Position } from "monaco-editor";
+import { invoke } from "@tauri-apps/api/core";
+import { ConnectHandler, extractBaseName, reloadOK } from "./Common";
+import types from "./ApiStruct";
+import { MetaValueView } from "./CommonComp";
+import { readFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { save, open, DialogFilter } from "@tauri-apps/plugin-dialog";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import ReactMarkdown from "react-markdown";
+import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { openUrl } from '@tauri-apps/plugin-opener';
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { openUrl } from "@tauri-apps/plugin-opener";
 function CreateDatabase({ uuid, handleClose }) {
   const { showNotification } = useContext(NotificationContext);
-  const [database, setDatabase] = useState('');
+  const [database, setDatabase] = useState("");
   const databaseDom = useRef(null);
   const handleCreate = () => {
     if (!database) {
       databaseDom.current.focus();
-      showNotification('warning', 'database name is empty');
+      showNotification("warning", "database name is empty");
       return;
     }
 
     let extra = null;
-    invoke('create_database', { name: uuid, database, extra })
+    invoke("create_database", { name: uuid, database, extra })
       .then(() => {
-        showNotification('success', 'Create OK');
+        showNotification("success", "Create OK");
         handleClose();
       })
-      .catch((e) => {
-        showNotification('error', 'Create Failure', e);
+      .catch(e => {
+        showNotification("error", "Create Failure", e);
       });
   };
 
@@ -85,7 +82,7 @@ function CreateDatabase({ uuid, handleClose }) {
         <TextField
           inputRef={databaseDom}
           value={database}
-          onChange={(e) => {
+          onChange={e => {
             setDatabase(e.target.value);
           }}
           label="database name"
@@ -114,41 +111,41 @@ function CreateSchema(props: {
   const { uuid, handleClose, kind, schemas, handleReload } = props;
   const schemaSet = new Set(schemas);
   const { showNotification } = useContext(NotificationContext);
-  const [schema, setSchema] = useState('');
+  const [schema, setSchema] = useState("");
   const schemaDom = useRef(null);
-  const replicationStrategies = ['SimpleStrategy', 'NetworkTopologyStrategy'];
+  const replicationStrategies = ["SimpleStrategy", "NetworkTopologyStrategy"];
   const [replicationStrategy, setReplicationStrategy] = useState(
-    replicationStrategies[0]
+    replicationStrategies[0],
   );
-  const [replicationFactor, setReplicationFactor] = useState('3');
+  const [replicationFactor, setReplicationFactor] = useState("3");
   const handleCreate = () => {
     if (!schema) {
       schemaDom.current.focus();
-      showNotification('error', 'Schema is empty');
+      showNotification("error", "Schema is empty");
       return;
     }
     if (schemaSet.has(schema)) {
-      showNotification('warning', `'${schema}' already exists.`);
+      showNotification("warning", `'${schema}' already exists.`);
       return;
     }
     let extra = null;
     switch (kind) {
       case DataSourceKind.Cassandra:
         extra = {
-          extra: 'cassandra',
+          extra: "cassandra",
           replication_strategy: replicationStrategy,
           replication_factor: parseInt(replicationFactor),
         };
         break;
     }
-    invoke('create_schema', { name: uuid, schema, extra })
+    invoke("create_schema", { name: uuid, schema, extra })
       .then(() => {
-        showNotification('success', 'create  ok');
+        showNotification("success", "create  ok");
         handleClose();
         handleReload();
       })
-      .catch((e) => {
-        showNotification('error', 'create failure', e);
+      .catch(e => {
+        showNotification("error", "create failure", e);
       });
   };
 
@@ -158,26 +155,26 @@ function CreateSchema(props: {
       <Stack>
         <RadioGroup
           row
-          onChange={(e) => {
+          onChange={e => {
             setReplicationStrategy(e.target.value);
           }}
           value={replicationStrategy}
         >
-          {replicationStrategies.map((e) => (
+          {replicationStrategies.map(e => (
             <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
           ))}
         </RadioGroup>
         <TextField
           type="number"
           value={replicationFactor}
-          onChange={(e) => {
+          onChange={e => {
             setReplicationFactor(e.target.value);
           }}
           label="replication factor"
         ></TextField>
         <TextField
           value={schema}
-          onChange={(e) => {
+          onChange={e => {
             setSchema(e.target.value);
           }}
           inputRef={schemaDom}
@@ -199,18 +196,18 @@ function CreateSchema(props: {
     // redis have special create
     const range = [];
     for (let i = 0; i < 16; i++) {
-      range.push('db' + i);
+      range.push("db" + i);
     }
     return (
       <Stack>
         <Autocomplete
-          options={range.filter((e) => {
+          options={range.filter(e => {
             return !schemaSet.has(e);
           })}
           freeSolo={false}
           fullWidth
           value={schema}
-          renderInput={(params) => <TextField {...params} label="database" />}
+          renderInput={params => <TextField {...params} label="database" />}
           onChange={(_, schema) => {
             setSchema(schema);
           }}
@@ -233,7 +230,7 @@ function CreateSchema(props: {
       <Stack>
         <TextField
           value={schema}
-          onChange={(e) => {
+          onChange={e => {
             setSchema(e.target.value);
           }}
           label="name"
@@ -262,15 +259,8 @@ function SimpleFlexEditor(props: {
   errPos?: Position;
   handleEditor?: (editor: editor.IStandaloneCodeEditor) => void;
 }) {
-  const {
-    language,
-    value,
-    handleValue,
-    barLeft,
-    readOnly,
-    errPos,
-    handleEditor,
-  } = props;
+  const { language, value, handleValue, barLeft, readOnly, errPos, handleEditor } =
+    props;
   const [pos, setPos] = useState<Position>(null);
   const setting = useContext(SettingContext);
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
@@ -290,7 +280,7 @@ function SimpleFlexEditor(props: {
         }
       });
     },
-    []
+    [],
   );
   useEffect(() => {
     if (editor.current && errPos) {
@@ -313,8 +303,8 @@ function SimpleFlexEditor(props: {
   return (
     <div
       style={{
-        display: 'flex',
-        flexDirection: 'column',
+        display: "flex",
+        flexDirection: "column",
         flex: 1,
       }}
     >
@@ -341,12 +331,9 @@ function EditorBar(props: { left?: any; pos: Position }) {
     <Stack justifyContent="space-between" direction="row" alignItems="center">
       {left ? left : <span></span>}
 
-      <Stack
-        direction="row"
-        style={{ paddingLeft: '2rem', paddingRight: '3rem' }}
-      >
-        <span>Ln {pos ? pos.lineNumber : ''}</span>
-        <span>Col {pos ? pos.column : ''}</span>
+      <Stack direction="row" style={{ paddingLeft: "2rem", paddingRight: "3rem" }}>
+        <span>Ln {pos ? pos.lineNumber : ""}</span>
+        <span>Col {pos ? pos.column : ""}</span>
       </Stack>
     </Stack>
   );
@@ -365,15 +352,15 @@ function MenuConnectionInfo({ uuid }) {
     SomeTempStore.set(uuid);
     const webview = new WebviewWindow(generateRandomString(), {
       title: `some infomation about '${uuid}'`,
-      url: 'info.html',
+      url: "info.html",
       width: 800,
       height: 600,
     });
-    webview.once('tauri://created', () =>
-      console.info('create info view successfully')
+    webview.once("tauri://created", () =>
+      console.info("create info view successfully"),
     );
-    webview.once('tauri://error', (e) => {
-      showNotification('error', 'create webview failed', e.event.toString());
+    webview.once("tauri://error", e => {
+      showNotification("error", "create webview failed", e.event.toString());
     });
     infoWindows.set(uuid, webview);
     webview.onCloseRequested(() => {
@@ -396,7 +383,7 @@ function ConnConfigInfo(props: { uuid }) {
   const [metas, setMetas] = useState<types.MetaValue[]>([]);
   const handleInfo = async (showOK: boolean) => {
     try {
-      const metas = await invoke<types.MetaValue[]>('server_metas', {
+      const metas = await invoke<types.MetaValue[]>("server_metas", {
         name: uuid,
       });
       const config = await ConnectHandler.getByName(uuid);
@@ -415,27 +402,23 @@ function ConnConfigInfo(props: { uuid }) {
         case DataSourceKind.FireBird:
         case DataSourceKind.SqlServer:
           configMetas = [
-            { name: 'host', value: config.host } as types.MetaValue,
-            { name: 'port', value: config.port + '' } as types.MetaValue,
-            { name: 'user', value: config.username } as types.MetaValue,
+            { name: "host", value: config.host } as types.MetaValue,
+            { name: "port", value: config.port + "" } as types.MetaValue,
+            { name: "user", value: config.username } as types.MetaValue,
           ];
           break;
         case DataSourceKind.LibSql:
-          if (config.source === 'local') {
+          if (config.source === "local") {
+            configMetas = [{ name: "host", value: config.path } as types.MetaValue];
+          } else if (config.source == "remote") {
             configMetas = [
-              { name: 'host', value: config.path } as types.MetaValue,
-            ];
-          } else if (config.source == 'remote') {
-            configMetas = [
-              { name: 'url', value: config.url } as types.MetaValue,
-              { name: 'path', value: config.path } as types.MetaValue,
+              { name: "url", value: config.url } as types.MetaValue,
+              { name: "path", value: config.path } as types.MetaValue,
             ];
           }
           break;
         case DataSourceKind.Sqlite:
-          configMetas = [
-            { name: 'path', value: config.path } as types.MetaValue,
-          ];
+          configMetas = [{ name: "path", value: config.path } as types.MetaValue];
           break;
       }
       setMetas([...configMetas, ...metas]);
@@ -443,7 +426,7 @@ function ConnConfigInfo(props: { uuid }) {
         reloadOK(showNotification);
       }
     } catch (e) {
-      showNotification('error', 'call server metas failed', e);
+      showNotification("error", "call server metas failed", e);
     }
   };
   useEffect(() => {
@@ -451,7 +434,7 @@ function ConnConfigInfo(props: { uuid }) {
   }, []);
 
   return (
-    <Stack style={{ height: '100%' }}>
+    <Stack style={{ height: "100%" }}>
       <Stack direction="row">
         <Button
           color="primary"
@@ -474,7 +457,7 @@ function LoadStoreFile(props: {
   kind: DataSourceKind;
 }) {
   const { getQuery, handleLoadFile, kind } = props;
-  const [file, setFile] = useState('');
+  const [file, setFile] = useState("");
   const { showNotification } = useContext(NotificationContext);
   const active = useContext(TabActiveContext);
 
@@ -484,32 +467,32 @@ function LoadStoreFile(props: {
       case DataSourceKind.Mongo:
         filters = [
           {
-            name: 'javscript or typescrpt',
-            extensions: ['ts', 'js'],
+            name: "javscript or typescrpt",
+            extensions: ["ts", "js"],
           },
         ];
         break;
       case DataSourceKind.Redis:
         filters = [
           {
-            name: 'redis',
-            extensions: ['redis'],
+            name: "redis",
+            extensions: ["redis"],
           },
         ];
         break;
       case DataSourceKind.Cassandra:
         filters = [
           {
-            name: 'cql',
-            extensions: ['cql'],
+            name: "cql",
+            extensions: ["cql"],
           },
         ];
         break;
       default:
         filters = [
           {
-            name: 'SQL',
-            extensions: ['sql'],
+            name: "SQL",
+            extensions: ["sql"],
           },
         ];
     }
@@ -519,35 +502,35 @@ function LoadStoreFile(props: {
   const handleLoad = async () => {
     // ok to load
     try {
-      const file = await open({ title: 'open file', filters });
+      const file = await open({ title: "open file", filters });
       if (file) {
         const content = new TextDecoder().decode(await readFile(file));
         handleLoadFile(file, content);
         setFile(file);
       }
     } catch (e) {
-      showNotification('error', 'error to open file', e);
+      showNotification("error", "error to open file", e);
     }
   };
 
   const handleSave = async () => {
     const content = getQuery();
     if (!content) {
-      showNotification('warning', `can't save empty content`);
+      showNotification("warning", `can't save empty content`);
       return;
     }
     try {
-      const ofile = file ? file : await save({ title: 'save query', filters });
+      const ofile = file ? file : await save({ title: "save query", filters });
       if (ofile) {
         await writeTextFile(ofile, content, {
           create: true,
         });
         setFile(ofile);
         handleLoadFile(ofile, content);
-        showNotification('success', 'save file OK');
+        showNotification("success", "save file OK");
       }
     } catch (e) {
-      showNotification('error', 'save file failed', e);
+      showNotification("error", "save file failed", e);
     }
   };
 
@@ -556,17 +539,17 @@ function LoadStoreFile(props: {
       const fileContent = new TextDecoder().decode(await readFile(file));
       if (fileContent != getQuery()) {
         const confirm = await secondConfirm({
-          title: 'file not saved',
-          content: 'discard the content',
+          title: "file not saved",
+          content: "discard the content",
         });
         if (!confirm) {
           return;
         }
       }
-      setFile('');
-      handleLoadFile('', '');
+      setFile("");
+      handleLoadFile("", "");
     } catch (e) {
-      showNotification('error', 'close file failed', e);
+      showNotification("error", "close file failed", e);
     }
   };
 
@@ -584,16 +567,16 @@ function LoadStoreFile(props: {
         handleLoad();
       }
     };
-    document.addEventListener('keydown', callback);
+    document.addEventListener("keydown", callback);
     return () => {
-      document.removeEventListener('keydown', callback);
+      document.removeEventListener("keydown", callback);
     };
   }, [active, file, getQuery, handleLoadFile]);
 
   return (
     <>
       {file && (
-        <Stack direction="row" style={{ alignItems: 'center' }}>
+        <Stack direction="row" style={{ alignItems: "center" }}>
           <Tooltip title={file}>
             <Typography>{extractBaseName(file)}</Typography>
           </Tooltip>
@@ -606,7 +589,7 @@ function LoadStoreFile(props: {
       )}
       <Tooltip
         title={`attach file,keyboard shortcut is ${
-          isMacOs() ? 'command+o' : 'control+o'
+          isMacOs() ? "command+o" : "control+o"
         }`}
       >
         <IconButton onClick={handleLoad} color="primary">
@@ -615,7 +598,7 @@ function LoadStoreFile(props: {
       </Tooltip>
       <Tooltip
         title={`save query to file,keyboard shortcut is ${
-          isMacOs() ? 'command+s' : 'control+s'
+          isMacOs() ? "command+s" : "control+s"
         }`}
       >
         <IconButton onClick={handleSave} color="primary">
@@ -626,25 +609,22 @@ function LoadStoreFile(props: {
   );
 }
 
-function AppMarkDown(props: {
-  doc: string;
-  handlePathUrl: (href: string) => void;
-}) {
+function AppMarkDown(props: { doc: string; handlePathUrl: (href: string) => void }) {
   const { doc, handlePathUrl } = props;
   const CustomLink = (props: { href: string; children: ReactNode }) => {
     const { href, children } = props;
     const { showNotification } = useContext(NotificationContext);
-    const handleClick = (event) => {
+    const handleClick = event => {
       event.preventDefault();
       // 在这里处理链接点击，比如使用 Tauri API 打开链接
       console.info(`Link clicked: ${href}`);
-      if (href.startsWith('http')) {
+      if (href.startsWith("http")) {
         openUrl(href)
           .then(() => {
-            showNotification('success', 'open url OK');
+            showNotification("success", "open url OK");
           })
-          .catch((e) => {
-            showNotification('error', 'open url failed', e);
+          .catch(e => {
+            showNotification("error", "open url failed", e);
           });
       } else {
         handlePathUrl(href);
@@ -661,7 +641,7 @@ function AppMarkDown(props: {
     <ReactMarkdown
       components={{
         code({ node, className, children, ...props }) {
-          const match = /language-(\w+)/.exec(className || '');
+          const match = /language-(\w+)/.exec(className || "");
           return match ? (
             <SyntaxHighlighter
               style={syntaxHightLightTheme()} // Apply the chosen theme
@@ -669,7 +649,7 @@ function AppMarkDown(props: {
               PreTag="div"
               {...props}
             >
-              {String(children).replace(/\n$/, '')}
+              {String(children).replace(/\n$/, "")}
             </SyntaxHighlighter>
           ) : (
             <code className={className} {...props}>
@@ -694,8 +674,8 @@ function UrlDocument(props: { url: string }) {
     <Tooltip title={url}>
       <InfoIcon
         href={url}
-        style={{ cursor: 'pointer' }}
-        onClick={(e) => {
+        style={{ cursor: "pointer" }}
+        onClick={e => {
           e.preventDefault();
           openUrl(url);
         }}

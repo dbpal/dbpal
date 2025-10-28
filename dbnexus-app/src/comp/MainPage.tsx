@@ -1,16 +1,10 @@
-'use strict';
-import { NotificationProvider } from './Notification';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import {
-  CSSProperties,
-  ReactNode,
-  useCallback,
-  useEffect,
-  useState,
-} from 'react';
-import { TabContent, TabsWithContent } from './Tabs';
-import { Left } from './Left';
-import { SettingComp } from './Settings.tsx';
+"use strict";
+import { NotificationProvider } from "./Notification";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { CSSProperties, ReactNode, useCallback, useEffect, useState } from "react";
+import { TabContent, TabsWithContent } from "./Tabs";
+import { Left } from "./Left";
+import { SettingComp } from "./Settings.tsx";
 import {
   ContextMenuContext,
   secondConfirm,
@@ -18,10 +12,10 @@ import {
   WindowFocusContext,
   getViewportSize,
   KeyPressed,
-} from './helper.ts';
-import '../app.css';
-import { Paper, useTheme } from '@mui/material';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+} from "./helper.ts";
+import "../app.css";
+import { Paper, useTheme } from "@mui/material";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 const shortCuts = {
   callback: (e: KeyboardEvent) => {
@@ -50,34 +44,34 @@ function App() {
       (async () => {
         const id = tabs[index].id;
         if (tabs[index].closeConfirmText) {
-          const c = await secondConfirm({
+          const confirm = await secondConfirm({
             content: tabs[index].closeConfirmText,
-            title: 'close the tab',
-            confirmText: 'close',
+            title: "close the tab",
+            confirmText: "close",
           });
-          if (!c) {
+          if (!confirm) {
             return;
           }
         }
-        setTabs((prevTabs) => {
-          return prevTabs.filter((x) => x.id !== id);
+        setTabs(prevTabs => {
+          return prevTabs.filter(x => x.id !== id);
         });
       })();
     },
-    [tabs]
+    [tabs],
   );
 
   shortCuts.prev = () => {
-    setTab((e) => (e > 0 ? e - 1 : e));
+    setTab(e => (e > 0 ? e - 1 : e));
   };
 
   shortCuts.next = () => {
     if (tabs.length - 1 > tab) {
-      setTab((e) => e + 1);
+      setTab(e => e + 1);
     }
   };
 
-  shortCuts.closeCurrentTab = (e) => {
+  shortCuts.closeCurrentTab = e => {
     if (tabs.length > 0) {
       closeTab(tab);
       e.preventDefault();
@@ -86,19 +80,19 @@ function App() {
 
   // shortcut
   useEffect(() => {
-    document.addEventListener('keydown', shortCuts.callback);
+    document.addEventListener("keydown", shortCuts.callback);
     return () => {
-      document.removeEventListener('keydown', shortCuts.callback);
+      document.removeEventListener("keydown", shortCuts.callback);
     };
   }, []);
 
   useEffect(() => {
     if (tab > 0 && tab >= tabs.length) {
-      setTab((e) => e - 1);
+      setTab(e => e - 1);
     }
   }, [tabs]);
 
-  const changeTab = useCallback((index) => {
+  const changeTab = useCallback(index => {
     setTab(index as number);
   }, []);
 
@@ -112,17 +106,17 @@ function App() {
                 <PanelGroup
                   direction="horizontal"
                   style={{
-                    height: '100vh',
-                    width: '100vw',
-                    padding: '0.5rem 1rem',
+                    height: "100vh",
+                    width: "100vw",
+                    padding: "0.5rem 1rem",
                   }}
                   autoSaveId="main"
                 >
                   <Panel
                     style={{
-                      overflowY: 'auto',
-                      overflowX: 'hidden',
-                      height: '100%',
+                      overflowY: "auto",
+                      overflowX: "hidden",
+                      height: "100%",
                     }}
                     minSize={10}
                     maxSize={65}
@@ -131,14 +125,11 @@ function App() {
                   >
                     <Left></Left>
                   </Panel>
-                  <PanelResizeHandle
-                    style={{ width: 4 }}
-                    className="resize-handle"
-                  />
+                  <PanelResizeHandle style={{ width: 4 }} className="resize-handle" />
                   <Panel
                     style={{
-                      overflow: 'auto',
-                      height: '100%',
+                      overflow: "auto",
+                      height: "100%",
                     }}
                   >
                     <TabsWithContent
@@ -164,19 +155,17 @@ function WindowFocus(props: { children: ReactNode }) {
   const [windowFocus, setWindowsFocus] = useState(true);
   useEffect(() => {
     const webview = WebviewWindow.getCurrent();
-    const unlisten = webview.onFocusChanged((e) => {
+    const unlisten = webview.onFocusChanged(e => {
       setWindowsFocus(e.payload);
     });
     return () => {
-      unlisten.then((callback) => {
+      unlisten.then(callback => {
         callback();
       });
     };
   }, []);
 
-  return (
-    <WindowFocusContext value={windowFocus}>{children}</WindowFocusContext>
-  );
+  return <WindowFocusContext value={windowFocus}>{children}</WindowFocusContext>;
 }
 
 function Menu(props: { children: ReactNode }) {
@@ -192,11 +181,11 @@ function Menu(props: { children: ReactNode }) {
     if (!menuDiv) {
       return;
     }
-    document.addEventListener('click', () => {
+    document.addEventListener("click", () => {
       if (!menuDiv.style) {
         return;
       }
-      menuDiv.style.display = 'none';
+      menuDiv.style.display = "none";
     });
   }, [menuDiv]);
 
@@ -207,7 +196,7 @@ function Menu(props: { children: ReactNode }) {
     if (!menuDiv) {
       return;
     }
-    menuDiv.style.display = 'block';
+    menuDiv.style.display = "block";
     if (menu && menu.event) {
       menu.event.preventDefault();
     }
@@ -221,14 +210,14 @@ function Menu(props: { children: ReactNode }) {
       <div
         ref={setMenuDiv}
         style={{
-          position: 'fixed',
+          position: "fixed",
           zIndex: 10000,
-          height: 'fit-content',
-          maxHeight: '48vh',
-          overflow: 'auto',
-          display: 'block',
-          border: '2px solid ' + theme.palette.success.main,
-          borderRadius: '0.5rem',
+          height: "fit-content",
+          maxHeight: "48vh",
+          overflow: "auto",
+          display: "block",
+          border: "2px solid " + theme.palette.success.main,
+          borderRadius: "0.5rem",
           ...(menu && calMenuStyle(menu.event)),
         }}
       >
@@ -246,9 +235,9 @@ function SeparateWindow(props: { children }) {
         <Menu>
           <div
             style={{
-              padding: '0.5rem 1rem',
-              width: '100vw',
-              height: '100vh',
+              padding: "0.5rem 1rem",
+              width: "100vw",
+              height: "100vh",
             }}
           >
             {children}
@@ -264,25 +253,25 @@ function calMenuStyle(e: MouseEvent): CSSProperties {
   const y = e.clientY;
   const ret: CSSProperties = {};
   const { height, width } = getViewportSize();
-  ret.top = 'auto';
-  ret.bottom = 'auto';
-  ret.left = 'auto';
-  ret.right = 'auto';
+  ret.top = "auto";
+  ret.bottom = "auto";
+  ret.left = "auto";
+  ret.right = "auto";
   if (width - x > width / 2) {
     // this is click have a lot of space on the right
     ret.left =
       x -
       10 + // 稍微靠左一点
-      'px';
+      "px";
   } else {
-    ret.right = width - x - 10 + 'px';
+    ret.right = width - x - 10 + "px";
   }
 
   if (height - y > height / 2) {
     // 这个是点击的位置下面有很大的空间
-    ret.top = y - 10 + 'px';
+    ret.top = y - 10 + "px";
   } else {
-    ret.bottom = height - y - 10 + 'px';
+    ret.bottom = height - y - 10 + "px";
   }
   return ret;
 }

@@ -1,13 +1,13 @@
-'use strict';
-import ReactDOM from 'react-dom/client';
-import React, { ReactNode } from 'react';
+"use strict";
+import ReactDOM from "react-dom/client";
+import React, { ReactNode } from "react";
 import {
   DataSourceKind,
   MongoTableHandler,
   NewWindowTableParameter,
   SomeTempStore,
-} from './comp/helper.ts';
-import { SqlTableView } from './comp/SqlTableView.tsx';
+} from "./comp/helper.ts";
+import { SqlTableView } from "./comp/SqlTableView.tsx";
 import {
   makeExtractTableSelectSort,
   makeExtractTableSelectWhere,
@@ -18,10 +18,10 @@ import {
   makeTableDelete,
   makeTableInsertFn,
   makeTableUpdate,
-} from './comp/Common.ts';
-import { SeparateWindow } from './comp/MainPage.tsx';
-import { MongoTable } from './comp/MongoDB.tsx';
-import { makeRedisViewTable } from './comp/LeftTable.tsx';
+} from "./comp/Common.ts";
+import { SeparateWindow } from "./comp/MainPage.tsx";
+import { MongoTable } from "./comp/MongoDB.tsx";
+import { makeRedisViewTable } from "./comp/LeftTable.tsx";
 
 const { uuid, kind, table, redisTableType, isTable } =
   SomeTempStore.get<NewWindowTableParameter>();
@@ -49,16 +49,11 @@ switch (kind) {
       <SqlTableView
         extractTableSelectSort={makeExtractTableSelectSort(uuid)}
         extractTableSelectWhere={makeExtractTableSelectWhere(uuid)}
-        invalidCassandraTableViewCache={makeInvalidCassandraTableCache(
-          uuid,
-          table
-        )}
+        invalidCassandraTableViewCache={makeInvalidCassandraTableCache(uuid, table)}
         tableName={table}
         uuid={uuid}
         kind={kind}
-        reloadOP={
-          isTable ? makeShowTableFn(uuid, table) : makeShowViewFn(uuid, table)
-        }
+        reloadOP={isTable ? makeShowTableFn(uuid, table) : makeShowViewFn(uuid, table)}
         addOP={isTable ? makeTableInsertFn(uuid, table) : undefined}
         isTable={isTable}
         updateOP={isTable ? makeTableUpdate(uuid, table) : undefined}
@@ -68,8 +63,8 @@ switch (kind) {
     );
 }
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <SeparateWindow>{content}</SeparateWindow>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

@@ -1,11 +1,5 @@
-'use strict';
-import {
-  CSSProperties,
-  ReactNode,
-  useContext,
-  useEffect,
-  useState,
-} from 'react';
+"use strict";
+import { CSSProperties, ReactNode, useContext, useEffect, useState } from "react";
 
 import {
   Autocomplete,
@@ -30,10 +24,10 @@ import {
   Tooltip,
   Typography,
   useTheme,
-} from '@mui/material';
-import { HexColorPicker } from 'react-colorful';
-import { NotificationContext } from './Notification';
-import { openUrl } from '@tauri-apps/plugin-opener';
+} from "@mui/material";
+import { HexColorPicker } from "react-colorful";
+import { NotificationContext } from "./Notification";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   ErrAndLoc,
   ColorFn,
@@ -50,20 +44,20 @@ import {
   isDarkTheme,
   appTheme,
   appStore,
-} from './helper';
-import { Position } from 'monaco-editor';
-import { invoke } from '@tauri-apps/api/core';
-import EditIcon from '@mui/icons-material/Edit';
-import ClearIcon from '@mui/icons-material/Clear';
-import { SimpleFlexEditor } from './CommonComp2';
+} from "./helper";
+import { Position } from "monaco-editor";
+import { invoke } from "@tauri-apps/api/core";
+import EditIcon from "@mui/icons-material/Edit";
+import ClearIcon from "@mui/icons-material/Clear";
+import { SimpleFlexEditor } from "./CommonComp2";
 import {
   enable as enableApp,
   isEnabled as isEnabledApp,
   disable as disableApp,
-} from '@tauri-apps/plugin-autostart';
-import { message } from '@tauri-apps/plugin-dialog';
-import { Editor } from '@monaco-editor/react';
-import { listen } from '@tauri-apps/api/event';
+} from "@tauri-apps/plugin-autostart";
+import { message } from "@tauri-apps/plugin-dialog";
+import { Editor } from "@monaco-editor/react";
+import { listen } from "@tauri-apps/api/event";
 
 function AppearanceSetting() {
   const setting = UserSettingAppearance.get();
@@ -73,26 +67,26 @@ function AppearanceSetting() {
   const [fontWeight, setFontWeight] = useState(setting.fontWeight);
   const [fontSize, setFontSize] = useState(setting.fontSize);
   const [bgColor, setBgColor] = useState(
-    isDarkTheme() ? setting.darkBgColor : setting.lightBgColor
+    isDarkTheme() ? setting.darkBgColor : setting.lightBgColor,
   );
-  const [bgColorErr, setBgColorErr] = useState('');
+  const [bgColorErr, setBgColorErr] = useState("");
   const [fontFamily, setFontFamily] = useState(setting.fontFamily);
   const [datagridRowHeightFactor, setDatagridRowHeightFactor] = useState(
-    setting.datagridRowHeightFactor + ''
+    setting.datagridRowHeightFactor + "",
   );
-  const [maxTreeSize, setMaxTreeSize] = useState(setting.maxTreeSize + '');
+  const [maxTreeSize, setMaxTreeSize] = useState(setting.maxTreeSize + "");
   const [maxTabTitleLength, setMaxTabTitleLength] = useState(
-    setting.maxTabTitleLength + ''
+    setting.maxTabTitleLength + "",
   );
   const [intputVariant, setInputVariant] = useState(setting.intputVariant);
   const [zoom, setZoom] = useState(1);
   useEffect(() => {
     if (!bgColor) {
-      setBgColorErr('');
+      setBgColorErr("");
       return;
     }
     if (!ColorFn.isColor(bgColor)) {
-      setBgColorErr('not a valid color');
+      setBgColorErr("not a valid color");
       return;
     }
     if (
@@ -103,31 +97,31 @@ function AppearanceSetting() {
       return;
     }
 
-    setBgColorErr('');
+    setBgColorErr("");
   }, [bgColor]);
 
   useEffect(() => {
-    let key = 'zoom';
-    appStore.get<number>(key).then((z) => {
+    let key = "zoom";
+    appStore.get<number>(key).then(z => {
       setZoom(z);
     });
-    const unlisten = appStore.onKeyChange<number>(key, (z) => {
+    const unlisten = appStore.onKeyChange<number>(key, z => {
       setZoom(z);
     });
     return () => {
-      unlisten.then((f) => {
+      unlisten.then(f => {
         f();
       });
     };
   }, []);
 
   useEffect(() => {
-    invoke<string[]>('all_font_family', {})
-      .then((fonts) => {
+    invoke<string[]>("all_font_family", {})
+      .then(fonts => {
         setAllFonts(fonts);
       })
-      .catch((e) => {
-        showNotification('error', 'list all fonts failed', e);
+      .catch(e => {
+        showNotification("error", "list all fonts failed", e);
       });
   }, []);
 
@@ -147,20 +141,20 @@ function AppearanceSetting() {
       Object.setPrototypeOf(x, UserSettingAppearance.prototype);
       x.save();
     } catch (e) {
-      showNotification('error', 'save setting failed', e);
+      showNotification("error", "save setting failed", e);
       return;
     }
-    showNotification('success', 'save setting success');
+    showNotification("success", "save setting success");
   };
   return (
-    <Stack style={{ height: '100%', textAlign: 'right' }}>
-      <Stack direction="row" sx={{ alignItems: 'center' }}>
+    <Stack style={{ height: "100%", textAlign: "right" }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize} style={{ fontSize }}>
           font size
         </Typography>
         <Chip label={fontSize} style={{ fontSize }} />
         <Slider
-          style={{ width: '30%' }}
+          style={{ width: "30%" }}
           value={fontSize}
           onChange={(_, value) => {
             setFontSize(value as number);
@@ -169,13 +163,13 @@ function AppearanceSetting() {
           max={30}
         ></Slider>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize} style={{ fontWeight }}>
           font weight
         </Typography>
         <TextField
           value={fontWeight}
-          onChange={(e) => {
+          onChange={e => {
             setFontWeight(e.target.value);
           }}
           slotProps={{
@@ -184,7 +178,7 @@ function AppearanceSetting() {
                 <InputAdornment position="end">
                   <IconButton
                     onClick={() => {
-                      setFontWeight('');
+                      setFontWeight("");
                     }}
                     edge="end"
                   >
@@ -196,7 +190,7 @@ function AppearanceSetting() {
           }}
         ></TextField>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize} style={{ fontFamily }}>
           font family
         </Typography>
@@ -204,12 +198,10 @@ function AppearanceSetting() {
           options={allFonts}
           style={{ flex: 1 }}
           value={fontFamily}
-          renderInput={(params) => (
-            <TextField {...params} label="font family" />
-          )}
+          renderInput={params => <TextField {...params} label="font family" />}
           renderOption={(props, option) => (
             <li {...props} style={{ fontFamily: option }}>
-              <span style={{ width: '22rem' }}>{option} </span>
+              <span style={{ width: "22rem" }}>{option} </span>
               SELECT * FROM employees WHERE gender = 'M' LIMIT 100
             </li>
           )}
@@ -219,11 +211,11 @@ function AppearanceSetting() {
           }}
         />
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>table row height factor </Typography>
         <TextField
           value={datagridRowHeightFactor}
-          onChange={(e) => {
+          onChange={e => {
             setDatagridRowHeightFactor(e.target.value);
           }}
           error={isNaN(parseFloat(datagridRowHeightFactor))}
@@ -233,13 +225,13 @@ function AppearanceSetting() {
           <Typography> ?? </Typography>
         </Tooltip>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>background color </Typography>
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: "relative" }}>
           <IconButton
-            color={showEditBgColor ? 'success' : 'primary'}
+            color={showEditBgColor ? "success" : "primary"}
             onClick={() => {
-              setShowEditBgColor((e) => !e);
+              setShowEditBgColor(e => !e);
             }}
           >
             <EditIcon> </EditIcon>
@@ -247,20 +239,20 @@ function AppearanceSetting() {
           {showEditBgColor && (
             <HexColorPicker
               color={bgColor}
-              onChange={(newValue) => {
+              onChange={newValue => {
                 setBgColor(newValue);
               }}
-              style={{ position: 'absolute', zIndex: 10, top: '3rem' }}
+              style={{ position: "absolute", zIndex: 10, top: "3rem" }}
             />
           )}
         </div>
 
         <TextField
           value={bgColor}
-          onChange={(e) => {
+          onChange={e => {
             setBgColor(e.target.value);
           }}
-          style={{ width: '10rem' }}
+          style={{ width: "10rem" }}
           error={!!bgColorErr}
           slotProps={{
             input: {
@@ -268,7 +260,7 @@ function AppearanceSetting() {
                 <InputAdornment position="end">
                   <IconButton
                     onClick={() => {
-                      setBgColor('');
+                      setBgColor("");
                     }}
                     edge="end"
                   >
@@ -279,40 +271,38 @@ function AppearanceSetting() {
             },
           }}
         ></TextField>
-        <div style={{ position: 'relative' }}></div>
+        <div style={{ position: "relative" }}></div>
         {bgColorErr && <Typography color="error"> {bgColorErr} </Typography>}
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>max tree size </Typography>
         <TextField
           value={maxTreeSize}
-          onChange={(e) => {
+          onChange={e => {
             setMaxTreeSize(e.target.value);
           }}
           label="max tree item size"
           error={isNaN(parseInt(maxTreeSize))}
         ></TextField>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>max tab title length </Typography>
         <TextField
           value={maxTabTitleLength}
-          onChange={(e) => {
+          onChange={e => {
             setMaxTabTitleLength(e.target.value);
           }}
           error={isNaN(parseInt(maxTabTitleLength))}
         ></TextField>
       </Stack>
 
-      <Stack direction="row" sx={{ alignItems: 'center' }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>input variant</Typography>
         <Autocomplete
-          options={['standard', 'filled', 'outlined']}
-          style={{ width: '22rem' }}
+          options={["standard", "filled", "outlined"]}
+          style={{ width: "22rem" }}
           value={intputVariant}
-          renderInput={(params) => (
-            <TextField {...params} label="input variant" />
-          )}
+          renderInput={params => <TextField {...params} label="input variant" />}
           freeSolo={false}
           onChange={(_, variant) => {
             if (!variant) {
@@ -322,19 +312,19 @@ function AppearanceSetting() {
           }}
         />
         <TextField
-          value={'this is demo'}
-          variant={intputVariant as 'filled'}
+          value={"this is demo"}
+          variant={intputVariant as "filled"}
         ></TextField>
       </Stack>
 
-      <Stack direction="row" sx={{ alignItems: 'center' }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>zoom</Typography>
         <Tooltip title="current zoom level">
           <Typography color="info"> {zoom}</Typography>
         </Tooltip>
       </Stack>
       <Divider></Divider>
-      <Stack direction="row" sx={{ alignItems: 'center' }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         <Button onClick={handleSave}> save </Button>
       </Stack>
     </Stack>
@@ -344,12 +334,12 @@ function AppearanceSetting() {
 function EditorSetting() {
   const setting = UserSettingEditor.get();
   const [editorOptions, setEditorOptions] = useState(
-    setting.editorOption ? JSON.stringify(setting.editorOption) : '{}'
+    setting.editorOption ? JSON.stringify(setting.editorOption) : "{}",
   );
   const [showEditOption, setShowEditOption] = useState(false);
   const [tabSize, setTabSize] = useState(setting.tabSize);
   const [customEditorTheme, setCustomEditorTheme] = useState(setting.theme);
-  const [highLightTheme, setHighlightTheme] = useState('');
+  const [highLightTheme, setHighlightTheme] = useState("");
   const muiTheme = useTheme();
   const { showNotification } = useContext(NotificationContext);
   const handleSave = () => {
@@ -362,20 +352,20 @@ function EditorSetting() {
       Object.setPrototypeOf(obj, UserSettingEditor.prototype);
       obj.save();
     } catch (e) {
-      showNotification('error', 'save setting  failed', e);
+      showNotification("error", "save setting  failed", e);
       return;
     }
-    showNotification('success', 'save setting ok');
+    showNotification("success", "save setting ok");
   };
   return (
-    <Stack style={{ textAlign: 'right' }}>
-      <Stack direction="row" sx={{ alignItems: 'center' }}>
+    <Stack style={{ textAlign: "right" }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>tab size </Typography>
 
-        {[2, 4, 8].map((e) => (
+        {[2, 4, 8].map(e => (
           <Chip
             label={e}
-            color={e == tabSize ? 'success' : 'default'}
+            color={e == tabSize ? "success" : "default"}
             onClick={() => {
               setTabSize(e);
             }}
@@ -384,20 +374,17 @@ function EditorSetting() {
         ))}
       </Stack>
       <Stack>
-        <Stack direction="row" style={{ alignItems: 'flex-start' }}>
-          <Tooltip
-            title="dbpal use monaco editor as build in editor"
-            placement="top"
-          >
+        <Stack direction="row" style={{ alignItems: "flex-start" }}>
+          <Tooltip title="dbpal use monaco editor as build in editor" placement="top">
             <Typography width={headerSize}>monaco editor options</Typography>
           </Tooltip>
           <Stack style={{ flex: 1 }}>
-            <Stack direction="row" style={{ alignItems: 'center' }}>
+            <Stack direction="row" style={{ alignItems: "center" }}>
               <IconButton
                 onClick={() => {
-                  setShowEditOption((e) => !e);
+                  setShowEditOption(e => !e);
                 }}
-                color={showEditOption ? 'success' : 'primary'}
+                color={showEditOption ? "success" : "primary"}
               >
                 <EditIcon> </EditIcon>
               </IconButton>
@@ -410,12 +397,12 @@ function EditorSetting() {
                   setShowEditOption(false);
                 }}
                 style={{
-                  height: '40vh',
-                  border: '2px solid' + muiTheme.palette.success.main,
-                  borderRadius: '8px',
-                  padding: '8px',
-                  display: showEditOption ? 'flex' : 'none',
-                  transform: 'all 0.7s ease',
+                  height: "40vh",
+                  border: "2px solid" + muiTheme.palette.success.main,
+                  borderRadius: "8px",
+                  padding: "8px",
+                  display: showEditOption ? "flex" : "none",
+                  transform: "all 0.7s ease",
                 }}
                 editorOptions={editorOptions}
                 setEditorOptions={setEditorOptions}
@@ -425,16 +412,14 @@ function EditorSetting() {
         </Stack>
       </Stack>
 
-      <Stack direction="row" sx={{ alignItems: 'flex-start' }}>
+      <Stack direction="row" sx={{ alignItems: "flex-start" }}>
         <Typography width={headerSize}>editor theme </Typography>
-        <Stack direction="row" style={{ flex: 1, alignItems: 'flex-start' }}>
+        <Stack direction="row" style={{ flex: 1, alignItems: "flex-start" }}>
           <Autocomplete
             options={registeredThemes}
-            style={{ width: '22rem' }}
+            style={{ width: "22rem" }}
             value={customEditorTheme}
-            renderInput={(params) => (
-              <TextField {...params} label="editor theme" />
-            )}
+            renderInput={params => <TextField {...params} label="editor theme" />}
             freeSolo={false}
             onChange={(_, theme) => {
               setCustomEditorTheme(theme);
@@ -447,8 +432,8 @@ function EditorSetting() {
             style={{
               flexGrow: 1,
               flexShrink: 1,
-              width: '100px',
-              height: '15vh',
+              width: "100px",
+              height: "15vh",
             }}
             theme={highLightTheme ? highLightTheme : customEditorTheme}
           ></EditorThemeDemo>
@@ -462,7 +447,7 @@ function EditorSetting() {
   );
 }
 
-const headerSize = '16rem';
+const headerSize = "16rem";
 
 function ExportSetting() {
   const setting = UserSettingExport.get();
@@ -475,30 +460,30 @@ function ExportSetting() {
       Object.setPrototypeOf(x, UserSettingExport.prototype);
       x.save();
     } catch (e) {
-      showNotification('error', 'save setting  failed', e);
+      showNotification("error", "save setting  failed", e);
       return;
     }
-    showNotification('success', 'save setting ok');
+    showNotification("success", "save setting ok");
   };
 
   return (
-    <Stack style={{ textAlign: 'right' }}>
-      <Stack direction="row" sx={{ alignItems: 'center' }}>
+    <Stack style={{ textAlign: "right" }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>csv delimiter</Typography>
         <TextField
           value={csvDelimiter}
-          onChange={(e) => setCsvDelimiter(e.target.value)}
+          onChange={e => setCsvDelimiter(e.target.value)}
           error={csvDelimiter.length > 1}
           helperText="only accept one character"
         ></TextField>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: 'center' }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>include header</Typography>
         <FormControlLabel
           control={
             <Switch
               checked={includeHeader}
-              onChange={(e) => setIncludeHeader(e.target.checked)}
+              onChange={e => setIncludeHeader(e.target.checked)}
             />
           }
           label="include header"
@@ -522,19 +507,19 @@ function MiscSetting() {
       Object.setPrototypeOf(x, UserSettingMisc.prototype);
       x.save();
     } catch (e) {
-      showNotification('error', 'save setting  failed', e);
+      showNotification("error", "save setting  failed", e);
       return;
     }
-    showNotification('success', 'save setting ok');
+    showNotification("success", "save setting ok");
   };
   return (
-    <Stack style={{ textAlign: 'right' }}>
-      <Stack direction="row" sx={{ alignItems: 'center' }}>
+    <Stack style={{ textAlign: "right" }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>auto start</Typography>
 
         <Switch
           checked={autoStart}
-          onChange={(e) => {
+          onChange={e => {
             setAutoStart(e.target.checked);
           }}
         ></Switch>
@@ -548,7 +533,7 @@ function MiscSetting() {
 }
 
 function ModifySetting() {
-  const ss = ['appearance', 'editor', 'export', 'misc'];
+  const ss = ["appearance", "editor", "export", "misc"];
   const [tab, setTab] = useState(ss[0]);
   return (
     <Stack>
@@ -558,32 +543,29 @@ function ModifySetting() {
           setTab(value);
         }}
       >
-        {ss.map((e) => (
+        {ss.map(e => (
           <Tab value={e} label={e} key={e} />
         ))}
       </Tabs>
       <div style={{ flex: 1 }}>
-        {ss.map((setting) => {
+        {ss.map(setting => {
           let content: ReactNode;
           switch (setting) {
-            case 'appearance':
+            case "appearance":
               content = <AppearanceSetting></AppearanceSetting>;
               break;
-            case 'editor':
+            case "editor":
               content = <EditorSetting></EditorSetting>;
               break;
-            case 'export':
+            case "export":
               content = <ExportSetting></ExportSetting>;
               break;
-            case 'misc':
+            case "misc":
               content = <MiscSetting></MiscSetting>;
               break;
           }
           return (
-            <div
-              key={setting}
-              style={{ display: setting === tab ? 'block' : 'none' }}
-            >
+            <div key={setting} style={{ display: setting === tab ? "block" : "none" }}>
               {content}
             </div>
           );
@@ -622,7 +604,7 @@ function EditorOptions(props: {
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   const [jsonErr, setJsonErr] = useState<ErrAndLoc>(null);
   useEffect(() => {
-    validJson(value).then((e) => {
+    validJson(value).then(e => {
       setJsonErr(e);
     });
   }, [value]);
@@ -631,11 +613,11 @@ function EditorOptions(props: {
       <Stack direction="row">
         <Chip
           color="info"
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: "pointer" }}
           label="options???"
           onClick={() => {
             openUrl(
-              'https://microsoft.github.io/monaco-editor/typedoc/variables/editor.EditorOptions.html'
+              "https://microsoft.github.io/monaco-editor/typedoc/variables/editor.EditorOptions.html",
             );
           }}
         ></Chip>
@@ -644,14 +626,14 @@ function EditorOptions(props: {
         errPos={jsonErrPos}
         language="json"
         value={value}
-        handleValue={(v) => {
+        handleValue={v => {
           setValue(v);
         }}
         barLeft={
           jsonErr ? (
             <Typography
               color="error"
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: "pointer" }}
               onClick={() => {
                 if (!jsonErrPos) {
                   return;
@@ -671,7 +653,7 @@ function EditorOptions(props: {
             try {
               await validJson(value);
             } catch (e) {
-              showNotification('error', 'not a valid json', e);
+              showNotification("error", "not a valid json", e);
               return;
             }
             setEditorOptions(value);
@@ -686,39 +668,37 @@ function EditorOptions(props: {
 }
 
 function makeComponents(fontWeight: string | number, intputVariant: string) {
-  const components: Components<
-    Omit<Theme, 'components' | 'palette'> & CssVarsTheme
-  > = {
+  const components: Components<Omit<Theme, "components" | "palette"> & CssVarsTheme> = {
     MuiCircularProgress: {
-      defaultProps: { size: '1.1rem' },
+      defaultProps: { size: "1.1rem" },
     },
     MuiButton: {
       styleOverrides: {
         root: {
-          fontSize: '1rem',
-          textTransform: 'none',
+          fontSize: "1rem",
+          textTransform: "none",
           fontWeight,
         },
       },
       defaultProps: {
-        variant: 'contained',
-        size: 'small',
+        variant: "contained",
+        size: "small",
       },
     },
     MuiIconButton: {
       styleOverrides: {
         root: {
-          fontSize: '1rem',
-          padding: '2px 4px',
-          textTransform: 'none',
+          fontSize: "1rem",
+          padding: "2px 4px",
+          textTransform: "none",
         },
       },
     },
     MuiMenuItem: {
       styleOverrides: {
         root: {
-          height: '1.7rem',
-          fontSize: '1rem',
+          height: "1.7rem",
+          fontSize: "1rem",
         },
       },
     },
@@ -732,7 +712,7 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
     MuiTooltip: {
       styleOverrides: {
         tooltip: {
-          fontSize: '0.9rem',
+          fontSize: "0.9rem",
         },
       },
       defaultProps: { arrow: true },
@@ -745,15 +725,15 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
       },
     },
     MuiSlider: {
-      defaultProps: { size: 'small' },
+      defaultProps: { size: "small" },
     },
     MuiDivider: {
       styleOverrides: {
         root: {
-          borderBottomWidth: '3px', // 横向
+          borderBottomWidth: "3px", // 横向
         },
         vertical: {
-          borderRightWidth: '3px', // 竖向
+          borderRightWidth: "3px", // 竖向
         },
       },
     },
@@ -761,16 +741,16 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
     MuiDataGrid: {
       styleOverrides: {
         root: {
-          '& .MuiDataGrid-columnHeaderTitle': {
+          "& .MuiDataGrid-columnHeaderTitle": {
             fontWeight,
           },
         },
         cell: {
-          fontSize: '1rem',
+          fontSize: "1rem",
         },
         columnHeaders: {
           fontSize: dataGridheaderFontSize,
-          boxShadow: '0 1px 3px',
+          boxShadow: "0 1px 3px",
         },
       },
     },
@@ -780,45 +760,45 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
     MuiMenuList: {
       styleOverrides: {
         root: {
-          padding: '0px',
+          padding: "0px",
         },
       },
     },
     MuiTextField: {
       styleOverrides: {
         root: {
-          '& .MuiInputBase-input': {
+          "& .MuiInputBase-input": {
             fontWeight,
           },
         },
       },
       defaultProps: {
-        size: 'small',
-        variant: intputVariant as 'filled',
+        size: "small",
+        variant: intputVariant as "filled",
       },
     },
     MuiSelect: {
       defaultProps: {
-        size: 'small',
-        variant: intputVariant as 'filled',
+        size: "small",
+        variant: intputVariant as "filled",
       },
     },
 
     MuiChip: {
       styleOverrides: {
         root: {
-          fontSize: '1rem',
+          fontSize: "1rem",
           fontWeight,
         },
       },
       defaultProps: {
-        size: 'small',
+        size: "small",
       },
     },
     MuiTab: {
       styleOverrides: {
         root: {
-          textTransform: 'none',
+          textTransform: "none",
         },
       },
     },
@@ -829,9 +809,9 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
 const makeTheme = (appearance: UserSettingAppearance) => {
   let color;
   if (isDarkTheme()) {
-    color = appearance.darkBgColor ? appearance.darkBgColor : '#000';
+    color = appearance.darkBgColor ? appearance.darkBgColor : "#000";
   } else {
-    color = appearance.lightBgColor ? appearance.lightBgColor : '#fff';
+    color = appearance.lightBgColor ? appearance.lightBgColor : "#fff";
   }
   const { fontWeight, fontFamily } = appearance;
   return createTheme({
@@ -842,7 +822,7 @@ const makeTheme = (appearance: UserSettingAppearance) => {
       fontFamily,
     },
     palette: {
-      mode: isDarkTheme() ? 'dark' : 'light',
+      mode: isDarkTheme() ? "dark" : "light",
       background: {
         default: color,
         paper: color,
@@ -858,23 +838,22 @@ function SettingComp(props: { children: ReactNode }) {
   const reload = async () => {
     let setting = new UserSetting();
     setSetting(setting);
-    document.documentElement.style.fontSize =
-      setting.appearance.fontSize + 'px';
+    document.documentElement.style.fontSize = setting.appearance.fontSize + "px";
     document.documentElement.style.fontFamily = setting.appearance.fontFamily;
     document.documentElement.style.fontWeight = setting.appearance.fontWeight;
     if (setting.misc.autoStart) {
       if (!(await isEnabledApp())) {
-        enableApp().catch((e) => {
-          console.error('enable app autostart failed', e);
+        enableApp().catch(e => {
+          console.error("enable app autostart failed", e);
           message(`enable app autostart failed ${e.toString()}`, {
-            kind: 'error',
+            kind: "error",
           });
         });
       }
     } else {
       if (await isEnabledApp()) {
-        disableApp().catch((e) => {
-          console.error('disable app autostart failed', e);
+        disableApp().catch(e => {
+          console.error("disable app autostart failed", e);
         });
       }
     }
@@ -888,7 +867,7 @@ function SettingComp(props: { children: ReactNode }) {
       reload();
     });
     return () => {
-      unlisten.then((callback) => {
+      unlisten.then(callback => {
         callback();
       });
     };
@@ -898,9 +877,7 @@ function SettingComp(props: { children: ReactNode }) {
     setting && (
       <ThemeProvider theme={makeTheme(setting.appearance)}>
         <CssBaseline />
-        <SettingContext.Provider value={setting}>
-          {children}
-        </SettingContext.Provider>
+        <SettingContext.Provider value={setting}>{children}</SettingContext.Provider>
       </ThemeProvider>
     )
   );

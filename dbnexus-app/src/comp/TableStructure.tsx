@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 import {
   CSSProperties,
   ReactNode,
@@ -8,15 +8,15 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
-import types from './ApiStruct';
+} from "react";
+import types from "./ApiStruct";
 import {
   DefAndMetas,
   EscDownEvent,
   makeShowTableColumn,
   modalHandleClose,
   modalStyle,
-} from './Common';
+} from "./Common";
 import {
   ColumnWidth,
   ContextMenuContext,
@@ -27,16 +27,12 @@ import {
   saveAndSetSize,
   secondConfirm,
   SettingContext,
-} from './helper';
-import CancelIcon from '@mui/icons-material/Cancel';
-import { NotificationContext } from './Notification';
-import { invoke } from '@tauri-apps/api/core';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import {
-  DataGrid,
-  GridColDef,
-  GridSlotsComponentsProps,
-} from '@mui/x-data-grid';
+} from "./helper";
+import CancelIcon from "@mui/icons-material/Cancel";
+import { NotificationContext } from "./Notification";
+import { invoke } from "@tauri-apps/api/core";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import { DataGrid, GridColDef, GridSlotsComponentsProps } from "@mui/x-data-grid";
 import {
   Autocomplete,
   Box,
@@ -59,16 +55,16 @@ import {
   TextField,
   Tooltip,
   Typography,
-} from '@mui/material';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import AddIcon from '@mui/icons-material/Add';
-import { BSON } from 'bson';
-import { MongoValueEditor } from './MongoDB';
-import { ModalHeader, SelectColumns, TrueOrFalse } from './CommonComp';
-import ClearIcon from '@mui/icons-material/Clear';
-import { DefAndMetasView, TriggerDetail } from './UdfAndMetaView';
+} from "@mui/material";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import AddIcon from "@mui/icons-material/Add";
+import { BSON } from "bson";
+import { MongoValueEditor } from "./MongoDB";
+import { ModalHeader, SelectColumns, TrueOrFalse } from "./CommonComp";
+import ClearIcon from "@mui/icons-material/Clear";
+import { DefAndMetasView, TriggerDetail } from "./UdfAndMetaView";
 function ColumnsStructure(props: {
   uuid: string;
   kind: DataSourceKind;
@@ -102,24 +98,24 @@ function ColumnsStructure(props: {
   const handleDrop = async (col: string) => {
     const confirm = await secondConfirm({
       title: `Drop Column '${col}'`,
-      content: '',
-      confirmText: 'DROP COLUMN',
-      kind: 'error',
+      content: "",
+      confirmText: "DROP COLUMN",
+      kind: "error",
     });
     if (!confirm) {
       return;
     }
-    invoke('drop_table_column', {
+    invoke("drop_table_column", {
       name: uuid,
       tableName: table,
       columnName: col,
     })
       .then(() => {
-        showNotification('success', 'Drop column OK');
+        showNotification("success", "Drop column OK");
         handleReload();
       })
-      .catch((e) => {
-        showNotification('error', 'Drop column Failure', e);
+      .catch(e => {
+        showNotification("error", "Drop column Failure", e);
       });
   };
 
@@ -127,11 +123,11 @@ function ColumnsStructure(props: {
   const handleReload = () => {
     setLoading(true);
     makeShowTableColumn(uuid, table)()
-      .then((fs) => {
+      .then(fs => {
         setFields(fs);
       })
-      .catch((e) => {
-        showNotification('error', 'list column failed', e);
+      .catch(e => {
+        showNotification("error", "list column failed", e);
       })
       .finally(() => {
         setLoading(false);
@@ -142,52 +138,52 @@ function ColumnsStructure(props: {
   }, []);
   const cols = useMemo(() => {
     return [
-      { field: 'field' },
+      { field: "field" },
       {
-        field: 'data_type',
+        field: "data_type",
         renderHeader: () => {
-          return 'type';
+          return "type";
         },
       },
       {
-        field: 'nullable',
-        renderCell: (row) => {
-          return <TrueOrFalse value={row.row['nullable']} />;
+        field: "nullable",
+        renderCell: row => {
+          return <TrueOrFalse value={row.row["nullable"]} />;
         },
       },
       {
-        field: 'is_primary',
+        field: "is_primary",
         renderHeader: () => {
-          return 'primary key';
+          return "primary key";
         },
-        renderCell: (row) => {
-          return <TrueOrFalse value={row.row['is_primary']} />;
+        renderCell: row => {
+          return <TrueOrFalse value={row.row["is_primary"]} />;
         },
       },
       {
-        field: 'is_auto_increment',
+        field: "is_auto_increment",
         renderHeader: () => {
-          return 'auto increment';
+          return "auto increment";
         },
-        renderCell: (row) => {
-          return <TrueOrFalse value={row.row['is_auto_increment']} />;
+        renderCell: row => {
+          return <TrueOrFalse value={row.row["is_auto_increment"]} />;
         },
       },
       {
-        field: 'default_value',
+        field: "default_value",
         renderHeader: () => {
-          return 'default value';
+          return "default value";
         },
       },
       {
-        field: 'sortable',
-        renderCell: (row) => {
-          return <TrueOrFalse value={row.row['sortable']} />;
+        field: "sortable",
+        renderCell: row => {
+          return <TrueOrFalse value={row.row["sortable"]} />;
         },
       },
     ] as GridColDef[];
   }, []);
-  cols.forEach((e) => {
+  cols.forEach(e => {
     const width = ColumnWidth.instance.get(e.field);
     if (width) {
       e.width = width;
@@ -230,7 +226,7 @@ function ColumnsStructure(props: {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
+        onContextMenu: e => {
           const { target } = e;
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
@@ -242,7 +238,7 @@ function ColumnsStructure(props: {
             event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
       },
       toolbar: {
         csvOptions: {
@@ -253,11 +249,11 @@ function ColumnsStructure(props: {
     } as GridSlotsComponentsProps;
   }, []);
 
-  const getRowId = useCallback((e) => {
-    return e['field'];
+  const getRowId = useCallback(e => {
+    return e["field"];
   }, []);
 
-  const onRowDoubleClick = useCallback((row) => {
+  const onRowDoubleClick = useCallback(row => {
     setRow(row.row);
   }, []);
 
@@ -265,20 +261,20 @@ function ColumnsStructure(props: {
 
   useEffect(() => {
     if (modalBox) {
-      const clean = saveAndSetSize(modalBox, 'table-column', 'width');
+      const clean = saveAndSetSize(modalBox, "table-column", "width");
       return clean;
     }
   }, [modalBox]);
   useEffect(() => {
     if (row) {
       if ([DataSourceKind.Sqlite, DataSourceKind.LibSql].includes(kind)) {
-        showNotification('warning', `${kind} not support modify column`);
+        showNotification("warning", `${kind} not support modify column`);
       }
     }
   }, [row]);
   return (
-    <Stack style={{ height: '100%' }}>
-      <Stack direction="row" style={{ alignItems: 'center' }}>
+    <Stack style={{ height: "100%" }}>
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <Button loading={loading} onClick={handleReload}>
           reload
         </Button>
@@ -323,7 +319,7 @@ function ColumnsStructure(props: {
           })}
         >
           <Box
-            sx={{ resize: 'horizontal', ...modalStyle }}
+            sx={{ resize: "horizontal", ...modalStyle }}
             width="60%"
             ref={setModalBox}
           >
@@ -357,7 +353,7 @@ function ColumnsStructure(props: {
             })}
           >
             <Box
-              sx={{ resize: 'horizontal', ...modalStyle }}
+              sx={{ resize: "horizontal", ...modalStyle }}
               width="60%"
               ref={setModalBox}
             >
@@ -398,24 +394,24 @@ function RenameIndex(props: {
   const { showNotification } = useContext(NotificationContext);
   const handleRename = () => {
     if (newName == indexName) {
-      showNotification('warning', 'name not change');
+      showNotification("warning", "name not change");
       return;
     }
     setLoading(true);
 
-    invoke('rename_index', {
+    invoke("rename_index", {
       name: uuid,
       tableName: table,
       oldName: indexName,
       newName: newName,
     })
       .then(() => {
-        showNotification('success', 'Rename OK');
+        showNotification("success", "Rename OK");
         reload();
         handleClose();
       })
-      .catch((e) => {
-        showNotification('error', 'Rename Failure', e);
+      .catch(e => {
+        showNotification("error", "Rename Failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -426,7 +422,7 @@ function RenameIndex(props: {
       <TextField
         label="new name"
         value={newName}
-        onChange={(e) => {
+        onChange={e => {
           setNewname(e.target.value);
         }}
       ></TextField>
@@ -449,7 +445,7 @@ function IndexesStructure(props: {
   const [loading, setLoading] = useState(false);
   const [indexes, setIndexes] = useState<types.Index[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const [renameIndexName, setRenameIndexName] = useState('');
+  const [renameIndexName, setRenameIndexName] = useState("");
   const [showAdd, setShowAdd] = useState(false);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
@@ -458,41 +454,41 @@ function IndexesStructure(props: {
 
   const handleReload = () => {
     setLoading(true);
-    invoke<types.Index[]>('show_indexes', {
+    invoke<types.Index[]>("show_indexes", {
       name: uuid,
       tableName: table,
     })
-      .then((indexes) => {
+      .then(indexes => {
         setIndexes(indexes);
       })
-      .catch((e) => {
-        showNotification('error', 'list indexes failed', e);
+      .catch(e => {
+        showNotification("error", "list indexes failed", e);
       })
       .finally(() => {
         setLoading(false);
       });
   };
 
-  const handleDrop = async (indexName) => {
+  const handleDrop = async indexName => {
     const confirm = await secondConfirm({
       title: `drop index '${indexName}'`,
-      content: 'Are u sure to drop the index',
-      confirmText: 'Drop',
+      content: "Are u sure to drop the index",
+      confirmText: "Drop",
     });
     if (!confirm) {
       return;
     }
-    invoke('drop_index', {
+    invoke("drop_index", {
       name: uuid,
       tableName: table,
       index: indexName,
     })
       .then(() => {
-        showNotification('success', 'Drop OK');
+        showNotification("success", "Drop OK");
         handleReload();
       })
-      .catch((e) => {
-        showNotification('error', 'Drop index failure', e);
+      .catch(e => {
+        showNotification("error", "Drop index failure", e);
       });
   };
 
@@ -500,13 +496,9 @@ function IndexesStructure(props: {
     handleReload();
   }, []);
   const cols = useMemo(() => {
-    return [
-      { field: 'name' },
-      { field: 'kind' },
-      { field: 'columns' },
-    ] as GridColDef[];
+    return [{ field: "name" }, { field: "kind" }, { field: "columns" }] as GridColDef[];
   }, []);
-  cols.forEach((e) => {
+  cols.forEach(e => {
     const width = ColumnWidth.instance.get(e.field);
     if (width) {
       e.width = width;
@@ -559,7 +551,7 @@ function IndexesStructure(props: {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
+        onContextMenu: e => {
           const { currentTarget, target } = e;
           {
             const { field } = extractFieldAndIDFromMouseEvent(e);
@@ -568,15 +560,13 @@ function IndexesStructure(props: {
             }
           }
           const content = (target as HTMLDivElement).innerHTML;
-          const indexName = (currentTarget as HTMLDivElement).getAttribute(
-            'data-id'
-          );
+          const indexName = (currentTarget as HTMLDivElement).getAttribute("data-id");
           setUpMenu({
             content: <Menu indexName={indexName} content={content}></Menu>,
             event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
       },
       toolbar: {
         csvOptions: {
@@ -587,8 +577,8 @@ function IndexesStructure(props: {
     } as GridSlotsComponentsProps;
   }, []);
 
-  const getRowId = useCallback((e) => {
-    return e['name'];
+  const getRowId = useCallback(e => {
+    return e["name"];
   }, []);
 
   const [modalBox, setModalBox] = useState(null);
@@ -596,14 +586,14 @@ function IndexesStructure(props: {
     if (modalBox) {
       const c = saveAndSetSize(
         modalBox,
-        'create-index' + (kind == DataSourceKind.Mongo ? '-mongo' : '-other'),
-        kind == DataSourceKind.Mongo ? 'both' : 'width'
+        "create-index" + (kind == DataSourceKind.Mongo ? "-mongo" : "-other"),
+        kind == DataSourceKind.Mongo ? "both" : "width",
       );
       return c;
     }
   }, [modalBox]);
   return (
-    <Stack style={{ height: '100%' }}>
+    <Stack style={{ height: "100%" }}>
       <Stack direction="row">
         <Button loading={loading} onClick={handleReload}>
           reload
@@ -642,12 +632,12 @@ function IndexesStructure(props: {
         >
           <Box
             sx={{
-              resize: 'both',
+              resize: "both",
               ...modalStyle,
             }}
             width="60%"
             ref={setModalBox}
-            height={kind == DataSourceKind.Mongo ? '40vh' : 'auto'}
+            height={kind == DataSourceKind.Mongo ? "40vh" : "auto"}
           >
             <ModalHeader
               title="create index"
@@ -677,7 +667,7 @@ function IndexesStructure(props: {
         >
           <Box
             sx={{
-              resize: 'horizontal',
+              resize: "horizontal",
               ...modalStyle,
             }}
             width="60%"
@@ -707,14 +697,14 @@ function IndexesStructure(props: {
           open={!!renameIndexName}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
-            setRenameIndexName('');
+            setRenameIndexName("");
           })}
         >
           <Box sx={modalStyle} width="40%">
             <ModalHeader
               title={`Rename Index`}
               handleClose={() => {
-                setRenameIndexName('');
+                setRenameIndexName("");
               }}
             ></ModalHeader>
             <RenameIndex
@@ -722,7 +712,7 @@ function IndexesStructure(props: {
               table={table}
               indexName={renameIndexName}
               handleClose={() => {
-                setRenameIndexName('');
+                setRenameIndexName("");
               }}
               reload={handleReload}
             ></RenameIndex>
@@ -736,31 +726,31 @@ function IndexesStructure(props: {
 function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
   const { uuid, table, handleClose, reload } = props;
 
-  const indexTypes = ['normal', 'unique'];
+  const indexTypes = ["normal", "unique"];
   const [indexType, setIndexType] = useState(indexTypes[0]);
-  const [indexName, setIndexName] = useState('');
+  const [indexName, setIndexName] = useState("");
   const indexNameDom = useRef<HTMLInputElement>(null);
 
   const { showNotification } = useContext(NotificationContext);
-  const handleAdd = async (keys) => {
+  const handleAdd = async keys => {
     try {
       if (!indexName) {
-        showNotification('warning', "index name can't be none");
+        showNotification("warning", "index name can't be none");
         indexNameDom.current.focus();
         return;
       }
-      await invoke('mongo_create_index', {
+      await invoke("mongo_create_index", {
         name: uuid,
         tableName: table,
         keys: BSON.serialize(keys),
-        unique: indexType == 'unique',
+        unique: indexType == "unique",
         indexName: indexName ? indexName : null,
       });
-      showNotification('success', 'create index ok');
+      showNotification("success", "create index ok");
       handleClose();
       reload();
     } catch (e) {
-      showNotification('error', 'create index failed', e);
+      showNotification("error", "create index failed", e);
     }
   };
 
@@ -768,7 +758,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
     <Stack flex={1}>
       <TextField
         value={indexName}
-        onChange={(e) => {
+        onChange={e => {
           setIndexName(e.target.value);
         }}
         inputRef={indexNameDom}
@@ -778,17 +768,17 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
 
       <RadioGroup
         row
-        onChange={(e) => {
+        onChange={e => {
           setIndexType(e.target.value);
         }}
         value={indexType}
       >
-        {indexTypes.map((e) => (
+        {indexTypes.map(e => (
           <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
         ))}
       </RadioGroup>
       <MongoValueEditor
-        setOP={async (doc) => {
+        setOP={async doc => {
           handleAdd(doc);
         }}
         doc={{}}
@@ -798,21 +788,15 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
   );
 }
 
-function AddIndex(props: {
-  uuid;
-  table;
-  handleClose;
-  reload;
-  kind: DataSourceKind;
-}) {
+function AddIndex(props: { uuid; table; handleClose; reload; kind: DataSourceKind }) {
   const { uuid, table, handleClose, reload, kind } = props;
 
   const [fields, setFields] = useState<types.Field[]>([]);
   const [includes, setIncludes] = useState<string[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const indexTypes = ['normal', 'unique'];
+  const indexTypes = ["normal", "unique"];
   const [indexType, setIndexType] = useState(indexTypes[0]);
-  const [indexName, setIndexName] = useState('');
+  const [indexName, setIndexName] = useState("");
   const indexNameDom = useRef<HTMLInputElement>(null);
 
   let indexTypeJsx;
@@ -826,18 +810,13 @@ function AddIndex(props: {
           <FormLabel component="legend">unique</FormLabel>
           <RadioGroup
             row
-            onChange={(e) => {
+            onChange={e => {
               setIndexType(e.target.value);
             }}
             value={indexType}
           >
-            {indexTypes.map((e) => (
-              <FormControlLabel
-                key={e}
-                value={e}
-                control={<Radio />}
-                label={e}
-              />
+            {indexTypes.map(e => (
+              <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
             ))}
           </RadioGroup>
         </>
@@ -847,37 +826,37 @@ function AddIndex(props: {
 
   useEffect(() => {
     makeShowTableColumn(uuid, table)()
-      .then((e) => {
+      .then(e => {
         setFields(e);
         e;
       })
-      .catch((e) => {
-        showNotification('error', 'list fields failed', e);
+      .catch(e => {
+        showNotification("error", "list fields failed", e);
       });
   }, []);
   const handleAdd = async () => {
     if (!indexName) {
-      showNotification('warning', "index name can't be none");
+      showNotification("warning", "index name can't be none");
       indexNameDom.current.focus();
       return;
     }
     if (includes.length == 0) {
-      showNotification('warning', 'select at least one column');
+      showNotification("warning", "select at least one column");
       return;
     }
     try {
-      await invoke('create_index', {
+      await invoke("create_index", {
         name: uuid,
         tableName: table,
         fields: includes,
         indexType,
         indexName: indexName ? indexName : null,
       });
-      showNotification('success', 'create index ok');
+      showNotification("success", "create index ok");
       handleClose();
       reload();
     } catch (e) {
-      showNotification('error', 'create index failed', e);
+      showNotification("error", "create index failed", e);
     }
   };
 
@@ -885,7 +864,7 @@ function AddIndex(props: {
     <Stack>
       <TextField
         value={indexName}
-        onChange={(e) => {
+        onChange={e => {
           setIndexName(e.target.value);
         }}
         inputRef={indexNameDom}
@@ -897,7 +876,7 @@ function AddIndex(props: {
               <InputAdornment position="end">
                 <IconButton
                   onClick={() => {
-                    setIndexName('');
+                    setIndexName("");
                   }}
                   edge="end"
                 >
@@ -933,12 +912,12 @@ function TableAddColumn(props: {
   fields: types.Field[];
 }) {
   let { table, uuid, handleClose, reload, kind, fields } = props;
-  const [name, setName] = useState('');
-  const [nullness, setNullness] = useState('');
-  const [typ, setTyp] = useState('');
+  const [name, setName] = useState("");
+  const [nullness, setNullness] = useState("");
+  const [typ, setTyp] = useState("");
   const { showNotification } = useContext(NotificationContext);
-  const [after, setAfter] = useState('');
-  const [defaultValue, setDefaultValue] = useState('');
+  const [after, setAfter] = useState("");
+  const [defaultValue, setDefaultValue] = useState("");
   const supportAfter =
     kind == DataSourceKind.Mysql ||
     kind == DataSourceKind.MariaDB ||
@@ -947,16 +926,16 @@ function TableAddColumn(props: {
   const [loading, setLoading] = useState(false);
   const handleAdd = () => {
     if (!name) {
-      showNotification('error', 'column name is empty');
+      showNotification("error", "column name is empty");
       nameDom.current.focus();
       return;
     }
     if (!typ) {
-      showNotification('warning', 'type is empty');
+      showNotification("warning", "type is empty");
       return;
     }
     setLoading(true);
-    invoke('add_table_column', {
+    invoke("add_table_column", {
       name: uuid,
       tableName: table,
       colName: name,
@@ -968,12 +947,12 @@ function TableAddColumn(props: {
       } as types.ColumnType,
     })
       .then(() => {
-        showNotification('success', 'Add Column OK');
+        showNotification("success", "Add Column OK");
         handleClose();
         reload();
       })
-      .catch((e) => {
-        showNotification('error', 'Add Column failure', e);
+      .catch(e => {
+        showNotification("error", "Add Column failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -988,7 +967,7 @@ function TableAddColumn(props: {
         value={name}
         required
         inputRef={nameDom}
-        onChange={(e) => {
+        onChange={e => {
           setName(e.target.value.trim());
         }}
         slotProps={{
@@ -997,7 +976,7 @@ function TableAddColumn(props: {
               <InputAdornment position="end">
                 <IconButton
                   onClick={() => {
-                    setName('');
+                    setName("");
                   }}
                   edge="end"
                 >
@@ -1009,10 +988,10 @@ function TableAddColumn(props: {
         }}
         label="column name"
       ></TextField>
-      <Stack direction="row" style={{ alignItems: 'center' }}>
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <TypeSelect
           uuid={uuid}
-          handleChange={(e) => {
+          handleChange={e => {
             setTyp(e);
           }}
           style={{ flex: 1 }}
@@ -1021,7 +1000,7 @@ function TableAddColumn(props: {
         {supportNull && (
           <ColumnNullness
             nullness={nullness}
-            handleNullness={(e) => {
+            handleNullness={e => {
               setNullness(e);
             }}
           ></ColumnNullness>
@@ -1038,12 +1017,10 @@ function TableAddColumn(props: {
       {supportAfter && (
         <Autocomplete
           freeSolo={false}
-          options={fields.map((e) => e.field)}
-          style={{ width: '22rem' }}
+          options={fields.map(e => e.field)}
+          style={{ width: "22rem" }}
           value={after}
-          renderInput={(params) => (
-            <TextField {...params} label="after column" />
-          )}
+          renderInput={params => <TextField {...params} label="after column" />}
           onChange={(_, field) => {
             setAfter(field);
           }}
@@ -1059,21 +1036,17 @@ function TableAddColumn(props: {
   );
 }
 
-function SqlDefaultValue(props: {
-  uuid: string;
-  defaultValue;
-  setDefaultValue;
-}) {
+function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue }) {
   const { uuid, defaultValue, setDefaultValue } = props;
   const [currentValue, setCurrentValue] = useState<string[]>([]);
   const { showNotification } = useContext(NotificationContext);
   useEffect(() => {
-    invoke<string[]>('list_sql_current_values', { name: uuid })
-      .then((ts) => {
+    invoke<string[]>("list_sql_current_values", { name: uuid })
+      .then(ts => {
         setCurrentValue(ts);
       })
-      .catch((e) => {
-        showNotification('success', 'list sql current values failed', e);
+      .catch(e => {
+        showNotification("success", "list sql current values failed", e);
       });
   }, []);
 
@@ -1082,7 +1055,7 @@ function SqlDefaultValue(props: {
       <TextField
         label="default value"
         value={defaultValue}
-        onChange={(e) => {
+        onChange={e => {
           setDefaultValue(e.target.value);
         }}
         style={{ flex: 1 }}
@@ -1092,7 +1065,7 @@ function SqlDefaultValue(props: {
               <InputAdornment position="end">
                 <IconButton
                   onClick={() => {
-                    setDefaultValue('');
+                    setDefaultValue("");
                   }}
                   edge="end"
                 >
@@ -1106,9 +1079,9 @@ function SqlDefaultValue(props: {
       <Autocomplete
         freeSolo
         options={currentValue}
-        style={{ width: '22rem' }}
+        style={{ width: "22rem" }}
         value={defaultValue}
-        renderInput={(params) => (
+        renderInput={params => (
           <TextField {...params} label="some predefined value can pick" />
         )}
         onChange={(_, value) => {
@@ -1134,14 +1107,14 @@ function ModifyTableColumn(props: {
   const [newTyp, setNewTyp] = useState(typ);
   const { showNotification } = useContext(NotificationContext);
   const [modifyType, setModifyType] = useState(false);
-  const [nullness, setNullness] = useState('');
+  const [nullness, setNullness] = useState("");
   const handleModify = () => {
     if (newName == col && !newTyp) {
-      showNotification('warning', 'nothing is changed');
+      showNotification("warning", "nothing is changed");
       return;
     }
     if (!newName) {
-      showNotification('error', "name can't empty");
+      showNotification("error", "name can't empty");
       return;
     }
     setLoading(true);
@@ -1149,20 +1122,20 @@ function ModifyTableColumn(props: {
     if (typ != newTyp) {
       typePara = { typ: newTyp, null: nullness ? nullness : nullness };
     }
-    invoke('modify_table_column', {
+    invoke("modify_table_column", {
       name: uuid,
       tableName: table,
       oldName: col,
       newName: newName,
       typ: typePara,
     })
-      .then((_) => {
-        showNotification('success', 'Modify column OK');
+      .then(_ => {
+        showNotification("success", "Modify column OK");
         reload();
         handleClose();
       })
-      .catch((e) => {
-        showNotification('error', 'Modify column Failure', e);
+      .catch(e => {
+        showNotification("error", "Modify column Failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -1175,7 +1148,7 @@ function ModifyTableColumn(props: {
         fullWidth
         label="New Name"
         value={newName}
-        onChange={(e) => {
+        onChange={e => {
           setNewName(e.target.value);
         }}
         required
@@ -1185,7 +1158,7 @@ function ModifyTableColumn(props: {
               <InputAdornment position="end">
                 <IconButton
                   onClick={() => {
-                    setNewName('');
+                    setNewName("");
                   }}
                   edge="end"
                 >
@@ -1202,7 +1175,7 @@ function ModifyTableColumn(props: {
           control={
             <Checkbox
               checked={modifyType}
-              onChange={(e) => {
+              onChange={e => {
                 setModifyType(e.target.checked);
               }}
               name="myCheckbox"
@@ -1214,10 +1187,10 @@ function ModifyTableColumn(props: {
       )}
 
       {modifyType && (
-        <Stack direction="row" style={{ alignItems: 'center' }}>
+        <Stack direction="row" style={{ alignItems: "center" }}>
           <TypeSelect
             uuid={uuid}
-            handleChange={(e) => {
+            handleChange={e => {
               setNewTyp(e);
             }}
             style={{ flex: 1 }}
@@ -1240,35 +1213,27 @@ function ModifyTableColumn(props: {
   );
 }
 
-function TypeSelect(props: {
-  handleChange;
-  uuid;
-  type;
-  style?: CSSProperties;
-}) {
+function TypeSelect(props: { handleChange; uuid; type; style?: CSSProperties }) {
   const { handleChange, uuid, type, style } = props;
   const [types, setTypes] = useState<string[]>([]);
   const { showNotification } = useContext(NotificationContext);
   useEffect(() => {
-    invoke<string[]>('list_data_types', { name: uuid })
-      .then((ts) => {
+    invoke<string[]>("list_data_types", { name: uuid })
+      .then(ts => {
         setTypes(ts);
       })
-      .catch((e) => {
-        showNotification('error', 'should not return a error', e);
+      .catch(e => {
+        showNotification("error", "should not return a error", e);
       });
   }, []);
   return (
     <Autocomplete
       freeSolo
       options={types}
-      style={{ width: '22rem', ...style }}
+      style={{ width: "22rem", ...style }}
       value={type}
-      renderInput={(params) => (
-        <TextField
-          {...params}
-          label={`type def may require size varchar(100)`}
-        />
+      renderInput={params => (
+        <TextField {...params} label={`type def may require size varchar(100)`} />
       )}
       onChange={(_, type) => {
         handleChange(type);
@@ -1279,11 +1244,11 @@ function TypeSelect(props: {
 
 function ColumnNullness({ nullness, handleNullness }) {
   const xxx = [
-    { name: 'none', value: '' },
-    { name: 'null', value: 'null' },
+    { name: "none", value: "" },
+    { name: "null", value: "null" },
     {
-      name: 'not null',
-      value: 'not null',
+      name: "not null",
+      value: "not null",
     },
   ];
   return (
@@ -1294,7 +1259,7 @@ function ColumnNullness({ nullness, handleNullness }) {
       }}
       value={nullness}
     >
-      {xxx.map((e) => (
+      {xxx.map(e => (
         <FormControlLabel
           key={e.name}
           value={e.value}
@@ -1314,10 +1279,10 @@ function kindSupportDefault(kind: DataSourceKind): boolean {
 }
 
 function triggerIsEnable(enable: types.TriggerEnable): boolean {
-  if (enable.kind == 'postgres') {
-    return enable.enable.toUpperCase() != 'D';
+  if (enable.kind == "postgres") {
+    return enable.enable.toUpperCase() != "D";
   }
-  if (enable.kind == 'bool') {
+  if (enable.kind == "bool") {
     return enable.enable;
   }
 }
@@ -1334,9 +1299,9 @@ function TriggerMenu(props: {
   if (detail.enable) {
     enable = triggerIsEnable(detail.enable) ? (
       <MenuItem
-        sx={{ color: 'error.main' }}
+        sx={{ color: "error.main" }}
         onClick={() => {
-          handleEnables('disable_trigger', detail.name, 'Disable trigger');
+          handleEnables("disable_trigger", detail.name, "Disable trigger");
         }}
       >
         <ListItemIcon>
@@ -1347,7 +1312,7 @@ function TriggerMenu(props: {
     ) : (
       <MenuItem
         onClick={() => {
-          handleEnables('enable_trigger', detail.name, 'Enable trigger');
+          handleEnables("enable_trigger", detail.name, "Enable trigger");
         }}
       >
         <ListItemIcon>
@@ -1406,15 +1371,15 @@ function TriggersStructure(props: {
 
   const handleReload = () => {
     setLoading(true);
-    invoke<types.TriggerDetail[]>('show_trigger', {
+    invoke<types.TriggerDetail[]>("show_trigger", {
       name: uuid,
       tableName: table,
     })
-      .then((ts) => {
+      .then(ts => {
         setTriggers(ts);
       })
-      .catch((e) => {
-        showNotification('error', 'list indexes failed', e);
+      .catch(e => {
+        showNotification("error", "list indexes failed", e);
       })
       .finally(() => {
         setLoading(false);
@@ -1422,33 +1387,33 @@ function TriggersStructure(props: {
   };
   const callPara = { name: uuid, tableName: table };
 
-  const handleDrop = async (trigger) => {
+  const handleDrop = async trigger => {
     const confirm = await secondConfirm({
       title: `Drop trigger '${trigger}'`,
-      confirmText: 'Drop',
-      kind: 'error',
+      confirmText: "Drop",
+      kind: "error",
     });
     if (!confirm) {
       return;
     }
-    invoke('drop_trigger', { trigger, ...callPara })
+    invoke("drop_trigger", { trigger, ...callPara })
       .then(() => {
-        showNotification('success', 'Drop Trigger OK');
+        showNotification("success", "Drop Trigger OK");
         handleReload();
       })
-      .catch((e) => {
-        showNotification('error', 'Drop trigger failure', e);
+      .catch(e => {
+        showNotification("error", "Drop trigger failure", e);
       });
   };
 
   const handleEnables = (invoke_name: string, trigger, operation: string) => {
     invoke(invoke_name, { trigger, ...callPara })
       .then(() => {
-        showNotification('error', `${operation}  OK`);
+        showNotification("error", `${operation}  OK`);
         handleReload();
       })
-      .catch((e) => {
-        showNotification('error', `${operation}  Failure`, e);
+      .catch(e => {
+        showNotification("error", `${operation}  Failure`, e);
       });
   };
 
@@ -1457,27 +1422,27 @@ function TriggersStructure(props: {
   }, []);
   const cols = useMemo(() => {
     return [
-      { field: 'name' },
-      { field: 'event' },
-      { field: 'sql' },
+      { field: "name" },
+      { field: "event" },
+      { field: "sql" },
       {
-        field: 'enable',
-        renderCell: (r) => {
+        field: "enable",
+        renderCell: r => {
           const enable = r.row.enable as types.TriggerEnable;
           if (!enable) {
             return;
           }
           switch (enable.kind) {
-            case 'postgres':
+            case "postgres":
               return enable.enable;
-            case 'bool':
+            case "bool":
               return <TrueOrFalse value={enable.enable} />;
           }
         },
       },
     ] as GridColDef[];
   }, []);
-  cols.forEach((e) => {
+  cols.forEach(e => {
     const width = ColumnWidth.instance.get(e.field);
     if (width) {
       e.width = width;
@@ -1488,7 +1453,7 @@ function TriggersStructure(props: {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
+        onContextMenu: e => {
           const { currentTarget, target } = e;
           {
             const { field } = extractFieldAndIDFromMouseEvent(e);
@@ -1497,10 +1462,8 @@ function TriggersStructure(props: {
             }
           }
           const content = (target as HTMLDivElement).innerHTML;
-          const name = (currentTarget as HTMLDivElement).getAttribute(
-            'data-id'
-          );
-          const detail = triggers.find((e) => e.name == name);
+          const name = (currentTarget as HTMLDivElement).getAttribute("data-id");
+          const detail = triggers.find(e => e.name == name);
           setUpMenu({
             content: (
               <TriggerMenu
@@ -1513,7 +1476,7 @@ function TriggersStructure(props: {
             event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
       },
       toolbar: {
         csvOptions: {
@@ -1524,24 +1487,24 @@ function TriggersStructure(props: {
     } as GridSlotsComponentsProps;
   }, [triggers]);
 
-  const getRowId = useCallback((e) => {
-    return e['name'];
+  const getRowId = useCallback(e => {
+    return e["name"];
   }, []);
-  const onRowDoubleClick = useCallback((row) => {
+  const onRowDoubleClick = useCallback(row => {
     setRow(row.row);
   }, []);
 
   const [modalBox, setModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modalBox) {
-      const c = saveAndSetSize(modalBox, 'redis-edit');
+      const c = saveAndSetSize(modalBox, "redis-edit");
       return c;
     }
   }, [modalBox]);
 
   return (
-    <Stack style={{ height: '100%' }}>
-      <Stack direction="row" style={{ alignItems: 'center' }}>
+    <Stack style={{ height: "100%" }}>
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <Button loading={loading} onClick={handleReload}>
           reload
         </Button>
@@ -1576,7 +1539,7 @@ function TriggersStructure(props: {
           })}
         >
           <Box
-            sx={{ resize: 'both', ...modalStyle }}
+            sx={{ resize: "both", ...modalStyle }}
             width="80vw"
             height="80vh"
             ref={setModalBox}
@@ -1601,14 +1564,10 @@ function TriggersStructure(props: {
   );
 }
 
-function TableStructure(props: {
-  table: string;
-  uuid: string;
-  kind: DataSourceKind;
-}) {
+function TableStructure(props: { table: string; uuid: string; kind: DataSourceKind }) {
   const { table, uuid, kind } = props;
-  const [structure, setStructure] = useState('columns');
-  const structures = [{ name: 'columns' }];
+  const [structure, setStructure] = useState("columns");
+  const structures = [{ name: "columns" }];
 
   const supportStatement = [
     DataSourceKind.Cassandra,
@@ -1621,7 +1580,7 @@ function TableStructure(props: {
     DataSourceKind.DuckDB,
   ].includes(kind);
   if (supportStatement) {
-    structures.push({ name: 'statement' });
+    structures.push({ name: "statement" });
   }
   const supportIndex = [
     DataSourceKind.MariaDB,
@@ -1641,7 +1600,7 @@ function TableStructure(props: {
   ].includes(kind);
 
   if (supportIndex) {
-    structures.push({ name: 'indexes' });
+    structures.push({ name: "indexes" });
   }
   const supportTrigger = [
     DataSourceKind.MariaDB,
@@ -1653,52 +1612,36 @@ function TableStructure(props: {
     DataSourceKind.Postgres,
   ].includes(kind);
   if (supportTrigger) {
-    structures.push({ name: 'triggers' });
+    structures.push({ name: "triggers" });
   }
 
   return (
-    <Stack style={{ height: '100%' }}>
-      <Stack direction="row" style={{ justifyContent: 'center' }}>
-        {structures.map((e) => (
+    <Stack style={{ height: "100%" }}>
+      <Stack direction="row" style={{ justifyContent: "center" }}>
+        {structures.map(e => (
           <Chip
             onClick={() => {
               setStructure(e.name);
             }}
             key={e.name}
-            color={e.name == structure ? 'success' : 'default'}
+            color={e.name == structure ? "success" : "default"}
             label={e.name}
             size="medium"
           ></Chip>
         ))}
       </Stack>
 
-      {structure == 'columns' && (
-        <ColumnsStructure
-          table={table}
-          kind={kind}
-          uuid={uuid}
-        ></ColumnsStructure>
+      {structure == "columns" && (
+        <ColumnsStructure table={table} kind={kind} uuid={uuid}></ColumnsStructure>
       )}
-      {structure == 'indexes' && (
-        <IndexesStructure
-          table={table}
-          kind={kind}
-          uuid={uuid}
-        ></IndexesStructure>
+      {structure == "indexes" && (
+        <IndexesStructure table={table} kind={kind} uuid={uuid}></IndexesStructure>
       )}
-      {structure == 'triggers' && (
-        <TriggersStructure
-          table={table}
-          kind={kind}
-          uuid={uuid}
-        ></TriggersStructure>
+      {structure == "triggers" && (
+        <TriggersStructure table={table} kind={kind} uuid={uuid}></TriggersStructure>
       )}
-      {structure == 'statement' && (
-        <StatementStructure
-          table={table}
-          kind={kind}
-          uuid={uuid}
-        ></StatementStructure>
+      {structure == "statement" && (
+        <StatementStructure table={table} kind={kind} uuid={uuid}></StatementStructure>
       )}
     </Stack>
   );
@@ -1711,32 +1654,29 @@ function StatementStructure(props: {
   const { uuid, kind, table } = props;
   const getValue = (sql: types.CreateTableAndIndexSql) => {
     function newLine(ret: string): string {
-      if (!ret.endsWith(';')) {
-        ret += ';\n';
+      if (!ret.endsWith(";")) {
+        ret += ";\n";
       }
-      if (!ret.endsWith('\n')) {
-        ret += '\n';
+      if (!ret.endsWith("\n")) {
+        ret += "\n";
       }
       return ret;
     }
 
     let ret = newLine(sql.create_table);
-    const indexes = sql.indexes.map((x) => newLine(x));
-    ret += indexes.join('');
+    const indexes = sql.indexes.map(x => newLine(x));
+    ret += indexes.join("");
     return ret;
   };
 
   return (
-    <Stack style={{ height: '100%' }}>
+    <Stack style={{ height: "100%" }}>
       <DefAndMetasView
         reloadOP={async () => {
-          return invoke<types.CreateTableAndIndexSql>(
-            'create_table_and_index_sql',
-            {
-              name: uuid,
-              tableName: table,
-            }
-          ).then((e) => {
+          return invoke<types.CreateTableAndIndexSql>("create_table_and_index_sql", {
+            name: uuid,
+            tableName: table,
+          }).then(e => {
             return {
               def: getValue(e),
               metas: [],

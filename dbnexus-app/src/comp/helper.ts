@@ -1,24 +1,29 @@
-'use strict';
+"use strict";
 import { editor, languages, Position } from "monaco-editor";
 import types from "./ApiStruct";
-import { createContext, CSSProperties, MouseEvent, ReactElement, ReactNode } from "react";
-import { ask, message } from '@tauri-apps/plugin-dialog';
+import {
+  createContext,
+  CSSProperties,
+  MouseEvent,
+  ReactElement,
+  ReactNode,
+} from "react";
+import { ask, message } from "@tauri-apps/plugin-dialog";
 import { load } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
 import { BSON, EJSON } from "bson";
-import Database, { QueryResult } from '@tauri-apps/plugin-sql';
+import Database, { QueryResult } from "@tauri-apps/plugin-sql";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
 import { loader } from "@monaco-editor/react";
 import { emit } from "@tauri-apps/api/event";
 
-
 const pageSizeOptions = [10, 20, 50, 100];
-const appStore = await load('store.json');
+const appStore = await load("store.json");
 
-const appDatabase = await Database.load('sqlite:dbpal.sqlite.db');
+const appDatabase = await Database.load("sqlite:dbpal.sqlite.db");
 
 function rustResultOk(x: any): boolean {
   if (x instanceof Array) {
@@ -29,31 +34,46 @@ function rustResultOk(x: any): boolean {
     }
     return true;
   }
-  return !!x['Ok'];
+  return !!x["Ok"];
 }
 
 class QueryLogHandler {
-  uuid: string
-  name: string
+  uuid: string;
+  name: string;
   constructor(uuid: string) {
     this.uuid = uuid;
     this.name = extractConfigNameFromUuid(uuid);
   }
   async save(sql: string, success: boolean, showNotification?): Promise<void> {
-    return appDatabase.execute("insert into query_log (uuid,name,sql,success) values (?,?,?,?)", [this.uuid, this.name, sql, success ? 1 : 0]).then(() => { }).catch(e => {
-      if (showNotification) { showNotification("error", "save query log failed", e); }
-    });
+    return appDatabase
+      .execute("insert into query_log (uuid,name,sql,success) values (?,?,?,?)", [
+        this.uuid,
+        this.name,
+        sql,
+        success ? 1 : 0,
+      ])
+      .then(() => {})
+      .catch(e => {
+        if (showNotification) {
+          showNotification("error", "save query log failed", e);
+        }
+      });
   }
 
-  async query(matchSql: string, page: number, pageSize: number, order_by: string): Promise<any[]> {
+  async query(
+    matchSql: string,
+    page: number,
+    pageSize: number,
+    order_by: string,
+  ): Promise<any[]> {
     const sql = `
-    select * from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""} order by ${order_by ? order_by : 'create_at desc'} limit ${pageSize} offset ${pageSize * (page - 1)}`;
+    select * from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""} order by ${order_by ? order_by : "create_at desc"} limit ${pageSize} offset ${pageSize * (page - 1)}`;
     console.info("query log sql:", sql);
-    return appDatabase.select(sql, [this.uuid])
+    return appDatabase.select(sql, [this.uuid]);
   }
   async queryCount(matchSql: string): Promise<number> {
     let sql = `select count(*) as total from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""}`;
-    return appDatabase.select(sql, [this.uuid]).then(e => e ? e[0].total : 0);
+    return appDatabase.select(sql, [this.uuid]).then(e => (e ? e[0].total : 0));
   }
   async delete(): Promise<QueryResult> {
     return appDatabase.execute("delete from query_log where uuid=?", [this.uuid]);
@@ -63,22 +83,19 @@ class QueryLogHandler {
   }
 }
 
-
 interface ConfirmOptions {
   title: string;
   content?: string;
   confirmText?: string;
   cancelText?: string;
-  kind?: 'info' | 'warning' | 'error'
+  kind?: "info" | "warning" | "error";
 }
-
-
 
 async function secondConfirm({
   title,
   content,
-  confirmText = 'Confirm',
-  cancelText = 'Cancel',
+  confirmText = "Confirm",
+  cancelText = "Cancel",
   kind = "warning",
 }: ConfirmOptions): Promise<boolean> {
   return ask(title, {
@@ -89,11 +106,9 @@ async function secondConfirm({
   });
 }
 
-
 function generateRandomString(length: number = 10): string {
-  const characters =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
+  const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
   for (let i = 0; i < length; i++) {
     const randomIndex = Math.floor(Math.random() * characters.length);
     result += characters[randomIndex];
@@ -108,7 +123,7 @@ function generateRandomString(length: number = 10): string {
 
 function hexTryToString(hex): string | null {
   if (!hex) {
-    return '';
+    return "";
   }
   // 将十六进制字符串转换为字节数组
   const bytes = [];
@@ -116,9 +131,7 @@ function hexTryToString(hex): string | null {
     bytes.push(parseInt(hex.substr(i, 2), 16));
   }
   try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(
-      new Uint8Array(bytes)
-    );
+    return new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(bytes));
   } catch {
     return null;
   }
@@ -126,16 +139,15 @@ function hexTryToString(hex): string | null {
 
 function hexToString(hex: string): string {
   if (!hex) {
-    return '';
+    return "";
   }
   // 将十六进制字符串转换为字节数组
   const bytes = [];
   for (let i = 0; i < hex.length; i += 2) {
     bytes.push(parseInt(hex.substr(i, 2), 16));
   }
-  return new TextDecoder('utf-8').decode(new Uint8Array(bytes));
+  return new TextDecoder("utf-8").decode(new Uint8Array(bytes));
 }
-
 
 function stringToHexArray(str: string): Uint8Array {
   // 创建一个 Uint8Array 来存储字节
@@ -145,8 +157,8 @@ function stringToHexArray(str: string): Uint8Array {
 
 function arrayToHex(uint8Array: Uint8Array | number[]) {
   return Array.from(uint8Array) // 将 Uint8Array 转换为普通数组
-    .map((byte) => byte.toString(16).padStart(2, '0')) // 转换每个字节为十六进制并补齐
-    .join(''); // 连接为一个字符串
+    .map(byte => byte.toString(16).padStart(2, "0")) // 转换每个字节为十六进制并补齐
+    .join(""); // 连接为一个字符串
 }
 
 function stringToHex(str): string {
@@ -154,68 +166,68 @@ function stringToHex(str): string {
 }
 
 function backendCompletionItemToEditor(
-  xs: types.CompletionItem[]
+  xs: types.CompletionItem[],
 ): languages.CompletionList {
   function getKind(kind: types.CompletionKind): languages.CompletionItemKind {
     switch (kind) {
-      case 'Command':
+      case "Command":
         return languages.CompletionItemKind.Keyword;
-      case 'KeyWord':
+      case "KeyWord":
         return languages.CompletionItemKind.Keyword;
-      case 'Function':
+      case "Function":
         return languages.CompletionItemKind.Function;
-      case 'Database':
+      case "Database":
         return languages.CompletionItemKind.Module;
-      case 'Schema':
+      case "Schema":
         return languages.CompletionItemKind.Folder;
-      case 'Table':
+      case "Table":
       case "View":
         return languages.CompletionItemKind.Reference;
-      case 'Column':
+      case "Column":
         return languages.CompletionItemKind.Field;
-      case 'Text':
+      case "Text":
         return languages.CompletionItemKind.Text;
-      case 'Type':
+      case "Type":
         return languages.CompletionItemKind.Class;
-      case 'Index':
+      case "Index":
         return languages.CompletionItemKind.Reference;
-      case 'Sequence':
+      case "Sequence":
         return languages.CompletionItemKind.Reference;
-      case 'Stage':
+      case "Stage":
         return languages.CompletionItemKind.Reference;
-      case 'Trigger':
+      case "Trigger":
         return languages.CompletionItemKind.Function;
-      case 'Event':
+      case "Event":
         return languages.CompletionItemKind.Event;
-      case 'Procedure':
+      case "Procedure":
         return languages.CompletionItemKind.Function;
-      case 'Extension':
+      case "Extension":
         return languages.CompletionItemKind.Module;
-      case 'User':
+      case "User":
         return languages.CompletionItemKind.User;
-      case 'Role':
+      case "Role":
         return languages.CompletionItemKind.User;
-      case 'Constraint':
+      case "Constraint":
         return languages.CompletionItemKind.Operator;
-      case 'Partition':
+      case "Partition":
         return languages.CompletionItemKind.Operator;
-      case 'PrepareStatement':
+      case "PrepareStatement":
         return languages.CompletionItemKind.Function;
-      case 'Pragma':
+      case "Pragma":
         return languages.CompletionItemKind.Keyword;
-      case 'Policy':
+      case "Policy":
         return languages.CompletionItemKind.Operator;
-      case 'Variable':
+      case "Variable":
         return languages.CompletionItemKind.Variable;
-      case 'Rule':
+      case "Rule":
         return languages.CompletionItemKind.Operator;
-      case 'ClickHouseTableProjection':
+      case "ClickHouseTableProjection":
         return languages.CompletionItemKind.Property;
-      case 'Prepare':
+      case "Prepare":
         return languages.CompletionItemKind.Function;
-      case 'Module':
+      case "Module":
         return languages.CompletionItemKind.Module;
-      case 'Domain':
+      case "Domain":
         return languages.CompletionItemKind.Operator;
       default:
         return languages.CompletionItemKind.Text;
@@ -229,15 +241,15 @@ function backendCompletionItemToEditor(
         insertText: e.item,
         range: undefined,
         detail: e.desc,
-        documentation: e.desc
+        documentation: e.desc,
       };
     }),
   };
 }
 
 function extractConfigNameFromUuid(uuid: string): string {
-  if (uuid.includes('/')) {
-    return uuid.substring(0, uuid.indexOf('/'));
+  if (uuid.includes("/")) {
+    return uuid.substring(0, uuid.indexOf("/"));
   } else {
     return uuid;
   }
@@ -249,13 +261,12 @@ function getViewportSize() {
   return { width, height }; // 返回一个对象，包含宽度和高度
 }
 
-
 function errToString(message) {
-  if (typeof message == 'object' && 'reason' in message) {
+  if (typeof message == "object" && "reason" in message) {
     // TODO show message
-    message = message['reason'];
+    message = message["reason"];
   }
-  if (typeof message == 'object' && message instanceof Error) {
+  if (typeof message == "object" && message instanceof Error) {
     // TODO show message
     message = message.toString();
   }
@@ -277,11 +288,10 @@ enum DataSourceKind {
   LibSql = "libsql",
   FireBird = "firebird",
   DuckDB = "duckdb",
-  Cockroach = "cockroach"
+  Cockroach = "cockroach",
 }
 
 function quoteDatabaseIdentifier(x: DataSourceKind) {
-
   return (identifier: string) => {
     let q = "";
     switch (x) {
@@ -289,70 +299,68 @@ function quoteDatabaseIdentifier(x: DataSourceKind) {
       case DataSourceKind.TiDB:
       case DataSourceKind.Mysql:
       case DataSourceKind.ClickHouse:
-        q = '`';
+        q = "`";
         break;
       default:
         q = '"';
         break;
     }
     return q + identifier + q;
-  }
-
+  };
 }
 
 function connTypeToDataSourceKind(name: string): DataSourceKind {
-  return name as DataSourceKind
+  return name as DataSourceKind;
 }
 function isTypeLargeText(s: string): boolean {
   const toUpper = s.toUpperCase();
-  return toUpper.includes('TEXT') || toUpper.includes("LONG") || toUpper.includes("CLOB")
+  return (
+    toUpper.includes("TEXT") || toUpper.includes("LONG") || toUpper.includes("CLOB")
+  );
 }
-
 
 enum AppStoreKey {
   LoggerLevel = "logger-level",
 }
 
-
 class SaveLoggerStreamPinToBotton {
   key = "dbpal-logger-stream-pin-to-botton";
   get() {
-    return localStorage.getItem(this.key) == '1';
+    return localStorage.getItem(this.key) == "1";
   }
   save(x: boolean) {
-    localStorage.setItem(this.key, x ? '1' : '0');
+    localStorage.setItem(this.key, x ? "1" : "0");
   }
   static instance = new SaveLoggerStreamPinToBotton();
 }
 
-
 class SaveLeftTopShow {
   key = "dbpal-left-top-show";
   get() {
-    return localStorage.getItem(this.key) == '1';
+    return localStorage.getItem(this.key) == "1";
   }
   save(x: boolean) {
-    localStorage.setItem(this.key, x ? '1' : '0')
+    localStorage.setItem(this.key, x ? "1" : "0");
   }
   static instance = new SaveLeftTopShow();
 }
-
 
 class SaveMatchPattern {
   key = "dbpal-match-pattern";
   get() {
     try {
-
       const x = JSON.parse(localStorage.getItem(this.key));
-      if (x instanceof Array) { return x } else {
-        return []
+      if (x instanceof Array) {
+        return x;
+      } else {
+        return [];
       }
     } catch (e) {
-      return []
+      return [];
     }
   }
   save(x: string[]) {
-    localStorage.setItem(this.key, JSON.stringify(x))
+    localStorage.setItem(this.key, JSON.stringify(x));
   }
   static instance = new SaveMatchPattern();
 }
@@ -363,8 +371,10 @@ class SaveAlign {
 
   get() {
     const r = localStorage.getItem(this.key);
-    if (r) { return r } else {
-      return "center"
+    if (r) {
+      return r;
+    } else {
+      return "center";
     }
   }
   save(a: string) {
@@ -375,34 +385,52 @@ class SaveAlign {
 
 class SaveDomSizes {
   static async saveSize(key: string, size: UISize) {
-    return appDatabase.execute("replace into element_size(name, width, height) values(?,?,?)", [key, Math.ceil(size.width), Math.ceil(size.height)]);
+    return appDatabase.execute(
+      "replace into element_size(name, width, height) values(?,?,?)",
+      [key, Math.ceil(size.width), Math.ceil(size.height)],
+    );
   }
   static async getSize(key: string): Promise<undefined | UISize> {
-    return appDatabase.select("select width, height from element_size where name = ?", [key]).then((xs) => {
-      if (xs instanceof Array) { return xs[0] }
-      return xs
-    })
+    return appDatabase
+      .select("select width, height from element_size where name = ?", [key])
+      .then(xs => {
+        if (xs instanceof Array) {
+          return xs[0];
+        }
+        return xs;
+      });
   }
 }
 
-
 class FavoriteSql {
-  constructor(public uuid: string, public name: string, public kind: DataSourceKind, public sql: string, public last_modified: Date = new Date(), public id?: number, public connection_name?: string) {
+  constructor(
+    public uuid: string,
+    public name: string,
+    public kind: DataSourceKind,
+    public sql: string,
+    public last_modified: Date = new Date(),
+    public id?: number,
+    public connection_name?: string,
+  ) {
     this.connection_name = extractConfigNameFromUuid(uuid);
   }
   static async save(x: FavoriteSql, showNotification) {
     try {
-      await appDatabase.execute("replace into favorite_sql(uuid,connection_name,name,kind,sql,last_modified) values(?,?,?,?,?,?)", [
-        x.uuid, x.connection_name, x.name, x.kind, x.sql, x.last_modified]);
-      showNotification('success', "save favorite sql Ok");
+      await appDatabase.execute(
+        "replace into favorite_sql(uuid,connection_name,name,kind,sql,last_modified) values(?,?,?,?,?,?)",
+        [x.uuid, x.connection_name, x.name, x.kind, x.sql, x.last_modified],
+      );
+      showNotification("success", "save favorite sql Ok");
     } catch (e) {
-      showNotification('error', "save favorite sql failed", e);
-      return
+      showNotification("error", "save favorite sql failed", e);
+      return;
     }
   }
 
   static async getDistinctUuid() {
-    return appDatabase.select<{ uuid: string }[]>("SELECT DISTINCT  uuid from favorite_sql").then(x => x.map(y => y.uuid))
+    return appDatabase
+      .select<{ uuid: string }[]>("SELECT DISTINCT  uuid from favorite_sql")
+      .then(x => x.map(y => y.uuid));
   }
 
   // todo performance issue????
@@ -414,15 +442,14 @@ class FavoriteSql {
     return appDatabase.select(sql, uuid ? [uuid] : []);
   }
 
-
   static async delete(id: number, showNotification) {
     try {
       await appDatabase.execute("delete from favorite_sql where id=?", [id]);
     } catch (e) {
-      showNotification('error', "save favorite sql failed", e);
-      return
+      showNotification("error", "save favorite sql failed", e);
+      return;
     }
-    showNotification('success', "delete sql Ok")
+    showNotification("success", "delete sql Ok");
   }
 
   static async deleteByConnectionName(name: string) {
@@ -430,7 +457,7 @@ class FavoriteSql {
       appDatabase.execute(`delete from favorite_sql where connection_name=?`, [name]);
     } catch (e) {
       console.error("delete all logs belong to a key failed", e);
-      return
+      return;
     }
   }
 
@@ -438,21 +465,22 @@ class FavoriteSql {
     try {
       appDatabase.execute(`delete from favorite_sql where uuid=?`, [uuid]);
     } catch (e) {
-      showNotification('error', "clear favorite sql failed", e);
-      return
+      showNotification("error", "clear favorite sql failed", e);
+      return;
     }
-    showNotification('success', "clean OK");
+    showNotification("success", "clean OK");
   }
 }
 
 class ColumnWidth {
   width = {};
-  constructor() {
-
-  }
+  constructor() {}
   async save(name: string, width: number) {
     this.width[name] = width;
-    appDatabase.execute("replace into column_width(name,width) values(?,?)", [name, Math.ceil(width)])
+    appDatabase.execute("replace into column_width(name,width) values(?,?)", [
+      name,
+      Math.ceil(width),
+    ]);
   }
 
   get(key): number {
@@ -460,36 +488,38 @@ class ColumnWidth {
   }
   async reset(): Promise<void> {
     this.width = {};
-    return appDatabase.execute("delete from column_width").then((x) => {
+    return appDatabase.execute("delete from column_width").then(x => {
       console.info("delete of", x.rowsAffected, "rows");
-    })
+    });
   }
   static instance = new ColumnWidth();
 }
 
 {
-  appDatabase.select("select * from column_width").then((xs) => {
-    (xs as { name: string, width: number }[]).forEach(e => {
-      ColumnWidth.instance.width[e.name] = e.width
-    })
-  })
-
+  appDatabase.select("select * from column_width").then(xs => {
+    (xs as { name: string; width: number }[]).forEach(e => {
+      ColumnWidth.instance.width[e.name] = e.width;
+    });
+  });
 }
 
 const TabActiveContext = createContext(true);
 const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
   writeText(text)
     .then(() => {
-      if (showNotification) { showNotification('success', 'success copy to clipboard.'); }
-      if (okCallBack) { okCallBack() }
-    })
-    .catch((e) => {
       if (showNotification) {
-        showNotification('warning', 'copy to clipboard failed', e);
+        showNotification("success", "success copy to clipboard.");
+      }
+      if (okCallBack) {
+        okCallBack();
+      }
+    })
+    .catch(e => {
+      if (showNotification) {
+        showNotification("warning", "copy to clipboard failed", e);
       }
     });
 };
-
 
 class TabContent {
   constructor(
@@ -498,7 +528,7 @@ class TabContent {
     public content: ReactNode,
     public icon: ReactElement,
     public closeConfirmText?: string,
-  ) { }
+  ) {}
 }
 const TabsSetContext = createContext<{
   tabs: TabContent[];
@@ -512,11 +542,9 @@ const ConnTypeContext = createContext<{
   kind: DataSourceKind;
 }>(null);
 
-
 const MatchPatternContext = createContext<(x: string) => boolean>(() => {
-  return true
+  return true;
 });
-
 
 const UuidContext = createContext<{
   uuid: string;
@@ -526,23 +554,22 @@ const ContextMenuContext = createContext<{
   setUpMenu: ({ content, event }) => void;
 }>(null);
 
-
 interface ErrAndLoc {
-  line?: number,
-  column?: number,
-  msg: string,
+  line?: number;
+  column?: number;
+  msg: string;
 }
 
 function validJson(s: string): Promise<ErrAndLoc | null> {
-  return invoke<ErrAndLoc | null>("valid_json", { jsonStr: s })
+  return invoke<ErrAndLoc | null>("valid_json", { jsonStr: s });
 }
 
 function resetMuiDataRespWidth(old: MuiDataGridData): MuiDataGridData {
   return {
     sql: old.sql,
     data: old.data,
-    fields: old.fields.map((e) => {
-      return { ...e, width: undefined, } as types.Field;
+    fields: old.fields.map(e => {
+      return { ...e, width: undefined } as types.Field;
     }),
     total: old.total,
     cache_time: old.cache_time,
@@ -556,8 +583,12 @@ type UISize = {
 };
 const gridStyle = { height: "auto", maxHeight: "80vh" } as CSSProperties;
 
-function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "both" = "both"): () => void {
-  const e = new ResizeObserver((en) => {
+function saveAndSetSize(
+  dom: Element,
+  key: string,
+  set: "height" | "width" | "both" = "both",
+): () => void {
+  const e = new ResizeObserver(en => {
     const height = en[0].target.clientHeight;
     const width = en[0].target.clientWidth;
     if (width && height) {
@@ -566,15 +597,15 @@ function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "bo
   });
   SaveDomSizes.getSize(key).then(size => {
     if (size) {
-      const div = (dom as HTMLDivElement);
+      const div = dom as HTMLDivElement;
       if (set == "height" || set == "both") {
         if (size.height) {
-          div.style.height = size.height + 'px';
+          div.style.height = size.height + "px";
         }
       }
       if (set == "width" || set == "both") {
         if (size.width) {
-          div.style.width = size.width + 'px';
+          div.style.width = size.width + "px";
         }
       }
     }
@@ -585,16 +616,17 @@ function saveAndSetSize(dom: Element, key: string, set: "height" | "width" | "bo
   };
 }
 
-
 class DocsAndCount {
-  constructor(public docs: BSON.Document[], public count: number) { }
+  constructor(
+    public docs: BSON.Document[],
+    public count: number,
+  ) {}
 }
-
 
 class MongoTableHandler {
   static reloadTableList(uuid: string, table) {
     return async (filter, sort, page, pageSize): Promise<MuiDataGridData> => {
-      return await invoke('mongo_show_collection_table_list', {
+      return await invoke("mongo_show_collection_table_list", {
         name: uuid,
         tableName: table,
         filter: BSON.serialize(filter),
@@ -602,11 +634,11 @@ class MongoTableHandler {
         page,
         pageSize,
       });
-    }
+    };
   }
   static reloadDocs(uuid: string, table) {
     return async (filter, sort, page, pageSize): Promise<DocsAndCount> => {
-      return invoke<{ count: number, docs: number[][] }>('mongo_show_collection_docs', {
+      return invoke<{ count: number; docs: number[][] }>("mongo_show_collection_docs", {
         name: uuid,
         tableName: table,
         filter: BSON.serialize(filter),
@@ -614,61 +646,58 @@ class MongoTableHandler {
         page,
         pageSize,
       }).then(x => {
-        const docs = x.docs.map((e) => BSON.deserialize(new Uint8Array(e)));
+        const docs = x.docs.map(e => BSON.deserialize(new Uint8Array(e)));
         const count = x.count;
         return new DocsAndCount(docs, count);
       });
-    }
+    };
   }
 
   static loadOne(uuid: string, table) {
     return async (id): Promise<BSON.Document> => {
-      return invoke<number[]>('mongo_get_one_document_by_id', {
+      return invoke<number[]>("mongo_get_one_document_by_id", {
         name: uuid,
         tableName: table,
         id: JSON.stringify(EJSON.serialize(id)),
       }).then(x => {
-        return BSON.deserialize(new Uint8Array(x))
+        return BSON.deserialize(new Uint8Array(x));
       });
-    }
+    };
   }
 
-
   static modifyOP(uuid, table) {
-    return async (doc) => {
-      return invoke<void>('mongo_update_one', {
+    return async doc => {
+      return invoke<void>("mongo_update_one", {
         name: uuid,
         tableName: table,
         doc: BSON.serialize(doc),
       });
-    }
+    };
   }
   static deleteOP(uuid, table) {
-    return async (ids) => {
+    return async ids => {
       if (!Array.isArray(ids)) {
         ids = [ids];
       }
-      return invoke<void>('mongo_delete_ids', {
+      return invoke<void>("mongo_delete_ids", {
         name: uuid,
         tableName: table,
         ids: JSON.stringify(EJSON.serialize(ids)),
       });
-    }
+    };
   }
 }
 
-
 function notifySettingChange() {
-
   emit(settingChangeEvent, "");
 }
 
 class UserSettingAppearance {
   fontSize: number = 15;
-  fontWeight: string = 'normal';
-  fontFamily: string = '';
-  lightBgColor: string = '';
-  darkBgColor: string = '';
+  fontWeight: string = "normal";
+  fontFamily: string = "";
+  lightBgColor: string = "";
+  darkBgColor: string = "";
   datagridRowHeightFactor = 2;
   maxTreeSize: number = 150;
   maxTabTitleLength: number = 12;
@@ -680,12 +709,12 @@ class UserSettingAppearance {
   }
   // 可能和以前的设置冲突
   datagridRowHeight() {
-    return Math.ceil(this.fontSize * this.datagridRowHeightFactor)
+    return Math.ceil(this.fontSize * this.datagridRowHeightFactor);
   }
   static get(): UserSettingAppearance {
     try {
       let setting = JSON.parse(localStorage.getItem(UserSettingAppearance.key));
-      setting = { ... new UserSettingAppearance(), ...setting };
+      setting = { ...new UserSettingAppearance(), ...setting };
       Object.setPrototypeOf(setting, UserSettingAppearance.prototype);
       return setting;
     } catch (e) {
@@ -696,7 +725,7 @@ class UserSettingAppearance {
 }
 
 class UserSettingExport {
-  csvDelimiter: string = ',';
+  csvDelimiter: string = ",";
   includeHeader: boolean = true;
   static key = "dbpal-export-setting";
   save() {
@@ -706,9 +735,9 @@ class UserSettingExport {
   static get(): UserSettingExport {
     try {
       let setting = JSON.parse(localStorage.getItem(UserSettingExport.key));
-      setting = { ... new UserSettingExport(), ...setting };
+      setting = { ...new UserSettingExport(), ...setting };
       Object.setPrototypeOf(setting, UserSettingExport.prototype);
-      return setting
+      return setting;
     } catch (e) {
       // ignore
       return new UserSettingExport();
@@ -718,18 +747,18 @@ class UserSettingExport {
 
 class UserSettingEditor {
   tabSize: number = 4;
-  theme: string = '';
+  theme: string = "";
   editorOption: any = null;
   static key = "dbpal-editor-setting";
   save() {
-    localStorage.setItem(UserSettingEditor.key, JSON.stringify({ ... this }));
+    localStorage.setItem(UserSettingEditor.key, JSON.stringify({ ...this }));
     notifySettingChange();
   }
 
   static get() {
     try {
       let x = JSON.parse(localStorage.getItem(UserSettingEditor.key));
-      return { ...  new UserSettingEditor(), ...x };
+      return { ...new UserSettingEditor(), ...x };
     } catch (e) {
       // ignore
       return new UserSettingEditor();
@@ -746,61 +775,56 @@ class UserSetting {
     if (this.editor.theme) {
       return this.editor.theme;
     }
-    return isDarkTheme() ? 'vs-dark' : 'light';
+    return isDarkTheme() ? "vs-dark" : "light";
   }
   datagridRowHeightXXX() {
-    return this.appearance.datagridRowHeight()
+    return this.appearance.datagridRowHeight();
   }
 }
 
-
-
-let appTheme = 'light';
+let appTheme = "light";
 
 function isDarkTheme() {
-
-  return appTheme == 'dark';
+  return appTheme == "dark";
 }
 
 class UserSettingMisc {
-  static key = "dbpal-misc-setting"
+  static key = "dbpal-misc-setting";
   autoStart: boolean = false;
   save() {
-    localStorage.setItem(UserSettingMisc.key, JSON.stringify({ ... this }));
+    localStorage.setItem(UserSettingMisc.key, JSON.stringify({ ...this }));
     notifySettingChange();
   }
 
   static get() {
     try {
       let x = JSON.parse(localStorage.getItem(UserSettingMisc.key));
-      return { ...  new UserSettingMisc(), ...x };
+      return { ...new UserSettingMisc(), ...x };
     } catch (e) {
       // ignore
       return new UserSettingMisc();
     }
   }
-
-
 }
 
 const SettingContext = createContext<UserSetting>(null);
 
 const WindowFocusContext = createContext(true);
 
-function editorSetPositionAndReveal(editor: editor.IStandaloneCodeEditor, pos: Position) {
+function editorSetPositionAndReveal(
+  editor: editor.IStandaloneCodeEditor,
+  pos: Position,
+) {
   editor.setPosition(pos);
   editor.focus();
   editor.revealLines(pos.lineNumber, pos.lineNumber);
-
 }
 
-
 class LoggerLevel {
-  static level: string = 'info';
+  static level: string = "info";
   static async set(level: string) {
     LoggerLevel.level = level;
     await appStore.set(AppStoreKey.LoggerLevel, level);
-
   }
 }
 
@@ -815,8 +839,9 @@ function postgresLike(x: DataSourceKind) {
   switch (x) {
     case DataSourceKind.Postgres:
     case DataSourceKind.Cockroach:
-      return true
-    default: return false;
+      return true;
+    default:
+      return false;
   }
 }
 const udfIdGenerate = (
@@ -830,25 +855,16 @@ const udfIdGenerate = (
     case DataSourceKind.Postgres:
     case DataSourceKind.Cockroach:
       return (
-        idPrefix +
-        '-' +
-        named.name +
-        '-' +
-        (named.parameters ? named.parameters : '')
+        idPrefix + "-" + named.name + "-" + (named.parameters ? named.parameters : "")
       );
     case DataSourceKind.Cassandra:
-      return (
-        idPrefix + '-' + named.name + '-' + named.cassandra_parameters.join('-')
-      );
+      return idPrefix + "-" + named.name + "-" + named.cassandra_parameters.join("-");
     default:
-      return idPrefix + '-' + named.name;
+      return idPrefix + "-" + named.name;
   }
 };
 
-function getEditorText(
-  editor: editor.IStandaloneCodeEditor,
-  showNotification
-) {
+function getEditorText(editor: editor.IStandaloneCodeEditor, showNotification) {
   const range = editor.getSelection();
   let text: string;
   if (range) {
@@ -859,64 +875,59 @@ function getEditorText(
   }
   text = text.trim();
   if (!text) {
-    showNotification('warning', 'empty statement');
+    showNotification("warning", "empty statement");
     return undefined;
   }
   return text;
-};
+}
 
 function makeGetParserErr(uuid) {
   return (sql: string): Promise<ErrAndLoc | null> => {
-    return invoke<ErrAndLoc | null>('sql_parse_error', {
+    return invoke<ErrAndLoc | null>("sql_parse_error", {
       name: uuid,
       sql,
     });
   };
 }
 
-
 class SaveQueryLogConfigure {
   static key = "dbpal-save-query-log";
   static get() {
     try {
-      return '1' == localStorage.getItem(SaveQueryLogConfigure.key);
+      return "1" == localStorage.getItem(SaveQueryLogConfigure.key);
     } catch (e) {
       console.error("get query log failed");
       return false;
     }
   }
   static set(save: boolean) {
-    localStorage.setItem(SaveQueryLogConfigure.key, save ? '1' : "0");
+    localStorage.setItem(SaveQueryLogConfigure.key, save ? "1" : "0");
   }
 }
 
 function makeExecuteSql(uuid) {
   return (sql: string): Promise<any> => {
-    return invoke<any>('execute_sql_no_open_conn', {
+    return invoke<any>("execute_sql_no_open_conn", {
       name: uuid,
       sql,
     }).then(e => {
       if (SaveQueryLogConfigure.get()) {
-        new QueryLogHandler(uuid,).save(sql, rustResultOk(e));
+        new QueryLogHandler(uuid).save(sql, rustResultOk(e));
       }
-      return e
+      return e;
     });
   };
 }
-
 
 function getStackTrace() {
   const error = new Error();
   console.error(error.stack);
 }
 
-
-
 class ColorFn {
-
   static hexToRgb(hex) {
-    hex = hex.replace('#', '');
-    if (hex.length === 3) hex = [...hex].map(c => c + c).join('');
+    hex = hex.replace("#", "");
+    if (hex.length === 3) hex = [...hex].map(c => c + c).join("");
     const num = parseInt(hex, 16);
     return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
   }
@@ -928,17 +939,16 @@ class ColorFn {
   static isColor = str => {
     const o = new Option().style;
     o.color = str;
-    return o.color !== '';
+    return o.color !== "";
   };
 }
-
 
 class SavePageSize {
   key = "dbpal-page-size";
 
   save(size: number) {
     if (pageSizeOptions.find(e => size == e)) {
-      localStorage.setItem(this.key, size + '');
+      localStorage.setItem(this.key, size + "");
     } else {
       getStackTrace();
     }
@@ -948,7 +958,7 @@ class SavePageSize {
     try {
       const x = parseInt(localStorage.getItem(this.key));
       if (!isNaN(x)) {
-        return x
+        return x;
       }
     } catch (e) {
       console.error("get page size failed");
@@ -958,66 +968,65 @@ class SavePageSize {
   static instance = new SavePageSize();
 }
 
-
 function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
   switch (kind) {
     case DataSourceKind.Mongo:
-      return ['json', 'jsonline'];
+      return ["json", "jsonline"];
     default:
-      return isTable ? ['csv', 'sql', 'json', 'jsonline', "xlsx"] : ['csv', 'json', 'jsonline', "xlsx"];
+      return isTable
+        ? ["csv", "sql", "json", "jsonline", "xlsx"]
+        : ["csv", "json", "jsonline", "xlsx"];
   }
 }
 
 function generateDefaultFilename(name, extension) {
-  if (extension == 'jsonline') {
+  if (extension == "jsonline") {
     /*
       统一用 .jsonl（全小写，无空格）最好。
       这是社区事实标准：GitHub、Git LFS、Apache Spark、BigQuery、Hugging Face 等生态都按 .jsonl 识别，工具链（grep、jq、ripgrep、VS Code 插件）也都默认支持。
     */
-    extension = 'jsonl';
+    extension = "jsonl";
   }
   // 获取当前时间
   const now = new Date();
   // 格式化时间为字符串
-  const timestamp = now.toISOString().replace(/[:.-]/g, '').slice(0, 15);
+  const timestamp = now.toISOString().replace(/[:.-]/g, "").slice(0, 15);
   // 生成文件名
   const filename = `${name}_${timestamp}.${extension}`;
   return filename;
 }
 const textEllipsisStyle = {
-  width: '9rem',
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
+  width: "9rem",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
   flex: 1,
 } as CSSProperties;
 
-
 export type MuiDataGridData = {
-  "fields": types.Field[];
-  "data": any[];
-  "sql": string | null;
-  "total": number | null;
-  "cache_time": types.U64 | null;
-  "has_more": boolean;
-  inserted_seq?: boolean
+  fields: types.Field[];
+  data: any[];
+  sql: string | null;
+  total: number | null;
+  cache_time: types.U64 | null;
+  has_more: boolean;
+  inserted_seq?: boolean;
 };
 
 enum RedisTableType {
-  String = 'string',
-  List = 'list',
-  Set = 'set',
-  Zset = 'zset',
-  Hash = 'hash',
+  String = "string",
+  List = "list",
+  Set = "set",
+  Zset = "zset",
+  Hash = "hash",
 }
 
 function extractFieldAndIDFromMouseEvent(e: MouseEvent) {
   const { currentTarget, target } = e;
-  const field = (target as HTMLDivElement).getAttribute('data-field');
-  const id = (currentTarget as HTMLDivElement).getAttribute('data-id');
+  const field = (target as HTMLDivElement).getAttribute("data-field");
+  const id = (currentTarget as HTMLDivElement).getAttribute("data-id");
   return { field, id };
 }
-
 
 function editorPositionToEnd(editor: editor.IStandaloneCodeEditor) {
   const model = editor.getModel();
@@ -1025,43 +1034,40 @@ function editorPositionToEnd(editor: editor.IStandaloneCodeEditor) {
   const lastColumn = model.getLineMaxColumn(lastLine);
   // 设置光标位置到最后一行最后一列
   editor.setPosition({ lineNumber: lastLine, column: lastColumn });
-
 }
 
 class KeyPressed {
-
   // control on windows on command on mac pressed and expect key
   static matchControl(e: KeyboardEvent, expect: string) {
-    return (isMacOs() && e.metaKey && e.key == expect) ||
-      (!isMacOs() && e.ctrlKey && e.key == expect);
-
+    return (
+      (isMacOs() && e.metaKey && e.key == expect) ||
+      (!isMacOs() && e.ctrlKey && e.key == expect)
+    );
   }
 
-  // is is control+s pressed  
+  // is is control+s pressed
   static isFileSave(e: KeyboardEvent) {
-    return KeyPressed.matchControl(e, 's')
+    return KeyPressed.matchControl(e, "s");
   }
 
   static isFileOpen(e: KeyboardEvent) {
-    return KeyPressed.matchControl(e, 'o')
+    return KeyPressed.matchControl(e, "o");
   }
 
   static prevTab(e: KeyboardEvent) {
-    return KeyPressed.matchControl(e, '[')
+    return KeyPressed.matchControl(e, "[");
   }
   static nextTab(e: KeyboardEvent) {
-    return KeyPressed.matchControl(e, ']')
+    return KeyPressed.matchControl(e, "]");
   }
   static closeTab(e: KeyboardEvent) {
-    return KeyPressed.matchControl(e, 'w')
+    return KeyPressed.matchControl(e, "w");
   }
-
 }
 
-
 // some temp place for store some data
-// normally the store the data can be consume soon 
-// use to pass the parameter as some sql etc.... 
+// normally the store the data can be consume soon
+// use to pass the parameter as some sql etc....
 // used to pass data the new create webview
 
 class SomeTempStore {
@@ -1087,29 +1093,26 @@ class SomeTempStore {
   }
 }
 
-
 function isMacOs() {
-  return platform() == 'macos';
+  return platform() == "macos";
 }
 
 function isWindows() {
-  return platform() == 'windows';
+  return platform() == "windows";
 }
 
-
-
 interface NewWindowTableParameter {
-  uuid: string,
-  table: string,
-  kind: DataSourceKind,
-  redisTableType: RedisTableType,
-  isTable?: boolean
+  uuid: string;
+  table: string;
+  kind: DataSourceKind;
+  redisTableType: RedisTableType;
+  isTable?: boolean;
 }
 
 interface DetachQueyRespViewParameter {
-  uuid: string,
-  queryId: number,
-  eventName: string,
+  uuid: string;
+  queryId: number;
+  eventName: string;
 }
 
 const dataGridStyle = {
@@ -1117,7 +1120,7 @@ const dataGridStyle = {
   height: "100px",
   flexShrink: 1,
   // 这个值用 0% 在windows也有问题好像会把datagrid变得很高 用0 都可以 用0% 都不可以 然而flex为1 设置的值是0% 可能是兼容性的问题
-  flexBasis: '0'
+  flexBasis: "0",
 } as CSSProperties;
 enum ViewKind {
   Normal,
@@ -1127,7 +1130,7 @@ enum ViewKind {
 const registeredThemes = [];
 async function setUpEditorThemes() {
   try {
-    const themes = await invoke<object>('monaco_editor_themes');
+    const themes = await invoke<object>("monaco_editor_themes");
     const monaco = await loader.init();
     for (const key in themes) {
       themes[key] = JSON.parse(themes[key]);
@@ -1138,7 +1141,7 @@ async function setUpEditorThemes() {
       registeredThemes.push(key);
     }
   } catch (e) {
-    message("set up editor themes failed,err:" + String(e), { kind: 'error' });
+    message("set up editor themes failed,err:" + String(e), { kind: "error" });
     console.error("set up editor themes failed", e);
   }
 }
@@ -1149,10 +1152,9 @@ function getLanguageFromDataSourceKind(kind: DataSourceKind): string {
     case DataSourceKind.Redis:
       return "redis";
     case DataSourceKind.Mongo:
-      return 'javascript';
+      return "javascript";
     default:
-      return 'sql';
-
+      return "sql";
   }
 }
 
@@ -1164,12 +1166,11 @@ enum TableType {
   MongoTimeSerial,
 }
 
-
 const shrinkAble: CSSProperties = {
   flexShrink: 1,
   overflow: "hidden",
-  minWidth: "3rem"
-}
+  minWidth: "3rem",
+};
 
 export {
   TabsSetContext,
@@ -1252,66 +1253,64 @@ export {
   isWindows,
 };
 
-
-export type {
-  ErrAndLoc,
-  NewWindowTableParameter,
-  DetachQueyRespViewParameter
-}
+export type { ErrAndLoc, NewWindowTableParameter, DetachQueyRespViewParameter };
 
 async function webviewWIndowInit() {
   const currentWebview = await WebviewWindow.getCurrent();
-  appStore.get<number>("zoom").then(async (zoom) => {
+  appStore.get<number>("zoom").then(async zoom => {
     if (zoom) {
-      try { await currentWebview.setZoom(zoom); } catch (e) {
+      try {
+        await currentWebview.setZoom(zoom);
+      } catch (e) {
         console.error("set zoom failed", e);
-        message("set zoom failed : " + String(e), { kind: "error" })
+        message("set zoom failed : " + String(e), { kind: "error" });
       }
     }
   });
-  if (['windows', 'linux'].includes(platform())) {
-    document.addEventListener('keydown', function (event) {
-      if (event.key === 'F11') {
-        currentWebview.isFullscreen().then((isFull) => {
+  if (["windows", "linux"].includes(platform())) {
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "F11") {
+        currentWebview.isFullscreen().then(isFull => {
           currentWebview.setFullscreen(!isFull);
         });
       }
     });
   }
-  currentWebview.theme().then(async (theme) => {
+  currentWebview.theme().then(async theme => {
     if (!theme) {
       return;
     }
     appTheme = theme;
     notifySettingChange();
   });
-  currentWebview.onThemeChanged(async (msg) => {
+  currentWebview.onThemeChanged(async msg => {
     appTheme = msg.payload;
     notifySettingChange();
   });
-  if (platform() == "linux") { //  https://github.com/tauri-apps/tauri/issues/9427 
+  if (platform() == "linux") {
+    //  https://github.com/tauri-apps/tauri/issues/9427
     setInterval(() => {
-      currentWebview.theme().then((theme) => {
+      currentWebview.theme().then(theme => {
         if (appTheme == theme) {
-          return
+          return;
         }
         appTheme = theme;
         notifySettingChange();
-      })
+      });
     }, 1000);
   }
 
   if (!import.meta.env.DEV) {
-    document.addEventListener('contextmenu', function (event) {
+    document.addEventListener("contextmenu", function (event) {
       event.preventDefault();
     });
 
-    document.addEventListener('keydown', function (event) {
+    document.addEventListener("keydown", function (event) {
       // Prevent F5 or Ctrl+R (Windows/Linux) and Command+R (Mac) from refreshing the page
       if (
-        event.key === 'F5' ||
-        (event.ctrlKey && event.key === 'r') ||
-        (event.metaKey && event.key === 'r')
+        event.key === "F5" ||
+        (event.ctrlKey && event.key === "r") ||
+        (event.metaKey && event.key === "r")
       ) {
         event.preventDefault();
       }
@@ -1319,10 +1318,3 @@ async function webviewWIndowInit() {
   }
 }
 webviewWIndowInit();
-
-
-
-
-setTimeout(() => {
-  document.body.style.transition = "all 1s ease"
-}, 2000);

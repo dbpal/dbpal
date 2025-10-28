@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 import {
   Button,
   FormControlLabel,
@@ -7,37 +7,35 @@ import {
   Switch,
   Tooltip,
   Typography,
-} from '@mui/material';
-import { SimpleFlexEditor } from './CommonComp2';
-import { useContext, useEffect, useState } from 'react';
-import { editor, Position } from 'monaco-editor';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+} from "@mui/material";
+import { SimpleFlexEditor } from "./CommonComp2";
+import { useContext, useEffect, useState } from "react";
+import { editor, Position } from "monaco-editor";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import {
   editorSetPositionAndReveal,
   LoggerLevel,
   SaveLoggerStreamPinToBotton,
-} from './helper';
-import { LogLevelSelection } from './CommonComp';
-import { NotificationContext } from './Notification';
-import InfoIcon from '@mui/icons-material/Info';
-import { Channel, invoke } from '@tauri-apps/api/core';
+} from "./helper";
+import { LogLevelSelection } from "./CommonComp";
+import { NotificationContext } from "./Notification";
+import InfoIcon from "@mui/icons-material/Info";
+import { Channel, invoke } from "@tauri-apps/api/core";
 function LogTip({ width }) {
   return (
     <Stack style={{ width }}>
       <Typography variant="h6">
-        The rust backend can generate various logs,it is useful for debug a lot
-        of problem.
+        The rust backend can generate various logs,it is useful for debug a lot of
+        problem.
       </Typography>
 
       <Typography>
-        Dbpal will log sql been execute via `log::info("sql:" ,sql)`,so you can
-        search for them and dependencies can generate various logs maybe very
-        useful.
+        Dbpal will log sql been execute via `log::info("sql:" ,sql)`,so you can search
+        for them and dependencies can generate various logs maybe very useful.
       </Typography>
       <Typography color="warning">
-        dbpal will not trying to save logs to local file because maybe be
-        danger.
+        dbpal will not trying to save logs to local file because maybe be danger.
         <br />
         When this window is closed,the log will be lost.
       </Typography>
@@ -48,7 +46,7 @@ function LogTip({ width }) {
 function LogStream() {
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pinToBotton, setPinToBotton] = useState(
-    SaveLoggerStreamPinToBotton.instance.get()
+    SaveLoggerStreamPinToBotton.instance.get(),
   );
   const { showNotification } = useContext(NotificationContext);
   const [loggerLevel, setLoggerLevel] = useState(LoggerLevel.level);
@@ -57,7 +55,7 @@ function LogStream() {
       return;
     }
     const onEvent = new Channel<string>();
-    onEvent.onmessage = (message) => {
+    onEvent.onmessage = message => {
       const model = editor.getModel()!; // 或 monaco.editor.getModels()[0]
       const lastLine = model.getLineCount();
       const lastCol = model.getLineMaxColumn(lastLine);
@@ -76,7 +74,7 @@ function LogStream() {
         editorSetPositionAndReveal(editor, new Position(lastLine, 1));
       }
     };
-    invoke('log_channel', {
+    invoke("log_channel", {
       onEvent,
     });
   }, [pinToBotton, editor]);
@@ -86,8 +84,8 @@ function LogStream() {
   }, [pinToBotton]);
 
   return (
-    <Stack style={{ height: '100%' }}>
-      <Stack direction="row" style={{ alignItems: 'center' }}>
+    <Stack style={{ height: "100%" }}>
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <IconButton
           onClick={() => {
             editorSetPositionAndReveal(editor, new Position(1, 1));
@@ -111,8 +109,8 @@ function LogStream() {
         <Button
           variant="outlined"
           onClick={() => {
-            editor.getModel().setValue('');
-            showNotification('success', 'log truncated');
+            editor.getModel().setValue("");
+            showNotification("success", "log truncated");
           }}
         >
           truncate
@@ -121,17 +119,17 @@ function LogStream() {
           label="pin to bottom"
           control=<Switch
             checked={pinToBotton}
-            onChange={(e) => setPinToBotton(e.target.checked)}
+            onChange={e => setPinToBotton(e.target.checked)}
           />
         ></FormControlLabel>
         <LogLevelSelection
           level={loggerLevel}
-          handleChange={async (level) => {
+          handleChange={async level => {
             try {
               await LoggerLevel.set(level);
               setLoggerLevel(level);
             } catch (e) {
-              showNotification('error', 'save log level failed', e);
+              showNotification("error", "save log level failed", e);
               return;
             }
           }}
@@ -141,7 +139,7 @@ function LogStream() {
           title={<LogTip width="40vw"></LogTip>}
           slotProps={{
             tooltip: {
-              style: { maxWidth: '40vw' },
+              style: { maxWidth: "40vw" },
             },
           }}
         >
@@ -152,8 +150,8 @@ function LogStream() {
       </Stack>
 
       <SimpleFlexEditor
-        value={''}
-        handleEditor={(ed) => {
+        value={""}
+        handleEditor={ed => {
           setEditor(ed);
         }}
         readOnly

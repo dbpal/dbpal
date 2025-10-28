@@ -1,5 +1,5 @@
-'use strict';
-import { ReactNode, useContext, useEffect, useRef, useState } from 'react';
+"use strict";
+import { ReactNode, useContext, useEffect, useRef, useState } from "react";
 import {
   modalStyle,
   tabsHasId,
@@ -14,21 +14,21 @@ import {
   makePutValueInSql,
   makeShowTableColumn,
   makeTableInsertFn,
-} from './Common';
-import types from './ApiStruct';
-import { NotificationContext } from './Notification';
-import { invoke } from '@tauri-apps/api/core';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import ListIcon from '@mui/icons-material/List';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import PlaylistRemoveIcon from '@mui/icons-material/PlaylistRemove';
-import TableViewIcon from '@mui/icons-material/TableView';
-import ArrowCircleDownIcon from '@mui/icons-material/ArrowCircleDown';
-import { IoConstructOutline } from 'react-icons/io5';
-import { HiOutlineDuplicate } from 'react-icons/hi';
-import FilterAltIcon from '@mui/icons-material/FilterAlt';
+} from "./Common";
+import types from "./ApiStruct";
+import { NotificationContext } from "./Notification";
+import { invoke } from "@tauri-apps/api/core";
+import { TreeItem } from "@mui/x-tree-view/TreeItem";
+import ListIcon from "@mui/icons-material/List";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import PlaylistRemoveIcon from "@mui/icons-material/PlaylistRemove";
+import TableViewIcon from "@mui/icons-material/TableView";
+import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
+import { IoConstructOutline } from "react-icons/io5";
+import { HiOutlineDuplicate } from "react-icons/hi";
+import FilterAltIcon from "@mui/icons-material/FilterAlt";
 
 import {
   Box,
@@ -48,13 +48,13 @@ import {
   Switch,
   TextField,
   Tooltip,
-} from '@mui/material';
-import ClearIcon from '@mui/icons-material/Clear';
+} from "@mui/material";
+import ClearIcon from "@mui/icons-material/Clear";
 
-import { TabContent } from './Tabs';
-import { SqlTableView, SqlTableViewData } from './SqlTableView';
-import { ExportTableOrView } from './Export';
-import AddIcon from '@mui/icons-material/Add';
+import { TabContent } from "./Tabs";
+import { SqlTableView, SqlTableViewData } from "./SqlTableView";
+import { ExportTableOrView } from "./Export";
+import AddIcon from "@mui/icons-material/Add";
 import {
   RedisAddHash,
   RedisAddList,
@@ -65,9 +65,9 @@ import {
   RedisSetTable,
   RedisStringTable,
   RedisZsetTable,
-} from './Redis';
-import { MongoTable, MongoTableAdd } from './MongoDB';
-import { BSON } from 'bson';
+} from "./Redis";
+import { MongoTable, MongoTableAdd } from "./MongoDB";
+import { BSON } from "bson";
 import {
   ConnTypeContext,
   ContextMenuContext,
@@ -87,10 +87,10 @@ import {
   NewWindowTableParameter,
   TableType,
   shrinkAble,
-} from './helper';
-import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from './CommonComp';
-import { TableStructure } from './TableStructure';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+} from "./helper";
+import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
+import { TableStructure } from "./TableStructure";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
@@ -102,26 +102,26 @@ function TablesTree(props: { typ: TableType }) {
   const matchPattern = useContext(MatchPatternContext);
   const setting = useContext(SettingContext);
   useEffect(() => {
-    setExceed(tables.filter((e) => matchPattern(e.name)).length);
+    setExceed(tables.filter(e => matchPattern(e.name)).length);
   }, [tables, matchPattern]);
   const handleReload = () => {
     setLoading(true);
     let invokeName: string;
     switch (typ) {
       case TableType.Normal:
-        invokeName = 'list_table';
+        invokeName = "list_table";
         break;
       case TableType.MongoTimeSerial:
-        invokeName = 'mongo_list_time_serial_collection';
+        invokeName = "mongo_list_time_serial_collection";
         break;
     }
 
     invoke<types.ListTable[]>(invokeName, { name: uuid })
-      .then((ts) => {
+      .then(ts => {
         setTables(ts);
       })
-      .catch((e) => {
-        showNotification('error', 'list table failed', e);
+      .catch(e => {
+        showNotification("error", "list table failed", e);
       })
       .finally(() => {
         setLoading(false);
@@ -136,10 +136,10 @@ function TablesTree(props: { typ: TableType }) {
   let tablesText;
   switch (typ) {
     case TableType.Normal:
-      tablesText = 'tables';
+      tablesText = "tables";
       break;
     case TableType.MongoTimeSerial:
-      tablesText = 'time serial';
+      tablesText = "time serial";
       break;
   }
   const tablesId = useRef(generateRandomString());
@@ -148,8 +148,8 @@ function TablesTree(props: { typ: TableType }) {
       itemId={tablesId.current}
       label=<Stack
         direction="row"
-        sx={{ alignItems: 'center' }}
-        onContextMenu={(e) => {
+        sx={{ alignItems: "center" }}
+        onContextMenu={e => {
           setUpMenu({
             content: (
               <MenuList>
@@ -166,7 +166,7 @@ function TablesTree(props: { typ: TableType }) {
       </Stack>
     >
       {tables
-        .filter((e) => matchPattern(e.name))
+        .filter(e => matchPattern(e.name))
         .map((e, index) => {
           if (index >= setting.appearance.maxTreeSize) {
             return;
@@ -188,11 +188,7 @@ function TablesTree(props: { typ: TableType }) {
   );
 }
 
-function TableTree(props: {
-  table: string;
-  reloadTables;
-  size: string | null;
-}) {
+function TableTree(props: { table: string; reloadTables; size: string | null }) {
   const { table, reloadTables, size } = props;
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -200,12 +196,12 @@ function TableTree(props: {
 
   return (
     <TreeItem
-      itemId={uuid + '-table-' + table}
+      itemId={uuid + "-table-" + table}
       label={
         <Stack
           direction="row"
           justifyContent="space-between"
-          onContextMenu={(e) => {
+          onContextMenu={e => {
             setUpMenu({
               content: (
                 <TableMenu
@@ -219,7 +215,7 @@ function TableTree(props: {
             });
           }}
         >
-          <Stack direction="row" style={{ alignItems: 'center' }}>
+          <Stack direction="row" style={{ alignItems: "center" }}>
             <TableViewIcon> </TableViewIcon> <span>{table}</span>
           </Stack>
           <span style={{ ...shrinkAble, minWidth: 0 }}> {size} </span>
@@ -243,22 +239,22 @@ function DropTable(props: {
 
   const handleDrop = async () => {
     const confirm = await secondConfirm({
-      confirmText: 'Drop',
+      confirmText: "Drop",
       title: `drop table '${table}'`,
-      kind: 'error',
+      kind: "error",
     });
     if (!confirm) {
       return;
     }
     setLoading(true);
-    invoke('drop_table', { name: uuid, tableName: table, cascade })
+    invoke("drop_table", { name: uuid, tableName: table, cascade })
       .then(() => {
-        showNotification('success', 'Drop table OK');
+        showNotification("success", "Drop table OK");
         reloadTables();
         handleClose();
       })
-      .catch((e) => {
-        showNotification('error', 'Drop table failure', e);
+      .catch(e => {
+        showNotification("error", "Drop table failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -286,10 +282,7 @@ function DropTable(props: {
       {supportCascade() && (
         <FormControlLabel
           control={
-            <Switch
-              checked={cascade}
-              onChange={(e) => setCascade(e.target.checked)}
-            />
+            <Switch checked={cascade} onChange={e => setCascade(e.target.checked)} />
           }
           label="CASCADE"
         />
@@ -309,23 +302,23 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
     case RedisTableType.String:
       tableList = (
         <RedisStringTable
-          modifyOP={async (value) => {
-            return await invoke('redis_string_set', {
+          modifyOP={async value => {
+            return await invoke("redis_string_set", {
               name: uuid,
               key: table,
               value,
             });
           }}
           loadContent={async () => {
-            return invoke<MuiDataGridData>('show_table', {
+            return invoke<MuiDataGridData>("show_table", {
               name: uuid,
               tableName: table,
               whereStr: null,
               orderBy: null,
               page: 0,
               pageSize: 0,
-            }).then((x) => {
-              return x.data[0]['result'];
+            }).then(x => {
+              return x.data[0]["result"];
             });
           }}
         ></RedisStringTable>
@@ -335,7 +328,7 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
       tableList = (
         <RedisListTable
           reloadOP={async () => {
-            return await invoke('show_table', {
+            return await invoke("show_table", {
               name: uuid,
               tableName: table,
               page: 0,
@@ -345,7 +338,7 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
             });
           }}
           modifyOP={async (index, value) => {
-            return await invoke('redis_list_set', {
+            return await invoke("redis_list_set", {
               name: uuid,
               key: table,
               value,
@@ -353,7 +346,7 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
             });
           }}
           delOP={async (count, value) => {
-            return await invoke('redis_list_remove', {
+            return await invoke("redis_list_remove", {
               name: uuid,
               key: table,
               value,
@@ -367,8 +360,8 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
     case RedisTableType.Set:
       tableList = (
         <RedisSetTable
-          reloadOP={async (keyMatch) => {
-            return await invoke('show_table', {
+          reloadOP={async keyMatch => {
+            return await invoke("show_table", {
               name: uuid,
               tableName: table,
               page: 0,
@@ -378,15 +371,15 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
             });
           }}
           modifyOP={async (old, newValue) => {
-            return await invoke('redis_set_replace', {
+            return await invoke("redis_set_replace", {
               name: uuid,
               key: table,
               old,
               new: newValue,
             });
           }}
-          delOP={async (member) => {
-            return await invoke('redis_set_del', {
+          delOP={async member => {
+            return await invoke("redis_set_del", {
               name: uuid,
               key: table,
               member,
@@ -399,20 +392,16 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
       tableList = (
         <RedisZsetTable
           reloadOP={async (keyMatch, min, max) => {
-            return await invoke('redis_zset_show_table', {
+            return await invoke("redis_zset_show_table", {
               name: uuid,
               key: table,
-              min: typeof min == 'number' ? min : null,
-              max: typeof max == 'number' ? max : null,
+              min: typeof min == "number" ? min : null,
+              max: typeof max == "number" ? max : null,
               whereStr: keyMatch ? keyMatch : null,
             });
           }}
-          modifyOP={async (
-            oldMember: string,
-            newKey: string,
-            newValue: number
-          ) => {
-            return await invoke('redis_zset_replace', {
+          modifyOP={async (oldMember: string, newKey: string, newValue: number) => {
+            return await invoke("redis_zset_replace", {
               name: uuid,
               key: table,
               oldMember: oldMember,
@@ -420,8 +409,8 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
               newValue,
             });
           }}
-          delOP={async (member) => {
-            return await invoke('redis_zset_del', {
+          delOP={async member => {
+            return await invoke("redis_zset_del", {
               name: uuid,
               key: table,
               member,
@@ -433,8 +422,8 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
     case RedisTableType.Hash:
       tableList = (
         <RedisHashTable
-          reloadOP={async (keyMatch) => {
-            return await invoke('show_table', {
+          reloadOP={async keyMatch => {
+            return await invoke("show_table", {
               name: uuid,
               tableName: table,
               page: 0,
@@ -443,15 +432,15 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
               orderBy: null,
             });
           }}
-          delOP={async (member) => {
-            return await invoke('redis_hash_del', {
+          delOP={async member => {
+            return await invoke("redis_hash_del", {
               name: uuid,
               key: table,
               member,
             });
           }}
           modifyOP={async (oldMember, newMember, newValue) => {
-            return await invoke('redis_hash_replace', {
+            return await invoke("redis_hash_replace", {
               name: uuid,
               key: table,
               oldMember,
@@ -470,7 +459,7 @@ function makeViewTable(
   uuid,
   table: string,
   kind: DataSourceKind,
-  redisTableType: RedisTableType
+  redisTableType: RedisTableType,
 ) {
   let tableList: ReactNode = null;
   switch (kind) {
@@ -492,10 +481,7 @@ function makeViewTable(
           isTable
           extractTableSelectSort={makeExtractTableSelectSort(uuid)}
           extractTableSelectWhere={makeExtractTableSelectWhere(uuid)}
-          invalidCassandraTableViewCache={makeInvalidCassandraTableCache(
-            uuid,
-            table
-          )}
+          invalidCassandraTableViewCache={makeInvalidCassandraTableCache(uuid, table)}
           tableName={table}
           uuid={uuid}
           kind={kind}
@@ -540,15 +526,15 @@ function AddTableView(props: {
         case RedisTableType.String:
           return (
             <RedisStringTable
-              modifyOP={async (value) => {
-                return await invoke('redis_string_set', {
+              modifyOP={async value => {
+                return await invoke("redis_string_set", {
                   name: uuid,
                   key: table,
                   value,
                 });
               }}
               loadContent={async () => {
-                return Promise.resolve('');
+                return Promise.resolve("");
               }}
             ></RedisStringTable>
           );
@@ -556,15 +542,15 @@ function AddTableView(props: {
         case RedisTableType.List:
           return (
             <RedisAddList
-              lpushOP={async (value) => {
-                return await invoke('redis_list_lpush', {
+              lpushOP={async value => {
+                return await invoke("redis_list_lpush", {
                   name: uuid,
                   key: table,
                   value,
                 });
               }}
-              rpushOP={async (value) => {
-                return await invoke('redis_list_rpush', {
+              rpushOP={async value => {
+                return await invoke("redis_list_rpush", {
                   name: uuid,
                   key: table,
                   value,
@@ -576,8 +562,8 @@ function AddTableView(props: {
         case RedisTableType.Set:
           return (
             <RedisAddSet
-              addOP={async (member) => {
-                return await invoke('redis_set_add', {
+              addOP={async member => {
+                return await invoke("redis_set_add", {
                   name: uuid,
                   key: table,
                   member,
@@ -590,7 +576,7 @@ function AddTableView(props: {
           return (
             <RedisAddZset
               addOP={async (member, value) => {
-                return await invoke('redis_zset_add', {
+                return await invoke("redis_zset_add", {
                   name: uuid,
                   key: table,
                   member,
@@ -604,7 +590,7 @@ function AddTableView(props: {
           return (
             <RedisAddHash
               addOP={async (member, value) => {
-                return await invoke('redis_hash_add', {
+                return await invoke("redis_hash_add", {
                   name: uuid,
                   key: table,
                   member,
@@ -618,8 +604,8 @@ function AddTableView(props: {
     case DataSourceKind.Mongo:
       return (
         <MongoTableAdd
-          addOP={async (data) => {
-            return invoke<void>('mongo_insert', {
+          addOP={async data => {
+            return invoke<void>("mongo_insert", {
               name: uuid,
               tableName: table,
               doc: BSON.serialize(data),
@@ -631,11 +617,11 @@ function AddTableView(props: {
 
   useEffect(() => {
     makeShowTableColumn(uuid, table)()
-      .then((e) => {
+      .then(e => {
         setFields(e);
       })
-      .catch((e) => {
-        showNotification('error', 'list fields failed', e);
+      .catch(e => {
+        showNotification("error", "list fields failed", e);
       });
   }, []);
 
@@ -668,19 +654,19 @@ function TableMenu(props: {
   const handleTruncateTable = async () => {
     const confirm = await secondConfirm({
       title: `Truncate '${table}'`,
-      confirmText: 'Truncate',
-      content: '',
-      kind: 'error',
+      confirmText: "Truncate",
+      content: "",
+      kind: "error",
     });
     if (!confirm) {
       return;
     }
-    invoke('truncate_table', { tableName: table, name: uuid })
+    invoke("truncate_table", { tableName: table, name: uuid })
       .then(() => {
-        showNotification('success', `Truncate table OK`);
+        showNotification("success", `Truncate table OK`);
       })
-      .catch((e) => {
-        showNotification('error', `Truncate  table failure`, e);
+      .catch(e => {
+        showNotification("error", `Truncate  table failure`, e);
       });
   };
 
@@ -694,23 +680,23 @@ function TableMenu(props: {
     } as NewWindowTableParameter);
     const webview = new WebviewWindow(generateRandomString(), {
       title: table,
-      url: 'table_view.html',
+      url: "table_view.html",
       width: 800,
       height: 600,
       maximized: true,
     });
-    webview.once('tauri://created', () =>
-      console.info('create table view successfully')
+    webview.once("tauri://created", () =>
+      console.info("create table view successfully"),
     );
-    webview.once('tauri://error', (e) => {
-      showNotification('error', 'create webview failed', e.event.toString());
+    webview.once("tauri://error", e => {
+      showNotification("error", "create webview failed", e.event.toString());
     });
   };
 
   const handleViewData = () => {
-    const id = uuid + '-table-' + generateRandomString(10);
+    const id = uuid + "-table-" + generateRandomString(10);
     let tableList: ReactNode = makeViewTable(uuid, table, kind, redisTableType);
-    setTabs((e) => {
+    setTabs(e => {
       setTimeout(() => {
         setSelectTab(tabs.length);
       }, 100);
@@ -724,7 +710,7 @@ function TableMenu(props: {
   const handleAddData = async () => {
     const id = generateRandomString(10);
 
-    setTabs((e) => {
+    setTabs(e => {
       setTimeout(() => {
         setSelectTab(tabs.length);
       }, 100);
@@ -741,7 +727,7 @@ function TableMenu(props: {
               redisTableType={redisTableType}
             ></AddTableView>
           ),
-          <TableViewIcon> </TableViewIcon>
+          <TableViewIcon> </TableViewIcon>,
         ),
       ];
     });
@@ -755,27 +741,27 @@ function TableMenu(props: {
       redisTableType: redisTableType,
     } as NewWindowTableParameter);
     const webview = new WebviewWindow(id, {
-      title: 'table insert',
-      url: 'table_add.html',
+      title: "table insert",
+      url: "table_add.html",
       width: 800,
       height: 600,
       maximized: true,
     });
-    webview.once('tauri://created', () =>
-      console.info('create add connection view successfully')
+    webview.once("tauri://created", () =>
+      console.info("create add connection view successfully"),
     );
-    webview.once('tauri://error', (e) => {
-      showNotification('error', 'create webview failed', e.event.toString());
+    webview.once("tauri://error", e => {
+      showNotification("error", "create webview failed", e.event.toString());
     });
   };
 
   const handleStructure = () => {
-    const id = uuid + '-table-' + table + '-struct';
+    const id = uuid + "-table-" + table + "-struct";
     const index = tabsHasId(tabs, id);
-    if (typeof index == 'number') {
+    if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
+      setTabs(e => {
         setTimeout(() => {
           setSelectTab(tabs.length);
         }, 100);
@@ -785,14 +771,8 @@ function TableMenu(props: {
           new TabContent(
             id,
             `${table}`,
-            (
-              <TableStructure
-                kind={kind}
-                table={table}
-                uuid={uuid}
-              ></TableStructure>
-            ),
-            <IoConstructOutline> </IoConstructOutline>
+            <TableStructure kind={kind} table={table} uuid={uuid}></TableStructure>,
+            <IoConstructOutline> </IoConstructOutline>,
           ),
         ];
       });
@@ -852,9 +832,7 @@ function TableMenu(props: {
 
         <MenuItem onClick={handleStructure}>
           <ListItemIcon>
-            <IoConstructOutline
-              style={{ fontSize: '1.2rem' }}
-            ></IoConstructOutline>
+            <IoConstructOutline style={{ fontSize: "1.2rem" }}></IoConstructOutline>
           </ListItemIcon>
           <ListItemText> Structure </ListItemText>
         </MenuItem>
@@ -878,9 +856,7 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <HiOutlineDuplicate
-              style={{ fontSize: '1.7rem' }}
-            ></HiOutlineDuplicate>
+            <HiOutlineDuplicate style={{ fontSize: "1.7rem" }}></HiOutlineDuplicate>
           </ListItemIcon>
           <ListItemText> Duplicate </ListItemText>
         </MenuItem>
@@ -906,7 +882,7 @@ function TableMenu(props: {
         </MenuItem>
         <Divider />
         <MenuItem
-          sx={{ color: 'error.main' }}
+          sx={{ color: "error.main" }}
           onClick={() => {
             handleTruncateTable();
           }}
@@ -917,7 +893,7 @@ function TableMenu(props: {
           <ListItemText> Truncate </ListItemText>
         </MenuItem>
         <MenuItem
-          sx={{ color: 'error.main' }}
+          sx={{ color: "error.main" }}
           onClick={() => {
             setShowDrop(true);
           }}
@@ -1044,18 +1020,18 @@ function DupTable(props: {
   const { showNotification } = useContext(NotificationContext);
   const handleRename = () => {
     if (name == table) {
-      showNotification('error', 'name not changed');
+      showNotification("error", "name not changed");
       return;
     }
     setLoading(true);
-    invoke('duplicate_table', { name: uuid, from: table, to: name })
+    invoke("duplicate_table", { name: uuid, from: table, to: name })
       .then(() => {
-        showNotification('success', 'duplicate OK');
+        showNotification("success", "duplicate OK");
         reloadTables();
         handleClose();
       })
-      .catch((e) => {
-        showNotification('error', 'duplicate failure', e);
+      .catch(e => {
+        showNotification("error", "duplicate failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -1067,7 +1043,7 @@ function DupTable(props: {
       <TextField
         value={name}
         label="duplicate name"
-        onChange={(e) => {
+        onChange={e => {
           setName(e.target.value);
         }}
       ></TextField>
@@ -1092,26 +1068,26 @@ function RenameTable(props: {
   const { showNotification } = useContext(NotificationContext);
   const handleRename = async () => {
     if (newName == table) {
-      showNotification('error', 'name not changed');
+      showNotification("error", "name not changed");
       return;
     }
     const confirm = await secondConfirm({
-      title: 'rename table',
+      title: "rename table",
       content: `rename table '${table}'`,
-      confirmText: 'Rename',
+      confirmText: "Rename",
     });
     if (!confirm) {
       return;
     }
     setLoading(true);
-    invoke('rename_table', { name: uuid, old: table, new: newName })
+    invoke("rename_table", { name: uuid, old: table, new: newName })
       .then(() => {
-        showNotification('success', 'rename OK');
+        showNotification("success", "rename OK");
         reloadTables();
         handleClose();
       })
-      .catch((e) => {
-        showNotification('error', 'rename failure', e);
+      .catch(e => {
+        showNotification("error", "rename failure", e);
       })
       .finally(() => {
         setLoading(false);
@@ -1123,7 +1099,7 @@ function RenameTable(props: {
       <TextField
         value={newName}
         label="New Name"
-        onChange={(e) => {
+        onChange={e => {
           setNewName(e.target.value);
         }}
       ></TextField>
@@ -1147,19 +1123,19 @@ function RedisOneTableKind(props: {
   let name;
   switch (typ) {
     case RedisTableType.String:
-      name = 'string';
+      name = "string";
       break;
     case RedisTableType.List:
-      name = 'list';
+      name = "list";
       break;
     case RedisTableType.Set:
-      name = 'set';
+      name = "set";
       break;
     case RedisTableType.Zset:
-      name = 'zset';
+      name = "zset";
       break;
     case RedisTableType.Hash:
-      name = 'hash';
+      name = "hash";
       break;
   }
   const tablesID = useRef(generateRandomString());
@@ -1169,8 +1145,8 @@ function RedisOneTableKind(props: {
       itemId={tablesID.current}
       label=<Stack
         direction="row"
-        sx={{ alignItems: 'center' }}
-        onContextMenu={(e) => {
+        sx={{ alignItems: "center" }}
+        onContextMenu={e => {
           setUpMenu({
             content: (
               <MenuList>
@@ -1184,13 +1160,13 @@ function RedisOneTableKind(props: {
         <span>{name}</span>
       </Stack>
     >
-      {tables.map((table) => (
+      {tables.map(table => (
         <TreeItem
           key={table}
-          itemId={uuid + '-key-' + name + '-' + table}
+          itemId={uuid + "-key-" + name + "-" + table}
           label=<Stack
             direction="row"
-            onContextMenu={(e) => {
+            onContextMenu={e => {
               setUpMenu({
                 content: (
                   <TableMenu
@@ -1216,7 +1192,7 @@ function RedisOneTableKind(props: {
 function RedisTables() {
   const { kind } = useContext(ConnTypeContext);
   const { uuid } = useContext(UuidContext);
-  const [filter, setFilter] = useState('');
+  const [filter, setFilter] = useState("");
   const [tables, setTables] = useState<types.RedisListTable>();
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
@@ -1224,16 +1200,16 @@ function RedisTables() {
 
   const handleReload = () => {
     setLoading(true);
-    invoke<types.RedisListTable>('redis_list_table', {
+    invoke<types.RedisListTable>("redis_list_table", {
       name: uuid,
       filter: filter ? filter : null,
       max,
     })
-      .then((e) => {
+      .then(e => {
         setTables(e);
       })
-      .catch((e) => {
-        showNotification('error', 'list redis table failed', e);
+      .catch(e => {
+        showNotification("error", "list redis table failed", e);
       })
       .finally(() => {
         setLoading(false);
@@ -1254,7 +1230,7 @@ function RedisTables() {
         itemId={filterTreeID.current}
         label=<Stack
           direction="row"
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: "pointer" }}
           onClick={() => {
             setShowEditFilter(true);
           }}
@@ -1334,7 +1310,7 @@ function RedisTables() {
               fullWidth
               label="filer"
               helperText="key filter , can be '*key' or 'key*' etc..."
-              onChange={(e) => {
+              onChange={e => {
                 setFilter(e.target.value);
               }}
               slotProps={{
@@ -1343,7 +1319,7 @@ function RedisTables() {
                     <InputAdornment position="end">
                       <IconButton
                         onClick={() => {
-                          setFilter('');
+                          setFilter("");
                         }}
                         edge="end"
                       >

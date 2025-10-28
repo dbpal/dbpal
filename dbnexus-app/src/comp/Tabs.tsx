@@ -1,14 +1,6 @@
-'use strict';
-import React, { useContext } from 'react';
-import {
-  Stack,
-  MenuItem,
-  MenuList,
-  Chip,
-  Tabs,
-  Tab,
-  Tooltip,
-} from '@mui/material';
+"use strict";
+import React, { useContext } from "react";
+import { Stack, MenuItem, MenuList, Chip, Tabs, Tab, Tooltip } from "@mui/material";
 
 import {
   ContextMenuContext,
@@ -18,7 +10,7 @@ import {
   TabActiveContext,
   WindowFocusContext,
   SettingContext,
-} from './helper';
+} from "./helper";
 
 function TabsMenu(props: {
   index;
@@ -28,8 +20,7 @@ function TabsMenu(props: {
   tabsLength;
   selectIndex;
 }) {
-  const { index, handleClose, setTabs, changeTab, tabsLength, selectIndex } =
-    props;
+  const { index, handleClose, setTabs, changeTab, tabsLength, selectIndex } = props;
 
   return (
     <MenuList>
@@ -43,7 +34,7 @@ function TabsMenu(props: {
       {index != 0 && (
         <MenuItem
           onClick={() => {
-            setTabs((e) => {
+            setTabs(e => {
               changeTab(0);
               return e.slice(index);
             });
@@ -55,7 +46,7 @@ function TabsMenu(props: {
       {index != tabsLength - 1 && (
         <MenuItem
           onClick={() => {
-            setTabs((e) => {
+            setTabs(e => {
               const x = e.slice(0, index + 1);
               if (selectIndex > index) {
                 changeTab(index);
@@ -70,7 +61,7 @@ function TabsMenu(props: {
       {tabsLength > 1 && (
         <MenuItem
           onClick={() => {
-            setTabs((e) => {
+            setTabs(e => {
               const x = [e[selectIndex]];
               changeTab(0);
               return x;
@@ -84,9 +75,9 @@ function TabsMenu(props: {
         <MenuItem
           onClick={async () => {
             const confirm = await secondConfirm({
-              title: 'close all tab',
-              confirmText: 'Close',
-              kind: 'error',
+              title: "close all tab",
+              confirmText: "Close",
+              kind: "error",
             });
             if (!confirm) {
               return;
@@ -114,7 +105,7 @@ function TabsWithContent_(props: {
   const windowFocus = useContext(WindowFocusContext);
   const setting = useContext(SettingContext);
   return (
-    <Stack style={{ width: '100%', height: '100%' }}>
+    <Stack style={{ width: "100%", height: "100%" }}>
       <Tabs
         value={selectIndex}
         variant="scrollable"
@@ -125,9 +116,9 @@ function TabsWithContent_(props: {
         }}
         sx={{
           // 1. Tab 之间缝隙
-          '& .MuiTabs-flexContainer': { columnGap: 0 }, // 4px
+          "& .MuiTabs-flexContainer": { columnGap: 0 }, // 4px
           // 2. Tab 内边距
-          '& .MuiTab-root': { minHeight: 36, px: 0.4 }, // 高度36px，左右12px
+          "& .MuiTab-root": { minHeight: 36, px: 0.4 }, // 高度36px，左右12px
           opacity: windowFocus ? 1 : 0.6,
         }}
       >
@@ -142,13 +133,13 @@ function TabsWithContent_(props: {
                     handleClose(index);
                   }}
                   style={{
-                    padding: '0px',
-                    maxWidth: setting.appearance.maxTabTitleLength + 'rem',
+                    padding: "0px",
+                    maxWidth: setting.appearance.maxTabTitleLength + "rem",
                   }}
                   icon={tab.icon}
-                  variant={index == selectIndex ? 'filled' : 'outlined'}
-                  color={index == selectIndex ? 'success' : 'default'}
-                  onContextMenu={(e) => {
+                  variant={index == selectIndex ? "filled" : "outlined"}
+                  color={index == selectIndex ? "success" : "default"}
+                  onContextMenu={e => {
                     setUpMenu({
                       content: (
                         <TabsMenu
@@ -173,11 +164,11 @@ function TabsWithContent_(props: {
         {tabs.map((tab, index) => (
           <TabActiveContext.Provider key={tab.id} value={selectIndex == index}>
             <SetCloseConfirmTextContext
-              value={(e) => {
+              value={e => {
                 tabs[index].closeConfirmText = e;
               }}
             >
-              <div hidden={selectIndex !== index} style={{ height: '100%' }}>
+              <div hidden={selectIndex !== index} style={{ height: "100%" }}>
                 {tab.content}
               </div>
             </SetCloseConfirmTextContext>

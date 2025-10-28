@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 import {
   memo,
   useCallback,
@@ -7,9 +7,9 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
-import CancelIcon from '@mui/icons-material/Cancel';
-import types from './ApiStruct';
+} from "react";
+import CancelIcon from "@mui/icons-material/Cancel";
+import types from "./ApiStruct";
 import {
   Box,
   Button,
@@ -28,10 +28,10 @@ import {
   TextField,
   Tooltip,
   Typography,
-} from '@mui/material';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import EditIcon from '@mui/icons-material/Edit';
-import { NotificationContext } from './Notification';
+} from "@mui/material";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import EditIcon from "@mui/icons-material/Edit";
+import { NotificationContext } from "./Notification";
 
 import {
   DataGrid,
@@ -40,8 +40,8 @@ import {
   GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
-} from '@mui/x-data-grid';
-import ClearIcon from '@mui/icons-material/Clear';
+} from "@mui/x-data-grid";
+import ClearIcon from "@mui/icons-material/Clear";
 import {
   EscDownEvent,
   FieldAndGridField,
@@ -52,13 +52,13 @@ import {
   NameAndQueryId,
   reloadOK,
   SetAutoCompletionName,
-} from './Common';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import KeyIcon from '@mui/icons-material/Key';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import FilterAltIcon from '@mui/icons-material/FilterAlt';
-import { FaArrowsAltV } from 'react-icons/fa';
+} from "./Common";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import KeyIcon from "@mui/icons-material/Key";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import FilterAltIcon from "@mui/icons-material/FilterAlt";
+import { FaArrowsAltV } from "react-icons/fa";
 import {
   ColumnWidth,
   ContextMenuContext,
@@ -82,9 +82,9 @@ import {
   getLanguageFromDataSourceKind,
   dataGridheaderFontSize,
   shrinkAble,
-} from './helper';
-import { FaCopy } from 'react-icons/fa6';
-import FileCopyIcon from '@mui/icons-material/FileCopy';
+} from "./helper";
+import { FaCopy } from "react-icons/fa6";
+import FileCopyIcon from "@mui/icons-material/FileCopy";
 import {
   AppColumnMenu,
   ExecutingTime,
@@ -93,54 +93,45 @@ import {
   MenuResetColumnWidths,
   ModalHeader,
   ViewRowInModal,
-} from './CommonComp';
-import { editor, Position } from 'monaco-editor';
-import wcmatch from 'wildcard-match';
-import { MdEditNote } from 'react-icons/md';
-import { SimpleFlexEditor } from './CommonComp2';
+} from "./CommonComp";
+import { editor, Position } from "monaco-editor";
+import wcmatch from "wildcard-match";
+import { MdEditNote } from "react-icons/md";
+import { SimpleFlexEditor } from "./CommonComp2";
 
 const confirmAboutPrimary = async (
   notWarnPri: boolean,
-  fields: types.Field[]
+  fields: types.Field[],
 ): Promise<boolean> => {
   if (notWarnPri) {
     return true;
   }
-  const hasPri = !!fields.find((x) => x.is_primary);
+  const hasPri = !!fields.find(x => x.is_primary);
   if (hasPri) {
     return true;
   }
   return secondConfirm({
-    title: 'No Primary key found.',
-    content: 'No Primary key found,maybe multi row affected.',
-    kind: 'error',
+    title: "No Primary key found.",
+    content: "No Primary key found,maybe multi row affected.",
+    kind: "error",
   });
 };
 
-const getRowId = (e) => e[keyNotInTable];
+const getRowId = e => e[keyNotInTable];
 
 function SetFilterSort(props: {
   open: boolean;
   handleClose;
   value: string;
   setValue;
-  label: 'filter' | 'sort';
+  label: "filter" | "sort";
   tableName;
   kind: DataSourceKind;
   uuid: string;
   extractFn: (sql: string) => Promise<String | null>;
 }) {
-  let {
-    open,
-    handleClose,
-    value,
-    setValue,
-    label,
-    tableName,
-    kind,
-    extractFn,
-    uuid,
-  } = props;
+  let { open, handleClose, value, setValue, label, tableName, kind, extractFn, uuid } =
+    props;
   tableName = quoteDatabaseIdentifier(kind)(tableName);
 
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
@@ -149,7 +140,7 @@ function SetFilterSort(props: {
   const setting = useContext(SettingContext);
   useEffect(() => {
     if (modalBox) {
-      const clean = saveAndSetSize(modalBox, 'where-sort');
+      const clean = saveAndSetSize(modalBox, "where-sort");
       return clean;
     }
   }, [modalBox]);
@@ -158,12 +149,12 @@ function SetFilterSort(props: {
     try {
       let value = await extractFn(editor.current.getValue());
       if (value == null) {
-        value = '';
+        value = "";
       }
       setValue(value);
       handleClose();
     } catch (e) {
-      showNotification('error', 'extract sql error.', e);
+      showNotification("error", "extract sql error.", e);
       return;
     }
   };
@@ -176,37 +167,31 @@ function SetFilterSort(props: {
       })}
     >
       <Box
-        sx={{ resize: 'both', ...modalStyle }}
+        sx={{ resize: "both", ...modalStyle }}
         width="75%"
         height="30vh"
         ref={setModalBox}
       >
-        <ModalHeader
-          title={`set ${label}`}
-          handleClose={handleClose}
-        ></ModalHeader>
+        <ModalHeader title={`set ${label}`} handleClose={handleClose}></ModalHeader>
         <SimpleFlexEditor
           value={
             makeFormatFn(kind)(
-              label == 'filter'
+              label == "filter"
                 ? `SELECT * FROM ${tableName} WHERE ${value}`
                 : `SELECT * FROM ${tableName} ORDER BY ${value}`,
-              { tabSize: setting.editor.tabSize, insertSpaces: true }
-            ) + ' '
+              { tabSize: setting.editor.tabSize, insertSpaces: true },
+            ) + " "
           }
-          handleEditor={(e) => {
+          handleEditor={e => {
             editor.current = e;
             e.focus();
             editorPositionToEnd(e);
-            SetAutoCompletionName.set(
-              e.getModel().id,
-              new NameAndQueryId(uuid, kind)
-            );
+            SetAutoCompletionName.set(e.getModel().id, new NameAndQueryId(uuid, kind));
           }}
           language={getLanguageFromDataSourceKind(kind)}
         ></SimpleFlexEditor>
 
-        <Stack direction="row" style={{ alignItems: 'center' }}>
+        <Stack direction="row" style={{ alignItems: "center" }}>
           <Button onClick={handleSet}>set {label}</Button>
           <Button
             onClick={() => {
@@ -222,12 +207,12 @@ function SetFilterSort(props: {
   );
 }
 
-let EditInModalLanguage = 'text';
+let EditInModalLanguage = "text";
 const editInModalLanguages = [
-  { language: 'text' },
-  { language: 'html' },
-  { language: 'json' },
-  { language: 'xml' },
+  { language: "text" },
+  { language: "html" },
+  { language: "json" },
+  { language: "xml" },
 ] as {
   language: string;
 }[];
@@ -239,11 +224,11 @@ function EditInModal(props: { content: string; handleModify }) {
   const [language, setLanguage] = useState(EditInModalLanguage);
   const [value, setValue] = useState(content);
   useEffect(() => {
-    if (language != 'json') {
+    if (language != "json") {
       setJsonErr(null);
       return;
     }
-    validJson(value).then((e) => {
+    validJson(value).then(e => {
       setJsonErr(e);
     });
   }, [value, language]);
@@ -251,11 +236,11 @@ function EditInModal(props: { content: string; handleModify }) {
   return (
     <Stack flex={1}>
       <Stack direction="row">
-        {editInModalLanguages.map((e) => (
+        {editInModalLanguages.map(e => (
           <Chip
             key={e.language}
             label={e.language}
-            color={language == e.language ? 'success' : 'default'}
+            color={language == e.language ? "success" : "default"}
             onClick={() => {
               setLanguage(e.language);
               EditInModalLanguage = e.language;
@@ -266,7 +251,7 @@ function EditInModal(props: { content: string; handleModify }) {
       <SimpleFlexEditor
         value={content}
         language={language}
-        handleValue={(v) => {
+        handleValue={v => {
           setValue(v);
         }}
         errPos={jsonErrPos}
@@ -275,7 +260,7 @@ function EditInModal(props: { content: string; handleModify }) {
             <Typography
               color="error"
               variant="body1"
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: "pointer" }}
               onClick={() => {
                 if (!jsonErr) {
                   return;
@@ -306,7 +291,7 @@ class EditInModalCellData {
   constructor(
     public row: object,
     public field: string,
-    public content: string
+    public content: string,
   ) {}
 }
 
@@ -316,7 +301,7 @@ function SqlTableView_(props: {
     orderBy: string,
     page: number,
     pageSize: number,
-    extra: types.ShowTableExtraArgs
+    extra: types.ShowTableExtraArgs,
   ) => Promise<MuiDataGridData>;
   updateOP?: (wheres: object, values: object) => Promise<types.SqlExecuteRet>;
   deleteOP?: (wheres: object) => Promise<types.SqlExecuteRet>;
@@ -347,16 +332,16 @@ function SqlTableView_(props: {
     isTable,
   } = props;
   const [loading, setLoading] = useState(false);
-  const [where, setWhere] = useState('');
+  const [where, setWhere] = useState("");
   const [showSetWhere, setShowSetWhere] = useState(false);
-  const [sort, setSort] = useState('');
+  const [sort, setSort] = useState("");
   const [showSetSort, setShowSetSort] = useState(false);
   const [page, setPage] = useState(0);
   const setting = useContext(SettingContext);
 
   const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
   const [resp, setResp] = useState<MuiDataGridData>({
-    sql: '',
+    sql: "",
     fields: [],
     data: [],
     total: 0,
@@ -366,8 +351,7 @@ function SqlTableView_(props: {
   const { showNotification } = useContext(NotificationContext);
 
   const [allowFiltering, setAllowFiltering] = useState(false);
-  const [editCellInModal, setEditCellInModal] =
-    useState<EditInModalCellData>(null);
+  const [editCellInModal, setEditCellInModal] = useState<EditInModalCellData>(null);
   const [editInModalRow, setEditInModalRow] = useState<object>(null);
   const [viewInModal, setViewInModal] = useState<object>(null);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
@@ -377,33 +361,31 @@ function SqlTableView_(props: {
     });
     for (let i = 0; i < resp.fields.length; i++) {
       let field = resp.fields[i] as FieldAndGridField;
-      field.renderHeader = (e) => {
+      field.renderHeader = e => {
         const def = e.colDef as unknown as FieldAndGridField;
         const makeTitle = (): string => {
           const f = def as unknown as FieldAndGridField;
-          let ret = f.field + ' ';
+          let ret = f.field + " ";
           ret += f.data_type;
           if (f.nullable) {
-            ret += ' null';
+            ret += " null";
           } else {
-            ret += ' not null';
+            ret += " not null";
           }
           if (f.is_auto_increment) {
-            ret += ' auto increment';
+            ret += " auto increment";
           }
           if (f.default_value) {
-            ret += ' ' + f.default_value;
+            ret += " " + f.default_value;
           }
           return ret;
         };
         return (
-          <Stack direction="row" style={{ alignItems: 'center' }}>
+          <Stack direction="row" style={{ alignItems: "center" }}>
             <Tooltip title={makeTitle()}>
-              <Typography fontSize={dataGridheaderFontSize}>
-                {def.field}
-              </Typography>
+              <Typography fontSize={dataGridheaderFontSize}>{def.field}</Typography>
             </Tooltip>
-            {def.is_primary && <KeyIcon style={{ fontSize: '16px' }}></KeyIcon>}
+            {def.is_primary && <KeyIcon style={{ fontSize: "16px" }}></KeyIcon>}
           </Stack>
         );
       };
@@ -420,21 +402,15 @@ function SqlTableView_(props: {
       let extra = null as types.ShowTableExtraArgs;
       switch (kind) {
         case DataSourceKind.Cassandra:
-          extra = { extra: 'cassandra', allow_filtering: allowFiltering };
+          extra = { extra: "cassandra", allow_filtering: allowFiltering };
           break;
       }
-      const resp = await reloadOP(
-        where.trim(),
-        sort.trim(),
-        page + 1,
-        pageSize,
-        extra
-      );
+      const resp = await reloadOP(where.trim(), sort.trim(), page + 1, pageSize, extra);
       await handleResp(resp);
-      resp.fields.forEach((field) => {
+      resp.fields.forEach(field => {
         const width = ColumnWidth.instance.get(field.field);
         if (width) {
-          field['width'] = width;
+          field["width"] = width;
         }
       });
       setLoading(false);
@@ -444,7 +420,7 @@ function SqlTableView_(props: {
       }
     } catch (e) {
       setLoading(false);
-      showNotification('error', 'query data failed', e);
+      showNotification("error", "query data failed", e);
       return;
     }
   };
@@ -475,24 +451,24 @@ function SqlTableView_(props: {
       try {
         const ret = await updateOP(old, updateRow);
         showNotification(
-          'success',
-          'Update OK',
+          "success",
+          "Update OK",
           <Stack>
             <Typography> sql:{ret.sql} </Typography>
             <Typography> row affected :{ret.changes} </Typography>
-          </Stack>
+          </Stack>,
         );
         handleReload(false);
       } catch (e) {
-        showNotification('error', 'update failed', e);
+        showNotification("error", "update failed", e);
         throw e;
       }
       return newRow;
     },
-    [resp]
+    [resp],
   );
 
-  const handleDelete = async (id) => {
+  const handleDelete = async id => {
     if (!(await confirmAboutPrimary(notWarnPri, resp.fields))) {
       return;
     }
@@ -505,8 +481,8 @@ function SqlTableView_(props: {
     }
     if (!old) {
       showNotification(
-        'error',
-        'not found the record to delete this is a internal bug'
+        "error",
+        "not found the record to delete this is a internal bug",
       );
       return;
     }
@@ -514,15 +490,15 @@ function SqlTableView_(props: {
       old.delete(keyNotInTable);
       const ret = await deleteOP(old);
       showNotification(
-        'success',
-        'delete OK',
+        "success",
+        "delete OK",
         <Stack>
           <Typography> sql:{ret.sql} </Typography>
           <Typography> row affected :{ret.changes} </Typography>
-        </Stack>
+        </Stack>,
       );
     } catch (e) {
-      showNotification('error', 'delete failed', e);
+      showNotification("error", "delete failed", e);
     }
     handleReload(false);
   };
@@ -535,33 +511,31 @@ function SqlTableView_(props: {
     return { page, pageSize };
   }, [page, pageSize]);
   const onPaginationModelChange = useCallback(
-    (e: GridPaginationModel, reason: GridCallbackDetails<'pagination'>) => {
+    (e: GridPaginationModel, reason: GridCallbackDetails<"pagination">) => {
       setPage(e.page);
       setPageSize(e.pageSize);
-      if (reason.reason == 'setPaginationModel') {
+      if (reason.reason == "setPaginationModel") {
         SavePageSize.instance.save(pageSize);
       }
     },
-    []
+    [],
   );
   const { setUpMenu } = useContext(ContextMenuContext);
   const onSortModelChange = useCallback((sorts: GridSortModel) => {
     if (sorts.length == 0) {
-      setSort('');
+      setSort("");
       return;
     }
     const sort = sorts[0];
     if (!sort.sort) {
-      setSort('');
+      setSort("");
       return;
     }
-    setSort(
-      `${quoteDatabaseIdentifier(kind)(sort.field)} ${sort.sort.toUpperCase()}`
-    );
+    setSort(`${quoteDatabaseIdentifier(kind)(sort.field)} ${sort.sort.toUpperCase()}`);
   }, []);
 
-  const onProcessRowUpdateError = useCallback((e) => {
-    showNotification('error', 'update failed', e);
+  const onProcessRowUpdateError = useCallback(e => {
+    showNotification("error", "update failed", e);
   }, []);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
@@ -571,15 +545,15 @@ function SqlTableView_(props: {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
+        onContextMenu: e => {
           const { id, field } = extractFieldAndIDFromMouseEvent(e);
           if (!field) {
             return;
           }
-          let row = { ...resp.data.find((e) => e[keyNotInTable] == id) };
+          let row = { ...resp.data.find(e => e[keyNotInTable] == id) };
           const content = row[field];
           delete row[keyNotInTable];
-          const nullable = resp.fields.find((e) => e.field == field).nullable;
+          const nullable = resp.fields.find(e => e.field == field).nullable;
           setUpMenu({
             content: (
               <Menu
@@ -589,9 +563,7 @@ function SqlTableView_(props: {
                   setShowExportMarkDown(true);
                 }}
                 editCellInModal={() => {
-                  setEditCellInModal(
-                    new EditInModalCellData(row, field, row[field])
-                  );
+                  setEditCellInModal(new EditInModalCellData(row, field, row[field]));
                 }}
                 editRowInModal={() => {
                   setEditInModalRow(row);
@@ -610,7 +582,7 @@ function SqlTableView_(props: {
                 row={row}
                 addOP={
                   addOP
-                    ? async (row) => {
+                    ? async row => {
                         try {
                           await addOP(row);
                         } catch (e) {
@@ -622,35 +594,33 @@ function SqlTableView_(props: {
                 }
                 setSort={setSort}
                 setWhere={setWhere}
-                put_value_in_sql={(value) => {
+                put_value_in_sql={value => {
                   return put_value_in_sql(
-                    resp.fields.find((e) => e.field == field).data_type,
-                    value
+                    resp.fields.find(e => e.field == field).data_type,
+                    value,
                   );
                 }}
                 setNull={
                   updateOP
                     ? async () => {
-                        const row = resp.data.find(
-                          (e) => e[keyNotInTable] == id
-                        );
+                        const row = resp.data.find(e => e[keyNotInTable] == id);
                         try {
                           const values = {};
                           values[field] = null;
                           delete row[keyNotInTable];
                           await updateOP(row, values);
                         } catch (e) {
-                          showNotification('error', 'update failed', e);
+                          showNotification("error", "update failed", e);
                           return;
                         }
-                        showNotification('success', 'set null OK');
+                        showNotification("success", "set null OK");
                         handleReload(false);
                         return;
                       }
                     : undefined
                 }
                 resetColumnWidthCallBack={() => {
-                  setResp((old) => {
+                  setResp(old => {
                     return resetMuiDataRespWidth(old);
                   });
                 }}
@@ -662,7 +632,7 @@ function SqlTableView_(props: {
             event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
       },
       toolbar: {
         csvOptions: {
@@ -676,7 +646,7 @@ function SqlTableView_(props: {
   const [editInModalBox, setEditInModalBox] = useState(null);
   useEffect(() => {
     if (editInModalBox) {
-      const x1 = saveAndSetSize(editInModalBox, 'edit-cell');
+      const x1 = saveAndSetSize(editInModalBox, "edit-cell");
       return () => {
         x1();
       };
@@ -685,7 +655,7 @@ function SqlTableView_(props: {
   const [editRowInModalBox, setEditRowInModalBox] = useState(null);
   useEffect(() => {
     if (editRowInModalBox) {
-      const x1 = saveAndSetSize(editRowInModalBox, 'edit-row', 'width');
+      const x1 = saveAndSetSize(editRowInModalBox, "edit-row", "width");
       return () => {
         x1();
       };
@@ -694,7 +664,7 @@ function SqlTableView_(props: {
   const [viewInModalBox, setViewInModalBox] = useState(null);
   useEffect(() => {
     if (viewInModalBox) {
-      const x1 = saveAndSetSize(viewInModalBox, 'view-row-in-modal');
+      const x1 = saveAndSetSize(viewInModalBox, "view-row-in-modal");
       return () => {
         x1();
       };
@@ -704,8 +674,8 @@ function SqlTableView_(props: {
     return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
   }, []);
   return (
-    <Stack style={{ height: '100%' }}>
-      <Stack direction="row" style={{ alignItems: 'center' }}>
+    <Stack style={{ height: "100%" }}>
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <Button
           loading={loading}
           color="primary"
@@ -747,7 +717,7 @@ function SqlTableView_(props: {
               control={
                 <Switch
                   checked={allowFiltering}
-                  onChange={(e) => setAllowFiltering(e.target.checked)}
+                  onChange={e => setAllowFiltering(e.target.checked)}
                 />
               }
               label="allow filtering"
@@ -769,16 +739,16 @@ function SqlTableView_(props: {
                       invalidCassandraTableViewCache()
                         .then(() => {
                           showNotification(
-                            'success',
-                            'invalid cassandra table or view cache OK'
+                            "success",
+                            "invalid cassandra table or view cache OK",
                           );
                           handleReload(false);
                         })
-                        .catch((e) => {
+                        .catch(e => {
                           showNotification(
-                            'error',
-                            'invalid cassandra cache failed',
-                            e
+                            "error",
+                            "invalid cassandra cache failed",
+                            e,
                           );
                         });
                     }}
@@ -792,13 +762,13 @@ function SqlTableView_(props: {
         )}
       </Stack>
 
-      <Stack direction="row" sx={{ alignItems: 'center' }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography
           sx={{
-            cursor: 'pointer',
-            fontSize: '0.9rem',
-            fontStyle: 'italic',
-            color: 'success.main',
+            cursor: "pointer",
+            fontSize: "0.9rem",
+            fontStyle: "italic",
+            color: "success.main",
             ...textEllipsisStyle,
           }}
           variant="body1"
@@ -812,8 +782,8 @@ function SqlTableView_(props: {
         <Stack
           direction="row"
           style={{
-            justifyContent: 'flex-end',
-            alignItems: 'center',
+            justifyContent: "flex-end",
+            alignItems: "center",
           }}
         >
           <ExecutingTime loading={loading} title="loading time"></ExecutingTime>
@@ -854,7 +824,7 @@ function SqlTableView_(props: {
           })}
         >
           <Box
-            sx={{ resize: 'both', ...modalStyle }}
+            sx={{ resize: "both", ...modalStyle }}
             ref={setViewInModalBox}
             width="80%"
             height="30vh"
@@ -882,7 +852,7 @@ function SqlTableView_(props: {
           })}
         >
           <Box
-            sx={{ resize: 'both', ...modalStyle }}
+            sx={{ resize: "both", ...modalStyle }}
             ref={setEditInModalBox}
             width="80%"
             height="30vh"
@@ -895,7 +865,7 @@ function SqlTableView_(props: {
             ></ModalHeader>
             <EditInModal
               content={editCellInModal.content}
-              handleModify={async (value) => {
+              handleModify={async value => {
                 const newRow = { ...editCellInModal.row };
                 newRow[editCellInModal.field] = value;
                 await handleProcessRowUpdate(newRow, editCellInModal.row);
@@ -915,7 +885,7 @@ function SqlTableView_(props: {
           })}
         >
           <Box
-            sx={{ resize: 'horizontal', ...modalStyle }}
+            sx={{ resize: "horizontal", ...modalStyle }}
             ref={setEditRowInModalBox}
             width="80%"
           >
@@ -930,7 +900,7 @@ function SqlTableView_(props: {
               buttonName="modify"
               fields={resp.fields}
               isAdd={false}
-              handleData={async (args) => {
+              handleData={async args => {
                 await handleProcessRowUpdate(args, editInModalRow);
                 handleReload(false);
               }}
@@ -965,7 +935,7 @@ function SqlTableView_(props: {
           tableName={tableName}
           open={showSetWhere}
           value={where}
-          setValue={(v) => {
+          setValue={v => {
             setWhere(v);
           }}
           handleClose={() => {
@@ -983,7 +953,7 @@ function SqlTableView_(props: {
           tableName={tableName}
           open={showSetSort}
           value={sort}
-          setValue={(v) => {
+          setValue={v => {
             setSort(v);
           }}
           kind={kind}
@@ -999,7 +969,7 @@ function SqlTableView_(props: {
   );
 }
 
-let SqlTableViewDataMatch = '';
+let SqlTableViewDataMatch = "";
 
 function SqlTableViewData(props: {
   handleData: (args: any) => Promise<void>;
@@ -1009,14 +979,13 @@ function SqlTableViewData(props: {
   isAdd: boolean;
   handleClose?: () => void;
 }) {
-  let { handleData, fields, initValues, buttonName, isAdd, handleClose } =
-    props;
+  let { handleData, fields, initValues, buttonName, isAdd, handleClose } = props;
   if (!initValues) {
     initValues = {};
   }
-  fields.forEach((e) => {
+  fields.forEach(e => {
     if (e.is_auto_increment && isAdd) {
-      initValues[e.field] = '';
+      initValues[e.field] = "";
     }
   });
   const [filter, setFilter] = useState(SqlTableViewDataMatch);
@@ -1024,7 +993,7 @@ function SqlTableViewData(props: {
   const filterFn = useMemo(() => {
     SqlTableViewDataMatch = filter;
     return filter
-      ? wcmatch('*' + filter + '*', { flags: 'i' })
+      ? wcmatch("*" + filter + "*", { flags: "i" })
       : () => {
           return true;
         };
@@ -1042,7 +1011,7 @@ function SqlTableViewData(props: {
       }
       if (!args[f.field] && !f.nullable && !f.default_value) {
         inputDoms.current[f.field].focus();
-        showNotification('error', `filed '${f.field}' need be filled`);
+        showNotification("error", `filed '${f.field}' need be filled`);
         return;
       }
     }
@@ -1055,15 +1024,15 @@ function SqlTableViewData(props: {
     setLoading(true);
     handleData(args)
       .then(() => {
-        console.info('insert done');
-        showNotification('success', `${buttonName} OK`);
+        console.info("insert done");
+        showNotification("success", `${buttonName} OK`);
         if (handleClose) {
           handleClose();
         }
       })
-      .catch((e) => {
-        console.error('insert failed');
-        showNotification('error', `${buttonName} failure`, e);
+      .catch(e => {
+        console.error("insert failed");
+        showNotification("error", `${buttonName} failure`, e);
       })
       .finally(() => {
         setLoading(false);
@@ -1074,38 +1043,36 @@ function SqlTableViewData(props: {
     <Stack>
       {fields
         .filter(
-          (f) =>
-            filterFn(f.field) ||
-            (args[f.field] ? filterFn(args[f.field]) : !filter)
+          f => filterFn(f.field) || (args[f.field] ? filterFn(args[f.field]) : !filter),
         )
-        .map((f) => {
+        .map(f => {
           return (
             <Stack
               key={f.field}
               direction="row"
-              sx={{ alignContent: 'center', justifyContent: 'center' }}
+              sx={{ alignContent: "center", justifyContent: "center" }}
             >
               <TextField
-                inputRef={(x) => {
+                inputRef={x => {
                   inputDoms.current[f.field] = x;
                 }}
                 disabled={f.is_auto_increment}
                 value={args[f.field]}
                 helperText={
                   f.data_type +
-                  ' ' +
-                  (f.nullable ? 'null' : 'not null') +
-                  ' ' +
-                  (f.is_auto_increment ? 'auto increment' : '') +
-                  ' ' +
-                  (f.default_value ? `default ${f.default_value}` : '')
+                  " " +
+                  (f.nullable ? "null" : "not null") +
+                  " " +
+                  (f.is_auto_increment ? "auto increment" : "") +
+                  " " +
+                  (f.default_value ? `default ${f.default_value}` : "")
                 }
                 required={!f.nullable}
                 label={f.field}
                 multiline={isTypeLargeText(f.data_type)}
                 rows={4}
                 fullWidth
-                onChange={(e) => {
+                onChange={e => {
                   const value = e.target.value;
                   const newArgs = { ...args };
                   newArgs[f.field] = value;
@@ -1116,13 +1083,13 @@ function SqlTableViewData(props: {
           );
         })}
       <Divider />
-      <Stack direction="row" style={{ alignItems: 'flex-start' }}>
+      <Stack direction="row" style={{ alignItems: "flex-start" }}>
         <Button loading={loading} onClick={handleModify}>
           {buttonName}
         </Button>
         <TextField
           value={filter}
-          onChange={(e) => {
+          onChange={e => {
             setFilter(e.target.value);
           }}
           label="filter"
@@ -1134,7 +1101,7 @@ function SqlTableViewData(props: {
                 <InputAdornment position="end">
                   <IconButton
                     onClick={() => {
-                      setFilter('');
+                      setFilter("");
                     }}
                     edge="end"
                   >
@@ -1198,7 +1165,7 @@ function Menu(props: {
   const [cloneModalBox, setCloneModalBox] = useState(null);
   useEffect(() => {
     if (cloneModalBox) {
-      const clean = saveAndSetSize(cloneModalBox, 'clone-data', 'width');
+      const clean = saveAndSetSize(cloneModalBox, "clone-data", "width");
       return () => {
         clean();
       };
@@ -1248,7 +1215,7 @@ function Menu(props: {
 
         <MenuItem onClick={viewInModal}>
           <ListItemIcon>
-            <VisibilityIcon style={{ fontSize: '1.4rem' }}></VisibilityIcon>
+            <VisibilityIcon style={{ fontSize: "1.4rem" }}></VisibilityIcon>
           </ListItemIcon>
           <ListItemText> View in Modal </ListItemText>
         </MenuItem>
@@ -1322,9 +1289,7 @@ function Menu(props: {
             <ListItemText> Delete Row</ListItemText>
           </MenuItem>
         )}
-        <MenuResetColumnWidths
-          reset={resetColumnWidthCallBack}
-        ></MenuResetColumnWidths>
+        <MenuResetColumnWidths reset={resetColumnWidthCallBack}></MenuResetColumnWidths>
 
         <MenuExportMarkDownTable
           showExportMarkDown={showExportMarkDown}
@@ -1340,7 +1305,7 @@ function Menu(props: {
           })}
         >
           <Box
-            sx={{ resize: 'horizontal', ...modalStyle }}
+            sx={{ resize: "horizontal", ...modalStyle }}
             width="50%"
             ref={setCloneModalBox}
           >
@@ -1385,7 +1350,7 @@ function Menu(props: {
               handleClose={() => {
                 setShowFilter(false);
               }}
-              put_value_in_sql={(value) => {
+              put_value_in_sql={value => {
                 return put_value_in_sql(value);
               }}
             ></FilterOnValue>
@@ -1396,7 +1361,7 @@ function Menu(props: {
   );
 }
 
-let lastCompare = '=';
+let lastCompare = "=";
 function FilterOnValue(props: {
   content: string;
   setWhere;
@@ -1405,40 +1370,39 @@ function FilterOnValue(props: {
   kind: DataSourceKind;
   put_value_in_sql: (x: string) => Promise<string>;
 }) {
-  const { content, setWhere, field, handleClose, put_value_in_sql, kind } =
-    props;
-  const compares = ['=', '<>', '>', '>=', '<', '<='];
+  const { content, setWhere, field, handleClose, put_value_in_sql, kind } = props;
+  const compares = ["=", "<>", ">", ">=", "<", "<="];
   const [compare, setCompare] = useState(lastCompare);
   const { showNotification } = useContext(NotificationContext);
-  const [formatValue, setFormatValue] = useState('');
+  const [formatValue, setFormatValue] = useState("");
   useEffect(() => {
     lastCompare = compare;
   }, [compare]);
   useEffect(() => {
     put_value_in_sql(content)
-      .then((value) => {
+      .then(value => {
         setFormatValue(value);
       })
-      .catch((e) => {
-        showNotification('error', 'put value in sql failed', e);
+      .catch(e => {
+        showNotification("error", "put value in sql failed", e);
       });
   }, []);
 
   const where = () => {
     const quoteField = quoteDatabaseIdentifier(kind)(field);
-    if (compare == 'null') {
+    if (compare == "null") {
       return `${quoteField} IS NULL`;
     }
-    if (compare == 'not null') {
+    if (compare == "not null") {
       return `${quoteField} IS NOT NULL`;
     }
-    if (compare == 'starts') {
+    if (compare == "starts") {
       return `${quoteField} LIKE '${content}%'`;
     }
-    if (compare == 'ends') {
+    if (compare == "ends") {
       return `${quoteField} LIKE '%${content}'`;
     }
-    if (compare == 'contains') {
+    if (compare == "contains") {
       return `${quoteField} LIKE '%${content}%'`;
     }
     return `${quoteField} ${compare} ${formatValue}`;
@@ -1446,23 +1410,23 @@ function FilterOnValue(props: {
   return (
     <Stack spacing={2}>
       <Stack direction="row">
-        {compares.map((x) => (
+        {compares.map(x => (
           <Chip
             key={x}
             onClick={() => {
               setCompare(x);
             }}
             label={x}
-            color={compare == x ? 'success' : 'default'}
-            style={{ minWidth: '3rem' }}
+            color={compare == x ? "success" : "default"}
+            style={{ minWidth: "3rem" }}
           ></Chip>
         ))}
       </Stack>
       <Stack direction="row">
-        {['null', 'not null'].map((e) => (
+        {["null", "not null"].map(e => (
           <Chip
             label={e}
-            color={compare == e ? 'success' : 'default'}
+            color={compare == e ? "success" : "default"}
             onClick={() => {
               setCompare(e);
             }}
@@ -1472,10 +1436,10 @@ function FilterOnValue(props: {
       </Stack>
       {formatValue.endsWith("'") && (
         <Stack direction="row">
-          {['starts', 'ends', 'contains'].map((e) => (
+          {["starts", "ends", "contains"].map(e => (
             <Chip
               label={e}
-              color={compare == e ? 'success' : 'default'}
+              color={compare == e ? "success" : "default"}
               onClick={() => {
                 setCompare(e);
               }}
@@ -1486,7 +1450,7 @@ function FilterOnValue(props: {
       )}
 
       <Divider />
-      <Stack direction="row" style={{ alignItems: 'center' }}>
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <Button
           onClick={() => {
             setWhere(where());

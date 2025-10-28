@@ -1,15 +1,15 @@
-'use strict';
-import ReactDOM from 'react-dom/client';
+"use strict";
+import ReactDOM from "react-dom/client";
 
-import { NewWindowTableParameter, SomeTempStore } from './comp/helper.ts';
-import { SeparateWindow } from './comp/MainPage.tsx';
-import React from 'react';
-import { AddTableView } from './comp/LeftTable.tsx';
+import { NewWindowTableParameter, SomeTempStore } from "./comp/helper.ts";
+import { SeparateWindow } from "./comp/MainPage.tsx";
+import React from "react";
+import { AddTableView } from "./comp/LeftTable.tsx";
 
 const { uuid, table, kind, redisTableType } =
   SomeTempStore.get<NewWindowTableParameter>();
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <SeparateWindow>
       <AddTableView
@@ -19,5 +19,5 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         redisTableType={redisTableType}
       ></AddTableView>
     </SeparateWindow>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

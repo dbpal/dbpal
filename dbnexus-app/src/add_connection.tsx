@@ -1,10 +1,10 @@
-'use strict';
-import ReactDOM from 'react-dom/client';
-import { SomeTempStore } from './comp/helper.ts';
-import { SeparateWindow } from './comp/MainPage.tsx';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { AddConnection } from './comp/AddConnection.tsx';
-import React from 'react';
+"use strict";
+import ReactDOM from "react-dom/client";
+import { SomeTempStore } from "./comp/helper.ts";
+import { SeparateWindow } from "./comp/MainPage.tsx";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { AddConnection } from "./comp/AddConnection.tsx";
+import React from "react";
 
 const currentWebview = WebviewWindow.getCurrent();
 
@@ -21,10 +21,10 @@ function View() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <SeparateWindow>
       <View></View>
     </SeparateWindow>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

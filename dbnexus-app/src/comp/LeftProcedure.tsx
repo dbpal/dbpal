@@ -1,23 +1,17 @@
-'use strict';
-import {
-  ListItemIcon,
-  ListItemText,
-  MenuItem,
-  MenuList,
-  Stack,
-} from '@mui/material';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import { useContext, useEffect, useRef, useState } from 'react';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import InfoIcon from '@mui/icons-material/Info';
-import { tabsHasId } from './Common';
-import types from './ApiStruct';
-import { invoke } from '@tauri-apps/api/core';
-import { NotificationContext } from './Notification';
-import { TabContent } from './Tabs';
-import { DefAndMetasView } from './UdfAndMetaView';
+"use strict";
+import { ListItemIcon, ListItemText, MenuItem, MenuList, Stack } from "@mui/material";
+import { TreeItem } from "@mui/x-tree-view/TreeItem";
+import { useContext, useEffect, useRef, useState } from "react";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import InfoIcon from "@mui/icons-material/Info";
+import { tabsHasId } from "./Common";
+import types from "./ApiStruct";
+import { invoke } from "@tauri-apps/api/core";
+import { NotificationContext } from "./Notification";
+import { TabContent } from "./Tabs";
+import { DefAndMetasView } from "./UdfAndMetaView";
 
-import { SiProcessingfoundation } from 'react-icons/si';
+import { SiProcessingfoundation } from "react-icons/si";
 import {
   ConnTypeContext,
   ContextMenuContext,
@@ -29,12 +23,8 @@ import {
   TabsSetContext,
   udfIdGenerate,
   UuidContext,
-} from './helper';
-import {
-  ExceedMaxTreeItem,
-  MenuRefresh,
-  UdfNameAndParameters,
-} from './CommonComp';
+} from "./helper";
+import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
 function ProceduresTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -42,23 +32,23 @@ function ProceduresTree() {
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
   const reload = () => {
-    invoke<types.NamedStaff[]>('list_procedure', { name: uuid })
-      .then((ts) => {
+    invoke<types.NamedStaff[]>("list_procedure", { name: uuid })
+      .then(ts => {
         setPos(ts);
       })
-      .catch((e) => {
-        showNotification('error', 'list procedure failed', e);
+      .catch(e => {
+        showNotification("error", "list procedure failed", e);
       });
   };
 
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(ps.filter((e) => matchPattern(e.name)).length);
+    setExceed(ps.filter(e => matchPattern(e.name)).length);
   }, [ps, matchPattern]);
 
   const getItemId = (x: types.NamedStaff) => {
-    return udfIdGenerate(kind, x, uuid, 'procedure');
+    return udfIdGenerate(kind, x, uuid, "procedure");
   };
   const { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
@@ -71,8 +61,8 @@ function ProceduresTree() {
       itemId={idForTrees.current}
       label=<Stack
         direction="row"
-        sx={{ alignItems: 'center' }}
-        onContextMenu={(e) => {
+        sx={{ alignItems: "center" }}
+        onContextMenu={e => {
           setUpMenu({
             content: (
               <MenuList>
@@ -88,19 +78,19 @@ function ProceduresTree() {
       </Stack>
     >
       {ps
-        .filter((e) => matchPattern(e.name))
+        .filter(e => matchPattern(e.name))
         .map((p, index) => {
           if (index >= setting.appearance.maxTreeSize) {
             return;
           }
           return (
             <TreeItem
-              key={p.name + '-' + p.parameters}
+              key={p.name + "-" + p.parameters}
               itemId={getItemId(p)}
-              style={{ alignItems: 'center' }}
+              style={{ alignItems: "center" }}
               label=<Stack
                 direction="row"
-                onContextMenu={(e) => {
+                onContextMenu={e => {
                   setUpMenu({
                     content: (
                       <ProcedureMenu
@@ -114,13 +104,10 @@ function ProceduresTree() {
                     event: e,
                   });
                 }}
-                sx={{ alignItems: 'center' }}
+                sx={{ alignItems: "center" }}
               >
                 <SiProcessingfoundation></SiProcessingfoundation>
-                <UdfNameAndParameters
-                  udf={p}
-                  kind={kind}
-                ></UdfNameAndParameters>
+                <UdfNameAndParameters udf={p} kind={kind}></UdfNameAndParameters>
               </Stack>
             ></TreeItem>
           );
@@ -144,17 +131,17 @@ function ProcedureMenu(props: {
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   let arg =
     kind == DataSourceKind.Cockroach || kind == DataSourceKind.Postgres
-      ? { extra: 'postgres', parameters }
+      ? { extra: "postgres", parameters }
       : null;
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {
-    const id = uuid + '-' + '-procedure-' + procedure;
+    const id = uuid + "-" + "-procedure-" + procedure;
     const index = tabsHasId(tabs, id);
-    if (typeof index == 'number') {
+    if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
+      setTabs(e => {
         setTimeout(() => {
           setSelectTab(tabs.length);
         }, 100);
@@ -168,7 +155,7 @@ function ProcedureMenu(props: {
               <DefAndMetasView
                 showReload
                 reloadOP={async () => {
-                  return await invoke<types.ProcedureDetail>('show_procedure', {
+                  return await invoke<types.ProcedureDetail>("show_procedure", {
                     name: uuid,
                     procedure,
                     arg,
@@ -178,7 +165,7 @@ function ProcedureMenu(props: {
                 uuid={uuid}
               ></DefAndMetasView>
             ),
-            <SiProcessingfoundation></SiProcessingfoundation>
+            <SiProcessingfoundation></SiProcessingfoundation>,
           ),
         ];
       });
@@ -188,20 +175,20 @@ function ProcedureMenu(props: {
   const handleDrop = async () => {
     const confirm = await secondConfirm({
       title: `Drop Procedure '${procedure}'`,
-      confirmText: 'Drop',
-      kind: 'error',
+      confirmText: "Drop",
+      kind: "error",
     });
     if (!confirm) {
       return;
     }
 
-    invoke('drop_procedure', { name: uuid, procedure, arg })
+    invoke("drop_procedure", { name: uuid, procedure, arg })
       .then(() => {
-        showNotification('success', 'Drop procedure OK');
+        showNotification("success", "Drop procedure OK");
         reload();
       })
-      .catch((e) => {
-        showNotification('error', 'Drop procedure Failure', e);
+      .catch(e => {
+        showNotification("error", "Drop procedure Failure", e);
       });
   };
   return (
@@ -218,7 +205,7 @@ function ProcedureMenu(props: {
       </MenuItem>
 
       <MenuItem
-        sx={{ color: 'error.main' }}
+        sx={{ color: "error.main" }}
         onClick={() => {
           handleDrop();
         }}

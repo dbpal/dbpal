@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 import {
   MenuItem,
   ListItemIcon,
@@ -14,7 +14,7 @@ import {
   TextField,
   IconButton,
   Autocomplete,
-} from '@mui/material';
+} from "@mui/material";
 import {
   CSSProperties,
   ReactNode,
@@ -24,9 +24,9 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
-import { types } from './ApiStruct';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+} from "react";
+import { types } from "./ApiStruct";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import {
   DataGrid,
   GridColDef,
@@ -35,19 +35,19 @@ import {
   GridColumnMenuProps,
   GridSlotsComponentsProps,
   GridSortModel,
-} from '@mui/x-data-grid';
-import CheckIcon from '@mui/icons-material/Check';
-import CloseIcon from '@mui/icons-material/Close';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import AddIcon from '@mui/icons-material/Add';
-import { BsDatabaseAdd } from 'react-icons/bs';
-import LinkOffIcon from '@mui/icons-material/LinkOff';
-import { NotificationContext } from './Notification';
-import { invoke } from '@tauri-apps/api/core';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { IoTimerOutline } from 'react-icons/io5';
+} from "@mui/x-data-grid";
+import CheckIcon from "@mui/icons-material/Check";
+import CloseIcon from "@mui/icons-material/Close";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import AddIcon from "@mui/icons-material/Add";
+import { BsDatabaseAdd } from "react-icons/bs";
+import LinkOffIcon from "@mui/icons-material/LinkOff";
+import { NotificationContext } from "./Notification";
+import { invoke } from "@tauri-apps/api/core";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import { IoTimerOutline } from "react-icons/io5";
 import {
   ColumnWidth,
   ContextMenuContext,
@@ -70,25 +70,21 @@ import {
   SettingContext,
   shrinkAble,
   textEllipsisStyle,
-} from './helper';
+} from "./helper";
 
-import { TbDatabasePlus } from 'react-icons/tb';
-import LinkIcon from '@mui/icons-material/Link';
-import {
-  ConnectHandler,
-  connectionChangeEvent,
-  PassWordManager,
-} from './Common';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import { editor, Position } from 'monaco-editor';
-import { FaAlignLeft } from 'react-icons/fa';
-import { FaAlignRight } from 'react-icons/fa';
-import { FaAlignCenter } from 'react-icons/fa6';
-import { openPath } from '@tauri-apps/plugin-opener';
-import { save } from '@tauri-apps/plugin-dialog';
-import { writeTextFile } from '@tauri-apps/plugin-fs';
-import { FaMarkdown } from 'react-icons/fa';
-import { emit } from '@tauri-apps/api/event';
+import { TbDatabasePlus } from "react-icons/tb";
+import LinkIcon from "@mui/icons-material/Link";
+import { ConnectHandler, connectionChangeEvent, PassWordManager } from "./Common";
+import { TreeItem } from "@mui/x-tree-view/TreeItem";
+import { editor, Position } from "monaco-editor";
+import { FaAlignLeft } from "react-icons/fa";
+import { FaAlignRight } from "react-icons/fa";
+import { FaAlignCenter } from "react-icons/fa6";
+import { openPath } from "@tauri-apps/plugin-opener";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { FaMarkdown } from "react-icons/fa";
+import { emit } from "@tauri-apps/api/event";
 
 function MenuExportMarkDownTable({ showExportMarkDown }) {
   return (
@@ -100,38 +96,35 @@ function MenuExportMarkDownTable({ showExportMarkDown }) {
     </MenuItem>
   );
 }
-function SelectAlign(props: {
-  align: 'left' | 'right' | 'center';
-  handleChange;
-}) {
+function SelectAlign(props: { align: "left" | "right" | "center"; handleChange }) {
   const theme = useTheme();
   const { align, handleChange } = props;
   const handleChangeXXX = (align: string) => {
     SaveAlign.instance.save(align);
     handleChange(align);
   };
-  const style = { cursor: 'pointer' };
+  const style = { cursor: "pointer" };
 
   return (
     <Stack direction="row" fontSize="1.5rem">
       <FaAlignLeft
-        color={align == 'left' ? theme.palette.success.main : undefined}
+        color={align == "left" ? theme.palette.success.main : undefined}
         onClick={() => {
-          handleChangeXXX('left');
+          handleChangeXXX("left");
         }}
         style={style}
       />
       <FaAlignCenter
-        color={align == 'center' ? theme.palette.success.main : undefined}
+        color={align == "center" ? theme.palette.success.main : undefined}
         onClick={() => {
-          handleChangeXXX('center');
+          handleChangeXXX("center");
         }}
         style={style}
       />
       <FaAlignRight
-        color={align == 'right' ? theme.palette.success.main : undefined}
+        color={align == "right" ? theme.palette.success.main : undefined}
         onClick={() => {
-          handleChangeXXX('right');
+          handleChangeXXX("right");
         }}
         style={style}
       />
@@ -140,14 +133,14 @@ function SelectAlign(props: {
 }
 
 const LogLevelSelection = ({ handleChange, level }) => {
-  const levels = ['trace', 'debug', 'info', 'warn', 'error'];
+  const levels = ["trace", "debug", "info", "warn", "error"];
   return (
     <Autocomplete
       options={levels}
-      style={{ width: '14rem' }}
+      style={{ width: "14rem" }}
       value={level}
       freeSolo={false}
-      renderInput={(params) => <TextField {...params} label="logger level" />}
+      renderInput={params => <TextField {...params} label="logger level" />}
       onChange={(_, level) => {
         handleChange(level);
       }}
@@ -219,12 +212,12 @@ function MenuCloseConn({ handleClose, name }) {
   return (
     <MenuItem
       onClick={() => {
-        invoke('close_conn', { name })
+        invoke("close_conn", { name })
           .then(() => {
             handleClose();
           })
-          .catch((e) => {
-            showNotification('error', 'close connection failed', e);
+          .catch(e => {
+            showNotification("error", "close connection failed", e);
           });
       }}
     >
@@ -237,17 +230,17 @@ function MenuCloseConn({ handleClose, name }) {
 }
 
 function ConnPingTime({ uuid }) {
-  const [pingTime, setStatus] = useState('');
-  const [err, setErr] = useState('');
+  const [pingTime, setStatus] = useState("");
+  const [err, setErr] = useState("");
   const reloadStatus = () => {
-    invoke<string>('check_conn', { name: uuid })
-      .then((ping) => {
+    invoke<string>("check_conn", { name: uuid })
+      .then(ping => {
         setStatus(ping);
-        setErr('');
+        setErr("");
       })
-      .catch((e) => {
+      .catch(e => {
         setErr(errToString(e));
-        setStatus('');
+        setStatus("");
       });
   };
 
@@ -283,13 +276,13 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
     case DataSourceKind.Postgres:
     case DataSourceKind.DuckDB:
     case DataSourceKind.Cockroach:
-      name = 'Schema';
+      name = "Schema";
       break;
     case DataSourceKind.Cassandra:
-      name = 'Key Space';
+      name = "Key Space";
       break;
     default:
-      name = 'database';
+      name = "database";
       break;
   }
   return (
@@ -315,8 +308,8 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
     if (!config) {
       return;
     }
-    const key = 'save_password';
-    let inputPass = '';
+    const key = "save_password";
+    let inputPass = "";
     if (false === config[key]) {
       const pass = PassWordManager.getPassword(name);
       if (!pass) {
@@ -325,21 +318,21 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
         if (inputPass == null) {
           return;
         }
-        config['password'] = inputPass;
+        config["password"] = inputPass;
       } else {
-        config['password'] = pass;
+        config["password"] = pass;
       }
     } else {
       // get password from keyring
       const pass = await PassWordManager.getPassword(name);
       if (pass) {
-        config['password'] = pass;
+        config["password"] = pass;
       }
     }
     try {
-      await invoke('establish_conn', { config });
+      await invoke("establish_conn", { config });
     } catch (e) {
-      showNotification('error', 'establish connection failed', e);
+      showNotification("error", "establish connection failed", e);
       return;
     }
     if (inputPass) {
@@ -367,14 +360,14 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
 function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
   return (
     <Stack direction="row">
-      {options.map((e) => (
+      {options.map(e => (
         <Chip
           label={e}
           onClick={() => {
             handleChange(e);
           }}
           key={e}
-          color={e == pageSize ? 'success' : 'default'}
+          color={e == pageSize ? "success" : "default"}
         ></Chip>
       ))}
     </Stack>
@@ -386,20 +379,20 @@ function MenuDeleteConfig({ name }) {
   const handleDelete = async () => {
     const confirm = await secondConfirm({
       title: `drop connection '${name}'`,
-      confirmText: 'Drop',
+      confirmText: "Drop",
     });
     if (!confirm) {
       return;
     }
     try {
-      await invoke('close_conn', { name });
+      await invoke("close_conn", { name });
       await FavoriteSql.deleteByConnectionName(name);
       await QueryLogHandler.deleteByConnectionName(name);
       await ConnectHandler.deleteConn(name);
       await PassWordManager.deletePassword(name);
-      emit(connectionChangeEvent, '');
+      emit(connectionChangeEvent, "");
     } catch (e) {
-      showNotification('error', 'drop connection failed', e);
+      showNotification("error", "drop connection failed", e);
     }
   };
   return (
@@ -407,7 +400,7 @@ function MenuDeleteConfig({ name }) {
       onClick={() => {
         handleDelete();
       }}
-      sx={{ color: 'error.main' }}
+      sx={{ color: "error.main" }}
     >
       <ListItemIcon>
         <DeleteForeverIcon color="error"></DeleteForeverIcon>
@@ -435,7 +428,7 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
       <Divider />
       <MenuItem
         onClick={() => {
-          setSort([{ field, sort: 'asc' }] as GridSortModel);
+          setSort([{ field, sort: "asc" }] as GridSortModel);
         }}
       >
         <ListItemIcon>
@@ -445,7 +438,7 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
       </MenuItem>
       <MenuItem
         onClick={() => {
-          setSort([{ field, sort: 'desc' }] as GridSortModel);
+          setSort([{ field, sort: "desc" }] as GridSortModel);
         }}
       >
         <ListItemIcon>
@@ -460,15 +453,15 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
 function MetaValueView({ values = [] as types.MetaValue[] }) {
   const setting = useContext(SettingContext);
   const columns = [
-    { field: 'name', width: ColumnWidth.instance.get('name') },
-    { field: 'value', width: ColumnWidth.instance.get('value') },
-    { field: 'desc', flex: 1 },
+    { field: "name", width: ColumnWidth.instance.get("name") },
+    { field: "value", width: ColumnWidth.instance.get("value") },
+    { field: "desc", flex: 1 },
   ] as GridColDef[];
 
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   values.forEach((e, index) => {
-    if (!('id' in e)) {
-      e['id'] = index;
+    if (!("id" in e)) {
+      e["id"] = index;
     }
   });
 
@@ -476,7 +469,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
   const slotProps = useMemo(() => {
     return {
       row: {
-        onContextMenu: (e) => {
+        onContextMenu: e => {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
           const field = extractFieldAndIDFromMouseEvent(e).field;
@@ -495,7 +488,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
             event: e,
           });
         },
-        style: { cursor: 'context-menu' },
+        style: { cursor: "context-menu" },
       },
       toolbar: {
         csvOptions: {
@@ -506,13 +499,13 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
     } as GridSlotsComponentsProps;
   }, []);
 
-  const onSortModelChange = useCallback((e) => {
+  const onSortModelChange = useCallback(e => {
     setSortModel(e);
   }, []);
 
   const onColumnResize = useCallback(({ colDef, width }) => {
     const f = colDef.field;
-    if (f == 'name' || f == 'value') {
+    if (f == "name" || f == "value") {
       ColumnWidth.instance.save(f, width);
     }
   }, []);
@@ -541,7 +534,7 @@ function MenuResetColumnWidths(props: { reset: () => void }) {
   const handleReset = async () => {
     ColumnWidth.instance.reset();
     reset();
-    showNotification('success', 'reset column width successfully');
+    showNotification("success", "reset column width successfully");
   };
   return (
     <MenuItem onClick={handleReset}>
@@ -569,23 +562,23 @@ function ModalHeader(props: {
     <Stack
       direction="row"
       style={{
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderBottom: '3px solid ' + theme.palette.success.main,
-        marginBottom: '0.4rem',
+        justifyContent: "space-between",
+        alignItems: "center",
+        borderBottom: "3px solid " + theme.palette.success.main,
+        marginBottom: "0.4rem",
       }}
     >
       <Typography
         variant="h6"
         style={{
-          paddingBottom: '0.3rem',
-          fontWeight: 'bold',
-          textTransform: noTextTransform ? undefined : 'capitalize',
+          paddingBottom: "0.3rem",
+          fontWeight: "bold",
+          textTransform: noTextTransform ? undefined : "capitalize",
         }}
       >
         {title}
       </Typography>
-      <Tooltip title={'close this modal,esc can close this modal too'}>
+      <Tooltip title={"close this modal,esc can close this modal too"}>
         <IconButton color="secondary" onClick={handleClose}>
           <CloseIcon> </CloseIcon>
         </IconButton>
@@ -597,29 +590,29 @@ function ModalHeader(props: {
 function ResizeWrapper(props: {
   children: ReactNode;
   sizeKey: string;
-  sizeKeyKind: 'both' | 'width' | 'height';
+  sizeKeyKind: "both" | "width" | "height";
   style?: CSSProperties;
   height?: string | number;
   minHeight?: string | number;
 }) {
   let { children, sizeKey, sizeKeyKind, style, height, minHeight } = props;
   if (!height) {
-    height = '20vh';
+    height = "20vh";
   }
   if (!minHeight) {
-    minHeight = '20vh';
+    minHeight = "20vh";
   }
   const dom = useRef(null);
   let resize;
   switch (sizeKeyKind) {
-    case 'both':
-      resize = 'both';
+    case "both":
+      resize = "both";
       break;
-    case 'width':
-      resize = 'horizontal';
+    case "width":
+      resize = "horizontal";
       break;
-    case 'height':
-      resize = 'vertical';
+    case "height":
+      resize = "vertical";
       break;
   }
   useEffect(() => {
@@ -629,9 +622,9 @@ function ResizeWrapper(props: {
   return (
     <div
       style={{
-        overflow: 'auto',
-        display: 'flex',
-        flexDirection: 'column',
+        overflow: "auto",
+        display: "flex",
+        flexDirection: "column",
         height,
         minHeight,
         resize,
@@ -644,28 +637,24 @@ function ResizeWrapper(props: {
   );
 }
 
-function ViewRowInModal(props: {
-  fields: types.Field[];
-  data: object;
-  isTable?;
-}) {
+function ViewRowInModal(props: { fields: types.Field[]; data: object; isTable? }) {
   const { fields, data, isTable } = props;
   const theme = useTheme();
   return (
     <Stack>
-      {fields.map((f) => {
+      {fields.map(f => {
         return (
           <Stack
             style={{
-              borderRadius: '10px',
-              padding: '8px',
-              border: '2px solid ' + theme.palette.success.main,
+              borderRadius: "10px",
+              padding: "8px",
+              border: "2px solid " + theme.palette.success.main,
             }}
             key={f.field}
           >
             <Stack
               direction="row"
-              style={{ alignItems: 'center' }}
+              style={{ alignItems: "center" }}
               divider={<span>|</span>}
             >
               <Typography variant="subtitle1">{f.field}</Typography>
@@ -689,7 +678,7 @@ function ViewRowInModal(props: {
             <Divider />
             <pre
               style={{
-                overflow: 'auto',
+                overflow: "auto",
                 opacity: 0.9,
                 color: theme.palette.success.main,
               }}
@@ -709,27 +698,24 @@ function ExceedMaxTreeItem(props: { exceed: number; maxTreeSize: number }) {
   return (
     <TreeItem
       itemId={id.current}
-      style={{ display: exceed > maxTreeSize ? 'block' : 'none' }}
-      label=<Typography color="error" style={{ fontSize: '0.8rem' }}>
+      style={{ display: exceed > maxTreeSize ? "block" : "none" }}
+      label=<Typography color="error" style={{ fontSize: "0.8rem" }}>
         ({exceed}) exceed max tree items({maxTreeSize}),some item not showing
       </Typography>
     ></TreeItem>
   );
 }
 
-function UdfNameAndParameters(props: {
-  udf: types.NamedStaff;
-  kind: DataSourceKind;
-}) {
+function UdfNameAndParameters(props: { udf: types.NamedStaff; kind: DataSourceKind }) {
   const { udf, kind } = props;
-  let parameter = '';
+  let parameter = "";
   switch (kind) {
     case DataSourceKind.Postgres:
     case DataSourceKind.Cockroach:
       parameter = udf.parameters;
       break;
     case DataSourceKind.Cassandra:
-      parameter = udf.cassandra_parameters.join(',');
+      parameter = udf.cassandra_parameters.join(",");
       break;
   }
 
@@ -740,8 +726,8 @@ function UdfNameAndParameters(props: {
         <Typography
           color="success"
           style={{
-            fontStyle: 'italic',
-            fontSize: '0.8rem',
+            fontStyle: "italic",
+            fontSize: "0.8rem",
             ...textEllipsisStyle,
           }}
         >
@@ -761,7 +747,7 @@ function PossibleParseError(props: {
     <Tooltip title="possible error" followCursor>
       <Typography
         style={{
-          cursor: parseErr.line && parseErr.column && 'pointer',
+          cursor: parseErr.line && parseErr.column && "pointer",
           ...textEllipsisStyle,
         }}
         onClick={() => {
@@ -771,7 +757,7 @@ function PossibleParseError(props: {
           if (parseErr.line && parseErr.column) {
             editorSetPositionAndReveal(
               editor,
-              new Position(parseErr.line, parseErr.column)
+              new Position(parseErr.line, parseErr.column),
             );
           }
         }}
@@ -789,7 +775,7 @@ function ExecutingTime(props: {
 }) {
   let { loading, disableTime, title } = props;
   if (!title) {
-    title = 'executing time';
+    title = "executing time";
   }
   const executeTimeRef = useRef(null);
   const timeExecuteClean = useRef<() => void>(null);
@@ -854,9 +840,7 @@ function ExecutingTime(props: {
       </Tooltip>
       {!disableTime && (
         <Tooltip title="loaded at">
-          <Typography style={shrinkAble}>
-            {lastLoadTime.toLocaleString()}
-          </Typography>
+          <Typography style={shrinkAble}>{lastLoadTime.toLocaleString()}</Typography>
         </Tooltip>
       )}
     </>
@@ -901,10 +885,10 @@ function SelectColumns(props: {
   setIncludes;
 }) {
   const { fields, includes, setIncludes } = props;
-  const [matchStr, setMatchStr] = useState('');
+  const [matchStr, setMatchStr] = useState("");
   return (
     <Stack>
-      <Stack direction="row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+      <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
         <Typography color="info">includes:</Typography>
         {includes.length > 0 && (
           <IconButton
@@ -916,10 +900,10 @@ function SelectColumns(props: {
             <CloseIcon></CloseIcon>
           </IconButton>
         )}
-        {includes.map((x) => (
+        {includes.map(x => (
           <Chip
             onClick={() => {
-              setIncludes((e) => e.filter((e) => e != x));
+              setIncludes(e => e.filter(e => e != x));
             }}
             key={x}
             color="success"
@@ -927,13 +911,11 @@ function SelectColumns(props: {
           ></Chip>
         ))}
       </Stack>
-      <Stack direction="row" style={{ alignItems: 'flex-start' }}>
+      <Stack direction="row" style={{ alignItems: "flex-start" }}>
         <Button
           onClick={() => {
             setIncludes(
-              fields
-                .filter((e) => e.field.includes(matchStr))
-                .map((x) => x.field)
+              fields.filter(e => e.field.includes(matchStr)).map(x => x.field),
             );
           }}
           disabled={includes.length == fields.length}
@@ -943,7 +925,7 @@ function SelectColumns(props: {
         </Button>
         <TextField
           value={matchStr}
-          onChange={(e) => {
+          onChange={e => {
             setMatchStr(e.target.value);
           }}
           disabled={includes.length == fields.length}
@@ -952,16 +934,16 @@ function SelectColumns(props: {
           helperText="only for candidate field"
         ></TextField>
       </Stack>
-      <Stack direction="row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+      <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
         <Typography>candidates:</Typography>
         {fields
-          .filter((f) => includes.find((e) => e == f.field) == undefined)
-          .filter((f) => f.field.includes(matchStr))
-          .map((x) => (
+          .filter(f => includes.find(e => e == f.field) == undefined)
+          .filter(f => f.field.includes(matchStr))
+          .map(x => (
             <Chip
               key={x.field}
               onClick={() => {
-                setIncludes((e) => [...e, x.field]);
+                setIncludes(e => [...e, x.field]);
               }}
               variant="outlined"
               color="default"
@@ -982,8 +964,8 @@ function OpenFileWithDefaultApp({ file }) {
           onClick={() => {
             openPath(file)
               .then(() => {})
-              .catch((e) => {
-                showNotification('warning', 'open export file failed', e);
+              .catch(e => {
+                showNotification("warning", "open export file failed", e);
               });
           }}
           variant="text"
@@ -1002,58 +984,58 @@ function ExportMarkDownTable(props: {
 }) {
   let { fields, data, name } = props;
   if (!name) {
-    name = 'export';
+    name = "export";
   }
   const [includes, setIncludes] = useState<string[]>([]);
-  const [align, setAlign] = useState('center');
+  const [align, setAlign] = useState("center");
   const { showNotification } = useContext(NotificationContext);
-  const [file, setFile] = useState('');
+  const [file, setFile] = useState("");
   const makeMarkDownStr = () => {
-    let ret = '';
-    includes.forEach((x) => {
+    let ret = "";
+    includes.forEach(x => {
       ret += `| ${x} `;
     });
-    ret += '|\n';
+    ret += "|\n";
     includes.forEach(() => {
       let alignText: string;
       switch (align) {
-        case 'left':
-          alignText = ':----';
+        case "left":
+          alignText = ":----";
           break;
-        case 'right':
-          alignText = '-----:';
+        case "right":
+          alignText = "-----:";
           break;
-        case 'center':
-          alignText = ':---:';
+        case "center":
+          alignText = ":---:";
           break;
       }
-      ret += '|' + alignText;
+      ret += "|" + alignText;
     });
-    ret += '|\n';
+    ret += "|\n";
 
-    data.forEach((data) => {
-      includes.forEach((x) => {
+    data.forEach(data => {
+      includes.forEach(x => {
         ret += `| ${data[x]} `;
       });
-      ret += '|\n';
+      ret += "|\n";
     });
     return ret;
   };
   const handleExport = async (toClipBoard: boolean) => {
     if (includes.length == 0) {
-      showNotification('warning', 'Please select column');
+      showNotification("warning", "Please select column");
       return;
     }
     const markdown = makeMarkDownStr();
     if (toClipBoard) {
       handleCopyToClipboard(markdown, undefined, () => {
-        showNotification('success', 'export OK');
+        showNotification("success", "export OK");
       });
       return;
     }
     const f = await save({
-      defaultPath: generateDefaultFilename(name, 'md'),
-      filters: [{ name: 'markdown', extensions: ['md'] }],
+      defaultPath: generateDefaultFilename(name, "md"),
+      filters: [{ name: "markdown", extensions: ["md"] }],
     });
     if (!f) {
       return;
@@ -1061,10 +1043,10 @@ function ExportMarkDownTable(props: {
     try {
       await writeTextFile(f, markdown);
     } catch (e) {
-      showNotification('error', 'write markdown failed', e);
+      showNotification("error", "write markdown failed", e);
       return;
     }
-    showNotification('success', 'export OK');
+    showNotification("success", "export OK");
     setFile(f);
   };
 
@@ -1077,7 +1059,7 @@ function ExportMarkDownTable(props: {
       ></SelectColumns>
       <OpenFileWithDefaultApp file={file} />
       <Divider></Divider>
-      <Stack direction="row" style={{ alignItems: 'center' }}>
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <Button
           onClick={() => {
             handleExport(false);
@@ -1095,8 +1077,8 @@ function ExportMarkDownTable(props: {
           copy to clipboard
         </Button>
         <SelectAlign
-          align={SaveAlign.instance.get() as 'center'}
-          handleChange={(e) => {
+          align={SaveAlign.instance.get() as "center"}
+          handleChange={e => {
             setAlign(e);
           }}
         ></SelectAlign>
@@ -1113,9 +1095,9 @@ function ResizeParentHeight(props: {
   const { box, min, saveHeightName } = props;
 
   useEffect(() => {
-    SaveDomSizes.getSize(saveHeightName).then((e) => {
+    SaveDomSizes.getSize(saveHeightName).then(e => {
       if (e && e.height) {
-        box.style.height = e.height + 'px';
+        box.style.height = e.height + "px";
       }
     });
   }, []);
@@ -1130,18 +1112,18 @@ function ResizeParentHeight(props: {
         newH = min;
       }
       SaveDomSizes.saveSize(saveHeightName, { height: newH });
-      box.style.height = newH + 'px';
+      box.style.height = newH + "px";
     };
     const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
     };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
   }, []);
   return (
     <div
-      style={{ height: '4px', cursor: 'ns-resize' }}
+      style={{ height: "4px", cursor: "ns-resize" }}
       className="resize-handle"
       onMouseDown={handleDown}
     ></div>

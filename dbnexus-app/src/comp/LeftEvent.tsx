@@ -1,22 +1,16 @@
-'use strict';
-import {
-  ListItemIcon,
-  ListItemText,
-  MenuItem,
-  MenuList,
-  Stack,
-} from '@mui/material';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import { useContext, useEffect, useRef, useState } from 'react';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import InfoIcon from '@mui/icons-material/Info';
-import { DefAndMetas, tabsHasId } from './Common';
-import types from './ApiStruct';
-import { invoke } from '@tauri-apps/api/core';
-import { NotificationContext } from './Notification';
-import { TabContent } from './Tabs';
-import { DefAndMetasView } from './UdfAndMetaView';
-import { MdOutlineEventRepeat } from 'react-icons/md';
+"use strict";
+import { ListItemIcon, ListItemText, MenuItem, MenuList, Stack } from "@mui/material";
+import { TreeItem } from "@mui/x-tree-view/TreeItem";
+import { useContext, useEffect, useRef, useState } from "react";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import InfoIcon from "@mui/icons-material/Info";
+import { DefAndMetas, tabsHasId } from "./Common";
+import types from "./ApiStruct";
+import { invoke } from "@tauri-apps/api/core";
+import { NotificationContext } from "./Notification";
+import { TabContent } from "./Tabs";
+import { DefAndMetasView } from "./UdfAndMetaView";
+import { MdOutlineEventRepeat } from "react-icons/md";
 import {
   ConnTypeContext,
   ContextMenuContext,
@@ -27,8 +21,8 @@ import {
   SettingContext,
   TabsSetContext,
   UuidContext,
-} from './helper';
-import { ExceedMaxTreeItem, MenuRefresh } from './CommonComp';
+} from "./helper";
+import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 function EventsTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -36,18 +30,18 @@ function EventsTree() {
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
   const reload = () => {
-    invoke<types.SqlEvent[]>('list_event', { name: uuid })
-      .then((ts) => {
+    invoke<types.SqlEvent[]>("list_event", { name: uuid })
+      .then(ts => {
         setEvents(ts);
       })
-      .catch((e) => {
-        showNotification('error', 'list event failed', e);
+      .catch(e => {
+        showNotification("error", "list event failed", e);
       });
   };
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
-    setExceed(evens.filter((e) => matchPattern(e.name)).length);
+    setExceed(evens.filter(e => matchPattern(e.name)).length);
   }, [evens, matchPattern]);
 
   const getItemId = (x: types.SqlEvent) => {
@@ -65,8 +59,8 @@ function EventsTree() {
       itemId={idForTrees.current}
       label=<Stack
         direction="row"
-        sx={{ alignItems: 'center' }}
-        onContextMenu={(e) => {
+        sx={{ alignItems: "center" }}
+        onContextMenu={e => {
           setUpMenu({
             content: (
               <MenuList>
@@ -82,7 +76,7 @@ function EventsTree() {
       </Stack>
     >
       {evens
-        .filter((event) => matchPattern(event.name))
+        .filter(event => matchPattern(event.name))
         .map((event, index) => {
           if (index >= setting.appearance.maxTreeSize) {
             return;
@@ -91,10 +85,10 @@ function EventsTree() {
             <TreeItem
               key={event.name}
               itemId={getItemId(event)}
-              style={{ alignItems: 'center' }}
+              style={{ alignItems: "center" }}
               label=<Stack
                 direction="row"
-                onContextMenu={(e) => {
+                onContextMenu={e => {
                   setUpMenu({
                     content: (
                       <EventMenu
@@ -107,7 +101,7 @@ function EventsTree() {
                     event: e,
                   });
                 }}
-                sx={{ alignItems: 'center' }}
+                sx={{ alignItems: "center" }}
               >
                 <MdOutlineEventRepeat />
                 <span> {event.name} </span>
@@ -133,12 +127,12 @@ function EventMenu(props: {
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
-    const id = uuid + '-' + '-event-' + event.name;
+    const id = uuid + "-" + "-event-" + event.name;
     const index = tabsHasId(tabs, id);
-    if (typeof index == 'number') {
+    if (typeof index == "number") {
       setSelectTab(index);
     } else {
-      setTabs((e) => {
+      setTabs(e => {
         setTimeout(() => {
           setSelectTab(tabs.length);
         }, 100);
@@ -160,7 +154,7 @@ function EventMenu(props: {
                 uuid={uuid}
               ></DefAndMetasView>
             ),
-            <MdOutlineEventRepeat />
+            <MdOutlineEventRepeat />,
           ),
         ];
       });
@@ -169,19 +163,19 @@ function EventMenu(props: {
   const handleDrop = async () => {
     const confirm = await secondConfirm({
       title: `Drop event '${event.name}'`,
-      confirmText: 'Drop',
-      kind: 'error',
+      confirmText: "Drop",
+      kind: "error",
     });
     if (!confirm) {
       return;
     }
-    invoke('drop_event', { name: uuid, eventName: event.name })
+    invoke("drop_event", { name: uuid, eventName: event.name })
       .then(() => {
-        showNotification('success', 'Drop event OK');
+        showNotification("success", "Drop event OK");
         reload();
       })
-      .catch((e) => {
-        showNotification('error', 'Drop event failed', e);
+      .catch(e => {
+        showNotification("error", "Drop event failed", e);
       });
   };
   return (
@@ -198,7 +192,7 @@ function EventMenu(props: {
       </MenuItem>
 
       <MenuItem
-        sx={{ color: 'error.main' }}
+        sx={{ color: "error.main" }}
         onClick={() => {
           handleDrop();
         }}

@@ -1,19 +1,19 @@
-'use strict';
-import ReactDOM from 'react-dom/client';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+"use strict";
+import ReactDOM from "react-dom/client";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
-import { App } from './comp/MainPage';
-import { invoke } from '@tauri-apps/api/core';
-import React from 'react';
-import { secondConfirm } from './comp/helper.ts';
+import { App } from "./comp/MainPage";
+import { invoke } from "@tauri-apps/api/core";
+import React from "react";
+import { secondConfirm } from "./comp/helper.ts";
 
 const currentWebview = WebviewWindow.getCurrent();
 
-currentWebview.onCloseRequested(async (event) => {
+currentWebview.onCloseRequested(async event => {
   const confirm = await secondConfirm({
-    title: 'close the window',
-    content: 'exit the app',
-    confirmText: 'close',
+    title: "close the window",
+    content: "exit the app",
+    confirmText: "close",
   });
   if (!confirm) {
     event.preventDefault();
@@ -31,17 +31,17 @@ currentWebview.onCloseRequested(async (event) => {
 });
 
 if (import.meta.env.DEV) {
-  invoke('page_init_callback')
+  invoke("page_init_callback")
     .then(() => {
-      console.info('page init callback successfully');
+      console.info("page init callback successfully");
     })
-    .catch((e) => {
-      console.error('call page init failed', e);
+    .catch(e => {
+      console.error("call page init failed", e);
     });
 }
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <App></App>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

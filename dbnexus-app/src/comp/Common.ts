@@ -1,17 +1,13 @@
-'use strict';
-import { SxProps } from '@mui/material';
-
-import { languages, editor, Position, CancellationToken } from 'monaco-editor';
-import { types } from './ApiStruct';
-import { format as formatSql, SqlLanguage } from 'sql-formatter';
-import { createContext } from 'react';
-import { TabContent } from './Tabs';
-import { invoke } from '@tauri-apps/api/core';
-import { message } from '@tauri-apps/plugin-dialog';
+"use strict";
+import { SxProps } from "@mui/material";
+import { languages, editor, Position, CancellationToken } from "monaco-editor";
+import { types } from "./ApiStruct";
+import { format as formatSql, SqlLanguage } from "sql-formatter";
+import { createContext } from "react";
+import { TabContent } from "./Tabs";
+import { invoke } from "@tauri-apps/api/core";
+import { message } from "@tauri-apps/plugin-dialog";
 import * as keyring from "tauri-plugin-keyring-api";
-
-
-
 import {
   appDatabase,
   AppStoreKey,
@@ -19,43 +15,43 @@ import {
   DataSourceKind,
   MuiDataGridData,
   secondConfirm,
-} from './helper';
-import { GridColDef } from '@mui/x-data-grid';
-import { loader } from '@monaco-editor/react';
+} from "./helper";
+import { GridColDef } from "@mui/x-data-grid";
+import { loader } from "@monaco-editor/react";
 
 const modalStyle: SxProps = {
-  position: 'fixed',
-  transform: 'translate(50%, 50%)',
-  bottom: '50%',
-  right: '50%',
-  bgcolor: 'background.paper',
-  border: '2px solid skyblue',
+  position: "fixed",
+  transform: "translate(50%, 50%)",
+  bottom: "50%",
+  right: "50%",
+  bgcolor: "background.paper",
+  border: "2px solid skyblue",
   boxShadow: 24,
-  borderRadius: '0.4rem',
+  borderRadius: "0.4rem",
   p: 1,
-  maxHeight: '85vh',
-  minHeight: '10vh',
-  minWidth: '20vw',
-  maxWidth: '80vw',
-  display: 'flex',
-  overflow: 'auto',
-  flexDirection: 'column',
-  animation: 'modalAnimation 0.6s ease-out',
+  maxHeight: "85vh",
+  minHeight: "10vh",
+  minWidth: "20vw",
+  maxWidth: "80vw",
+  display: "flex",
+  overflow: "auto",
+  flexDirection: "column",
+  animation: "modalAnimation 0.6s ease-out",
 };
-
 
 class Connection {
   id: number;
   name: string;
   config: string;
-
 }
 
 class ConnectHandler {
-
   static async getByName(name: string): Promise<types.DBConnectionConfig> {
     try {
-      let x = await appDatabase.select<Connection[]>("select * from connection where name=?", [name]);
+      let x = await appDatabase.select<Connection[]>(
+        "select * from connection where name=?",
+        [name],
+      );
       if (x.length != 1) {
         message("database should return one result", { kind: "error" });
         return null;
@@ -66,17 +62,22 @@ class ConnectHandler {
       message(`get connection failed`, { kind: "error" });
       console.error("get connection failed,err:", e);
     }
-    return null
+    return null;
   }
   static async deleteConn(name: string) {
     return appDatabase.execute("delete from connection where name = ?", [name]);
   }
   static async getAll(): Promise<types.DBConnectionConfig[]> {
-    let c = await appDatabase.select<Connection[]>("select * from connection order by id desc");
-    return c.map((x) => JSON.parse(x.config));
+    let c = await appDatabase.select<Connection[]>(
+      "select * from connection order by id desc",
+    );
+    return c.map(x => JSON.parse(x.config));
   }
   static async save(config: types.DBConnectionConfig) {
-    return appDatabase.execute("insert into connection(name,config) values(?,?)", [config.name, JSON.stringify(config)]);
+    return appDatabase.execute("insert into connection(name,config) values(?,?)", [
+      config.name,
+      JSON.stringify(config),
+    ]);
   }
 }
 
@@ -90,41 +91,40 @@ async function dropDatabase(props: {
 
   const confirm = await secondConfirm({
     title: `drop database '${database}'`,
-    confirmText: 'Drop',
+    confirmText: "Drop",
   });
   if (!confirm) {
     return;
   }
-  invoke('drop_database', { name: uuid, database })
+  invoke("drop_database", { name: uuid, database })
     .then(() => {
-      showNotification('success', 'drop ok');
+      showNotification("success", "drop ok");
       if (okCallback) {
         okCallback();
       }
     })
-    .catch((e) => {
-      showNotification('error', 'drop failed', e);
+    .catch(e => {
+      showNotification("error", "drop failed", e);
     });
 }
 
 async function dropSchema({ uuid, schema, showNotification, okCallback }) {
   const confirm = await secondConfirm({
     title: `drop '${schema}'`,
-    confirmText: 'Drop',
+    confirmText: "Drop",
   });
   if (!confirm) {
     return;
   }
-  invoke('drop_schema', { name: uuid, schema })
+  invoke("drop_schema", { name: uuid, schema })
     .then(() => {
-      showNotification('success', 'Drop OK');
+      showNotification("success", "Drop OK");
       okCallback();
     })
-    .catch((e) => {
-      showNotification('error', 'Drop failure', e);
+    .catch(e => {
+      showNotification("error", "Drop failure", e);
     });
 }
-
 
 function tabsHasId(tabs: TabContent[], id: string): number | null {
   for (let i = 0; i < tabs.length; i++) {
@@ -144,12 +144,12 @@ interface DefAndMetas {
 const OpenedContext = createContext<{ opened: boolean; setOpened: any }>(null);
 
 function reloadOK(showNotification) {
-  showNotification('success', 'data loaded.');
+  showNotification("success", "data loaded.");
 }
 
 const autoCompletion = async (
   modal: editor.ITextModel,
-  pos: Position
+  pos: Position,
 ): Promise<languages.CompletionList> => {
   try {
     const sql = modal.getValue();
@@ -158,70 +158,62 @@ const autoCompletion = async (
       console.error("editor id map to backend name is nul,this is internal bug");
       return;
     }
-    const completionItem = await invoke<types.CompletionList>(
-      'auto_completion',
-      {
-        sql,
-        line: pos.lineNumber,
-        col: pos.column,
-        name: name.name,
-        queryId: name.queryId
-      }
-    );
+    const completionItem = await invoke<types.CompletionList>("auto_completion", {
+      sql,
+      line: pos.lineNumber,
+      col: pos.column,
+      name: name.name,
+      queryId: name.queryId,
+    });
     const suggestions = backendCompletionItemToEditor(completionItem.items);
     suggestions.incomplete = completionItem.incomplete;
     return suggestions;
   } catch (e) {
-    console.error('completion server error:', e);
-    return { suggestions: [] }
+    console.error("completion server error:", e);
+    return { suggestions: [] };
   }
 };
 
-
-loader
-  .init()
-  .then((monaco) => {
-    monaco.languages.registerCompletionItemProvider(
-      'sql',
-      {
-        triggerCharacters: ['.'],
-        provideCompletionItems(model,
-          position: Position,
-          _context: any,
-          _token: CancellationToken
-        ) {
-          return autoCompletion(model, position);
-        },
-      }
-    );
-    monaco.languages.registerDocumentFormattingEditProvider('sql', {
-      provideDocumentFormattingEdits(model, options, _) {
-        const name = SetAutoCompletionName.get(model.id);
-        if (!name) {
-          console.error("editor id map to backend name is nul,this is internal bug");
-          return;
-        }
-        let text = makeFormatFn(name.kind)(model.getValue(), { insertSpaces: options.insertSpaces, tabSize: options.tabSize });
-        if (!text) {
-          return null
-        }
-        return [{ range: model.getFullModelRange(), text }]
-      },
-    });
-    monaco.languages.registerCompletionItemProvider(
-      'redis',
-      {
-
-        provideCompletionItems(model,
-          position: Position,
-          _context: any,
-          _token: CancellationToken
-        ) {
-          return autoCompletion(model, position);
-        },
-      }
-    );
+loader.init().then(monaco => {
+  monaco.languages.registerCompletionItemProvider("sql", {
+    triggerCharacters: ["."],
+    provideCompletionItems(
+      model,
+      position: Position,
+      _context: any,
+      _token: CancellationToken,
+    ) {
+      return autoCompletion(model, position);
+    },
   });
+  monaco.languages.registerDocumentFormattingEditProvider("sql", {
+    provideDocumentFormattingEdits(model, options, _) {
+      const name = SetAutoCompletionName.get(model.id);
+      if (!name) {
+        console.error("editor id map to backend name is nul,this is internal bug");
+        return;
+      }
+      let text = makeFormatFn(name.kind)(model.getValue(), {
+        insertSpaces: options.insertSpaces,
+        tabSize: options.tabSize,
+      });
+      if (!text) {
+        return null;
+      }
+      return [{ range: model.getFullModelRange(), text }];
+    },
+  });
+  monaco.languages.registerCompletionItemProvider("redis", {
+    provideCompletionItems(
+      model,
+      position: Position,
+      _context: any,
+      _token: CancellationToken,
+    ) {
+      return autoCompletion(model, position);
+    },
+  });
+});
 
 function makeFormatFn(kind: DataSourceKind) {
   return (sql: string, opts?: languages.FormattingOptions) => {
@@ -233,30 +225,30 @@ function makeFormatFn(kind: DataSourceKind) {
     }
     try {
       // https://github.com/sql-formatter-org/sql-formatter/blob/master/docs/language.md
-      let language: SqlLanguage = 'sql';
+      let language: SqlLanguage = "sql";
       switch (kind) {
         case DataSourceKind.DuckDB:
-          language = 'duckdb';
+          language = "duckdb";
           break;
         case DataSourceKind.Mysql:
-          language = 'mysql';
+          language = "mysql";
           break;
         case DataSourceKind.MariaDB:
-          language = 'mariadb';
+          language = "mariadb";
           break;
         case DataSourceKind.TiDB:
-          language = 'tidb';
+          language = "tidb";
           break;
         case DataSourceKind.Oracle:
-          language = 'plsql';
+          language = "plsql";
           break;
         case DataSourceKind.Postgres:
         case DataSourceKind.Cockroach:
-          language = 'postgresql';
+          language = "postgresql";
           break;
         case DataSourceKind.LibSql:
         case DataSourceKind.Sqlite:
-          language = 'sqlite';
+          language = "sqlite";
           break;
       }
       return formatSql(sql, {
@@ -265,13 +257,12 @@ function makeFormatFn(kind: DataSourceKind) {
         useTabs: !opts.insertSpaces,
       });
     } catch (e) {
-      message('format failed error:' + String(e), { kind: 'error' })
-      console.error('format sql failed error:', e);
+      message("format failed error:" + String(e), { kind: "error" });
+      console.error("format sql failed error:", e);
       return sql;
     }
-  }
+  };
 }
-
 
 interface IQueryConn {
   queryOP: (text: string, append: boolean) => Promise<any[]>;
@@ -280,7 +271,7 @@ interface IQueryConn {
   exportQueryResult: (
     sql: string,
     kind: types.ExportKind,
-    file: string
+    file: string,
   ) => Promise<void>;
   isDangerSql: (sql: string) => Promise<boolean>;
   destroy: () => void;
@@ -290,7 +281,6 @@ interface IQueryConn {
   rollback: () => Promise<void>;
   supportTransaction: () => boolean;
   queryId: number;
-
 }
 
 class QueryConn implements IQueryConn {
@@ -319,12 +309,8 @@ class QueryConn implements IQueryConn {
     ].includes(this.kind);
   }
 
-  exportQueryResult(
-    sql: string,
-    kind: types.ExportKind,
-    file: string
-  ): Promise<void> {
-    return invoke<void>('export_query_result_to_file', {
+  exportQueryResult(sql: string, kind: types.ExportKind, file: string): Promise<void> {
+    return invoke<void>("export_query_result_to_file", {
       name: this.uuid,
       sql,
       kind,
@@ -333,41 +319,40 @@ class QueryConn implements IQueryConn {
   }
 
   setAutoCommit(commit: boolean): Promise<void> {
-    return invoke<void>('query_set_autocommit', {
+    return invoke<void>("query_set_autocommit", {
       name: this.uuid,
       queryId: this.queryId,
       commit,
     });
   }
   getAutoCommit(): Promise<boolean> {
-    return invoke<boolean>('query_get_commit', {
+    return invoke<boolean>("query_get_commit", {
       name: this.uuid,
       queryId: this.queryId,
     });
   }
   commit(): Promise<void> {
-    return invoke<void>('query_commit', {
+    return invoke<void>("query_commit", {
       name: this.uuid,
       queryId: this.queryId,
     });
   }
   rollback(): Promise<void> {
-    return invoke<void>('query_rollback', {
+    return invoke<void>("query_rollback", {
       name: this.uuid,
       queryId: this.queryId,
     });
   }
   queryOP(sql: string, append: boolean): Promise<any[]> {
-    return invoke<any[]>('query_sql', {
+    return invoke<any[]>("query_sql", {
       name: this.uuid,
       queryId: this.queryId,
       sql,
-      append
+      append,
     });
-
   }
   executeOP(sql: string): Promise<any> {
-    return invoke<any[]>('execute_sql', {
+    return invoke<any[]>("execute_sql", {
       name: this.uuid,
       queryId: this.queryId,
       sql,
@@ -375,7 +360,7 @@ class QueryConn implements IQueryConn {
   }
 
   reconnect(): Promise<IQueryConn> {
-    return invoke<number>('query_sql_re_connection', {
+    return invoke<number>("query_sql_re_connection", {
       name: this.uuid,
       queryId: this.queryId,
     }).then(queryid => {
@@ -383,54 +368,59 @@ class QueryConn implements IQueryConn {
     });
   }
   isDangerSql(sql: string): Promise<boolean> {
-    return invoke('is_dangerous_sql', { name: this.uuid, sql });
+    return invoke("is_dangerous_sql", { name: this.uuid, sql });
   }
   destroy() {
-    console.info('destroy connection of:', this.queryId);
-    invoke('query_sql_close_connection', {
+    console.info("destroy connection of:", this.queryId);
+    invoke("query_sql_close_connection", {
       name: this.uuid,
       queryId: this.queryId,
     })
-      .then(() => { })
-      .catch((e) => {
-        console.error('close connection failed,err', e);
+      .then(() => {})
+      .catch(e => {
+        console.error("close connection failed,err", e);
       });
   }
 }
 
-
-function modalHandleClose(callback: (e: EscDownEvent, reason: 'backdropClick' | 'escapeKeyDown') => void) {
-  return (e: EscDownEvent, reason: 'backdropClick' | 'escapeKeyDown') => {
-    if (reason === 'backdropClick') {
+function modalHandleClose(
+  callback: (e: EscDownEvent, reason: "backdropClick" | "escapeKeyDown") => void,
+) {
+  return (e: EscDownEvent, reason: "backdropClick" | "escapeKeyDown") => {
+    if (reason === "backdropClick") {
       return;
     }
-    callback(e, reason)
-  }
+    callback(e, reason);
+  };
 }
 
-function extractBaseName(file) {
+function extractBaseName(file: string) {
   const fileName = file.match(/[^\\/]+$/)[0];
   return fileName;
 }
 
 type MakeIQueryConn = () => Promise<IQueryConn>;
-const keyNotInTable = 'KWfCwJ62hRf6TKuvMcsQ3eXGtD1tdg2J';
+const keyNotInTable = "KWfCwJ62hRf6TKuvMcsQ3eXGtD1tdg2J";
 
 type EscDownEvent = { preventDefault: () => void };
 
 function makeExtractTableSelectWhere(uuid) {
   return (sql: string) => {
-    return invoke<string | null>('extract_table_select_selection', { name: uuid, sql })
-  }
+    return invoke<string | null>("extract_table_select_selection", {
+      name: uuid,
+      sql,
+    });
+  };
 }
 
 function makeExtractTableSelectSort(uuid) {
   return (sql: string) => {
-    return invoke<string | null>('extract_table_select_sort', { name: uuid, sql })
-  }
+    return invoke<string | null>("extract_table_select_sort", {
+      name: uuid,
+      sql,
+    });
+  };
 }
-
-
 
 function makeShowTableFn(uuid: string, table: string) {
   return async (
@@ -438,11 +428,11 @@ function makeShowTableFn(uuid: string, table: string) {
     orderBy: string,
     page: number,
     pageSize: number,
-    extra
+    extra,
   ) => {
     const where_null = where ? where : null;
     const orderBy_null = orderBy ? orderBy : null;
-    return await invoke<MuiDataGridData>('show_table', {
+    return await invoke<MuiDataGridData>("show_table", {
       name: uuid,
       tableName: table,
       whereStr: where_null,
@@ -451,9 +441,8 @@ function makeShowTableFn(uuid: string, table: string) {
       pageSize,
       extra,
     });
-  }
+  };
 }
-
 
 function makeShowViewFn(uuid: string, view: string) {
   return async (
@@ -461,11 +450,11 @@ function makeShowViewFn(uuid: string, view: string) {
     orderBy: string,
     page: number,
     pageSize: number,
-    extra
+    extra,
   ) => {
     const where_null = where ? where : null;
     const orderBy_null = orderBy ? orderBy : null;
-    return await invoke<MuiDataGridData>('show_view', {
+    return await invoke<MuiDataGridData>("show_view", {
       name: uuid,
       viewName: view,
       whereStr: where_null,
@@ -474,89 +463,89 @@ function makeShowViewFn(uuid: string, view: string) {
       pageSize,
       extra,
     });
-  }
+  };
 }
 
 function makeTableUpdate(uuid, table) {
   return async (wheres, values) => {
-    return await invoke<types.SqlExecuteRet>('table_update', {
+    return await invoke<types.SqlExecuteRet>("table_update", {
       name: uuid,
       tableName: table,
       values,
       wheres,
     });
-  }
+  };
 }
 
 function makeTableDelete(uuid, table) {
-  return async (wheres) => {
-    return await invoke<types.SqlExecuteRet>('table_delete', {
+  return async wheres => {
+    return await invoke<types.SqlExecuteRet>("table_delete", {
       name: uuid,
       tableName: table,
       wheres,
     });
-  }
+  };
 }
 
 function makeInvalidCassandraTableCache(uuid, table) {
   return async () => {
-    return invoke<void>('cassandra_invalid_table_or_view_caching', {
+    return invoke<void>("cassandra_invalid_table_or_view_caching", {
       name: uuid,
       tableName: table,
     });
-  }
+  };
 }
-
 
 function makePutValueInSql(uuid) {
   return async (typ, value) => {
-    return invoke<string>('put_value_in_sql', {
+    return invoke<string>("put_value_in_sql", {
       name: uuid,
       typ,
       value: value ? value : null,
     });
-  }
+  };
 }
 
 class NameAndQueryId {
-  constructor(public name: string, public kind: DataSourceKind, public queryId?: number) {
-  }
+  constructor(
+    public name: string,
+    public kind: DataSourceKind,
+    public queryId?: number,
+  ) {}
 }
 class SetAutoCompletionName {
-
   static id2Name = new Map<string, NameAndQueryId>();
   static set(editorId: string, x: NameAndQueryId) {
-    SetAutoCompletionName.id2Name.set(editorId, x)
+    SetAutoCompletionName.id2Name.set(editorId, x);
   }
 
   static get(editorId: string): NameAndQueryId | null {
-    return SetAutoCompletionName.id2Name.get(editorId)
+    return SetAutoCompletionName.id2Name.get(editorId);
   }
 }
 
 function makeShowTableColumn(uuid, table) {
   return () => {
-    return invoke<types.Field[]>('show_table_columns', {
+    return invoke<types.Field[]>("show_table_columns", {
       name: uuid,
       tableName: table,
-    })
-  }
+    });
+  };
 }
 
 function makeTableInsertFn(uuid, table) {
-  return async (values) => {
-    return invoke<void>('table_insert', {
+  return async values => {
+    return invoke<void>("table_insert", {
       name: uuid,
       tableName: table,
       values,
     });
-  }
+  };
 }
 
 type FieldAndGridField = types.Field & GridColDef;
 
 class PassWordManager {
-
   static service = "site.dbpal.dev";
   static password = new Map<string, string>();
   static async savePassword(name: string, pass: string, save2KeyRing: boolean) {
@@ -565,7 +554,6 @@ class PassWordManager {
       console.info("save password to keyring", name, pass);
       await keyring.setPassword(PassWordManager.service, name, pass);
     }
-
   }
   static async getPassword(name: string) {
     if (PassWordManager.password.has(name)) {
@@ -574,9 +562,11 @@ class PassWordManager {
     try {
       return await keyring.getPassword(PassWordManager.service, name);
     } catch (e) {
-      console.log("get password failed,this is fine maybe this connection don't have password");
+      console.log(
+        "get password failed,this is fine maybe this connection don't have password",
+      );
     }
-    return null
+    return null;
   }
   static async deletePassword(name: string) {
     try {
@@ -617,7 +607,13 @@ export {
   makeShowTableColumn,
   makeTableInsertFn,
   PassWordManager,
-  connectionChangeEvent
+  connectionChangeEvent,
 };
 
-export type { DefAndMetas, IQueryConn, MakeIQueryConn, EscDownEvent, FieldAndGridField };
+export type {
+  DefAndMetas,
+  IQueryConn,
+  MakeIQueryConn,
+  EscDownEvent,
+  FieldAndGridField,
+};

@@ -2,427 +2,487 @@
 
 export default types;
 export namespace types {
-    export type U32 = number;
-    export type ConnTimeOut = types.U32;
-    export type SqliteDBConfig = {
-        "path": string;
-        "read_only": boolean;
-        "conn_timeout": (types.ConnTimeOut | null);
-    };
-    export type SSLFiles = {
-        "ssl_ca": (string | null);
-        "ssl_cert": (string | null);
-        "ssl_key": (string | null);
-    };
-    export type MySqlSslMode = (
+  export type U32 = number;
+  export type ConnTimeOut = types.U32;
+  export type SqliteDBConfig = {
+    path: string;
+    read_only: boolean;
+    conn_timeout: types.ConnTimeOut | null;
+  };
+  export type SSLFiles = {
+    ssl_ca: string | null;
+    ssl_cert: string | null;
+    ssl_key: string | null;
+  };
+  export type MySqlSslMode =
     /**
      * Establish an unencrypted connection.
      */
-"disabled" | 
+    | "disabled"
     /**
      * Establish an encrypted connection if the server supports encrypted connections, falling
      * back to an unencrypted connection if an encrypted connection cannot be established.
-     * 
+     *
      * This is the default if `ssl_mode` is not specified.
      */
-"preferred" | 
+    | "preferred"
     /**
      * Establish an encrypted connection if the server supports encrypted connections.
      * The connection attempt fails if an encrypted connection cannot be established.
      */
-"required" | 
+    | "required"
     /**
      * Like `Required`, but additionally verify the server Certificate Authority (CA)
      * certificate against the configured CA certificates. The connection attempt fails
      * if no valid matching CA certificates are found.
      */
-"verifyca" | 
+    | "verifyca"
     /**
      * Like `VerifyCa`, but additionally perform host name identity verification by
      * checking the host name the client uses for connecting to the server against the
      * identity in the certificate that the server sends to the client.
      */
-"verifyidentity");
-    export type MysqlSsl = (types.SSLFiles & {
-        "ssl_mode": types.MySqlSslMode;
-    });
-    export type U16 = number;
-    export type MysqlDBConfig = (types.MysqlSsl & {
-        "host": string;
-        "port": types.U16;
-        "username": string;
-        "password": (string | null);
-        "save_password": boolean;
-        "db": (string | null);
-        "read_only": boolean;
-        "conn_timeout": (types.ConnTimeOut | null);
-    });
-    export type PgSslMode = (
+    | "verifyidentity";
+  export type MysqlSsl = types.SSLFiles & {
+    ssl_mode: types.MySqlSslMode;
+  };
+  export type U16 = number;
+  export type MysqlDBConfig = types.MysqlSsl & {
+    host: string;
+    port: types.U16;
+    username: string;
+    password: string | null;
+    save_password: boolean;
+    db: string | null;
+    read_only: boolean;
+    conn_timeout: types.ConnTimeOut | null;
+  };
+  export type PgSslMode =
     /**
      * Only try a non-SSL connection.
      */
-"disable" | 
+    | "disable"
     /**
      * First try a non-SSL connection; if that fails, try an SSL connection.
      */
-"allow" | 
+    | "allow"
     /**
      * First try an SSL connection; if that fails, try a non-SSL connection.
-     * 
+     *
      * This is the default if no other mode is specified
      */
-"prefer" | 
+    | "prefer"
     /**
      * Only try an SSL connection. If a root CA file is present, verify the connection
      * in the same way as if `VerifyCa` was specified.
      */
-"require" | 
+    | "require"
     /**
      * Only try an SSL connection, and verify that the server certificate is issued by a
      * trusted certificate authority (CA).
      */
-"verifyca" | 
+    | "verifyca"
     /**
      * Only try an SSL connection; verify that the server certificate is issued by a trusted
      * CA and that the requested server host name matches that in the certificate.
      */
-"verifyfull");
-    export type PgSsl = (types.SSLFiles & {
-        "ssl_mode": types.PgSslMode;
-    });
-    export type PGDBConfig = (types.PgSsl & {
-        "host": string;
-        "port": types.U16;
-        "username": string;
-        "password": (string | null);
-        "save_password": boolean;
-        "db": (string | null);
-        "schema": (string | null);
-        "read_only": boolean;
-        "conn_timeout": (types.ConnTimeOut | null);
-    });
-    export type SqlServerDBConfig = {
-        "host": string;
-        "port": types.U16;
-        "username": (string | null);
-        "password": (string | null);
-        "save_password": boolean;
-        "db": (string | null);
-        "trust_cert": boolean;
-        "schema": (string | null);
-        "read_only": boolean;
-        "conn_timeout": (types.ConnTimeOut | null);
-        "cert_ca": (string | null);
-    };
-    export type MongoSsl = (types.SSLFiles & {
-        "enable_ssl": boolean;
-    });
-    export type MongoDBConfig = (types.MongoSsl & {
-        "host": string;
-        "port": types.U16;
-        "username": (string | null);
-        "password": (string | null);
-        "save_password": boolean;
-        "conn_timeout": (types.ConnTimeOut | null);
-        "db": (string | null);
-        "read_only": boolean;
-    });
-    export type RedisDBConfig = {
-        "host": string;
-        "port": (types.U16 | null);
-        "username": (string | null);
-        "password": (string | null);
-        "save_password": boolean;
-        "db": (string | null);
-        "read_only": boolean;
-        "enable_ssl": boolean;
-        "conn_timeout": (types.ConnTimeOut | null);
-    };
-    export type OracleDBConfig = {
-        "username": string;
-        "password": string;
-        "save_password": boolean;
-        "host": string;
-        "port": types.U16;
-        "schema": (string | null);
-        "conn_timeout": (types.ConnTimeOut | null);
-        "read_only": boolean;
-        "db": string;
-    };
-    export type CassandraSsl = types.SSLFiles;
-    export type CassandraDBConfig = {
-        "host": string;
-        "port": (types.U16 | null);
-        "username": (string | null);
-        "password": (string | null);
-        "save_password": boolean;
-        "db": (string | null);
-        "read_only": boolean;
-        "ssl": types.CassandraSsl;
-        "conn_timeout": (types.ConnTimeOut | null);
-    };
-    export type ClickHouseConfig = {
-        "host": string;
-        "port": types.U16;
-        "username": string;
-        "password": (string | null);
-        "save_password": boolean;
-        "db": (string | null);
-        "read_only": boolean;
-        "https": boolean;
-        "conn_timeout": (types.ConnTimeOut | null);
-    };
-    export type LibSqlDBConfigSource = (({
-        "source": "local";
-    } & {
-        "path": string;
-    }) | ({
-        "source": "remote";
-    } & {
-        "url": string;
-        "auth_token": string;
-        "path": (string | null);
-    }));
-    export type LibSqlDBConfig = (types.LibSqlDBConfigSource & {
-        "replica": boolean;
-        "read_only": boolean;
-        "conn_timeout": (types.ConnTimeOut | null);
-    });
-    export type FireBirdConfig = {
-        "host": string;
-        "port": types.U16;
-        "username": string;
-        "password": string;
-        "save_password": boolean;
-        "db": string;
-        "read_only": boolean;
-        "conn_timeout": (types.ConnTimeOut | null);
-    };
-    export type DuckDBConfig = {
-        "path": string;
-        "read_only": boolean;
-        "db": (string | null);
-        "schema": (string | null);
-        "conn_timeout": (types.ConnTimeOut | null);
-    };
-    export type DBConnectionConfig = (({
-        "conn_type": "sqlite";
-    } & (types.SqliteDBConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "mysql";
-    } & (types.MysqlDBConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "mariadb";
-    } & (types.MysqlDBConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "tidb";
-    } & (types.MysqlDBConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "postgres";
-    } & (types.PGDBConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "cockroach";
-    } & (types.PGDBConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "sqlserver";
-    } & (types.SqlServerDBConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "mongo";
-    } & (types.MongoDBConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "redis";
-    } & (types.RedisDBConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "oracle";
-    } & (types.OracleDBConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "cassandra";
-    } & (types.CassandraDBConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "clickhouse";
-    } & (types.ClickHouseConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "libsql";
-    } & (types.LibSqlDBConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "firebird";
-    } & (types.FireBirdConfig & {
-        "name": string;
-    })) | ({
-        "conn_type": "duckdb";
-    } & (types.DuckDBConfig & {
-        "name": string;
-    })));
-    export type ListTable = {
-        "name": string;
-        "size": (string | null);
-    };
-    export type I64 = number;
-    export type Field = {
-        "field": string;
-        "data_type": string;
-        "nullable": boolean;
-
-        /**
-         * default value of this field
-         */
-        "default_value": (string | null);
-
-        /**
-         * is primary key??
-         */
-        "is_primary": boolean;
-        "is_auto_increment": boolean;
-        "sortable": boolean;
-        "firebird_binary_sub_type": (types.I64 | null);
-    };
-    export type IndexKind = ("Index" | "Unique" | "Primary");
-    export type Index = {
-        "name": (string | null);
-        "kind": types.IndexKind;
-        "columns": (string)[];
-    };
-    export type U64 = number;
-    export type SqlExecuteRet = {
-        "sql": string;
-        "changes": (types.U64 | null);
-    };
-    export type MetaValue = {
-        "name": string;
-        "value": (string | null);
-        "desc"?: (string | null);
-    };
+    | "verifyfull";
+  export type PgSsl = types.SSLFiles & {
+    ssl_mode: types.PgSslMode;
+  };
+  export type PGDBConfig = types.PgSsl & {
+    host: string;
+    port: types.U16;
+    username: string;
+    password: string | null;
+    save_password: boolean;
+    db: string | null;
+    schema: string | null;
+    read_only: boolean;
+    conn_timeout: types.ConnTimeOut | null;
+  };
+  export type SqlServerDBConfig = {
+    host: string;
+    port: types.U16;
+    username: string | null;
+    password: string | null;
+    save_password: boolean;
+    db: string | null;
+    trust_cert: boolean;
+    schema: string | null;
+    read_only: boolean;
+    conn_timeout: types.ConnTimeOut | null;
+    cert_ca: string | null;
+  };
+  export type MongoSsl = types.SSLFiles & {
+    enable_ssl: boolean;
+  };
+  export type MongoDBConfig = types.MongoSsl & {
+    host: string;
+    port: types.U16;
+    username: string | null;
+    password: string | null;
+    save_password: boolean;
+    conn_timeout: types.ConnTimeOut | null;
+    db: string | null;
+    read_only: boolean;
+  };
+  export type RedisDBConfig = {
+    host: string;
+    port: types.U16 | null;
+    username: string | null;
+    password: string | null;
+    save_password: boolean;
+    db: string | null;
+    read_only: boolean;
+    enable_ssl: boolean;
+    conn_timeout: types.ConnTimeOut | null;
+  };
+  export type OracleDBConfig = {
+    username: string;
+    password: string;
+    save_password: boolean;
+    host: string;
+    port: types.U16;
+    schema: string | null;
+    conn_timeout: types.ConnTimeOut | null;
+    read_only: boolean;
+    db: string;
+  };
+  export type CassandraSsl = types.SSLFiles;
+  export type CassandraDBConfig = {
+    host: string;
+    port: types.U16 | null;
+    username: string | null;
+    password: string | null;
+    save_password: boolean;
+    db: string | null;
+    read_only: boolean;
+    ssl: types.CassandraSsl;
+    conn_timeout: types.ConnTimeOut | null;
+  };
+  export type ClickHouseConfig = {
+    host: string;
+    port: types.U16;
+    username: string;
+    password: string | null;
+    save_password: boolean;
+    db: string | null;
+    read_only: boolean;
+    https: boolean;
+    conn_timeout: types.ConnTimeOut | null;
+  };
+  export type LibSqlDBConfigSource =
+    | ({
+        source: "local";
+      } & {
+        path: string;
+      })
+    | ({
+        source: "remote";
+      } & {
+        url: string;
+        auth_token: string;
+        path: string | null;
+      });
+  export type LibSqlDBConfig = types.LibSqlDBConfigSource & {
+    replica: boolean;
+    read_only: boolean;
+    conn_timeout: types.ConnTimeOut | null;
+  };
+  export type FireBirdConfig = {
+    host: string;
+    port: types.U16;
+    username: string;
+    password: string;
+    save_password: boolean;
+    db: string;
+    read_only: boolean;
+    conn_timeout: types.ConnTimeOut | null;
+  };
+  export type DuckDBConfig = {
+    path: string;
+    read_only: boolean;
+    db: string | null;
+    schema: string | null;
+    conn_timeout: types.ConnTimeOut | null;
+  };
+  export type DBConnectionConfig =
+    | ({
+        conn_type: "sqlite";
+      } & (types.SqliteDBConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: "mysql";
+      } & (types.MysqlDBConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: "mariadb";
+      } & (types.MysqlDBConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: "tidb";
+      } & (types.MysqlDBConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: "postgres";
+      } & (types.PGDBConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: "cockroach";
+      } & (types.PGDBConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: "sqlserver";
+      } & (types.SqlServerDBConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: "mongo";
+      } & (types.MongoDBConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: "redis";
+      } & (types.RedisDBConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: "oracle";
+      } & (types.OracleDBConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: "cassandra";
+      } & (types.CassandraDBConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: "clickhouse";
+      } & (types.ClickHouseConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: "libsql";
+      } & (types.LibSqlDBConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: "firebird";
+      } & (types.FireBirdConfig & {
+        name: string;
+      }))
+    | ({
+        conn_type: "duckdb";
+      } & (types.DuckDBConfig & {
+        name: string;
+      }));
+  export type ListTable = {
+    name: string;
+    size: string | null;
+  };
+  export type I64 = number;
+  export type Field = {
+    field: string;
+    data_type: string;
+    nullable: boolean;
 
     /**
-     * named staff maybe used for view udf etc...
+     * default value of this field
      */
-    export type NamedStaff = {
-        "parameters": (string | null);
-        "cassandra_parameters": ((string)[] | null);
-        "name": string;
-        "metas": (types.MetaValue)[];
-    };
-    export type ExportKind = (({
-        "export_kind": "csv";
-    } & {
-        "include_header": boolean;
-        "delimiter": string;
-    }) | ({
-        "export_kind": "json";
-    } & {
-        "pretty": boolean;
-    }) | {
-        "export_kind": "jsonline";
-    } | ({
-        "export_kind": "sql";
-    } & {
-        "include_table_schema": boolean;
-    }) | ({
-        "export_kind": "xlsx";
-    } & {
-        "include_header": boolean;
-    }));
-    export type RedisListTable = {
-        "string_tables": (string)[];
-        "list_tables": (string)[];
-        "set_tables": (string)[];
-        "hash_tables": (string)[];
-        "zset_tables": (string)[];
-        "has_more": boolean;
-    };
-    export type TriggerTiming = ("Before" | "After" | "InsteadOf" | {
-        "String": string;
-    });
-    export type TriggerEvent = ("Insert" | "Update" | "Delete" | "InsteadOf");
-    export type TriggerEnable = (({
-        "kind": "postgres";
-    } & {
-        "enable": (string | null);
-    }) | ({
-        "kind": "bool";
-    } & {
-        "enable": boolean;
-    }));
-    export type TriggerDetail = {
-        "timing": types.TriggerTiming;
-        "event": types.TriggerEvent;
-        "sql": string;
-        "enable": (types.TriggerEnable | null);
-        "metas": (types.MetaValue)[];
-        "name": string;
-    };
-    export type CompletionItem = {
-        "item": string;
-        "kind": CompletionKind;
-        "desc"?: (string | null);
-    };
-    export type CompletionKind = ("Command" | "KeyWord" | "Function" | "Database" | "Schema" | "Table" | "View" | "Column" | "Text" | "Type" | "Index" | "Sequence" | "Stage" | "Trigger" | "Event" | "Procedure" | "Extension" | "User" | "Role" | "Constraint" | "Partition" | "PrepareStatement" | "Pragma" | "Policy" | "Variable" | "Rule" | "Cluster" | "ClickHouseTableProjection" | "Prepare" | "Module" | "Domain" | "Stream");
-    export type DefAndMetas = {
-        "def": string;
-        "metas": (types.MetaValue)[];
-    };
-    export type ProcedureDetail = {
-        "def": string;
-        "metas": (types.MetaValue)[];
-    };
+    default_value: string | null;
 
     /**
-     * create table and all index sql.
+     * is primary key??
      */
-    export type CreateTableAndIndexSql = {
-        "create_table": string;
+    is_primary: boolean;
+    is_auto_increment: boolean;
+    sortable: boolean;
+    firebird_binary_sub_type: types.I64 | null;
+  };
+  export type IndexKind = "Index" | "Unique" | "Primary";
+  export type Index = {
+    name: string | null;
+    kind: types.IndexKind;
+    columns: string[];
+  };
+  export type U64 = number;
+  export type SqlExecuteRet = {
+    sql: string;
+    changes: types.U64 | null;
+  };
+  export type MetaValue = {
+    name: string;
+    value: string | null;
+    desc?: string | null;
+  };
 
-        /**
-         * some backend can query create table and index in one sql
-         * this can be empty
-         */
-        "indexes": (string)[];
-    };
-    export type ColumnType = {
-        "typ": string;
-        "nullness": (string | null);
-        "after": (string | null);
-        "default_value": (string | null);
-    };
-    export type SequenceDetail = {
-        "start_value": string;
-        "min_value": string;
-        "max_value": string;
-        "increment_by": string;
-        "last_value": (string | null);
-        "name": string;
-        "sql": string;
-        "data_type": string;
-    };
-    export type CreatedTypeDef = {
-        "name": string;
-        "sql": (string | null);
-    };
-    export type ShowTableExtraArgs = ({
-        "extra": "cassandra";
-    } & {
-        "allow_filtering": boolean;
-    });
-    export type SqlEvent = {
-        "name": string;
-        "sql": string;
-        "metas": (types.MetaValue)[];
-    };
-    export type CompletionList = {
-        "items": (types.CompletionItem)[];
-        "incomplete": boolean;
-    };
+  /**
+   * named staff maybe used for view udf etc...
+   */
+  export type NamedStaff = {
+    parameters: string | null;
+    cassandra_parameters: string[] | null;
+    name: string;
+    metas: types.MetaValue[];
+  };
+  export type ExportKind =
+    | ({
+        export_kind: "csv";
+      } & {
+        include_header: boolean;
+        delimiter: string;
+      })
+    | ({
+        export_kind: "json";
+      } & {
+        pretty: boolean;
+      })
+    | {
+        export_kind: "jsonline";
+      }
+    | ({
+        export_kind: "sql";
+      } & {
+        include_table_schema: boolean;
+      })
+    | ({
+        export_kind: "xlsx";
+      } & {
+        include_header: boolean;
+      });
+  export type RedisListTable = {
+    string_tables: string[];
+    list_tables: string[];
+    set_tables: string[];
+    hash_tables: string[];
+    zset_tables: string[];
+    has_more: boolean;
+  };
+  export type TriggerTiming =
+    | "Before"
+    | "After"
+    | "InsteadOf"
+    | {
+        String: string;
+      };
+  export type TriggerEvent = "Insert" | "Update" | "Delete" | "InsteadOf";
+  export type TriggerEnable =
+    | ({
+        kind: "postgres";
+      } & {
+        enable: string | null;
+      })
+    | ({
+        kind: "bool";
+      } & {
+        enable: boolean;
+      });
+  export type TriggerDetail = {
+    timing: types.TriggerTiming;
+    event: types.TriggerEvent;
+    sql: string;
+    enable: types.TriggerEnable | null;
+    metas: types.MetaValue[];
+    name: string;
+  };
+  export type CompletionItem = {
+    item: string;
+    kind: CompletionKind;
+    desc?: string | null;
+  };
+  export type CompletionKind =
+    | "Command"
+    | "KeyWord"
+    | "Function"
+    | "Database"
+    | "Schema"
+    | "Table"
+    | "View"
+    | "Column"
+    | "Text"
+    | "Type"
+    | "Index"
+    | "Sequence"
+    | "Stage"
+    | "Trigger"
+    | "Event"
+    | "Procedure"
+    | "Extension"
+    | "User"
+    | "Role"
+    | "Constraint"
+    | "Partition"
+    | "PrepareStatement"
+    | "Pragma"
+    | "Policy"
+    | "Variable"
+    | "Rule"
+    | "Cluster"
+    | "ClickHouseTableProjection"
+    | "Prepare"
+    | "Module"
+    | "Domain"
+    | "Stream";
+  export type DefAndMetas = {
+    def: string;
+    metas: types.MetaValue[];
+  };
+  export type ProcedureDetail = {
+    def: string;
+    metas: types.MetaValue[];
+  };
+
+  /**
+   * create table and all index sql.
+   */
+  export type CreateTableAndIndexSql = {
+    create_table: string;
+
+    /**
+     * some backend can query create table and index in one sql
+     * this can be empty
+     */
+    indexes: string[];
+  };
+  export type ColumnType = {
+    typ: string;
+    nullness: string | null;
+    after: string | null;
+    default_value: string | null;
+  };
+  export type SequenceDetail = {
+    start_value: string;
+    min_value: string;
+    max_value: string;
+    increment_by: string;
+    last_value: string | null;
+    name: string;
+    sql: string;
+    data_type: string;
+  };
+  export type CreatedTypeDef = {
+    name: string;
+    sql: string | null;
+  };
+  export type ShowTableExtraArgs = {
+    extra: "cassandra";
+  } & {
+    allow_filtering: boolean;
+  };
+  export type SqlEvent = {
+    name: string;
+    sql: string;
+    metas: types.MetaValue[];
+  };
+  export type CompletionList = {
+    items: types.CompletionItem[];
+    incomplete: boolean;
+  };
 }
