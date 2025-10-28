@@ -67,12 +67,18 @@ class QueryLogHandler {
     order_by: string,
   ): Promise<any[]> {
     const sql = `
-    select * from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""} order by ${order_by ? order_by : "create_at desc"} limit ${pageSize} offset ${pageSize * (page - 1)}`;
+    select * from query_log where uuid=? ${
+      matchSql ? `and sql like '%${matchSql}%'` : ""
+    } order by ${order_by ? order_by : "create_at desc"} limit ${pageSize} offset ${
+      pageSize * (page - 1)
+    }`;
     console.info("query log sql:", sql);
     return appDatabase.select(sql, [this.uuid]);
   }
   async queryCount(matchSql: string): Promise<number> {
-    let sql = `select count(*) as total from query_log where uuid=? ${matchSql ? `and sql like '%${matchSql}%'` : ""}`;
+    let sql = `select count(*) as total from query_log where uuid=? ${
+      matchSql ? `and sql like '%${matchSql}%'` : ""
+    }`;
     return appDatabase.select(sql, [this.uuid]).then(e => (e ? e[0].total : 0));
   }
   async delete(): Promise<QueryResult> {
@@ -566,14 +572,10 @@ function validJson(s: string): Promise<ErrAndLoc | null> {
 
 function resetMuiDataRespWidth(old: MuiDataGridData): MuiDataGridData {
   return {
-    sql: old.sql,
-    data: old.data,
     fields: old.fields.map(e => {
       return { ...e, width: undefined } as types.Field;
     }),
-    total: old.total,
-    cache_time: old.cache_time,
-    has_more: old.has_more,
+    ...old,
   };
 }
 
@@ -617,10 +619,7 @@ function saveAndSetSize(
 }
 
 class DocsAndCount {
-  constructor(
-    public docs: BSON.Document[],
-    public count: number,
-  ) {}
+  constructor(public docs: BSON.Document[], public count: number) {}
 }
 
 class MongoTableHandler {

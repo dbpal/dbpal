@@ -31,13 +31,9 @@ currentWebview.onCloseRequested(async event => {
 });
 
 if (import.meta.env.DEV) {
-  invoke("page_init_callback")
-    .then(() => {
-      console.info("page init callback successfully");
-    })
-    .catch(e => {
-      console.error("call page init failed", e);
-    });
+  invoke("page_init_callback").then(() => {
+    console.info("page init callback successfully");
+  });
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

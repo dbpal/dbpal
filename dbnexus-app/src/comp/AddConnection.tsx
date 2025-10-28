@@ -38,15 +38,14 @@ import { platform } from "@tauri-apps/plugin-os";
 import { UrlDocument } from "./CommonComp2";
 import { emit } from "@tauri-apps/api/event";
 
-function HostAndPort(props: { host; port; setHost; setPort; onBlur? }) {
-  const { host, port, setHost, setPort, onBlur } = props;
+function HostAndPort(props: { host; port; setHost; setPort }) {
+  const { host, port, setHost, setPort } = props;
   return (
     <Stack direction="row">
       <TextField
         fullWidth
         label="Host"
         value={host}
-        onBlur={onBlur}
         sx={{ mr: 1 }}
         onChange={e => setHost(e.target.value)}
         slotProps={{
@@ -70,7 +69,6 @@ function HostAndPort(props: { host; port; setHost; setPort; onBlur? }) {
       <TextField
         fullWidth
         label="port"
-        onBlur={onBlur}
         error={isNaN(parseInt(port))}
         value={port}
         onChange={e => setPort(e.target.value)}
