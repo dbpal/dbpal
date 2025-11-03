@@ -583,7 +583,6 @@ type UISize = {
   width?: number;
   height?: number;
 };
-const gridStyle = { height: "auto", maxHeight: "80vh" } as CSSProperties;
 
 function saveAndSetSize(
   dom: Element,
@@ -1207,7 +1206,6 @@ export {
   SettingContext,
   SetCloseConfirmTextContext,
   WindowFocusContext,
-  gridStyle,
   editorSetPositionAndReveal,
   postgresLike,
   udfIdGenerate,

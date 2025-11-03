@@ -173,7 +173,7 @@ class TSCompiler {
   static async getTscVersion(): Promise<string> {
     let cmd = Command.create(TSCompiler.getCompilerCmd(), ["--version"]);
     const out = await cmd.execute();
-    return out.stdout;
+    return out.stdout.substring(out.stdout.indexOf(" ") + 1);
   }
 
   static getCompilerCmd() {
@@ -647,3 +647,13 @@ function CleanFunctionDoc() {
 }
 
 export { MongoQuery };
+
+TSCompiler.compile(
+  `
+  alert(1 as string);
+alert(2 as string) 
+  `,
+  false,
+).then(e => {
+  console.log(e);
+});
