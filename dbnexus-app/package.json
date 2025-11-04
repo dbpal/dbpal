@@ -12,6 +12,8 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@langchain/core": "^1.0.2",
+    "@langchain/openai": "^1.0.0",
     "@monaco-editor/react": "^4.7.0",
     "@mui/icons-material": "^7.3.4",
     "@mui/material": "^7.3.4",
@@ -44,7 +46,8 @@
     "sql-formatter": "^15.6.10",
     "styled-components": "^6.1.19",
     "tauri-plugin-keyring-api": "^0.1.1",
-    "wildcard-match": "^5.1.4"
+    "wildcard-match": "^5.1.4",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.9.2",

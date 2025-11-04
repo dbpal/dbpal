@@ -19,6 +19,7 @@ import { platform } from "@tauri-apps/plugin-os";
 import themelist from "../../monaco-themes/themes/themelist.json";
 import { loader } from "@monaco-editor/react";
 import { emit } from "@tauri-apps/api/event";
+import { PassWordManager } from "./Common";
 
 const pageSizeOptions = [10, 20, 50, 100];
 const appStore = await load("store.json");
@@ -1170,6 +1171,33 @@ const shrinkAble: CSSProperties = {
   minWidth: "3rem",
 };
 
+class LLMConfig {
+  url: string;
+  apiKey: string;
+  model: string;
+  static key = "llm-config-4k9zF7m5p3T1H2";
+
+  async save() {
+    try {
+      // save to password manager
+      PassWordManager.savePassword(LLMConfig.key, this.apiKey, true);
+      this.apiKey = "";
+      appStore.set(LLMConfig.key, this);
+    } catch (e) {
+      console.error("save llm config failed", e);
+      message("save llm config failed", { kind: "error" });
+    }
+  }
+
+  static async get(): Promise<LLMConfig | null> {
+    const pass = await PassWordManager.getPassword(LLMConfig.key);
+    const ret = await appStore.get<LLMConfig | null>(LLMConfig.key);
+    if (ret) {
+      ret.apiKey = pass;
+    }
+    return ret;
+  }
+}
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -1248,6 +1276,7 @@ export {
   appDatabase,
   shrinkAble,
   isWindows,
+  LLMConfig,
 };
 
 export type { ErrAndLoc, NewWindowTableParameter, DetachQueyRespViewParameter };

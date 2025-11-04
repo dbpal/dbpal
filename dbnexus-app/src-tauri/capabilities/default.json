@@ -58,6 +58,7 @@
     "core:webview:deny-clear-all-browsing-data",
     "shell:default",
     "shell:allow-execute",
+    "cors-fetch:default",
     {
       "identifier": "shell:allow-execute",
       "allow": [

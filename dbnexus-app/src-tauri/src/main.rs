@@ -72,7 +72,7 @@ fn main() {
         .unwrap();
 
     runtime.block_on(async {
-        main_();
+        run_app();
     })
 }
 
@@ -203,7 +203,9 @@ fn panic_test() {
     });
 }
 
-fn main_() {
+// api key sk-drCWfiTCPZWnAKlKfFxpgwOPCDjWfZnhOJQsYbXe7hCYlUQj
+
+fn run_app() {
     let dbpal = DBPal::new();
     let dbpal_clone = dbpal.clone();
 
@@ -265,6 +267,7 @@ fn main_() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_keyring::init())
+        .plugin(tauri_plugin_cors_fetch::init())
         .manage(dbpal)
         .setup(setup)
         .menu(|handle| {

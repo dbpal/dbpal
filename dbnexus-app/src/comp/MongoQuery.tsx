@@ -648,12 +648,12 @@ function CleanFunctionDoc() {
 
 export { MongoQuery };
 
-TSCompiler.compile(
-  `
-  alert(1 as string);
-alert(2 as string) 
-  `,
-  false,
-).then(e => {
-  console.log(e);
-});
+// TSCompiler.compile(
+//   `
+//   alert(1 as string);
+// alert(2 as string)
+//   `,
+//   false,
+// ).then(e => {
+//   console.log(e);
+// });
