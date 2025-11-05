@@ -543,6 +543,8 @@ const TabsSetContext = createContext<{
   setSelectTab;
 }>(null);
 
+const LLMConfigContext = createContext<null | LLMConfig>(null);
+
 const SetCloseConfirmTextContext = createContext<(x: string) => void>(null);
 
 const ConnTypeContext = createContext<{
@@ -1172,9 +1174,11 @@ const shrinkAble: CSSProperties = {
 };
 
 class LLMConfig {
-  url: string;
+  baseUrl: string;
   apiKey: string;
   model: string;
+  temperature: number = 0;
+  sqlTemplate: string = "";
   static key = "llm-config-4k9zF7m5p3T1H2";
 
   async save() {
@@ -1198,6 +1202,7 @@ class LLMConfig {
     return ret;
   }
 }
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -1277,6 +1282,7 @@ export {
   shrinkAble,
   isWindows,
   LLMConfig,
+  LLMConfigContext,
 };
 
 export type { ErrAndLoc, NewWindowTableParameter, DetachQueyRespViewParameter };

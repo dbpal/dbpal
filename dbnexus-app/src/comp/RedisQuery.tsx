@@ -4,7 +4,6 @@ import { editor } from "monaco-editor";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { SqlQuery } from "./SqlQuery.tsx";
-import { MakeIQueryConn } from "./Common.ts";
 import { DataSourceKind, ErrAndLoc, shrinkAble } from "./helper.ts";
 import { Chip, Tooltip } from "@mui/material";
 import { invoke } from "@tauri-apps/api/core";
@@ -25,14 +24,12 @@ class SaveShowDoc {
 }
 
 function RedisQuery(props: {
-  makeConn: MakeIQueryConn;
-  saveFavoriteSql: (name, sql: string) => void;
   favoriteName?: string;
   value?: string;
   getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
   uuid: string;
 }) {
-  const { makeConn, saveFavoriteSql, favoriteName, value, getParseErr, uuid } = props;
+  const { favoriteName, value, getParseErr, uuid } = props;
   const [doc, setDoc] = useState("");
   const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
   const [showDoc, setShowDoc] = useState(SaveShowDoc.instance.get());
@@ -88,12 +85,12 @@ function RedisQuery(props: {
       <Panel defaultSize={40} minSize={4}>
         <SqlQuery
           hasPositionRelative
-          editorRef={editorRef}
+          handleEditor={e => {
+            editorRef.current = e;
+          }}
           getParseErr={getParseErr}
           uuid={uuid}
-          makeConn={makeConn}
           favoriteName={favoriteName}
-          saveFavoriteSql={saveFavoriteSql}
           value={value}
           kind={DataSourceKind.Redis}
           extras={

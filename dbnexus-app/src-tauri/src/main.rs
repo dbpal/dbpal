@@ -203,7 +203,7 @@ fn panic_test() {
     });
 }
 
-// api key sk-drCWfiTCPZWnAKlKfFxpgwOPCDjWfZnhOJQsYbXe7hCYlUQj
+// api key sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO
 
 fn run_app() {
     let dbpal = DBPal::new();

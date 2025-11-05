@@ -37,7 +37,6 @@ import {
   modalStyle,
   dropDatabase,
   dropSchema,
-  QueryConn,
   EscDownEvent,
   modalHandleClose,
   ConnectHandler,
@@ -55,7 +54,7 @@ import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import CloseIcon from "@mui/icons-material/Close";
 import logoImg from "../../icon.png";
-
+import ChatIcon from "@mui/icons-material/Chat";
 import { TabContent } from "./Tabs";
 import wcmatch from "wildcard-match";
 
@@ -94,6 +93,8 @@ import {
   MenuCreateDatabase,
   MenuCreateSchema,
   MenuDeleteConfig,
+  MenuNewChat,
+  MenuNewChatWindow,
   MenuNewQuery,
   MenuNewQueryWindow,
   MenuOpenConn,
@@ -120,6 +121,7 @@ import { TypesTree } from "./LeftType.tsx";
 import { CreateDatabase, CreateSchema, MenuConnectionInfo } from "./CommonComp2.tsx";
 import { EventsTree } from "./LeftEvent.tsx";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { AllKindChat } from "./Chat.tsx";
 
 const addConnectionID = generateRandomString();
 function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
@@ -601,14 +603,6 @@ function Left_() {
     </Stack>
   );
 }
-
-const makeConn = async (uuid: string, kind: DataSourceKind) => {
-  const queryId = await invoke<number>("query_sql_open_connection", {
-    name: uuid,
-  });
-  console.info("open connection:", queryId);
-  return new QueryConn(uuid, queryId, kind);
-};
 
 function FavoriteSqlMenu(props: {
   content: string;
@@ -1166,14 +1160,14 @@ function DatabaseMenu(props: {
         {opened && kind != DataSourceKind.Mongo && (
           <MenuNewQuery
             handleNew={() => {
-              openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification, false);
+              openNewQuery(setSelectTab, setTabs, uuid, kind);
             }}
           ></MenuNewQuery>
         )}
         {opened && kind != DataSourceKind.Mongo && (
           <MenuNewQueryWindow
             handleNew={() => {
-              openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification, true);
+              openNewChatWindow(uuid, kind, showNotification);
             }}
           ></MenuNewQueryWindow>
         )}
@@ -1346,7 +1340,7 @@ function AllKindQuery(props: {
 }) {
   const { kind, uuid, value, favoriteName } = props;
   let content: ReactNode;
-  const { showNotification } = useContext(NotificationContext);
+
   switch (kind) {
     case DataSourceKind.SqlServer:
     case DataSourceKind.Sqlite:
@@ -1364,15 +1358,6 @@ function AllKindQuery(props: {
       content = (
         <SqlQuery
           uuid={uuid}
-          makeConn={async () => {
-            return makeConn(uuid, kind);
-          }}
-          saveFavoriteSql={async (name, sql) => {
-            await FavoriteSql.save(
-              new FavoriteSql(uuid, name, kind, sql),
-              showNotification,
-            );
-          }}
           value={value}
           getParseErr={makeGetParserErr(uuid)}
           kind={kind}
@@ -1383,16 +1368,7 @@ function AllKindQuery(props: {
     case DataSourceKind.Redis:
       content = (
         <RedisQuery
-          makeConn={async () => {
-            return makeConn(uuid, kind);
-          }}
           uuid={uuid}
-          saveFavoriteSql={async (name, sql) => {
-            await FavoriteSql.save(
-              new FavoriteSql(uuid, name, kind, sql),
-              showNotification,
-            );
-          }}
           value={value}
           getParseErr={makeGetParserErr(uuid)}
           favoriteName={favoriteName}
@@ -1402,17 +1378,7 @@ function AllKindQuery(props: {
 
     case DataSourceKind.Mongo:
       content = (
-        <MongoQuery
-          uuid={uuid}
-          saveFavoriteSql={async (name, sql) => {
-            await FavoriteSql.save(
-              new FavoriteSql(uuid, name, kind, sql),
-              showNotification,
-            );
-          }}
-          value={value}
-          favoriteName={favoriteName}
-        ></MongoQuery>
+        <MongoQuery uuid={uuid} value={value} favoriteName={favoriteName}></MongoQuery>
       );
       break;
     default:
@@ -1421,31 +1387,23 @@ function AllKindQuery(props: {
   return <div style={{ height: "100%" }}> {content}</div>;
 }
 
-function openNewQuery(
-  setSelectTab,
-  setTabs,
-  uuid: string,
-  kind: DataSourceKind,
-  showNotification,
-  newWindow: boolean,
-) {
-  if (newWindow) {
-    SomeTempStore.set({ uuid, kind } as FavoriteSql);
-    const webview = new WebviewWindow(generateRandomString(), {
-      title: `query window of '${uuid}'`,
-      url: "query.html",
-      width: 800,
-      height: 600,
-      maximized: true,
-    });
-    webview.once("tauri://created", () =>
-      console.info("create query view successfully"),
-    );
-    webview.once("tauri://error", e => {
-      showNotification("error", "create webview failed", e.event.toString());
-    });
-    return;
-  }
+function openNewQueryWindow(uuid, kind: DataSourceKind, showNotification) {
+  SomeTempStore.set({ uuid, kind } as FavoriteSql);
+  const webview = new WebviewWindow(generateRandomString(), {
+    title: `query window of '${uuid}'`,
+    url: "query.html",
+    width: 800,
+    height: 600,
+    maximized: true,
+  });
+  webview.once("tauri://created", () => console.info("create query view successfully"));
+  webview.once("tauri://error", e => {
+    showNotification("error", "create webview failed", e.event.toString());
+  });
+  return;
+}
+
+function openNewQuery(setSelectTab, setTabs, uuid: string, kind: DataSourceKind) {
   console.log("open new query uuid:", uuid);
   const id = uuid + "-query-" + generateRandomString();
   const content = <AllKindQuery kind={kind} uuid={uuid} />;
@@ -1459,6 +1417,35 @@ function openNewQuery(
     ];
   });
 }
+
+function openNewChatWindow(uuid, kind: DataSourceKind, showNotification) {
+  SomeTempStore.set({ uuid, kind } as FavoriteSql);
+  const webview = new WebviewWindow(generateRandomString(), {
+    title: `query window of '${uuid}'`,
+    url: "query.html",
+    width: 800,
+    height: 600,
+    maximized: true,
+  });
+  webview.once("tauri://created", () => console.info("create query view successfully"));
+  webview.once("tauri://error", e => {
+    showNotification("error", "create webview failed", e.event.toString());
+  });
+  return;
+}
+
+function openNewChat(setSelectTab, setTabs, uuid: string, kind: DataSourceKind) {
+  console.log("open new chat:", uuid);
+  const id = uuid + "-query-" + generateRandomString();
+  const content = <AllKindChat kind={kind} uuid={uuid} />;
+  setTabs((e: TabContent[]) => {
+    setTimeout(() => {
+      setSelectTab(e.length);
+    }, 100);
+    return [...e, new TabContent(id, `${uuid}`, content, <ChatIcon> </ChatIcon>)];
+  });
+}
+
 function SchemaMenu(props: {
   schema?: string;
   uuid: string;
@@ -1494,7 +1481,7 @@ function SchemaMenu(props: {
       {opened && (
         <MenuNewQuery
           handleNew={() => {
-            openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification, false);
+            openNewQuery(setSelectTab, setTabs, uuid, kind);
           }}
         ></MenuNewQuery>
       )}
@@ -1502,9 +1489,25 @@ function SchemaMenu(props: {
       {opened && (
         <MenuNewQueryWindow
           handleNew={() => {
-            openNewQuery(setSelectTab, setTabs, uuid, kind, showNotification, true);
+            openNewQueryWindow(uuid, kind, showNotification);
           }}
         ></MenuNewQueryWindow>
+      )}
+
+      {opened && (
+        <MenuNewChat
+          handleNew={() => {
+            openNewChat(setSelectTab, setTabs, uuid, kind);
+          }}
+        ></MenuNewChat>
+      )}
+
+      {opened && (
+        <MenuNewChatWindow
+          handleNew={() => {
+            openNewChatWindow(uuid, kind, showNotification);
+          }}
+        ></MenuNewChatWindow>
       )}
 
       {opened && !schema && <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>}

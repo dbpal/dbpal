@@ -44,6 +44,7 @@ import {
   isDarkTheme,
   appTheme,
   appStore,
+  LLMConfig,
 } from "./helper";
 import { Position } from "monaco-editor";
 import { invoke } from "@tauri-apps/api/core";
@@ -498,6 +499,132 @@ function ExportSetting() {
   );
 }
 
+function LLMSetting() {
+  const [baseUrl, setBaseUrl] = useState("");
+  const [temperature, setTemperature] = useState("0");
+  const [model, setModel] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const { showNotification } = useContext(NotificationContext);
+  useEffect(() => {
+    LLMConfig.get().then(e => {
+      if (e) {
+        setBaseUrl(e.baseUrl);
+        setTemperature(e.temperature + "");
+        setModel(e.model);
+        setApiKey(e.apiKey);
+      }
+    });
+  }, []);
+
+  const handleSave = () => {
+    try {
+      const config = {
+        baseUrl,
+        apiKey,
+        temperature: parseFloat(temperature),
+        model,
+      } as LLMConfig;
+      Object.setPrototypeOf(config, LLMConfig.prototype);
+      config.save();
+    } catch (e) {
+      showNotification("error", "save llm config  failed", e);
+      return;
+    }
+    showNotification("success", "save llm config ok");
+  };
+  return (
+    <Stack style={{ textAlign: "right" }}>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
+        <Typography width={headerSize}>base url</Typography>
+        <TextField
+          fullWidth
+          value={baseUrl}
+          onChange={e => setBaseUrl(e.target.value)}
+          slotProps={{
+            input: {
+              endAdornment: baseUrl && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setBaseUrl("");
+                    }}
+                    edge="end"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+        ></TextField>
+      </Stack>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
+        <Typography width={headerSize}>api key</Typography>
+        <TextField
+          fullWidth
+          value={apiKey}
+          onChange={e => setApiKey(e.target.value)}
+          slotProps={{
+            input: {
+              endAdornment: apiKey && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setApiKey("");
+                    }}
+                    edge="end"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+        ></TextField>
+      </Stack>
+
+      <Stack direction="row" sx={{ alignItems: "center" }}>
+        <Typography width={headerSize}>temperature</Typography>
+        <TextField
+          helperText="only accept number"
+          value={temperature}
+          error={temperature ? isNaN(parseFloat(temperature)) : false}
+          onChange={e => setTemperature(e.target.value)}
+        ></TextField>
+      </Stack>
+
+      <Stack direction="row" sx={{ alignItems: "center" }}>
+        <Typography width={headerSize}>model </Typography>
+        <TextField
+          value={model}
+          onChange={e => setModel(e.target.value)}
+          slotProps={{
+            input: {
+              endAdornment: model && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setModel("");
+                    }}
+                    edge="end"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+        ></TextField>
+      </Stack>
+
+      <Divider />
+      <Stack direction="row">
+        <Button onClick={handleSave}>save</Button>
+      </Stack>
+    </Stack>
+  );
+}
+
 function MiscSetting() {
   const [autoStart, setAutoStart] = useState(false);
   const { showNotification } = useContext(NotificationContext);
@@ -533,7 +660,7 @@ function MiscSetting() {
 }
 
 function ModifySetting() {
-  const ss = ["appearance", "editor", "export", "misc"];
+  const ss = ["appearance", "editor", "export", "llm", "misc"];
   const [tab, setTab] = useState(ss[0]);
   return (
     <Stack>
@@ -562,6 +689,9 @@ function ModifySetting() {
               break;
             case "misc":
               content = <MiscSetting></MiscSetting>;
+              break;
+            case "llm":
+              content = <LLMSetting></LLMSetting>;
               break;
           }
           return (

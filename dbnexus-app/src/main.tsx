@@ -7,10 +7,6 @@ import { invoke } from "@tauri-apps/api/core";
 import React from "react";
 import { secondConfirm } from "./comp/helper.ts";
 
-import { hello } from "./comp/SqlChat.tsx";
-
-hello();
-
 const currentWebview = WebviewWindow.getCurrent();
 
 currentWebview.onCloseRequested(async event => {

@@ -580,6 +580,33 @@ class PassWordManager {
 
 const connectionChangeEvent = "connection-has-changged";
 
+const makeQueryConn = async (uuid: string, kind: DataSourceKind) => {
+  const queryId = await invoke<number>("query_sql_open_connection", {
+    name: uuid,
+  });
+  console.info("open connection:", queryId);
+  return new QueryConn(uuid, queryId, kind);
+};
+
+async function editorAppendContent(editor: editor.IStandaloneCodeEditor, text) {
+  const model = editor.getModel();
+  const lastLine = model.getLineCount();
+  const lastCol = model.getLineMaxColumn(lastLine);
+  model.applyEdits([
+    {
+      range: {
+        startLineNumber: lastLine,
+        startColumn: lastCol,
+        endLineNumber: lastLine,
+        endColumn: lastCol,
+      },
+      text,
+      forceMoveMarkers: true,
+    },
+  ]);
+  editor.revealLine(lastLine + 1);
+}
+
 export {
   modalStyle,
   tabsHasId,
@@ -608,6 +635,8 @@ export {
   makeTableInsertFn,
   PassWordManager,
   connectionChangeEvent,
+  makeQueryConn,
+  editorAppendContent,
 };
 
 export type {

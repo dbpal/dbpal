@@ -22,6 +22,7 @@ import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   DataSourceKind,
   ErrAndLoc,
+  FavoriteSql,
   isMacOs,
   isWindows,
   QueryLogHandler,
@@ -362,13 +363,8 @@ function TypeScript(props: {
 }
 
 let lastLanguage = TsOrJs.js;
-function MongoQuery(props: {
-  uuid: string;
-  favoriteName?: string;
-  saveFavoriteSql: (name: string, sql: string) => void;
-  value?: string;
-}) {
-  const { uuid, favoriteName: oldFavoriteName, saveFavoriteSql, value } = props;
+function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string }) {
+  const { uuid, favoriteName: oldFavoriteName, value } = props;
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
   const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
   const [showQueryLog, setShowQueryLog] = useState(false);
@@ -477,7 +473,10 @@ function MongoQuery(props: {
                 return;
               }
               if (favoriteName) {
-                saveFavoriteSql(favoriteName, value);
+                FavoriteSql.save(
+                  new FavoriteSql(uuid, favoriteName, DataSourceKind.Mongo, value),
+                  showNotification,
+                );
               } else {
                 setShowFavoriteName(true);
               }
@@ -613,7 +612,15 @@ function MongoQuery(props: {
                       showNotification("warning", "name can't be empty");
                       return;
                     }
-                    saveFavoriteSql(favoriteName, editor.getValue());
+                    FavoriteSql.save(
+                      new FavoriteSql(
+                        uuid,
+                        favoriteName,
+                        DataSourceKind.Mongo,
+                        editor.getValue(),
+                      ),
+                      showNotification,
+                    );
                     setShowFavoriteName(false);
                   }}
                 >
@@ -647,13 +654,3 @@ function CleanFunctionDoc() {
 }
 
 export { MongoQuery };
-
-// TSCompiler.compile(
-//   `
-//   alert(1 as string);
-// alert(2 as string)
-//   `,
-//   false,
-// ).then(e => {
-//   console.log(e);
-// });

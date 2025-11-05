@@ -19,7 +19,6 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { FaExclamation } from "react-icons/fa";
 import {
   ReactNode,
-  RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -32,7 +31,7 @@ import { editor, Position } from "monaco-editor";
 import {
   EscDownEvent,
   IQueryConn,
-  MakeIQueryConn,
+  makeQueryConn,
   modalHandleClose,
   modalStyle,
   NameAndQueryId,
@@ -49,6 +48,7 @@ import {
   DataSourceKind,
   DetachQueyRespViewParameter,
   ErrAndLoc,
+  FavoriteSql,
   generateRandomString,
   getEditorText,
   getLanguageFromDataSourceKind,
@@ -178,29 +178,29 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
 
 function SqlQuery(props: {
   uuid: string;
-  makeConn: MakeIQueryConn;
   value?: string;
-  saveFavoriteSql: (name: string, sql: string) => void;
   favoriteName?: string;
   kind: DataSourceKind;
   extras?: ReactNode;
-  getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
-  editorRef?: RefObject<editor.IStandaloneCodeEditor>;
+  getParseErr?: (sql: string) => Promise<ErrAndLoc | null>;
+  handleEditor?: (ed: editor.IStandaloneCodeEditor) => void;
   hasPositionRelative?: boolean;
 }) {
   const {
     uuid,
-    makeConn,
     value,
-    saveFavoriteSql,
     favoriteName: oldFavoriteName,
     kind,
     extras,
     getParseErr,
-    editorRef,
+    handleEditor,
     hasPositionRelative,
   } = props;
+  const makeConn = async () => {
+    return makeQueryConn(uuid, kind);
+  };
   const [resp, setResp] = useState([]);
+
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
   const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
   const [parseErr, setParseErr] = useState<ErrAndLoc | null>(null);
@@ -219,15 +219,17 @@ function SqlQuery(props: {
   const handleEditorDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor, _monaco) => {
       setEditor(ed);
-      if (editorRef) {
-        editorRef.current = ed;
+      if (handleEditor) {
+        handleEditor(ed);
       }
       ed.focus();
       ed.onDidChangeModelContent(_event => {
         const text = ed.getValue();
-        getParseErr(text).then(e => {
-          setParseErr(e);
-        });
+        if (getParseErr) {
+          getParseErr(text).then(e => {
+            setParseErr(e);
+          });
+        }
       });
 
       ed.onDidChangeCursorPosition(_event => {
@@ -643,14 +645,17 @@ function SqlQuery(props: {
               }`}
             >
               <IconButton
-                onClick={() => {
+                onClick={async () => {
                   const value = editor.getValue();
                   if (!value) {
                     showNotification("warning", "can't save empty statement.");
                     return;
                   }
                   if (favoriteName) {
-                    saveFavoriteSql(favoriteName, value);
+                    await FavoriteSql.save(
+                      new FavoriteSql(uuid, favoriteName, kind, value),
+                      showNotification,
+                    );
                   } else {
                     setShowFavoriteName(true);
                   }
@@ -747,11 +752,11 @@ function SqlQuery(props: {
             pos={pos}
           ></EditorBar>
         </Panel>
-        {!queryRespView && (
+        {!queryRespView && resp.length > 0 && (
           <PanelResizeHandle style={{ height: 4 }} className="resize-handle" />
         )}
 
-        {!queryRespView && (
+        {!queryRespView && resp.length > 0 && (
           <Panel
             style={{ overflow: "auto" }}
             collapsible
@@ -826,7 +831,6 @@ function SqlQuery(props: {
                       showNotification("warning", "name can't be empty");
                       return;
                     }
-                    saveFavoriteSql(favoriteName, editor.getValue());
                     setShowFavoriteName(false);
                   }}
                 >

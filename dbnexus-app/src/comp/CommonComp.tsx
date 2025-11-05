@@ -48,6 +48,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { IoTimerOutline } from "react-icons/io5";
+import ChatIcon from "@mui/icons-material/Chat";
 import {
   ColumnWidth,
   ContextMenuContext,
@@ -159,6 +160,36 @@ function MenuNewQuery({ handleNew }) {
         <AddIcon></AddIcon>
       </ListItemIcon>
       <ListItemText>New Query </ListItemText>
+    </MenuItem>
+  );
+}
+
+function MenuNewChat({ handleNew }) {
+  return (
+    <MenuItem
+      onClick={() => {
+        handleNew();
+      }}
+    >
+      <ListItemIcon>
+        <ChatIcon></ChatIcon>
+      </ListItemIcon>
+      <ListItemText>New Chat </ListItemText>
+    </MenuItem>
+  );
+}
+
+function MenuNewChatWindow({ handleNew }) {
+  return (
+    <MenuItem
+      onClick={() => {
+        handleNew();
+      }}
+    >
+      <ListItemIcon>
+        <ChatIcon></ChatIcon>
+      </ListItemIcon>
+      <ListItemText>New Chat(new window) </ListItemText>
     </MenuItem>
   );
 }
@@ -1158,4 +1189,6 @@ export {
   MenuExportMarkDownTable,
   MenuNewQueryWindow,
   ResizeParentHeight,
+  MenuNewChat,
+  MenuNewChatWindow,
 };
