@@ -8,7 +8,6 @@ import {
 } from "./helper";
 import { Button, Divider, IconButton, Paper, Stack, Tooltip } from "@mui/material";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { SqlQuery } from "./SqlQuery";
 import { ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { editor } from "monaco-editor";
 import { AppMarkDown, SimpleFlexEditor } from "./CommonComp2";
@@ -20,6 +19,7 @@ import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { editorAppendContent, NameAndQueryId, SetAutoCompletionName } from "./Common";
 import { ModalHeader } from "./CommonComp";
 import { message } from "@tauri-apps/plugin-dialog";
+import { AllKindQuery } from "./Left";
 
 function createLLM(config: LLMConfig) {
   console.log("createLLM", config);
@@ -52,14 +52,13 @@ function SqlChat(props: { uuid: string; kind: DataSourceKind }) {
     >
       <PanelGroup direction="vertical" autoSaveId="chat">
         <Panel minSize={10} maxSize={100} collapsible collapsedSize={0}>
-          <SqlQuery
+          <AllKindQuery
             uuid={uuid}
             kind={kind}
-            hasPositionRelative
             handleEditor={e => {
               setEditor(e);
             }}
-          ></SqlQuery>
+          ></AllKindQuery>
         </Panel>
 
         <PanelResizeHandle style={{ height: 4 }} className="resize-handle" />
@@ -124,7 +123,7 @@ function SqlChatTextInput(props: {
       editor.setValue("");
       setPrevQuestion(newQuestion);
       const prompt = await createPrompt(uuid, kind, newQuestion, config.sqlTemplate);
-      setChatHistory(e => [...e, prompt]);
+      setChatHistory(e => [...e, newQuestion]);
       let wholeText = "";
       console.time("stream-first-chunk");
       const stream = await llm.stream(prompt, {});
@@ -151,7 +150,7 @@ function SqlChatTextInput(props: {
           SetAutoCompletionName.set(e.getModel().id, new NameAndQueryId(uuid, kind));
         }}
       ></SimpleFlexEditor>
-      <Stack style={{ width: "fit-content" }}>
+      <Stack style={{ width: "fit-content", overflow: "auto" }}>
         <IconButton
           onClick={handleChat}
           disabled={newQuestion == prevQuestion}

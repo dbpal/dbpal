@@ -122,6 +122,7 @@ import { CreateDatabase, CreateSchema, MenuConnectionInfo } from "./CommonComp2.
 import { EventsTree } from "./LeftEvent.tsx";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { AllKindChat } from "./Chat.tsx";
+import { editor } from "monaco-editor";
 
 const addConnectionID = generateRandomString();
 function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
@@ -1337,8 +1338,9 @@ function AllKindQuery(props: {
   uuid: string;
   value?: string;
   favoriteName?: string;
+  handleEditor?: (x: editor.IStandaloneCodeEditor) => void;
 }) {
-  const { kind, uuid, value, favoriteName } = props;
+  const { kind, uuid, value, favoriteName, handleEditor } = props;
   let content: ReactNode;
 
   switch (kind) {
@@ -1362,6 +1364,7 @@ function AllKindQuery(props: {
           getParseErr={makeGetParserErr(uuid)}
           kind={kind}
           favoriteName={favoriteName}
+          handleEditor={handleEditor}
         ></SqlQuery>
       );
       break;
