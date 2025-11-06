@@ -658,9 +658,11 @@ function LLMSetting() {
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>model </Typography>
-
+        <Button variant="outlined" onClick={loadModelCan}>
+          load model candidates
+        </Button>
         <Autocomplete
-          style={{ flex: 1 }}
+          style={{ flex: 1, maxWidth: "32rem" }}
           options={moddelCan}
           value={model}
           renderInput={params => (
@@ -691,9 +693,6 @@ function LLMSetting() {
                   <Tooltip title="context legnth">
                     <span> {def.context_length / 1024}k</span>
                   </Tooltip>
-                  <Tooltip title="create time">
-                    <span>{new Date(def.created * 1000).toLocaleString()}</span>
-                  </Tooltip>
                 </Stack>
               </Stack>
             </li>
@@ -703,9 +702,6 @@ function LLMSetting() {
             setModel(typeof name == "string" ? name : name.id);
           }}
         />
-        <Button variant="outlined" onClick={loadModelCan}>
-          load model candidates
-        </Button>
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
