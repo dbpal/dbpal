@@ -168,7 +168,10 @@ function TabsWithContent_(props: {
                 tabs[index].closeConfirmText = e;
               }}
             >
-              <div hidden={selectIndex !== index} style={{ height: "100%" }}>
+              <div
+                hidden={selectIndex !== index}
+                style={{ height: "100%", position: "relative" }}
+              >
                 {tab.content}
               </div>
             </SetCloseConfirmTextContext>

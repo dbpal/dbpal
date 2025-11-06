@@ -10,8 +10,7 @@ import {
 } from "./comp/helper.ts";
 import { SeparateWindow } from "./comp/MainPage.tsx";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { AllKindQuery } from "./comp/Left.tsx";
-
+import { AllKindChat } from "./comp/Chat.tsx";
 const sqlData = SomeTempStore.get<FavoriteSql>();
 
 // close confirm message
@@ -35,7 +34,7 @@ function Query(props: {
         setCloseConfirm(msg);
       }}
     >
-      <AllKindQuery uuid={uuid} kind={kind} value={sql} favoriteName={favoriteName} />
+      <AllKindChat uuid={uuid} kind={kind} value={sql} favoriteName={favoriteName} />
     </SetCloseConfirmTextContext>
   );
 }

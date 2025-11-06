@@ -51,7 +51,7 @@ import { save, open, DialogFilter } from "@tauri-apps/plugin-dialog";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import ReactMarkdown from "react-markdown";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
-
+import { styled } from "@mui/material/styles";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { openUrl } from "@tauri-apps/plugin-opener";
 function CreateDatabase({ uuid, handleClose }) {
@@ -257,10 +257,19 @@ function SimpleFlexEditor(props: {
   barLeft?: ReactNode;
   readOnly?: boolean;
   errPos?: Position;
+  disableEditorBar?: boolean;
   handleEditor?: (editor: editor.IStandaloneCodeEditor) => void;
 }) {
-  const { language, value, handleValue, barLeft, readOnly, errPos, handleEditor } =
-    props;
+  const {
+    language,
+    value,
+    handleValue,
+    barLeft,
+    readOnly,
+    errPos,
+    handleEditor,
+    disableEditorBar,
+  } = props;
   const [pos, setPos] = useState<Position>(null);
   const setting = useContext(SettingContext);
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
@@ -319,8 +328,7 @@ function SimpleFlexEditor(props: {
           options={options}
         ></Editor>
       </div>
-
-      <EditorBar left={barLeft} pos={pos}></EditorBar>
+      {!disableEditorBar && <EditorBar left={barLeft} pos={pos}></EditorBar>}
     </div>
   );
 }
@@ -609,6 +617,25 @@ function LoadStoreFile(props: {
   );
 }
 
+const MarkdownBody = styled("div")(({ theme }) => ({
+  // ---- 裸标签 reset + 留一点空隙 ----
+  "& p": { margin: "0 0 0.5em 0", lineHeight: 1.45 }, // 仅下边距 0.5em
+  "& h1,& h2,& h3,& h4,& h5,& h6": { margin: "0 0 0.35em 0" }, // 标题更紧凑
+  "& ul,& ol": { margin: "0 0 0.5em 0", paddingLeft: theme.spacing(2) },
+  "& blockquote": {
+    margin: "0 0 0.5em 0",
+    paddingLeft: theme.spacing(2),
+    borderLeft: `4px solid ${theme.palette.divider}`,
+  },
+  // ---- 其余保持原样 ----
+  "& code": {
+    ...theme.typography.body2,
+    backgroundColor: theme.palette.action.selected,
+    padding: "2px 4px",
+    borderRadius: 4,
+  },
+}));
+
 function AppMarkDown(props: { doc: string; handlePathUrl: (href: string) => void }) {
   const { doc, handlePathUrl } = props;
   const CustomLink = (props: { href: string; children: ReactNode }) => {
@@ -638,29 +665,31 @@ function AppMarkDown(props: { doc: string; handlePathUrl: (href: string) => void
     );
   };
   return (
-    <ReactMarkdown
-      components={{
-        code({ node, className, children, ...props }) {
-          const match = /language-(\w+)/.exec(className || "");
-          return match ? (
-            <SyntaxHighlighter
-              style={syntaxHightLightTheme()} // Apply the chosen theme
-              language={match[1]}
-              PreTag="div"
-              {...props}
-            >
-              {String(children).replace(/\n$/, "")}
-            </SyntaxHighlighter>
-          ) : (
-            <code className={className} {...props}>
-              {children}
-            </code>
-          );
-        },
-        a: CustomLink,
-      }}
-      children={doc}
-    ></ReactMarkdown>
+    <MarkdownBody>
+      <ReactMarkdown
+        components={{
+          code({ node, className, children, ...props }) {
+            const match = /language-(\w+)/.exec(className || "");
+            return match ? (
+              <SyntaxHighlighter
+                style={syntaxHightLightTheme()} // Apply the chosen theme
+                language={match[1]}
+                PreTag="div"
+                {...props}
+              >
+                {String(children).replace(/\n$/, "")}
+              </SyntaxHighlighter>
+            ) : (
+              <code className={className} {...props}>
+                {children}
+              </code>
+            );
+          },
+          a: CustomLink,
+        }}
+        children={doc}
+      ></ReactMarkdown>
+    </MarkdownBody>
   );
 }
 

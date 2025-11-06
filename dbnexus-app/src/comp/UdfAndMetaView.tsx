@@ -11,7 +11,6 @@ import {
   getEditorText,
   getLanguageFromDataSourceKind,
   makeExecuteSql,
-  makeGetParserErr,
 } from "./helper";
 import { MultiQueryResp } from "./QueryResp";
 import { editor } from "monaco-editor";
@@ -27,7 +26,6 @@ function DefAndMetasView(props: {
 }) {
   const { reloadOP, kind, showReload, uuid } = props;
   const executeOP = makeExecuteSql(uuid);
-  const getParseErr = makeGetParserErr(uuid);
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas>({
     def: "",
@@ -38,7 +36,7 @@ function DefAndMetasView(props: {
   const [queryResp, setQueryResp] = useState<any[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [executeLoading, setExecuteLoading] = useState(false);
-  const [parseErr, setParseErr] = useState<ErrAndLoc>(null);
+  const [parseErr] = useState<ErrAndLoc>(null);
   const handleReload = showOk => {
     setLoading(true);
     reloadOP()
@@ -117,11 +115,6 @@ function DefAndMetasView(props: {
                   ed.getModel().id,
                   new NameAndQueryId(uuid, kind),
                 );
-              }}
-              handleValue={sql => {
-                getParseErr(sql).then(e => {
-                  setParseErr(e);
-                });
               }}
               barLeft=<Stack direction="row" flex={1}>
                 {parseErr && (

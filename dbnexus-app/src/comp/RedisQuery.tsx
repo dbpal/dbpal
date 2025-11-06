@@ -4,7 +4,7 @@ import { editor } from "monaco-editor";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { SqlQuery } from "./SqlQuery.tsx";
-import { DataSourceKind, ErrAndLoc, shrinkAble } from "./helper.ts";
+import { DataSourceKind, shrinkAble } from "./helper.ts";
 import { Chip, Tooltip } from "@mui/material";
 import { invoke } from "@tauri-apps/api/core";
 import { AppMarkDown } from "./CommonComp2.tsx";
@@ -26,10 +26,10 @@ class SaveShowDoc {
 function RedisQuery(props: {
   favoriteName?: string;
   value?: string;
-  getParseErr: (sql: string) => Promise<ErrAndLoc | null>;
   uuid: string;
+  handleEditor: (x: editor.IStandaloneCodeEditor) => void;
 }) {
-  const { favoriteName, value, getParseErr, uuid } = props;
+  const { favoriteName, value, uuid, handleEditor } = props;
   const [doc, setDoc] = useState("");
   const editorRef = useRef<editor.IStandaloneCodeEditor>(null);
   const [showDoc, setShowDoc] = useState(SaveShowDoc.instance.get());
@@ -79,16 +79,14 @@ function RedisQuery(props: {
       autoSaveId="redis-query"
       style={{
         height: "100%",
-        position: "relative",
       }}
     >
       <Panel defaultSize={40} minSize={4}>
         <SqlQuery
-          hasPositionRelative
           handleEditor={e => {
+            handleEditor(e);
             editorRef.current = e;
           }}
-          getParseErr={getParseErr}
           uuid={uuid}
           favoriteName={favoriteName}
           value={value}

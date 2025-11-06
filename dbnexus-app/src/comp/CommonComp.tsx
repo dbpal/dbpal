@@ -48,7 +48,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { IoTimerOutline } from "react-icons/io5";
-import ChatIcon from "@mui/icons-material/Chat";
+
 import {
   ColumnWidth,
   ContextMenuContext,
@@ -160,36 +160,6 @@ function MenuNewQuery({ handleNew }) {
         <AddIcon></AddIcon>
       </ListItemIcon>
       <ListItemText>New Query </ListItemText>
-    </MenuItem>
-  );
-}
-
-function MenuNewChat({ handleNew }) {
-  return (
-    <MenuItem
-      onClick={() => {
-        handleNew();
-      }}
-    >
-      <ListItemIcon>
-        <ChatIcon></ChatIcon>
-      </ListItemIcon>
-      <ListItemText>New Chat </ListItemText>
-    </MenuItem>
-  );
-}
-
-function MenuNewChatWindow({ handleNew }) {
-  return (
-    <MenuItem
-      onClick={() => {
-        handleNew();
-      }}
-    >
-      <ListItemIcon>
-        <ChatIcon></ChatIcon>
-      </ListItemIcon>
-      <ListItemText>New Chat(new window) </ListItemText>
     </MenuItem>
   );
 }
@@ -586,8 +556,9 @@ function ModalHeader(props: {
   title: string;
   handleClose: () => void;
   noTextTransform?: boolean;
+  headerExtra?: ReactNode;
 }) {
-  const { title, handleClose, noTextTransform } = props;
+  const { title, handleClose, noTextTransform, headerExtra } = props;
   const theme = useTheme();
   return (
     <Stack
@@ -599,16 +570,20 @@ function ModalHeader(props: {
         marginBottom: "0.4rem",
       }}
     >
-      <Typography
-        variant="h6"
-        style={{
-          paddingBottom: "0.3rem",
-          fontWeight: "bold",
-          textTransform: noTextTransform ? undefined : "capitalize",
-        }}
-      >
-        {title}
-      </Typography>
+      <Stack direction="row">
+        <Typography
+          variant="h6"
+          style={{
+            paddingBottom: "0.3rem",
+            fontWeight: "bold",
+            textTransform: noTextTransform ? undefined : "capitalize",
+          }}
+        >
+          {title}
+        </Typography>
+        {headerExtra}
+      </Stack>
+
       <Tooltip title={"close this modal,esc can close this modal too"}>
         <IconButton color="secondary" onClick={handleClose}>
           <CloseIcon> </CloseIcon>
@@ -1189,6 +1164,4 @@ export {
   MenuExportMarkDownTable,
   MenuNewQueryWindow,
   ResizeParentHeight,
-  MenuNewChat,
-  MenuNewChatWindow,
 };

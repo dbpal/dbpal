@@ -42,6 +42,7 @@ import {
   ConnectHandler,
   connectionChangeEvent,
   PassWordManager,
+  listSchema,
 } from "./Common";
 import { LuDatabase } from "react-icons/lu";
 import { FaDatabase } from "react-icons/fa";
@@ -54,7 +55,6 @@ import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import CloseIcon from "@mui/icons-material/Close";
 import logoImg from "../../icon.png";
-import ChatIcon from "@mui/icons-material/Chat";
 import { TabContent } from "./Tabs";
 import wcmatch from "wildcard-match";
 
@@ -70,7 +70,6 @@ import {
   FavoriteSql,
   generateRandomString,
   handleCopyToClipboard,
-  makeGetParserErr,
   MatchPatternContext,
   SaveLeftTopShow,
   SaveMatchPattern,
@@ -93,8 +92,6 @@ import {
   MenuCreateDatabase,
   MenuCreateSchema,
   MenuDeleteConfig,
-  MenuNewChat,
-  MenuNewChatWindow,
   MenuNewQuery,
   MenuNewQueryWindow,
   MenuOpenConn,
@@ -1165,13 +1162,6 @@ function DatabaseMenu(props: {
             }}
           ></MenuNewQuery>
         )}
-        {opened && kind != DataSourceKind.Mongo && (
-          <MenuNewQueryWindow
-            handleNew={() => {
-              openNewChatWindow(uuid, kind, showNotification);
-            }}
-          ></MenuNewQueryWindow>
-        )}
 
         {opened && kind != DataSourceKind.Oracle && (
           <MenuCreateSchema
@@ -1361,7 +1351,6 @@ function AllKindQuery(props: {
         <SqlQuery
           uuid={uuid}
           value={value}
-          getParseErr={makeGetParserErr(uuid)}
           kind={kind}
           favoriteName={favoriteName}
           handleEditor={handleEditor}
@@ -1371,9 +1360,9 @@ function AllKindQuery(props: {
     case DataSourceKind.Redis:
       content = (
         <RedisQuery
+          handleEditor={handleEditor}
           uuid={uuid}
           value={value}
-          getParseErr={makeGetParserErr(uuid)}
           favoriteName={favoriteName}
         ></RedisQuery>
       );
@@ -1409,7 +1398,7 @@ function openNewQueryWindow(uuid, kind: DataSourceKind, showNotification) {
 function openNewQuery(setSelectTab, setTabs, uuid: string, kind: DataSourceKind) {
   console.log("open new query uuid:", uuid);
   const id = uuid + "-query-" + generateRandomString();
-  const content = <AllKindQuery kind={kind} uuid={uuid} />;
+  const content = <AllKindChat kind={kind} uuid={uuid} />;
   setTabs((e: TabContent[]) => {
     setTimeout(() => {
       setSelectTab(e.length);
@@ -1418,34 +1407,6 @@ function openNewQuery(setSelectTab, setTabs, uuid: string, kind: DataSourceKind)
       ...e,
       new TabContent(id, `${uuid}`, content, <TbDatabaseSearch> </TbDatabaseSearch>),
     ];
-  });
-}
-
-function openNewChatWindow(uuid, kind: DataSourceKind, showNotification) {
-  SomeTempStore.set({ uuid, kind } as FavoriteSql);
-  const webview = new WebviewWindow(generateRandomString(), {
-    title: `query window of '${uuid}'`,
-    url: "query.html",
-    width: 800,
-    height: 600,
-    maximized: true,
-  });
-  webview.once("tauri://created", () => console.info("create query view successfully"));
-  webview.once("tauri://error", e => {
-    showNotification("error", "create webview failed", e.event.toString());
-  });
-  return;
-}
-
-function openNewChat(setSelectTab, setTabs, uuid: string, kind: DataSourceKind) {
-  console.log("open new chat:", uuid);
-  const id = uuid + "-query-" + generateRandomString();
-  const content = <AllKindChat kind={kind} uuid={uuid} />;
-  setTabs((e: TabContent[]) => {
-    setTimeout(() => {
-      setSelectTab(e.length);
-    }, 100);
-    return [...e, new TabContent(id, `${uuid}`, content, <ChatIcon> </ChatIcon>)];
   });
 }
 
@@ -1495,22 +1456,6 @@ function SchemaMenu(props: {
             openNewQueryWindow(uuid, kind, showNotification);
           }}
         ></MenuNewQueryWindow>
-      )}
-
-      {opened && (
-        <MenuNewChat
-          handleNew={() => {
-            openNewChat(setSelectTab, setTabs, uuid, kind);
-          }}
-        ></MenuNewChat>
-      )}
-
-      {opened && (
-        <MenuNewChatWindow
-          handleNew={() => {
-            openNewChatWindow(uuid, kind, showNotification);
-          }}
-        ></MenuNewChatWindow>
       )}
 
       {opened && !schema && <MenuConnectionInfo uuid={uuid}></MenuConnectionInfo>}
@@ -1631,7 +1576,7 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
   const { kind } = useContext(ConnTypeContext);
   const handleReload = () => {
     setLoading(true);
-    invoke<string[]>("list_schema", { name })
+    listSchema(name)
       .then(ds => {
         setSchemas(ds);
       })

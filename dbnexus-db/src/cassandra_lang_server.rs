@@ -30,6 +30,12 @@ impl GetKeyWords for CassandraDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for CassandraDB {
+    async fn ai_text_completion(
+        &self, sql: &str, line: u32, col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        LexerCompletionTrait::ai_text_completion(self, sql, line, col).await
+    }
+
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_selection(self, sql)
     }
@@ -65,7 +71,7 @@ impl LanguageServer for CassandraDB {
         }
         return LexerCompletionTrait::do_auto_completion(self, sql, line, col).await;
     }
-    fn parse_error(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+    async fn check_sql(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         // don't provide parse error for cassandra
         anyhow::Ok(None)
     }

@@ -882,9 +882,9 @@ function getEditorText(editor: editor.IStandaloneCodeEditor, showNotification) {
   return text;
 }
 
-function makeGetParserErr(uuid) {
+function makeCheckSql(uuid) {
   return (sql: string): Promise<ErrAndLoc | null> => {
-    return invoke<ErrAndLoc | null>("sql_parse_error", {
+    return invoke<ErrAndLoc | null>("check_sql", {
       name: uuid,
       sql,
     });
@@ -1180,6 +1180,8 @@ class LLMConfig {
   temperature: number = 0;
   sqlTemplate: string = "";
   static key = "llm-config-4k9zF7m5p3T1H2";
+  maxToken: number = 0;
+  topP: number = 0;
 
   async save() {
     try {
@@ -1193,11 +1195,18 @@ class LLMConfig {
     }
   }
 
+  enable() {
+    return this.baseUrl && this.model;
+  }
+
   static async get(): Promise<LLMConfig | null> {
-    const pass = await PassWordManager.getPassword(LLMConfig.key);
     const ret = await appStore.get<LLMConfig | null>(LLMConfig.key);
     if (ret) {
-      ret.apiKey = pass;
+      Object.setPrototypeOf(ret, LLMConfig.prototype);
+      if (ret.enable()) {
+        const pass = await PassWordManager.getPassword(LLMConfig.key);
+        ret.apiKey = pass;
+      }
     }
     return ret;
   }
@@ -1243,7 +1252,7 @@ export {
   postgresLike,
   udfIdGenerate,
   getEditorText,
-  makeGetParserErr,
+  makeCheckSql,
   makeExecuteSql,
   QueryLogHandler,
   ColorFn,

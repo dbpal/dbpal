@@ -26,6 +26,11 @@ impl GetKeyWords for SqlServerDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for SqlServerDB {
+    async fn ai_text_completion(
+        &self, text: &str, line: u32, col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
+    }
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_selection(self, sql)
     }
@@ -39,9 +44,27 @@ impl LanguageServer for SqlServerDB {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
-    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LangServerCommon::parse_error(self, sql)
+    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        let sql = format!(
+            r#"
+            SET NOEXEC ON;
+            {sql}
+        "#
+        );
+        let mut conn = self.get_conn().await?;
+        let r = conn.execute(&sql, &[]).await;
+        conn.execute("SET NOEXEC OFF;", &[]).await.map_err(|e| {
+            anyhow::Error::msg(format!(
+                "set noexec off failed,this is internal error,err:{}",
+                e.to_string()
+            ))
+        })?;
+        anyhow::Ok(match r {
+            Ok(_) => None,
+            Err(err) => Some(ErrAndLoc::from(err.to_string())),
+        })
     }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)
     }

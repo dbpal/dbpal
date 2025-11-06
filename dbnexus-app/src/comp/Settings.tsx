@@ -13,6 +13,7 @@ import {
   FormControlLabel,
   IconButton,
   InputAdornment,
+  Modal,
   Slider,
   Stack,
   Switch,
@@ -59,6 +60,7 @@ import {
 import { message } from "@tauri-apps/plugin-dialog";
 import { Editor } from "@monaco-editor/react";
 import { listen } from "@tauri-apps/api/event";
+import { createLLM } from "./Common";
 
 function AppearanceSetting() {
   const setting = UserSettingAppearance.get();
@@ -193,7 +195,7 @@ function AppearanceSetting() {
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize} style={{ fontFamily }}>
-          font family
+          font
         </Typography>
         <Autocomplete
           options={allFonts}
@@ -272,7 +274,6 @@ function AppearanceSetting() {
             },
           }}
         ></TextField>
-        <div style={{ position: "relative" }}></div>
         {bgColorErr && <Typography color="error"> {bgColorErr} </Typography>}
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -499,12 +500,36 @@ function ExportSetting() {
   );
 }
 
+interface ModelDef {
+  id: string;
+  context_length: number;
+  created: number;
+}
+
+async function listLLMModels(baseURl: string, apiKey: string): Promise<ModelDef[]> {
+  const res = await fetch(`${baseURl}/models`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!res.ok) {
+    // 404、401 等会进这里
+    throw new Error(`HTTP ${res.status}`);
+  }
+  // data.object === "list"
+  // data.data 是一个数组，每个元素有 id, object, owned_by, context_length 等字段
+  return (await res.json()).data as ModelDef[];
+}
+
 function LLMSetting() {
   const [baseUrl, setBaseUrl] = useState("");
   const [temperature, setTemperature] = useState("0");
   const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState("");
   const { showNotification } = useContext(NotificationContext);
+  const [loading, setLoading] = useState(false);
+  const [maxToken, setMaxToken] = useState("");
+  const [topP, setTopP] = useState("");
+  const [moddelCan, setModdelCan] = useState<ModelDef[]>([]);
+
   useEffect(() => {
     LLMConfig.get().then(e => {
       if (e) {
@@ -512,19 +537,30 @@ function LLMSetting() {
         setTemperature(e.temperature + "");
         setModel(e.model);
         setApiKey(e.apiKey);
+        if (e.maxToken) {
+          setMaxToken(e.maxToken + "");
+        }
+
+        if (e.topP) {
+          setTopP(e.topP + "");
+        }
       }
     });
   }, []);
-
+  const makeConfig = () => {
+    const config = {
+      baseUrl,
+      apiKey,
+      temperature: parseFloat(temperature),
+      model,
+      maxToken: maxToken ? parseInt(maxToken) : null,
+    } as LLMConfig;
+    Object.setPrototypeOf(config, LLMConfig.prototype);
+    return config;
+  };
   const handleSave = () => {
     try {
-      const config = {
-        baseUrl,
-        apiKey,
-        temperature: parseFloat(temperature),
-        model,
-      } as LLMConfig;
-      Object.setPrototypeOf(config, LLMConfig.prototype);
+      const config = makeConfig();
       config.save();
     } catch (e) {
       showNotification("error", "save llm config  failed", e);
@@ -532,12 +568,49 @@ function LLMSetting() {
     }
     showNotification("success", "save llm config ok");
   };
+
+  const handleTest = async () => {
+    setLoading(true);
+    try {
+      const config = makeConfig();
+      const llm = createLLM(config);
+      const resp = await llm.invoke("hello");
+      showNotification(
+        "success",
+        "config setting is ok,llm response:",
+        <Typography color="info"> {resp.content as string} </Typography>,
+      );
+    } catch (e) {
+      showNotification("error", "test llm config  failed", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadModelCan = async () => {
+    if (!baseUrl) {
+      showNotification("warning", "base url is empty");
+      return;
+    }
+    if (!apiKey) {
+      showNotification("warning", "api key is empty");
+      return;
+    }
+    try {
+      const x = await listLLMModels(baseUrl, apiKey);
+      setModdelCan(x);
+      showNotification("success", "load model candidates ok");
+    } catch (e) {
+      showNotification("error", "load model can failed", e);
+    }
+  };
+
   return (
     <Stack style={{ textAlign: "right" }}>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>base url</Typography>
         <TextField
-          fullWidth
+          style={{ width: "25rem" }}
           value={baseUrl}
           onChange={e => setBaseUrl(e.target.value)}
           slotProps={{
@@ -558,11 +631,12 @@ function LLMSetting() {
           }}
         ></TextField>
       </Stack>
+
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>api key</Typography>
         <TextField
-          fullWidth
           value={apiKey}
+          style={{ width: "40rem" }}
           onChange={e => setApiKey(e.target.value)}
           slotProps={{
             input: {
@@ -582,6 +656,57 @@ function LLMSetting() {
           }}
         ></TextField>
       </Stack>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
+        <Typography width={headerSize}>model </Typography>
+
+        <Autocomplete
+          style={{ flex: 1 }}
+          options={moddelCan}
+          value={model}
+          renderInput={params => (
+            <TextField
+              {...params}
+              label={`model`}
+              value={Modal}
+              onChange={e => {
+                setModel(e.target.validationMessage);
+              }}
+            />
+          )}
+          getOptionLabel={e => {
+            return typeof e == "string" ? e : e.id;
+          }}
+          renderOption={(props, def) => (
+            <li {...props} key={def.id}>
+              <Stack
+                direction="row"
+                style={{
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  width: "100%",
+                }}
+              >
+                <span> {def.id} </span>
+                <Stack direction="row" divider=<Divider />>
+                  <Tooltip title="context legnth">
+                    <span> {def.context_length / 1024}k</span>
+                  </Tooltip>
+                  <Tooltip title="create time">
+                    <span>{new Date(def.created * 1000).toLocaleString()}</span>
+                  </Tooltip>
+                </Stack>
+              </Stack>
+            </li>
+          )}
+          freeSolo
+          onChange={(_, name) => {
+            setModel(typeof name == "string" ? name : name.id);
+          }}
+        />
+        <Button variant="outlined" onClick={loadModelCan}>
+          load model candidates
+        </Button>
+      </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>temperature</Typography>
@@ -594,17 +719,43 @@ function LLMSetting() {
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>model </Typography>
+        <Typography width={headerSize}> max token </Typography>
         <TextField
-          value={model}
-          onChange={e => setModel(e.target.value)}
+          error={maxToken ? isNaN(parseInt(maxToken)) : false}
+          value={maxToken}
+          onChange={e => setMaxToken(e.target.value)}
           slotProps={{
             input: {
-              endAdornment: model && (
+              endAdornment: maxToken && (
                 <InputAdornment position="end">
                   <IconButton
                     onClick={() => {
-                      setModel("");
+                      setMaxToken("");
+                    }}
+                    edge="end"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+        ></TextField>
+      </Stack>
+
+      <Stack direction="row" sx={{ alignItems: "center" }}>
+        <Typography width={headerSize}> topP </Typography>
+        <TextField
+          error={topP ? isNaN(parseFloat(topP)) : false}
+          value={topP}
+          onChange={e => setTopP(e.target.value)}
+          slotProps={{
+            input: {
+              endAdornment: topP && (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => {
+                      setTopP("");
                     }}
                     edge="end"
                   >
@@ -620,6 +771,15 @@ function LLMSetting() {
       <Divider />
       <Stack direction="row">
         <Button onClick={handleSave}>save</Button>
+
+        <Button
+          onClick={handleTest}
+          loading={loading}
+          variant="outlined"
+          color="secondary"
+        >
+          test
+        </Button>
       </Stack>
     </Stack>
   );
@@ -928,7 +1088,7 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
     MuiTab: {
       styleOverrides: {
         root: {
-          textTransform: "none",
+          // textTransform: "none",
         },
       },
     },

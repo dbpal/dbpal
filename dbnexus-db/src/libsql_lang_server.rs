@@ -1,7 +1,7 @@
 use crate::db::name_start_ascii_alphabetic;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, ErrAndLoc, GetKeyWords,
-    LangServerCommon, LanguageServer, try_parser_dot_lexer,
+    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::libsql::LibSqlDB;
 use crate::sqlite::SqliteDB;
@@ -29,6 +29,12 @@ impl GetKeyWords for LibSqlDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for LibSqlDB {
+    async fn ai_text_completion(
+        &self, text: &str, line: u32, col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
+    }
+
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_selection(self, sql)
     }
@@ -42,8 +48,19 @@ impl LanguageServer for LibSqlDB {
         self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
-    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LangServerCommon::parse_error(self, sql)
+
+    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        let sql = format!("explain {sql}");
+        let conn = self.get_conn().await?;
+        let r = conn.query(&sql, params!()).await;
+        anyhow::Ok(match r {
+            Ok(_) => None,
+            Err(x) => Some(ErrAndLoc {
+                line: None,
+                column: None,
+                msg: x.to_string(),
+            }),
+        })
     }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)

@@ -224,6 +224,11 @@ impl LangServerCommon for OracleDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for OracleDB {
+    async fn ai_text_completion(
+        &self, text: &str, line: u32, col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
+    }
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_selection(self, sql)
     }

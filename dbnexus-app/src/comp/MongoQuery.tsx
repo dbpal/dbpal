@@ -433,7 +433,7 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
   }, [setting]);
 
   return (
-    <Stack style={{ position: "relative", height: "100%" }}>
+    <Stack style={{ height: "100%" }}>
       <QueryLog
         showQueryLog={showQueryLog}
         setShowQueryLog={setShowQueryLog}

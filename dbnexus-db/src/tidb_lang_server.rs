@@ -39,6 +39,11 @@ impl GetKeyWords for TiDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for TiDB {
+    async fn ai_text_completion(
+        &self, text: &str, line: u32, col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        LexerCompletionTrait::ai_text_completion(self.db.as_ref(), text, line, col).await
+    }
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_selection(self.db.as_ref(), sql)
     }
@@ -51,8 +56,8 @@ impl LanguageServer for TiDB {
     ) -> anyhow::Result<CompletionList> {
         LanguageServer::auto_completion(self.db.as_ref(), query_id, sql, line, col, use_lexer).await
     }
-    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LanguageServer::parse_error(self.db.as_ref(), sql)
+    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        LanguageServer::check_sql(self.db.as_ref(), sql).await
     }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)

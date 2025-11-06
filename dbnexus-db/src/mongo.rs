@@ -19,7 +19,9 @@ use crate::db::{
     GetBackendKind, Index, IndexKind, ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
     ServerMetas, ShowTableExtraArgs, SqlExecuteRet, not_support_feature,
 };
-use crate::language_server::{GetKeyWords, LanguageServer};
+use crate::language_server::{
+    CompletionItem, CompletionKind, CompletionList, GetKeyWords, LanguageServer,
+};
 use crate::meta_value::MetaValue;
 #[derive(Clone)]
 pub struct MongoDB {
@@ -88,6 +90,29 @@ impl GetKeyWords for MongoDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for MongoDB {
+    async fn ai_text_completion(
+        &self, text: &str, _line: u32, _col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        let db = self.get_db().await?;
+        let cols = db.list_collection_names().await?;
+        let mut ret = cols
+            .iter()
+            .map(|x| CompletionItem {
+                item: x.to_string().into(),
+                kind: CompletionKind::Table,
+                desc: None,
+            })
+            .collect::<Vec<_>>();
+        let text = text.to_lowercase();
+        for col in cols.iter() {
+            if text.contains(col.to_lowercase().as_str()) {
+                let columns = self.show_table_columns(col).await?;
+                ret.extend(columns.into_iter().map(|x| CompletionItem::from(x)));
+            }
+        }
+        anyhow::Ok(CompletionList::from(ret))
+    }
+
     fn extract_table_select_selection(&self, _sql: &str) -> anyhow::Result<Option<String>> {
         not_support_feature(self.backend_name())
     }

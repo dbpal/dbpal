@@ -182,9 +182,7 @@ function SqlQuery(props: {
   favoriteName?: string;
   kind: DataSourceKind;
   extras?: ReactNode;
-  getParseErr?: (sql: string) => Promise<ErrAndLoc | null>;
-  handleEditor?: (ed: editor.IStandaloneCodeEditor) => void;
-  hasPositionRelative?: boolean;
+  handleEditor: (ed: editor.IStandaloneCodeEditor) => void;
 }) {
   const {
     uuid,
@@ -192,18 +190,15 @@ function SqlQuery(props: {
     favoriteName: oldFavoriteName,
     kind,
     extras,
-    getParseErr,
     handleEditor,
-    hasPositionRelative,
   } = props;
   const makeConn = async () => {
     return makeQueryConn(uuid, kind);
   };
   const [resp, setResp] = useState([]);
-
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
   const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
-  const [parseErr, setParseErr] = useState<ErrAndLoc | null>(null);
+  const [sqlErr] = useState<ErrAndLoc | null>(null);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position | null>(null);
   const [loading, setLoading] = useState(false);
@@ -224,12 +219,10 @@ function SqlQuery(props: {
       }
       ed.focus();
       ed.onDidChangeModelContent(_event => {
-        const text = ed.getValue();
-        if (getParseErr) {
-          getParseErr(text).then(e => {
-            setParseErr(e);
-          });
-        }
+        //  const text = ed.getValue();
+        //  if (getParseErr) {
+        //   getParseErr(text).then(e => {});
+        //  }
       });
 
       ed.onDidChangeCursorPosition(_event => {
@@ -517,7 +510,6 @@ function SqlQuery(props: {
       style={{
         height: "100%",
         overflow: "auto",
-        position: hasPositionRelative ? undefined : "relative",
         display: "flex",
         flexDirection: "column",
         marginBottom: "300px",
@@ -741,9 +733,9 @@ function SqlQuery(props: {
                 }}
                 direction="row"
               >
-                {parseErr && (
+                {sqlErr && (
                   <PossibleParseError
-                    parseErr={parseErr}
+                    parseErr={sqlErr}
                     editor={editor}
                   ></PossibleParseError>
                 )}

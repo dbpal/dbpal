@@ -12,7 +12,7 @@ import {
   makeTableDelete,
   makeInvalidCassandraTableCache,
   makePutValueInSql,
-  makeShowTableColumn,
+  showTableColumn,
   makeTableInsertFn,
 } from "./Common";
 import types from "./ApiStruct";
@@ -115,7 +115,6 @@ function TablesTree(props: { typ: TableType }) {
         invokeName = "mongo_list_time_serial_collection";
         break;
     }
-
     invoke<types.ListTable[]>(invokeName, { name: uuid })
       .then(ts => {
         setTables(ts);
@@ -616,7 +615,7 @@ function AddTableView(props: {
   }
 
   useEffect(() => {
-    makeShowTableColumn(uuid, table)()
+    showTableColumn(uuid, table)
       .then(e => {
         setFields(e);
       })

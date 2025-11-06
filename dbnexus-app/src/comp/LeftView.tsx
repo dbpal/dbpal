@@ -19,6 +19,7 @@ import {
   makePutValueInSql,
   SetAutoCompletionName,
   NameAndQueryId,
+  showViewColumns,
 } from "./Common";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { NotificationContext } from "./Notification";
@@ -328,10 +329,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
 
   const handleReload = () => {
     setLoading(true);
-    invoke<types.Field[]>("show_view_columns", {
-      name: uuid,
-      viewName: view,
-    })
+    showViewColumns(uuid, view)
       .then(fs => {
         setFields(fs);
       })

@@ -5,17 +5,17 @@ use std::sync::{Arc, OnceLock};
 use std::task::Poll;
 use std::vec;
 
+use crate::db::{GetBackendKind, not_support_feature};
+use crate::language_server::{
+    CompletionItem, CompletionKind, CompletionList, LanguageServer, in_pos,
+};
+
+use crate::redis::{RedisDB, RedisToken, get_command_from_sql};
 use futures_core::future::BoxFuture;
 use futures_util::{FutureExt, StreamExt};
 use redis::aio::MultiplexedConnection;
 use redis::{AsyncCommands, AsyncIter};
 use tokio::sync::Mutex;
-
-use crate::db::{GetBackendKind, not_support_feature};
-use crate::language_server::{
-    CompletionItem, CompletionKind, CompletionList, LanguageServer, in_pos,
-};
-use crate::redis::{RedisDB, RedisToken, get_command_from_sql};
 
 const MAX_COMPLETION_ITEMS: usize = 200;
 
@@ -999,6 +999,64 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for RedisDB {
+    async fn ai_text_completion(
+        &self, text: &str, line: u32, col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        let loc = sqlparser::tokenizer::Location::new(line as u64, col as u64);
+
+        for (index, text) in text.lines().enumerate() {
+            if text.trim().is_empty() {
+                continue;
+            }
+            let tokens = RedisToken::tokenize(text, (index + 1) as u64).unwrap_or_default();
+
+            for token in tokens.iter() {
+                match token {
+                    RedisToken::String(_) => {}
+                    RedisToken::NotString {
+                        line,
+                        start_column,
+                        value,
+                        ..
+                    } => {
+                        if in_pos(
+                            loc,
+                            sqlparser::tokenizer::Location::new(*line, *start_column as u64),
+                            value.len() as u64,
+                        ) {
+                            // hit  position.
+                            const MAX: usize = 200;
+                            let mut ret = Vec::with_capacity(MAX);
+                            let mut conn = self.get_conn().await?;
+                            let mut stream =
+                                conn.scan_match::<_, String>(format!("*{}*", value)).await?;
+                            let mut incomplete = false;
+                            while let Some(item) = stream.next().await {
+                                let item = item?;
+                                if ret.len() >= MAX {
+                                    incomplete = true;
+                                    break;
+                                }
+                                ret.push(CompletionItem {
+                                    item: item.into(),
+                                    kind: CompletionKind::Table,
+                                    desc: None,
+                                });
+                            }
+
+                            return anyhow::Ok(CompletionList {
+                                items: ret,
+                                incomplete,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        anyhow::Ok(Default::default())
+    }
+
     fn extract_table_select_selection(&self, _sql: &str) -> anyhow::Result<Option<String>> {
         not_support_feature(self.backend_name())
     }
@@ -1173,6 +1231,16 @@ mod tests {
         let x = get_simple_command_sub("config");
         for x in x {
             println!("{}", x);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_ai_completion_test() {
+        enable_test_log();
+        let db = make_test_object().await;
+        let x = db.ai_text_completion("str", 1, 2).await.unwrap();
+        for i in x.items.iter() {
+            println!("!!!!!!!!!!!!!!!:{:?}", i);
         }
     }
 }

@@ -288,11 +288,7 @@ function EditInModal(props: { content: string; handleModify }) {
 }
 
 class EditInModalCellData {
-  constructor(
-    public row: object,
-    public field: string,
-    public content: string,
-  ) {}
+  constructor(public row: object, public field: string, public content: string) {}
 }
 
 function SqlTableView_(props: {
@@ -413,15 +409,15 @@ function SqlTableView_(props: {
           field["width"] = width;
         }
       });
-      setLoading(false);
       setResp(resp);
       if (showOK) {
         reloadOK(showNotification);
       }
     } catch (e) {
-      setLoading(false);
       showNotification("error", "query data failed", e);
       return;
+    } finally {
+      setLoading(false);
     }
   };
 

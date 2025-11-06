@@ -13,7 +13,7 @@ import types from "./ApiStruct";
 import {
   DefAndMetas,
   EscDownEvent,
-  makeShowTableColumn,
+  showTableColumn,
   modalHandleClose,
   modalStyle,
 } from "./Common";
@@ -122,7 +122,7 @@ function ColumnsStructure(props: {
   const [showAdd, setShowAdd] = useState(false);
   const handleReload = () => {
     setLoading(true);
-    makeShowTableColumn(uuid, table)()
+    showTableColumn(uuid, table)
       .then(fs => {
         setFields(fs);
       })
@@ -825,7 +825,7 @@ function AddIndex(props: { uuid; table; handleClose; reload; kind: DataSourceKin
   }
 
   useEffect(() => {
-    makeShowTableColumn(uuid, table)()
+    showTableColumn(uuid, table)
       .then(e => {
         setFields(e);
         e;

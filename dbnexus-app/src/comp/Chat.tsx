@@ -8,46 +8,41 @@ import {
 } from "./helper";
 import { Button, Divider, IconButton, Paper, Stack, Tooltip } from "@mui/material";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { ReactNode, useCallback, useContext, useEffect, useState } from "react";
+import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { editor } from "monaco-editor";
 import { AppMarkDown, SimpleFlexEditor } from "./CommonComp2";
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import EditIcon from "@mui/icons-material/Edit";
 import { NotificationContext } from "./Notification";
-import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
-import { editorAppendContent, NameAndQueryId, SetAutoCompletionName } from "./Common";
+import { PromptTemplate } from "@langchain/core/prompts";
+import {
+  AITextCompletionName,
+  createLLM,
+  editorAppendContent,
+  showTableColumn,
+  showViewColumns,
+} from "./Common";
 import { ModalHeader } from "./CommonComp";
 import { message } from "@tauri-apps/plugin-dialog";
 import { AllKindQuery } from "./Left";
-
-function createLLM(config: LLMConfig) {
-  console.log("createLLM", config);
-  const llm = new ChatOpenAI({
-    apiKey: config.apiKey,
-    temperature: config.temperature,
-    modelName: config.model,
-    configuration: {
-      baseURL: config.baseUrl,
-      defaultHeaders: {
-        "X-Accel-Buffering": "no",
-        "Cache-Control": "no-cache",
-      },
-    },
-    streaming: true,
-  });
-  return llm;
-}
-
-function SqlChat(props: { uuid: string; kind: DataSourceKind }) {
-  const { uuid, kind } = props;
+import { invoke } from "@tauri-apps/api/core";
+import types from "./ApiStruct";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+function SqlChat(props: {
+  uuid: string;
+  kind: DataSourceKind;
+  value?: string;
+  favoriteName?: string;
+}) {
+  const { uuid, kind, favoriteName, value } = props;
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
+  const llmconfig = useContext(LLMConfigContext);
   return (
     <Stack
       style={{
         height: "100%",
         width: "100%",
-        position: "relative",
       }}
     >
       <PanelGroup direction="vertical" autoSaveId="chat">
@@ -58,43 +53,131 @@ function SqlChat(props: { uuid: string; kind: DataSourceKind }) {
             handleEditor={e => {
               setEditor(e);
             }}
+            favoriteName={favoriteName}
+            value={value}
           ></AllKindQuery>
         </Panel>
-
-        <PanelResizeHandle style={{ height: 4 }} className="resize-handle" />
-        <Panel collapsible collapsedSize={0} minSize={8}>
-          <SqlChatTextInput uuid={uuid} kind={kind} editor={editor}></SqlChatTextInput>
-        </Panel>
+        {llmconfig && (
+          <PanelResizeHandle style={{ height: 4 }} className="resize-handle" />
+        )}
+        {llmconfig && (
+          <Panel collapsible collapsedSize={0} minSize={8}>
+            <SqlChatTextInput
+              uuid={uuid}
+              kind={kind}
+              editor={editor}
+            ></SqlChatTextInput>
+          </Panel>
+        )}
       </PanelGroup>
     </Stack>
   );
 }
 
-const sqlTemplate = ChatPromptTemplate.fromMessages([
-  [
-    "system",
-    `You are a {database} database expert.
+const sqlTemplate = PromptTemplate.fromTemplate(`You are a {database} database expert.
 Your answer must follow ALL of these rules:
 1. Return SQL only.
 2. Do NOT wrap code in \`\`\`markdown.
 3. Comments must use "--" syntax.
-4. If you break any rule, you will be penalized.`,
-  ],
-  ["human", "{question}"],
-]);
+4. If you break any rule, you will be penalized.
 
-//@ts-ignore
-async function createPrompt(
-  uuid: string,
-  kind: DataSourceKind,
-  input: string,
-  userDefineTemplate: string | "",
-): Promise<string> {
-  let inputs = { database: kind, question: input };
-  if (userDefineTemplate) {
-    PromptTemplate.fromTemplate(userDefineTemplate).format(inputs);
-  } else {
+human: here are some information about the database:
+{database_information}
+
+
+human:{question}`);
+
+class MakePrompt {
+  constructor(
+    public uuid: string,
+    public config: LLMConfig,
+    public kind: DataSourceKind,
+    public question: string,
+  ) {}
+
+  async createSqlPrompt(): Promise<string> {
+    let inputs = {
+      database: this.kind as string,
+      question: this.question,
+      database_information: await this.sqlDatabaseInformation(),
+    };
     return sqlTemplate.format(inputs);
+  }
+
+  async sqlDatabaseInformation() {
+    let ret = "";
+    let tables = await this.allSqlTables();
+
+    for (const table of tables.tables) {
+      if (!this.question.includes(table.name)) {
+        continue;
+      }
+      let cols = await showTableColumn(this.uuid, table.name);
+      ret += `${table.name} is table
+        Columns:${cols.map(x => x.field).join(",")}
+        Primary key: ${cols
+          .filter(x => x.is_primary)
+          .map(x => x.field)
+          .join(",")} 
+        `;
+    }
+    for (const view of tables.views) {
+      if (!this.question.includes(view.name)) {
+        continue;
+      }
+      let cols = await showViewColumns(this.uuid, view.name);
+      ret += `${view.name} is view 
+        Columns:${cols.map(x => x.field).join(",")}
+        `;
+    }
+    for (const view of tables.views) {
+      if (!this.question.includes(view.name)) {
+        continue;
+      }
+      let cols = await showViewColumns(this.uuid, view.name);
+      ret += `${view.name} is materalized view 
+        Columns:${cols.map(x => x.field).join(",")}
+        `;
+    }
+
+    return ret;
+  }
+
+  async allSqlTables(): Promise<{
+    tables: types.ListTable[];
+    views: types.ListTable[];
+    materializedViews: types.ListTable[];
+  }> {
+    let tables = [];
+    try {
+      tables = await invoke<types.ListTable[]>("list_table", { name: this.uuid });
+    } catch (e) {
+      console.log("list table failed,this maybe a error", e);
+    }
+
+    let views = [];
+    try {
+      views = await invoke<types.ListTable[]>("list_view", { name: this.uuid });
+    } catch (e) {
+      console.log("list view failed,this maybe a error", e);
+    }
+
+    let materializedViews = [];
+    try {
+      materializedViews = await invoke<types.ListTable[]>("list_materialized_view", {
+        name: this.uuid,
+      });
+    } catch (e) {
+      console.log("list meterialize view failed,this maybe a error", e);
+    }
+    return { tables, views, materializedViews };
+  }
+
+  async createPrompt(): Promise<string> {
+    switch (this.kind) {
+      default:
+        return this.createSqlPrompt();
+    }
   }
 }
 
@@ -122,7 +205,12 @@ function SqlChatTextInput(props: {
       setLoading(true);
       editor.setValue("");
       setPrevQuestion(newQuestion);
-      const prompt = await createPrompt(uuid, kind, newQuestion, config.sqlTemplate);
+      const prompt = await new MakePrompt(
+        uuid,
+        config,
+        kind,
+        newQuestion,
+      ).createPrompt();
       setChatHistory(e => [...e, newQuestion]);
       let wholeText = "";
       console.time("stream-first-chunk");
@@ -135,19 +223,21 @@ function SqlChatTextInput(props: {
       setChatHistory(e => [...e, wholeText]);
     } catch (e) {
       showNotification("error", "call llm failed", e);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
     <Stack style={{ height: "100%" }} direction="row">
       <SimpleFlexEditor
-        language="sql"
+        language="text"
         handleValue={v => {
           setNewQuestion(v);
         }}
+        disableEditorBar
         handleEditor={e => {
-          SetAutoCompletionName.set(e.getModel().id, new NameAndQueryId(uuid, kind));
+          AITextCompletionName.set(e.getModel().id, uuid);
         }}
       ></SimpleFlexEditor>
       <Stack style={{ width: "fit-content", overflow: "auto" }}>
@@ -197,6 +287,9 @@ function SqlChatTextInput(props: {
           handleClose={() => {
             setShowChatHistory(false);
           }}
+          handleClean={() => {
+            setChatHistory([]);
+          }}
         ></ChatHistory>
       )}
       {showPrompt && (
@@ -214,8 +307,12 @@ function SqlChatTextInput(props: {
   );
 }
 
-function ChatHistory(props: { history: string[]; handleClose: () => void }) {
-  const { history, handleClose } = props;
+function ChatHistory(props: {
+  history: string[];
+  handleClose: () => void;
+  handleClean;
+}) {
+  const { history, handleClose, handleClean } = props;
   const vis = useContext(TabActiveContext);
   const keyEscCancelQueryLog = useCallback(
     e => {
@@ -225,31 +322,51 @@ function ChatHistory(props: { history: string[]; handleClose: () => void }) {
     },
     [vis, handleClose],
   );
-
   useEffect(() => {
     document.addEventListener("keydown", keyEscCancelQueryLog);
     return () => {
       document.removeEventListener("keydown", keyEscCancelQueryLog);
     };
   }, [keyEscCancelQueryLog]);
+  const wrapperRef = useRef(null);
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
+  const handleClear = () => {
+    handleClean();
+    handleClose();
+  };
+
   return (
     <Paper
       style={{
         position: "absolute",
         bottom: 0,
         right: 0,
-        width: "85%",
-        height: "85%",
+        width: "87%",
+        height: "87%",
         zIndex: 14,
         overflow: "auto",
         padding: "0.4rem",
       }}
+      ref={wrapperRef}
     >
-      <ModalHeader title="chat history" handleClose={handleClose}></ModalHeader>
+      <ModalHeader
+        title="chat history"
+        headerExtra={
+          <Tooltip title="delete history">
+            <IconButton onClick={handleClear}>
+              <DeleteForeverIcon> </DeleteForeverIcon>
+            </IconButton>
+          </Tooltip>
+        }
+        handleClose={handleClose}
+      ></ModalHeader>
       <Stack>
         {history.map((his, index) => {
           return (
-            <>
+            <div key={index}>
               <Stack
                 direction="row"
                 style={{
@@ -258,10 +375,7 @@ function ChatHistory(props: { history: string[]; handleClose: () => void }) {
               >
                 <div
                   style={{
-                    width: "80%",
-                    border: "2px solid " + (index % 2 == 0 ? "green" : "skyblue"),
-                    borderRadius: "1rem",
-                    padding: "0rem 0.6rem",
+                    width: "85%",
                   }}
                 >
                   <AppMarkDown
@@ -275,7 +389,7 @@ function ChatHistory(props: { history: string[]; handleClose: () => void }) {
                 </div>
               </Stack>
               {index > 0 && index % 2 == 1 && <Divider />}
-            </>
+            </div>
           );
         })}
       </Stack>
@@ -310,7 +424,7 @@ function ShowPrompt(props: {
   }, [closeThis]);
 
   useEffect(() => {
-    createPrompt(uuid, kind, question, config.sqlTemplate).then(e => {
+    new MakePrompt(uuid, config, kind, question).createPrompt().then(e => {
       setPrompt(e);
     });
   }, [question]);
@@ -324,6 +438,7 @@ function ShowPrompt(props: {
         zIndex: 14,
         padding: "0.5rem",
         width: "75%",
+        overflow: "auto",
       }}
     >
       <ModalHeader title="show prompt" handleClose={handleClose}></ModalHeader>
@@ -332,14 +447,28 @@ function ShowPrompt(props: {
   );
 }
 
-function AllKindChat(props: { uuid: string; kind: DataSourceKind }) {
+function AllKindChat(props: {
+  uuid: string;
+  kind: DataSourceKind;
+  value?: string;
+  favoriteName?: string;
+}) {
   const [config, setConfig] = useState<LLMConfig>(null);
   const { showNotification } = useContext(NotificationContext);
+  const handleReload = () => {
+    LLMConfig.get()
+      .then(config => {
+        if (config && config.enable) {
+          setConfig(config);
+        }
+      })
+      .catch(e => {
+        showNotification("error", "get llm config failed", e);
+      });
+  };
   useEffect(() => {
     const unlisten = appStore.onKeyChange(LLMConfig.key, () => {
-      LLMConfig.get().then(config => {
-        setConfig(config);
-      });
+      handleReload();
     });
     return () => {
       unlisten.then(x => {
@@ -349,13 +478,7 @@ function AllKindChat(props: { uuid: string; kind: DataSourceKind }) {
   }, []);
 
   useEffect(() => {
-    LLMConfig.get().then(config => {
-      if (!config) {
-        showNotification("warning", "Please set LLM config first.");
-        return;
-      }
-      setConfig(config);
-    });
+    handleReload();
   }, []);
   let chat: ReactNode;
   switch (props.kind) {

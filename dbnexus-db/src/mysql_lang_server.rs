@@ -54,6 +54,11 @@ impl GetKeyWords for MysqlDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for MysqlDB {
+    async fn ai_text_completion(
+        &self, text: &str, line: u32, col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
+    }
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_selection(self, sql)
     }
@@ -68,8 +73,16 @@ impl LanguageServer for MysqlDB {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
-    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LangServerCommon::parse_error(self, sql)
+    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        let sql = format!("explain {sql}");
+        let mut conn = self.get_conn().await?;
+        let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+            .execute(conn.deref_mut())
+            .await;
+        anyhow::Ok(match r {
+            Ok(_) => None,
+            Err(e) => Some(ErrAndLoc::from(e.to_string())),
+        })
     }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)

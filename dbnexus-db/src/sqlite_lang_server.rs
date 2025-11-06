@@ -4,7 +4,7 @@ use std::ops::DerefMut;
 use crate::db::name_start_ascii_alphabetic;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, ErrAndLoc, GetKeyWords,
-    LangServerCommon, LanguageServer, try_parser_dot_lexer,
+    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::sqlite::SqliteDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -171,6 +171,12 @@ impl crate::language_server::LexerCompletionTrait for SqliteDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for SqliteDB {
+    async fn ai_text_completion(
+        &self, text: &str, line: u32, col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
+    }
+
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_selection(self, sql)
     }
@@ -185,8 +191,21 @@ impl LanguageServer for SqliteDB {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
-    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LangServerCommon::parse_error(self, sql)
+    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        let sql = format!("explain {sql}");
+        let mut conn = self.get_conn().await?;
+
+        let r = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_one(conn.deref_mut())
+            .await;
+        anyhow::Ok(match r {
+            Ok(_) => None,
+            Err(x) => Some(ErrAndLoc {
+                line: None,
+                column: None,
+                msg: x.to_string(),
+            }),
+        })
     }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)

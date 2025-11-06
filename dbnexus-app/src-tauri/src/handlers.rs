@@ -1185,16 +1185,36 @@ pub async fn auto_completion(
 }
 
 #[tauri::command]
-pub async fn sql_parse_error(
+pub async fn ai_text_completion(
+    name: String, text: String, line: u32, col: u32, app: tauri::State<'_, DBPal>,
+) -> Result<CompletionList, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app.get_backend(name.as_str()).await?;
+    let ret = tokio::time::timeout(std::time::Duration::from_secs(4), async {
+        match db {
+            DatabaseBackend::Catalog(x) => x.ai_text_completion(&text, line, col).await,
+            DatabaseBackend::DataBase(x) => x.ai_text_completion(&text, line, col).await,
+            DatabaseBackend::Schema(x) => x.ai_text_completion(&text, line, col).await,
+        }
+    })
+    .await
+    .map_err(|_| ErrorFrontend::from("ai auto completion timeout"))?
+    .map_err(ErrorFrontend::from)?;
+    Ok(ret)
+}
+
+#[tauri::command]
+pub async fn check_sql(
     name: String, sql: String, app: tauri::State<'_, DBPal>,
 ) -> Result<Option<ErrAndLoc>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_backend(name.as_str()).await?;
     let ret = match db {
-        DatabaseBackend::Catalog(x) => x.parse_error(&sql),
-        DatabaseBackend::DataBase(x) => x.parse_error(&sql),
-        DatabaseBackend::Schema(x) => x.parse_error(&sql),
+        DatabaseBackend::Catalog(x) => x.check_sql(&sql).await,
+        DatabaseBackend::DataBase(x) => x.check_sql(&sql).await,
+        DatabaseBackend::Schema(x) => x.check_sql(&sql).await,
     }
     .map_err(ErrorFrontend::from)?;
     Ok(ret)

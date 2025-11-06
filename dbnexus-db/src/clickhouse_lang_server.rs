@@ -26,6 +26,11 @@ impl GetKeyWords for ClickHouseDB {
 #[async_trait::async_trait]
 
 impl LanguageServer for ClickHouseDB {
+    async fn ai_text_completion(
+        &self, text: &str, line: u32, col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
+    }
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_selection(self, sql)
     }
@@ -41,8 +46,25 @@ impl LanguageServer for ClickHouseDB {
             .await
             .map(|x| x.into())
     }
-    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LangServerCommon::parse_error(self, sql)
+
+    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        let conn = self.get_conn()?;
+        let sql = format!(
+            r#"
+            SET syntax_only = 1;
+            {sql}
+            SET syntax_only = 0;
+        "#
+        );
+        let r = conn.query(&sql).execute().await;
+        anyhow::Ok(match r {
+            Ok(_) => None,
+            Err(err) => Some(ErrAndLoc {
+                line: None,
+                column: None,
+                msg: err.to_string(),
+            }),
+        })
     }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)

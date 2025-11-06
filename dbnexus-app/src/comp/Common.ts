@@ -13,11 +13,13 @@ import {
   AppStoreKey,
   backendCompletionItemToEditor,
   DataSourceKind,
+  LLMConfig,
   MuiDataGridData,
   secondConfirm,
 } from "./helper";
 import { GridColDef } from "@mui/x-data-grid";
 import { loader } from "@monaco-editor/react";
+import { ChatOpenAI } from "@langchain/openai";
 
 const modalStyle: SxProps = {
   position: "fixed",
@@ -174,6 +176,41 @@ const autoCompletion = async (
   }
 };
 
+const aiTextAutoCompletion = async (
+  modal: editor.ITextModel,
+  pos: Position,
+): Promise<languages.CompletionList> => {
+  try {
+    const text = modal.getValue();
+    {
+      // try if this is ai text completion
+      const name = AITextCompletionName.get(modal.id);
+      if (name) {
+        console.time("ai text completion");
+        const completionItem = await invoke<types.CompletionList>(
+          "ai_text_completion",
+          {
+            text,
+            line: pos.lineNumber,
+            col: pos.column,
+            name,
+          },
+        );
+        console.timeEnd("ai text completion");
+        console.log("!!!!!!!!!!!!!!!", completionItem);
+        const suggestions = backendCompletionItemToEditor(completionItem.items);
+        suggestions.incomplete = completionItem.incomplete;
+        return suggestions;
+      }
+    }
+    console.info("nothing to complete");
+    return { suggestions: [] };
+  } catch (e) {
+    console.error("completion server error:", e);
+    return { suggestions: [] };
+  }
+};
+
 loader.init().then(monaco => {
   monaco.languages.registerCompletionItemProvider("sql", {
     triggerCharacters: ["."],
@@ -186,6 +223,20 @@ loader.init().then(monaco => {
       return autoCompletion(model, position);
     },
   });
+  monaco.languages.register({ id: "text" });
+
+  monaco.languages.registerCompletionItemProvider("text", {
+    triggerCharacters: ["."],
+    provideCompletionItems(
+      model,
+      position: Position,
+      _context: any,
+      _token: CancellationToken,
+    ) {
+      return aiTextAutoCompletion(model, position);
+    },
+  });
+
   monaco.languages.registerDocumentFormattingEditProvider("sql", {
     provideDocumentFormattingEdits(model, options, _) {
       const name = SetAutoCompletionName.get(model.id);
@@ -203,6 +254,7 @@ loader.init().then(monaco => {
       return [{ range: model.getFullModelRange(), text }];
     },
   });
+
   monaco.languages.registerCompletionItemProvider("redis", {
     provideCompletionItems(
       model,
@@ -524,16 +576,25 @@ class SetAutoCompletionName {
   }
 }
 
-function makeShowTableColumn(uuid, table) {
-  return () => {
-    return invoke<types.Field[]>("show_table_columns", {
-      name: uuid,
-      tableName: table,
-    });
-  };
+class AITextCompletionName {
+  static id2Name = new Map<string, string>();
+  static set(editorId: string, name: string) {
+    AITextCompletionName.id2Name.set(editorId, name);
+  }
+
+  static get(editorId: string): string | null {
+    return AITextCompletionName.id2Name.get(editorId);
+  }
 }
 
-function makeTableInsertFn(uuid, table) {
+function showTableColumn(uuid: string, table: string) {
+  return invoke<types.Field[]>("show_table_columns", {
+    name: uuid,
+    tableName: table,
+  });
+}
+
+function makeTableInsertFn(uuid: string, table: string) {
   return async values => {
     return invoke<void>("table_insert", {
       name: uuid,
@@ -607,7 +668,39 @@ async function editorAppendContent(editor: editor.IStandaloneCodeEditor, text) {
   editor.revealLine(lastLine + 1);
 }
 
+function createLLM(config: LLMConfig) {
+  console.log("createLLM", config);
+  const llm = new ChatOpenAI({
+    apiKey: config.apiKey,
+    temperature: config.temperature,
+    modelName: config.model,
+    configuration: {
+      baseURL: config.baseUrl,
+      defaultHeaders: {
+        "X-Accel-Buffering": "no",
+        "Cache-Control": "no-cache",
+      },
+    },
+    topP: config.topP,
+    maxTokens: config.maxToken,
+    streaming: true,
+  });
+  return llm;
+}
+
+async function showViewColumns(uuid: string, view: string) {
+  return invoke<types.Field[]>("show_view_columns", {
+    name: uuid,
+    viewName: view,
+  });
+}
+
+async function listSchema(name: string) {
+  return invoke<string[]>("list_schema", { name });
+}
+
 export {
+  createLLM,
   modalStyle,
   tabsHasId,
   OpenedContext,
@@ -631,12 +724,15 @@ export {
   makeTableDelete,
   makeInvalidCassandraTableCache,
   makePutValueInSql,
-  makeShowTableColumn,
+  showTableColumn,
   makeTableInsertFn,
   PassWordManager,
   connectionChangeEvent,
   makeQueryConn,
   editorAppendContent,
+  AITextCompletionName,
+  showViewColumns,
+  listSchema,
 };
 
 export type {

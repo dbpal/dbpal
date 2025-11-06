@@ -4,7 +4,6 @@ use crate::language_server::{
     GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait, PostGresExtension,
     try_parser_dot_lexer,
 };
-
 use crate::pg::PostGresDB;
 use crate::sqlparser_completion::TempTableColumn;
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, Statement};
@@ -569,6 +568,11 @@ impl LangServerCommon for PostGresDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for PostGresDB {
+    async fn ai_text_completion(
+        &self, text: &str, line: u32, col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
+    }
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_selection(self, sql)
     }
@@ -583,9 +587,18 @@ impl LanguageServer for PostGresDB {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
-    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LangServerCommon::parse_error(self, sql)
+    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        let mut conn = self.get_conn().await?;
+        let r = sqlx::query("SELECT pg_parse_query($1)")
+            .bind(sql)
+            .execute(conn.deref_mut())
+            .await;
+        anyhow::Ok(match r {
+            Ok(_) => None,
+            Err(err) => Some(ErrAndLoc::from(err.to_string())),
+        })
     }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)
     }

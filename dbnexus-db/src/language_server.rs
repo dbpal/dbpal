@@ -8,7 +8,9 @@ use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
 use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
 
-use crate::db::{CreatedTypeDef, GetBackendKind, SequenceDetail, SqlEvent, not_support_feature};
+use crate::db::{
+    CreatedTypeDef, Field, GetBackendKind, SequenceDetail, SqlEvent, not_support_feature,
+};
 use crate::helper::try_remove_one_at;
 use crate::sqlparser_completion::{CompletionStatement, Scopes, TempTableColumn};
 
@@ -18,9 +20,14 @@ pub trait LanguageServer: GetBackendKind {
         &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList>;
 
-    fn parse_error(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+    async fn ai_text_completion(
+        &self, sql: &str, line: u32, col: u32,
+    ) -> anyhow::Result<CompletionList>;
+
+    async fn check_sql(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         anyhow::Ok(None)
     }
+
     fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool>;
 
     // if possible
@@ -33,6 +40,16 @@ pub struct CompletionItem {
     pub item: Cow<'static, str>,
     pub kind: CompletionKind,
     pub desc: Option<Cow<'static, str>>,
+}
+
+impl From<Field> for CompletionItem {
+    fn from(value: Field) -> Self {
+        CompletionItem {
+            item: value.field.into(),
+            kind: CompletionKind::Column,
+            desc: Some(value.data_type.into()),
+        }
+    }
 }
 
 #[derive(
@@ -117,6 +134,18 @@ pub(crate) fn remove_duplicate(items: Vec<CompletionItem>) -> Vec<CompletionItem
 pub trait LexerCompletionTrait: LangServerCommon {
     const TYPES: &'static [&'static str];
     const TEXTS: &'static [&'static str] = &[];
+
+    async fn ai_text_completion(
+        &self, sql: &str, line: u32, col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        match self.try_completion_dot(sql, line, col).await {
+            Ok(ret) => return anyhow::Ok(ret),
+            Err(_err) => {
+                log::info!("try completion on dot failed,err:{}", _err);
+            }
+        }
+        self.do_auto_completion(sql, line, col).await
+    }
 
     async fn do_auto_completion(
         &self, sql: &str, line: u32, col: u32,
@@ -488,14 +517,14 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
         anyhow::Ok(vec![])
     }
 
-    fn parse_error(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        let dialect = self.dialect();
-        let x = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql);
-        anyhow::Ok(match x {
-            Ok(_) => None,
-            Err(x) => Some(ErrAndLoc::from(x)),
-        })
-    }
+    // async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+    //     let dialect = self.dialect();
+    //     let x = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql);
+    //     anyhow::Ok(match x {
+    //         Ok(_) => None,
+    //         Err(x) => Some(ErrAndLoc::from(x)),
+    //     })
+    // }
 
     async fn hit_schema(&self, name: &str) -> bool {
         self.list_schema()
@@ -1268,4 +1297,14 @@ pub struct ErrAndLoc {
     pub line: Option<u32>,
     pub column: Option<u32>,
     pub msg: String,
+}
+
+impl From<String> for ErrAndLoc {
+    fn from(value: String) -> Self {
+        ErrAndLoc {
+            line: None,
+            column: None,
+            msg: value,
+        }
+    }
 }

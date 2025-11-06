@@ -32,7 +32,7 @@ import {
   extractBaseName,
   PassWordManager,
 } from "./Common";
-import { DataSourceKind, errToString } from "./helper";
+import { DataSourceKind } from "./helper";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { platform } from "@tauri-apps/plugin-os";
 import { UrlDocument } from "./CommonComp2";
@@ -91,31 +91,35 @@ function SelectPath(props: { path; setPath; label: string; required: boolean }) 
         required={required}
         slotProps={{
           input: {
-            endAdornment: path && (
-              <InputAdornment position="end">
+            endAdornment: (
+              <>
+                {path && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => {
+                        setPath("");
+                      }}
+                      edge="end"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                )}
                 <IconButton
                   onClick={() => {
-                    setPath("");
+                    open({ multiple: false }).then(e => {
+                      setPath(e);
+                    });
                   }}
-                  edge="end"
+                  color="primary"
                 >
-                  <ClearIcon fontSize="small" />
+                  <AttachFileIcon></AttachFileIcon>
                 </IconButton>
-              </InputAdornment>
+              </>
             ),
           },
         }}
       ></TextField>
-      <IconButton
-        onClick={() => {
-          open({ multiple: false }).then(e => {
-            setPath(e);
-          });
-        }}
-        color="primary"
-      >
-        <AttachFileIcon></AttachFileIcon>
-      </IconButton>
     </Stack>
   );
 }
@@ -759,7 +763,6 @@ let globalMakeConfig: MakeConfig = null;
 function TestConnAndSave(props: { connectionNameDom }) {
   const { connectionNameDom } = props;
   const [testLoading, setTestLoading] = useState(false);
-  const [testStatus, setTestStatus] = useState<string | true | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const handleTestConnection = async () => {
     const config = globalMakeConfig();
@@ -771,17 +774,13 @@ function TestConnAndSave(props: { connectionNameDom }) {
       setTestLoading(true);
       invoke("test_connection", { config })
         .then(() => {
-          setTestStatus(true);
+          showNotification("success", "test connection ok");
         })
         .catch(e => {
-          setTestStatus(errToString(e));
           showNotification("warning", "test connection failed", e);
         })
         .finally(() => {
           setTestLoading(false);
-          setTimeout(() => {
-            setTestStatus(null);
-          }, 5000);
         });
     }
   };
@@ -844,10 +843,6 @@ function TestConnAndSave(props: { connectionNameDom }) {
         >
           test
         </Button>
-        {testStatus === true && <Typography color="success">Test OK</Typography>}
-        {typeof testStatus == "string" && (
-          <Typography color="error"> {testStatus} </Typography>
-        )}
       </Stack>
     </Stack>
   );
