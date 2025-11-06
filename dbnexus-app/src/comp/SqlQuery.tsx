@@ -217,13 +217,7 @@ function SqlQuery(props: {
       if (handleEditor) {
         handleEditor(ed);
       }
-      ed.focus();
-      ed.onDidChangeModelContent(_event => {
-        //  const text = ed.getValue();
-        //  if (getParseErr) {
-        //   getParseErr(text).then(e => {});
-        //  }
-      });
+      ed.onDidChangeModelContent(_event => {});
 
       ed.onDidChangeCursorPosition(_event => {
         const p = ed.getPosition();

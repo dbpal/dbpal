@@ -1043,7 +1043,7 @@ impl LanguageServer for RedisDB {
                                     desc: None,
                                 });
                             }
-
+                            ret.extend(static_redis_command_completion_items().items.into_iter());
                             return anyhow::Ok(CompletionList {
                                 items: ret,
                                 incomplete,

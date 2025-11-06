@@ -40,6 +40,9 @@ function RedisQuery(props: {
 
   useEffect(() => {
     const tryUpdateCommand = () => {
+      if (!showDoc) {
+        return;
+      }
       if (!editorRef.current) {
         return;
       }
