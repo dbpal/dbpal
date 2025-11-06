@@ -885,79 +885,16 @@ function AppColumnMenu(props: GridColumnMenuProps) {
   );
 }
 
-function SelectColumns(props: {
-  fields: types.Field[];
-  includes: string[];
-  setIncludes;
-}) {
+function SelectColumns(props: { fields: string[]; includes: string[]; setIncludes }) {
   const { fields, includes, setIncludes } = props;
-  const [matchStr, setMatchStr] = useState("");
   return (
-    <Stack>
-      <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
-        <Typography color="info">includes:</Typography>
-        {includes.length > 0 && (
-          <IconButton
-            onClick={() => {
-              setIncludes([]);
-            }}
-            color="primary"
-          >
-            <CloseIcon></CloseIcon>
-          </IconButton>
-        )}
-        {includes.map(x => (
-          <Chip
-            onClick={() => {
-              setIncludes(e => e.filter(e => e != x));
-            }}
-            key={x}
-            color="success"
-            label={x}
-          ></Chip>
-        ))}
-      </Stack>
-      <Stack direction="row" style={{ alignItems: "flex-start" }}>
-        <Button
-          onClick={() => {
-            setIncludes(
-              fields.filter(e => e.field.includes(matchStr)).map(x => x.field),
-            );
-          }}
-          disabled={includes.length == fields.length}
-          variant="outlined"
-        >
-          include all
-        </Button>
-        <TextField
-          value={matchStr}
-          onChange={e => {
-            setMatchStr(e.target.value);
-          }}
-          disabled={includes.length == fields.length}
-          style={{ flex: 1 }}
-          label="match field name string"
-          helperText="only for candidate field"
-        ></TextField>
-      </Stack>
-      <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
-        <Typography>candidates:</Typography>
-        {fields
-          .filter(f => includes.find(e => e == f.field) == undefined)
-          .filter(f => f.field.includes(matchStr))
-          .map(x => (
-            <Chip
-              key={x.field}
-              onClick={() => {
-                setIncludes(e => [...e, x.field]);
-              }}
-              variant="outlined"
-              color="default"
-              label={x.field}
-            ></Chip>
-          ))}
-      </Stack>
-    </Stack>
+    <Autocomplete
+      options={fields}
+      value={includes}
+      multiple
+      onChange={(_, v) => setIncludes(v)}
+      renderInput={params => <TextField {...params} label="select columns" />}
+    />
   );
 }
 
@@ -1059,7 +996,7 @@ function ExportMarkDownTable(props: {
   return (
     <Stack>
       <SelectColumns
-        fields={fields}
+        fields={fields.map(x => x.field)}
         includes={includes}
         setIncludes={setIncludes}
       ></SelectColumns>

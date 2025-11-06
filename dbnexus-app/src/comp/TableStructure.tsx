@@ -890,7 +890,7 @@ function AddIndex(props: { uuid; table; handleClose; reload; kind: DataSourceKin
       <SelectColumns
         includes={includes}
         setIncludes={setIncludes}
-        fields={fields}
+        fields={fields.map(e => e.field)}
       ></SelectColumns>
       {indexTypeJsx}
       <Divider />
