@@ -570,7 +570,7 @@ function ModalHeader(props: {
         marginBottom: "0.4rem",
       }}
     >
-      <Stack direction="row">
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <Typography
           variant="h6"
           style={{
@@ -885,16 +885,34 @@ function AppColumnMenu(props: GridColumnMenuProps) {
   );
 }
 
-function SelectColumns(props: { fields: string[]; includes: string[]; setIncludes }) {
-  const { fields, includes, setIncludes } = props;
+function SelectColumns(props: {
+  fields: string[];
+  includes: string[];
+  setIncludes;
+  includeAll: boolean;
+}) {
+  const { fields, includes, setIncludes, includeAll } = props;
   return (
-    <Autocomplete
-      options={fields}
-      value={includes}
-      multiple
-      onChange={(_, v) => setIncludes(v)}
-      renderInput={params => <TextField {...params} label="select columns" />}
-    />
+    <Stack direction="row" style={{ alignItems: "flex-end" }}>
+      {includeAll && fields.length > includes.length && (
+        <Button
+          onClick={() => {
+            setIncludes(fields);
+          }}
+          variant="text"
+        >
+          all
+        </Button>
+      )}
+      <Autocomplete
+        style={{ flex: 1 }}
+        options={fields}
+        value={includes}
+        multiple
+        onChange={(_, v) => setIncludes(v)}
+        renderInput={params => <TextField {...params} label="select columns" />}
+      />
+    </Stack>
   );
 }
 
@@ -999,6 +1017,7 @@ function ExportMarkDownTable(props: {
         fields={fields.map(x => x.field)}
         includes={includes}
         setIncludes={setIncludes}
+        includeAll
       ></SelectColumns>
       <OpenFileWithDefaultApp file={file} />
       <Divider></Divider>

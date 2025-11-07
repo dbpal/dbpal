@@ -308,7 +308,7 @@ function SqlQuery(props: {
       .executeOP(text)
       .then(e => {
         if (SaveQueryLogConfigure.get()) {
-          queryLogHandler.current.save(text, rustResultOk(e), showNotification);
+          queryLogHandler.current.save(text, rustResultOk(e));
         }
         setResp([e]);
         showNotification("success", "execute ok");
@@ -339,7 +339,7 @@ function SqlQuery(props: {
       .queryOP(text, append)
       .then(resp => {
         if (SaveQueryLogConfigure.get()) {
-          queryLogHandler.current.save(text, rustResultOk(resp), showNotification);
+          queryLogHandler.current.save(text, rustResultOk(resp));
         }
         if (append) {
           setResp(p => [...p, ...resp]);

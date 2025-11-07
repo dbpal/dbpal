@@ -403,7 +403,7 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
       return;
     }
     if (SaveQueryLogConfigure.get()) {
-      new QueryLogHandler(uuid).save(code, true, showNotification);
+      new QueryLogHandler(uuid).save(code, true, ts);
     }
     if (ts == TsOrJs.ts) {
       const out = await TSCompiler.compile(code, true);

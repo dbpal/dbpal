@@ -885,7 +885,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
     // if possible
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         let ss = self.parse_statements(sql).unwrap_or_default();
-        if let Some(statement) = ss.get(0) {
+        if let Some(statement) = ss.first() {
             match statement {
                 Statement::Query(query) => match query.body.as_ref() {
                     SetExpr::Select(x) => {
@@ -941,7 +941,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
             }
             // skip order by
             let token_slice = &tokens[index + 2..];
-            if token_slice.len() == 0 {
+            if token_slice.is_empty() {
                 return anyhow::Ok(None);
             }
             anyhow::Ok(Some(
@@ -1102,7 +1102,7 @@ pub(crate) async fn try_parser_dot_lexer<T: LexerCompletionTrait + AstCompletion
     };
     // try dot
     if let Ok(x) = dot {
-        return anyhow::Ok(x.into());
+        return anyhow::Ok(x);
     }
     if !use_lexer {
         log::warn!("disabled use lexer , we will return empty data.");

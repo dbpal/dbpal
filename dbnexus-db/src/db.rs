@@ -1473,7 +1473,7 @@ pub struct AutoCompletionQueryId {
 
 impl AutoCompletionQueryId {
     pub(crate) fn get(&self) -> u32 {
-        self.query_id.lock().unwrap().clone()
+        *self.query_id.lock().unwrap()
     }
     pub fn set(&self, x: u32) {
         *self.query_id.lock().unwrap() = x;

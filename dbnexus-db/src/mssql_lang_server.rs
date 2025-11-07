@@ -56,7 +56,7 @@ impl LanguageServer for SqlServerDB {
         conn.execute("SET NOEXEC OFF;", &[]).await.map_err(|e| {
             anyhow::Error::msg(format!(
                 "set noexec off failed,this is internal error,err:{}",
-                e.to_string()
+                e
             ))
         })?;
         anyhow::Ok(match r {

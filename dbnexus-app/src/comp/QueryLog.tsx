@@ -162,22 +162,19 @@ function QueryLog(props: {
     }
   }, [modalBox]);
   const vis = useContext(TabActiveContext);
-  const keyEscCancelQueryLog = useCallback(
-    e => {
+
+  useEffect(() => {
+    const call = e => {
       if (e.key === "Escape" && vis && showQueryLog) {
         setShowQueryLog(false);
         e.preventDefault();
       }
-    },
-    [vis, showQueryLog],
-  );
-
-  useEffect(() => {
-    document.addEventListener("keydown", keyEscCancelQueryLog);
-    return () => {
-      document.removeEventListener("keydown", keyEscCancelQueryLog);
     };
-  }, [keyEscCancelQueryLog]);
+    document.addEventListener("keydown", call);
+    return () => {
+      document.removeEventListener("keydown", call);
+    };
+  }, [vis, showQueryLog]);
 
   const [dom, setDom] = useState<HTMLDivElement>(null);
   const [saveQueryLog, setSaveQueryLog] = useState(SaveQueryLogConfigure.get());

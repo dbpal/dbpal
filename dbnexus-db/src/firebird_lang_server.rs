@@ -39,7 +39,6 @@ impl LanguageServer for FireBirdDB {
     ) -> anyhow::Result<CompletionList> {
         try_parser_dot_lexer(self, sql, line, col, use_lexer)
             .await
-            .map(|x| x.into())
     }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)

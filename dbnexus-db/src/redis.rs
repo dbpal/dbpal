@@ -33,6 +33,24 @@ pub struct RedisDB {
 }
 
 impl RedisDB {
+    pub async fn get_redis_type_hint(&self, text: &str) -> anyhow::Result<HashMap<String, String>> {
+        let mut conn = self.get_conn().await?;
+        let mut ret = HashMap::new();
+        for line in text.lines() {
+            let tokens = RedisToken::tokenize(line, 1).unwrap_or_default();
+            for t in tokens {
+                match t {
+                    RedisToken::String(value) | RedisToken::NotString { value, .. } => {
+                        if let Ok(t) = Self::get_key_type(&mut conn, &value).await {
+                            ret.insert(value.to_string(), t.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        anyhow::Ok(ret)
+    }
+
     pub async fn new(config: RedisDBConfig) -> anyhow::Result<Self> {
         let conn_str = config.make_conn_string();
         log::info!("connect to redis var:{:?}", conn_str);
@@ -1615,6 +1633,7 @@ enum RedisTokenState {
         prev: Box<RedisTokenState>,
     },
     Whitespace,
+    Comment,
 }
 
 impl RedisTokenState {
@@ -1705,6 +1724,10 @@ impl RedisToken {
                         push_token(index, &mut tokens, &mut buf, line_number)?;
                         state = RedisTokenState::Whitespace;
                     }
+                    '#' => {
+                        push_token(index, &mut tokens, &mut buf, line_number)?;
+                        state = RedisTokenState::Comment;
+                    }
                     _ => {
                         buf.push(*c);
                     }
@@ -1729,6 +1752,7 @@ impl RedisToken {
                         buf.push('\'');
                         state = state.trans(1);
                     }
+
                     _ => {
                         buf.push(*c);
                     }
@@ -1778,6 +1802,13 @@ impl RedisToken {
                         state = RedisTokenState::Init;
                     }
                 }
+                RedisTokenState::Comment => {
+                    if *c == '\n' {
+                        state = RedisTokenState::Init;
+                    } else {
+                        // nothing here
+                    }
+                }
             }
         }
         match state {
@@ -1787,6 +1818,9 @@ impl RedisToken {
             RedisTokenState::SingleQuote => anyhow::bail!("unclose single quote"),
             RedisTokenState::DoubleQuote => anyhow::bail!("unclose double quote"),
             RedisTokenState::Trans { .. } => anyhow::bail!("this is internal error"),
+            RedisTokenState::Comment => {
+                // trailing comments should be ignored
+            }
             RedisTokenState::Whitespace => {
                 // trailing whitespaces should be ignored
             }
@@ -1798,7 +1832,11 @@ impl RedisToken {
 pub(crate) fn get_command_from_sql(sql: &str) -> anyhow::Result<Vec<Vec<String>>> {
     let mut commands = Vec::new();
     for line in sql.lines() {
-        if line.trim().is_empty() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if line.starts_with("#") {
             continue;
         }
         let tokens = RedisToken::tokenize(line, 1)?;
@@ -1958,6 +1996,12 @@ mod tests {
                 Ok(_) => panic!("should hit error"),
                 Err(x) => assert!(x.to_string().contains("double")),
             }
+        }
+
+        {
+            let tokens = RedisToken::tokenize(r#"aaaa bbbb#123"#, 1).unwrap();
+            assert!(tokens[0].value() == "aaaa");
+            assert!(tokens[1].value() == "bbbb")
         }
     }
 

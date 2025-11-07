@@ -335,7 +335,7 @@ impl QueryCache {
         log::info!("set query cache:{}", key);
         if append {
             let mut r = self.datas.get(&key).map(|x| x.to_vec()).unwrap_or_default();
-            r.extend(data.to_vec().into_iter());
+            r.extend(data.to_vec());
             self.datas.insert(key, Arc::new(r));
         } else {
             self.datas.insert(key, data);
@@ -433,7 +433,7 @@ impl DBPal {
             .lock()
             .await
             .insert(config.get_name().to_owned(), db.clone());
-        return anyhow::Ok(db);
+        anyhow::Ok(db)
     }
 
     pub async fn get_backend(&self, name: &str) -> anyhow::Result<DatabaseBackend> {
@@ -456,7 +456,7 @@ impl DBPal {
                     .cloned();
                 match backend {
                     Some(DatabaseBackend::DataBase(x)) => {
-                        let schema = x.open_schema(&name_parts[1]).await?;
+                        let schema = x.open_schema(name_parts[1]).await?;
                         self.backend
                             .lock()
                             .await
@@ -464,7 +464,7 @@ impl DBPal {
                         anyhow::Ok(DatabaseBackend::Schema(schema))
                     }
                     Some(DatabaseBackend::Catalog(x)) => {
-                        let db = x.open_db(&name_parts[1]).await?;
+                        let db = x.open_db(name_parts[1]).await?;
                         self.backend
                             .lock()
                             .await
@@ -501,7 +501,7 @@ impl DBPal {
                         match c {
                             Some(x) => match x {
                                 DatabaseBackend::Catalog(x) => {
-                                    let db = x.open_db(&name_parts[1]).await?;
+                                    let db = x.open_db(name_parts[1]).await?;
                                     self.backend.lock().await.insert(db_name, db.clone().into());
                                     db
                                 }
@@ -517,7 +517,7 @@ impl DBPal {
                         }
                     }
                 };
-                let schema = db_trait.open_schema(&name_parts[2]).await?;
+                let schema = db_trait.open_schema(name_parts[2]).await?;
                 self.backend
                     .lock()
                     .await

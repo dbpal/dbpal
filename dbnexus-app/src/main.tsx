@@ -5,7 +5,8 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { App } from "./comp/MainPage";
 import { invoke } from "@tauri-apps/api/core";
 import React from "react";
-import { secondConfirm } from "./comp/helper.ts";
+import { LLMConfig, secondConfirm } from "./comp/helper.ts";
+import { createChatAPI } from "./comp/Common.ts";
 
 const currentWebview = WebviewWindow.getCurrent();
 
@@ -41,3 +42,23 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <App></App>
   </React.StrictMode>,
 );
+
+const api = createChatAPI({
+  baseUrl: "https://api.moonshot.cn/v1",
+  apiKey: "sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO",
+  model: "moonshot-v1-8k",
+} as LLMConfig);
+
+console.time("call stream");
+let s = await api.stream(
+  "Help me write a short essay about the Shawshank Redemption, with a word count of 5,000",
+);
+console.timeEnd("call stream");
+console.time("read stream");
+let wholeText = "";
+for await (const msg of s) {
+  wholeText += msg.content;
+  console.log(msg.content);
+}
+console.timeEnd("read stream");
+console.log("!!!!!!!!!!!!!!", wholeText);

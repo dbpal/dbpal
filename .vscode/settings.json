@@ -218,6 +218,7 @@
     "LISTAGG",
     "llen",
     "LLEN",
+    "llmconfig",
     "LNNVL",
     "LOADAOF",
     "LOCALTIME",

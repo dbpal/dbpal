@@ -37,6 +37,13 @@ pub fn log_channel_store() -> &'static std::sync::Mutex<Option<Channel<String>>>
 }
 
 #[tauri::command]
+
+pub fn get_locale() -> Result<String, ErrorFrontend> {
+    let r = sys_locale::get_locale().unwrap_or_else(|| String::from("en-US"));
+    Ok(r)
+}
+
+#[tauri::command]
 pub fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str>, ErrorFrontend> {
     let mut ret = HashMap::new();
     static FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../monaco-themes/themes");
@@ -44,12 +51,7 @@ pub fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str>, Err
         match en {
             include_dir::DirEntry::Dir(..) => {}
             include_dir::DirEntry::File(file) => {
-                let name = file
-                    .path()
-                    .file_name()
-                    .map(|x| x.to_str())
-                    .flatten()
-                    .unwrap();
+                let name = file.path().file_name().and_then(|x| x.to_str()).unwrap();
                 if name == "themelist.json" {
                     continue;
                 }
@@ -63,7 +65,7 @@ pub fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str>, Err
 
 #[tauri::command]
 pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
-    let tokens = RedisToken::tokenize(line, 1).map_err(|e| ErrorFrontend::from(e))?;
+    let tokens = RedisToken::tokenize(line, 1).map_err(ErrorFrontend::from)?;
     if tokens.is_empty() {
         return Err(ErrorFrontend::from("no tokens found,empty line??"));
     }
@@ -72,13 +74,10 @@ pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
     if tokens.len() >= 2 {
         let file = REDIS_COMMANDS_MD_FILES
             .get_file(format!("{}-{}.md", command, tokens[1].value().to_lowercase()).as_str());
-        match file {
-            Some(file) => {
-                let mut ret = format!("## {} {}\n", tokens[0].value(), tokens[1].value());
-                ret.push_str(file.contents_utf8().unwrap());
-                return Ok(ret);
-            }
-            None => {}
+        if let Some(file) = file {
+            let mut ret = format!("## {} {}\n", tokens[0].value(), tokens[1].value());
+            ret.push_str(file.contents_utf8().unwrap());
+            return Ok(ret);
         }
     }
     let exact_file = format!("{}.md", command);
@@ -104,8 +103,7 @@ pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
                                     let name = file
                                         .path()
                                         .file_name()
-                                        .map(|x| x.to_str())
-                                        .flatten()
+                                        .and_then(|x| x.to_str())
                                         .unwrap_or_default();
                                     if name.len() > 3 {
                                         let name = &name[0..(name.len() - 3)];
@@ -654,6 +652,23 @@ pub async fn server_metas(
 }
 
 #[tauri::command]
+pub async fn get_redis_type_hint(
+    name: String, text: String, app: tauri::State<'_, DBPal>,
+) -> Result<HashMap<String, String>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let s = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+    let x = match s.as_any().downcast_ref::<RedisDB>() {
+        Some(x) => x.get_redis_type_hint(&text).await,
+        None => return Err(ErrorFrontend::from("this is not redis db")),
+    };
+    x.map_err(ErrorFrontend::from)
+}
+
+#[tauri::command]
 pub async fn list_materialized_view(
     name: String, app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<ListTable>, ErrorFrontend> {
@@ -1158,7 +1173,7 @@ pub async fn auto_completion(
     let use_lexer = true;
     // 避免多个线程同时访问
     // 主要是后端实现更简单了比如可以把 completion——id缓存起来
-    let lock = auto_completion_mutex(&name_to_parts(&name)[0]);
+    let lock = auto_completion_mutex(name_to_parts(&name)[0]);
     let _guard = lock.lock().await;
 
     let db = app.get_backend(name.as_str()).await?;
@@ -2939,8 +2954,8 @@ async fn random_sleep() {
             use rand::Rng;
             let mut rng = rand::rng();
             let millis = rng.random_range(500..1700);
-            let duration = std::time::Duration::from_millis(millis);
-            duration
+
+            std::time::Duration::from_millis(millis)
         };
         tokio::time::sleep(duration).await
     }
@@ -2962,7 +2977,7 @@ fn random_error() -> Result<(), ErrorFrontend> {
             }
         }
     } else {
-        return Ok(());
+        Ok(())
     }
 }
 

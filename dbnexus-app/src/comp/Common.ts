@@ -668,8 +668,8 @@ async function editorAppendContent(editor: editor.IStandaloneCodeEditor, text) {
   editor.revealLine(lastLine + 1);
 }
 
-function createLLM(config: LLMConfig) {
-  console.log("createLLM", config);
+function createChatAPI(config: LLMConfig) {
+  console.log("createChatAPI", config);
   const llm = new ChatOpenAI({
     apiKey: config.apiKey,
     temperature: config.temperature,
@@ -677,8 +677,8 @@ function createLLM(config: LLMConfig) {
     configuration: {
       baseURL: config.baseUrl,
       defaultHeaders: {
-        "X-Accel-Buffering": "no",
-        "Cache-Control": "no-cache",
+        //  "X-Accel-Buffering": "no",
+        // "Cache-Control": "no-cache",
       },
     },
     topP: config.topP,
@@ -699,8 +699,12 @@ async function listSchema(name: string) {
   return invoke<string[]>("list_schema", { name });
 }
 
+async function getLocale(): Promise<string> {
+  return await invoke("get_locale", {});
+}
+
 export {
-  createLLM,
+  createChatAPI,
   modalStyle,
   tabsHasId,
   OpenedContext,
@@ -733,6 +737,7 @@ export {
   AITextCompletionName,
   showViewColumns,
   listSchema,
+  getLocale,
 };
 
 export type {

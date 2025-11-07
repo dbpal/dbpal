@@ -11,7 +11,7 @@ impl GetKeyWords for CockRoachDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
         GetKeyWords::key_words(self.db.as_ref())
             .await
-            .map(|x| x.into_iter().map(|x| x.into()).collect())
+            .map(|x| x.into_iter().collect())
     }
 }
 

@@ -16,12 +16,12 @@ use handlers::{
     drop_table, drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table,
     enable_trigger, establish_conn, execute_sql, execute_sql_no_open_conn,
     export_query_result_to_file, export_table_or_view, extract_table_select_selection,
-    extract_table_select_sort, get_backend_crash, get_query_cache, get_redis_doc, is_dangerous_sql,
-    list_created_types, list_data_types, list_database, list_event, list_materialized_view,
-    list_procedure, list_schema, list_sequence, list_sql_current_values, list_table, list_udf,
-    list_view, log_channel, modify_table_column, monaco_editor_themes, mongo_create_index,
-    mongo_delete_ids, mongo_get_one_document_by_id, mongo_insert,
-    mongo_list_time_serial_collection, mongo_query_collection_count_docs,
+    extract_table_select_sort, get_backend_crash, get_locale, get_query_cache, get_redis_doc,
+    get_redis_type_hint, is_dangerous_sql, list_created_types, list_data_types, list_database,
+    list_event, list_materialized_view, list_procedure, list_schema, list_sequence,
+    list_sql_current_values, list_table, list_udf, list_view, log_channel, modify_table_column,
+    monaco_editor_themes, mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id,
+    mongo_insert, mongo_list_time_serial_collection, mongo_query_collection_count_docs,
     mongo_query_collection_create_index, mongo_query_collection_create_search_index,
     mongo_query_collection_delete_many, mongo_query_collection_delete_one,
     mongo_query_collection_distinct, mongo_query_collection_drop,
@@ -107,21 +107,19 @@ fn logger_test() {
 impl AppLogger {
     fn get_level(&self) -> log::Level {
         let x = self.config.get("logger-level");
-        let r = x
-            .map(|x| match x {
-                serde_json::Value::String(level) => match log::Level::from_str(&level) {
-                    Ok(level) => Some(level),
-                    Err(err) => {
-                        println!(
-                            "parse level failed,err:{:?} this is a bug from frontend",
-                            err
-                        );
-                        None
-                    }
-                },
-                _ => None,
-            })
-            .flatten();
+        let r = x.and_then(|x| match x {
+            serde_json::Value::String(level) => match log::Level::from_str(&level) {
+                Ok(level) => Some(level),
+                Err(err) => {
+                    println!(
+                        "parse level failed,err:{:?} this is a bug from frontend",
+                        err
+                    );
+                    None
+                }
+            },
+            _ => None,
+        });
         r.unwrap_or(log::Level::Info)
     }
 }
@@ -152,11 +150,8 @@ impl log::Log for AppLogger {
         #[cfg(debug_assertions)]
         println!("{}", log_str);
         let mut sender = log_channel_store().lock().unwrap();
-        match sender.deref_mut() {
-            Some(x) => {
-                x.send(log_str).unwrap();
-            }
-            None => {}
+        if let Some(x) = sender.deref_mut() {
+            x.send(log_str).unwrap();
         }
     }
 
@@ -401,19 +396,17 @@ fn run_app() {
                     if let Err(err) = window.set_focus() {
                         log::error!("set focus failed:{}", err);
                     }
-                } else {
-                    if let Err(err) = WebviewWindowBuilder::new(
-                        handle,
-                        setting_window_id.clone(),
-                        WebviewUrl::App(format!("setting.html").into()),
-                    )
-                    .title("setting")
-                    .inner_size(800f64, 600f64)
-                    .maximized(true)
-                    .build()
-                    {
-                        log::error!("create setting window failed:{}", err);
-                    }
+                } else if let Err(err) = WebviewWindowBuilder::new(
+                    handle,
+                    setting_window_id.clone(),
+                    WebviewUrl::App("setting.html".to_string().into()),
+                )
+                .title("setting")
+                .inner_size(800f64, 600f64)
+                .maximized(true)
+                .build()
+                {
+                    log::error!("create setting window failed:{}", err);
                 }
             }
             if event.id.0 == "relauch" {
@@ -467,19 +460,17 @@ fn run_app() {
                     if let Err(err) = window.set_focus() {
                         log::error!("set focus failed:{}", err);
                     }
-                } else {
-                    if let Err(err) = WebviewWindowBuilder::new(
-                        handle,
-                        log_window_id.clone(),
-                        WebviewUrl::App(format!("log_window.html").into()),
-                    )
-                    .title("view log")
-                    .inner_size(800f64, 600f64)
-                    .maximized(true)
-                    .build()
-                    {
-                        log::error!("create log file window failed:{}", err);
-                    }
+                } else if let Err(err) = WebviewWindowBuilder::new(
+                    handle,
+                    log_window_id.clone(),
+                    WebviewUrl::App("log_window.html".to_string().into()),
+                )
+                .title("view log")
+                .inner_size(800f64, 600f64)
+                .maximized(true)
+                .build()
+                {
+                    log::error!("create log file window failed:{}", err);
                 }
             }
         })
@@ -624,6 +615,8 @@ fn run_app() {
             get_redis_doc,
             monaco_editor_themes,
             ai_text_completion,
+            get_redis_type_hint,
+            get_locale
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

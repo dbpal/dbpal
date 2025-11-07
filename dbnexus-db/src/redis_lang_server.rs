@@ -1021,7 +1021,7 @@ impl LanguageServer for RedisDB {
                     } => {
                         if in_pos(
                             loc,
-                            sqlparser::tokenizer::Location::new(*line, *start_column as u64),
+                            sqlparser::tokenizer::Location::new(*line, *start_column),
                             value.len() as u64,
                         ) {
                             // hit  position.
@@ -1147,7 +1147,7 @@ impl LanguageServer for RedisDB {
                             },
                             value.len() as u64,
                         ) {
-                            return f.await.map(|x| x.into());
+                            return f.await;
                         }
                     }
                     _ => {
@@ -1254,7 +1254,7 @@ fn get_commands_from_docs() -> Vec<String> {
         match en {
             include_dir::DirEntry::Dir(..) => {}
             include_dir::DirEntry::File(file) => {
-                let name = file.path().file_name().map(|x| x.to_str()).flatten();
+                let name = file.path().file_name().and_then(|x| x.to_str());
                 if let Some(name) = name {
                     if name.ends_with(".md") {
                         if name.starts_with("_index") {
@@ -1274,7 +1274,7 @@ fn get_commands_from_docs() -> Vec<String> {
 }
 
 fn is_simple_command(command: &str) -> bool {
-    static SIMPLE: &'static [&'static str] = &[
+    static SIMPLE: &[&str] = &[
         "ACL", "CLIENT", "CLUSTER", "COMMAND", "CONFIG", "FUNCTION", "LATENCY", "MEMORY", "MODULE",
         "PUBSUB", "SCRIPT", "XGROUP", "XINFO", "SLOWLOG",
     ];
@@ -1288,7 +1288,7 @@ fn get_simple_command_sub(command: &str) -> Vec<&'static str> {
         match en {
             include_dir::DirEntry::Dir(..) => {}
             include_dir::DirEntry::File(file) => {
-                let name = file.path().file_name().map(|x| x.to_str()).flatten();
+                let name = file.path().file_name().and_then(|x| x.to_str());
                 if let Some(name) = name {
                     if name.starts_with(&match_str) {
                         ret.push(&name[match_str.len()..name.len() - 3]);

@@ -44,7 +44,6 @@ impl LanguageServer for ClickHouseDB {
         // self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer)
             .await
-            .map(|x| x.into())
     }
 
     async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {

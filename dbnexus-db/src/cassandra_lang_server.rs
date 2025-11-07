@@ -64,7 +64,7 @@ impl LanguageServer for CassandraDB {
             }
         }
         if let Ok(x) = dot {
-            return anyhow::Ok(x.into());
+            return anyhow::Ok(x);
         }
         if !use_lexer {
             return anyhow::Ok(vec![].into());

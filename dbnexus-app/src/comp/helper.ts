@@ -45,19 +45,15 @@ class QueryLogHandler {
     this.uuid = uuid;
     this.name = extractConfigNameFromUuid(uuid);
   }
-  async save(sql: string, success: boolean, showNotification?): Promise<void> {
+  async save(sql: string, success: boolean, language?: string): Promise<void> {
     return appDatabase
-      .execute("insert into query_log (uuid,name,sql,success) values (?,?,?,?)", [
-        this.uuid,
-        this.name,
-        sql,
-        success ? 1 : 0,
-      ])
+      .execute(
+        "insert into query_log (uuid,name,sql,language,success) values (?,?,?,?)",
+        [this.uuid, this.name, sql, language, success ? 1 : 0],
+      )
       .then(() => {})
       .catch(e => {
-        if (showNotification) {
-          showNotification("error", "save query log failed", e);
-        }
+        message("save query log failed,e" + String(e), { kind: "error" });
       });
   }
 
@@ -1178,10 +1174,10 @@ class LLMConfig {
   apiKey: string;
   model: string;
   temperature: number = 0;
-  sqlTemplate: string = "";
   static key = "llm-config-4k9zF7m5p3T1H2";
   maxToken: number = 0;
   topP: number = 0;
+  aiTextTemplates: any = {};
 
   async save() {
     try {
@@ -1200,8 +1196,9 @@ class LLMConfig {
   }
 
   static async get(): Promise<LLMConfig | null> {
-    const ret = await appStore.get<LLMConfig | null>(LLMConfig.key);
+    let ret = await appStore.get<LLMConfig | null>(LLMConfig.key);
     if (ret) {
+      ret = { ...new LLMConfig(), ...ret } as LLMConfig;
       Object.setPrototypeOf(ret, LLMConfig.prototype);
       if (ret.enable()) {
         const pass = await PassWordManager.getPassword(LLMConfig.key);

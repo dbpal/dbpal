@@ -125,7 +125,7 @@ impl MemoryLimit {
 
     pub fn exceed_error(&mut self) -> anyhow::Result<()> {
         self.count += 1;
-        if (self.count % self.m) == 0 && Self::exceed() {
+        if self.count.is_multiple_of(self.m) && Self::exceed() {
             Err(anyhow::Error::msg(format!(
                 "exceed max memory of {}m",
                 Self::get_limit() >> 20

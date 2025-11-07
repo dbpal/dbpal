@@ -84,7 +84,7 @@ function NotificationProvider(props: { children: ReactNode }) {
           open={open}
           autoHideDuration={msgTimeout}
           onClose={handleClose}
-          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          anchorOrigin={{ vertical: "top", horizontal: "right" }}
           sx={{ mb: 8 }} // 调整位置稍微高一些
           slots={{ transition }}
         >

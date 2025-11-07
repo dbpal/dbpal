@@ -1155,7 +1155,7 @@ function DatabaseMenu(props: {
   return (
     <div>
       <MenuList>
-        {opened && kind != DataSourceKind.Mongo && (
+        {opened && kind != DataSourceKind.Mongo && kind != DataSourceKind.Redis && (
           <MenuNewQuery
             handleNew={() => {
               openNewQuery(setSelectTab, setTabs, uuid, kind);

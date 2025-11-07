@@ -46,7 +46,7 @@ impl MongoDB {
             port: Some(config.port),
         }];
 
-        opts.connect_timeout = config.conn_timeout.map(|x| Duration::from(x));
+        opts.connect_timeout = config.conn_timeout.map(Duration::from);
         if let Some(user) = &config.username {
             let b = mongodb::options::Credential::builder();
             let b = b.username(Some(user.to_owned()));
@@ -107,7 +107,7 @@ impl LanguageServer for MongoDB {
         for col in cols.iter() {
             if text.contains(col.to_lowercase().as_str()) {
                 let columns = self.show_table_columns(col).await?;
-                ret.extend(columns.into_iter().map(|x| CompletionItem::from(x)));
+                ret.extend(columns.into_iter().map(CompletionItem::from));
             }
         }
         anyhow::Ok(CompletionList::from(ret))

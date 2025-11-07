@@ -888,6 +888,7 @@ function AddIndex(props: { uuid; table; handleClose; reload; kind: DataSourceKin
         }}
       ></TextField>
       <SelectColumns
+        includeAll={false}
         includes={includes}
         setIncludes={setIncludes}
         fields={fields.map(e => e.field)}

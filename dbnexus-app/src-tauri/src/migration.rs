@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS query_log (
     uuid TEXT NOT NULL,          -- uuid like mysql/xxx
     name TEXT NOT NULL,          -- name like mysql
     sql TEXT NOT NULL,
+    language TEXT NULL, 
     create_at DATETIME NOT NULL DEFAULT current_timestamp,
     success INTEGER NOT NULL
 );"#,

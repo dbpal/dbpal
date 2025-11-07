@@ -1817,7 +1817,6 @@ impl<'a> CompletionStatement<'a> {
             AlterSchemaOperation::Rename { name } => {
                 if self.in_pos(&name.span()) {
                     self.set_on_def();
-                    return;
                 }
             }
             AlterSchemaOperation::OwnerTo { owner } => {

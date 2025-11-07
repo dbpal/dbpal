@@ -60,7 +60,7 @@ import {
 import { message } from "@tauri-apps/plugin-dialog";
 import { Editor } from "@monaco-editor/react";
 import { listen } from "@tauri-apps/api/event";
-import { createLLM } from "./Common";
+import { createChatAPI } from "./Common";
 
 function AppearanceSetting() {
   const setting = UserSettingAppearance.get();
@@ -573,7 +573,7 @@ function LLMSetting() {
     setLoading(true);
     try {
       const config = makeConfig();
-      const llm = createLLM(config);
+      const llm = createChatAPI(config);
       const resp = await llm.invoke("hello");
       showNotification(
         "success",
@@ -659,7 +659,7 @@ function LLMSetting() {
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>model </Typography>
         <Button variant="outlined" onClick={loadModelCan}>
-          load model candidates
+          load candidates
         </Button>
         <Autocomplete
           style={{ flex: 1, maxWidth: "32rem" }}
