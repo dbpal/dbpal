@@ -48,7 +48,7 @@ class QueryLogHandler {
   async save(sql: string, success: boolean, language?: string): Promise<void> {
     return appDatabase
       .execute(
-        "insert into query_log (uuid,name,sql,language,success) values (?,?,?,?)",
+        "insert into query_log (uuid,name,sql,language,success) values (?,?,?,?,?)",
         [this.uuid, this.name, sql, language, success ? 1 : 0],
       )
       .then(() => {})

@@ -59,7 +59,7 @@ function QueryLog(props: {
   kind: DataSourceKind;
 }) {
   const { uuid, showQueryLog, setShowQueryLog, executeTimes, queryId, kind } = props;
-  const [selectSql, setSelectSql] = useState("");
+  const [selectSql, setSelectSql] = useState<{ sql: string; language: string }>(null);
   const [page, setPage] = useState(0); // datagrid start with 0
   const [pageSize, setPagesize] = useState(SavePageSize.instance.get());
   const [logs, setLogs] = useState([]);
@@ -67,7 +67,7 @@ function QueryLog(props: {
   const [orderBy, setOrderBy] = useState("");
   const [total, setTotal] = useState(0);
   const onRowDoubleClick = useCallback(e => {
-    setSelectSql(e.row.sql);
+    setSelectSql(e.row);
   }, []);
   const handler = useRef(new QueryLogHandler(uuid));
   const paginationModel = useMemo(() => {
@@ -301,7 +301,7 @@ function QueryLog(props: {
           open={!!selectSql}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
-            setSelectSql("");
+            setSelectSql(null);
           })}
         >
           <Box
@@ -313,18 +313,22 @@ function QueryLog(props: {
             <ModalHeader
               title="View SQL"
               handleClose={() => {
-                setSelectSql("");
+                setSelectSql(null);
               }}
             ></ModalHeader>
             <SimpleFlexEditor
-              value={selectSql}
+              value={selectSql.sql}
               handleEditor={e => {
                 SetAutoCompletionName.set(
                   e.getModel().id,
                   new NameAndQueryId(uuid, kind, queryId),
                 );
               }}
-              language={getLanguageFromDataSourceKind(kind)}
+              language={
+                selectSql.language
+                  ? selectSql.language
+                  : getLanguageFromDataSourceKind(kind)
+              }
             ></SimpleFlexEditor>
           </Box>
         </Modal>

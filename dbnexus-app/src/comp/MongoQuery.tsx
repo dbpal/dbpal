@@ -16,13 +16,14 @@ import {
 
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { editor, Position } from "monaco-editor";
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { initMongoQueryGlobals, MongoDBQuery } from "./MongoQueryBackend";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   DataSourceKind,
   ErrAndLoc,
   FavoriteSql,
+  generateRandomString,
   isMacOs,
   isWindows,
   QueryLogHandler,
@@ -62,11 +63,8 @@ class CompilerOutput {
     public compileTime: number,
     public jsCode?: string,
   ) {}
-
-  errMsg(): string {
-    return this.out.stderr ? `${this.out.stdout}\n${this.out.stderr}` : this.out.stdout;
-  }
 }
+
 function dropLastLine(str) {
   return str.split(/\r?\n/).slice(0, -1).join("\n");
 }
@@ -103,11 +101,15 @@ class SaveTsOption {
 }
 
 class TSCompiler {
-  static async compile(value: string, sourceMap: boolean): Promise<CompilerOutput> {
+  static async compile(
+    value: string,
+    compileDir: string,
+    sourceMap: boolean,
+  ): Promise<CompilerOutput> {
     // dir
 
     const data_dir = await tempDir();
-    const rootPath = await join(data_dir, "dbpal-mongo-query-ts-compile");
+    const rootPath = await join(data_dir, "dbpal-mongo-query-ts-compile", compileDir);
     if (!(await exists(rootPath))) {
       await mkdir(rootPath);
     }
@@ -258,12 +260,12 @@ function TypeScript(props: {
   setTS;
   editor: editor.IStandaloneCodeEditor;
   compileTime?: number;
+  compileDir: string;
 }) {
-  const { ts, setTS, editor, compileTime } = props;
+  const { ts, setTS, editor, compileTime, compileDir } = props;
   const [showEditOption, setShowEditOption] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [tscVersion, setTscVersion] = useState("");
-
   useEffect(() => {
     if (ts == TsOrJs.js) {
       return;
@@ -296,12 +298,16 @@ function TypeScript(props: {
               if (!confirm) {
                 return;
               }
-              let result = await TSCompiler.compile(editor.getValue(), false);
+              let result = await TSCompiler.compile(
+                editor.getValue(),
+                compileDir,
+                false,
+              );
               if (result.out.code != 0) {
                 showNotification(
                   "warning",
                   "typescript compile error,can safe change to javascript",
-                  result.errMsg(),
+                  <TsCompilerMsg out={result.out} editor={editor}></TsCompilerMsg>,
                 );
                 return;
               }
@@ -317,7 +323,7 @@ function TypeScript(props: {
         </Tooltip>
       )}
       {ts == TsOrJs.ts && (
-        <Tooltip title="click this button to modify tsconfig.json">
+        <Tooltip title="modify tsconfig.json">
           <Button
             variant="outlined"
             onClick={() => {
@@ -330,7 +336,7 @@ function TypeScript(props: {
       )}
       {ts == TsOrJs.ts && compileTime && (
         <Tooltip title="compile time">
-          <Typography> {compileTime}ms </Typography>
+          <Chip label={`${compileTime}ms`} color="info"></Chip>
         </Tooltip>
       )}
 
@@ -363,6 +369,49 @@ function TypeScript(props: {
 }
 
 let lastLanguage = TsOrJs.js;
+
+function TsCompilerMsg(props: {
+  editor: editor.IStandaloneCodeEditor;
+  out: ChildProcess<string>;
+}) {
+  const { editor, out } = props;
+  const [lines, setLines] = useState<
+    {
+      msg: string;
+      pos: Position;
+    }[]
+  >([]);
+
+  useEffect(() => {
+    let lines = (out.stdout + out.stderr).split("\n");
+    setLines(
+      lines.map(x => {
+        const pos = extractLineAndColumn(x);
+        return { msg: x, pos };
+      }),
+    );
+  }, [out]);
+
+  return (
+    <Stack>
+      {lines.map(line => {
+        return (
+          <Typography
+            color={out.code == 0 ? "success" : "error"}
+            style={{ cursor: line.pos ? "pointer" : undefined }}
+            onClick={() => {
+              editor.setPosition(line.pos);
+              editor.focus();
+            }}
+          >
+            {line.msg}
+          </Typography>
+        );
+      })}{" "}
+    </Stack>
+  );
+}
+
 function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string }) {
   const { uuid, favoriteName: oldFavoriteName, value } = props;
   const [showSetFavoriteName, setShowFavoriteName] = useState(false);
@@ -378,7 +427,7 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
   const [bson, setBson] = useState(null);
   const [ts, setTS] = useState<TsOrJs>(lastLanguage);
   const [compileTime, setCompileTime] = useState<number | null>(null);
-
+  const compileDir = useRef(generateRandomString(5));
   useEffect(() => {
     lastLanguage = ts;
   }, [ts]);
@@ -406,10 +455,14 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
       new QueryLogHandler(uuid).save(code, true, ts);
     }
     if (ts == TsOrJs.ts) {
-      const out = await TSCompiler.compile(code, true);
+      const out = await TSCompiler.compile(code, compileDir.current, true);
       setCompileTime(out.compileTime);
       if (out.out.code != 0) {
-        showNotification("warning", "compile failed", out.errMsg());
+        showNotification(
+          "warning",
+          "compile failed",
+          <TsCompilerMsg out={out.out} editor={editor}></TsCompilerMsg>,
+        );
         return;
       }
       code = out.jsCode;
@@ -447,6 +500,7 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
           setTS={setTS}
           editor={editor}
           compileTime={compileTime}
+          compileDir={compileDir.current}
         ></TypeScript>
         <Tooltip title="execute">
           <IconButton
@@ -651,6 +705,17 @@ function CleanFunctionDoc() {
       </SyntaxHighlighter>
     </Stack>
   );
+}
+
+// main.ts(2,1): error TS2364: The left-hand side of an assignment expression must be a variable or a property access.
+// extract line and column from error message
+function extractLineAndColumn(text: string): Position | undefined {
+  if (!text.startsWith("main.ts")) {
+    return undefined;
+  }
+  const sub = text.substring(text.indexOf("(") + 1, text.indexOf(")"));
+  const arr = sub.split(",");
+  return new Position(parseInt(arr[0]), parseInt(arr[1]));
 }
 
 export { MongoQuery };
