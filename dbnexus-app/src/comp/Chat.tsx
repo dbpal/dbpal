@@ -757,24 +757,29 @@ function ShowPrompt(props: {
         zIndex: 14,
         padding: "0.5rem",
         width: "75%",
+        height: "75%",
         overflow: "auto",
       }}
     >
-      <ModalHeader
-        headerExtra=<>
-          <Button
-            variant="text"
-            onClick={() => {
-              handleCopyToClipboard(prompt, showNotification);
-            }}
-          >
-            copy
-          </Button>
-        </>
-        title="show prompt"
-        handleClose={handleClose}
-      ></ModalHeader>
-      <pre> {prompt} </pre>
+      <Stack height="100%">
+        <ModalHeader
+          headerExtra=<>
+            <Button
+              variant="text"
+              onClick={() => {
+                handleCopyToClipboard(prompt, showNotification);
+              }}
+            >
+              copy
+            </Button>
+          </>
+          title="show prompt"
+          handleClose={handleClose}
+        ></ModalHeader>
+        <div style={{ flex: 1 }}>
+          <pre style={{ height: "100%", overflow: "auto" }}>{prompt}</pre>
+        </div>
+      </Stack>
     </Paper>
   );
 }
