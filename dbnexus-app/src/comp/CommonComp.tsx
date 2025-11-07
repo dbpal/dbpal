@@ -584,7 +584,7 @@ function ModalHeader(props: {
         {headerExtra}
       </Stack>
 
-      <Tooltip title={"close this modal,esc can close this modal too"}>
+      <Tooltip title={"esc can close this too"}>
         <IconButton color="secondary" onClick={handleClose}>
           <CloseIcon> </CloseIcon>
         </IconButton>
