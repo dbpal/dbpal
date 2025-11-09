@@ -13,8 +13,8 @@ import {
   Divider,
   IconButton,
   Paper,
-  Slider,
   Stack,
+  TextField,
   Tooltip,
 } from "@mui/material";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -101,7 +101,7 @@ function Chat(props: {
         width: "100%",
       }}
     >
-      <PanelGroup direction="vertical" autoSaveId="chat">
+      <PanelGroup direction="horizontal" autoSaveId="chat">
         <Panel minSize={10} maxSize={100} collapsible collapsedSize={0}>
           <AllKindQuery
             uuid={uuid}
@@ -114,7 +114,7 @@ function Chat(props: {
           ></AllKindQuery>
         </Panel>
         {llmconfig && (
-          <PanelResizeHandle style={{ height: 4 }} className="resize-handle" />
+          <PanelResizeHandle style={{ width: 4 }} className="resize-handle" />
         )}
         {llmconfig && (
           <Panel collapsible collapsedSize={0} minSize={8}>
@@ -373,11 +373,19 @@ function SqlChatTextInput(props: {
   const [chatHistory, setChatHistory] = useState<string[]>([]);
   const [showChatHistory, setShowChatHistory] = useState(false);
   const chatMemory = useRef(new SimpleArrayMemory());
-  const [chatBufferSize, setChatBufferSize] = useState(SaveChatMemoryK.get());
+  const [chatBufferSize, setChatBufferSize] = useState(SaveChatMemoryK.get() + "");
   const [showEditPromptTemplate, setShowEditPromptTemplate] = useState(false);
   useEffect(() => {
-    SaveChatMemoryK.save(chatBufferSize);
-    chatMemory.current.setK(chatBufferSize);
+    const size = parseInt(chatBufferSize);
+    if (isNaN(size)) {
+      return;
+    }
+    if (size % 2 != 0) {
+      showNotification("warning", "chat buffer size must be even number");
+      return;
+    }
+    SaveChatMemoryK.save(size);
+    chatMemory.current.setK(size);
   }, [chatBufferSize]);
 
   const handleChat = async () => {
@@ -413,18 +421,18 @@ function SqlChatTextInput(props: {
   };
 
   return (
-    <Stack style={{ height: "100%" }} direction="row">
+    <Stack style={{ height: "100%", width: "100%" }}>
       <SimpleFlexEditor
         language="text"
         handleValue={v => {
           setNewQuestion(v);
         }}
-        disableEditorBar
         handleEditor={e => {
           AITextCompletionName.set(e.getModel().id, uuid);
         }}
       ></SimpleFlexEditor>
-      <Stack style={{ width: "fit-content", overflow: "auto", alignItems: "center" }}>
+      <Divider></Divider>
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <IconButton
           onClick={handleChat}
           disabled={newQuestion == prevQuestion}
@@ -467,23 +475,23 @@ function SqlChatTextInput(props: {
             <EditIcon color="secondary"></EditIcon>
           </IconButton>
         </Tooltip>
-        <Tooltip title={`chat history buffer size(${chatBufferSize})`}>
-          <Slider
-            value={chatBufferSize}
-            onChange={(_, v) => {
-              setChatBufferSize(v as number);
-            }}
-            orientation="vertical"
-            min={0}
-            max={20}
-            step={2}
-            style={{
-              flexShrink: 1,
-              minHeight: "3rem",
-              maxHeight: "10rem",
-            }}
-          ></Slider>
-        </Tooltip>
+        <TextField
+          value={chatBufferSize}
+          error={isNaN(parseInt(chatBufferSize))}
+          label="chat history buffer size"
+          onChange={e => {
+            setChatBufferSize(e.target.value);
+          }}
+          style={{ width: "12rem", flexShrink: 1, minWidth: "4rem" }}
+          type="number"
+          slotProps={{
+            htmlInput: {
+              step: 2,
+              min: 0,
+              max: 20,
+            },
+          }}
+        ></TextField>
       </Stack>
 
       {showChatHistory && (
@@ -506,6 +514,7 @@ function SqlChatTextInput(props: {
           kind={kind}
         ></EditPromptTemplate>
       )}
+
       {showPrompt && (
         <ShowPrompt
           chatMemory={chatMemory.current}
