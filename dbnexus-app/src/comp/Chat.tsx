@@ -615,6 +615,7 @@ function EditPromptTemplate(props: {
                         [{ range: editor.getSelection(), text: `{${variable}}` }],
                         null,
                       );
+                    editor.focus();
                   }}
                 ></Chip>
               </Tooltip>
