@@ -1088,6 +1088,9 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
         },
       },
     },
+    MuiAutocomplete: {
+      defaultProps: { size: "small" },
+    },
   };
   return components;
 }

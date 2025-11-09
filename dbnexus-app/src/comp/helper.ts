@@ -326,17 +326,6 @@ enum AppStoreKey {
   LoggerLevel = "logger-level",
 }
 
-class SaveLoggerStreamPinToBotton {
-  key = "dbpal-logger-stream-pin-to-botton";
-  get() {
-    return localStorage.getItem(this.key) == "1";
-  }
-  save(x: boolean) {
-    localStorage.setItem(this.key, x ? "1" : "0");
-  }
-  static instance = new SaveLoggerStreamPinToBotton();
-}
-
 class SaveLeftTopShow {
   key = "dbpal-left-top-show";
   get() {
@@ -1270,7 +1259,6 @@ export {
   dataGridStyle,
   isMacOs,
   LoggerLevel,
-  SaveLoggerStreamPinToBotton,
   ViewKind,
   registeredThemes,
   getLanguageFromDataSourceKind,

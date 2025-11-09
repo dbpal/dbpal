@@ -154,7 +154,7 @@ class MakePrompt {
     `system:You are a {dialect} database expert.
 Your answer must follow ALL of these rules:
 1. Return SQL only.
-2. Do NOT wrap code in \`\`\`markdown.
+2. Don't generate markdown.
 3. Comments must use "--" syntax.
 4. If you break any rule, you will be penalized.
 5. system locale is {locale} 
@@ -173,7 +173,7 @@ human: {question}`,
     `system:You are a Redis expert.
 Your answer must follow ALL of these rules:
 1. Return Command only.
-2. Do NOT wrap code in \`\`\`markdown.
+2. Don't generate markdown.
 3. Comments must use "#" syntax.
 4. If you break any rule, you will be penalized.
 5. system locale is {locale}

@@ -677,8 +677,8 @@ function createChatAPI(config: LLMConfig) {
     configuration: {
       baseURL: config.baseUrl,
       defaultHeaders: {
-        //  "X-Accel-Buffering": "no",
-        // "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+        "Cache-Control": "no-cache",
       },
     },
     topP: config.topP,

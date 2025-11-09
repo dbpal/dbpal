@@ -44,15 +44,13 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
 );
 
 const api = createChatAPI({
-  baseUrl: "https://api.moonshot.cn/v1",
-  apiKey: "sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO",
-  model: "moonshot-v1-8k",
+  baseUrl: "http://localhost:11434/v1",
+  // apiKey: "sk-egR0EUYn0EzVybl7D9JkUFx2ksnD62sZPQ8d0J0yJgPEiAWt",
+  model: "qwen2.5-coder:1.5b",
 } as LLMConfig);
 
 console.time("call stream");
-let s = await api.stream(
-  "Help me write a short essay about the Shawshank Redemption, with a word count of 5,000",
-);
+let s = await api.stream("what is sqlite, with a word count of 5,000");
 console.timeEnd("call stream");
 console.time("read stream");
 let wholeText = "";

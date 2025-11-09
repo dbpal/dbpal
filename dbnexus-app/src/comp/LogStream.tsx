@@ -13,15 +13,23 @@ import { useContext, useEffect, useState } from "react";
 import { editor, Position } from "monaco-editor";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import {
-  editorSetPositionAndReveal,
-  LoggerLevel,
-  SaveLoggerStreamPinToBotton,
-} from "./helper";
+import { editorSetPositionAndReveal, LoggerLevel } from "./helper";
 import { LogLevelSelection } from "./CommonComp";
 import { NotificationContext } from "./Notification";
 import InfoIcon from "@mui/icons-material/Info";
 import { Channel, invoke } from "@tauri-apps/api/core";
+
+class SaveLoggerStreamPinToBotton {
+  key = "dbpal-logger-stream-pin-to-botton";
+  get() {
+    return localStorage.getItem(this.key) == "1";
+  }
+  save(x: boolean) {
+    localStorage.setItem(this.key, x ? "1" : "0");
+  }
+  static instance = new SaveLoggerStreamPinToBotton();
+}
+
 function LogTip({ width }) {
   return (
     <Stack style={{ width }}>
