@@ -41,7 +41,8 @@ import { invoke } from "@tauri-apps/api/core";
 import types from "./ApiStruct";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { HumanMessage, AIMessage, BaseMessage } from "@langchain/core/messages";
-
+import { FaArrowAltCircleRight } from "react-icons/fa";
+import { FaArrowAltCircleDown } from "react-icons/fa";
 class SimpleArrayMemory {
   history: BaseMessage[];
   k: number;
@@ -132,7 +133,13 @@ function Chat(props: {
           ></AllKindQuery>
         </Panel>
         {llmconfig && (
-          <PanelResizeHandle style={{ width: 4 }} className="resize-handle" />
+          <PanelResizeHandle
+            style={{
+              width: chatDirection != "vertical" ? 4 : undefined,
+              height: chatDirection == "vertical" ? 4 : undefined,
+            }}
+            className="resize-handle"
+          />
         )}
         {llmconfig && (
           <Panel collapsible collapsedSize={0} minSize={8}>
@@ -454,7 +461,7 @@ function SqlChatTextInput(props: {
         }}
       ></SimpleFlexEditor>
       <Divider></Divider>
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <Stack direction="row" style={{ alignItems: "flex-end" }}>
         <IconButton
           onClick={handleChat}
           disabled={newQuestion == prevQuestion}
@@ -516,14 +523,17 @@ function SqlChatTextInput(props: {
         ></TextField>
 
         <Tooltip title="chat input location">
-          <Button
-            variant="outlined"
+          <IconButton
             onClick={() => {
               setChatDirection(e => (e == "vertical" ? "horizontal" : "vertical"));
             }}
           >
-            {chatDirection == "vertical" ? "to right" : "to botton"}
-          </Button>
+            {chatDirection == "vertical" ? (
+              <FaArrowAltCircleRight fontSize="1.4rem"> </FaArrowAltCircleRight>
+            ) : (
+              <FaArrowAltCircleDown fontSize="1.4rem"> </FaArrowAltCircleDown>
+            )}
+          </IconButton>
         </Tooltip>
       </Stack>
 
