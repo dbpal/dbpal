@@ -26,7 +26,6 @@ import EventNoteIcon from "@mui/icons-material/EventNote";
 import EditIcon from "@mui/icons-material/Edit";
 import { NotificationContext } from "./Notification";
 import { PromptTemplate } from "@langchain/core/prompts";
-
 import {
   AITextCompletionName,
   createChatAPI,
@@ -94,6 +93,8 @@ function Chat(props: {
   const { uuid, kind, favoriteName, value } = props;
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const llmconfig = useContext(LLMConfigContext);
+  const [chatDirection, setChatDirection] = useState("horizontal");
+
   return (
     <Stack
       style={{
@@ -101,7 +102,7 @@ function Chat(props: {
         width: "100%",
       }}
     >
-      <PanelGroup direction="horizontal" autoSaveId="chat">
+      <PanelGroup direction={chatDirection as "vertical"} autoSaveId="chat">
         <Panel minSize={10} maxSize={100} collapsible collapsedSize={0}>
           <AllKindQuery
             uuid={uuid}
@@ -122,6 +123,8 @@ function Chat(props: {
               uuid={uuid}
               kind={kind}
               editor={editor}
+              setChatDirection={setChatDirection}
+              chatDirection={chatDirection}
             ></SqlChatTextInput>
           </Panel>
         )}
@@ -356,8 +359,10 @@ function SqlChatTextInput(props: {
   uuid: string;
   kind: DataSourceKind;
   editor: editor.IStandaloneCodeEditor;
+  setChatDirection;
+  chatDirection;
 }) {
-  const { uuid, kind, editor } = props;
+  const { uuid, kind, editor, setChatDirection, chatDirection } = props;
   const config = useContext(LLMConfigContext);
   const [chatApi, setChatApi] = useState<ChatOpenAI>(null);
   const [prevQuestion, setPrevQuestion] = useState("");
@@ -492,6 +497,17 @@ function SqlChatTextInput(props: {
             },
           }}
         ></TextField>
+
+        <Tooltip title="chat input location">
+          <Button
+            variant="outlined"
+            onClick={() => {
+              setChatDirection(e => (e == "vertical" ? "horizontal" : "vertical"));
+            }}
+          >
+            {chatDirection == "vertical" ? "to right" : "to botton"}
+          </Button>
+        </Tooltip>
       </Stack>
 
       {showChatHistory && (
@@ -569,7 +585,6 @@ function EditPromptTemplate(props: {
     showNotification("success", "reset template ok");
     handleClose();
   };
-
   const vis = useContext(TabActiveContext);
   useEffect(() => {
     const closeThis = (e: KeyboardEvent) => {
