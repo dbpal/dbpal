@@ -84,6 +84,17 @@ class SimpleArrayMemory {
   }
 }
 
+class SaveChatDirection {
+  static key = "dbpal-chat-direction";
+
+  static get() {
+    return localStorage.getItem(SaveChatDirection.key);
+  }
+  static set(d: string) {
+    localStorage.setItem(SaveChatDirection.key, d);
+  }
+}
+
 function Chat(props: {
   uuid: string;
   kind: DataSourceKind;
@@ -93,7 +104,13 @@ function Chat(props: {
   const { uuid, kind, favoriteName, value } = props;
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const llmconfig = useContext(LLMConfigContext);
-  const [chatDirection, setChatDirection] = useState("horizontal");
+  const [chatDirection, setChatDirection] = useState(
+    SaveChatDirection.get() || "vertical",
+  );
+
+  useEffect(() => {
+    SaveChatDirection.set(chatDirection);
+  }, [chatDirection]);
 
   return (
     <Stack
