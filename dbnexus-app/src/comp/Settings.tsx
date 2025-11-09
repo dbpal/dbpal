@@ -569,12 +569,12 @@ function LLMSetting() {
     showNotification("success", "save llm config ok");
   };
 
-  const handleTest = async () => {
+  const handleHello = async () => {
     setLoading(true);
     try {
       const config = makeConfig();
       const llm = createChatAPI(config);
-      const resp = await llm.invoke("hello");
+      const resp = await llm.invoke("hello!");
       showNotification(
         "success",
         "config setting is ok,llm response:",
@@ -769,12 +769,12 @@ function LLMSetting() {
         <Button onClick={handleSave}>save</Button>
 
         <Button
-          onClick={handleTest}
+          onClick={handleHello}
           loading={loading}
           variant="outlined"
           color="secondary"
         >
-          test
+          hello!
         </Button>
       </Stack>
     </Stack>
