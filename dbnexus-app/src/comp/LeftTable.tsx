@@ -1,20 +1,6 @@
 "use strict";
 import { ReactNode, useContext, useEffect, useRef, useState } from "react";
-import {
-  modalStyle,
-  tabsHasId,
-  EscDownEvent,
-  modalHandleClose,
-  makeExtractTableSelectSort,
-  makeExtractTableSelectWhere,
-  makeShowTableFn,
-  makeTableUpdate,
-  makeTableDelete,
-  makeInvalidCassandraTableCache,
-  makePutValueInSql,
-  showTableColumn,
-  makeTableInsertFn,
-} from "./Common";
+import { modalStyle, tabsHasId, EscDownEvent, modalHandleClose } from "./Common";
 import types from "./ApiStruct";
 import { NotificationContext } from "./Notification";
 import { invoke } from "@tauri-apps/api/core";
@@ -91,6 +77,17 @@ import {
 import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import {
+  makeExtractTableSelectSort,
+  makeExtractTableSelectWhere,
+  makeInvalidCassandraTableCache,
+  makePutValueInSql,
+  makeShowTableFn,
+  makeTableDelete,
+  makeTableInsertFn,
+  makeTableUpdate,
+  showTableColumn,
+} from "./handlers";
 
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;

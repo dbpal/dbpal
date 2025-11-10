@@ -25,6 +25,7 @@ import {
   UuidContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
+import { listProcedure, makeShowProcedureExtraArg, showProcedure } from "./handlers";
 function ProceduresTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -32,7 +33,7 @@ function ProceduresTree() {
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
   const reload = () => {
-    invoke<types.NamedStaff[]>("list_procedure", { name: uuid })
+    listProcedure(uuid)
       .then(ts => {
         setPos(ts);
       })
@@ -97,8 +98,7 @@ function ProceduresTree() {
                         reload={reload}
                         uuid={uuid}
                         kind={kind}
-                        procedure={p.name}
-                        parameters={p.parameters}
+                        procedure={p}
                       ></ProcedureMenu>
                     ),
                     event: e,
@@ -121,18 +121,14 @@ function ProceduresTree() {
 }
 
 function ProcedureMenu(props: {
-  uuid;
-  procedure;
-  parameters?: string;
-  reload;
+  uuid: string;
+  procedure: types.NamedStaff;
+  reload: () => void;
   kind: DataSourceKind;
 }) {
-  const { uuid, procedure, parameters, reload, kind } = props;
+  const { uuid, procedure, reload, kind } = props;
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
-  let arg =
-    kind == DataSourceKind.Cockroach || kind == DataSourceKind.Postgres
-      ? { extra: "postgres", parameters }
-      : null;
+
   const { showNotification } = useContext(NotificationContext);
 
   const handleOpenDetails = () => {
@@ -150,16 +146,12 @@ function ProcedureMenu(props: {
           ...e,
           new TabContent(
             id,
-            procedure,
+            procedure.name,
             (
               <DefAndMetasView
                 showReload
                 reloadOP={async () => {
-                  return await invoke<types.ProcedureDetail>("show_procedure", {
-                    name: uuid,
-                    procedure,
-                    arg,
-                  });
+                  return showProcedure(uuid, procedure, kind);
                 }}
                 kind={kind}
                 uuid={uuid}
@@ -181,7 +173,7 @@ function ProcedureMenu(props: {
     if (!confirm) {
       return;
     }
-
+    let arg = makeShowProcedureExtraArg(procedure, kind);
     invoke("drop_procedure", { name: uuid, procedure, arg })
       .then(() => {
         showNotification("success", "Drop procedure OK");

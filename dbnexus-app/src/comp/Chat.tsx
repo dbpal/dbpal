@@ -26,14 +26,7 @@ import EventNoteIcon from "@mui/icons-material/EventNote";
 import EditIcon from "@mui/icons-material/Edit";
 import { NotificationContext } from "./Notification";
 import { PromptTemplate } from "@langchain/core/prompts";
-import {
-  AITextCompletionName,
-  createChatAPI,
-  editorAppendContent,
-  getLocale,
-  showTableColumn,
-  showViewColumns,
-} from "./Common";
+import { AITextCompletionName, createChatAPI, editorAppendContent } from "./Common";
 import { ModalHeader } from "./CommonComp";
 import { message } from "@tauri-apps/plugin-dialog";
 import { AllKindQuery } from "./Left";
@@ -43,6 +36,22 @@ import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { HumanMessage, AIMessage, BaseMessage } from "@langchain/core/messages";
 import { FaArrowAltCircleRight } from "react-icons/fa";
 import { FaArrowAltCircleDown } from "react-icons/fa";
+import {
+  callUnsupported,
+  getLocale,
+  listCassandraAgg,
+  listCreatedTypes,
+  listEvent,
+  listMaterializedView,
+  listProcedure,
+  listSequence,
+  listUdf,
+  showCassandraAgg,
+  showProcedure,
+  showTableColumn,
+  showUdf,
+  showViewColumns,
+} from "./handlers";
 class SimpleArrayMemory {
   history: BaseMessage[];
   k: number;
@@ -142,7 +151,7 @@ function Chat(props: {
           />
         )}
         {llmconfig && (
-          <Panel collapsible collapsedSize={0} minSize={8}>
+          <Panel collapsible maxSize={45} collapsedSize={0} minSize={8}>
             <SqlChatTextInput
               uuid={uuid}
               kind={kind}
@@ -285,9 +294,9 @@ human:{question}
 
   async sqlDatabaseInformation() {
     let ret = "";
-    let tables = await this.allSqlTables();
+    let elements = await this.allSqlElements();
 
-    for (const table of tables.tables) {
+    for (const table of elements.tables) {
       if (!this.question.includes(table.name)) {
         continue;
       }
@@ -297,59 +306,138 @@ human:{question}
         Primary key: ${cols
           .filter(x => x.is_primary)
           .map(x => (x.is_auto_increment ? `${x.field}(auto increment)` : x.field))
-          .join(",")} 
-
-        `;
+          .join(",")}\n`;
     }
-    for (const view of tables.views) {
+    for (const view of elements.views) {
       if (!this.question.includes(view.name)) {
         continue;
       }
       let cols = await showViewColumns(this.uuid, view.name);
       ret += `${view.name} is view 
-        Columns:${cols.map(x => x.field).join(",")}
-        `;
+        Columns:${cols.map(x => x.field).join(",")}\n`;
     }
-    for (const view of tables.views) {
+    for (const view of elements.materializedViews) {
       if (!this.question.includes(view.name)) {
         continue;
       }
       let cols = await showViewColumns(this.uuid, view.name);
       ret += `${view.name} is materalized view 
-        Columns:${cols.map(x => x.field).join(",")}
-        `;
+        Columns:${cols.map(x => x.field).join(",")}\n`;
     }
 
+    // udf
+    for (const udf of elements.udfs) {
+      if (!this.question.includes(udf.name)) {
+        continue;
+      }
+      ret += `${udf.name} is user define function \n`;
+      const detail = await showUdf(this.uuid, udf, this.kind);
+      ret += `define sql is:\n${detail.def}\n`;
+    }
+    // cassandra agg
+    for (const udf of elements.cassandraAggs) {
+      if (!this.question.includes(udf.name)) {
+        continue;
+      }
+      ret += `${udf.name} is user cassandra aggregate function \n`;
+      const detail = await showCassandraAgg(
+        this.uuid,
+        udf.name,
+        udf.cassandra_parameters,
+      );
+      ret += `define sql is:\n${detail.def}\n`;
+    }
+
+    for (const udf of elements.procedures) {
+      if (!this.question.includes(udf.name)) {
+        continue;
+      }
+      ret += `${udf.name} is procedure \n`;
+      const detail = await showProcedure(this.uuid, udf, this.kind);
+      ret += `define sql is:\n${detail.def}\n`;
+    }
+
+    // types
+    for (const ty of elements.types) {
+      if (!this.question.includes(ty.name)) {
+        continue;
+      }
+      ret += `${ty.name} is user created type \n`;
+      ret += `define sql is:\n${ty.sql}\n`;
+    }
+    // sequence
+    for (const ty of elements.sequences) {
+      if (!this.question.includes(ty.name)) {
+        continue;
+      }
+      ret += `${ty.name} is user created sequence \n`;
+      ret += `define sql is:\n${ty.sql}\n`;
+    }
+    // events
+    for (const event of elements.events) {
+      if (!this.question.includes(event.name)) {
+        continue;
+      }
+      ret += `${event.name} is user created event \n`;
+      ret += `define sql is:\n${event.sql}\n`;
+    }
     return ret;
   }
 
-  async allSqlTables(): Promise<{
+  async allSqlElements(): Promise<{
     tables: types.ListTable[];
     views: types.ListTable[];
     materializedViews: types.ListTable[];
+    udfs: types.NamedStaff[];
+    types: types.CreatedTypeDef[];
+    events: types.SqlEvent[];
+    sequences: types.SequenceDetail[];
+    cassandraAggs: types.NamedStaff[];
+    procedures: types.NamedStaff[];
   }> {
-    let tables = [];
-    try {
-      tables = await invoke<types.ListTable[]>("list_table", { name: this.uuid });
-    } catch (e) {
-      console.log("list table failed,this maybe a error", e);
-    }
+    const tables = await callUnsupported(async () => {
+      return await invoke<types.ListTable[]>("list_table", { name: this.uuid });
+    });
 
-    let views = [];
-    try {
-      views = await invoke<types.ListTable[]>("list_view", { name: this.uuid });
-    } catch (e) {
-      console.log("list view failed,this maybe a error", e);
-    }
-    let materializedViews = [];
-    try {
-      materializedViews = await invoke<types.ListTable[]>("list_materialized_view", {
-        name: this.uuid,
-      });
-    } catch (e) {
-      console.log("list materialized view failed,this maybe a error", e);
-    }
-    return { tables, views, materializedViews };
+    const views = await callUnsupported(async () => {
+      return await invoke<types.ListTable[]>("list_view", { name: this.uuid });
+    });
+    const materializedViews = await callUnsupported(async () => {
+      return listMaterializedView(this.uuid);
+    });
+    const udfs = await callUnsupported(async () => {
+      return await listUdf(this.uuid);
+    });
+
+    const events = await callUnsupported(async () => {
+      return await listEvent(this.uuid);
+    });
+    const sequences = await callUnsupported(async () => {
+      return await listSequence(this.uuid);
+    });
+
+    const procedures = await callUnsupported(async () => {
+      return await listProcedure(this.uuid);
+    });
+
+    const types = await callUnsupported(async () => {
+      return await listCreatedTypes(this.uuid);
+    });
+    const cassandraAggs = await callUnsupported(async () => {
+      return await listCassandraAgg(this.uuid);
+    });
+
+    return {
+      tables,
+      views,
+      materializedViews,
+      udfs,
+      events,
+      sequences,
+      types,
+      procedures,
+      cassandraAggs,
+    };
   }
   async createPrompt(): Promise<string> {
     switch (this.kind) {
@@ -433,8 +521,7 @@ function SqlChatTextInput(props: {
       setChatHistory(e => [...e, newQuestion]);
       let wholeText = "";
       console.time("stream-first-chunk");
-      const stream = await chatApi.stream(prompt, {});
-
+      const stream = await chatApi.stream(prompt);
       console.timeEnd("stream-first-chunk");
       for await (const msg of stream) {
         editorAppendContent(editor, msg.content);
@@ -451,16 +538,6 @@ function SqlChatTextInput(props: {
 
   return (
     <Stack style={{ height: "100%", width: "100%" }}>
-      <SimpleFlexEditor
-        language="text"
-        handleValue={v => {
-          setNewQuestion(v);
-        }}
-        handleEditor={e => {
-          AITextCompletionName.set(e.getModel().id, uuid);
-        }}
-      ></SimpleFlexEditor>
-      <Divider></Divider>
       <Stack direction="row" style={{ alignItems: "flex-end" }}>
         <IconButton
           onClick={handleChat}
@@ -472,10 +549,11 @@ function SqlChatTextInput(props: {
             color={newQuestion == prevQuestion ? "disabled" : "primary"}
           ></ArrowCircleUpIcon>
         </IconButton>
+
         <Tooltip title="history">
           <IconButton
             onClick={() => {
-              setShowChatHistory(true);
+              setShowChatHistory(e => !e);
             }}
             disabled={chatHistory.length == 0}
           >
@@ -488,7 +566,7 @@ function SqlChatTextInput(props: {
           <Button
             disabled={newQuestion.trim() == ""}
             onClick={() => {
-              setShowPrompt(true);
+              setShowPrompt(e => !e);
             }}
             variant="text"
           >
@@ -498,7 +576,7 @@ function SqlChatTextInput(props: {
         <Tooltip title="edit prompt template">
           <IconButton
             onClick={() => {
-              setShowEditPromptTemplate(true);
+              setShowEditPromptTemplate(e => !e);
             }}
           >
             <EditIcon color="secondary"></EditIcon>
@@ -507,7 +585,7 @@ function SqlChatTextInput(props: {
         <TextField
           value={chatBufferSize}
           error={isNaN(parseInt(chatBufferSize))}
-          label="chat history buffer size"
+          label="chat memory window size"
           onChange={e => {
             setChatBufferSize(e.target.value);
           }}
@@ -536,7 +614,16 @@ function SqlChatTextInput(props: {
           </IconButton>
         </Tooltip>
       </Stack>
-
+      <Divider> </Divider>
+      <SimpleFlexEditor
+        language="text"
+        handleValue={v => {
+          setNewQuestion(v);
+        }}
+        handleEditor={e => {
+          AITextCompletionName.set(e.getModel().id, uuid);
+        }}
+      ></SimpleFlexEditor>
       {showChatHistory && (
         <ChatHistory
           history={chatHistory}
@@ -557,7 +644,6 @@ function SqlChatTextInput(props: {
           kind={kind}
         ></EditPromptTemplate>
       )}
-
       {showPrompt && (
         <ShowPrompt
           chatMemory={chatMemory.current}

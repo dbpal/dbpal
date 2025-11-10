@@ -250,7 +250,7 @@ function SqlQuery(props: {
               showNotification("error", "set query response view title failed", e);
             });
             const payload = {};
-            payload[newQueryIDName] = conn.queryId;
+            payload[QuerySeparateWindowMsg.newQueryIDName] = conn.queryId;
             queryRespView.emit(queryRespViewEventName.current, payload).catch(e => {
               showNotification("error", "send new query id failed", e);
             });
@@ -408,9 +408,11 @@ function SqlQuery(props: {
     if (!queryRespView) {
       return;
     }
-    queryRespView.emit(queryRespViewEventName.current, reloadData).catch(e => {
-      showNotification("error", "emit query response failed", e);
-    });
+    queryRespView
+      .emit(queryRespViewEventName.current, QuerySeparateWindowMsg.reloadData)
+      .catch(e => {
+        showNotification("error", "emit query response failed", e);
+      });
   }, [queryRespView, resp]);
 
   const editorOptions = useMemo((): editor.IStandaloneEditorConstructionOptions => {
@@ -487,7 +489,7 @@ function SqlQuery(props: {
       });
       webview.once(queryRespViewEventName.current, e => {
         console.info("query window send me something:", e.payload);
-        if (e.payload == listenOK) {
+        if (e.payload == QuerySeparateWindowMsg.listenOK) {
           setQueryRespView(webview);
         } else {
           console.log("query window send me something wrong:", e.payload);
@@ -543,7 +545,7 @@ function SqlQuery(props: {
                 <Tooltip title="query">
                   <IconButton
                     loading={loading}
-                    disabled={loading || conn == null}
+                    disabled={loading}
                     onClick={() => {
                       handleQuery(false);
                     }}
@@ -556,7 +558,7 @@ function SqlQuery(props: {
                 <Tooltip title="query and append result to results tabs">
                   <IconButton
                     loading={loading}
-                    disabled={loading || conn == null}
+                    disabled={loading}
                     onClick={() => {
                       handleQuery(true);
                     }}
@@ -569,7 +571,7 @@ function SqlQuery(props: {
                 <Tooltip title="execute sql not expecting result">
                   <IconButton
                     loading={loading}
-                    disabled={loading || conn == null}
+                    disabled={loading}
                     onClick={handleExecute}
                     color="primary"
                   >
@@ -580,7 +582,7 @@ function SqlQuery(props: {
                   <Tooltip title="explain sql">
                     <IconButton
                       loading={loading}
-                      disabled={loading || conn == null}
+                      disabled={loading}
                       onClick={() => {
                         handleQuery(false, true);
                       }}
@@ -610,7 +612,7 @@ function SqlQuery(props: {
               <Tooltip title="export query result to a file,implemented it not using query connection,uncommit row may not be found">
                 <IconButton
                   loading={loading}
-                  disabled={loading || conn == null}
+                  disabled={loading}
                   onClick={() => {
                     const value = getEditorText(editor, showNotification);
                     if (!value) {
@@ -750,9 +752,6 @@ function SqlQuery(props: {
             maxSize={100}
             minSize={10}
             draggable
-            onDragEnd={e => {
-              toggleQueryRespView(false, e.screenX, e.screenY);
-            }}
           >
             <div style={{ height: "100%" }}>
               <MultiQueryResp data={resp}></MultiQueryResp>
@@ -831,11 +830,14 @@ function SqlQuery(props: {
   );
 }
 
-const listenOK = "listen_ok";
-const newQueryIDName = "new_query_id";
-const reloadData = "reload_data";
+class QuerySeparateWindowMsg {
+  static listenOK = "listen_ok";
+  static newQueryIDName = "new_query_id";
+  static reloadData = "reload_data";
+}
+
 function makeWindowTitle(uuid, queryid): string {
   return `query result ${uuid}#${queryid}`;
 }
 
-export { SqlQuery, listenOK, newQueryIDName, reloadData };
+export { SqlQuery, QuerySeparateWindowMsg };

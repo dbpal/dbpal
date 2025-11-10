@@ -23,6 +23,7 @@ import {
   UuidContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
+import { listCreatedTypes } from "./handlers";
 function TypesTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -31,7 +32,7 @@ function TypesTree() {
   const setting = useContext(SettingContext);
 
   const reload = () => {
-    invoke<types.CreatedTypeDef[]>("list_created_types", { name: uuid })
+    listCreatedTypes(uuid)
       .then(ts => {
         setTypes(ts);
       })

@@ -34,6 +34,8 @@ import {
 } from "./helper";
 
 import { ExceedMaxTreeItem, MenuRefresh, UdfNameAndParameters } from "./CommonComp";
+import { listCassandraAgg, listUdf, makeUdfExtraArg, showUdf } from "./handlers";
+import { showCassandraAgg } from "./handlers";
 
 function UdfsTree() {
   const { uuid } = useContext(UuidContext);
@@ -49,9 +51,9 @@ function UdfsTree() {
   }, [udfs, matchPattern]);
 
   const reload = () => {
-    invoke<types.NamedStaff[]>("list_udf", { name: uuid })
-      .then(ts => {
-        setUdfs(ts);
+    listUdf(uuid)
+      .then(e => {
+        setUdfs(e);
       })
       .catch(e => {
         showNotification("error", "list udf failed", e);
@@ -128,16 +130,6 @@ function UdfsTree() {
 function UdfMenu(props: { uuid; udf: types.NamedStaff; reload; kind: DataSourceKind }) {
   const { uuid, udf, reload, kind } = props;
   const { setSelectTab, setTabs, tabs } = useContext(TabsSetContext);
-  let arg = null;
-  switch (kind) {
-    case DataSourceKind.Postgres:
-    case DataSourceKind.Cockroach:
-      arg = { extra: "postgres", parameters: udf.parameters };
-      break;
-    case DataSourceKind.Cassandra:
-      arg = { extra: "cassandra", parameters: udf.cassandra_parameters };
-      break;
-  }
   const { showNotification } = useContext(NotificationContext);
   const handleOpenDetails = () => {
     const id = udfIdGenerate(kind, udf, uuid, "udf");
@@ -159,11 +151,7 @@ function UdfMenu(props: { uuid; udf: types.NamedStaff; reload; kind: DataSourceK
               <DefAndMetasView
                 showReload
                 reloadOP={async () => {
-                  return await invoke<types.DefAndMetas>("show_udf", {
-                    name: uuid,
-                    udf: udf.name,
-                    arg,
-                  });
+                  return showUdf(uuid, udf, kind);
                 }}
                 kind={kind}
                 uuid={uuid}
@@ -185,7 +173,7 @@ function UdfMenu(props: { uuid; udf: types.NamedStaff; reload; kind: DataSourceK
     if (!confirm) {
       return;
     }
-    invoke("drop_udf", { name: uuid, udf: udf.name, arg })
+    invoke("drop_udf", { name: uuid, udf: udf.name, arg: makeUdfExtraArg(udf, kind) })
       .then(() => {
         showNotification("success", "Drop udf OK");
         reload();
@@ -253,11 +241,7 @@ function CassandraAggregateMenu(props: {
               <DefAndMetasView
                 showReload
                 reloadOP={async () => {
-                  return await invoke<types.DefAndMetas>("cassandra_show_aggregate", {
-                    name: uuid,
-                    aggName: agg,
-                    parameters,
-                  });
+                  return showCassandraAgg(uuid, agg, parameters);
                 }}
                 uuid={uuid}
                 kind={DataSourceKind.Cassandra}
@@ -332,7 +316,7 @@ function CassandraAggregatesTree() {
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
   const reload = () => {
-    invoke<types.NamedStaff[]>("cassandra_list_aggregate", { name: uuid })
+    listCassandraAgg(uuid)
       .then(ts => {
         setAggs(ts);
       })

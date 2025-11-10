@@ -3,8 +3,12 @@
 
 mod app;
 mod handlers;
-use crate::app::generate_random_string;
-use crate::handlers::log_channel_store;
+use std::backtrace::Backtrace;
+use std::ops::DerefMut;
+use std::panic;
+use std::str::FromStr;
+use std::sync::Arc;
+
 use app::DBPal;
 use handlers::{
     add_table_column, ai_text_completion, all_font_family, auto_completion,
@@ -44,15 +48,12 @@ use handlers::{
     show_table_columns, show_trigger, show_udf, show_view, show_view_columns, table_delete,
     table_insert, table_update, test_connection, truncate_table, valid_json,
 };
-
-use std::backtrace::Backtrace;
-use std::ops::DerefMut;
-use std::panic;
-use std::str::FromStr;
-use std::sync::Arc;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Wry};
 use tauri_plugin_store::{Store, StoreExt};
+
+use crate::app::generate_random_string;
+use crate::handlers::log_channel_store;
 mod migration;
 use rustls::crypto::{CryptoProvider, aws_lc_rs};
 
@@ -107,18 +108,22 @@ fn logger_test() {
 impl AppLogger {
     fn get_level(&self) -> log::Level {
         let x = self.config.get("logger-level");
-        let r = x.and_then(|x| match x {
-            serde_json::Value::String(level) => match log::Level::from_str(&level) {
-                Ok(level) => Some(level),
-                Err(err) => {
-                    println!(
-                        "parse level failed,err:{:?} this is a bug from frontend",
-                        err
-                    );
-                    None
+        let r = x.and_then(|x| {
+            match x {
+                serde_json::Value::String(level) => {
+                    match log::Level::from_str(&level) {
+                        Ok(level) => Some(level),
+                        Err(err) => {
+                            println!(
+                                "parse level failed,err:{:?} this is a bug from frontend",
+                                err
+                            );
+                            None
+                        }
+                    }
                 }
-            },
-            _ => None,
+                _ => None,
+            }
         });
         r.unwrap_or(log::Level::Info)
     }
@@ -128,6 +133,7 @@ impl log::Log for AppLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
         metadata.level() <= self.get_level()
     }
+
     fn log(&self, record: &log::Record) {
         if !self.enabled(record.metadata()) {
             return;
@@ -246,6 +252,7 @@ fn run_app() {
     let log_window_id = generate_random_string(10);
     let setting_window_id = generate_random_string(10);
     tauri::Builder::default()
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(
@@ -262,7 +269,7 @@ fn run_app() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_keyring::init())
-        .plugin(tauri_plugin_cors_fetch::init())
+        .plugin(tauri_plugin_http::init())
         .manage(dbpal)
         .setup(setup)
         .menu(|handle| {

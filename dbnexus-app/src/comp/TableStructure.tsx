@@ -10,13 +10,7 @@ import {
   useState,
 } from "react";
 import types from "./ApiStruct";
-import {
-  DefAndMetas,
-  EscDownEvent,
-  showTableColumn,
-  modalHandleClose,
-  modalStyle,
-} from "./Common";
+import { DefAndMetas, EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import {
   ColumnWidth,
   ContextMenuContext,
@@ -65,6 +59,7 @@ import { MongoValueEditor } from "./MongoDB";
 import { ModalHeader, SelectColumns, TrueOrFalse } from "./CommonComp";
 import ClearIcon from "@mui/icons-material/Clear";
 import { DefAndMetasView, TriggerDetail } from "./UdfAndMetaView";
+import { showTableColumn } from "./handlers";
 function ColumnsStructure(props: {
   uuid: string;
   kind: DataSourceKind;

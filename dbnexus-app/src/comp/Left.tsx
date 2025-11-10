@@ -42,7 +42,6 @@ import {
   ConnectHandler,
   connectionChangeEvent,
   PassWordManager,
-  listSchema,
 } from "./Common";
 import { LuDatabase } from "react-icons/lu";
 import { FaDatabase } from "react-icons/fa";
@@ -120,6 +119,7 @@ import { EventsTree } from "./LeftEvent.tsx";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { AllKindChat } from "./Chat.tsx";
 import { editor } from "monaco-editor";
+import { listSchema } from "./handlers.ts";
 
 const addConnectionID = generateRandomString();
 function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {

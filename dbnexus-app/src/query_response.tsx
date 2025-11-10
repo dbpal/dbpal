@@ -8,7 +8,7 @@ import { MultiQueryResp } from "./comp/QueryResp.tsx";
 import { emit, listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { Typography } from "@mui/material";
-import { listenOK, newQueryIDName, reloadData } from "./comp/SqlQuery.tsx";
+import { QuerySeparateWindowMsg } from "./comp/SqlQuery.tsx";
 
 let { uuid, queryId, eventName } = SomeTempStore.get<DetachQueyRespViewParameter>();
 
@@ -24,23 +24,26 @@ function QueryResponse() {
   };
   useEffect(() => {
     const unlisten = listen<"listen_ok" | object | string>(eventName, e => {
-      if (e.payload == listenOK) {
+      if (e.payload == QuerySeparateWindowMsg.listenOK) {
         // I send this message nothing to do here.
         return;
       }
-      if (e.payload === reloadData) {
+      if (e.payload === QuerySeparateWindowMsg.reloadData) {
         handleReload();
         return;
       }
-      if (typeof e.payload == "object" && e.payload[newQueryIDName]) {
-        queryId = e.payload[newQueryIDName];
+      if (
+        typeof e.payload == "object" &&
+        e.payload[QuerySeparateWindowMsg.newQueryIDName]
+      ) {
+        queryId = e.payload[QuerySeparateWindowMsg.newQueryIDName];
         console.info("send new query id:", queryId);
         return;
       }
       console.error("unhandled event:", e.payload);
     });
     // notify the parent I setup ok.
-    emit(eventName, listenOK);
+    emit(eventName, QuerySeparateWindowMsg.listenOK);
     return () => {
       unlisten.then(e => {
         e();

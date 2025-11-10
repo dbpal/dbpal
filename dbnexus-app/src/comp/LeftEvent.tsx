@@ -23,6 +23,7 @@ import {
   UuidContext,
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
+import { listEvent } from "./handlers";
 function EventsTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -30,7 +31,7 @@ function EventsTree() {
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
   const reload = () => {
-    invoke<types.SqlEvent[]>("list_event", { name: uuid })
+    listEvent(uuid)
       .then(ts => {
         setEvents(ts);
       })

@@ -14,13 +14,12 @@ import {
   backendCompletionItemToEditor,
   DataSourceKind,
   LLMConfig,
-  MuiDataGridData,
   secondConfirm,
 } from "./helper";
 import { GridColDef } from "@mui/x-data-grid";
 import { loader } from "@monaco-editor/react";
 import { ChatOpenAI } from "@langchain/openai";
-
+import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 const modalStyle: SxProps = {
   position: "fixed",
   transform: "translate(50%, 50%)",
@@ -456,108 +455,6 @@ const keyNotInTable = "KWfCwJ62hRf6TKuvMcsQ3eXGtD1tdg2J";
 
 type EscDownEvent = { preventDefault: () => void };
 
-function makeExtractTableSelectWhere(uuid) {
-  return (sql: string) => {
-    return invoke<string | null>("extract_table_select_selection", {
-      name: uuid,
-      sql,
-    });
-  };
-}
-
-function makeExtractTableSelectSort(uuid) {
-  return (sql: string) => {
-    return invoke<string | null>("extract_table_select_sort", {
-      name: uuid,
-      sql,
-    });
-  };
-}
-
-function makeShowTableFn(uuid: string, table: string) {
-  return async (
-    where: string,
-    orderBy: string,
-    page: number,
-    pageSize: number,
-    extra,
-  ) => {
-    const where_null = where ? where : null;
-    const orderBy_null = orderBy ? orderBy : null;
-    return await invoke<MuiDataGridData>("show_table", {
-      name: uuid,
-      tableName: table,
-      whereStr: where_null,
-      orderBy: orderBy_null,
-      page,
-      pageSize,
-      extra,
-    });
-  };
-}
-
-function makeShowViewFn(uuid: string, view: string) {
-  return async (
-    where: string,
-    orderBy: string,
-    page: number,
-    pageSize: number,
-    extra,
-  ) => {
-    const where_null = where ? where : null;
-    const orderBy_null = orderBy ? orderBy : null;
-    return await invoke<MuiDataGridData>("show_view", {
-      name: uuid,
-      viewName: view,
-      whereStr: where_null,
-      orderBy: orderBy_null,
-      page,
-      pageSize,
-      extra,
-    });
-  };
-}
-
-function makeTableUpdate(uuid, table) {
-  return async (wheres, values) => {
-    return await invoke<types.SqlExecuteRet>("table_update", {
-      name: uuid,
-      tableName: table,
-      values,
-      wheres,
-    });
-  };
-}
-
-function makeTableDelete(uuid, table) {
-  return async wheres => {
-    return await invoke<types.SqlExecuteRet>("table_delete", {
-      name: uuid,
-      tableName: table,
-      wheres,
-    });
-  };
-}
-
-function makeInvalidCassandraTableCache(uuid, table) {
-  return async () => {
-    return invoke<void>("cassandra_invalid_table_or_view_caching", {
-      name: uuid,
-      tableName: table,
-    });
-  };
-}
-
-function makePutValueInSql(uuid) {
-  return async (typ, value) => {
-    return invoke<string>("put_value_in_sql", {
-      name: uuid,
-      typ,
-      value: value ? value : null,
-    });
-  };
-}
-
 class NameAndQueryId {
   constructor(
     public name: string,
@@ -585,23 +482,6 @@ class AITextCompletionName {
   static get(editorId: string): string | null {
     return AITextCompletionName.id2Name.get(editorId);
   }
-}
-
-function showTableColumn(uuid: string, table: string) {
-  return invoke<types.Field[]>("show_table_columns", {
-    name: uuid,
-    tableName: table,
-  });
-}
-
-function makeTableInsertFn(uuid: string, table: string) {
-  return async values => {
-    return invoke<void>("table_insert", {
-      name: uuid,
-      tableName: table,
-      values,
-    });
-  };
 }
 
 type FieldAndGridField = types.Field & GridColDef;
@@ -680,27 +560,13 @@ function createChatAPI(config: LLMConfig) {
         "X-Accel-Buffering": "no",
         "Cache-Control": "no-cache",
       },
+      fetch: tauriFetch,
     },
     topP: config.topP,
     maxTokens: config.maxToken,
     streaming: true,
   });
   return llm;
-}
-
-async function showViewColumns(uuid: string, view: string) {
-  return invoke<types.Field[]>("show_view_columns", {
-    name: uuid,
-    viewName: view,
-  });
-}
-
-async function listSchema(name: string) {
-  return invoke<string[]>("list_schema", { name });
-}
-
-async function getLocale(): Promise<string> {
-  return await invoke("get_locale", {});
 }
 
 export {
@@ -719,25 +585,12 @@ export {
   modalHandleClose,
   SetAutoCompletionName,
   NameAndQueryId,
-  makeExtractTableSelectWhere,
-  makeExtractTableSelectSort,
-  makeFormatFn,
-  makeShowTableFn,
-  makeShowViewFn,
-  makeTableUpdate,
-  makeTableDelete,
-  makeInvalidCassandraTableCache,
-  makePutValueInSql,
-  showTableColumn,
-  makeTableInsertFn,
   PassWordManager,
   connectionChangeEvent,
   makeQueryConn,
   editorAppendContent,
   AITextCompletionName,
-  showViewColumns,
-  listSchema,
-  getLocale,
+  makeFormatFn,
 };
 
 export type {

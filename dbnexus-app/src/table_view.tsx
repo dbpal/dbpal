@@ -8,6 +8,10 @@ import {
   SomeTempStore,
 } from "./comp/helper.ts";
 import { SqlTableView } from "./comp/SqlTableView.tsx";
+
+import { SeparateWindow } from "./comp/MainPage.tsx";
+import { MongoTable } from "./comp/MongoDB.tsx";
+import { makeRedisViewTable } from "./comp/LeftTable.tsx";
 import {
   makeExtractTableSelectSort,
   makeExtractTableSelectWhere,
@@ -18,10 +22,7 @@ import {
   makeTableDelete,
   makeTableInsertFn,
   makeTableUpdate,
-} from "./comp/Common.ts";
-import { SeparateWindow } from "./comp/MainPage.tsx";
-import { MongoTable } from "./comp/MongoDB.tsx";
-import { makeRedisViewTable } from "./comp/LeftTable.tsx";
+} from "./comp/handlers.ts";
 
 const { uuid, kind, table, redisTableType, isTable } =
   SomeTempStore.get<NewWindowTableParameter>();

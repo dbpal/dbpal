@@ -12,14 +12,8 @@ import {
   modalStyle,
   EscDownEvent,
   modalHandleClose,
-  makeExtractTableSelectSort,
-  makeExtractTableSelectWhere,
-  makeShowViewFn,
-  makeInvalidCassandraTableCache,
-  makePutValueInSql,
   SetAutoCompletionName,
   NameAndQueryId,
-  showViewColumns,
 } from "./Common";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { NotificationContext } from "./Notification";
@@ -76,6 +70,14 @@ import { MongoTable } from "./MongoDB";
 import { DataGrid, GridColDef, GridSlotsComponentsProps } from "@mui/x-data-grid";
 import { SimpleFlexEditor } from "./CommonComp2";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import {
+  makeExtractTableSelectSort,
+  makeExtractTableSelectWhere,
+  makeInvalidCassandraTableCache,
+  makePutValueInSql,
+  makeShowViewFn,
+  showViewColumns,
+} from "./handlers";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);

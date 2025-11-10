@@ -41,6 +41,7 @@ import {
 } from "./helper";
 
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
+import { listSequence } from "./handlers";
 function SequenceTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -50,7 +51,7 @@ function SequenceTree() {
   const setting = useContext(SettingContext);
 
   const reload = () => {
-    invoke<types.SequenceDetail[]>("list_sequence", { name: uuid })
+    listSequence(uuid)
       .then(ts => {
         setSeq(ts);
       })

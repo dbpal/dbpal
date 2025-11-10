@@ -42,6 +42,10 @@
       "identifier": "fs:scope",
       "allow": ["**/*", "$APPDATA/*"]
     },
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://**" }]
+    },
     "opener:default",
     "os:default",
     "process:default",
@@ -58,7 +62,6 @@
     "core:webview:deny-clear-all-browsing-data",
     "shell:default",
     "shell:allow-execute",
-    "cors-fetch:default",
     {
       "identifier": "shell:allow-execute",
       "allow": [
@@ -73,6 +76,7 @@
           "args": true
         }
       ]
-    }
+    },
+    "http:default"
   ]
 }
