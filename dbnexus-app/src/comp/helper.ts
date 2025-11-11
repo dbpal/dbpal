@@ -400,6 +400,7 @@ class FavoriteSql {
     public name: string,
     public kind: DataSourceKind,
     public sql: string,
+    public language?: string,
     public last_modified: Date = new Date(),
     public id?: number,
     public connection_name?: string,
@@ -409,8 +410,8 @@ class FavoriteSql {
   static async save(x: FavoriteSql, showNotification) {
     try {
       await appDatabase.execute(
-        "replace into favorite_sql(uuid,connection_name,name,kind,sql,last_modified) values(?,?,?,?,?,?)",
-        [x.uuid, x.connection_name, x.name, x.kind, x.sql, x.last_modified],
+        "replace into favorite_sql(uuid,connection_name,name,kind,sql,language,last_modified) values(?,?,?,?,?,?,?)",
+        [x.uuid, x.connection_name, x.name, x.kind, x.sql, x.language, x.last_modified],
       );
       showNotification("success", "save favorite sql Ok");
     } catch (e) {
@@ -1109,8 +1110,8 @@ const dataGridStyle = {
   flexBasis: "0",
 } as CSSProperties;
 enum ViewKind {
-  Normal,
-  Materialized,
+  View,
+  MaterializedView,
 }
 
 const registeredThemes = [];
@@ -1197,6 +1198,10 @@ class LLMConfig {
     return ret;
   }
 }
+enum MongoLanguage {
+  js = "javascript",
+  ts = "typescript",
+}
 
 export {
   TabsSetContext,
@@ -1277,6 +1282,7 @@ export {
   isWindows,
   LLMConfig,
   LLMConfigContext,
+  MongoLanguage,
 };
 
 export type { ErrAndLoc, NewWindowTableParameter, DetachQueyRespViewParameter };

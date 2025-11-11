@@ -39,7 +39,7 @@ import {
   dropSchema,
   EscDownEvent,
   modalHandleClose,
-  ConnectHandler,
+  ConnectionHandler,
   connectionChangeEvent,
   PassWordManager,
 } from "./Common";
@@ -470,7 +470,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
 
   const handleReload = async () => {
     try {
-      const conns = await ConnectHandler.getAll();
+      const conns = await ConnectionHandler.getAll();
       setConns(conns);
     } catch (e) {
       showNotification("error", "get connections failed", e);
@@ -529,7 +529,7 @@ function Left_() {
   }, [matchPattern]);
 
   const handleReload = async () => {
-    ConnectHandler.getAll()
+    ConnectionHandler.getAll()
       .then(e => {
         if (!e) {
           e = [];
@@ -693,11 +693,12 @@ function FavoriteSqlList(props: { handleClose }) {
       }
       setTabs(tabs => {
         const content = (
-          <AllKindQuery
+          <AllKindChat
             kind={row.kind}
             uuid={row.uuid}
             value={row.sql}
             favoriteName={row.name}
+            language={row.language}
           />
         );
         handleClose();
@@ -1032,38 +1033,38 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
       {opened && kind == DataSourceKind.Sqlite && (
         <>
           <TablesTree typ={TableType.Normal} />
-          <ViewsTree viewKind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
       {opened && kind == DataSourceKind.DuckDB && (
         <>
           <TablesTree typ={TableType.Normal} />
-          <ViewsTree viewKind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
       {opened && kind == DataSourceKind.FireBird && (
         <>
           <TablesTree typ={TableType.Normal} />
-          <ViewsTree viewKind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
       {opened && kind == DataSourceKind.LibSql && (
         <>
           <TablesTree typ={TableType.Normal} />
-          <ViewsTree viewKind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
       {opened && kind == DataSourceKind.Cassandra && (
         <>
           <TablesTree typ={TableType.Normal} />
-          <ViewsTree viewKind={ViewKind.Materialized}></ViewsTree>
+          <ViewsTree viewKind={ViewKind.MaterializedView}></ViewsTree>
         </>
       )}
       {opened && kind == DataSourceKind.Mongo && (
         <>
           <TablesTree typ={TableType.Normal} />
           <TablesTree typ={TableType.MongoTimeSerial} />
-          <ViewsTree viewKind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
       {opened &&
@@ -1072,41 +1073,41 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
           kind == DataSourceKind.TiDB) && (
           <>
             <TablesTree typ={TableType.Normal} />
-            <ViewsTree viewKind={ViewKind.Normal} />
+            <ViewsTree viewKind={ViewKind.View} />
           </>
         )}
       {opened && kind == DataSourceKind.ClickHouse && (
         <>
           <TablesTree typ={TableType.Normal} />
-          <ViewsTree viewKind={ViewKind.Normal} />
-          <ViewsTree viewKind={ViewKind.Materialized} />
+          <ViewsTree viewKind={ViewKind.View} />
+          <ViewsTree viewKind={ViewKind.MaterializedView} />
         </>
       )}
       {opened && kind == DataSourceKind.Postgres && (
         <>
           <TablesTree typ={TableType.Normal} />
-          <ViewsTree viewKind={ViewKind.Normal} />
-          <ViewsTree viewKind={ViewKind.Materialized} />
+          <ViewsTree viewKind={ViewKind.View} />
+          <ViewsTree viewKind={ViewKind.MaterializedView} />
         </>
       )}
       {opened && kind == DataSourceKind.Cockroach && (
         <>
           <TablesTree typ={TableType.Normal} />
-          <ViewsTree viewKind={ViewKind.Normal} />
-          <ViewsTree viewKind={ViewKind.Materialized} />
+          <ViewsTree viewKind={ViewKind.View} />
+          <ViewsTree viewKind={ViewKind.MaterializedView} />
         </>
       )}
       {opened && kind == DataSourceKind.Oracle && (
         <>
           <TablesTree typ={TableType.Normal} />
-          <ViewsTree viewKind={ViewKind.Normal} />
-          <ViewsTree viewKind={ViewKind.Materialized} />
+          <ViewsTree viewKind={ViewKind.View} />
+          <ViewsTree viewKind={ViewKind.MaterializedView} />
         </>
       )}
       {opened && kind == DataSourceKind.SqlServer && (
         <>
           <TablesTree typ={TableType.Normal} />
-          <ViewsTree viewKind={ViewKind.Normal} />
+          <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
       {opened && (
@@ -1328,9 +1329,10 @@ function AllKindQuery(props: {
   uuid: string;
   value?: string;
   favoriteName?: string;
-  handleEditor?: (x: editor.IStandaloneCodeEditor) => void;
+  handleEditor: (x: editor.IStandaloneCodeEditor) => void;
+  language?: string;
 }) {
-  const { kind, uuid, value, favoriteName, handleEditor } = props;
+  const { kind, uuid, value, favoriteName, handleEditor, language } = props;
   let content: ReactNode;
 
   switch (kind) {
@@ -1370,7 +1372,13 @@ function AllKindQuery(props: {
 
     case DataSourceKind.Mongo:
       content = (
-        <MongoQuery uuid={uuid} value={value} favoriteName={favoriteName}></MongoQuery>
+        <MongoQuery
+          language={language}
+          handleEditor={handleEditor}
+          uuid={uuid}
+          value={value}
+          favoriteName={favoriteName}
+        ></MongoQuery>
       );
       break;
     default:

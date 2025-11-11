@@ -195,6 +195,7 @@ mod zoom {
         }
     }
 }
+
 #[allow(dead_code)]
 fn panic_test() {
     #[cfg(debug_assertions)]
@@ -205,6 +206,7 @@ fn panic_test() {
 }
 
 // api key sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO
+// https://api.moonshot.cn/v1
 
 fn run_app() {
     let dbpal = DBPal::new();

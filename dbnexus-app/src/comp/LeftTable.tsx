@@ -78,6 +78,7 @@ import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import {
+  listTable,
   makeExtractTableSelectSort,
   makeExtractTableSelectWhere,
   makeInvalidCassandraTableCache,
@@ -103,16 +104,7 @@ function TablesTree(props: { typ: TableType }) {
   }, [tables, matchPattern]);
   const handleReload = () => {
     setLoading(true);
-    let invokeName: string;
-    switch (typ) {
-      case TableType.Normal:
-        invokeName = "list_table";
-        break;
-      case TableType.MongoTimeSerial:
-        invokeName = "mongo_list_time_serial_collection";
-        break;
-    }
-    invoke<types.ListTable[]>(invokeName, { name: uuid })
+    listTable(uuid, typ)
       .then(ts => {
         setTables(ts);
       })

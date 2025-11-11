@@ -8,6 +8,7 @@ import {
   IconButton,
   Link,
   Modal,
+  Paper,
   Stack,
   TextField,
   Tooltip,
@@ -22,10 +23,10 @@ import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   DataSourceKind,
   ErrAndLoc,
-  FavoriteSql,
   generateRandomString,
   isMacOs,
   isWindows,
+  MongoLanguage,
   QueryLogHandler,
   SaveQueryLogConfigure,
   secondConfirm,
@@ -35,10 +36,12 @@ import {
 import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import { NotificationContext } from "./Notification";
 import { ModalHeader } from "./CommonComp";
-import { FaBookmark } from "react-icons/fa";
+import { RiDeleteBack2Line } from "react-icons/ri";
 import {
+  AppMarkDown,
   EditorBar,
   LoadStoreFile,
+  SaveFavoriteSqlView,
   SimpleFlexEditor,
   syntaxHightLightTheme,
 } from "./CommonComp2";
@@ -49,13 +52,8 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { tempDir, join } from "@tauri-apps/api/path";
 import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { ChildProcess, Command } from "@tauri-apps/plugin-shell";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 initMongoQueryGlobals();
-
-enum TsOrJs {
-  js = "javascript",
-  ts = "typescript",
-}
 
 class CompilerOutput {
   constructor(
@@ -70,7 +68,7 @@ function dropLastLine(str) {
 }
 
 class SaveTsOption {
-  static key = "dbpal-ts-options";
+  static key = "dbpal-ts-compiler-option";
 
   static getStr() {
     try {
@@ -79,61 +77,62 @@ class SaveTsOption {
         return op;
       }
     } catch (e) {}
-    return `
-{
-    "compilerOptions": {
+    return `{
         "target": "esnext",
         "lib": [
             "esnext",
             "dom"
         ]
-    }
-}
-    `;
+}`;
   }
-  static get() {
-    const ts = SaveTsOption.getStr();
-    return JSON.parse(ts);
+  static get(): object {
+    return JSON.parse(SaveTsOption.getStr());
   }
   static set(x: object) {
-    localStorage.setItem(SaveTsOption.key, JSON.stringify(x, null));
+    localStorage.setItem(SaveTsOption.key, JSON.stringify(x, null, 2));
   }
 }
 
 class TSCompiler {
-  static async compile(
-    value: string,
-    compileDir: string,
-    sourceMap: boolean,
-  ): Promise<CompilerOutput> {
-    // dir
-
+  constructor(public compileDir: string) {}
+  async getRootDir(): Promise<string> {
     const data_dir = await tempDir();
-    const rootPath = await join(data_dir, "dbpal-mongo-query-ts-compile", compileDir);
+    const rootPath = await join(
+      data_dir,
+      "dbpal-mongo-query-ts-compile",
+      this.compileDir,
+    );
     if (!(await exists(rootPath))) {
-      await mkdir(rootPath);
+      await mkdir(rootPath, { recursive: true });
     }
+    return rootPath;
+  }
+
+  async compile(value: string, sourceMap: boolean): Promise<CompilerOutput> {
+    // dir
+    const rootPath = await this.getRootDir();
+
     console.info("root path is:", rootPath);
     // write main.ts
     const mainTsFilePath = await join(rootPath, "main.ts");
-    await writeTextFile(mainTsFilePath, value, { create: true, append: false });
-
-    // write config file
-    const optionFilePath = await join(rootPath, "tsconfig.json");
-    let op = JSON.parse(SaveTsOption.getStr());
-    // make sure compilerOptions.outDir
-    let compilerOptions = "compilerOptions";
-    if (!(compilerOptions in op)) {
-      op[compilerOptions] = {};
-    }
-
-    op[compilerOptions]["outDir"] = "./dist";
-    op[compilerOptions]["sourceMap"] = sourceMap;
-    op[compilerOptions]["typeRoots"] = ["./types"];
-    await writeTextFile(optionFilePath, JSON.stringify(op, null, 2), {
+    await writeTextFile(mainTsFilePath, value, {
       create: true,
       append: false,
     });
+
+    // write config file
+    const optionFilePath = await join(rootPath, "tsconfig.json");
+    let compilerOP = SaveTsOption.get();
+    // make sure compilerOptions.outDir
+
+    compilerOP["outDir"] = "./dist";
+    compilerOP["sourceMap"] = sourceMap;
+    compilerOP["typeRoots"] = ["./types"];
+    await writeTextFile(
+      optionFilePath,
+      JSON.stringify({ compilerOptions: compilerOP }, null, 2),
+      { create: true, append: false },
+    );
     let typesPath = await join(rootPath, "types");
 
     if (!(await exists(typesPath))) {
@@ -184,14 +183,10 @@ class TSCompiler {
   }
 }
 
-function TsOption(props: { handleClose: () => void }) {
+function TsEditCompilerOptions(props: { handleClose: () => void }) {
   const { handleClose } = props;
-
   const [jsonErr, setJsonErr] = useState<ErrAndLoc | null>(null);
-  const setting = useContext(SettingContext);
-  const [value, setValue] = useState(
-    JSON.stringify(SaveTsOption.get(), null, setting.editor.tabSize),
-  );
+  const [value, setValue] = useState(SaveTsOption.getStr());
   const { showNotification } = useContext(NotificationContext);
   const [jsonErrPos, setJsonErrPos] = useState<Position>(null);
   useEffect(() => {
@@ -245,7 +240,7 @@ function TsOption(props: { handleClose: () => void }) {
           underline="hover"
           onClick={e => {
             e.preventDefault();
-            openUrl("https://www.typescriptlang.org/tsconfig/");
+            openUrl("https://www.typescriptlang.org/tsconfig/#compilerOptions");
           }}
         >
           options
@@ -255,22 +250,52 @@ function TsOption(props: { handleClose: () => void }) {
   );
 }
 
+function CompilerNotice(props: { compileDir: string; width: string }) {
+  const { compileDir, width } = props;
+
+  const [rootPath, setRootPath] = useState("");
+  useEffect(() => {
+    new TSCompiler(compileDir).getRootDir().then(path => {
+      setRootPath(path);
+    });
+  }, [compileDir]);
+
+  return (
+    <Stack style={{ width, padding: "0.5rem" }}>
+      <AppMarkDown
+        handlePathUrl={p => {
+          openPath(p);
+        }}
+      >
+        {`### typescript compile notice 
+  
+1. we use global installed typescript compiler.
+2. we copy the code to the [temp dir](${rootPath}).
+3. set up tsconfig.json.
+4. call command 'tsc'.
+5. retriver the compiled code from filesystem.
+
+          `}
+      </AppMarkDown>
+    </Stack>
+  );
+}
+
 function TypeScript(props: {
-  ts: string;
-  setTS;
+  language: string;
+  setLanguage;
   editor: editor.IStandaloneCodeEditor;
   compileTime?: number;
   compileDir: string;
 }) {
-  const { ts, setTS, editor, compileTime, compileDir } = props;
+  const { language, setLanguage, editor, compileTime, compileDir } = props;
   const [showEditOption, setShowEditOption] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [tscVersion, setTscVersion] = useState("");
   useEffect(() => {
-    if (ts == TsOrJs.js) {
+    if (language == MongoLanguage.js) {
       return;
     }
-
     TSCompiler.getTscVersion()
       .then(v => {
         setTscVersion(v);
@@ -278,18 +303,19 @@ function TypeScript(props: {
       .catch(e => {
         showNotification("error", "is typescript  global installed?", e);
       });
-  }, [ts]);
+  }, [language]);
+
   return (
     <>
       <Autocomplete
-        options={[TsOrJs.js, TsOrJs.ts]}
-        value={ts}
+        options={[MongoLanguage.js, MongoLanguage.ts]}
+        value={language}
         style={{ width: "12rem" }}
         renderInput={params => <TextField {...params} label={"language"} />}
         freeSolo={false}
         onChange={(_, name) => {
           (async () => {
-            if (name == TsOrJs.js) {
+            if (name == MongoLanguage.js) {
               const confirm = await secondConfirm({
                 title: "Warning",
                 content: "Switching to javascript may lose some type definitions",
@@ -298,9 +324,8 @@ function TypeScript(props: {
               if (!confirm) {
                 return;
               }
-              let result = await TSCompiler.compile(
+              let result = await new TSCompiler(compileDir).compile(
                 editor.getValue(),
-                compileDir,
                 false,
               );
               if (result.out.code != 0) {
@@ -313,33 +338,45 @@ function TypeScript(props: {
               }
               editor.setValue(result.jsCode);
             }
-            setTS(name);
+            setLanguage(name);
           })();
         }}
       />
-      {ts == TsOrJs.ts && tscVersion && (
+
+      {language == MongoLanguage.ts && tscVersion && (
         <Tooltip title="typescript version">
           <Chip color="success" label={tscVersion}></Chip>
         </Tooltip>
       )}
-      {ts == TsOrJs.ts && (
-        <Tooltip title="modify tsconfig.json">
+      {language == MongoLanguage.ts && (
+        <Tooltip title="edit compiler option">
           <Button
             variant="outlined"
             onClick={() => {
               setShowEditOption(true);
             }}
           >
-            tsconfig?
+            option
           </Button>
         </Tooltip>
       )}
-      {ts == TsOrJs.ts && compileTime && (
+      {language == MongoLanguage.ts && compileTime && (
         <Tooltip title="compile time">
           <Chip label={`${compileTime}ms`} color="info"></Chip>
         </Tooltip>
       )}
-
+      {language == MongoLanguage.ts && (
+        <Tooltip
+          slotProps={{
+            tooltip: {
+              style: { maxWidth: "40vw" },
+            },
+          }}
+          title=<CompilerNotice width="40vw" compileDir={compileDir}></CompilerNotice>
+        >
+          <Typography> compile </Typography>
+        </Tooltip>
+      )}
       {showEditOption && (
         <Modal
           open={showEditOption}
@@ -350,17 +387,17 @@ function TypeScript(props: {
         >
           <Box sx={modalStyle} width="75%" height="65vh">
             <ModalHeader
-              title="edit tsconfig.json"
+              title="edit compiler option"
               handleClose={() => {
                 setShowEditOption(false);
               }}
               noTextTransform
             ></ModalHeader>
-            <TsOption
+            <TsEditCompilerOptions
               handleClose={() => {
                 setShowEditOption(false);
               }}
-            ></TsOption>
+            ></TsEditCompilerOptions>
           </Box>
         </Modal>
       )}
@@ -368,7 +405,7 @@ function TypeScript(props: {
   );
 }
 
-let lastLanguage = TsOrJs.js;
+let lastLanguage = MongoLanguage.js;
 
 function TsCompilerMsg(props: {
   editor: editor.IStandaloneCodeEditor;
@@ -391,7 +428,6 @@ function TsCompilerMsg(props: {
       }),
     );
   }, [out]);
-
   return (
     <Stack>
       {lines.map(line => {
@@ -412,32 +448,75 @@ function TsCompilerMsg(props: {
   );
 }
 
-function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string }) {
-  const { uuid, favoriteName: oldFavoriteName, value } = props;
-  const [showSetFavoriteName, setShowFavoriteName] = useState(false);
-  const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
+interface CleanFunction {
+  name: string;
+  fn: () => void;
+}
+
+function CallCleanFunctions(props: {
+  cleanFunctions: CleanFunction[];
+  setCleanFunction;
+  width: string;
+}) {
+  const { cleanFunctions, setCleanFunction, width } = props;
+  const handleCall = (index: number) => {
+    cleanFunctions[index].fn();
+    setCleanFunction(cleanFunctions.filter((_x, i) => index != i));
+  };
+
+  return (
+    <Paper style={{ width }}>
+      <Stack>
+        {cleanFunctions.map((x, index) => (
+          <Button
+            variant="outlined"
+            onClick={() => {
+              handleCall(index);
+            }}
+          >
+            {x.name}
+          </Button>
+        ))}
+      </Stack>
+    </Paper>
+  );
+}
+function MongoQuery(props: {
+  uuid: string;
+  favoriteName?: string;
+  value?: string;
+  language?: string;
+  handleEditor: (x: editor.IStandaloneCodeEditor) => void;
+}) {
+  const { uuid, value, handleEditor, language: valueLanguage, favoriteName } = props;
   const [showQueryLog, setShowQueryLog] = useState(false);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position>(null);
   const [executeTimes, setExecuteTimes] = useState(0);
   const setting = useContext(SettingContext);
   const [db] = useState(new MongoDBQuery(uuid));
-  const [cleanFns] = useState([]);
+  const [cleanFns, setCleanFns] = useState<CleanFunction[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [bson, setBson] = useState(null);
-  const [ts, setTS] = useState<TsOrJs>(lastLanguage);
+  const [language, setLanguage] = useState<MongoLanguage>(
+    valueLanguage ? (valueLanguage as MongoLanguage) : lastLanguage,
+  );
   const [compileTime, setCompileTime] = useState<number | null>(null);
   const compileDir = useRef(generateRandomString(5));
   useEffect(() => {
-    lastLanguage = ts;
-  }, [ts]);
+    lastLanguage = language;
+  }, [language]);
 
+  const setUpClean = (name: string, fn: () => void) => {
+    setCleanFns(e => [...e, { name, fn }]);
+  };
   const jsCodeMount = (ed: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
     setEditor(ed);
     ed.focus();
     ed.onDidChangeCursorPosition(() => {
       setPos(ed.getPosition());
     });
+    handleEditor(ed);
   };
   useEffect(() => {
     import("bson").then(e => {
@@ -452,10 +531,15 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
       return;
     }
     if (SaveQueryLogConfigure.get()) {
-      new QueryLogHandler(uuid).save(code, true, ts);
+      new QueryLogHandler(uuid).save(code, true, language);
     }
-    if (ts == TsOrJs.ts) {
-      const out = await TSCompiler.compile(code, compileDir.current, true);
+    if (language == MongoLanguage.ts) {
+      let out: CompilerOutput;
+      try {
+        out = await new TSCompiler(compileDir.current).compile(code, true);
+      } catch (e) {
+        console.error("compile failed", e);
+      }
       setCompileTime(out.compileTime);
       if (out.out.code != 0) {
         showNotification(
@@ -494,10 +578,13 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
         kind={DataSourceKind.Mongo}
         executeTimes={executeTimes}
       ></QueryLog>
-      <Stack direction="row" sx={{ alignItems: "center" }}>
+      <Stack
+        direction="row"
+        sx={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}
+      >
         <TypeScript
-          ts={ts}
-          setTS={setTS}
+          language={language}
+          setLanguage={setLanguage}
           editor={editor}
           compileTime={compileTime}
           compileDir={compileDir.current}
@@ -512,34 +599,13 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
             <PlayArrowIcon />
           </IconButton>
         </Tooltip>
-        <Tooltip
-          title={
-            !favoriteName
-              ? "save sql to favorite."
-              : `save favorite sql as named '${favoriteName}'`
-          }
-        >
-          <IconButton
-            onClick={() => {
-              const value = editor.getValue();
-              if (!value) {
-                showNotification("warning", "can't save empty statement.");
-                return;
-              }
-              if (favoriteName) {
-                FavoriteSql.save(
-                  new FavoriteSql(uuid, favoriteName, DataSourceKind.Mongo, value),
-                  showNotification,
-                );
-              } else {
-                setShowFavoriteName(true);
-              }
-            }}
-            color="primary"
-          >
-            <FaBookmark style={{ fontSize: "1.3rem" }} />
-          </IconButton>
-        </Tooltip>
+        <SaveFavoriteSqlView
+          language={language}
+          kind={DataSourceKind.Mongo}
+          editor={editor}
+          uuid={uuid}
+          favoriteName={favoriteName}
+        ></SaveFavoriteSqlView>
         <LoadStoreFile
           getQuery={() => {
             return editor.getValue();
@@ -547,7 +613,7 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
           kind={DataSourceKind.Mongo}
           handleLoadFile={(path, text) => {
             if (path.endsWith(".ts")) {
-              setTS(TsOrJs.ts);
+              setLanguage(MongoLanguage.ts);
             }
             editor.setValue(text);
           }}
@@ -565,26 +631,20 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
         </Tooltip>
 
         {cleanFns.length > 0 && (
-          <Button
-            onClick={() => {
-              let has_err = false;
-              for (const callback of cleanFns) {
-                try {
-                  callback();
-                } catch (e) {
-                  has_err = true;
-                  showNotification("error", "clean error", e);
-                }
-              }
-              cleanFns.length = 0; // clean function
-              if (!has_err) {
-                showNotification("success", "call those function finished");
-              }
+          <Tooltip
+            title=<CallCleanFunctions
+              cleanFunctions={cleanFns}
+              setCleanFunction={setCleanFns}
+              width="45vw"
+            ></CallCleanFunctions>
+            slotProps={{
+              tooltip: {
+                style: { maxWidth: "45vw" },
+              },
             }}
-            variant="outlined"
           >
-            clear resource
-          </Button>
+            <RiDeleteBack2Line fontSize="1.6rem"></RiDeleteBack2Line>
+          </Tooltip>
         )}
 
         <Tooltip
@@ -602,9 +662,9 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
             <Typography color="info ">
               we are still using `console` to debug.
             </Typography>
-            <Typography variant="h6">
+            <Typography>
               open dev tools:
-              {isMacOs() ? "Command +Option + i" : "Ctrl + Shift + i"}
+              {isMacOs() ? "Command+Option+i" : "Ctrl+Shift+i"}
             </Typography>
           </Stack>
           slotProps={{
@@ -626,84 +686,33 @@ function MongoQuery(props: { uuid: string; favoriteName?: string; value?: string
           width="99%"
           height="99%"
           onMount={jsCodeMount}
-          language={ts}
+          language={language}
           options={options}
           value={value}
           theme={setting.editorTheme()}
         ></Editor>
         <EditorBar pos={pos}></EditorBar>
       </div>
-      {showSetFavoriteName && (
-        <Modal
-          open={showSetFavoriteName}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowFavoriteName(false);
-          })}
-        >
-          <Box sx={modalStyle} width="45vw">
-            <ModalHeader
-              title="Set Favorite Name"
-              handleClose={() => {
-                setShowFavoriteName(false);
-              }}
-            ></ModalHeader>
-            <Stack>
-              <TextField
-                fullWidth
-                label="name"
-                value={favoriteName}
-                onChange={e => {
-                  setFavoriteName(e.target.value);
-                }}
-                required
-              ></TextField>
-              <Stack direction="row">
-                <IconButton
-                  color="primary"
-                  onClick={() => {
-                    if (!favoriteName) {
-                      showNotification("warning", "name can't be empty");
-                      return;
-                    }
-                    FavoriteSql.save(
-                      new FavoriteSql(
-                        uuid,
-                        favoriteName,
-                        DataSourceKind.Mongo,
-                        editor.getValue(),
-                      ),
-                      showNotification,
-                    );
-                    setShowFavoriteName(false);
-                  }}
-                >
-                  <FaBookmark> </FaBookmark>
-                </IconButton>
-              </Stack>
-            </Stack>
-          </Box>
-        </Modal>
-      )}
       {/* // we must use db etc ...  */}
       {db && <span></span>}
       {cleanFns && <span></span>}
       {bson && <span></span>}
+      {setUpClean && <span></span>}
     </Stack>
   );
 }
 
 function CleanFunctionDoc() {
   return (
-    <Stack>
+    <Paper style={{ maxWidth: 900, overflow: "auto" }}>
       <SyntaxHighlighter
         style={syntaxHightLightTheme()} // Apply the chosen theme
         language={"javascript"}
         PreTag="div"
       >
         {intervalCleanTest}
-      </SyntaxHighlighter>
-    </Stack>
+      </SyntaxHighlighter>{" "}
+    </Paper>
   );
 }
 

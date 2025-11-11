@@ -19,9 +19,6 @@ use crate::db::{
     GetBackendKind, Index, IndexKind, ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
     ServerMetas, ShowTableExtraArgs, SqlExecuteRet, not_support_feature,
 };
-use crate::language_server::{
-    CompletionItem, CompletionKind, CompletionList, GetKeyWords, LanguageServer,
-};
 use crate::meta_value::MetaValue;
 #[derive(Clone)]
 pub struct MongoDB {
@@ -81,55 +78,6 @@ impl GetBackendKind for MongoDB {
     }
 }
 
-#[async_trait::async_trait]
-impl GetKeyWords for MongoDB {
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        not_support_feature(self.backend_name())
-    }
-}
-
-#[async_trait::async_trait]
-impl LanguageServer for MongoDB {
-    async fn ai_text_completion(
-        &self, text: &str, _line: u32, _col: u32,
-    ) -> anyhow::Result<CompletionList> {
-        let db = self.get_db().await?;
-        let cols = db.list_collection_names().await?;
-        let mut ret = cols
-            .iter()
-            .map(|x| CompletionItem {
-                item: x.to_string().into(),
-                kind: CompletionKind::Table,
-                desc: None,
-            })
-            .collect::<Vec<_>>();
-        let text = text.to_lowercase();
-        for col in cols.iter() {
-            if text.contains(col.to_lowercase().as_str()) {
-                let columns = self.show_table_columns(col).await?;
-                ret.extend(columns.into_iter().map(CompletionItem::from));
-            }
-        }
-        anyhow::Ok(CompletionList::from(ret))
-    }
-
-    fn extract_table_select_selection(&self, _sql: &str) -> anyhow::Result<Option<String>> {
-        not_support_feature(self.backend_name())
-    }
-    fn extract_table_select_sort(&self, _sql: &str) -> anyhow::Result<Option<String>> {
-        not_support_feature(self.backend_name())
-    }
-
-    async fn auto_completion(
-        &self, _query_id: Option<u32>, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
-    ) -> anyhow::Result<crate::language_server::CompletionList> {
-        not_support_feature(self.backend_name())
-    }
-
-    fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
-        not_support_feature(self.backend_name())
-    }
-}
 impl ReadOnlyTrait for MongoDB {
     fn read_only(&self) -> bool {
         self.read_only
@@ -143,6 +91,7 @@ impl ExportQueryResult for MongoDB {
     ) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
+
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
@@ -857,11 +806,13 @@ impl QuerySql for MongoDB {
     ) -> anyhow::Result<Result<QueryResp, String>> {
         not_support_feature(self.backend_name())
     }
+
     async fn execute_sql_no_open_conn(
         &self, _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         not_support_feature(self.backend_name())
     }
+
     async fn open_connection(&self) -> anyhow::Result<u32> {
         not_support_feature(self.backend_name())
     }
@@ -906,14 +857,14 @@ pub(crate) fn make_test_object() -> MongoDB {
 #[cfg(test)]
 mod tests {
 
-    use bson::oid::ObjectId;
-    use bson::spec::BinarySubtype;
-    use bson::{Binary, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid, doc};
-    use mongodb::bson;
     use std::str::FromStr;
     use std::time::SystemTime;
     use std::vec;
 
+    use bson::oid::ObjectId;
+    use bson::spec::BinarySubtype;
+    use bson::{Binary, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid, doc};
+    use mongodb::bson;
     use mongodb::options::TimeseriesOptions;
 
     use super::make_test_object;

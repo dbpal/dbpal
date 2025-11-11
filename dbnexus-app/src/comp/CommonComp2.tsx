@@ -13,14 +13,17 @@ import Stack from "@mui/material/Stack";
 import InfoIcon from "@mui/icons-material/Info";
 import CloseIcon from "@mui/icons-material/Close";
 import SaveIcon from "@mui/icons-material/Save";
+import { FaBookmark } from "react-icons/fa";
 import {
   Autocomplete,
+  Box,
   Button,
   FormControlLabel,
   IconButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
+  Modal,
   Radio,
   RadioGroup,
   TextField,
@@ -31,6 +34,7 @@ import AttachFileIcon from "@mui/icons-material/AttachFile";
 import {
   DataSourceKind,
   editorSetPositionAndReveal,
+  FavoriteSql,
   generateRandomString,
   isDarkTheme,
   isMacOs,
@@ -43,11 +47,18 @@ import {
 import { Editor, Monaco } from "@monaco-editor/react";
 import { editor, Position } from "monaco-editor";
 import { invoke } from "@tauri-apps/api/core";
-import { ConnectHandler, extractBaseName, reloadOK } from "./Common";
+import {
+  ConnectionHandler,
+  EscDownEvent,
+  extractBaseName,
+  modalHandleClose,
+  modalStyle,
+  reloadOK,
+} from "./Common";
 import types from "./ApiStruct";
-import { MetaValueView } from "./CommonComp";
+import { MetaValueView, ModalHeader } from "./CommonComp";
 import { readFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { save, open, DialogFilter } from "@tauri-apps/plugin-dialog";
+import { save, open, DialogFilter, message } from "@tauri-apps/plugin-dialog";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import ReactMarkdown from "react-markdown";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -394,7 +405,7 @@ function ConnConfigInfo(props: { uuid }) {
       const metas = await invoke<types.MetaValue[]>("server_metas", {
         name: uuid,
       });
-      const config = await ConnectHandler.getByName(uuid);
+      const config = await ConnectionHandler.getByName(uuid);
       let configMetas = [];
       switch (config.conn_type) {
         case DataSourceKind.Mysql:
@@ -636,8 +647,12 @@ const MarkdownBody = styled("div")(({ theme }) => ({
   },
 }));
 
-function AppMarkDown(props: { doc: string; handlePathUrl: (href: string) => void }) {
-  const { doc, handlePathUrl } = props;
+function AppMarkDown(props: {
+  children: string;
+  handlePathUrl?: (href: string) => void;
+  placeHolder?: string;
+}) {
+  const { children, handlePathUrl, placeHolder } = props;
   const CustomLink = (props: { href: string; children: ReactNode }) => {
     const { href, children } = props;
     const { showNotification } = useContext(NotificationContext);
@@ -654,10 +669,18 @@ function AppMarkDown(props: { doc: string; handlePathUrl: (href: string) => void
             showNotification("error", "open url failed", e);
           });
       } else {
-        handlePathUrl(href);
+        if (handlePathUrl) {
+          handlePathUrl(href);
+        } else {
+          message(
+            `sorry about this markdown implementation is limited,can't goto this path '${href}'.`,
+            {
+              kind: "error",
+            },
+          );
+        }
       }
     };
-
     return (
       <a href={href} title={href} onClick={handleClick}>
         {children}
@@ -687,8 +710,9 @@ function AppMarkDown(props: { doc: string; handlePathUrl: (href: string) => void
           },
           a: CustomLink,
         }}
-        children={doc}
-      ></ReactMarkdown>
+      >
+        {children ? children : placeHolder}
+      </ReactMarkdown>
     </MarkdownBody>
   );
 }
@@ -713,6 +737,91 @@ function UrlDocument(props: { url: string }) {
   );
 }
 
+function SaveFavoriteSqlView(props: {
+  favoriteName?: string;
+  editor: editor.IStandaloneCodeEditor;
+  uuid: string;
+  language?: string;
+  kind: DataSourceKind;
+}) {
+  const { favoriteName: oldName, editor, uuid, language, kind } = props;
+  const [favoriteName, setFavoriteName] = useState(oldName);
+  const [showSetFavoriteName, setShowFavoriteName] = useState(false);
+  const { showNotification } = useContext(NotificationContext);
+  return (
+    <>
+      <Tooltip
+        title={`save favorite sql ${favoriteName && `as named '${favoriteName}'`}`}
+      >
+        <IconButton
+          onClick={async () => {
+            const sql = editor.getValue();
+            if (!sql) {
+              showNotification("warning", "can't save empty statement.");
+              return;
+            }
+            if (favoriteName) {
+              await FavoriteSql.save(
+                new FavoriteSql(uuid, favoriteName, kind, sql, language),
+                showNotification,
+              );
+            } else {
+              setShowFavoriteName(true);
+            }
+          }}
+          color="primary"
+        >
+          <FaBookmark style={{ fontSize: "1.2rem" }} />
+        </IconButton>
+      </Tooltip>
+
+      {showSetFavoriteName && (
+        <Modal
+          open={showSetFavoriteName}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowFavoriteName(false);
+          })}
+        >
+          <Box sx={modalStyle} width="40%">
+            <ModalHeader
+              title="edit favorite sql name"
+              handleClose={() => {
+                setShowFavoriteName(false);
+              }}
+            ></ModalHeader>
+            <Stack>
+              <TextField
+                fullWidth
+                label="name"
+                value={favoriteName}
+                onChange={e => {
+                  setFavoriteName(e.target.value);
+                }}
+                required
+              ></TextField>
+              <Stack direction="row">
+                <IconButton
+                  color="primary"
+                  onClick={() => {
+                    if (!favoriteName) {
+                      showNotification("warning", "name can't be empty");
+                      return;
+                    }
+                    setShowFavoriteName(false);
+                  }}
+                >
+                  <FaBookmark> </FaBookmark>
+                </IconButton>
+              </Stack>
+            </Stack>
+          </Box>
+        </Modal>
+      )}
+    </>
+  );
+}
+
 export {
   CreateDatabase,
   CreateSchema,
@@ -724,4 +833,5 @@ export {
   AppMarkDown,
   UrlDocument,
   syntaxHightLightTheme,
+  SaveFavoriteSqlView,
 };

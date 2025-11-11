@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import types from "./ApiStruct";
-import { DataSourceKind, MuiDataGridData } from "./helper";
+import { DataSourceKind, MuiDataGridData, TableType, ViewKind } from "./helper";
 
 function makeExtractTableSelectWhere(uuid: string) {
   return (sql: string) => {
@@ -191,7 +191,7 @@ function listSequence(uuid: string) {
   return invoke<types.SequenceDetail[]>("list_sequence", { name: uuid });
 }
 
-async function callUnsupported<T>(x: () => Promise<T>, defaultValue = []) {
+async function callErrorable<T>(x: () => Promise<T>, defaultValue: any = []) {
   try {
     return await x();
   } catch (e) {
@@ -207,8 +207,7 @@ function listMaterializedView(uuid: string) {
 }
 
 function makeShowProcedureExtraArg(udf: types.NamedStaff, kind: DataSourceKind) {
-  return;
-  kind == DataSourceKind.Cockroach || kind == DataSourceKind.Postgres
+  return kind == DataSourceKind.Cockroach || kind == DataSourceKind.Postgres
     ? { extra: "postgres", parameters: udf.parameters }
     : null;
 }
@@ -220,6 +219,77 @@ function showProcedure(uuid: string, udf: types.NamedStaff, kind: DataSourceKind
     procedure: udf.name,
     arg,
   });
+}
+
+function showIndexes(uuid: string, table: string) {
+  return invoke<types.Index[]>("show_indexes", {
+    name: uuid,
+    tableName: table,
+  });
+}
+
+function showTrigger(uuid: string, table: string) {
+  return invoke<types.TriggerDetail[]>("show_trigger", {
+    name: uuid,
+    tableName: table,
+  });
+}
+
+function createTableAndIndexSql(uuid: string, table: string) {
+  return invoke<types.CreateTableAndIndexSql>("create_table_and_index_sql", {
+    name: uuid,
+    tableName: table,
+  });
+}
+
+function createViewSql(uuid: string, view: string, viewKind: ViewKind) {
+  return invoke<string>("create_view_sql", {
+    name: uuid,
+    viewName: view,
+    materialized: viewKind == ViewKind.MaterializedView,
+  });
+}
+function formatCreateTableAndIndexSql(sql: types.CreateTableAndIndexSql) {
+  function newLine(ret: string): string {
+    if (!ret.endsWith(";")) {
+      ret += ";\n";
+    }
+    if (!ret.endsWith("\n")) {
+      ret += "\n";
+    }
+    return ret;
+  }
+
+  let ret = newLine(sql.create_table);
+  const indexes = sql.indexes.map(x => newLine(x));
+  ret += indexes.join("");
+  return ret;
+}
+
+function listTable(uuid: string, typ: TableType) {
+  let invokeName: string;
+  switch (typ) {
+    case TableType.Normal:
+      invokeName = "list_table";
+      break;
+    case TableType.MongoTimeSerial:
+      invokeName = "mongo_list_time_serial_collection";
+      break;
+  }
+  return invoke<types.ListTable[]>(invokeName, { name: uuid });
+}
+
+function listView(uuid: string, viewKind: ViewKind) {
+  let invokeName = "";
+  switch (viewKind) {
+    case ViewKind.View:
+      invokeName = "list_view";
+      break;
+    case ViewKind.MaterializedView:
+      invokeName = "list_materialized_view";
+      break;
+  }
+  return invoke<types.ListTable[]>(invokeName, { name: uuid });
 }
 
 export {
@@ -244,9 +314,16 @@ export {
   listProcedure,
   listEvent,
   listSequence,
-  callUnsupported,
+  callErrorable,
   listMaterializedView,
   makeUdfExtraArg,
   makeShowProcedureExtraArg,
   showProcedure,
+  showIndexes,
+  showTrigger,
+  createTableAndIndexSql,
+  createViewSql,
+  formatCreateTableAndIndexSql,
+  listTable,
+  listView,
 };

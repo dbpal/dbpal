@@ -8,7 +8,6 @@ import { DataSourceKind, shrinkAble } from "./helper.ts";
 import { Chip, Tooltip } from "@mui/material";
 import { invoke } from "@tauri-apps/api/core";
 import { AppMarkDown } from "./CommonComp2.tsx";
-import { message } from "@tauri-apps/plugin-dialog";
 
 class SaveShowDoc {
   key = "dbpal-redis-show-doc";
@@ -132,13 +131,8 @@ function RedisQuery(props: {
             }}
           >
             <AppMarkDown
-              handlePathUrl={href => {
-                message(
-                  `can't goto '${href}',we are sorry about this document implementation for redis is limited.`,
-                  { kind: "error", okLabel: "dismiss" },
-                );
-              }}
-              doc={doc}
+              children={doc}
+              placeHolder="when typing markdown document will show atomically"
             />
           </div>
         </Panel>

@@ -1,5 +1,12 @@
 "use strict";
-import { createContext, RefObject, useContext, useRef, useState } from "react";
+import {
+  createContext,
+  RefObject,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import ClearIcon from "@mui/icons-material/Clear";
 import {
   TextField,
@@ -27,7 +34,7 @@ import { types } from "./ApiStruct";
 import { message, open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import {
-  ConnectHandler,
+  ConnectionHandler,
   connectionChangeEvent,
   extractBaseName,
   PassWordManager,
@@ -125,8 +132,8 @@ function SelectPath(props: { path; setPath; label: string; required: boolean }) 
 }
 
 function UserAndPassword(props: {
-  user;
-  password;
+  user: string;
+  password: string;
   setUser;
   setPassword;
   savePassword;
@@ -813,7 +820,7 @@ function TestConnAndSave(props: { connectionNameDom }) {
     if (password) {
       config["password"] = "";
     }
-    ConnectHandler.save(config)
+    ConnectionHandler.save(config)
       .then(_ => {
         showNotification("success", "add connection OK");
         emit(connectionChangeEvent, "");
@@ -1187,6 +1194,10 @@ function AddConnection(props: {
   );
   const connectionNameDom = useRef<HTMLInputElement>(null);
   const [readOnly, setReadOnly] = useState(config?.read_only);
+  const [cnameDuplicated, setCnameDuplicated] = useState(false);
+  useEffect(() => {
+    ConnectionHandler.nameDuplicated(connectionName).then(setCnameDuplicated);
+  }, [connectionName]);
   return (
     <Stack>
       <FormControl fullWidth>
@@ -1221,6 +1232,8 @@ function AddConnection(props: {
           inputRef={connectionNameDom}
           required
           onChange={e => setConnectionName(e.target.value)}
+          error={cnameDuplicated}
+          helperText={cnameDuplicated ? "Connection name duplicated" : ""}
           slotProps={{
             input: {
               endAdornment: connectionName && (
@@ -1281,12 +1294,7 @@ function AddConnection(props: {
           connTimeOut: connTimeout ? parseInt(connTimeout) : null,
         }}
       >
-        <Stack
-        // style={{
-        //   ...tabCss,
-        //   border: '2px solid  ' + theme.palette.success.main,
-        // }}
-        >
+        <Stack>
           <Typography variant="h6"> server info </Typography>
           <Divider></Divider>
           {(connectionType === DataSourceKind.Mysql ||

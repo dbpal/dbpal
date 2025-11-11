@@ -46,7 +46,7 @@ class Connection {
   config: string;
 }
 
-class ConnectHandler {
+class ConnectionHandler {
   static async getByName(name: string): Promise<types.DBConnectionConfig> {
     try {
       let x = await appDatabase.select<Connection[]>(
@@ -79,6 +79,12 @@ class ConnectHandler {
       config.name,
       JSON.stringify(config),
     ]);
+  }
+
+  static nameDuplicated(name: string): Promise<boolean> {
+    return appDatabase
+      .select("select count(*) as count from connection where name=?", [name])
+      .then(x => x[0].count != 0);
   }
 }
 
@@ -185,7 +191,6 @@ const aiTextAutoCompletion = async (
       // try if this is ai text completion
       const name = AITextCompletionName.get(modal.id);
       if (name) {
-        console.time("ai text completion");
         const completionItem = await invoke<types.CompletionList>(
           "ai_text_completion",
           {
@@ -195,8 +200,6 @@ const aiTextAutoCompletion = async (
             name,
           },
         );
-        console.timeEnd("ai text completion");
-        console.log("!!!!!!!!!!!!!!!", completionItem);
         const suggestions = backendCompletionItemToEditor(completionItem.items);
         suggestions.incomplete = completionItem.incomplete;
         return suggestions;
@@ -574,7 +577,7 @@ export {
   modalStyle,
   tabsHasId,
   OpenedContext,
-  ConnectHandler,
+  ConnectionHandler,
   dropDatabase,
   dropSchema,
   reloadOK,

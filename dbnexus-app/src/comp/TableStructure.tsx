@@ -59,7 +59,13 @@ import { MongoValueEditor } from "./MongoDB";
 import { ModalHeader, SelectColumns, TrueOrFalse } from "./CommonComp";
 import ClearIcon from "@mui/icons-material/Clear";
 import { DefAndMetasView, TriggerDetail } from "./UdfAndMetaView";
-import { showTableColumn } from "./handlers";
+import {
+  createTableAndIndexSql,
+  formatCreateTableAndIndexSql,
+  showIndexes,
+  showTableColumn,
+  showTrigger,
+} from "./handlers";
 function ColumnsStructure(props: {
   uuid: string;
   kind: DataSourceKind;
@@ -449,10 +455,7 @@ function IndexesStructure(props: {
 
   const handleReload = () => {
     setLoading(true);
-    invoke<types.Index[]>("show_indexes", {
-      name: uuid,
-      tableName: table,
-    })
+    showIndexes(uuid, table)
       .then(indexes => {
         setIndexes(indexes);
       })
@@ -1367,10 +1370,7 @@ function TriggersStructure(props: {
 
   const handleReload = () => {
     setLoading(true);
-    invoke<types.TriggerDetail[]>("show_trigger", {
-      name: uuid,
-      tableName: table,
-    })
+    showTrigger(uuid, table)
       .then(ts => {
         setTriggers(ts);
       })
@@ -1648,33 +1648,14 @@ function StatementStructure(props: {
   table: string;
 }) {
   const { uuid, kind, table } = props;
-  const getValue = (sql: types.CreateTableAndIndexSql) => {
-    function newLine(ret: string): string {
-      if (!ret.endsWith(";")) {
-        ret += ";\n";
-      }
-      if (!ret.endsWith("\n")) {
-        ret += "\n";
-      }
-      return ret;
-    }
-
-    let ret = newLine(sql.create_table);
-    const indexes = sql.indexes.map(x => newLine(x));
-    ret += indexes.join("");
-    return ret;
-  };
 
   return (
     <Stack style={{ height: "100%" }}>
       <DefAndMetasView
         reloadOP={async () => {
-          return invoke<types.CreateTableAndIndexSql>("create_table_and_index_sql", {
-            name: uuid,
-            tableName: table,
-          }).then(e => {
+          return createTableAndIndexSql(uuid, table).then(e => {
             return {
-              def: getValue(e),
+              def: formatCreateTableAndIndexSql(e),
               metas: [],
             } as DefAndMetas;
           });

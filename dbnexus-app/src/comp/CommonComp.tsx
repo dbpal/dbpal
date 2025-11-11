@@ -75,7 +75,7 @@ import {
 
 import { TbDatabasePlus } from "react-icons/tb";
 import LinkIcon from "@mui/icons-material/Link";
-import { ConnectHandler, connectionChangeEvent, PassWordManager } from "./Common";
+import { ConnectionHandler, connectionChangeEvent, PassWordManager } from "./Common";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { editor, Position } from "monaco-editor";
 import { FaAlignLeft } from "react-icons/fa";
@@ -305,7 +305,7 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
 
   const handleOpenXXX = async () => {
     // try promote use to enter a password.
-    const config = await ConnectHandler.getByName(name);
+    const config = await ConnectionHandler.getByName(name);
     if (!config) {
       return;
     }
@@ -389,7 +389,7 @@ function MenuDeleteConfig({ name }) {
       await invoke("close_conn", { name });
       await FavoriteSql.deleteByConnectionName(name);
       await QueryLogHandler.deleteByConnectionName(name);
-      await ConnectHandler.deleteConn(name);
+      await ConnectionHandler.deleteConn(name);
       await PassWordManager.deletePassword(name);
       emit(connectionChangeEvent, "");
     } catch (e) {

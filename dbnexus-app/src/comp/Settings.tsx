@@ -3,6 +3,7 @@ import { CSSProperties, ReactNode, useContext, useEffect, useState } from "react
 
 import {
   Autocomplete,
+  Box,
   Button,
   Chip,
   Components,
@@ -46,6 +47,8 @@ import {
   appTheme,
   appStore,
   LLMConfig,
+  LLMConfigContext,
+  shrinkAble,
 } from "./helper";
 import { Position } from "monaco-editor";
 import { invoke } from "@tauri-apps/api/core";
@@ -60,7 +63,8 @@ import {
 import { message } from "@tauri-apps/plugin-dialog";
 import { Editor } from "@monaco-editor/react";
 import { listen } from "@tauri-apps/api/event";
-import { createChatAPI } from "./Common";
+import { createChatAPI, EscDownEvent, modalHandleClose, modalStyle } from "./Common";
+import { ModalHeader } from "./CommonComp";
 
 function AppearanceSetting() {
   const setting = UserSettingAppearance.get();
@@ -193,26 +197,28 @@ function AppearanceSetting() {
           }}
         ></TextField>
       </Stack>
-      <Stack direction="row" sx={{ alignItems: "center" }}>
+      <Stack direction="row" sx={{ alignItems: "flex-end" }}>
         <Typography width={headerSize} style={{ fontFamily }}>
           font
         </Typography>
         <Autocomplete
           options={allFonts}
-          style={{ flex: 1 }}
+          style={{ width: "18rem" }}
           value={fontFamily}
           renderInput={params => <TextField {...params} label="font family" />}
-          renderOption={(props, option) => (
-            <li {...props} style={{ fontFamily: option }}>
-              <span style={{ width: "22rem" }}>{option} </span>
-              SELECT * FROM employees WHERE gender = 'M' LIMIT 100
-            </li>
-          )}
           freeSolo={false}
           onChange={(_, f) => {
             setFontFamily(f);
           }}
+          renderOption={(props, option) => (
+            <li {...props} style={{ fontFamily: option }}>
+              {option}
+            </li>
+          )}
         />
+        <Typography color="info" fontFamily={fontFamily}>
+          SELECT * FROM employees WHERE gender = 'M' LIMIT 100
+        </Typography>
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>table row height factor </Typography>
@@ -502,7 +508,7 @@ function ExportSetting() {
 
 interface ModelDef {
   id: string;
-  context_length: number;
+  context_length?: number;
   created: number;
 }
 
@@ -514,12 +520,17 @@ async function listLLMModels(baseURl: string, apiKey: string): Promise<ModelDef[
     // 404、401 等会进这里
     throw new Error(`HTTP ${res.status}`);
   }
+  let resp = await res.json();
+  if (import.meta.env.DEV) {
+    console.log("models response:", resp);
+  }
   // data.object === "list"
   // data.data 是一个数组，每个元素有 id, object, owned_by, context_length 等字段
-  return (await res.json()).data as ModelDef[];
+  return resp.data as ModelDef[];
 }
 
-function LLMSetting() {
+function LLMSetting(props: { handleClose?: () => void }) {
+  const { handleClose } = props;
   const [baseUrl, setBaseUrl] = useState("");
   const [temperature, setTemperature] = useState("0");
   const [model, setModel] = useState("");
@@ -558,10 +569,13 @@ function LLMSetting() {
     Object.setPrototypeOf(config, LLMConfig.prototype);
     return config;
   };
-  const handleSave = () => {
+  const handleSave = async () => {
     try {
       const config = makeConfig();
-      config.save();
+      await config.save();
+      if (handleClose) {
+        handleClose();
+      }
     } catch (e) {
       showNotification("error", "save llm config  failed", e);
       return;
@@ -689,11 +703,13 @@ function LLMSetting() {
                 }}
               >
                 <span> {def.id} </span>
-                <Stack direction="row" divider=<Divider />>
-                  <Tooltip title="context legnth">
-                    <span> {def.context_length / 1024}k</span>
-                  </Tooltip>
-                </Stack>
+                {def.context_length && (
+                  <Stack direction="row" divider=<Divider />>
+                    <Tooltip title="context legnth">
+                      <span> {def.context_length / 1024}k</span>
+                    </Tooltip>
+                  </Stack>
+                )}
               </Stack>
             </li>
           )}
@@ -1172,4 +1188,50 @@ function SettingComp(props: { children: ReactNode }) {
   );
 }
 
-export { ModifySetting, SettingComp };
+function ModifyLLMConfigModal() {
+  const [showEdit, setShowEdit] = useState(false);
+  const config = useContext(LLMConfigContext);
+  return (
+    <>
+      {!config && (
+        <Tooltip title="enable ai powered chat,need set up LLM server.">
+          <Button
+            onClick={() => {
+              setShowEdit(true);
+            }}
+            style={shrinkAble}
+            variant="outlined"
+          >
+            ai chat?
+          </Button>
+        </Tooltip>
+      )}
+
+      {showEdit && (
+        <Modal
+          open={showEdit}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowEdit(false);
+          })}
+        >
+          <Box sx={modalStyle} width="65vw">
+            <ModalHeader
+              title="edit llm config"
+              handleClose={() => {
+                setShowEdit(false);
+              }}
+            ></ModalHeader>
+            <LLMSetting
+              handleClose={() => {
+                setShowEdit(false);
+              }}
+            ></LLMSetting>
+          </Box>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+export { ModifySetting, SettingComp, ModifyLLMConfigModal };

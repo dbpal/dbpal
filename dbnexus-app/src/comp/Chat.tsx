@@ -6,6 +6,8 @@ import {
   LLMConfig,
   LLMConfigContext,
   TabActiveContext,
+  TableType,
+  ViewKind,
 } from "./helper";
 import {
   Button,
@@ -16,9 +18,10 @@ import {
   Stack,
   TextField,
   Tooltip,
+  Typography,
 } from "@mui/material";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { ReactNode, useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { editor } from "monaco-editor";
 import { AppMarkDown, SimpleFlexEditor } from "./CommonComp2";
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
@@ -28,7 +31,6 @@ import { NotificationContext } from "./Notification";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { AITextCompletionName, createChatAPI, editorAppendContent } from "./Common";
 import { ModalHeader } from "./CommonComp";
-import { message } from "@tauri-apps/plugin-dialog";
 import { AllKindQuery } from "./Left";
 import { invoke } from "@tauri-apps/api/core";
 import types from "./ApiStruct";
@@ -37,21 +39,28 @@ import { HumanMessage, AIMessage, BaseMessage } from "@langchain/core/messages";
 import { FaArrowAltCircleRight } from "react-icons/fa";
 import { FaArrowAltCircleDown } from "react-icons/fa";
 import {
-  callUnsupported,
+  callErrorable,
+  createTableAndIndexSql,
+  createViewSql,
+  formatCreateTableAndIndexSql,
   getLocale,
   listCassandraAgg,
   listCreatedTypes,
   listEvent,
-  listMaterializedView,
   listProcedure,
   listSequence,
+  listTable,
   listUdf,
+  listView,
   showCassandraAgg,
   showProcedure,
   showTableColumn,
   showUdf,
   showViewColumns,
 } from "./handlers";
+
+import * as mongoQueryBackend from "./MongoQueryBackend";
+
 class SimpleArrayMemory {
   history: BaseMessage[];
   k: number;
@@ -60,12 +69,12 @@ class SimpleArrayMemory {
     this.k = k;
   }
 
-  addUserMessage(message) {
+  addUserMessage(message: string) {
     this.history.push(new HumanMessage(message));
     this._trimHistory(); // 添加后立即修剪
   }
 
-  addAIMessage(message) {
+  addAIMessage(message: string) {
     this.history.push(new AIMessage(message));
     this._trimHistory(); // 添加后立即修剪
   }
@@ -110,14 +119,14 @@ function Chat(props: {
   kind: DataSourceKind;
   value?: string;
   favoriteName?: string;
+  language?: string; // mongo used this as javascript or typescript
 }) {
-  const { uuid, kind, favoriteName, value } = props;
+  const { uuid, kind, favoriteName, value, language } = props;
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const llmconfig = useContext(LLMConfigContext);
   const [chatDirection, setChatDirection] = useState(
     SaveChatDirection.get() || "vertical",
   );
-
   useEffect(() => {
     SaveChatDirection.set(chatDirection);
   }, [chatDirection]);
@@ -139,8 +148,10 @@ function Chat(props: {
             }}
             favoriteName={favoriteName}
             value={value}
+            language={language}
           ></AllKindQuery>
         </Panel>
+
         {llmconfig && (
           <PanelResizeHandle
             style={{
@@ -171,7 +182,8 @@ class MakePrompt {
     switch (kind) {
       case DataSourceKind.Redis:
         return MakePrompt.redisTemplate.inputVariables;
-
+      case DataSourceKind.Mongo:
+        return MakePrompt.mongoTemplate.inputVariables;
       default:
         return MakePrompt.sqlTemplate.inputVariables;
     }
@@ -181,6 +193,8 @@ class MakePrompt {
     switch (kind) {
       case DataSourceKind.Redis:
         return MakePrompt.redisTemplate.template as string;
+      case DataSourceKind.Mongo:
+        return MakePrompt.mongoTemplate.template as string;
       default:
         return MakePrompt.sqlTemplate.template as string;
     }
@@ -225,12 +239,33 @@ human:{question}
 `,
   );
 
+  static mongoTemplate = PromptTemplate.fromTemplate(
+    `system:You are a mongo database expert.
+Your answer must follow ALL of these rules:
+1. generate {language} only.
+2. Don't generate markdown
+3. Comments must use "//" syntax.
+4. If you break any rule, you will be penalized.
+5. system locale is {locale}
+
+human: here are some information about the database
+{database_information}
+
+
+Chat History:
+{chat_history}
+
+human:{question}
+`,
+  );
+
   constructor(
     public uuid: string,
     public config: LLMConfig,
     public kind: DataSourceKind,
     public question: string,
     public memory: SimpleArrayMemory,
+    public language?: string,
   ) {}
 
   kind2CommonName(): string {
@@ -271,6 +306,35 @@ human:{question}
     // default template
     return MakePrompt.redisTemplate.format(inputs);
   }
+
+  async mongoDatabaseInformation() {
+    let ret = "we have some predefine some variable u can use.\n";
+    ret += "```typescript";
+    ret += mongoQueryBackend.interfaceRawText;
+    ret += mongoQueryBackend.globalVar;
+    ret += "```";
+    return ret;
+  }
+
+  async createMongoPrompt(): Promise<string> {
+    let inputs = {
+      question: this.question.trim(),
+      database_information: await this.mongoDatabaseInformation(),
+      chat_history: this.memory
+        .getMessages()
+        .map(x => x.toFormattedString())
+        .join("\n"),
+      locale: await getLocale(),
+      language: this.language,
+    };
+    let userDefine = this.config.aiTextTemplates[this.kind];
+    if (userDefine) {
+      return PromptTemplate.fromTemplate(userDefine).format(inputs);
+    }
+    // default template
+    return MakePrompt.mongoTemplate.format(inputs);
+  }
+
   async createSqlPrompt(): Promise<string> {
     let inputs = {
       dialect: this.kind2CommonName(),
@@ -295,7 +359,6 @@ human:{question}
   async sqlDatabaseInformation() {
     let ret = "";
     let elements = await this.allSqlElements();
-
     for (const table of elements.tables) {
       if (!this.question.includes(table.name)) {
         continue;
@@ -307,6 +370,16 @@ human:{question}
           .filter(x => x.is_primary)
           .map(x => (x.is_auto_increment ? `${x.field}(auto increment)` : x.field))
           .join(",")}\n`;
+      {
+        const def = await callErrorable(async () => {
+          return createTableAndIndexSql(this.uuid, table.name);
+        }, null);
+        if (def) {
+          ret += `${table.name} create table sql is:\n${formatCreateTableAndIndexSql(
+            def,
+          )}\n`;
+        }
+      }
     }
     for (const view of elements.views) {
       if (!this.question.includes(view.name)) {
@@ -315,6 +388,14 @@ human:{question}
       let cols = await showViewColumns(this.uuid, view.name);
       ret += `${view.name} is view 
         Columns:${cols.map(x => x.field).join(",")}\n`;
+      {
+        const def = await callErrorable(async () => {
+          return createViewSql(this.uuid, view.name, ViewKind.View);
+        }, null);
+        if (def) {
+          ret += `${view.name} create view sql is:\n${def}\n`;
+        }
+      }
     }
     for (const view of elements.materializedViews) {
       if (!this.question.includes(view.name)) {
@@ -323,6 +404,14 @@ human:{question}
       let cols = await showViewColumns(this.uuid, view.name);
       ret += `${view.name} is materalized view 
         Columns:${cols.map(x => x.field).join(",")}\n`;
+      {
+        const def = await callErrorable(async () => {
+          return createViewSql(this.uuid, view.name, ViewKind.MaterializedView);
+        }, null);
+        if (def) {
+          ret += `${view.name} create view sql is:\n${def}\n`;
+        }
+      }
     }
 
     // udf
@@ -395,35 +484,34 @@ human:{question}
     cassandraAggs: types.NamedStaff[];
     procedures: types.NamedStaff[];
   }> {
-    const tables = await callUnsupported(async () => {
-      return await invoke<types.ListTable[]>("list_table", { name: this.uuid });
+    const tables = await callErrorable(async () => {
+      return await listTable(this.uuid, TableType.Normal);
     });
-
-    const views = await callUnsupported(async () => {
-      return await invoke<types.ListTable[]>("list_view", { name: this.uuid });
+    const views = await callErrorable(async () => {
+      return await listView(this.uuid, ViewKind.View);
     });
-    const materializedViews = await callUnsupported(async () => {
-      return listMaterializedView(this.uuid);
+    const materializedViews = await callErrorable(async () => {
+      return listView(this.uuid, ViewKind.MaterializedView);
     });
-    const udfs = await callUnsupported(async () => {
+    const udfs = await callErrorable(async () => {
       return await listUdf(this.uuid);
     });
 
-    const events = await callUnsupported(async () => {
+    const events = await callErrorable(async () => {
       return await listEvent(this.uuid);
     });
-    const sequences = await callUnsupported(async () => {
+    const sequences = await callErrorable(async () => {
       return await listSequence(this.uuid);
     });
 
-    const procedures = await callUnsupported(async () => {
+    const procedures = await callErrorable(async () => {
       return await listProcedure(this.uuid);
     });
 
-    const types = await callUnsupported(async () => {
+    const types = await callErrorable(async () => {
       return await listCreatedTypes(this.uuid);
     });
-    const cassandraAggs = await callUnsupported(async () => {
+    const cassandraAggs = await callErrorable(async () => {
       return await listCassandraAgg(this.uuid);
     });
 
@@ -441,6 +529,8 @@ human:{question}
   }
   async createPrompt(): Promise<string> {
     switch (this.kind) {
+      case DataSourceKind.Mongo:
+        return this.createMongoPrompt();
       case DataSourceKind.Redis:
         return this.createRedisPrompt();
       default:
@@ -482,7 +572,6 @@ function SqlChatTextInput(props: {
   const { showNotification } = useContext(NotificationContext);
   const [showPrompt, setShowPrompt] = useState(false);
   useEffect(() => {
-    console.log("create llm because of config change");
     setChatApi(createChatAPI(config));
   }, [config]);
 
@@ -492,6 +581,7 @@ function SqlChatTextInput(props: {
   const chatMemory = useRef(new SimpleArrayMemory());
   const [chatBufferSize, setChatBufferSize] = useState(SaveChatMemoryK.get() + "");
   const [showEditPromptTemplate, setShowEditPromptTemplate] = useState(false);
+  const [invokeStatus, setInvokeStatus] = useState("");
   useEffect(() => {
     const size = parseInt(chatBufferSize);
     if (isNaN(size)) {
@@ -508,25 +598,36 @@ function SqlChatTextInput(props: {
   const handleChat = async () => {
     try {
       setLoading(true);
-      editor.setValue("");
+      // 清空内容，同时保留在 Undo 栈里
+      editor.executeEdits("my-source", [
+        {
+          range: editor.getModel().getFullModelRange(), // 全选
+          text: "",
+        },
+      ]);
       setPrevQuestion(newQuestion);
+      setInvokeStatus("making prompt");
       const prompt = await new MakePrompt(
         uuid,
         config,
         kind,
         newQuestion,
         chatMemory.current,
+        editor.getModel().getLanguageId(),
       ).createPrompt();
       chatMemory.current.addUserMessage(newQuestion);
       setChatHistory(e => [...e, newQuestion]);
       let wholeText = "";
-      console.time("stream-first-chunk");
+      setInvokeStatus("trying getting stream response");
       const stream = await chatApi.stream(prompt);
-      console.timeEnd("stream-first-chunk");
       for await (const msg of stream) {
         editorAppendContent(editor, msg.content);
         wholeText += msg.content;
       }
+      setInvokeStatus("done");
+      setTimeout(() => {
+        setInvokeStatus("");
+      }, 5000);
       setChatHistory(e => [...e, wholeText]);
       chatMemory.current.addAIMessage(wholeText);
     } catch (e) {
@@ -538,7 +639,10 @@ function SqlChatTextInput(props: {
 
   return (
     <Stack style={{ height: "100%", width: "100%" }}>
-      <Stack direction="row" style={{ alignItems: "flex-end" }}>
+      <Stack
+        direction="row"
+        style={{ alignItems: "flex-end", overflow: "auto", paddingBottom: "0.5rem" }}
+      >
         <IconButton
           onClick={handleChat}
           disabled={newQuestion == prevQuestion}
@@ -568,7 +672,7 @@ function SqlChatTextInput(props: {
             onClick={() => {
               setShowPrompt(e => !e);
             }}
-            variant="text"
+            variant={showPrompt ? "contained" : "text"}
           >
             prompt
           </Button>
@@ -620,6 +724,7 @@ function SqlChatTextInput(props: {
         handleValue={v => {
           setNewQuestion(v);
         }}
+        barLeft={invokeStatus && <Typography color="info">{invokeStatus}</Typography>}
         handleEditor={e => {
           AITextCompletionName.set(e.getModel().id, uuid);
         }}
@@ -651,6 +756,7 @@ function SqlChatTextInput(props: {
           kind={kind}
           question={newQuestion}
           config={config}
+          language={editor.getModel().getLanguageId()}
           handleClose={() => {
             setShowPrompt(false);
           }}
@@ -837,17 +943,10 @@ function ChatHistory(props: {
                     width: "85%",
                   }}
                 >
-                  <AppMarkDown
-                    doc={his}
-                    handlePathUrl={href => {
-                      message(`sorry we don't know how to go to this path ${href}.`, {
-                        kind: "error",
-                      });
-                    }}
-                  ></AppMarkDown>
+                  <AppMarkDown children={his}></AppMarkDown>
                 </div>
               </Stack>
-              {index > 0 && index % 2 == 1 && <Divider />}
+              {index > 0 && (index + 1) % 2 == 0 && <Divider />}
             </div>
           );
         })}
@@ -863,8 +962,9 @@ function ShowPrompt(props: {
   config: LLMConfig;
   handleClose: () => void;
   chatMemory: SimpleArrayMemory;
+  language: string;
 }) {
-  const { uuid, kind, question, config, handleClose, chatMemory } = props;
+  const { uuid, kind, question, config, handleClose, chatMemory, language } = props;
   const [prompt, setPrompt] = useState("");
   const vis = useContext(TabActiveContext);
   const { showNotification } = useContext(NotificationContext);
@@ -882,9 +982,11 @@ function ShowPrompt(props: {
   }, [vis, handleClose]);
 
   useEffect(() => {
-    new MakePrompt(uuid, config, kind, question, chatMemory).createPrompt().then(e => {
-      setPrompt(e);
-    });
+    new MakePrompt(uuid, config, kind, question, chatMemory, language)
+      .createPrompt()
+      .then(e => {
+        setPrompt(e);
+      });
   }, [question]);
   return (
     <Paper
@@ -927,6 +1029,7 @@ function AllKindChat(props: {
   kind: DataSourceKind;
   value?: string;
   favoriteName?: string;
+  language?: string;
 }) {
   const [config, setConfig] = useState<LLMConfig>(null);
   const { showNotification } = useContext(NotificationContext);
@@ -934,7 +1037,7 @@ function AllKindChat(props: {
   const handleReload = () => {
     LLMConfig.get()
       .then(config => {
-        if (config && config.enable) {
+        if (config && config.enable()) {
           setConfig(config);
         }
       })
@@ -956,15 +1059,11 @@ function AllKindChat(props: {
   useEffect(() => {
     handleReload();
   }, []);
-  let chat: ReactNode;
-  switch (props.kind) {
-    default:
-      chat = <Chat {...props}></Chat>;
-  }
+
   return (
-    config && (
-      <LLMConfigContext.Provider value={config}> {chat} </LLMConfigContext.Provider>
-    )
+    <LLMConfigContext.Provider value={config}>
+      <Chat {...props}></Chat>
+    </LLMConfigContext.Provider>
   );
 }
 

@@ -402,8 +402,10 @@ impl From<SqlEvent> for CompletionItem {
 }
 
 #[async_trait::async_trait]
-pub trait GetKeyWords {
-    async fn key_words(&self) -> anyhow::Result<Vec<String>>;
+pub trait GetKeyWords: GetBackendKind {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        not_support_feature(self.backend_name())
+    }
 }
 
 #[async_trait::async_trait]

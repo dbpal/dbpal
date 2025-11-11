@@ -6,7 +6,55 @@ use mongodb::results::{
 };
 use mongodb::{IndexModel, SearchIndexModel};
 
+use crate::db::{GetBackendKind, SchemaTrait, not_support_feature};
+use crate::language_server::{CompletionItem, CompletionKind, CompletionList, LanguageServer};
 use crate::mongo::MongoDB;
+
+#[async_trait::async_trait]
+impl LanguageServer for MongoDB {
+    async fn ai_text_completion(
+        &self, text: &str, _line: u32, _col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        let db = self.get_db().await?;
+        let tables = db.list_collection_names().await?;
+        let mut ret = tables
+            .iter()
+            .map(|x| {
+                CompletionItem {
+                    item: x.to_string().into(),
+                    kind: CompletionKind::Table,
+                    desc: None,
+                }
+            })
+            .collect::<Vec<_>>();
+        let text = text.to_lowercase();
+        for table in tables.iter() {
+            if text.contains(table.to_lowercase().as_str()) {
+                let columns = SchemaTrait::show_table_columns(self, &table).await?;
+                ret.extend(columns.into_iter().map(CompletionItem::from));
+            }
+        }
+        anyhow::Ok(CompletionList::from(ret))
+    }
+
+    fn extract_table_select_selection(&self, _sql: &str) -> anyhow::Result<Option<String>> {
+        not_support_feature(self.backend_name())
+    }
+
+    fn extract_table_select_sort(&self, _sql: &str) -> anyhow::Result<Option<String>> {
+        not_support_feature(self.backend_name())
+    }
+
+    async fn auto_completion(
+        &self, _query_id: Option<u32>, _sql: &str, _line: u32, _col: u32, _use_lexer: bool,
+    ) -> anyhow::Result<crate::language_server::CompletionList> {
+        not_support_feature(self.backend_name())
+    }
+
+    fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
+        not_support_feature(self.backend_name())
+    }
+}
 
 // database api
 impl MongoDB {

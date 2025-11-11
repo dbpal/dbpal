@@ -5,7 +5,8 @@ const int = setInterval(() => {
 }, 1000);
 // can push into this array `cleanFns`
 // this will show a button on ui to call those functions
-cleanFns.push(() => {
-  clearInterval(int);
-});
+
+setUpClean("call me", () => {
+  console.log("call release resource function");
+})
 // if u don't clean this interval ,it will run forever

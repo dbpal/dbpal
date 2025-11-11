@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS favorite_sql (
     sql TEXT NOT NULL,
     name TEXT NOT NULL,
     connection_name TEXT NOT NULL,
+    language text null,
     last_modified DATETIME NOT NULL DEFAULT current_timestamp
 );"#,
             kind: MigrationKind::Up,

@@ -617,8 +617,9 @@ function MongoTableToolBar(props: {
   );
 }
 
-function renderId(_id): any {
-  return EJSON.serialize(_id);
+function renderId(_id: any): string {
+  // console.log("_id", _id, EJSON.stringify(_id));
+  return EJSON.stringify(_id);
 }
 
 function MongoTableListContextMenu(props: {

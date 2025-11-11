@@ -9,7 +9,6 @@ import {
   IconButton,
   Modal,
   Stack,
-  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -38,7 +37,6 @@ import {
   SetAutoCompletionName,
 } from "./Common.ts";
 import { BsFillLightbulbFill } from "react-icons/bs";
-import { FaBookmark } from "react-icons/fa";
 import { FaUpload } from "react-icons/fa";
 import { MdOutlineReply } from "react-icons/md";
 import { NotificationContext } from "./Notification.tsx";
@@ -48,7 +46,6 @@ import {
   DataSourceKind,
   DetachQueyRespViewParameter,
   ErrAndLoc,
-  FavoriteSql,
   generateRandomString,
   getEditorText,
   getLanguageFromDataSourceKind,
@@ -63,9 +60,10 @@ import {
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
-import { ExecutingTime, ModalHeader, PossibleParseError } from "./CommonComp.tsx";
-import { EditorBar, LoadStoreFile } from "./CommonComp2.tsx";
+import { ExecutingTime, PossibleParseError } from "./CommonComp.tsx";
+import { EditorBar, LoadStoreFile, SaveFavoriteSqlView } from "./CommonComp2.tsx";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { ModifyLLMConfigModal } from "./Settings.tsx";
 function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
@@ -184,20 +182,11 @@ function SqlQuery(props: {
   extras?: ReactNode;
   handleEditor: (ed: editor.IStandaloneCodeEditor) => void;
 }) {
-  const {
-    uuid,
-    value,
-    favoriteName: oldFavoriteName,
-    kind,
-    extras,
-    handleEditor,
-  } = props;
+  const { uuid, value, favoriteName, kind, extras, handleEditor } = props;
   const makeConn = async () => {
     return makeQueryConn(uuid, kind);
   };
   const [resp, setResp] = useState([]);
-  const [showSetFavoriteName, setShowFavoriteName] = useState(false);
-  const [favoriteName, setFavoriteName] = useState(oldFavoriteName);
   const [sqlErr] = useState<ErrAndLoc | null>(null);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position | null>(null);
@@ -626,33 +615,12 @@ function SqlQuery(props: {
                 </IconButton>
               </Tooltip>
             )}
-
-            <Tooltip
-              title={`save favorite sql ${
-                favoriteName && `as named '${favoriteName}'`
-              }`}
-            >
-              <IconButton
-                onClick={async () => {
-                  const value = editor.getValue();
-                  if (!value) {
-                    showNotification("warning", "can't save empty statement.");
-                    return;
-                  }
-                  if (favoriteName) {
-                    await FavoriteSql.save(
-                      new FavoriteSql(uuid, favoriteName, kind, value),
-                      showNotification,
-                    );
-                  } else {
-                    setShowFavoriteName(true);
-                  }
-                }}
-                color="primary"
-              >
-                <FaBookmark style={{ fontSize: "1.2rem" }} />
-              </IconButton>
-            </Tooltip>
+            <SaveFavoriteSqlView
+              favoriteName={favoriteName}
+              uuid={uuid}
+              kind={kind}
+              editor={editor}
+            ></SaveFavoriteSqlView>
             {editor && (
               <LoadStoreFile
                 getQuery={() => {
@@ -702,6 +670,8 @@ function SqlQuery(props: {
             )}
             {!conn && <CircularProgress></CircularProgress>}
             <ExecutingTime loading={loading} disableTime></ExecutingTime>
+
+            <ModifyLLMConfigModal></ModifyLLMConfigModal>
           </Stack>
           <div
             style={{
@@ -751,7 +721,6 @@ function SqlQuery(props: {
             collapsedSize={0}
             maxSize={100}
             minSize={10}
-            draggable
           >
             <div style={{ height: "100%" }}>
               <MultiQueryResp data={resp}></MultiQueryResp>
@@ -780,49 +749,6 @@ function SqlQuery(props: {
               }}
               name="export_query_result"
             ></ExportView>
-          </Box>
-        </Modal>
-      )}
-      {showSetFavoriteName && (
-        <Modal
-          open={showSetFavoriteName}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowFavoriteName(false);
-          })}
-        >
-          <Box sx={modalStyle} width="40%">
-            <ModalHeader
-              title="edit favorite sql name"
-              handleClose={() => {
-                setShowFavoriteName(false);
-              }}
-            ></ModalHeader>
-            <Stack>
-              <TextField
-                fullWidth
-                label="name"
-                value={favoriteName}
-                onChange={e => {
-                  setFavoriteName(e.target.value);
-                }}
-                required
-              ></TextField>
-              <Stack direction="row">
-                <IconButton
-                  color="primary"
-                  onClick={() => {
-                    if (!favoriteName) {
-                      showNotification("warning", "name can't be empty");
-                      return;
-                    }
-                    setShowFavoriteName(false);
-                  }}
-                >
-                  <FaBookmark> </FaBookmark>
-                </IconButton>
-              </Stack>
-            </Stack>
           </Box>
         </Modal>
       )}

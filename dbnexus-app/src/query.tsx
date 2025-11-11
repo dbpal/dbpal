@@ -11,6 +11,7 @@ import {
 import { SeparateWindow } from "./comp/MainPage.tsx";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { AllKindChat } from "./comp/Chat.tsx";
+
 const sqlData = SomeTempStore.get<FavoriteSql>();
 
 // close confirm message
@@ -22,8 +23,9 @@ function Query(props: {
   kind: DataSourceKind;
   sql?: string;
   favoriteName?: string;
+  language?: string;
 }) {
-  const { uuid, kind, sql, favoriteName } = props;
+  const { uuid, kind, sql, favoriteName, language } = props;
   const [closeConfirm, setCloseConfirm] = useState("");
   useEffect(() => {
     exitConfirmMessage = closeConfirm;
@@ -34,7 +36,13 @@ function Query(props: {
         setCloseConfirm(msg);
       }}
     >
-      <AllKindChat uuid={uuid} kind={kind} value={sql} favoriteName={favoriteName} />
+      <AllKindChat
+        uuid={uuid}
+        kind={kind}
+        value={sql}
+        language={language}
+        favoriteName={favoriteName}
+      />
     </SetCloseConfirmTextContext>
   );
 }
@@ -62,6 +70,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         kind={sqlData.kind}
         sql={sqlData.sql}
         favoriteName={sqlData.name}
+        language={sqlData.language}
       ></Query>
     </SeparateWindow>
   </React.StrictMode>,

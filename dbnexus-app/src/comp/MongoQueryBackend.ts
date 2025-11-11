@@ -10,7 +10,7 @@ import {
   IMongoCollection,
   IMongoDB,
 } from "./MongoInterface";
-import interfaceText from "./MongoInterface.ts?raw";
+import interfaceRawText from "./MongoInterface.ts?raw";
 
 class MongoDBQuery implements IMongoDB {
   uuid: string;
@@ -106,25 +106,23 @@ class MongoDBQueryFindCommon {
 }
 
 class MongoDBQueryFind extends MongoDBQueryFindCommon implements IFindBuilder {
-  limit: number;
+  _limit: number;
   async find() {
     const x = this.makeCommonArg();
-    x.limit = this.limit;
+    x.limit = this._limit;
     return invoke<number[][]>("mongo_query_collection_find", x).then(e => {
       const x = e.map(x => new Uint8Array(x)).map(e => BSON.deserialize(e));
       return x;
     });
   }
 
-  constructor(uuid: string, col: string, filter: BSON.Document, limit: number) {
-    if (typeof limit != "number") {
-      throw new Error("limit must be number");
-    }
-    if (limit <= 0) {
-      throw new Error("limit must be positive");
-    }
+  limit(limit: number): IFindBuilder {
+    this._limit = limit;
+    return this;
+  }
+
+  constructor(uuid: string, col: string, filter: BSON.Document) {
     super(uuid, col, filter);
-    this.limit = limit;
   }
 }
 
@@ -213,8 +211,8 @@ class MongoDBQueryCollection implements IMongoCollection {
       index,
     });
   }
-  find(filter: BSON.Document, limit: number) {
-    return new MongoDBQueryFind(this.uuid, this.col, filter, limit);
+  find(filter: BSON.Document) {
+    return new MongoDBQueryFind(this.uuid, this.col, filter);
   }
   findOne(filter: BSON.Document) {
     return new MongoDBQueryFindOne(this.uuid, this.col, filter);
@@ -303,18 +301,19 @@ function trimInterfaceText(text: string) {
   if (lines.length <= 2) return ""; // 如果只有一两行，返回空
   return lines.slice(1, -2).join("\n"); // 去掉首尾行
 }
+const globalVar = `
+    const db : IMongoDB; // db is a database handle can access the database
+    const setUpClean : (name :string, f : ()=>void)=> void; // setup a clean function by name and callback
+    const bson : any; // bson will initialize by 'await import("bson")'
+  `;
+
+const interfaceText = trimInterfaceText(interfaceRawText) + globalVar;
 
 function initMongoQueryGlobals() {
   loader
     .init()
     .then(monaco => {
-      const extraLib =
-        trimInterfaceText(interfaceText) +
-        `
-    const db : IMongoDB;
-    const cleanFns : (()=> void)[];
-    const bson : any;
-        `;
+      const extraLib = interfaceText;
       monaco.languages.typescript.javascriptDefaults.addExtraLib(extraLib);
       monaco.languages.typescript.typescriptDefaults.addExtraLib(extraLib);
     })
@@ -323,4 +322,10 @@ function initMongoQueryGlobals() {
     });
 }
 
-export { initMongoQueryGlobals, MongoDBQuery };
+export {
+  initMongoQueryGlobals,
+  MongoDBQuery,
+  interfaceText,
+  interfaceRawText,
+  globalVar,
+};

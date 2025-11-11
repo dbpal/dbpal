@@ -240,7 +240,10 @@ function SeparateWindow(props: { children }) {
               height: "100vh",
             }}
           >
-            {children}
+            <div style={{ position: "relative", height: "100%", width: "100%" }}>
+              {" "}
+              {children}
+            </div>
           </div>
         </Menu>
       </NotificationProvider>

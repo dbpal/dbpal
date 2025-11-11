@@ -71,6 +71,8 @@ import { DataGrid, GridColDef, GridSlotsComponentsProps } from "@mui/x-data-grid
 import { SimpleFlexEditor } from "./CommonComp2";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import {
+  createViewSql,
+  listView,
   makeExtractTableSelectSort,
   makeExtractTableSelectWhere,
   makeInvalidCassandraTableCache,
@@ -86,15 +88,6 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const [loading, setLoading] = useState(false);
   const setting = useContext(SettingContext);
 
-  let invokeName = "";
-  switch (viewKind) {
-    case ViewKind.Normal:
-      invokeName = "list_view";
-      break;
-    case ViewKind.Materialized:
-      invokeName = "list_materialized_view";
-      break;
-  }
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
@@ -102,7 +95,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   }, [views, matchPattern]);
   const handleReload = () => {
     setLoading(true);
-    invoke<types.ListTable[]>(invokeName, { name: uuid })
+    listView(uuid, viewKind)
       .then(ts => {
         setViews(ts);
       })
@@ -120,20 +113,20 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   const { setUpMenu } = useContext(ContextMenuContext);
   let itemId;
   switch (viewKind) {
-    case ViewKind.Normal:
+    case ViewKind.View:
       itemId = uuid + "-views";
       break;
-    case ViewKind.Materialized:
+    case ViewKind.MaterializedView:
       itemId = uuid + "-materialized-views";
       break;
   }
   let name;
   const icon = getIcon(viewKind);
   switch (viewKind) {
-    case ViewKind.Normal:
+    case ViewKind.View:
       name = "views";
       break;
-    case ViewKind.Materialized:
+    case ViewKind.MaterializedView:
       name = "materialized views";
       break;
   }
@@ -195,11 +188,7 @@ function StatementStructure(props: {
   const { showNotification } = useContext(NotificationContext);
   const handleReload = () => {
     setLoading(true);
-    invoke<string>("create_view_sql", {
-      name: uuid,
-      viewName: view,
-      materialized: viewKind == ViewKind.Materialized,
-    })
+    createViewSql(uuid, view, viewKind)
       .then(e => {
         setSql(e);
       })
@@ -425,7 +414,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
 
 function getIcon(viewKind: ViewKind) {
   switch (viewKind) {
-    case ViewKind.Materialized:
+    case ViewKind.MaterializedView:
       return <ViewComfyAltIcon></ViewComfyAltIcon>;
     default:
       return <VisibilityIcon></VisibilityIcon>;
@@ -463,7 +452,7 @@ function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: stri
           <Stack direction="row">
             {icon} <span> {view} </span>
           </Stack>
-          {viewKind == ViewKind.Materialized && <span> {size} </span>}
+          {viewKind == ViewKind.MaterializedView && <span> {size} </span>}
         </Stack>
       }
     ></TreeItem>
@@ -492,10 +481,10 @@ function ViewMenu(props: {
     }
     let invokeName;
     switch (viewKind) {
-      case ViewKind.Normal:
+      case ViewKind.View:
         invokeName = "drop_view";
         break;
-      case ViewKind.Materialized:
+      case ViewKind.MaterializedView:
         invokeName = "drop_materialized_view";
         break;
     }

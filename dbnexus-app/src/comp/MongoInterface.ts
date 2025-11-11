@@ -19,7 +19,7 @@ interface IMongoCollection {
   dropIndex: (name: string) => Promise<void>;
   dropIndexes: () => Promise<void>;
   dropSearchIndex: (name: string) => Promise<void>;
-  find: (filter: BSON.Document, limit: number) => IFindBuilder;
+  find: (filter: BSON.Document) => IFindBuilder;
   findOne: (filter: BSON.Document) => IFindOneBuilder;
   findOneAndDelete: (filter: BSON.Document) => Promise<BSON.Document | null>;
   findAndReplace: (
@@ -53,6 +53,7 @@ interface IFindOneBuilder extends IFindCommon {
 
 interface IFindBuilder extends IFindCommon {
   find: () => Promise<BSON.Document[]>;
+  limit(limit: number): IFindBuilder;
 }
 
 export type { IMongoDB, IFindCommon, IFindBuilder, IFindOneBuilder, IMongoCollection };
