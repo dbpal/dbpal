@@ -112,7 +112,6 @@ class TSCompiler {
     // dir
     const rootPath = await this.getRootDir();
 
-    console.info("root path is:", rootPath);
     // write main.ts
     const mainTsFilePath = await join(rootPath, "main.ts");
     await writeTextFile(mainTsFilePath, value, {

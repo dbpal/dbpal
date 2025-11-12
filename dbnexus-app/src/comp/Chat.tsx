@@ -162,7 +162,7 @@ function Chat(props: {
           />
         )}
         {llmconfig && (
-          <Panel collapsible maxSize={45} collapsedSize={0} minSize={8}>
+          <Panel collapsible maxSize={65} collapsedSize={0} minSize={8}>
             <SqlChatTextInput
               uuid={uuid}
               kind={kind}
@@ -620,9 +620,12 @@ function SqlChatTextInput(props: {
       let wholeText = "";
       setInvokeStatus("trying getting stream response");
       const stream = await chatApi.stream(prompt);
+      let i = 0;
       for await (const msg of stream) {
+        setInvokeStatus("receiving stream response#" + i);
         editorAppendContent(editor, msg.content);
         wholeText += msg.content;
+        i++;
       }
       setInvokeStatus("done");
       setTimeout(() => {
@@ -641,7 +644,7 @@ function SqlChatTextInput(props: {
     <Stack style={{ height: "100%", width: "100%" }}>
       <Stack
         direction="row"
-        style={{ alignItems: "flex-end", overflow: "auto", paddingBottom: "0.5rem" }}
+        style={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}
       >
         <IconButton
           onClick={handleChat}

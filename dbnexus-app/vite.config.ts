@@ -8,7 +8,13 @@ const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 // https://vitejs.dev/config/
 export default defineConfig(async ({ command }) => {
   return {
-    plugins: [react()],
+    plugins: [
+      react({
+        babel: {
+          plugins: ["babel-plugin-react-compiler"],
+        },
+      }),
+    ],
     build: {
       target: "esnext",
       rollupOptions: {
