@@ -210,7 +210,11 @@ function QueryResp_(props: { data: MuiDataGridData }) {
           if (!field) {
             return;
           }
-          const row = { ...data.data.find(e => e[keyNotInTable] == id) };
+          const row = {
+            ...data.data.find(e =>
+              data.inserted_seq ? e[seqField] == id : e[keyNotInTable] == id,
+            ),
+          };
           delete row[keyNotInTable];
           const content = row[field];
           setUpMenu({

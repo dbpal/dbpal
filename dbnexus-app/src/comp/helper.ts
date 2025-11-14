@@ -407,11 +407,19 @@ class FavoriteSql {
   ) {
     this.connection_name = extractConfigNameFromUuid(uuid);
   }
-  static async save(x: FavoriteSql, showNotification) {
+  async save(showNotification) {
     try {
       await appDatabase.execute(
         "replace into favorite_sql(uuid,connection_name,name,kind,sql,language,last_modified) values(?,?,?,?,?,?,?)",
-        [x.uuid, x.connection_name, x.name, x.kind, x.sql, x.language, x.last_modified],
+        [
+          this.uuid,
+          this.connection_name,
+          this.name,
+          this.kind,
+          this.sql,
+          this.language,
+          this.last_modified,
+        ],
       );
       showNotification("success", "save favorite sql Ok");
     } catch (e) {
