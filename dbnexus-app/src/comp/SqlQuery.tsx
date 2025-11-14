@@ -366,6 +366,7 @@ function SqlQuery(props: {
   useEffect(() => {
     return () => {
       if (conn) {
+        console.log("destry connection", conn.queryId);
         conn.destroy();
       }
     };

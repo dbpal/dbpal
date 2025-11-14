@@ -11,12 +11,15 @@ import {
 import { SeparateWindow } from "./comp/MainPage.tsx";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { AllKindChat } from "./comp/Chat.tsx";
+import { Stack } from "@mui/material";
 
 const sqlData = SomeTempStore.get<FavoriteSql>();
 
 // close confirm message
 // when in transaction prevent user to close the window
 let exitConfirmMessage: string;
+
+let exit: () => void = null;
 
 function Query(props: {
   uuid: string;
@@ -30,26 +33,57 @@ function Query(props: {
   useEffect(() => {
     exitConfirmMessage = closeConfirm;
   }, [closeConfirm]);
+  const [exiting, setExisting] = useState(false);
+
+  exit = () => {
+    setExisting(true);
+  };
   return (
     <SetCloseConfirmTextContext
       value={msg => {
         setCloseConfirm(msg);
       }}
     >
-      <AllKindChat
-        uuid={uuid}
-        kind={kind}
-        value={sql}
-        language={language}
-        favoriteName={favoriteName}
-      />
+      {exiting ? (
+        <Exiting></Exiting>
+      ) : (
+        <AllKindChat
+          uuid={uuid}
+          kind={kind}
+          value={sql}
+          language={language}
+          favoriteName={favoriteName}
+        />
+      )}
     </SetCloseConfirmTextContext>
   );
 }
 
+function Exiting() {
+  const [count, setCount] = useState(10);
+  useEffect(() => {
+    WebviewWindow.getCurrent()
+      .hide()
+      .catch(e => {
+        console.log("hide error", e);
+      });
+    setInterval(() => {
+      setCount(count => count - 1);
+    }, 1000);
+  }, []);
+  useEffect(() => {
+    if (count < 0) {
+      WebviewWindow.getCurrent().destroy();
+    }
+  }, [count]);
+  return <Stack> exiting {count} </Stack>;
+}
+
 const currentWebview = await WebviewWindow.getCurrent();
 currentWebview.onCloseRequested(async event => {
+  event.preventDefault();
   if (!exitConfirmMessage) {
+    exit();
     return;
   }
   const confirm = await secondConfirm({
@@ -57,8 +91,8 @@ currentWebview.onCloseRequested(async event => {
     content: exitConfirmMessage,
     confirmText: "close",
   });
-  if (!confirm) {
-    event.preventDefault();
+  if (confirm) {
+    exit();
   }
 });
 
