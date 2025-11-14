@@ -1183,7 +1183,9 @@ class LLMConfig {
       if (this.apiKey) {
         PassWordManager.savePassword(LLMConfig.key, this.apiKey, true);
       } else {
-        PassWordManager.deletePassword(LLMConfig.key);
+        try {
+          PassWordManager.deletePassword(LLMConfig.key);
+        } catch (_e) {}
       }
       this.apiKey = "";
       appStore.set(LLMConfig.key, this);
