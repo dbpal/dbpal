@@ -128,12 +128,10 @@ pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
             }
             Ok(ret)
         }
-        None => {
-            Err(ErrorFrontend::from(format!(
-                "no markdown file found for command '{}'",
-                tokens[0].value()
-            )))
-        }
+        None => Err(ErrorFrontend::from(format!(
+            "no markdown file found for command '{}'",
+            tokens[0].value()
+        ))),
     }
 }
 
@@ -197,12 +195,10 @@ pub async fn drop_database(
             Ok(())
         }
 
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db catalog",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db catalog",
+            name
+        ))),
     }
 }
 
@@ -227,12 +223,10 @@ pub async fn drop_schema(
             x.drop_schema(&schema).await.map_err(ErrorFrontend::from)?;
             Ok(())
         }
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db database",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db database",
+            name
+        ))),
     }
 }
 
@@ -256,12 +250,10 @@ pub async fn create_database(
             Ok(())
         }
 
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db catalog",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db catalog",
+            name
+        ))),
     }
 }
 
@@ -283,12 +275,10 @@ pub async fn create_schema(
                 .map_err(ErrorFrontend::from)?;
             Ok(())
         }
-        _ => {
-            Err(ErrorFrontend::from(format!(
-                "'{}' is not a db database",
-                name
-            )))
-        }
+        _ => Err(ErrorFrontend::from(format!(
+            "'{}' is not a db database",
+            name
+        ))),
     }
 }
 
@@ -343,11 +333,10 @@ pub async fn mongo_list_time_serial_collection(
     let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
 
     let ret = match schema.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => {
-            x.list_time_serial_collection()
-                .await
-                .map_err(ErrorFrontend::from)?
-        }
+        Some(x) => x
+            .list_time_serial_collection()
+            .await
+            .map_err(ErrorFrontend::from)?,
         None => {
             return Err(ErrorFrontend::from(format!("'{}' is not a mongo", name)));
         }
@@ -462,11 +451,10 @@ pub async fn mongo_create_index(
         .await
         .map_err(ErrorFrontend::from)?;
     match schema.as_any().downcast_ref::<MongoDB>() {
-        Some(x) => {
-            x.create_index(&table_name, index_name, unique, keys)
-                .await
-                .map_err(ErrorFrontend::from)?
-        }
+        Some(x) => x
+            .create_index(&table_name, index_name, unique, keys)
+            .await
+            .map_err(ErrorFrontend::from)?,
         None => {
             return Err(ErrorFrontend::from(format!("'{}' not a mongo", name)));
         }
@@ -875,11 +863,9 @@ pub async fn query_sql(
     };
     let r = result.map_err(ErrorFrontend::from).map(|x| {
         x.into_iter()
-            .map(|x| {
-                match x {
-                    Err(e) => Err(e),
-                    Ok(x) => Ok(MuiDataGridData::from(x)),
-                }
+            .map(|x| match x {
+                Err(e) => Err(e),
+                Ok(x) => Ok(MuiDataGridData::from(x)),
             })
             .collect::<Vec<_>>()
     })?;
@@ -972,6 +958,7 @@ pub async fn query_sql_close_connection(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
+    log::info!("close conn:{} {}", name, query_id);
     let db = app
         .get_backend(name.as_str())
         .await
@@ -1061,12 +1048,10 @@ pub async fn config_list_database_or_schema(
 ) -> Result<Vec<String>, ErrorFrontend> {
     let x = conn.open().await?;
     match x {
-        DatabaseBackend::Catalog(catalog_trait) => {
-            catalog_trait
-                .list_database()
-                .await
-                .map_err(ErrorFrontend::from)
-        }
+        DatabaseBackend::Catalog(catalog_trait) => catalog_trait
+            .list_database()
+            .await
+            .map_err(ErrorFrontend::from),
         DatabaseBackend::DataBase(db_trait) => {
             db_trait.list_schema().await.map_err(ErrorFrontend::from)
         }
@@ -2768,11 +2753,10 @@ pub async fn cassandra_show_aggregate(
         .map_err(ErrorFrontend::from)?;
 
     let ret = match schema.as_any().downcast_ref::<CassandraDB>() {
-        Some(x) => {
-            x.show_aggregate(&agg_name, parameters)
-                .await
-                .map_err(ErrorFrontend::from)?
-        }
+        Some(x) => x
+            .show_aggregate(&agg_name, parameters)
+            .await
+            .map_err(ErrorFrontend::from)?,
         None => {
             return Err(ErrorFrontend::from(format!(
                 "'{}' is not a cassandra",
@@ -2793,11 +2777,10 @@ pub async fn cassandra_drop_aggregate(
         .map_err(ErrorFrontend::from)?;
 
     match schema.as_any().downcast_ref::<CassandraDB>() {
-        Some(x) => {
-            x.drop_aggregate(&agg_name, parameters)
-                .await
-                .map_err(ErrorFrontend::from)?
-        }
+        Some(x) => x
+            .drop_aggregate(&agg_name, parameters)
+            .await
+            .map_err(ErrorFrontend::from)?,
         None => {
             return Err(ErrorFrontend::from(format!(
                 "'{}' is not a cassandra",
@@ -2834,13 +2817,11 @@ pub fn valid_json(json_str: String) -> Result<Option<ErrAndLoc>, ()> {
     use serde_json::Value;
     match serde_json::from_str::<Value>(&json_str) {
         Ok(_) => Ok(None),
-        Err(e) => {
-            Ok(Some(ErrAndLoc {
-                msg: format!("{}", e),
-                line: Some(e.line() as u32),
-                column: Some(e.column() as u32),
-            }))
-        }
+        Err(e) => Ok(Some(ErrAndLoc {
+            msg: format!("{}", e),
+            line: Some(e.line() as u32),
+            column: Some(e.column() as u32),
+        })),
     }
 }
 
@@ -3045,14 +3026,12 @@ impl From<QueryResp> for MuiDataGridData {
             let mut indexes = NameIndex::default();
             fields
                 .into_iter()
-                .map(|mut x| {
-                    match indexes.get_index(&x.field) {
-                        Some(index) => {
-                            x.field = format!("{}#{}", x.field, index);
-                            x
-                        }
-                        None => x,
+                .map(|mut x| match indexes.get_index(&x.field) {
+                    Some(index) => {
+                        x.field = format!("{}#{}", x.field, index);
+                        x
                     }
+                    None => x,
                 })
                 .collect::<Vec<_>>()
         };

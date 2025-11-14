@@ -628,6 +628,9 @@ function LLMSetting(props: { handleClose?: () => void }) {
           value={baseUrl}
           onChange={e => setBaseUrl(e.target.value)}
           slotProps={{
+            htmlInput: {
+              type: "url",
+            },
             input: {
               endAdornment: baseUrl && (
                 <InputAdornment position="end">
