@@ -761,8 +761,7 @@ function SaveFavoriteSqlView(props: {
               return;
             }
             if (favoriteName) {
-              await FavoriteSql.save(
-                new FavoriteSql(uuid, favoriteName, kind, sql, language),
+              new FavoriteSql(uuid, favoriteName, kind, sql, language).save(
                 showNotification,
               );
             } else {

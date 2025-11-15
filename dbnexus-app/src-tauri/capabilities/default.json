@@ -17,6 +17,7 @@
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text",
     "core:window:allow-destroy",
+    "core:window:allow-hide",
     "core:window:allow-set-fullscreen",
     "core:webview:allow-set-webview-zoom",
     "core:webview:allow-internal-toggle-devtools",
