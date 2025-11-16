@@ -6,7 +6,7 @@ import { resolve } from "path";
 const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 
 // https://vitejs.dev/config/
-export default defineConfig(async ({ command }) => {
+export default defineConfig(async ({}) => {
   return {
     plugins: [
       react({
