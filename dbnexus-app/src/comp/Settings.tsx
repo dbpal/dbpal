@@ -197,21 +197,23 @@ function AppearanceSetting() {
         <Typography width={headerSize} style={{ fontFamily }}>
           font
         </Typography>
-        <Autocomplete
-          options={allFonts}
-          style={{ width: "18rem" }}
+        <TextField
           value={fontFamily}
-          renderInput={params => <TextField {...params} label="font family" />}
-          freeSolo={false}
-          onChange={(_, f) => {
-            setFontFamily(f);
+          onChange={e => {
+            setFontFamily(e.target.value);
           }}
-          renderOption={(props, option) => (
-            <li {...props} style={{ fontFamily: option }}>
-              {option}
-            </li>
-          )}
+          slotProps={{
+            htmlInput: {
+              list: "fonts_list",
+            },
+          }}
         />
+        <datalist id="fonts_list">
+          {allFonts.map(e => (
+            <option key={e} value={e} />
+          ))}
+        </datalist>
+
         <Typography color="info" fontFamily={fontFamily}>
           SELECT * FROM employees WHERE gender = &apos;M&apos; LIMIT 100
         </Typography>
