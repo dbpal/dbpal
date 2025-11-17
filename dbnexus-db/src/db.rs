@@ -222,7 +222,7 @@ pub trait SchemaTrait:
         if !self.table_exists(table_name).await? {
             anyhow::bail!("table not exists")
         }
-        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+        let (sender, receiver) = tokio::sync::mpsc::channel(10);
         let h1 = {
             let x = SchemaTrait::clone(self);
             let table_name = table_name.to_string();
@@ -234,19 +234,7 @@ pub trait SchemaTrait:
         };
         let h2 = {
             let filepath = filepath.to_string();
-            tokio::spawn(async move {
-                match kind {
-                    ExportKind::Html => write_export_html_file(&filepath, receiver).await,
-                    ExportKind::Xlsx { .. } => write_export_xlsx_file(&filepath, receiver).await,
-                    _ => {
-                        let mut file = tokio::fs::File::create(&filepath).await?;
-                        while let Some(r) = receiver.recv().await {
-                            file.write_all(r.as_bytes()).await?;
-                        }
-                        anyhow::Ok(())
-                    }
-                }
-            })
+            tokio::spawn(async move { write_export_file(kind, &filepath, receiver).await })
         };
         h1.await??;
         h2.await??;
@@ -877,7 +865,7 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         &self, sql: &str, kind: ExportKind, file: &str,
     ) -> anyhow::Result<()> {
         log::info!("sql:{}", sql);
-        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+        let (sender, receiver) = tokio::sync::mpsc::channel(10);
         let j1 = {
             let x = self.clone();
             let sql = sql.to_string();
@@ -888,19 +876,7 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         };
         let j2 = {
             let filepath = file.to_string();
-            tokio::spawn(async move {
-                match kind {
-                    ExportKind::Html => write_export_html_file(&filepath, receiver).await?,
-                    ExportKind::Xlsx { .. } => write_export_xlsx_file(&filepath, receiver).await?,
-                    _ => {
-                        let mut file = tokio::fs::File::create(&filepath).await?;
-                        while let Some(r) = receiver.recv().await {
-                            file.write_all(r.as_bytes()).await?;
-                        }
-                    }
-                }
-                anyhow::Ok(())
-            })
+            tokio::spawn(async move { write_export_file(kind, &filepath, receiver).await })
         };
         j1.await??;
         j2.await??;
@@ -922,6 +898,21 @@ async fn write_export_xlsx_file(
     anyhow::Ok(())
 }
 
+async fn write_export_file(
+    kind: ExportKind, filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<Cow<'static, str>>,
+) -> anyhow::Result<()> {
+    match kind {
+        ExportKind::Html => write_export_html_file(&filepath, receiver).await,
+        ExportKind::Xlsx { .. } => write_export_xlsx_file(&filepath, receiver).await,
+        _ => {
+            let mut file = tokio::fs::File::create(&filepath).await?;
+            while let Some(r) = receiver.recv().await {
+                file.write_all(r.as_bytes()).await?;
+            }
+            anyhow::Ok(())
+        }
+    }
+}
 async fn write_export_html_file(
     filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<Cow<'static, str>>,
 ) -> anyhow::Result<()> {
