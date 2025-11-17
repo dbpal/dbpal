@@ -18,14 +18,14 @@ function View() {
       .catch(e => {
         showNotification("error", "get panic info failed", e);
       });
-  }, []);
-  return <BackendCrash msg={msg}></BackendCrash>;
+  }, [showNotification]);
+  return <BackendCrash msg={msg} />;
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <SeparateWindow>
-      <View></View>
+      <View />
     </SeparateWindow>
   </React.StrictMode>,
 );

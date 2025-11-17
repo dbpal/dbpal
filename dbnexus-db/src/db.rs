@@ -8,7 +8,6 @@ use std::time::Duration;
 use chrono::{DateTime, FixedOffset};
 use serde::Serializer;
 use tokio::io::AsyncWriteExt;
-use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
 
 use crate::language_server::LanguageServer;
@@ -227,27 +226,18 @@ pub trait SchemaTrait:
         let h1 = {
             let x = SchemaTrait::clone(self);
             let table_name = table_name.to_string();
-            let h1 =
-                tokio::spawn(
-                    async move { x.export_table_or_view(&table_name, kind, sender).await },
-                );
+            let h1 = tokio::spawn(async move {
+                x.export_table_or_view(&table_name, kind.to_internal(), sender)
+                    .await
+            });
             h1
         };
         let h2 = {
             let filepath = filepath.to_string();
             tokio::spawn(async move {
                 match kind {
-                    ExportKind::Xlsx { .. } => {
-                        let filepath = filepath.to_string();
-                        let mut workbook = rust_xlsxwriter::Workbook::new();
-                        let sheet = workbook.add_worksheet();
-                        while let Some(r) = receiver.recv().await {
-                            let x = XlsxEdit::from(r);
-                            block_in_place(|| sheet.write_string(x.row, x.column, x.content))?;
-                        }
-                        workbook.save(&filepath)?;
-                        anyhow::Ok(())
-                    }
+                    ExportKind::Html => write_export_html_file(&filepath, receiver).await,
+                    ExportKind::Xlsx { .. } => write_export_xlsx_file(&filepath, receiver).await,
                     _ => {
                         let mut file = tokio::fs::File::create(&filepath).await?;
                         while let Some(r) = receiver.recv().await {
@@ -897,16 +887,7 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
             let filepath = file.to_string();
             tokio::spawn(async move {
                 match kind {
-                    ExportKind::Xlsx { .. } => {
-                        let mut workbook = rust_xlsxwriter::workbook::Workbook::new();
-                        // Add a worksheet to the workbook.
-                        let worksheet = workbook.add_worksheet();
-                        while let Some(edit) = receiver.recv().await {
-                            let edit = XlsxEdit::from(edit);
-                            worksheet.write_string(edit.row, edit.column, edit.content)?;
-                        }
-                        workbook.save(&filepath)?;
-                    }
+                    ExportKind::Xlsx { .. } => write_export_xlsx_file(&filepath, receiver).await?,
                     _ => {
                         let mut file = tokio::fs::File::create(&filepath).await?;
                         while let Some(r) = receiver.recv().await {
@@ -922,6 +903,73 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         anyhow::Ok(())
     }
 }
+
+async fn write_export_xlsx_file(
+    filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<Cow<'static, str>>,
+) -> anyhow::Result<()> {
+    let mut workbook = rust_xlsxwriter::workbook::Workbook::new();
+    // Add a worksheet to the workbook.
+    let worksheet = workbook.add_worksheet();
+    while let Some(edit) = receiver.recv().await {
+        let edit = XlsxEdit::from(edit);
+        worksheet.write_string(edit.row, edit.column, edit.content)?;
+    }
+    workbook.save(&filepath)?;
+    anyhow::Ok(())
+}
+
+async fn write_export_html_file(
+    filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<Cow<'static, str>>,
+) -> anyhow::Result<()> {
+    let mut file = tokio::fs::File::create(&filepath).await?;
+
+    // Add a worksheet to the workbook.
+
+    let template = include_str!("./export_html_template.html");
+
+    {
+        let t = "<table>";
+        let index = template.find(t).unwrap();
+        file.write_all(template[..index].as_bytes()).await?;
+        file.write_all(t.as_bytes()).await?;
+    }
+    let mut first = true;
+    while let Some(data) = receiver.recv().await {
+        for line in data.lines() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            let data: serde_json::Map<String, serde_json::Value> = serde_json::from_str(line)?;
+            if first {
+                // writer header
+                first = false;
+                file.write_all("<tr>".as_bytes()).await?;
+                for k in data.keys() {
+                    file.write_all("<th>".as_bytes()).await?;
+                    file.write_all(k.as_bytes()).await?;
+                    file.write_all("</th>\n".as_bytes()).await?;
+                }
+                file.write_all("</tr>\n".as_bytes()).await?;
+            }
+            file.write_all("<tr>".as_bytes()).await?;
+            for v in data.values() {
+                file.write_all("<td>".as_bytes()).await?;
+                file.write_all(serde_json::to_string(v)?.as_bytes()).await?;
+                file.write_all("</td>\n".as_bytes()).await?;
+            }
+            file.write_all("</tr>\n".as_bytes()).await?;
+        }
+    }
+    {
+        let t = "</table>\n";
+        let index = template.find(t).unwrap();
+        file.write_all(t.as_bytes()).await?;
+        file.write_all(template[index + t.len()..].as_bytes())
+            .await?;
+    }
+    anyhow::Ok(())
+}
+
 #[async_trait::async_trait]
 pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     async fn get_auto_commit(&self, _query_id: u32) -> anyhow::Result<bool> {
@@ -1293,9 +1341,16 @@ pub enum ExportKind {
     Xlsx {
         include_header: bool,
     },
+    Html,
 }
 
 impl ExportKind {
+    pub fn to_internal(self) -> Self {
+        match self {
+            ExportKind::Html => ExportKind::JsonLine,
+            _ => self,
+        }
+    }
     pub(crate) fn cannot_query_result_export_as_sql() -> anyhow::Result<()> {
         anyhow::bail!("can't export sql result as sql")
     }

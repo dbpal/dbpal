@@ -93,7 +93,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
   useEffect(() => {
     setExceed(views.filter(e => matchPattern(e.name)).length);
   }, [views, matchPattern]);
-  const handleReload = () => {
+  const handleReload = useCallback(() => {
     setLoading(true);
     listView(uuid, viewKind)
       .then(ts => {
@@ -105,10 +105,10 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       .finally(() => {
         setLoading(false);
       });
-  };
+  }, [showNotification, uuid, viewKind]);
   useEffect(() => {
     handleReload();
-  }, []);
+  }, [handleReload]);
 
   const { setUpMenu } = useContext(ContextMenuContext);
   let itemId;
@@ -140,7 +140,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={handleReload}></MenuRefresh>
+                <MenuRefresh reload={handleReload} />
               </MenuList>
             ),
             event: e,
@@ -149,7 +149,7 @@ function ViewsTree(props: { viewKind: ViewKind }) {
       >
         {icon}
         <span> {name} </span>
-        {loading && <CircularProgress></CircularProgress>}
+        {loading && <CircularProgress />}
       </Stack>
     >
       {views
@@ -165,13 +165,10 @@ function ViewsTree(props: { viewKind: ViewKind }) {
               view={e.name}
               reload={handleReload}
               size={e.size}
-            ></ViewTree>
+            />
           );
         })}
-      <ExceedMaxTreeItem
-        exceed={exceed}
-        maxTreeSize={setting.appearance.maxTreeSize}
-      ></ExceedMaxTreeItem>
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={setting.appearance.maxTreeSize} />
     </TreeItem>
   );
 }
@@ -186,7 +183,7 @@ function StatementStructure(props: {
   const [sql, setSql] = useState("");
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
-  const handleReload = () => {
+  const handleReload = useCallback(() => {
     setLoading(true);
     createViewSql(uuid, view, viewKind)
       .then(e => {
@@ -198,10 +195,10 @@ function StatementStructure(props: {
       .finally(() => {
         setLoading(false);
       });
-  };
+  }, [showNotification, uuid, view, viewKind]);
   useEffect(() => {
     handleReload();
-  }, []);
+  }, [handleReload]);
 
   return (
     <Stack style={{ height: "100%" }}>
@@ -226,7 +223,7 @@ function StatementStructure(props: {
               new NameAndQueryId(uuid, kind),
             );
           }}
-        ></SimpleFlexEditor>
+        />
       )}
     </Stack>
   );
@@ -268,19 +265,12 @@ function ViewStructure(props: {
             key={e.name}
             label={e.name}
             size="medium"
-          ></Chip>
+          />
         ))}
       </Stack>
-      {structure == "columns" && (
-        <ColumnsContent uuid={uuid} view={view}></ColumnsContent>
-      )}
+      {structure == "columns" && <ColumnsContent uuid={uuid} view={view} />}
       {structure == "statement" && (
-        <StatementStructure
-          uuid={uuid}
-          kind={kind}
-          viewKind={viewKind}
-          view={view}
-        ></StatementStructure>
+        <StatementStructure uuid={uuid} kind={kind} viewKind={viewKind} view={view} />
       )}
     </Stack>
   );
@@ -298,7 +288,7 @@ function ColumnsMenu(props: { content: string }) {
           }}
         >
           <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
+            <ContentCopyIcon />
           </ListItemIcon>
           <ListItemText> Copy </ListItemText>
         </MenuItem>
@@ -318,7 +308,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
     ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
-  const handleReload = () => {
+  const handleReload = useCallback(() => {
     setLoading(true);
     showViewColumns(uuid, view)
       .then(fs => {
@@ -330,11 +320,11 @@ function ColumnsContent(props: { uuid: string; view: string }) {
       .finally(() => {
         setLoading(false);
       });
-  };
+  }, [showNotification, uuid, view]);
 
   useEffect(() => {
     handleReload();
-  }, []);
+  }, [handleReload]);
   const cols = useMemo(() => {
     return [
       { field: "field" },
@@ -344,7 +334,6 @@ function ColumnsContent(props: { uuid: string; view: string }) {
           return "data type";
         },
       },
-      ,
     ] as GridColDef[];
   }, []);
   cols.forEach(e => {
@@ -369,7 +358,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
           }
           const content = (target as HTMLDivElement).innerHTML;
           setUpMenu({
-            content: <ColumnsMenu content={content}></ColumnsMenu>,
+            content: <ColumnsMenu content={content} />,
             event: e,
           });
         },
@@ -382,7 +371,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
         },
       },
     } as GridSlotsComponentsProps;
-  }, []);
+  }, [setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
 
   const getRowId = useCallback(e => {
     return e["field"];
@@ -407,7 +396,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
         columns={cols}
         rows={fields}
         style={dataGridStyle}
-      ></DataGrid>
+      />
     </Stack>
   );
 }
@@ -415,13 +404,13 @@ function ColumnsContent(props: { uuid: string; view: string }) {
 function getIcon(viewKind: ViewKind) {
   switch (viewKind) {
     case ViewKind.MaterializedView:
-      return <ViewComfyAltIcon></ViewComfyAltIcon>;
+      return <ViewComfyAltIcon />;
     default:
-      return <VisibilityIcon></VisibilityIcon>;
+      return <VisibilityIcon />;
   }
 }
 function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: string }) {
-  let { view, reload, viewKind, size } = props;
+  const { view, reload, viewKind, size } = props;
   const { uuid } = useContext(UuidContext);
   const { kind: conn_type } = useContext(ConnTypeContext);
   const { setUpMenu } = useContext(ContextMenuContext);
@@ -455,7 +444,7 @@ function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: stri
           {viewKind == ViewKind.MaterializedView && <span> {size} </span>}
         </Stack>
       }
-    ></TreeItem>
+    />
   );
 }
 
@@ -475,7 +464,6 @@ function ViewMenu(props: {
       content: "",
       confirmText: "Drop",
     });
-    ``;
     if (!confirm) {
       return;
     }
@@ -489,7 +477,7 @@ function ViewMenu(props: {
         break;
     }
     invoke(invokeName, { name: uuid, viewName: view })
-      .then(_ => {
+      .then(() => {
         showNotification("success", "Drop View OK");
         reload();
       })
@@ -529,7 +517,7 @@ function ViewMenu(props: {
             notWarnPri={true}
             reloadOP={makeShowViewFn(uuid, view)}
             put_value_in_sql={makePutValueInSql(uuid)}
-          ></SqlTableView>
+          />
         );
         break;
 
@@ -539,7 +527,7 @@ function ViewMenu(props: {
             reloadOPTableList={MongoTableHandler.reloadTableList(uuid, view)}
             reloadOPDocs={MongoTableHandler.reloadDocs(uuid, view)}
             loadOne={MongoTableHandler.loadOne(uuid, view)}
-          ></MongoTable>
+          />
         );
         break;
       default:
@@ -592,14 +580,7 @@ function ViewMenu(props: {
           new TabContent(
             id,
             `${view}`,
-            (
-              <ViewStructure
-                view={view}
-                uuid={uuid}
-                kind={kind}
-                viewKind={viewKind}
-              ></ViewStructure>
-            ),
+            <ViewStructure view={view} uuid={uuid} kind={kind} viewKind={viewKind} />,
             <IoConstructOutline> </IoConstructOutline>,
           ),
         ];
@@ -612,10 +593,10 @@ function ViewMenu(props: {
       <MenuList>
         <MenuItem onClick={handleViewData}>
           <ListItemIcon>
-            <ListIcon></ListIcon>
+            <ListIcon />
           </ListItemIcon>
           <ListItemText> View Data</ListItemText>
-          <Typography variant="body2" sx={{ color: "text.secondary" }}></Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }} />
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -623,14 +604,14 @@ function ViewMenu(props: {
           }}
         >
           <ListItemIcon>
-            <ListIcon></ListIcon>
+            <ListIcon />
           </ListItemIcon>
           <ListItemText> View Data(new window)</ListItemText>
         </MenuItem>
 
         <MenuItem onClick={handleStructure}>
           <ListItemIcon>
-            <IoConstructOutline style={{ fontSize: "1.2rem" }}></IoConstructOutline>
+            <IoConstructOutline style={{ fontSize: "1.2rem" }} />
           </ListItemIcon>
           <ListItemText> Structure </ListItemText>
         </MenuItem>
@@ -640,7 +621,7 @@ function ViewMenu(props: {
           }}
         >
           <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
+            <ContentCopyIcon />
           </ListItemIcon>
           <ListItemText> Copy Name </ListItemText>
         </MenuItem>
@@ -652,7 +633,7 @@ function ViewMenu(props: {
           }}
         >
           <ListItemIcon>
-            <ArrowCircleDownIcon></ArrowCircleDownIcon>
+            <ArrowCircleDownIcon />
           </ListItemIcon>
           <ListItemText> Export </ListItemText>
         </MenuItem>
@@ -664,10 +645,10 @@ function ViewMenu(props: {
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon color="error"></DeleteForeverIcon>
+            <DeleteForeverIcon color="error" />
           </ListItemIcon>
           <ListItemText>Drop </ListItemText>
-          <Typography variant="body2" sx={{ color: "text.secondary" }}></Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }} />
         </MenuItem>
       </MenuList>
 
@@ -687,7 +668,7 @@ function ViewMenu(props: {
               handleClose={() => {
                 setShowExport(false);
               }}
-            ></ExportTableOrView>
+            />
           </Box>
         </Modal>
       )}

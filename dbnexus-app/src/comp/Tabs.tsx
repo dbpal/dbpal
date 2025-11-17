@@ -1,5 +1,5 @@
 "use strict";
-import React, { useContext } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import { Stack, MenuItem, MenuList, Chip, Tabs, Tab, Tooltip } from "@mui/material";
 
 import {
@@ -9,7 +9,6 @@ import {
   TabContent,
   TabActiveContext,
   WindowFocusContext,
-  SettingContext,
 } from "./helper";
 
 function TabsMenu(props: {
@@ -93,19 +92,43 @@ function TabsMenu(props: {
   );
 }
 
+function getLength(header: string, width: number, tabs: TabContent[]) {
+  let total: number = tabs.reduce((acc, cur) => {
+    return acc + cur.header.length;
+  }, 0);
+  return (width * header.length) / total;
+}
+
 function TabsWithContent_(props: {
   tabs: TabContent[];
   handleClose: (index: number) => void;
-  changeTab: (index: Number) => void;
+  changeTab: (index: number) => void;
   selectIndex: number;
   setTabs;
 }) {
   const { tabs, handleClose, selectIndex, changeTab, setTabs } = props;
   const { setUpMenu } = useContext(ContextMenuContext);
   const windowFocus = useContext(WindowFocusContext);
-  const setting = useContext(SettingContext);
+  const rootStack = useRef<HTMLDivElement>(null);
+  const [tabWidth, setTabWidth] = useState(100);
+  useEffect(() => {
+    if (tabs.length == 0) {
+      return;
+    }
+    const e = new ResizeObserver(en => {
+      const width = en[0].target.clientWidth;
+      if (width) {
+        setTabWidth(width);
+      }
+    });
+    e.observe(rootStack.current);
+    return () => {
+      e.disconnect();
+    };
+  }, [tabs]);
+
   return (
-    <Stack style={{ width: "100%", height: "100%" }}>
+    <Stack style={{ width: "100%", height: "100%" }} ref={rootStack}>
       <Tabs
         value={selectIndex}
         variant="scrollable"
@@ -123,6 +146,7 @@ function TabsWithContent_(props: {
         }}
       >
         {tabs.map((tab, index) => {
+          const max = getLength(tab.header, tabWidth, tabs);
           return (
             <Tab
               key={tab.id}
@@ -133,11 +157,10 @@ function TabsWithContent_(props: {
                     handleClose(index);
                   }}
                   style={{
-                    padding: "0px",
-                    maxWidth: setting.appearance.maxTabTitleLength + "rem",
+                    maxWidth: max + "px",
                     textTransform: "none",
                   }}
-                  icon={tab.icon}
+                  icon={max > 120 ? tab.icon : undefined}
                   variant={index == selectIndex ? "filled" : "outlined"}
                   color={index == selectIndex ? "success" : "default"}
                   onContextMenu={e => {
@@ -150,14 +173,14 @@ function TabsWithContent_(props: {
                           tabsLength={tabs.length}
                           changeTab={changeTab}
                           selectIndex={selectIndex}
-                        ></TabsMenu>
+                        />
                       ),
                       event: e,
                     });
                   }}
-                ></Chip>
+                />
               </Tooltip>
-            ></Tab>
+            />
           );
         })}
       </Tabs>

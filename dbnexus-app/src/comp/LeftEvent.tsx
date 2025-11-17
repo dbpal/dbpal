@@ -1,7 +1,7 @@
 "use strict";
 import { ListItemIcon, ListItemText, MenuItem, MenuList, Stack } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { DefAndMetas, tabsHasId } from "./Common";
@@ -30,7 +30,7 @@ function EventsTree() {
   const [evens, setEvents] = useState<types.SqlEvent[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
-  const reload = () => {
+  const reload = useCallback(() => {
     listEvent(uuid)
       .then(ts => {
         setEvents(ts);
@@ -38,7 +38,7 @@ function EventsTree() {
       .catch(e => {
         showNotification("error", "list event failed", e);
       });
-  };
+  }, [showNotification, uuid]);
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
@@ -52,7 +52,7 @@ function EventsTree() {
 
   useEffect(() => {
     reload();
-  }, []);
+  }, [reload]);
 
   const idForTrees = useRef(generateRandomString());
   return (
@@ -65,7 +65,7 @@ function EventsTree() {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={reload}></MenuRefresh>
+                <MenuRefresh reload={reload} />
               </MenuList>
             ),
             event: e,
@@ -97,7 +97,7 @@ function EventsTree() {
                         uuid={uuid}
                         kind={kind}
                         event={event}
-                      ></EventMenu>
+                      />
                     ),
                     event: e,
                   });
@@ -107,13 +107,10 @@ function EventsTree() {
                 <MdOutlineEventRepeat />
                 <span> {event.name} </span>
               </Stack>
-            ></TreeItem>
+            />
           );
         })}
-      <ExceedMaxTreeItem
-        exceed={exceed}
-        maxTreeSize={setting.appearance.maxTreeSize}
-      ></ExceedMaxTreeItem>
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={setting.appearance.maxTreeSize} />
     </TreeItem>
   );
 }
@@ -153,7 +150,7 @@ function EventMenu(props: {
                 }}
                 kind={kind}
                 uuid={uuid}
-              ></DefAndMetasView>
+              />
             ),
             <MdOutlineEventRepeat />,
           ),
@@ -187,7 +184,7 @@ function EventMenu(props: {
         }}
       >
         <ListItemIcon>
-          <InfoIcon></InfoIcon>
+          <InfoIcon />
         </ListItemIcon>
         <ListItemText> Detail </ListItemText>
       </MenuItem>
@@ -199,7 +196,7 @@ function EventMenu(props: {
         }}
       >
         <ListItemIcon>
-          <DeleteForeverIcon color="error"></DeleteForeverIcon>
+          <DeleteForeverIcon color="error" />
         </ListItemIcon>
         <ListItemText> Drop</ListItemText>
       </MenuItem>

@@ -203,24 +203,20 @@ pub trait LexerCompletionTrait: LangServerCommon {
         ret.extend(
             Self::TYPES
                 .iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: Cow::Borrowed(*x),
-                        kind: CompletionKind::Type,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: Cow::Borrowed(*x),
+                    kind: CompletionKind::Type,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
         ret.extend(
             Self::TEXTS
                 .iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: Cow::Borrowed(*x),
-                        kind: CompletionKind::Text,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: Cow::Borrowed(*x),
+                    kind: CompletionKind::Text,
+                    desc: None,
                 })
                 .collect::<Vec<_>>(),
         );
@@ -230,12 +226,10 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 .map_err(|x| log::error!("list table failed,err:{}", x))
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Table,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Table,
+                    desc: None,
                 }),
         );
         ret.extend(
@@ -244,12 +238,10 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 .map_err(|x| log::error!("list table failed,err:{}", x))
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Table,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Table,
+                    desc: None,
                 }),
         );
         ret.extend(
@@ -265,12 +257,10 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 .map_err(|err| log::error!("list procedure failed,err:{}", err))
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Procedure,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Procedure,
+                    desc: None,
                 }),
         );
         ret.extend(
@@ -285,21 +275,21 @@ pub trait LexerCompletionTrait: LangServerCommon {
                 .map_err(|err| log::error!("list sqlite pragma,err:{}", err))
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Module,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Module,
+                    desc: None,
                 }),
         );
-        ret.extend(self.clickhouse_format_clause().into_iter().map(|x| {
-            CompletionItem {
-                item: x.into(),
-                kind: CompletionKind::KeyWord,
-                desc: None,
-            }
-        }));
+        ret.extend(
+            self.clickhouse_format_clause()
+                .into_iter()
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::KeyWord,
+                    desc: None,
+                }),
+        );
 
         ret.extend(
             self.list_execute(None)
@@ -443,12 +433,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
             .map_err(|e| log::error!("list user failed,err:{}", e))
             .unwrap_or_default()
             .into_iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::User,
-                    desc: None,
-                }
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::User,
+                desc: None,
             })
             .collect();
 
@@ -458,12 +446,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
                 .map_err(|e| log::error!("list user failed,err:{}", e))
                 .unwrap_or_default()
                 .into_iter()
-                .map(|x| {
-                    CompletionItem {
-                        item: x.into(),
-                        kind: CompletionKind::Role,
-                        desc: None,
-                    }
+                .map(|x| CompletionItem {
+                    item: x.into(),
+                    kind: CompletionKind::Role,
+                    desc: None,
                 }),
         );
         remove_duplicate(ret)
@@ -605,12 +591,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
             .ok()
             .unwrap_or_default()
             .into_iter()
-            .map(|x| {
-                CompletionItem {
-                    kind: CompletionKind::Procedure,
-                    item: x.into(),
-                    desc: None,
-                }
+            .map(|x| CompletionItem {
+                kind: CompletionKind::Procedure,
+                item: x.into(),
+                desc: None,
             })
             .collect::<Vec<_>>()
     }
@@ -663,12 +647,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
                             .map_err(|e| log::error!("list table failed,err:{}", e))
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|x| {
-                                CompletionItem {
-                                    item: x.into(),
-                                    kind: CompletionKind::Table,
-                                    desc: None,
-                                }
+                            .map(|x| CompletionItem {
+                                item: x.into(),
+                                kind: CompletionKind::Table,
+                                desc: None,
                             }),
                     );
                     ret.extend(
@@ -677,12 +659,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
                             .map_err(|e| log::error!("list view failed,err:{}", e))
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|x| {
-                                CompletionItem {
-                                    item: x.into(),
-                                    kind: CompletionKind::View,
-                                    desc: None,
-                                }
+                            .map(|x| CompletionItem {
+                                item: x.into(),
+                                kind: CompletionKind::View,
+                                desc: None,
                             }),
                     );
                     ret.extend(
@@ -698,12 +678,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
                             .map_err(|e| log::error!("list procedure failed,err:{}", e))
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|x| {
-                                CompletionItem {
-                                    item: x.into(),
-                                    kind: CompletionKind::Procedure,
-                                    desc: None,
-                                }
+                            .map(|x| CompletionItem {
+                                item: x.into(),
+                                kind: CompletionKind::Procedure,
+                                desc: None,
                             }),
                     );
 
@@ -713,12 +691,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
                             .map_err(|e| log::error!("list procedure failed,err:{}", e))
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|x| {
-                                CompletionItem {
-                                    item: x.name.into(),
-                                    kind: CompletionKind::Function,
-                                    desc: x.statement.map(|x| x.into()),
-                                }
+                            .map(|x| CompletionItem {
+                                item: x.name.into(),
+                                kind: CompletionKind::Function,
+                                desc: x.statement.map(|x| x.into()),
                             }),
                     );
                     return anyhow::Ok(remove_duplicate(ret).into());
@@ -728,12 +704,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
                     let table = schema;
                     let schema = if index >= 3 {
                         match (tokens.get(index - 3), tokens.get(index - 2)) {
-                            (Some(schema), Some(dot)) => {
-                                match (&schema.token, &dot.token) {
-                                    (Token::Word(x), Token::Period) => Some(x.value.as_str()),
-                                    _ => None,
-                                }
-                            }
+                            (Some(schema), Some(dot)) => match (&schema.token, &dot.token) {
+                                (Token::Word(x), Token::Period) => Some(x.value.as_str()),
+                                _ => None,
+                            },
                             _ => None,
                         }
                     } else {
@@ -770,12 +744,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
             .map_err(|e| log::error!("get keywords failed,e:{}", e))
             .unwrap_or_default()
             .into_iter()
-            .map(|name| {
-                CompletionItem {
-                    item: name.into(),
-                    kind: CompletionKind::KeyWord,
-                    desc: None,
-                }
+            .map(|name| CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::KeyWord,
+                desc: None,
             })
             .collect()
     }
@@ -785,12 +757,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
             .map_err(|e| log::error!("list role failed,err:{}", e))
             .unwrap_or_default()
             .into_iter()
-            .map(|name| {
-                CompletionItem {
-                    item: name.into(),
-                    kind: CompletionKind::User,
-                    desc: None,
-                }
+            .map(|name| CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::User,
+                desc: None,
             })
             .collect()
     }
@@ -800,12 +770,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
             .map_err(|e| log::error!("list user failed,err:{}", e))
             .unwrap_or_default()
             .into_iter()
-            .map(|name| {
-                CompletionItem {
-                    item: name.into(),
-                    kind: CompletionKind::User,
-                    desc: None,
-                }
+            .map(|name| CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::User,
+                desc: None,
             })
             .collect()
     }
@@ -815,12 +783,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
             .map_err(|e| log::error!("list schema failed,err:{}", e))
             .unwrap_or_default()
             .into_iter()
-            .map(|name| {
-                CompletionItem {
-                    item: name.into(),
-                    kind: CompletionKind::Schema,
-                    desc: None,
-                }
+            .map(|name| CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Schema,
+                desc: None,
             })
             .collect()
     }
@@ -831,12 +797,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
             .map_err(|e| log::error!("list database failed,err:{}", e))
             .unwrap_or_default()
             .into_iter()
-            .map(|name| {
-                CompletionItem {
-                    item: name.into(),
-                    kind: CompletionKind::Database,
-                    desc: None,
-                }
+            .map(|name| CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Database,
+                desc: None,
             })
             .collect()
     }
@@ -852,12 +816,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
             .map_err(|e| log::error!("list variable failed,err:{}", e))
             .unwrap_or_default()
             .into_iter()
-            .map(|name| {
-                CompletionItem {
-                    item: name.into(),
-                    kind: CompletionKind::Variable,
-                    desc: None,
-                }
+            .map(|name| CompletionItem {
+                item: name.into(),
+                kind: CompletionKind::Variable,
+                desc: None,
             })
             .collect()
     }
@@ -885,12 +847,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
             .map_err(|e| log::error!("list domain failed,err:{}", e))
             .unwrap_or_default()
             .into_iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Domain,
-                    desc: None,
-                }
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Domain,
+                desc: None,
             })
             .collect()
     }
@@ -900,12 +860,10 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
             .map_err(|e| log::error!("list index failed,err:{}", e))
             .unwrap_or_default()
             .into_iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Index,
-                    desc: None,
-                }
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Index,
+                desc: None,
             })
             .collect()
     }
@@ -929,19 +887,17 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
         let ss = self.parse_statements(sql).unwrap_or_default();
         if let Some(statement) = ss.first() {
             match statement {
-                Statement::Query(query) => {
-                    match query.body.as_ref() {
-                        SetExpr::Select(x) => {
-                            return anyhow::Ok(x.selection.as_ref().map(|x| x.to_string()));
-                        }
-                        _ => {
-                            anyhow::bail!(format!(
-                                "should be a select statement,but {:?}",
-                                query.body.as_ref()
-                            ))
-                        }
+                Statement::Query(query) => match query.body.as_ref() {
+                    SetExpr::Select(x) => {
+                        return anyhow::Ok(x.selection.as_ref().map(|x| x.to_string()));
                     }
-                }
+                    _ => {
+                        anyhow::bail!(format!(
+                            "should be a select statement,but {:?}",
+                            query.body.as_ref()
+                        ))
+                    }
+                },
                 _ => {
                     anyhow::bail!(format!("should be a query statement ,but:{:?}", ss[0]))
                 }
@@ -953,11 +909,9 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
             .into_iter()
             .filter(|x| !matches!(x, Token::Whitespace(_)))
             .collect();
-        if let Some(index) = tokens.iter().position(|x| {
-            match x {
-                Token::Word(x) => x.keyword == Keyword::WHERE,
-                _ => false,
-            }
+        if let Some(index) = tokens.iter().position(|x| match x {
+            Token::Word(x) => x.keyword == Keyword::WHERE,
+            _ => false,
         }) {
             let token_slice = &tokens[index + 1..];
             anyhow::Ok(Some(
@@ -978,11 +932,9 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
             .into_iter()
             .filter(|x| !matches!(x, Token::Whitespace(_)))
             .collect();
-        if let Some(index) = tokens.iter().position(|x| {
-            match x {
-                Token::Word(x) => x.keyword == Keyword::ORDER,
-                _ => false,
-            }
+        if let Some(index) = tokens.iter().position(|x| match x {
+            Token::Word(x) => x.keyword == Keyword::ORDER,
+            _ => false,
         }) {
             if tokens.get(index + 1).is_none() {
                 anyhow::bail!("order by without 'by' keyword");
@@ -1096,12 +1048,10 @@ pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServ
             .map_err(|e| log::error!("list table policy failed,err:{}", e))
             .unwrap_or_default()
             .into_iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x.into(),
-                    kind: CompletionKind::Policy,
-                    desc: None,
-                }
+            .map(|x| CompletionItem {
+                item: x.into(),
+                kind: CompletionKind::Policy,
+                desc: None,
             })
             .collect()
     }

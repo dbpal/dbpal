@@ -108,22 +108,18 @@ fn logger_test() {
 impl AppLogger {
     fn get_level(&self) -> log::Level {
         let x = self.config.get("logger-level");
-        let r = x.and_then(|x| {
-            match x {
-                serde_json::Value::String(level) => {
-                    match log::Level::from_str(&level) {
-                        Ok(level) => Some(level),
-                        Err(err) => {
-                            println!(
-                                "parse level failed,err:{:?} this is a bug from frontend",
-                                err
-                            );
-                            None
-                        }
-                    }
+        let r = x.and_then(|x| match x {
+            serde_json::Value::String(level) => match log::Level::from_str(&level) {
+                Ok(level) => Some(level),
+                Err(err) => {
+                    println!(
+                        "parse level failed,err:{:?} this is a bug from frontend",
+                        err
+                    );
+                    None
                 }
-                _ => None,
-            }
+            },
+            _ => None,
         });
         r.unwrap_or(log::Level::Info)
     }
@@ -172,6 +168,7 @@ mod zoom {
 
     use crate::STORE_FILE;
 
+    pub(super) const STEP: f64 = 0.03;
     pub(crate) fn get_configured_zoom(handle: &AppHandle) -> anyhow::Result<f64> {
         let x = handle
             .get_store(STORE_FILE)
@@ -424,7 +421,7 @@ fn run_app() {
             if event.id.0 == "zoom_in" {
                 match zoom::get_configured_zoom(handle) {
                     Ok(x) => {
-                        let mut zoom = x - 0.03;
+                        let mut zoom = x - zoom::STEP;
                         let min = 0.3;
                         if zoom < min {
                             zoom = min;
@@ -442,7 +439,7 @@ fn run_app() {
             if event.id.0 == "zoom_out" {
                 match zoom::get_configured_zoom(handle) {
                     Ok(x) => {
-                        let mut zoom = x + 0.03;
+                        let mut zoom = x + zoom::STEP;
                         let max = 2f64;
                         if zoom > max {
                             zoom = max;

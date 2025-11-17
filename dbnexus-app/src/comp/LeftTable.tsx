@@ -1,5 +1,5 @@
 "use strict";
-import { ReactNode, useContext, useEffect, useRef, useState } from "react";
+import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { modalStyle, tabsHasId, EscDownEvent, modalHandleClose } from "./Common";
 import types from "./ApiStruct";
 import { NotificationContext } from "./Notification";
@@ -102,7 +102,7 @@ function TablesTree(props: { typ: TableType }) {
   useEffect(() => {
     setExceed(tables.filter(e => matchPattern(e.name)).length);
   }, [tables, matchPattern]);
-  const handleReload = () => {
+  const handleReload = useCallback(() => {
     setLoading(true);
     listTable(uuid, typ)
       .then(ts => {
@@ -114,10 +114,10 @@ function TablesTree(props: { typ: TableType }) {
       .finally(() => {
         setLoading(false);
       });
-  };
+  }, [showNotification, typ, uuid]);
   useEffect(() => {
     handleReload();
-  }, []);
+  }, [handleReload]);
 
   const { setUpMenu } = useContext(ContextMenuContext);
 
@@ -141,16 +141,16 @@ function TablesTree(props: { typ: TableType }) {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={handleReload}></MenuRefresh>
+                <MenuRefresh reload={handleReload} />
               </MenuList>
             ),
             event: e,
           });
         }}
       >
-        <TableViewIcon></TableViewIcon>
+        <TableViewIcon />
         <span> {tablesText} </span>
-        {loading && <CircularProgress></CircularProgress>}
+        {loading && <CircularProgress />}
       </Stack>
     >
       {tables
@@ -165,13 +165,10 @@ function TablesTree(props: { typ: TableType }) {
               size={e.size}
               reloadTables={handleReload}
               table={e.name}
-            ></TableTree>
+            />
           );
         })}
-      <ExceedMaxTreeItem
-        exceed={exceed}
-        maxTreeSize={setting.appearance.maxTreeSize}
-      ></ExceedMaxTreeItem>
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={setting.appearance.maxTreeSize} />
     </TreeItem>
   );
 }
@@ -209,7 +206,7 @@ function TableTree(props: { table: string; reloadTables; size: string | null }) 
           <span style={{ ...shrinkAble, minWidth: 0 }}> {size} </span>
         </Stack>
       }
-    ></TreeItem>
+    />
   );
 }
 
@@ -220,7 +217,7 @@ function DropTable(props: {
   handleClose;
   kind: DataSourceKind;
 }) {
-  let { table, reloadTables, uuid, handleClose, kind } = props;
+  const { table, reloadTables, uuid, handleClose, kind } = props;
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [cascade, setCascade] = useState(false);
@@ -309,7 +306,7 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
               return x.data[0]["result"];
             });
           }}
-        ></RedisStringTable>
+        />
       );
       break;
     case RedisTableType.List:
@@ -341,7 +338,7 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
               count,
             });
           }}
-        ></RedisListTable>
+        />
       );
       break;
 
@@ -373,7 +370,7 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
               member,
             });
           }}
-        ></RedisSetTable>
+        />
       );
       break;
     case RedisTableType.Zset:
@@ -404,7 +401,7 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
               member,
             });
           }}
-        ></RedisZsetTable>
+        />
       );
       break;
     case RedisTableType.Hash:
@@ -436,7 +433,7 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
               newValue,
             });
           }}
-        ></RedisHashTable>
+        />
       );
       break;
   }
@@ -478,7 +475,7 @@ function makeViewTable(
           deleteOP={makeTableDelete(uuid, table)}
           put_value_in_sql={makePutValueInSql(uuid)}
           addOP={makeTableInsertFn(uuid, table)}
-        ></SqlTableView>
+        />
       );
       break;
     case DataSourceKind.Redis:
@@ -492,7 +489,7 @@ function makeViewTable(
           modifyOP={MongoTableHandler.modifyOP(uuid, table)}
           loadOne={MongoTableHandler.loadOne(uuid, table)}
           deleteOP={MongoTableHandler.deleteOP(uuid, table)}
-        ></MongoTable>
+        />
       );
       break;
   }
@@ -524,7 +521,7 @@ function AddTableView(props: {
               loadContent={async () => {
                 return Promise.resolve("");
               }}
-            ></RedisStringTable>
+            />
           );
 
         case RedisTableType.List:
@@ -544,7 +541,7 @@ function AddTableView(props: {
                   value,
                 });
               }}
-            ></RedisAddList>
+            />
           );
 
         case RedisTableType.Set:
@@ -557,7 +554,7 @@ function AddTableView(props: {
                   member,
                 });
               }}
-            ></RedisAddSet>
+            />
           );
 
         case RedisTableType.Zset:
@@ -571,7 +568,7 @@ function AddTableView(props: {
                   value,
                 });
               }}
-            ></RedisAddZset>
+            />
           );
 
         case RedisTableType.Hash:
@@ -585,9 +582,10 @@ function AddTableView(props: {
                   value,
                 });
               }}
-            ></RedisAddHash>
+            />
           );
       }
+      break;
 
     case DataSourceKind.Mongo:
       return (
@@ -599,10 +597,11 @@ function AddTableView(props: {
               doc: BSON.serialize(data),
             });
           }}
-        ></MongoTableAdd>
+        />
       );
   }
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     showTableColumn(uuid, table)
       .then(e => {
@@ -611,7 +610,7 @@ function AddTableView(props: {
       .catch(e => {
         showNotification("error", "list fields failed", e);
       });
-  }, []);
+  }, [showNotification, table, uuid]);
 
   return (
     <SqlTableViewData
@@ -619,7 +618,7 @@ function AddTableView(props: {
       buttonName="add"
       handleData={makeTableInsertFn(uuid, table)}
       fields={fields}
-    ></SqlTableViewData>
+    />
   );
 }
 
@@ -630,7 +629,7 @@ function TableMenu(props: {
   kind: DataSourceKind;
   redisTableType?: RedisTableType;
 }) {
-  let { table, uuid, reload, kind, redisTableType } = props;
+  const { table, uuid, reload, kind, redisTableType } = props;
   const [showDup, setShowDup] = useState(false);
   const [showRename, setShowRename] = useState(false);
   const [showDrop, setShowDrop] = useState(false);
@@ -683,7 +682,7 @@ function TableMenu(props: {
 
   const handleViewData = () => {
     const id = uuid + "-table-" + generateRandomString(10);
-    let tableList: ReactNode = makeViewTable(uuid, table, kind, redisTableType);
+    const tableList: ReactNode = makeViewTable(uuid, table, kind, redisTableType);
     setTabs(e => {
       setTimeout(() => {
         setSelectTab(tabs.length);
@@ -713,7 +712,7 @@ function TableMenu(props: {
               kind={kind}
               table={table}
               redisTableType={redisTableType}
-            ></AddTableView>
+            />
           ),
           <TableViewIcon> </TableViewIcon>,
         ),
@@ -759,7 +758,7 @@ function TableMenu(props: {
           new TabContent(
             id,
             `${table}`,
-            <TableStructure kind={kind} table={table} uuid={uuid}></TableStructure>,
+            <TableStructure kind={kind} table={table} uuid={uuid} />,
             <IoConstructOutline> </IoConstructOutline>,
           ),
         ];
@@ -776,7 +775,7 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <ListIcon></ListIcon>
+            <ListIcon />
           </ListItemIcon>
           <ListItemText> View Data</ListItemText>
         </MenuItem>
@@ -787,7 +786,7 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <ListIcon></ListIcon>
+            <ListIcon />
           </ListItemIcon>
           <ListItemText> View Data(new window)</ListItemText>
         </MenuItem>
@@ -799,7 +798,7 @@ function TableMenu(props: {
             }}
           >
             <ListItemIcon>
-              <AddIcon></AddIcon>
+              <AddIcon />
             </ListItemIcon>
             <ListItemText> Add Data </ListItemText>
           </MenuItem>
@@ -812,7 +811,7 @@ function TableMenu(props: {
             }}
           >
             <ListItemIcon>
-              <AddIcon></AddIcon>
+              <AddIcon />
             </ListItemIcon>
             <ListItemText> Add Data(new window) </ListItemText>
           </MenuItem>
@@ -820,7 +819,7 @@ function TableMenu(props: {
 
         <MenuItem onClick={handleStructure}>
           <ListItemIcon>
-            <IoConstructOutline style={{ fontSize: "1.2rem" }}></IoConstructOutline>
+            <IoConstructOutline style={{ fontSize: "1.2rem" }} />
           </ListItemIcon>
           <ListItemText> Structure </ListItemText>
         </MenuItem>
@@ -831,7 +830,7 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
+            <ContentCopyIcon />
           </ListItemIcon>
           <ListItemText> Copy Name </ListItemText>
         </MenuItem>
@@ -844,7 +843,7 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <HiOutlineDuplicate style={{ fontSize: "1.7rem" }}></HiOutlineDuplicate>
+            <HiOutlineDuplicate style={{ fontSize: "1.7rem" }} />
           </ListItemIcon>
           <ListItemText> Duplicate </ListItemText>
         </MenuItem>
@@ -854,7 +853,7 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <ArrowCircleDownIcon></ArrowCircleDownIcon>
+            <ArrowCircleDownIcon />
           </ListItemIcon>
           <ListItemText> Export </ListItemText>
         </MenuItem>
@@ -864,7 +863,7 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <EditIcon></EditIcon>
+            <EditIcon />
           </ListItemIcon>
           <ListItemText> Rename </ListItemText>
         </MenuItem>
@@ -876,7 +875,7 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <PlaylistRemoveIcon color="error"></PlaylistRemoveIcon>
+            <PlaylistRemoveIcon color="error" />
           </ListItemIcon>
           <ListItemText> Truncate </ListItemText>
         </MenuItem>
@@ -887,7 +886,7 @@ function TableMenu(props: {
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon color="error"></DeleteForeverIcon>
+            <DeleteForeverIcon color="error" />
           </ListItemIcon>
           <ListItemText>Drop</ListItemText>
         </MenuItem>
@@ -906,7 +905,7 @@ function TableMenu(props: {
               handleClose={() => {
                 setShowDup(false);
               }}
-            ></ModalHeader>
+            />
             <DupTable
               table={table}
               uuid={uuid}
@@ -914,7 +913,7 @@ function TableMenu(props: {
                 setShowDup(false);
               }}
               reloadTables={reload}
-            ></DupTable>
+            />
           </Box>
         </Modal>
       )}
@@ -932,7 +931,7 @@ function TableMenu(props: {
                 setShowRename(false);
               }}
               title="Rename"
-            ></ModalHeader>
+            />
             <RenameTable
               uuid={uuid}
               table={table}
@@ -940,7 +939,7 @@ function TableMenu(props: {
               handleClose={() => {
                 setShowRename(false);
               }}
-            ></RenameTable>
+            />
           </Box>
         </Modal>
       )}
@@ -960,7 +959,7 @@ function TableMenu(props: {
               uuid={uuid}
               name={table}
               supportKind={getSupportExportKind(kind, true)}
-            ></ExportTableOrView>
+            />
           </Box>
         </Modal>
       )}
@@ -979,7 +978,7 @@ function TableMenu(props: {
                 setShowDrop(false);
               }}
               title="Drop Table"
-            ></ModalHeader>
+            />
             <DropTable
               uuid={uuid}
               table={table}
@@ -988,7 +987,7 @@ function TableMenu(props: {
                 setShowDrop(false);
               }}
               kind={kind}
-            ></DropTable>
+            />
           </Box>
         </Modal>
       )}
@@ -1034,7 +1033,7 @@ function DupTable(props: {
         onChange={e => {
           setName(e.target.value);
         }}
-      ></TextField>
+      />
       <Stack direction="row">
         <Button loading={loading} color="primary" onClick={handleRename}>
           duplicate
@@ -1090,7 +1089,7 @@ function RenameTable(props: {
         onChange={e => {
           setNewName(e.target.value);
         }}
-      ></TextField>
+      />
       <Stack direction="row">
         <Button loading={loading} color="primary" onClick={handleRename}>
           rename
@@ -1138,7 +1137,7 @@ function RedisOneTableKind(props: {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={handleReload}></MenuRefresh>
+                <MenuRefresh reload={handleReload} />
               </MenuList>
             ),
             event: e,
@@ -1171,7 +1170,7 @@ function RedisOneTableKind(props: {
           >
             <span> {table} </span>
           </Stack>
-        ></TreeItem>
+        />
       ))}
     </TreeItem>
   );
@@ -1186,7 +1185,7 @@ function RedisTables() {
   const { showNotification } = useContext(NotificationContext);
   const max = 50;
 
-  const handleReload = () => {
+  const handleReload = useCallback(() => {
     setLoading(true);
     invoke<types.RedisListTable>("redis_list_table", {
       name: uuid,
@@ -1202,13 +1201,13 @@ function RedisTables() {
       .finally(() => {
         setLoading(false);
       });
-  };
+  }, [filter, showNotification, uuid]);
   useEffect(() => {
     handleReload();
-  }, []);
+  }, [handleReload]);
   useEffect(() => {
     handleReload();
-  }, [filter]);
+  }, [filter, handleReload]);
 
   const [showEditFilter, setShowEditFilter] = useState(false);
   const filterTreeID = useRef(generateRandomString());
@@ -1235,9 +1234,9 @@ function RedisTables() {
           ) : (
             <Chip icon={<FilterAltIcon />} label={`${filter}`} />
           )}
-          {loading && <CircularProgress></CircularProgress>}
+          {loading && <CircularProgress />}
         </Stack>
-      ></TreeItem>
+      />
       {tables && (
         <>
           <RedisOneTableKind
@@ -1246,35 +1245,35 @@ function RedisTables() {
             tables={tables.string_tables}
             handleReload={handleReload}
             uuid={uuid}
-          ></RedisOneTableKind>
+          />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.List}
             tables={tables.list_tables}
             handleReload={handleReload}
             uuid={uuid}
-          ></RedisOneTableKind>
+          />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.Set}
             tables={tables.set_tables}
             handleReload={handleReload}
             uuid={uuid}
-          ></RedisOneTableKind>
+          />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.Zset}
             tables={tables.zset_tables}
             handleReload={handleReload}
             uuid={uuid}
-          ></RedisOneTableKind>
+          />
           <RedisOneTableKind
             kind={kind}
             typ={RedisTableType.Hash}
             tables={tables.hash_tables}
             handleReload={handleReload}
             uuid={uuid}
-          ></RedisOneTableKind>
+          />
         </>
       )}
 
@@ -1292,7 +1291,7 @@ function RedisTables() {
                 setShowEditFilter(false);
               }}
               title="Edit key match string"
-            ></ModalHeader>
+            />
             <TextField
               value={filter}
               fullWidth
@@ -1317,7 +1316,7 @@ function RedisTables() {
                   ),
                 },
               }}
-            ></TextField>
+            />
           </Box>
         </Modal>
       )}

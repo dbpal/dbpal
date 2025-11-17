@@ -8,7 +8,7 @@ import {
   Stack,
 } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { MdFunctions } from "react-icons/md";
@@ -50,7 +50,7 @@ function UdfsTree() {
     setExceed(udfs.filter(e => matchPattern(e.name)).length);
   }, [udfs, matchPattern]);
 
-  const reload = () => {
+  const reload = useCallback(() => {
     listUdf(uuid)
       .then(e => {
         setUdfs(e);
@@ -58,10 +58,10 @@ function UdfsTree() {
       .catch(e => {
         showNotification("error", "list udf failed", e);
       });
-  };
+  }, [showNotification, uuid]);
   useEffect(() => {
     reload();
-  }, []);
+  }, [reload]);
 
   const { setUpMenu } = useContext(ContextMenuContext);
   const treeID = useRef(generateRandomString());
@@ -75,14 +75,14 @@ function UdfsTree() {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={reload}></MenuRefresh>
+                <MenuRefresh reload={reload} />
               </MenuList>
             ),
             event: e,
           });
         }}
       >
-        <TbMathFunction></TbMathFunction>
+        <TbMathFunction />
         <span> udfs </span>
       </Stack>
     >
@@ -102,27 +102,19 @@ function UdfsTree() {
                 onContextMenu={e => {
                   setUpMenu({
                     content: (
-                      <UdfMenu
-                        reload={reload}
-                        uuid={uuid}
-                        kind={kind}
-                        udf={udf}
-                      ></UdfMenu>
+                      <UdfMenu reload={reload} uuid={uuid} kind={kind} udf={udf} />
                     ),
                     event: e,
                   });
                 }}
               >
-                <TbMathFunction></TbMathFunction>
-                <UdfNameAndParameters udf={udf} kind={kind}></UdfNameAndParameters>
+                <TbMathFunction />
+                <UdfNameAndParameters udf={udf} kind={kind} />
               </Stack>
-            ></TreeItem>
+            />
           );
         })}
-      <ExceedMaxTreeItem
-        exceed={exceed}
-        maxTreeSize={setting.appearance.maxTreeSize}
-      ></ExceedMaxTreeItem>
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={setting.appearance.maxTreeSize} />
     </TreeItem>
   );
 }
@@ -155,9 +147,9 @@ function UdfMenu(props: { uuid; udf: types.NamedStaff; reload; kind: DataSourceK
                 }}
                 kind={kind}
                 uuid={uuid}
-              ></DefAndMetasView>
+              />
             ),
-            <TbMathFunction></TbMathFunction>,
+            <TbMathFunction />,
           ),
         ];
       });
@@ -191,7 +183,7 @@ function UdfMenu(props: { uuid; udf: types.NamedStaff; reload; kind: DataSourceK
         }}
       >
         <ListItemIcon>
-          <InfoIcon></InfoIcon>
+          <InfoIcon />
         </ListItemIcon>
         <ListItemText> Detail </ListItemText>
       </MenuItem>
@@ -203,7 +195,7 @@ function UdfMenu(props: { uuid; udf: types.NamedStaff; reload; kind: DataSourceK
         }}
       >
         <ListItemIcon>
-          <DeleteForeverIcon color="error"></DeleteForeverIcon>
+          <DeleteForeverIcon color="error" />
         </ListItemIcon>
         <ListItemText>Drop</ListItemText>
       </MenuItem>
@@ -245,9 +237,9 @@ function CassandraAggregateMenu(props: {
                 }}
                 uuid={uuid}
                 kind={DataSourceKind.Cassandra}
-              ></DefAndMetasView>
+              />
             ),
-            <MdFunctions></MdFunctions>,
+            <MdFunctions />,
           ),
         ];
       });
@@ -287,7 +279,7 @@ function CassandraAggregateMenu(props: {
           }}
         >
           <ListItemIcon>
-            <InfoIcon></InfoIcon>
+            <InfoIcon />
           </ListItemIcon>
           <ListItemText> Detail </ListItemText>
         </MenuItem>
@@ -300,7 +292,7 @@ function CassandraAggregateMenu(props: {
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon color="error"></DeleteForeverIcon>
+            <DeleteForeverIcon color="error" />
           </ListItemIcon>
           <ListItemText>Drop</ListItemText>
         </MenuItem>
@@ -315,7 +307,7 @@ function CassandraAggregatesTree() {
   const [aggs, setAggs] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
-  const reload = () => {
+  const reload = useCallback(() => {
     listCassandraAgg(uuid)
       .then(ts => {
         setAggs(ts);
@@ -323,7 +315,7 @@ function CassandraAggregatesTree() {
       .catch(e => {
         showNotification("error", "list aggregate failed", e);
       });
-  };
+  }, [showNotification, uuid]);
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
@@ -331,7 +323,7 @@ function CassandraAggregatesTree() {
   }, [aggs, matchPattern]);
   useEffect(() => {
     reload();
-  }, []);
+  }, [reload]);
   const getItemId = (named: types.NamedStaff) => {
     return idPrefix + "-" + named.name + "-" + named.cassandra_parameters.join("-");
   };
@@ -347,7 +339,7 @@ function CassandraAggregatesTree() {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={reload}></MenuRefresh>
+                <MenuRefresh reload={reload} />
               </MenuList>
             ),
             event: e,
@@ -383,25 +375,19 @@ function CassandraAggregatesTree() {
                         uuid={uuid}
                         agg={agg.name}
                         parameters={agg.cassandra_parameters}
-                      ></CassandraAggregateMenu>
+                      />
                     ),
                     event: e,
                   });
                 }}
               >
-                <MdFunctions></MdFunctions>
-                <UdfNameAndParameters
-                  udf={agg}
-                  kind={DataSourceKind.Cassandra}
-                ></UdfNameAndParameters>
+                <MdFunctions />
+                <UdfNameAndParameters udf={agg} kind={DataSourceKind.Cassandra} />
               </Stack>
-            ></TreeItem>
+            />
           );
         })}
-      <ExceedMaxTreeItem
-        exceed={exceed}
-        maxTreeSize={setting.appearance.maxTreeSize}
-      ></ExceedMaxTreeItem>
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={setting.appearance.maxTreeSize} />
     </TreeItem>
   );
 }

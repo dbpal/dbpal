@@ -138,7 +138,7 @@ function makeUdfExtraArg(udf: types.NamedStaff, kind: DataSourceKind) {
   return arg;
 }
 function showUdf(uuid: string, udf: types.NamedStaff, kind: DataSourceKind) {
-  let arg = makeUdfExtraArg(udf, kind);
+  const arg = makeUdfExtraArg(udf, kind);
   return invoke<types.DefAndMetas>("show_udf", {
     name: uuid,
     udf: udf.name,

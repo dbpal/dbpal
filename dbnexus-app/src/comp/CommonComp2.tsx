@@ -76,7 +76,7 @@ function CreateDatabase({ uuid, handleClose }) {
       return;
     }
 
-    let extra = null;
+    const extra = null;
     invoke("create_database", { name: uuid, database, extra })
       .then(() => {
         showNotification("success", "Create OK");
@@ -97,7 +97,7 @@ function CreateDatabase({ uuid, handleClose }) {
             setDatabase(e.target.value);
           }}
           label="database name"
-        ></TextField>
+        />
       </Stack>
       <Stack direction="row">
         <Button
@@ -182,7 +182,7 @@ function CreateSchema(props: {
             setReplicationFactor(e.target.value);
           }}
           label="replication factor"
-        ></TextField>
+        />
         <TextField
           value={schema}
           onChange={e => {
@@ -190,7 +190,7 @@ function CreateSchema(props: {
           }}
           inputRef={schemaDom}
           label="name"
-        ></TextField>
+        />
         <Stack direction="row">
           <Button
             onClick={() => {
@@ -246,7 +246,7 @@ function CreateSchema(props: {
           }}
           label="name"
           inputRef={schemaDom}
-        ></TextField>
+        />
       </Stack>
       <Stack direction="row">
         <Button
@@ -285,6 +285,7 @@ function SimpleFlexEditor(props: {
   const setting = useContext(SettingContext);
   const editor = useRef<editor.IStandaloneCodeEditor>(null);
   const handleDidMount = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (ed: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
       editor.current = ed;
       ed.focus();
@@ -300,7 +301,7 @@ function SimpleFlexEditor(props: {
         }
       });
     },
-    [],
+    [handleEditor, handleValue],
   );
   useEffect(() => {
     if (editor.current && errPos) {
@@ -318,7 +319,7 @@ function SimpleFlexEditor(props: {
       tabSize: setting.editor.tabSize,
       ...setting.editor.editorOption,
     };
-  }, [setting]);
+  }, [readOnly, setting]);
 
   return (
     <div
@@ -337,9 +338,9 @@ function SimpleFlexEditor(props: {
           value={value}
           theme={setting.editorTheme()}
           options={options}
-        ></Editor>
+        />
       </div>
-      {!disableEditorBar && <EditorBar left={barLeft} pos={pos}></EditorBar>}
+      {!disableEditorBar && <EditorBar left={barLeft} pos={pos} />}
     </div>
   );
 }
@@ -348,7 +349,7 @@ function EditorBar(props: { left?: any; pos: Position }) {
   const { left, pos } = props;
   return (
     <Stack justifyContent="space-between" direction="row" alignItems="center">
-      {left ? left : <span></span>}
+      {left ? left : <span />}
 
       <Stack direction="row" style={{ paddingLeft: "2rem", paddingRight: "3rem" }}>
         <span>Ln {pos ? pos.lineNumber : ""}</span>
@@ -358,7 +359,7 @@ function EditorBar(props: { left?: any; pos: Position }) {
   );
 }
 
-const infoWindows = new Map<String, WebviewWindow>();
+const infoWindows = new Map<string, WebviewWindow>();
 
 function MenuConnectionInfo({ uuid }) {
   const { showNotification } = useContext(NotificationContext);
@@ -389,7 +390,7 @@ function MenuConnectionInfo({ uuid }) {
   return (
     <MenuItem onClick={handleInfo}>
       <ListItemIcon>
-        <InfoIcon></InfoIcon>
+        <InfoIcon />
       </ListItemIcon>
       <ListItemText> Info </ListItemText>
     </MenuItem>
@@ -400,57 +401,60 @@ function ConnConfigInfo(props: { uuid }) {
   const { uuid } = props;
   const { showNotification } = useContext(NotificationContext);
   const [metas, setMetas] = useState<types.MetaValue[]>([]);
-  const handleInfo = async (showOK: boolean) => {
-    try {
-      const metas = await invoke<types.MetaValue[]>("server_metas", {
-        name: uuid,
-      });
-      const config = await ConnectionHandler.getByName(uuid);
-      let configMetas = [];
-      switch (config.conn_type) {
-        case DataSourceKind.Mysql:
-        case DataSourceKind.MariaDB:
-        case DataSourceKind.TiDB:
-        case DataSourceKind.Postgres:
-        case DataSourceKind.Cockroach:
-        case DataSourceKind.Redis:
-        case DataSourceKind.Mongo:
-        case DataSourceKind.Cassandra:
-        case DataSourceKind.Oracle:
-        case DataSourceKind.ClickHouse:
-        case DataSourceKind.FireBird:
-        case DataSourceKind.SqlServer:
-          configMetas = [
-            { name: "host", value: config.host } as types.MetaValue,
-            { name: "port", value: config.port + "" } as types.MetaValue,
-            { name: "user", value: config.username } as types.MetaValue,
-          ];
-          break;
-        case DataSourceKind.LibSql:
-          if (config.source === "local") {
-            configMetas = [{ name: "host", value: config.path } as types.MetaValue];
-          } else if (config.source == "remote") {
+  const handleInfo = useCallback(
+    async (showOK: boolean) => {
+      try {
+        const metas = await invoke<types.MetaValue[]>("server_metas", {
+          name: uuid,
+        });
+        const config = await ConnectionHandler.getByName(uuid);
+        let configMetas = [];
+        switch (config.conn_type) {
+          case DataSourceKind.Mysql:
+          case DataSourceKind.MariaDB:
+          case DataSourceKind.TiDB:
+          case DataSourceKind.Postgres:
+          case DataSourceKind.Cockroach:
+          case DataSourceKind.Redis:
+          case DataSourceKind.Mongo:
+          case DataSourceKind.Cassandra:
+          case DataSourceKind.Oracle:
+          case DataSourceKind.ClickHouse:
+          case DataSourceKind.FireBird:
+          case DataSourceKind.SqlServer:
             configMetas = [
-              { name: "url", value: config.url } as types.MetaValue,
-              { name: "path", value: config.path } as types.MetaValue,
+              { name: "host", value: config.host } as types.MetaValue,
+              { name: "port", value: config.port + "" } as types.MetaValue,
+              { name: "user", value: config.username } as types.MetaValue,
             ];
-          }
-          break;
-        case DataSourceKind.Sqlite:
-          configMetas = [{ name: "path", value: config.path } as types.MetaValue];
-          break;
+            break;
+          case DataSourceKind.LibSql:
+            if (config.source === "local") {
+              configMetas = [{ name: "host", value: config.path } as types.MetaValue];
+            } else if (config.source == "remote") {
+              configMetas = [
+                { name: "url", value: config.url } as types.MetaValue,
+                { name: "path", value: config.path } as types.MetaValue,
+              ];
+            }
+            break;
+          case DataSourceKind.Sqlite:
+            configMetas = [{ name: "path", value: config.path } as types.MetaValue];
+            break;
+        }
+        setMetas([...configMetas, ...metas]);
+        if (showOK) {
+          reloadOK(showNotification);
+        }
+      } catch (e) {
+        showNotification("error", "call server metas failed", e);
       }
-      setMetas([...configMetas, ...metas]);
-      if (showOK) {
-        reloadOK(showNotification);
-      }
-    } catch (e) {
-      showNotification("error", "call server metas failed", e);
-    }
-  };
+    },
+    [showNotification, uuid],
+  );
   useEffect(() => {
     handleInfo(false);
-  }, []);
+  }, [handleInfo]);
 
   return (
     <Stack style={{ height: "100%" }}>
@@ -465,7 +469,7 @@ function ConnConfigInfo(props: { uuid }) {
         </Button>
       </Stack>
 
-      <MetaValueView values={metas}></MetaValueView>
+      <MetaValueView values={metas} />
     </Stack>
   );
 }
@@ -518,7 +522,7 @@ function LoadStoreFile(props: {
     return filters;
   }, [kind]);
 
-  const handleLoad = async () => {
+  const handleLoad = useCallback(async () => {
     // ok to load
     try {
       const file = await open({ title: "open file", filters });
@@ -530,9 +534,9 @@ function LoadStoreFile(props: {
     } catch (e) {
       showNotification("error", "error to open file", e);
     }
-  };
+  }, [filters, handleLoadFile, showNotification]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     const content = getQuery();
     if (!content) {
       showNotification("warning", `can't save empty content`);
@@ -551,7 +555,7 @@ function LoadStoreFile(props: {
     } catch (e) {
       showNotification("error", "save file failed", e);
     }
-  };
+  }, [file, filters, getQuery, handleLoadFile, showNotification]);
 
   const handleClose = async () => {
     try {
@@ -590,7 +594,7 @@ function LoadStoreFile(props: {
     return () => {
       document.removeEventListener("keydown", callback);
     };
-  }, [active, file, getQuery, handleLoadFile]);
+  }, [active, file, getQuery, handleLoad, handleLoadFile, handleSave]);
 
   return (
     <>
@@ -601,7 +605,7 @@ function LoadStoreFile(props: {
           </Tooltip>
           <Tooltip title="close file">
             <IconButton onClick={handleClose}>
-              <CloseIcon></CloseIcon>
+              <CloseIcon />
             </IconButton>
           </Tooltip>
         </Stack>
@@ -653,7 +657,7 @@ function AppMarkDown(props: {
   placeHolder?: string;
 }) {
   const { children, handlePathUrl, placeHolder } = props;
-  const CustomLink = (props: { href: string; children: ReactNode }) => {
+  function CustomLink(props: { href: string; children: ReactNode }) {
     const { href, children } = props;
     const { showNotification } = useContext(NotificationContext);
     const handleClick = event => {
@@ -686,12 +690,12 @@ function AppMarkDown(props: {
         {children}
       </a>
     );
-  };
+  }
   return (
     <MarkdownBody>
       <ReactMarkdown
         components={{
-          code({ node, className, children, ...props }) {
+          code({ className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || "");
             return match ? (
               <SyntaxHighlighter
@@ -732,7 +736,7 @@ function UrlDocument(props: { url: string }) {
           e.preventDefault();
           openUrl(url);
         }}
-      ></InfoIcon>
+      />
     </Tooltip>
   );
 }
@@ -788,7 +792,7 @@ function SaveFavoriteSqlView(props: {
               handleClose={() => {
                 setShowFavoriteName(false);
               }}
-            ></ModalHeader>
+            />
             <Stack>
               <TextField
                 fullWidth
@@ -798,7 +802,7 @@ function SaveFavoriteSqlView(props: {
                   setFavoriteName(e.target.value);
                 }}
                 required
-              ></TextField>
+              />
               <Stack direction="row">
                 <IconButton
                   color="primary"

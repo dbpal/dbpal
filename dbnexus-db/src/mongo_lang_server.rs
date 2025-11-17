@@ -19,18 +19,16 @@ impl LanguageServer for MongoDB {
         let tables = db.list_collection_names().await?;
         let mut ret = tables
             .iter()
-            .map(|x| {
-                CompletionItem {
-                    item: x.to_string().into(),
-                    kind: CompletionKind::Table,
-                    desc: None,
-                }
+            .map(|x| CompletionItem {
+                item: x.to_string().into(),
+                kind: CompletionKind::Table,
+                desc: None,
             })
             .collect::<Vec<_>>();
         let text = text.to_lowercase();
         for table in tables.iter() {
             if text.contains(table.to_lowercase().as_str()) {
-                let columns = SchemaTrait::show_table_columns(self, &table).await?;
+                let columns = SchemaTrait::show_table_columns(self, table).await?;
                 ret.extend(columns.into_iter().map(CompletionItem::from));
             }
         }

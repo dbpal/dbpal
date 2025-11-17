@@ -1,5 +1,5 @@
 "use strict";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 
 import { NotificationContext } from "./Notification";
 import { Button, Stack, Tooltip } from "@mui/material";
@@ -37,22 +37,25 @@ function DefAndMetasView(props: {
   const { showNotification } = useContext(NotificationContext);
   const [executeLoading, setExecuteLoading] = useState(false);
   const [parseErr] = useState<ErrAndLoc>(null);
-  const handleReload = showOk => {
-    setLoading(true);
-    reloadOP()
-      .then(detail => {
-        setDetail(detail);
-        if (showOk) {
-          showNotification("success", "reload ok");
-        }
-      })
-      .catch(e => {
-        showNotification("error", "fetch detail failed", e);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  };
+  const handleReload = useCallback(
+    showOk => {
+      setLoading(true);
+      reloadOP()
+        .then(detail => {
+          setDetail(detail);
+          if (showOk) {
+            showNotification("success", "reload ok");
+          }
+        })
+        .catch(e => {
+          showNotification("error", "fetch detail failed", e);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    },
+    [reloadOP, showNotification],
+  );
   const handleExecute = () => {
     const sql = getEditorText(editor.current, showNotification);
     setExecuteLoading(true);
@@ -69,7 +72,7 @@ function DefAndMetasView(props: {
   };
   useEffect(() => {
     handleReload(false);
-  }, []);
+  }, [handleReload]);
   return (
     <PanelGroup
       autoSaveId="udf-and-meta-view"
@@ -118,23 +121,17 @@ function DefAndMetasView(props: {
               }}
               barLeft=<Stack direction="row" flex={1}>
                 {parseErr && (
-                  <PossibleParseError
-                    parseErr={parseErr}
-                    editor={editor.current}
-                  ></PossibleParseError>
+                  <PossibleParseError parseErr={parseErr} editor={editor.current} />
                 )}
               </Stack>
-            ></SimpleFlexEditor>
+            />
           )}
         </Stack>
       </Panel>
 
       {(queryResp.length > 0 || (detail.metas && detail.metas.length > 0)) && (
         <>
-          <PanelResizeHandle
-            style={{ height: "4px" }}
-            className="resize-handle"
-          ></PanelResizeHandle>
+          <PanelResizeHandle style={{ height: "4px" }} className="resize-handle" />
           <Panel
             minSize={10}
             collapsible
@@ -159,7 +156,7 @@ function DefAndMetasView(props: {
                   flexDirection: "column",
                 }}
               >
-                <MetaValueView values={detail.metas}></MetaValueView>
+                <MetaValueView values={detail.metas} />
               </div>
             )}
           </Panel>
@@ -216,7 +213,7 @@ function TriggerDetail(props: {
         });
       }}
       uuid={uuid}
-    ></DefAndMetasView>
+    />
   );
 }
 export { DefAndMetasView, TriggerDetail };

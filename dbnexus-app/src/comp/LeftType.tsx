@@ -1,7 +1,7 @@
 "use strict";
 import { ListItemIcon, ListItemText, MenuItem, MenuList, Stack } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { DefAndMetas, tabsHasId } from "./Common";
@@ -31,7 +31,7 @@ function TypesTree() {
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
 
-  const reload = () => {
+  const reload = useCallback(() => {
     listCreatedTypes(uuid)
       .then(ts => {
         setTypes(ts);
@@ -39,7 +39,7 @@ function TypesTree() {
       .catch(e => {
         showNotification("error", "list types failed", e);
       });
-  };
+  }, [showNotification, uuid]);
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
   useEffect(() => {
@@ -52,7 +52,7 @@ function TypesTree() {
   const { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
     reload();
-  }, []);
+  }, [reload]);
 
   const idForTrees = useRef(generateRandomString());
   return (
@@ -65,7 +65,7 @@ function TypesTree() {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={reload}></MenuRefresh>
+                <MenuRefresh reload={reload} />
               </MenuList>
             ),
             event: e,
@@ -97,7 +97,7 @@ function TypesTree() {
                         uuid={uuid}
                         kind={kind}
                         createdType={typ}
-                      ></TypeMenu>
+                      />
                     ),
                     event: e,
                   });
@@ -107,13 +107,10 @@ function TypesTree() {
                 <PiTreeStructureFill />
                 <span> {typ.name} </span>
               </Stack>
-            ></TreeItem>
+            />
           );
         })}
-      <ExceedMaxTreeItem
-        exceed={exceed}
-        maxTreeSize={setting.appearance.maxTreeSize}
-      ></ExceedMaxTreeItem>
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={setting.appearance.maxTreeSize} />
     </TreeItem>
   );
 }
@@ -152,7 +149,7 @@ function TypeMenu(props: {
                 }}
                 kind={kind}
                 uuid={uuid}
-              ></DefAndMetasView>
+              />
             ),
             <PiTreeStructureFill />,
           ),
@@ -188,7 +185,7 @@ function TypeMenu(props: {
         }}
       >
         <ListItemIcon>
-          <InfoIcon></InfoIcon>
+          <InfoIcon />
         </ListItemIcon>
         <ListItemText> Detail </ListItemText>
       </MenuItem>
@@ -200,7 +197,7 @@ function TypeMenu(props: {
         }}
       >
         <ListItemIcon>
-          <DeleteForeverIcon color="error"></DeleteForeverIcon>
+          <DeleteForeverIcon color="error" />
         </ListItemIcon>
         <ListItemText> Drop</ListItemText>
       </MenuItem>

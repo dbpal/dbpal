@@ -67,7 +67,10 @@ function NotificationProvider(props: { children: ReactNode }) {
     setOpen(true);
   };
 
-  const handleClose = () => {
+  const handleClose = (_, reason) => {
+    if (reason === "clickaway") {
+      return;
+    }
     setOpen(false);
   };
 
@@ -92,7 +95,7 @@ function NotificationProvider(props: { children: ReactNode }) {
             severity={notification.severity}
             sx={{ maxWidth: "45vw", minWidth: "15vw" }}
             onClose={() => {
-              handleClose();
+              setOpen(false);
             }}
           >
             {/* 设置更宽的宽度 */}

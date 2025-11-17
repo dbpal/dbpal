@@ -45,7 +45,7 @@ function Query(props: {
       }}
     >
       {exiting ? (
-        <Exiting></Exiting>
+        <Exiting />
       ) : (
         <AllKindChat
           uuid={uuid}
@@ -105,7 +105,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         sql={sqlData.sql}
         favoriteName={sqlData.name}
         language={sqlData.language}
-      ></Query>
+       />
     </SeparateWindow>
   </React.StrictMode>,
 );

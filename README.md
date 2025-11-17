@@ -79,4 +79,9 @@ cargo tree -d
 
 
 
-querylog 要支持typescript保存 不然会被当成JavaScript
+
+ npx eslint src --ext .js,.jsx,.ts,.tsx --fix
+
+
+
+ 

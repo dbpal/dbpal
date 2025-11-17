@@ -1,5 +1,5 @@
 "use strict";
-import { Editor, Monaco } from "@monaco-editor/react";
+import { Editor } from "@monaco-editor/react";
 import {
   Autocomplete,
   Box,
@@ -76,7 +76,10 @@ class SaveTsOption {
       if (op) {
         return op;
       }
-    } catch (e) {}
+    } catch (e) {
+      /* empty */
+      console.log("get config failed", e);
+    }
     return `{
         "target": "esnext",
         "lib": [
@@ -121,7 +124,7 @@ class TSCompiler {
 
     // write config file
     const optionFilePath = await join(rootPath, "tsconfig.json");
-    let compilerOP = SaveTsOption.get();
+    const compilerOP = SaveTsOption.get();
     // make sure compilerOptions.outDir
 
     compilerOP["outDir"] = "./dist";
@@ -132,7 +135,7 @@ class TSCompiler {
       JSON.stringify({ compilerOptions: compilerOP }, null, 2),
       { create: true, append: false },
     );
-    let typesPath = await join(rootPath, "types");
+    const typesPath = await join(rootPath, "types");
 
     if (!(await exists(typesPath))) {
       await mkdir(typesPath);
@@ -149,12 +152,12 @@ class TSCompiler {
       );
     }
     const start = new Date();
-    let cmd = Command.create(TSCompiler.getCompilerCmd(), [], {
+    const cmd = Command.create(TSCompiler.getCompilerCmd(), [], {
       cwd: rootPath,
     });
     const out = await cmd.execute();
     //@ts-ignore
-    let compileTime = new Date() - start;
+    const compileTime = new Date() - start;
     if (out.code !== 0) {
       return new CompilerOutput(out, compileTime);
     }
@@ -172,7 +175,7 @@ class TSCompiler {
     return new CompilerOutput(out, compileTime, codeWithMap);
   }
   static async getTscVersion(): Promise<string> {
-    let cmd = Command.create(TSCompiler.getCompilerCmd(), ["--version"]);
+    const cmd = Command.create(TSCompiler.getCompilerCmd(), ["--version"]);
     const out = await cmd.execute();
     return out.stdout.substring(out.stdout.indexOf(" ") + 1);
   }
@@ -231,7 +234,7 @@ function TsEditCompilerOptions(props: { handleClose: () => void }) {
             </Typography>
           )
         }
-      ></SimpleFlexEditor>
+      />
       <Stack direction="row" style={{ alignItems: "center" }}>
         <Button onClick={handleSave}> save </Button>
         <Link
@@ -302,7 +305,7 @@ function TypeScript(props: {
       .catch(e => {
         showNotification("error", "is typescript  global installed?", e);
       });
-  }, [language]);
+  }, [language, showNotification]);
 
   return (
     <>
@@ -323,15 +326,15 @@ function TypeScript(props: {
               if (!confirm) {
                 return;
               }
-              let result = await new TSCompiler(compileDir).compile(
+              const result = await new TSCompiler(compileDir).compile(
                 editor.getValue(),
                 false,
               );
               if (result.out.code != 0) {
                 showNotification(
-                  "warning",
+                  "error",
                   "typescript compile error,can safe change to javascript",
-                  <TsCompilerMsg out={result.out} editor={editor}></TsCompilerMsg>,
+                  <TsCompilerMsg out={result.out} editor={editor} />,
                 );
                 return;
               }
@@ -344,7 +347,7 @@ function TypeScript(props: {
 
       {language == MongoLanguage.ts && tscVersion && (
         <Tooltip title="typescript version">
-          <Chip color="success" label={tscVersion}></Chip>
+          <Chip color="success" label={tscVersion} />
         </Tooltip>
       )}
       {language == MongoLanguage.ts && (
@@ -361,7 +364,7 @@ function TypeScript(props: {
       )}
       {language == MongoLanguage.ts && compileTime && (
         <Tooltip title="compile time">
-          <Chip label={`${compileTime}ms`} color="info"></Chip>
+          <Chip label={`${compileTime}ms`} color="info" />
         </Tooltip>
       )}
       {language == MongoLanguage.ts && (
@@ -371,7 +374,7 @@ function TypeScript(props: {
               style: { maxWidth: "40vw" },
             },
           }}
-          title=<CompilerNotice width="40vw" compileDir={compileDir}></CompilerNotice>
+          title=<CompilerNotice width="40vw" compileDir={compileDir} />
         >
           <Typography> compile </Typography>
         </Tooltip>
@@ -391,12 +394,12 @@ function TypeScript(props: {
                 setShowEditOption(false);
               }}
               noTextTransform
-            ></ModalHeader>
+            />
             <TsEditCompilerOptions
               handleClose={() => {
                 setShowEditOption(false);
               }}
-            ></TsEditCompilerOptions>
+            />
           </Box>
         </Modal>
       )}
@@ -419,7 +422,7 @@ function TsCompilerMsg(props: {
   >([]);
 
   useEffect(() => {
-    let lines = (out.stdout + out.stderr).split("\n");
+    const lines = (out.stdout + out.stderr).split("\n");
     setLines(
       lines.map(x => {
         const pos = extractLineAndColumn(x);
@@ -429,9 +432,10 @@ function TsCompilerMsg(props: {
   }, [out]);
   return (
     <Stack>
-      {lines.map(line => {
+      {lines.map((line, index) => {
         return (
           <Typography
+            key={index}
             color={out.code == 0 ? "success" : "error"}
             style={{ cursor: line.pos ? "pointer" : undefined }}
             onClick={() => {
@@ -468,6 +472,7 @@ function CallCleanFunctions(props: {
       <Stack>
         {cleanFunctions.map((x, index) => (
           <Button
+            key={index}
             variant="outlined"
             onClick={() => {
               handleCall(index);
@@ -509,7 +514,7 @@ function MongoQuery(props: {
   const setUpClean = (name: string, fn: () => void) => {
     setCleanFns(e => [...e, { name, fn }]);
   };
-  const jsCodeMount = (ed: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
+  const jsCodeMount = (ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
     ed.focus();
     ed.onDidChangeCursorPosition(() => {
@@ -542,9 +547,9 @@ function MongoQuery(props: {
       setCompileTime(out.compileTime);
       if (out.out.code != 0) {
         showNotification(
-          "warning",
+          "error",
           "compile failed",
-          <TsCompilerMsg out={out.out} editor={editor}></TsCompilerMsg>,
+          <TsCompilerMsg out={out.out} editor={editor} />,
         );
         return;
       }
@@ -576,7 +581,7 @@ function MongoQuery(props: {
         uuid={uuid}
         kind={DataSourceKind.Mongo}
         executeTimes={executeTimes}
-      ></QueryLog>
+      />
       <Stack
         direction="row"
         sx={{ alignItems: "center", overflow: "auto", paddingBottom: "0.5rem" }}
@@ -587,7 +592,7 @@ function MongoQuery(props: {
           editor={editor}
           compileTime={compileTime}
           compileDir={compileDir.current}
-        ></TypeScript>
+        />
         <Tooltip title="execute">
           <IconButton
             onClick={() => {
@@ -604,7 +609,7 @@ function MongoQuery(props: {
           editor={editor}
           uuid={uuid}
           favoriteName={favoriteName}
-        ></SaveFavoriteSqlView>
+        />
         <LoadStoreFile
           getQuery={() => {
             return editor.getValue();
@@ -616,7 +621,7 @@ function MongoQuery(props: {
             }
             editor.setValue(text);
           }}
-        ></LoadStoreFile>
+        />
 
         <Tooltip title="query log">
           <IconButton
@@ -625,7 +630,7 @@ function MongoQuery(props: {
             }}
             color="primary"
           >
-            <EventNoteIcon></EventNoteIcon>
+            <EventNoteIcon />
           </IconButton>
         </Tooltip>
 
@@ -635,19 +640,19 @@ function MongoQuery(props: {
               cleanFunctions={cleanFns}
               setCleanFunction={setCleanFns}
               width="45vw"
-            ></CallCleanFunctions>
+            />
             slotProps={{
               tooltip: {
                 style: { maxWidth: "45vw" },
               },
             }}
           >
-            <RiDeleteBack2Line fontSize="1.6rem"></RiDeleteBack2Line>
+            <RiDeleteBack2Line fontSize="1.6rem" />
           </Tooltip>
         )}
 
         <Tooltip
-          title=<CleanFunctionDoc></CleanFunctionDoc>
+          title=<CleanFunctionDoc />
           slotProps={{
             tooltip: {
               style: { maxWidth: "60vw" },
@@ -689,14 +694,14 @@ function MongoQuery(props: {
           options={options}
           value={value}
           theme={setting.editorTheme()}
-        ></Editor>
-        <EditorBar pos={pos}></EditorBar>
+        />
+        <EditorBar pos={pos} />
       </div>
       {/* // we must use db etc ...  */}
-      {db && <span></span>}
-      {cleanFns && <span></span>}
-      {bson && <span></span>}
-      {setUpClean && <span></span>}
+      {db && <span />}
+      {cleanFns && <span />}
+      {bson && <span />}
+      {setUpClean && <span />}
     </Stack>
   );
 }

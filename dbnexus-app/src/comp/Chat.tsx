@@ -21,7 +21,7 @@ import {
   Typography,
 } from "@mui/material";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { editor } from "monaco-editor";
 import { AppMarkDown, SimpleFlexEditor } from "./CommonComp2";
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
@@ -149,7 +149,7 @@ function Chat(props: {
             favoriteName={favoriteName}
             value={value}
             language={language}
-          ></AllKindQuery>
+          />
         </Panel>
 
         {llmconfig && (
@@ -158,18 +158,19 @@ function Chat(props: {
               width: chatDirection != "vertical" ? 4 : undefined,
               height: chatDirection == "vertical" ? 4 : undefined,
             }}
+            id="chat-resize-bar"
             className="resize-handle"
           />
         )}
         {llmconfig && (
-          <Panel collapsible maxSize={65} collapsedSize={0} minSize={8}>
+          <Panel id="chat-input" collapsible maxSize={65} collapsedSize={0} minSize={8}>
             <SqlChatTextInput
               uuid={uuid}
               kind={kind}
               editor={editor}
               setChatDirection={setChatDirection}
               chatDirection={chatDirection}
-            ></SqlChatTextInput>
+            />
           </Panel>
         )}
       </PanelGroup>
@@ -290,7 +291,7 @@ human:{question}
   }
 
   async createRedisPrompt(): Promise<string> {
-    let inputs = {
+    const inputs = {
       question: this.question.trim(),
       database_information: await this.redisDatabaseInformation(),
       chat_history: this.memory
@@ -299,7 +300,7 @@ human:{question}
         .join("\n"),
       locale: await getLocale(),
     };
-    let userDefine = this.config.aiTextTemplates[this.kind];
+    const userDefine = this.config.aiTextTemplates[this.kind];
     if (userDefine) {
       return PromptTemplate.fromTemplate(userDefine).format(inputs);
     }
@@ -317,7 +318,7 @@ human:{question}
   }
 
   async createMongoPrompt(): Promise<string> {
-    let inputs = {
+    const inputs = {
       question: this.question.trim(),
       database_information: await this.mongoDatabaseInformation(),
       chat_history: this.memory
@@ -327,7 +328,7 @@ human:{question}
       locale: await getLocale(),
       language: this.language,
     };
-    let userDefine = this.config.aiTextTemplates[this.kind];
+    const userDefine = this.config.aiTextTemplates[this.kind];
     if (userDefine) {
       return PromptTemplate.fromTemplate(userDefine).format(inputs);
     }
@@ -336,7 +337,7 @@ human:{question}
   }
 
   async createSqlPrompt(): Promise<string> {
-    let inputs = {
+    const inputs = {
       dialect: this.kind2CommonName(),
       question: this.question,
       database_information: await this.sqlDatabaseInformation(),
@@ -358,12 +359,12 @@ human:{question}
 
   async sqlDatabaseInformation() {
     let ret = "";
-    let elements = await this.allSqlElements();
+    const elements = await this.allSqlElements();
     for (const table of elements.tables) {
       if (!this.question.includes(table.name)) {
         continue;
       }
-      let cols = await showTableColumn(this.uuid, table.name);
+      const cols = await showTableColumn(this.uuid, table.name);
       ret += `${table.name} is table
         Columns:${cols.map(x => x.field).join(",")}
         Primary key: ${cols
@@ -385,7 +386,7 @@ human:{question}
       if (!this.question.includes(view.name)) {
         continue;
       }
-      let cols = await showViewColumns(this.uuid, view.name);
+      const cols = await showViewColumns(this.uuid, view.name);
       ret += `${view.name} is view 
         Columns:${cols.map(x => x.field).join(",")}\n`;
       {
@@ -401,7 +402,7 @@ human:{question}
       if (!this.question.includes(view.name)) {
         continue;
       }
-      let cols = await showViewColumns(this.uuid, view.name);
+      const cols = await showViewColumns(this.uuid, view.name);
       ret += `${view.name} is materalized view 
         Columns:${cols.map(x => x.field).join(",")}\n`;
       {
@@ -548,6 +549,9 @@ class SaveChatMemoryK {
       const x = localStorage.getItem(SaveChatMemoryK.key);
       return x ? parseInt(x) : SaveChatMemoryK.defaultK;
     } catch (e) {
+      if (import.meta.env.DEV) {
+        console.log("get chat memory k error", e);
+      }
       return SaveChatMemoryK.defaultK;
     }
   }
@@ -593,7 +597,7 @@ function SqlChatTextInput(props: {
     }
     SaveChatMemoryK.save(size);
     chatMemory.current.setK(size);
-  }, [chatBufferSize]);
+  }, [chatBufferSize, showNotification]);
 
   const handleChat = async () => {
     try {
@@ -654,7 +658,7 @@ function SqlChatTextInput(props: {
           <ArrowCircleUpIcon
             style={{ fontSize: "1.8rem" }}
             color={newQuestion == prevQuestion ? "disabled" : "primary"}
-          ></ArrowCircleUpIcon>
+          />
         </IconButton>
 
         <Tooltip title="history">
@@ -664,9 +668,7 @@ function SqlChatTextInput(props: {
             }}
             disabled={chatHistory.length == 0}
           >
-            <EventNoteIcon
-              color={chatHistory.length == 0 ? "disabled" : "primary"}
-            ></EventNoteIcon>
+            <EventNoteIcon color={chatHistory.length == 0 ? "disabled" : "primary"} />
           </IconButton>
         </Tooltip>
         <Tooltip title="show prompt">
@@ -686,7 +688,7 @@ function SqlChatTextInput(props: {
               setShowEditPromptTemplate(e => !e);
             }}
           >
-            <EditIcon color="secondary"></EditIcon>
+            <EditIcon color="secondary" />
           </IconButton>
         </Tooltip>
         <TextField
@@ -705,7 +707,7 @@ function SqlChatTextInput(props: {
               max: 20,
             },
           }}
-        ></TextField>
+        />
 
         <Tooltip title="chat input location">
           <IconButton
@@ -731,7 +733,7 @@ function SqlChatTextInput(props: {
         handleEditor={e => {
           AITextCompletionName.set(e.getModel().id, uuid);
         }}
-      ></SimpleFlexEditor>
+      />
       {showChatHistory && (
         <ChatHistory
           history={chatHistory}
@@ -741,7 +743,7 @@ function SqlChatTextInput(props: {
           handleClean={() => {
             setChatHistory([]);
           }}
-        ></ChatHistory>
+        />
       )}
       {showEditPromptTemplate && (
         <EditPromptTemplate
@@ -750,7 +752,7 @@ function SqlChatTextInput(props: {
             setShowEditPromptTemplate(false);
           }}
           kind={kind}
-        ></EditPromptTemplate>
+        />
       )}
       {showPrompt && (
         <ShowPrompt
@@ -763,7 +765,7 @@ function SqlChatTextInput(props: {
           handleClose={() => {
             setShowPrompt(false);
           }}
-        ></ShowPrompt>
+        />
       )}
     </Stack>
   );
@@ -782,12 +784,13 @@ function EditPromptTemplate(props: {
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const { showNotification } = useContext(NotificationContext);
   const handleSave = async () => {
+    const configClone = structuredClone(config);
     try {
-      if (!config.aiTextTemplates) {
-        config.aiTextTemplates = {};
+      if (!configClone.aiTextTemplates) {
+        configClone.aiTextTemplates = {};
       }
-      config.aiTextTemplates[kind] = newTemplate;
-      await config.save();
+      configClone.aiTextTemplates[kind] = newTemplate;
+      await configClone.save();
     } catch (e) {
       showNotification("error", "save template failed", e);
       return;
@@ -797,9 +800,10 @@ function EditPromptTemplate(props: {
   };
 
   const handleDelete = async () => {
+    const configClone = structuredClone(config);
     try {
-      config.aiTextTemplates[kind] = "";
-      await config.save();
+      configClone.aiTextTemplates[kind] = "";
+      await configClone.save();
     } catch (e) {
       showNotification("error", "reset template failed", e);
       return;
@@ -834,7 +838,7 @@ function EditPromptTemplate(props: {
       }}
     >
       <Stack style={{ height: "100%" }}>
-        <ModalHeader title="edit template" handleClose={handleClose}></ModalHeader>
+        <ModalHeader title="edit template" handleClose={handleClose} />
         <SimpleFlexEditor
           value={newTemplate}
           handleValue={v => {
@@ -844,13 +848,13 @@ function EditPromptTemplate(props: {
             setEditor(e);
           }}
           language="text"
-        ></SimpleFlexEditor>
-        <Divider></Divider>
+        />
+        <Divider />
         <Stack direction="row" style={{ alignItems: "center" }}>
           <Button onClick={handleSave}> save </Button>
           {MakePrompt.getDefaultTemplatePredefineVariables(kind).map(variable => {
             return (
-              <Tooltip title={`click to use this variable in template.`}>
+              <Tooltip title={`click to use this variable in template.`} key={variable}>
                 <Chip
                   label={variable as string}
                   onClick={() => {
@@ -863,7 +867,7 @@ function EditPromptTemplate(props: {
                       );
                     editor.focus();
                   }}
-                ></Chip>
+                />
               </Tooltip>
             );
           })}
@@ -930,7 +934,7 @@ function ChatHistory(props: {
           </Tooltip>
         }
         handleClose={handleClose}
-      ></ModalHeader>
+      />
       <Stack>
         {history.map((his, index) => {
           return (
@@ -946,7 +950,7 @@ function ChatHistory(props: {
                     width: "85%",
                   }}
                 >
-                  <AppMarkDown children={his}></AppMarkDown>
+                  <AppMarkDown>{his}</AppMarkDown>
                 </div>
               </Stack>
               {index > 0 && (index + 1) % 2 == 0 && <Divider />}
@@ -990,7 +994,7 @@ function ShowPrompt(props: {
       .then(e => {
         setPrompt(e);
       });
-  }, [question]);
+  }, [chatMemory, config, kind, language, question, uuid]);
   return (
     <Paper
       style={{
@@ -1018,7 +1022,7 @@ function ShowPrompt(props: {
           </>
           title="show prompt"
           handleClose={handleClose}
-        ></ModalHeader>
+        />
         <div style={{ flex: 1 }}>
           <pre style={{ height: "100%", overflow: "auto" }}>{prompt}</pre>
         </div>
@@ -1037,7 +1041,7 @@ function AllKindChat(props: {
   const [config, setConfig] = useState<LLMConfig>(null);
   const { showNotification } = useContext(NotificationContext);
 
-  const handleReload = () => {
+  const handleReload = useCallback(() => {
     LLMConfig.get()
       .then(config => {
         if (config && config.enable()) {
@@ -1047,7 +1051,7 @@ function AllKindChat(props: {
       .catch(e => {
         showNotification("error", "get llm config failed", e);
       });
-  };
+  }, [showNotification]);
   useEffect(() => {
     const unlisten = appStore.onKeyChange(LLMConfig.key, () => {
       handleReload();
@@ -1057,15 +1061,15 @@ function AllKindChat(props: {
         x();
       });
     };
-  }, []);
+  }, [handleReload]);
 
   useEffect(() => {
     handleReload();
-  }, []);
+  }, [handleReload]);
 
   return (
     <LLMConfigContext.Provider value={config}>
-      <Chat {...props}></Chat>
+      <Chat {...props} />
     </LLMConfigContext.Provider>
   );
 }

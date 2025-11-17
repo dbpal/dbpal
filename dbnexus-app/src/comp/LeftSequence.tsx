@@ -12,7 +12,7 @@ import {
   Switch,
 } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import {
@@ -50,7 +50,7 @@ function SequenceTree() {
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
 
-  const reload = () => {
+  const reload = useCallback(() => {
     listSequence(uuid)
       .then(ts => {
         setSeq(ts);
@@ -58,7 +58,7 @@ function SequenceTree() {
       .catch(e => {
         showNotification("error", "list sequence failed", e);
       });
-  };
+  }, [showNotification, uuid]);
 
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
@@ -75,7 +75,7 @@ function SequenceTree() {
   const { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
     reload();
-  }, []);
+  }, [reload]);
   const idForTree = useRef(generateRandomString());
   return (
     <TreeItem
@@ -87,14 +87,14 @@ function SequenceTree() {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={reload}></MenuRefresh>
+                <MenuRefresh reload={reload} />
               </MenuList>
             ),
             event: e,
           });
         }}
       >
-        <GiProgression></GiProgression>
+        <GiProgression />
         <span> sequences </span>
       </Stack>
     >
@@ -114,28 +114,20 @@ function SequenceTree() {
                 onContextMenu={e => {
                   setUpMenu({
                     content: (
-                      <SequenceMenu
-                        reload={reload}
-                        uuid={uuid}
-                        kind={kind}
-                        seq={seq}
-                      ></SequenceMenu>
+                      <SequenceMenu reload={reload} uuid={uuid} kind={kind} seq={seq} />
                     ),
                     event: e,
                   });
                 }}
                 sx={{ alignItems: "center" }}
               >
-                <GiProgression></GiProgression>
+                <GiProgression />
                 <span>{seq.name}</span>
               </Stack>
-            ></TreeItem>
+            />
           );
         })}
-      <ExceedMaxTreeItem
-        exceed={exceed}
-        maxTreeSize={setting.appearance.maxTreeSize}
-      ></ExceedMaxTreeItem>
+      <ExceedMaxTreeItem exceed={exceed} maxTreeSize={setting.appearance.maxTreeSize} />
     </TreeItem>
   );
 }
@@ -190,9 +182,9 @@ function SequenceMenu(props: {
                 }}
                 kind={kind}
                 uuid={uuid}
-              ></DefAndMetasView>
+              />
             ),
-            <GiProgression></GiProgression>,
+            <GiProgression />,
           ),
         ];
       });
@@ -227,7 +219,7 @@ function SequenceMenu(props: {
           }}
         >
           <ListItemIcon>
-            <InfoIcon></InfoIcon>
+            <InfoIcon />
           </ListItemIcon>
           <ListItemText> Detail </ListItemText>
         </MenuItem>
@@ -239,7 +231,7 @@ function SequenceMenu(props: {
           }}
         >
           <ListItemIcon>
-            <DeleteForeverIcon color="error"></DeleteForeverIcon>
+            <DeleteForeverIcon color="error" />
           </ListItemIcon>
           <ListItemText> Drop</ListItemText>
         </MenuItem>

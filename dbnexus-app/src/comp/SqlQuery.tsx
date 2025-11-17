@@ -70,14 +70,14 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   const { showNotification } = useContext(NotificationContext);
   const [txCount, setTxCount] = useState(0);
   const setCloseConfirm = useContext(SetCloseConfirmTextContext);
-  const handleQueryCommit = async () => {
+  const handleQueryCommit = useCallback(async () => {
     try {
       const c = await conn.getAutoCommit();
       setCommit(c);
     } catch (e) {
       showNotification("error", "get commit modal failed", e);
     }
-  };
+  }, [conn, showNotification]);
   useEffect(() => {
     setTxCount(0);
     if (commit) {
@@ -87,13 +87,13 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
         "In Transaction,better commit or rollback.uncommit transaction may lead database locks",
       );
     }
-  }, [commit]);
+  }, [commit, setCloseConfirm]);
 
   useEffect(() => {
     //这里的顺序很重要
     setTxCount(e => e + 1);
     handleQueryCommit();
-  }, [executeTimes]);
+  }, [executeTimes, handleQueryCommit]);
 
   const commitTx = async () => {
     try {
@@ -149,23 +149,23 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
           color={commit ? "info" : "success"}
           variant={commit ? "outlined" : "filled"}
           style={shrinkAble}
-        ></Chip>
+        />
       </Tooltip>
 
       {!commit && (
         <>
           <Tooltip title="executes after begin transaction">
-            <Chip label={txCount} color="info"></Chip>
+            <Chip label={txCount} color="info" />
           </Tooltip>
 
           <Tooltip title="commit">
             <IconButton onClick={commitTx} color="primary">
-              <FaUpload fontSize="1.1rem"></FaUpload>
+              <FaUpload fontSize="1.1rem" />
             </IconButton>
           </Tooltip>
           <Tooltip title="rollback">
             <IconButton onClick={rollbackTx} color="primary">
-              <MdOutlineReply fontSize="1.7rem"></MdOutlineReply>
+              <MdOutlineReply fontSize="1.7rem" />
             </IconButton>
           </Tooltip>
         </>
@@ -183,9 +183,9 @@ function SqlQuery(props: {
   handleEditor: (ed: editor.IStandaloneCodeEditor) => void;
 }) {
   const { uuid, value, favoriteName, kind, extras, handleEditor } = props;
-  const makeConn = async () => {
+  const makeConn = useCallback(async () => {
     return makeQueryConn(uuid, kind);
-  };
+  }, [kind, uuid]);
   const [resp, setResp] = useState([]);
   const [sqlErr] = useState<ErrAndLoc | null>(null);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
@@ -201,19 +201,17 @@ function SqlQuery(props: {
   const [queryRespView, setQueryRespView] = useState<WebviewWindow>(null);
   const queryRespViewEventName = useRef(generateRandomString());
   const handleEditorDidMount = useCallback(
-    (ed: editor.IStandaloneCodeEditor, _monaco) => {
+    (ed: editor.IStandaloneCodeEditor) => {
       setEditor(ed);
       if (handleEditor) {
         handleEditor(ed);
       }
-      ed.onDidChangeModelContent(_event => {});
-
-      ed.onDidChangeCursorPosition(_event => {
+      ed.onDidChangeCursorPosition(() => {
         const p = ed.getPosition();
         setPos(p);
       });
     },
-    [],
+    [handleEditor],
   );
 
   const handleReconnect = async () => {
@@ -267,21 +265,28 @@ function SqlQuery(props: {
         });
     }
   };
-  const warnDangerousSql = async (text): Promise<boolean> => {
-    try {
-      if (await conn.isDangerSql(text)) {
-        return await secondConfirm({
-          confirmText: "Execute",
-          title: "This is a dangerous sql",
-          content: `Are u sure going to execute!!!!'`,
-        });
-      } else {
+  const warnDangerousSql = useCallback(
+    async (text: string): Promise<boolean> => {
+      try {
+        if (await conn.isDangerSql(text)) {
+          return await secondConfirm({
+            confirmText: "Execute",
+            title: "This is a dangerous sql",
+            content: `Are u sure going to execute!!!!'`,
+          });
+        } else {
+          return true;
+        }
+      } catch (e) {
+        if (import.meta.env.DEV) {
+          console.log("warnDangerousSql error", e);
+        }
+
         return true;
       }
-    } catch (e) {
-      return true;
-    }
-  };
+    },
+    [conn],
+  );
 
   const handleExecute = async () => {
     const text = getEditorText(editor, showNotification);
@@ -311,41 +316,44 @@ function SqlQuery(props: {
         setLoading(false);
       });
   };
-  const handleQuery = async (append: boolean, explain: boolean = false) => {
-    let text = getEditorText(editor, showNotification);
-    if (!text) {
-      return;
-    }
-    if (explain) {
-      text = `EXPLAIN ${text}`;
-    }
-    const confirm = await warnDangerousSql(text);
-    if (!confirm) {
-      return;
-    }
-    setLoading(true);
-    conn
-      .queryOP(text, append)
-      .then(resp => {
-        if (SaveQueryLogConfigure.get()) {
-          queryLogHandler.current.save(text, rustResultOk(resp));
-        }
-        if (append) {
-          setResp(p => [...p, ...resp]);
-        } else {
-          setResp(resp);
-        }
-        showNotification("success", "Execute OK");
-      })
-      .catch(e => {
-        setResp([]);
-        showNotification("error", "query failed", e);
-      })
-      .finally(() => {
-        setExecuteTimes(e => e + 1);
-        setLoading(false);
-      });
-  };
+  const handleQuery = useCallback(
+    async (append: boolean, explain: boolean = false) => {
+      let text = getEditorText(editor, showNotification);
+      if (!text) {
+        return;
+      }
+      if (explain) {
+        text = `EXPLAIN ${text}`;
+      }
+      const confirm = await warnDangerousSql(text);
+      if (!confirm) {
+        return;
+      }
+      setLoading(true);
+      conn
+        .queryOP(text, append)
+        .then(resp => {
+          if (SaveQueryLogConfigure.get()) {
+            queryLogHandler.current.save(text, rustResultOk(resp));
+          }
+          if (append) {
+            setResp(p => [...p, ...resp]);
+          } else {
+            setResp(resp);
+          }
+          showNotification("success", "Execute OK");
+        })
+        .catch(e => {
+          setResp([]);
+          showNotification("error", "query failed", e);
+        })
+        .finally(() => {
+          setExecuteTimes(e => e + 1);
+          setLoading(false);
+        });
+    },
+    [conn, editor, showNotification, warnDangerousSql],
+  );
 
   // make connection for the first time
   useEffect(() => {
@@ -361,7 +369,7 @@ function SqlQuery(props: {
       .catch(e => {
         showNotification("error", "make connection failed", e);
       });
-  }, []);
+  }, [makeConn, showNotification]);
   // destroy connection
   useEffect(() => {
     return () => {
@@ -403,7 +411,7 @@ function SqlQuery(props: {
       .catch(e => {
         showNotification("error", "emit query response failed", e);
       });
-  }, [queryRespView, resp]);
+  }, [queryRespView, resp, showNotification]);
 
   const editorOptions = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
@@ -428,7 +436,7 @@ function SqlQuery(props: {
         },
       );
     }
-  }, [conn]);
+  }, [conn, handleQuery]);
   useEffect(() => {
     if (conn && editor) {
       SetAutoCompletionName.set(
@@ -436,7 +444,7 @@ function SqlQuery(props: {
         new NameAndQueryId(uuid, kind, conn.queryId),
       );
     }
-  }, [conn, editor]);
+  }, [conn, editor, kind, uuid]);
 
   const supportExplain = [
     DataSourceKind.Sqlite,
@@ -520,7 +528,7 @@ function SqlQuery(props: {
             executeTimes={executeTimes}
             kind={kind}
             queryId={conn?.queryId}
-          ></QueryLog>
+          />
 
           <Stack
             direction="row"
@@ -621,7 +629,7 @@ function SqlQuery(props: {
               uuid={uuid}
               kind={kind}
               editor={editor}
-            ></SaveFavoriteSqlView>
+            />
             {editor && (
               <LoadStoreFile
                 getQuery={() => {
@@ -631,7 +639,7 @@ function SqlQuery(props: {
                   editor.setValue(content);
                 }}
                 kind={kind}
-              ></LoadStoreFile>
+              />
             )}
 
             <Tooltip title="query log">
@@ -641,7 +649,7 @@ function SqlQuery(props: {
                 }}
                 color="primary"
               >
-                <EventNoteIcon></EventNoteIcon>
+                <EventNoteIcon />
               </IconButton>
             </Tooltip>
             {extras}
@@ -651,7 +659,7 @@ function SqlQuery(props: {
                 title={
                   queryRespView
                     ? "close query response view"
-                    : "can open the query results in a separate window,can drag query response to a separate window too"
+                    : "can open the query results in a separate window."
                 }
               >
                 <Chip
@@ -661,7 +669,7 @@ function SqlQuery(props: {
                   }}
                   style={shrinkAble}
                   label={queryRespView ? "close response window" : "detach response"}
-                ></Chip>
+                />
               </Tooltip>
             )}
             {conn && (
@@ -669,10 +677,10 @@ function SqlQuery(props: {
                 <Typography> #{conn.queryId} </Typography>
               </Tooltip>
             )}
-            {!conn && <CircularProgress></CircularProgress>}
-            <ExecutingTime loading={loading} disableTime></ExecutingTime>
+            {!conn && <CircularProgress />}
+            <ExecutingTime loading={loading} disableTime />
 
-            <ModifyLLMConfigModal></ModifyLLMConfigModal>
+            <ModifyLLMConfigModal />
           </Stack>
           <div
             style={{
@@ -690,7 +698,7 @@ function SqlQuery(props: {
               value={value}
               options={editorOptions}
               theme={setting.editorTheme()}
-            ></Editor>
+            />
           </div>
           <EditorBar
             left={
@@ -700,16 +708,11 @@ function SqlQuery(props: {
                 }}
                 direction="row"
               >
-                {sqlErr && (
-                  <PossibleParseError
-                    parseErr={sqlErr}
-                    editor={editor}
-                  ></PossibleParseError>
-                )}
+                {sqlErr && <PossibleParseError parseErr={sqlErr} editor={editor} />}
               </Stack>
             }
             pos={pos}
-          ></EditorBar>
+          />
         </Panel>
         {!queryRespView && resp.length > 0 && (
           <PanelResizeHandle style={{ height: 4 }} className="resize-handle" />
@@ -724,7 +727,7 @@ function SqlQuery(props: {
             minSize={10}
           >
             <div style={{ height: "100%" }}>
-              <MultiQueryResp data={resp}></MultiQueryResp>
+              <MultiQueryResp data={resp} />
             </div>
           </Panel>
         )}
@@ -749,7 +752,7 @@ function SqlQuery(props: {
                 setShowExport(false);
               }}
               name="export_query_result"
-            ></ExportView>
+            />
           </Box>
         </Modal>
       )}

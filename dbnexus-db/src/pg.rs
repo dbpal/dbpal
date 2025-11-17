@@ -1084,6 +1084,9 @@ impl SchemaTrait for PostGresDB {
                 self.export_table_as_xlsx(name, include_header, sender)
                     .await
             }
+            ExportKind::Html => {
+                anyhow::bail!("html export use jsonline as internal format,this is a bug");
+            }
         }
     }
 
@@ -1863,6 +1866,9 @@ impl ExportQueryResult for PostGresDB {
             ExportKind::Xlsx { include_header } => {
                 self.export_query_result_as_xlsx(sql, include_header, sender)
                     .await
+            }
+            ExportKind::Html => {
+                anyhow::bail!("html export use jsonline as internal format,this is a bug");
             }
         }
     }

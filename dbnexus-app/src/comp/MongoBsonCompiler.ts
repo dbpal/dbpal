@@ -50,10 +50,7 @@ function trimQuoteMark(str: string): string {
 }
 
 class MongoBsonKV {
-  constructor(
-    public key: Token,
-    public value: MongoBsonValue,
-  ) {}
+  constructor(public key: Token, public value: MongoBsonValue) {}
 }
 
 class MongoBsonAs {
@@ -322,6 +319,12 @@ class MongoBsonBinaryAllSubType {
   }
 }
 
+function parseRegExp(str) {
+  const m = str.match(/^\/(.*)\/([gimsuvy]*)$/);
+  if (!m) throw new Error("Invalid regexp string");
+  return new RegExp(m[1], m[2]); // m[1] 模式, m[2] 标志
+}
+
 class MongoBsonValue {
   constructor(
     public kind: MongoBsonValueKind,
@@ -356,7 +359,7 @@ class MongoBsonValue {
       case MongoBsonValueKind.Object:
         return (this.value as MongoBsonObject).compile();
       case MongoBsonValueKind.RegExp:
-        return eval(this.asToken().value);
+        return parseRegExp(this.asToken().value);
       case MongoBsonValueKind.Null:
         return null;
       case MongoBsonValueKind.Undefined:
@@ -434,18 +437,20 @@ class MongoBsonValue {
         return `undefined`;
       case MongoBsonValueKind.ObjectID:
         return `'${this.asToken().value}' as ObjectID`;
-      case MongoBsonValueKind.Binary:
+      case MongoBsonValueKind.Binary: {
         const binaryValue = this.value as Binary;
         ret += "'" + binaryValue.toString("hex") + "'";
         // here is type annotation
         ret +=
           " as binary " + MongoBsonBinaryAllSubType.fromNumber(binaryValue.sub_type);
         return ret;
+      }
       case MongoBsonValueKind.Date:
         return `'${this.asToken().value}' as date`;
-      case MongoBsonValueKind.Timestamp:
+      case MongoBsonValueKind.Timestamp: {
         const t = this.value as Timestamp;
         return `{t: ${t.t},i:${t.i}} as timestamp`;
+      }
       case MongoBsonValueKind.Code:
         return this.asToken().value + " as code";
       case MongoBsonValueKind.Number:
@@ -454,13 +459,14 @@ class MongoBsonValue {
         return this.asToken().value;
       case MongoBsonValueKind.RegExp:
         return `${this.asToken().value}`; // this is regexp
-      case MongoBsonValueKind.String:
+      case MongoBsonValueKind.String: {
         const x = this.asToken().value;
         return x;
+      }
       case MongoBsonValueKind.Decimal:
         return `'${this.asToken().value}' as decimal`;
 
-      case MongoBsonValueKind.As:
+      case MongoBsonValueKind.As: {
         const as = this.value as MongoBsonAs;
         ret = as.value.format(ident, false, tabSize);
         ret += ` as ${as.kind.value}`;
@@ -468,10 +474,12 @@ class MongoBsonValue {
           ret += ` ${as.binarySubType.kind.value}`;
         }
         return ret;
-      case MongoBsonValueKind.Array:
+      }
+      case MongoBsonValueKind.Array: {
         const valueArr = this.value as MongoBsonArray;
         return this.formatArray(valueArr.elements, newLine, tabSize, ident);
-      case MongoBsonValueKind.Object:
+      }
+      case MongoBsonValueKind.Object: {
         const valueObj = this.value as MongoBsonObject;
         ret = "{";
         newLine = newLine || this.elementsSize() > formatMaxNewLineSize;
@@ -500,6 +508,7 @@ class MongoBsonValue {
         }
         ret += "}";
         return ret;
+      }
       default:
         throw new MongoBsonError(`unhandled type '${this.kind}' of format`);
     }
@@ -511,14 +520,15 @@ class MongoBsonValue {
       case MongoBsonValueKind.Number:
       case MongoBsonValueKind.String:
         return this.asToken().value.length;
-      case MongoBsonValueKind.Array:
+      case MongoBsonValueKind.Array: {
         const arr = this.value as MongoBsonArray;
         for (const e of arr.elements) {
           size += e.elementsSize();
           if (size > formatMaxNewLineSize) return size;
         }
         return size;
-      case MongoBsonValueKind.Object:
+      }
+      case MongoBsonValueKind.Object: {
         const obj = this.value as MongoBsonObject;
         for (const e of obj.elements) {
           size += e.value.elementsSize();
@@ -528,11 +538,13 @@ class MongoBsonValue {
           }
         }
         return size;
-      case MongoBsonValueKind.As:
+      }
+      case MongoBsonValueKind.As: {
         const as_ = this.value as MongoBsonAs;
         size += as_.kind.value.length;
         size += as_.value.elementsSize();
         return size;
+      }
     }
   }
 }
@@ -574,10 +586,7 @@ interface Token {
 
 class MongoBsonError extends Error {
   msgWithLoc: string;
-  constructor(
-    public msg: string,
-    public loc?: Location,
-  ) {
+  constructor(public msg: string, public loc?: Location) {
     const msgWithLoc = MongoBsonError.makeMsg(msg, loc);
     super(msgWithLoc);
     this.msgWithLoc = msgWithLoc;
@@ -800,10 +809,11 @@ class Parser {
 
 function quoteString(quote: string): string {
   const ok = (d: string): [string, boolean] => {
-    let s = d + quote + d;
+    const s = d + quote + d;
     try {
       return [s, (tokenize(s) as Token[]).length == 1];
-    } catch (_) {
+    } catch (e) {
+      console.log("quote string error", e);
       return [s, false];
     }
   };
@@ -907,11 +917,15 @@ function toMongoBson(a: any): MongoBsonValue {
         try {
           const arr = a.toInt8Array();
           return new MongoBsonValue(MongoBsonValueKind.Int8Array, arr);
-        } catch (_e) {}
+        } catch (e) {
+          console.log("convert binary error", e);
+        }
         try {
           const arr = a.toFloat32Array();
           return new MongoBsonValue(MongoBsonValueKind.Float32Array, arr);
-        } catch (_e) {}
+        } catch (e) {
+          console.log("convert binary error", e);
+        }
         return new MongoBsonValue(MongoBsonValueKind.Binary, a as Binary);
       }
       if (a instanceof Array) {

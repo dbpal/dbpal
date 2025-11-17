@@ -91,17 +91,6 @@ function QueryLog(props: {
       break;
   }
   const { showNotification } = useContext(NotificationContext);
-  const handleReload = async () => {
-    try {
-      const total = await handler.current.queryCount(matchSql);
-      setTotal(total);
-      const logs = await handler.current.query(matchSql, page + 1, pageSize, orderBy);
-      setLogs(logs);
-    } catch (e) {
-      showNotification("error", "get query log error", e);
-      return;
-    }
-  };
   const columns = [
     {
       field: "create_at",
@@ -120,9 +109,9 @@ function QueryLog(props: {
       renderCell: p => {
         const success = p.row.success;
         if (success) {
-          return <DoneIcon color="success"></DoneIcon>;
+          return <DoneIcon color="success" />;
         } else {
-          return <CloseIcon color="error"></CloseIcon>;
+          return <CloseIcon color="error" />;
         }
       },
       filterable: false,
@@ -137,10 +126,21 @@ function QueryLog(props: {
   ] as GridColDef[];
 
   useEffect(() => {
+    const handleReload = async () => {
+      try {
+        const total = await handler.current.queryCount(matchSql);
+        setTotal(total);
+        const logs = await handler.current.query(matchSql, page + 1, pageSize, orderBy);
+        setLogs(logs);
+      } catch (e) {
+        showNotification("error", "get query log error", e);
+        return;
+      }
+    };
     if (showQueryLog) {
       handleReload();
     }
-  }, [page, pageSize, matchSql, orderBy, executeTimes, showQueryLog]);
+  }, [page, pageSize, matchSql, orderBy, executeTimes, showQueryLog, showNotification]);
 
   const setting = useContext(SettingContext);
   const onColumnResize = useCallback(({ colDef, width }) => {
@@ -174,7 +174,7 @@ function QueryLog(props: {
     return () => {
       document.removeEventListener("keydown", call);
     };
-  }, [vis, showQueryLog]);
+  }, [vis, showQueryLog, setShowQueryLog]);
 
   const [dom, setDom] = useState<HTMLDivElement>(null);
   const [saveQueryLog, setSaveQueryLog] = useState(SaveQueryLogConfigure.get());
@@ -208,7 +208,7 @@ function QueryLog(props: {
               setShowQueryLog(false);
             }}
           >
-            <CloseIcon></CloseIcon>
+            <CloseIcon />
           </IconButton>
           <Tooltip title="double click to open code editor">
             <BsFillLightbulbFill />
@@ -225,7 +225,7 @@ function QueryLog(props: {
               setMatchSql(e.target.value);
             }}
             style={{ flex: 1, maxWidth: "20rem" }}
-          ></TextField>
+          />
           {total > 0 && (
             <Button
               onClick={async () => {
@@ -255,7 +255,7 @@ function QueryLog(props: {
                 <Switch
                   checked={saveQueryLog}
                   onChange={() => {
-                    let newValue = !saveQueryLog;
+                    const newValue = !saveQueryLog;
                     SaveQueryLogConfigure.set(newValue);
                     setSaveQueryLog(newValue);
                   }}
@@ -285,15 +285,11 @@ function QueryLog(props: {
           onSortModelChange={onSortModelChange}
           rowCount={total}
           paginationMode="server"
-        ></DataGrid>
+        />
       )}
 
       {dom && (
-        <ResizeParentHeight
-          box={dom}
-          min={200}
-          saveHeightName="query-log-height"
-        ></ResizeParentHeight>
+        <ResizeParentHeight box={dom} min={200} saveHeightName="query-log-height" />
       )}
 
       {selectSql && (
@@ -315,7 +311,7 @@ function QueryLog(props: {
               handleClose={() => {
                 setSelectSql(null);
               }}
-            ></ModalHeader>
+            />
             <SimpleFlexEditor
               value={selectSql.sql}
               handleEditor={e => {
@@ -329,7 +325,7 @@ function QueryLog(props: {
                   ? selectSql.language
                   : getLanguageFromDataSourceKind(kind)
               }
-            ></SimpleFlexEditor>
+            />
           </Box>
         </Modal>
       )}

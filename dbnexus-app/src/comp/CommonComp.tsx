@@ -78,9 +78,6 @@ import LinkIcon from "@mui/icons-material/Link";
 import { ConnectionHandler, connectionChangeEvent, PassWordManager } from "./Common";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { editor, Position } from "monaco-editor";
-import { FaAlignLeft } from "react-icons/fa";
-import { FaAlignRight } from "react-icons/fa";
-import { FaAlignCenter } from "react-icons/fa6";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -97,43 +94,26 @@ function MenuExportMarkDownTable({ showExportMarkDown }) {
     </MenuItem>
   );
 }
+
 function SelectAlign(props: { align: "left" | "right" | "center"; handleChange }) {
-  const theme = useTheme();
   const { align, handleChange } = props;
-  const handleChangeXXX = (align: string) => {
-    SaveAlign.instance.save(align);
-    handleChange(align);
-  };
-  const style = { cursor: "pointer" };
 
   return (
-    <Stack direction="row" fontSize="1.5rem">
-      <FaAlignLeft
-        color={align == "left" ? theme.palette.success.main : undefined}
-        onClick={() => {
-          handleChangeXXX("left");
-        }}
-        style={style}
-      />
-      <FaAlignCenter
-        color={align == "center" ? theme.palette.success.main : undefined}
-        onClick={() => {
-          handleChangeXXX("center");
-        }}
-        style={style}
-      />
-      <FaAlignRight
-        color={align == "right" ? theme.palette.success.main : undefined}
-        onClick={() => {
-          handleChangeXXX("right");
-        }}
-        style={style}
-      />
-    </Stack>
+    <Autocomplete
+      options={["left", "center", "right"]}
+      style={{ width: "8rem" }}
+      value={align}
+      freeSolo={false}
+      renderInput={params => <TextField {...params} label="align" />}
+      onChange={(_, align) => {
+        SaveAlign.instance.save(align);
+        handleChange(align);
+      }}
+    />
   );
 }
 
-const LogLevelSelection = ({ handleChange, level }) => {
+function LogLevelSelection({ handleChange, level }) {
   const levels = ["trace", "debug", "info", "warn", "error"];
   return (
     <Autocomplete
@@ -147,7 +127,7 @@ const LogLevelSelection = ({ handleChange, level }) => {
       }}
     />
   );
-};
+}
 
 function MenuNewQuery({ handleNew }) {
   return (
@@ -157,7 +137,7 @@ function MenuNewQuery({ handleNew }) {
       }}
     >
       <ListItemIcon>
-        <AddIcon></AddIcon>
+        <AddIcon />
       </ListItemIcon>
       <ListItemText>New Query </ListItemText>
     </MenuItem>
@@ -172,7 +152,7 @@ function MenuNewQueryWindow({ handleNew }) {
       }}
     >
       <ListItemIcon>
-        <AddIcon></AddIcon>
+        <AddIcon />
       </ListItemIcon>
       <ListItemText>New Query(new window) </ListItemText>
     </MenuItem>
@@ -187,7 +167,7 @@ function MenuCreateDatabase({ handleCreate }) {
       }}
     >
       <ListItemIcon>
-        <BsDatabaseAdd></BsDatabaseAdd>
+        <BsDatabaseAdd />
       </ListItemIcon>
       <ListItemText> Create Database </ListItemText>
     </MenuItem>
@@ -201,7 +181,7 @@ function MenuRefresh({ reload }) {
       }}
     >
       <ListItemIcon>
-        <RefreshIcon></RefreshIcon>
+        <RefreshIcon />
       </ListItemIcon>
       <ListItemText> Refresh </ListItemText>
     </MenuItem>
@@ -223,7 +203,7 @@ function MenuCloseConn({ handleClose, name }) {
       }}
     >
       <ListItemIcon>
-        <LinkOffIcon></LinkOffIcon>
+        <LinkOffIcon />
       </ListItemIcon>
       <ListItemText> Close Connection </ListItemText>
     </MenuItem>
@@ -233,27 +213,26 @@ function MenuCloseConn({ handleClose, name }) {
 function ConnPingTime({ uuid }) {
   const [pingTime, setStatus] = useState("");
   const [err, setErr] = useState("");
-  const reloadStatus = () => {
-    invoke<string>("check_conn", { name: uuid })
-      .then(ping => {
-        setStatus(ping);
-        setErr("");
-      })
-      .catch(e => {
-        setErr(errToString(e));
-        setStatus("");
-      });
-  };
 
   useEffect(() => {
-    reloadStatus();
+    const reloadStatus = () => {
+      invoke<string>("check_conn", { name: uuid })
+        .then(ping => {
+          setStatus(ping);
+          setErr("");
+        })
+        .catch(e => {
+          setErr(errToString(e));
+          setStatus("");
+        });
+    };
     const interval = setInterval(() => {
       reloadStatus();
     }, 5000);
     return () => {
       clearInterval(interval);
     };
-  }, []);
+  }, [uuid]);
 
   return (
     (pingTime || err) &&
@@ -293,7 +272,7 @@ function MenuCreateSchema(props: { handleCreate; kind: DataSourceKind }) {
       }}
     >
       <ListItemIcon>
-        <TbDatabasePlus></TbDatabasePlus>
+        <TbDatabasePlus />
       </ListItemIcon>
       <ListItemText> {`Create ${name}`} </ListItemText>
     </MenuItem>
@@ -351,7 +330,7 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
       }}
     >
       <ListItemIcon>
-        <LinkIcon></LinkIcon>
+        <LinkIcon />
       </ListItemIcon>
       <ListItemText> Establish Connection </ListItemText>
     </MenuItem>
@@ -369,7 +348,7 @@ function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
           }}
           key={e}
           color={e == pageSize ? "success" : "default"}
-        ></Chip>
+        />
       ))}
     </Stack>
   );
@@ -404,7 +383,7 @@ function MenuDeleteConfig({ name }) {
       sx={{ color: "error.main" }}
     >
       <ListItemIcon>
-        <DeleteForeverIcon color="error"></DeleteForeverIcon>
+        <DeleteForeverIcon color="error" />
       </ListItemIcon>
       <ListItemText color="error">Drop Connection</ListItemText>
     </MenuItem>
@@ -422,7 +401,7 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
         }}
       >
         <ListItemIcon>
-          <ContentCopyIcon></ContentCopyIcon>
+          <ContentCopyIcon />
         </ListItemIcon>
         <ListItemText> Copy </ListItemText>
       </MenuItem>
@@ -433,7 +412,7 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
         }}
       >
         <ListItemIcon>
-          <ArrowUpwardIcon></ArrowUpwardIcon>
+          <ArrowUpwardIcon />
         </ListItemIcon>
         <ListItemText> {field} ASC </ListItemText>
       </MenuItem>
@@ -443,7 +422,7 @@ function MetaValueViewMenu(props: { content: string; setSort; field: string }) {
         }}
       >
         <ListItemIcon>
-          <ArrowDownwardIcon></ArrowDownwardIcon>
+          <ArrowDownwardIcon />
         </ListItemIcon>
         <ListItemText> {field} DESC </ListItemText>
       </MenuItem>
@@ -484,7 +463,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
                 content={content}
                 field={field}
                 setSort={setSortModel}
-              ></MetaValueViewMenu>
+              />
             ),
             event: e,
           });
@@ -498,7 +477,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
         },
       },
     } as GridSlotsComponentsProps;
-  }, []);
+  }, [setUpMenu, setting]);
 
   const onSortModelChange = useCallback(e => {
     setSortModel(e);
@@ -524,7 +503,7 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
       columns={columns}
       rows={values}
       onColumnResize={onColumnResize}
-    ></DataGrid>
+    />
   );
 }
 
@@ -540,7 +519,7 @@ function MenuResetColumnWidths(props: { reset: () => void }) {
   return (
     <MenuItem onClick={handleReset}>
       <ListItemIcon>
-        <RefreshIcon></RefreshIcon>
+        <RefreshIcon />
       </ListItemIcon>
       <ListItemText> Reset Column Width </ListItemText>
     </MenuItem>
@@ -549,7 +528,7 @@ function MenuResetColumnWidths(props: { reset: () => void }) {
 
 function TrueOrFalse(props: { value: boolean }) {
   const { value } = props;
-  return value ? <CheckIcon> </CheckIcon> : <CloseIcon></CloseIcon>;
+  return value ? <CheckIcon> </CheckIcon> : <CloseIcon />;
 }
 
 function ModalHeader(props: {
@@ -602,6 +581,7 @@ function ResizeWrapper(props: {
   minHeight?: string | number;
 }) {
   let { children, sizeKey, sizeKeyKind, style, height, minHeight } = props;
+
   if (!height) {
     height = "20vh";
   }
@@ -624,7 +604,8 @@ function ResizeWrapper(props: {
   useEffect(() => {
     const c = saveAndSetSize(dom.current, sizeKey, sizeKeyKind);
     return c;
-  }, []);
+  }, [sizeKey, sizeKeyKind]);
+
   return (
     <div
       style={{
@@ -708,7 +689,7 @@ function ExceedMaxTreeItem(props: { exceed: number; maxTreeSize: number }) {
       label=<Typography color="error" style={{ fontSize: "0.8rem" }}>
         ({exceed}) exceed max tree items({maxTreeSize}),some item not showing
       </Typography>
-    ></TreeItem>
+    />
   );
 }
 
@@ -842,7 +823,7 @@ function ExecutingTime(props: {
           label={<span ref={executeTimeRef}> </span>}
           style={shrinkAble}
           icon={<IoTimerOutline fontSize="1.2rem" />}
-        ></Chip>
+        />
       </Tooltip>
       {!disableTime && (
         <Tooltip title="loaded at">
@@ -943,7 +924,8 @@ function ExportMarkDownTable(props: {
   data: any[];
   name?: string;
 }) {
-  let { fields, data, name } = props;
+  const { fields, data } = props;
+  let { name } = props;
   if (!name) {
     name = "export";
   }
@@ -1018,9 +1000,9 @@ function ExportMarkDownTable(props: {
         includes={includes}
         setIncludes={setIncludes}
         includeAll
-      ></SelectColumns>
+      />
       <OpenFileWithDefaultApp file={file} />
-      <Divider></Divider>
+      <Divider />
       <Stack direction="row" style={{ alignItems: "center" }}>
         <Button
           onClick={() => {
@@ -1043,7 +1025,7 @@ function ExportMarkDownTable(props: {
           handleChange={e => {
             setAlign(e);
           }}
-        ></SelectAlign>
+        />
       </Stack>
     </Stack>
   );
@@ -1062,33 +1044,37 @@ function ResizeParentHeight(props: {
         box.style.height = e.height + "px";
       }
     });
-  }, []);
+  }, [box.style, saveHeightName]);
   useEffect(() => {}, []);
-  const handleDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const startY = e.clientY;
-    const startH = box.offsetHeight;
-    const onMove = (ev: MouseEvent) => {
-      let newH = startH + ev.clientY - startY;
-      if (newH < min) {
-        newH = min;
-      }
-      SaveDomSizes.saveSize(saveHeightName, { height: newH });
-      box.style.height = newH + "px";
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  }, []);
+  const handleDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const startY = e.clientY;
+      const startH = box.offsetHeight;
+      const onMove = (ev: MouseEvent) => {
+        let newH = startH + ev.clientY - startY;
+        if (newH < min) {
+          newH = min;
+        }
+        SaveDomSizes.saveSize(saveHeightName, { height: newH });
+        box.style.height = newH + "px";
+      };
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    },
+    [box.offsetHeight, box.style, min, saveHeightName],
+  );
+
   return (
     <div
       style={{ height: "4px", cursor: "ns-resize" }}
       className="resize-handle"
       onMouseDown={handleDown}
-    ></div>
+    />
   );
 }
 

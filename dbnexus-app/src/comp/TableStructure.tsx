@@ -66,6 +66,45 @@ import {
   showTableColumn,
   showTrigger,
 } from "./handlers";
+
+function ColumnMenu(props: {
+  col: string;
+  content: string;
+  supportModifyColumn;
+  handleDrop;
+}) {
+  const { showNotification } = useContext(NotificationContext);
+  const { col, content, supportModifyColumn, handleDrop } = props;
+  return (
+    <MenuList>
+      {content && (
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon />
+          </ListItemIcon>
+          <ListItemText> Copy </ListItemText>
+        </MenuItem>
+      )}
+      {supportModifyColumn && (
+        <MenuItem
+          onClick={() => {
+            handleDrop(col);
+          }}
+        >
+          <ListItemIcon>
+            <DeleteForeverIcon />
+          </ListItemIcon>
+          <ListItemText> drop </ListItemText>
+        </MenuItem>
+      )}
+    </MenuList>
+  );
+}
+
 function ColumnsStructure(props: {
   uuid: string;
   kind: DataSourceKind;
@@ -96,32 +135,7 @@ function ColumnsStructure(props: {
     ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
-  const handleDrop = async (col: string) => {
-    const confirm = await secondConfirm({
-      title: `Drop Column '${col}'`,
-      content: "",
-      confirmText: "DROP COLUMN",
-      kind: "error",
-    });
-    if (!confirm) {
-      return;
-    }
-    invoke("drop_table_column", {
-      name: uuid,
-      tableName: table,
-      columnName: col,
-    })
-      .then(() => {
-        showNotification("success", "Drop column OK");
-        handleReload();
-      })
-      .catch(e => {
-        showNotification("error", "Drop column Failure", e);
-      });
-  };
-
-  const [showAdd, setShowAdd] = useState(false);
-  const handleReload = () => {
+  const handleReload = useCallback(() => {
     setLoading(true);
     showTableColumn(uuid, table)
       .then(fs => {
@@ -133,10 +147,40 @@ function ColumnsStructure(props: {
       .finally(() => {
         setLoading(false);
       });
-  };
+  }, [showNotification, table, uuid]);
+
+  const handleDrop = useCallback(
+    async (col: string) => {
+      const confirm = await secondConfirm({
+        title: `Drop Column '${col}'`,
+        content: "",
+        confirmText: "DROP COLUMN",
+        kind: "error",
+      });
+      if (!confirm) {
+        return;
+      }
+      invoke("drop_table_column", {
+        name: uuid,
+        tableName: table,
+        columnName: col,
+      })
+        .then(() => {
+          showNotification("success", "Drop column OK");
+          handleReload();
+        })
+        .catch(e => {
+          showNotification("error", "Drop column Failure", e);
+        });
+    },
+    [handleReload, showNotification, table, uuid],
+  );
+
+  const [showAdd, setShowAdd] = useState(false);
+
   useEffect(() => {
     handleReload();
-  }, []);
+  }, [handleReload]);
   const cols = useMemo(() => {
     return [
       { field: "field" },
@@ -192,38 +236,6 @@ function ColumnsStructure(props: {
   });
   const { setUpMenu } = useContext(ContextMenuContext);
 
-  function Menu(props: { col: string; content: string }) {
-    const { col, content } = props;
-    return (
-      <MenuList>
-        {content && (
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}
-          >
-            <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-        )}
-        {supportModifyColumn && (
-          <MenuItem
-            onClick={() => {
-              handleDrop(col);
-            }}
-          >
-            <ListItemIcon>
-              <DeleteForeverIcon></DeleteForeverIcon>
-            </ListItemIcon>
-            <ListItemText> drop </ListItemText>
-          </MenuItem>
-        )}
-      </MenuList>
-    );
-  }
-
   const slotProps = useMemo(() => {
     return {
       row: {
@@ -235,7 +247,14 @@ function ColumnsStructure(props: {
           }
           const content = (target as HTMLDivElement).innerHTML;
           setUpMenu({
-            content: <Menu col={id} content={content}></Menu>,
+            content: (
+              <ColumnMenu
+                supportModifyColumn={supportModifyColumn}
+                col={id}
+                content={content}
+                handleDrop={handleDrop}
+              />
+            ),
             event: e,
           });
         },
@@ -248,7 +267,13 @@ function ColumnsStructure(props: {
         },
       },
     } as GridSlotsComponentsProps;
-  }, []);
+  }, [
+    handleDrop,
+    setUpMenu,
+    setting.export.csvDelimiter,
+    setting.export.includeHeader,
+    supportModifyColumn,
+  ]);
 
   const getRowId = useCallback(e => {
     return e["field"];
@@ -272,7 +297,7 @@ function ColumnsStructure(props: {
         showNotification("warning", `${kind} not support modify column`);
       }
     }
-  }, [row]);
+  }, [kind, row, showNotification]);
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" style={{ alignItems: "center" }}>
@@ -286,7 +311,7 @@ function ColumnsStructure(props: {
               setShowAdd(true);
             }}
           >
-            <AddIcon></AddIcon>
+            <AddIcon />
           </Button>
         )}
         {supportModifyColumn && (
@@ -309,7 +334,7 @@ function ColumnsStructure(props: {
         rows={fields}
         onRowDoubleClick={onRowDoubleClick}
         style={dataGridStyle}
-      ></DataGrid>
+      />
 
       {showAdd && (
         <Modal
@@ -329,7 +354,7 @@ function ColumnsStructure(props: {
                 setShowAdd(false);
               }}
               title="Add Column"
-            ></ModalHeader>
+            />
             <TableAddColumn
               table={table}
               uuid={uuid}
@@ -339,7 +364,7 @@ function ColumnsStructure(props: {
               reload={handleReload}
               kind={kind}
               fields={fields}
-            ></TableAddColumn>
+            />
           </Box>
         </Modal>
       )}
@@ -363,7 +388,7 @@ function ColumnsStructure(props: {
                 handleClose={() => {
                   setRow(null);
                 }}
-              ></ModalHeader>
+              />
               <ModifyTableColumn
                 table={table}
                 uuid={uuid}
@@ -374,7 +399,7 @@ function ColumnsStructure(props: {
                 typ={row.data_type}
                 reload={handleReload}
                 kind={kind}
-              ></ModifyTableColumn>
+              />
             </Box>
           </Modal>
         )}
@@ -426,13 +451,60 @@ function RenameIndex(props: {
         onChange={e => {
           setNewname(e.target.value);
         }}
-      ></TextField>
+      />
       <Stack direction="row">
         <Button color="primary" loading={loading} onClick={handleRename}>
           rename
         </Button>
       </Stack>
     </Stack>
+  );
+}
+
+function IndexMenu(props: {
+  content: string;
+  indexName: string;
+  setRenameIndexName;
+  handleDrop;
+}) {
+  const { content, indexName, setRenameIndexName, handleDrop } = props;
+  const { showNotification } = useContext(NotificationContext);
+
+  return (
+    <MenuList>
+      {content && (
+        <MenuItem
+          onClick={() => {
+            handleCopyToClipboard(content, showNotification);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopyIcon />
+          </ListItemIcon>
+          <ListItemText> Copy </ListItemText>
+        </MenuItem>
+      )}
+      <MenuItem
+        onClick={() => {
+          setRenameIndexName(indexName);
+        }}
+      >
+        <ListItemIcon>
+          <EditIcon />
+        </ListItemIcon>
+        <ListItemText> rename </ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          handleDrop(indexName);
+        }}
+      >
+        <ListItemIcon>
+          <DeleteForeverIcon />
+        </ListItemIcon>
+        <ListItemText> drop </ListItemText>
+      </MenuItem>
+    </MenuList>
   );
 }
 
@@ -453,7 +525,7 @@ function IndexesStructure(props: {
     ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
-  const handleReload = () => {
+  const handleReload = useCallback(() => {
     setLoading(true);
     showIndexes(uuid, table)
       .then(indexes => {
@@ -465,34 +537,36 @@ function IndexesStructure(props: {
       .finally(() => {
         setLoading(false);
       });
-  };
+  }, [showNotification, table, uuid]);
 
-  const handleDrop = async indexName => {
-    const confirm = await secondConfirm({
-      title: `drop index '${indexName}'`,
-      content: "Are u sure to drop the index",
-      confirmText: "Drop",
-    });
-    if (!confirm) {
-      return;
-    }
-    invoke("drop_index", {
-      name: uuid,
-      tableName: table,
-      index: indexName,
-    })
-      .then(() => {
-        showNotification("success", "Drop OK");
-        handleReload();
-      })
-      .catch(e => {
-        showNotification("error", "Drop index failure", e);
+  const handleDrop = useCallback(
+    async indexName => {
+      const confirm = await secondConfirm({
+        title: `drop index '${indexName}'`,
+        content: "Are u sure to drop the index",
+        confirmText: "Drop",
       });
-  };
-
+      if (!confirm) {
+        return;
+      }
+      invoke("drop_index", {
+        name: uuid,
+        tableName: table,
+        index: indexName,
+      })
+        .then(() => {
+          showNotification("success", "Drop OK");
+          handleReload();
+        })
+        .catch(e => {
+          showNotification("error", "Drop index failure", e);
+        });
+    },
+    [handleReload, showNotification, table, uuid],
+  );
   useEffect(() => {
     handleReload();
-  }, []);
+  }, [handleReload]);
   const cols = useMemo(() => {
     return [{ field: "name" }, { field: "kind" }, { field: "columns" }] as GridColDef[];
   }, []);
@@ -504,47 +578,6 @@ function IndexesStructure(props: {
   });
 
   const { setUpMenu } = useContext(ContextMenuContext);
-
-  function Menu(props: { content: string; indexName: string }) {
-    const { content, indexName } = props;
-
-    return (
-      <MenuList>
-        {content && (
-          <MenuItem
-            onClick={() => {
-              handleCopyToClipboard(content, showNotification);
-            }}
-          >
-            <ListItemIcon>
-              <ContentCopyIcon></ContentCopyIcon>
-            </ListItemIcon>
-            <ListItemText> Copy </ListItemText>
-          </MenuItem>
-        )}
-        <MenuItem
-          onClick={() => {
-            setRenameIndexName(indexName);
-          }}
-        >
-          <ListItemIcon>
-            <EditIcon></EditIcon>
-          </ListItemIcon>
-          <ListItemText> rename </ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            handleDrop(indexName);
-          }}
-        >
-          <ListItemIcon>
-            <DeleteForeverIcon></DeleteForeverIcon>
-          </ListItemIcon>
-          <ListItemText> drop </ListItemText>
-        </MenuItem>
-      </MenuList>
-    );
-  }
 
   const slotProps = useMemo(() => {
     return {
@@ -560,7 +593,14 @@ function IndexesStructure(props: {
           const content = (target as HTMLDivElement).innerHTML;
           const indexName = (currentTarget as HTMLDivElement).getAttribute("data-id");
           setUpMenu({
-            content: <Menu indexName={indexName} content={content}></Menu>,
+            content: (
+              <IndexMenu
+                indexName={indexName}
+                setRenameIndexName={setRenameIndexName}
+                handleDrop={handleDrop}
+                content={content}
+              />
+            ),
             event: e,
           });
         },
@@ -573,7 +613,12 @@ function IndexesStructure(props: {
         },
       },
     } as GridSlotsComponentsProps;
-  }, []);
+  }, [
+    handleDrop,
+    setUpMenu,
+    setting.export.csvDelimiter,
+    setting.export.includeHeader,
+  ]);
 
   const getRowId = useCallback(e => {
     return e["name"];
@@ -589,7 +634,7 @@ function IndexesStructure(props: {
       );
       return c;
     }
-  }, [modalBox]);
+  }, [kind, modalBox]);
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row">
@@ -602,7 +647,7 @@ function IndexesStructure(props: {
             setShowAdd(true);
           }}
         >
-          <AddIcon></AddIcon>
+          <AddIcon />
         </Button>
       </Stack>
 
@@ -618,7 +663,7 @@ function IndexesStructure(props: {
         columns={cols}
         rows={indexes}
         style={dataGridStyle}
-      ></DataGrid>
+      />
 
       {showAdd && kind == DataSourceKind.Mongo && (
         <Modal
@@ -642,7 +687,7 @@ function IndexesStructure(props: {
               handleClose={() => {
                 setShowAdd(false);
               }}
-            ></ModalHeader>
+            />
             <MongoAddIndex
               uuid={uuid}
               table={table}
@@ -650,7 +695,7 @@ function IndexesStructure(props: {
                 setShowAdd(false);
               }}
               reload={handleReload}
-            ></MongoAddIndex>
+            />
           </Box>
         </Modal>
       )}
@@ -676,7 +721,7 @@ function IndexesStructure(props: {
               handleClose={() => {
                 setShowAdd(false);
               }}
-            ></ModalHeader>
+            />
             <AddIndex
               uuid={uuid}
               table={table}
@@ -685,7 +730,7 @@ function IndexesStructure(props: {
               }}
               kind={kind}
               reload={handleReload}
-            ></AddIndex>
+            />
           </Box>
         </Modal>
       )}
@@ -704,7 +749,7 @@ function IndexesStructure(props: {
               handleClose={() => {
                 setRenameIndexName("");
               }}
-            ></ModalHeader>
+            />
             <RenameIndex
               uuid={uuid}
               table={table}
@@ -713,7 +758,7 @@ function IndexesStructure(props: {
                 setRenameIndexName("");
               }}
               reload={handleReload}
-            ></RenameIndex>
+            />
           </Box>
         </Modal>
       )}
@@ -762,7 +807,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
         inputRef={indexNameDom}
         label="index name"
         required
-      ></TextField>
+      />
 
       <RadioGroup
         row
@@ -781,7 +826,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
         }}
         doc={{}}
         setName="create index"
-      ></MongoValueEditor>
+      />
     </Stack>
   );
 }
@@ -826,12 +871,11 @@ function AddIndex(props: { uuid; table; handleClose; reload; kind: DataSourceKin
     showTableColumn(uuid, table)
       .then(e => {
         setFields(e);
-        e;
       })
       .catch(e => {
         showNotification("error", "list fields failed", e);
       });
-  }, []);
+  }, [showNotification, table, uuid]);
   const handleAdd = async () => {
     if (!indexName) {
       showNotification("warning", "index name can't be none");
@@ -884,13 +928,13 @@ function AddIndex(props: { uuid; table; handleClose; reload; kind: DataSourceKin
             ),
           },
         }}
-      ></TextField>
+      />
       <SelectColumns
         includeAll={false}
         includes={includes}
         setIncludes={setIncludes}
         fields={fields.map(e => e.field)}
-      ></SelectColumns>
+      />
       {indexTypeJsx}
       <Divider />
       <Stack direction="row">
@@ -910,7 +954,7 @@ function TableAddColumn(props: {
   kind: DataSourceKind;
   fields: types.Field[];
 }) {
-  let { table, uuid, handleClose, reload, kind, fields } = props;
+  const { table, uuid, handleClose, reload, kind, fields } = props;
   const [name, setName] = useState("");
   const [nullness, setNullness] = useState("");
   const [typ, setTyp] = useState("");
@@ -986,7 +1030,7 @@ function TableAddColumn(props: {
           },
         }}
         label="column name"
-      ></TextField>
+      />
       <Stack direction="row" style={{ alignItems: "center" }}>
         <TypeSelect
           uuid={uuid}
@@ -995,14 +1039,14 @@ function TableAddColumn(props: {
           }}
           style={{ flex: 1 }}
           type={typ}
-        ></TypeSelect>
+        />
         {supportNull && (
           <ColumnNullness
             nullness={nullness}
             handleNullness={e => {
               setNullness(e);
             }}
-          ></ColumnNullness>
+          />
         )}
       </Stack>
 
@@ -1011,7 +1055,7 @@ function TableAddColumn(props: {
           uuid={uuid}
           defaultValue={defaultValue}
           setDefaultValue={setDefaultValue}
-        ></SqlDefaultValue>
+        />
       )}
       {supportAfter && (
         <Autocomplete
@@ -1047,7 +1091,7 @@ function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue })
       .catch(e => {
         showNotification("success", "list sql current values failed", e);
       });
-  }, []);
+  }, [showNotification, uuid]);
 
   return (
     <Stack direction="row">
@@ -1074,7 +1118,7 @@ function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue })
             ),
           },
         }}
-      ></TextField>
+      />
       <Autocomplete
         freeSolo
         options={currentValue}
@@ -1128,7 +1172,7 @@ function ModifyTableColumn(props: {
       newName: newName,
       typ: typePara,
     })
-      .then(_ => {
+      .then(() => {
         showNotification("success", "Modify column OK");
         reload();
         handleClose();
@@ -1168,7 +1212,7 @@ function ModifyTableColumn(props: {
           },
         }}
         error={!newName}
-      ></TextField>
+      />
       {supportModifyType && !modifyType && (
         <FormControlLabel
           control={
@@ -1194,12 +1238,9 @@ function ModifyTableColumn(props: {
             }}
             style={{ flex: 1 }}
             type={typ}
-          ></TypeSelect>
+          />
           {kindSupportNull(kind) && (
-            <ColumnNullness
-              nullness={nullness}
-              handleNullness={setNullness}
-            ></ColumnNullness>
+            <ColumnNullness nullness={nullness} handleNullness={setNullness} />
           )}
         </Stack>
       )}
@@ -1224,7 +1265,7 @@ function TypeSelect(props: { handleChange; uuid; type; style?: CSSProperties }) 
       .catch(e => {
         showNotification("error", "should not return a error", e);
       });
-  }, []);
+  }, [showNotification, uuid]);
   return (
     <Autocomplete
       freeSolo
@@ -1304,7 +1345,7 @@ function TriggerMenu(props: {
         }}
       >
         <ListItemIcon>
-          <CancelIcon></CancelIcon>
+          <CancelIcon />
         </ListItemIcon>
         <ListItemText>Disable</ListItemText>
       </MenuItem>
@@ -1315,7 +1356,7 @@ function TriggerMenu(props: {
         }}
       >
         <ListItemIcon>
-          <CheckCircleIcon></CheckCircleIcon>
+          <CheckCircleIcon />
         </ListItemIcon>
         <ListItemText>Enable</ListItemText>
       </MenuItem>
@@ -1331,7 +1372,7 @@ function TriggerMenu(props: {
           }}
         >
           <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
+            <ContentCopyIcon />
           </ListItemIcon>
           <ListItemText> Copy </ListItemText>
         </MenuItem>
@@ -1344,7 +1385,7 @@ function TriggerMenu(props: {
         }}
       >
         <ListItemIcon>
-          <DeleteForeverIcon></DeleteForeverIcon>
+          <DeleteForeverIcon />
         </ListItemIcon>
         <ListItemText> drop </ListItemText>
       </MenuItem>
@@ -1368,7 +1409,7 @@ function TriggersStructure(props: {
     ColumnWidth.instance.save(colDef.field, width);
   }, []);
 
-  const handleReload = () => {
+  const handleReload = useCallback(() => {
     setLoading(true);
     showTrigger(uuid, table)
       .then(ts => {
@@ -1380,42 +1421,50 @@ function TriggersStructure(props: {
       .finally(() => {
         setLoading(false);
       });
-  };
-  const callPara = { name: uuid, tableName: table };
+  }, [showNotification, table, uuid]);
+  const callPara = useMemo(() => {
+    return { name: uuid, tableName: table };
+  }, [table, uuid]);
 
-  const handleDrop = async trigger => {
-    const confirm = await secondConfirm({
-      title: `Drop trigger '${trigger}'`,
-      confirmText: "Drop",
-      kind: "error",
-    });
-    if (!confirm) {
-      return;
-    }
-    invoke("drop_trigger", { trigger, ...callPara })
-      .then(() => {
-        showNotification("success", "Drop Trigger OK");
-        handleReload();
-      })
-      .catch(e => {
-        showNotification("error", "Drop trigger failure", e);
+  const handleDrop = useCallback(
+    async trigger => {
+      const confirm = await secondConfirm({
+        title: `Drop trigger '${trigger}'`,
+        confirmText: "Drop",
+        kind: "error",
       });
-  };
+      if (!confirm) {
+        return;
+      }
+      invoke("drop_trigger", { trigger, ...callPara })
+        .then(() => {
+          showNotification("success", "Drop Trigger OK");
+          handleReload();
+        })
+        .catch(e => {
+          showNotification("error", "Drop trigger failure", e);
+        });
+    },
+    [callPara, handleReload, showNotification],
+  );
 
-  const handleEnables = (invoke_name: string, trigger, operation: string) => {
-    invoke(invoke_name, { trigger, ...callPara })
-      .then(() => {
-        showNotification("error", `${operation}  OK`);
-        handleReload();
-      })
-      .catch(e => {
-        showNotification("error", `${operation}  Failure`, e);
-      });
-  };
+  const handleEnables = useCallback(
+    (invoke_name: string, trigger, operation: string) => {
+      invoke(invoke_name, { trigger, ...callPara })
+        .then(() => {
+          showNotification("error", `${operation}  OK`);
+          handleReload();
+        })
+        .catch(e => {
+          showNotification("error", `${operation}  Failure`, e);
+        });
+    },
+    [callPara, handleReload, showNotification],
+  );
 
   useEffect(() => {
     handleReload();
-  }, []);
+  }, [handleReload]);
   const cols = useMemo(() => {
     return [
       { field: "name" },
@@ -1467,7 +1516,7 @@ function TriggersStructure(props: {
                 content={content}
                 handleDrop={handleDrop}
                 handleEnables={handleEnables}
-              ></TriggerMenu>
+              />
             ),
             event: e,
           });
@@ -1481,7 +1530,14 @@ function TriggersStructure(props: {
         },
       },
     } as GridSlotsComponentsProps;
-  }, [triggers]);
+  }, [
+    handleDrop,
+    handleEnables,
+    setUpMenu,
+    setting.export.csvDelimiter,
+    setting.export.includeHeader,
+    triggers,
+  ]);
 
   const getRowId = useCallback(e => {
     return e["name"];
@@ -1524,7 +1580,7 @@ function TriggersStructure(props: {
         rows={triggers}
         onRowDoubleClick={onRowDoubleClick}
         style={dataGridStyle}
-      ></DataGrid>
+      />
 
       {row && (
         <Modal
@@ -1545,14 +1601,14 @@ function TriggersStructure(props: {
               handleClose={() => {
                 setRow(null);
               }}
-            ></ModalHeader>
+            />
             <TriggerDetail
               reloadOP={async () => {
                 return row;
               }}
               uuid={uuid}
               kind={kind}
-            ></TriggerDetail>
+            />
           </Box>
         </Modal>
       )}
@@ -1623,21 +1679,21 @@ function TableStructure(props: { table: string; uuid: string; kind: DataSourceKi
             color={e.name == structure ? "success" : "default"}
             label={e.name}
             size="medium"
-          ></Chip>
+          />
         ))}
       </Stack>
 
       {structure == "columns" && (
-        <ColumnsStructure table={table} kind={kind} uuid={uuid}></ColumnsStructure>
+        <ColumnsStructure table={table} kind={kind} uuid={uuid} />
       )}
       {structure == "indexes" && (
-        <IndexesStructure table={table} kind={kind} uuid={uuid}></IndexesStructure>
+        <IndexesStructure table={table} kind={kind} uuid={uuid} />
       )}
       {structure == "triggers" && (
-        <TriggersStructure table={table} kind={kind} uuid={uuid}></TriggersStructure>
+        <TriggersStructure table={table} kind={kind} uuid={uuid} />
       )}
       {structure == "statement" && (
-        <StatementStructure table={table} kind={kind} uuid={uuid}></StatementStructure>
+        <StatementStructure table={table} kind={kind} uuid={uuid} />
       )}
     </Stack>
   );
@@ -1662,7 +1718,7 @@ function StatementStructure(props: {
         }}
         kind={kind}
         uuid={uuid}
-      ></DefAndMetasView>
+      />
     </Stack>
   );
 }

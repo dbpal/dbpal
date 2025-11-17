@@ -17,25 +17,6 @@ import "../app.css";
 import { Paper, useTheme } from "@mui/material";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
-const shortCuts = {
-  callback: (e: KeyboardEvent) => {
-    if (KeyPressed.prevTab(e)) {
-      shortCuts.prev();
-    }
-    if (KeyPressed.nextTab(e)) {
-      shortCuts.next();
-    }
-    if (KeyPressed.closeTab(e)) {
-      shortCuts.closeCurrentTab(e);
-    }
-  },
-} as {
-  prev: () => void;
-  next: () => void;
-  callback: (e: KeyboardEvent) => void;
-  closeCurrentTab: (_: KeyboardEvent) => void;
-};
-
 function App() {
   const [tabs, setTabs] = useState<TabContent[]>([]);
   const [tab, setTab] = useState(0);
@@ -61,36 +42,48 @@ function App() {
     [tabs],
   );
 
-  shortCuts.prev = () => {
-    setTab(e => (e > 0 ? e - 1 : e));
-  };
-
-  shortCuts.next = () => {
-    if (tabs.length - 1 > tab) {
-      setTab(e => e + 1);
-    }
-  };
-
-  shortCuts.closeCurrentTab = e => {
-    if (tabs.length > 0) {
-      closeTab(tab);
-      e.preventDefault();
-    }
-  };
+  const shortCuts = useCallback(
+    (e: KeyboardEvent) => {
+      const prevTab = () => {
+        setTab(e => (e > 0 ? e - 1 : e));
+      };
+      const nextTab = () => {
+        if (tabs.length - 1 > tab) {
+          setTab(e => e + 1);
+        }
+      };
+      const closeCurrentTab = () => {
+        if (tabs.length > 0) {
+          closeTab(tab);
+          e.preventDefault();
+        }
+      };
+      if (KeyPressed.prevTab(e)) {
+        prevTab();
+      }
+      if (KeyPressed.nextTab(e)) {
+        nextTab();
+      }
+      if (KeyPressed.closeTab(e)) {
+        closeCurrentTab();
+      }
+    },
+    [tabs.length, tab, closeTab],
+  );
 
   // shortcut
   useEffect(() => {
-    document.addEventListener("keydown", shortCuts.callback);
+    document.addEventListener("keydown", shortCuts);
     return () => {
-      document.removeEventListener("keydown", shortCuts.callback);
+      document.removeEventListener("keydown", shortCuts);
     };
-  }, []);
+  }, [shortCuts]);
 
   useEffect(() => {
     if (tab > 0 && tab >= tabs.length) {
       setTab(e => e - 1);
     }
-  }, [tabs]);
+  }, [tabs, tab]);
 
   const changeTab = useCallback(index => {
     setTab(index as number);
@@ -123,7 +116,7 @@ function App() {
                     collapsible
                     collapsedSize={0}
                   >
-                    <Left></Left>
+                    <Left />
                   </Panel>
                   <PanelResizeHandle style={{ width: 4 }} className="resize-handle" />
                   <Panel
@@ -138,7 +131,7 @@ function App() {
                       selectIndex={tab}
                       changeTab={changeTab}
                       setTabs={setTabs}
-                    ></TabsWithContent>
+                    />
                   </Panel>
                 </PanelGroup>
               </div>
@@ -174,7 +167,7 @@ function Menu(props: { children: ReactNode }) {
     content: ReactNode;
     event: MouseEvent;
   }>(null);
-
+  const [display, setDisplay] = useState("none");
   const [menuDiv, setMenuDiv] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -185,7 +178,7 @@ function Menu(props: { children: ReactNode }) {
       if (!menuDiv.style) {
         return;
       }
-      menuDiv.style.display = "none";
+      setDisplay("none");
     });
   }, [menuDiv]);
 
@@ -196,7 +189,7 @@ function Menu(props: { children: ReactNode }) {
     if (!menuDiv) {
       return;
     }
-    menuDiv.style.display = "block";
+    setDisplay("block");
     if (menu && menu.event) {
       menu.event.preventDefault();
     }
@@ -215,7 +208,7 @@ function Menu(props: { children: ReactNode }) {
           height: "fit-content",
           maxHeight: "48vh",
           overflow: "auto",
-          display: "block",
+          display: display,
           border: "2px solid " + theme.palette.success.main,
           borderRadius: "0.5rem",
           ...(menu && calMenuStyle(menu.event)),

@@ -83,7 +83,7 @@ function RespContextMenu(props: {
           }}
         >
           <ListItemIcon>
-            <ContentCopyIcon></ContentCopyIcon>
+            <ContentCopyIcon />
           </ListItemIcon>
           <ListItemText> Copy </ListItemText>
         </MenuItem>
@@ -91,7 +91,7 @@ function RespContextMenu(props: {
 
       <MenuItem onClick={viewInModal}>
         <ListItemIcon>
-          <VisibilityIcon style={{ fontSize: "1.4rem" }}></VisibilityIcon>
+          <VisibilityIcon style={{ fontSize: "1.4rem" }} />
         </ListItemIcon>
         <ListItemText> View in Modal </ListItemText>
       </MenuItem>
@@ -102,7 +102,7 @@ function RespContextMenu(props: {
         }}
       >
         <ListItemIcon>
-          <ArrowUpwardIcon></ArrowUpwardIcon>
+          <ArrowUpwardIcon />
         </ListItemIcon>
         <ListItemText> {field} ASC </ListItemText>
       </MenuItem>
@@ -112,14 +112,12 @@ function RespContextMenu(props: {
         }}
       >
         <ListItemIcon>
-          <ArrowDownwardIcon></ArrowDownwardIcon>
+          <ArrowDownwardIcon />
         </ListItemIcon>
         <ListItemText> {field} DESC </ListItemText>
       </MenuItem>
-      <MenuExportMarkDownTable
-        showExportMarkDown={showExportMarkDown}
-      ></MenuExportMarkDownTable>
-      <MenuResetColumnWidths reset={resetColumnWidthCallBack}></MenuResetColumnWidths>
+      <MenuExportMarkDownTable showExportMarkDown={showExportMarkDown} />
+      <MenuResetColumnWidths reset={resetColumnWidthCallBack} />
     </MenuList>
   );
 }
@@ -136,10 +134,11 @@ function QueryResp_(props: { data: MuiDataGridData }) {
   const setting = useContext(SettingContext);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
   useEffect(() => {
+    let data = { ...oldData };
     const insert_seq =
-      !oldData.fields.find(e => e.field == seqField) && oldData.data.length > 10;
+      !data.fields.find(e => e.field == seqField) && data.data.length > 10;
     if (insert_seq) {
-      oldData.fields = [
+      data.fields = [
         {
           field: seqField,
           data_type: "number",
@@ -152,19 +151,19 @@ function QueryResp_(props: { data: MuiDataGridData }) {
             );
           },
         } as any as types.Field,
-        ...oldData.fields,
+        ...data.fields,
       ];
-      oldData.data.forEach((e, index) => {
+      data.data.forEach((e, index) => {
         e["seq"] = index;
       });
     } else {
-      oldData.data.forEach((e, index) => {
+      data.data.forEach((e, index) => {
         e[keyNotInTable] = index;
       });
     }
 
-    const considerSmallDataSet = smallDataSet(oldData.fields);
-    oldData.fields.forEach(field => {
+    const considerSmallDataSet = smallDataSet(data.fields);
+    data.fields.forEach(field => {
       if (field.field == seqField && insert_seq) {
         return;
       }
@@ -185,13 +184,16 @@ function QueryResp_(props: { data: MuiDataGridData }) {
         );
       };
     });
-    setData(oldData);
-    oldData.inserted_seq = insert_seq;
+    setData(data);
+    data.inserted_seq = insert_seq;
   }, [oldData]);
 
   const [viewInModal, setViewInModal] = useState<object>(null);
   const onColumnResize = useCallback(
     ({ colDef, width }) => {
+      if (!data) {
+        return;
+      }
       if (smallDataSet(data.fields)) {
         return;
       }
@@ -203,6 +205,9 @@ function QueryResp_(props: { data: MuiDataGridData }) {
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
+    if (!data) {
+      return undefined;
+    }
     return {
       row: {
         onContextMenu: e => {
@@ -234,7 +239,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
                 showExportMarkDown={() => {
                   setShowExportMarkDown(true);
                 }}
-              ></RespContextMenu>
+              />
             ),
             event: e,
           });
@@ -248,7 +253,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
         },
       },
     } as GridSlotsComponentsProps;
-  }, [data]);
+  }, [data, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
 
   const onSortModelChange = useCallback(e => {
     setSortModel(e);
@@ -305,7 +310,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
             rows={data.data}
             filterMode="client" // 使用客户端过滤
             onColumnResize={onColumnResize}
-          ></DataGrid>
+          />
         </Stack>
       )}
 
@@ -328,8 +333,8 @@ function QueryResp_(props: { data: MuiDataGridData }) {
               handleClose={() => {
                 setViewInModal(null);
               }}
-            ></ModalHeader>
-            <ViewRowInModal fields={data.fields} data={viewInModal}></ViewRowInModal>
+            />
+            <ViewRowInModal fields={data.fields} data={viewInModal} />
           </Box>
         </Modal>
       )}
@@ -347,7 +352,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
               handleClose={() => {
                 setShowExportMarkDown(false);
               }}
-            ></ModalHeader>
+            />
             <ExportMarkDownTable fields={data.fields} data={data.data} />
           </Box>
         </Modal>
@@ -386,13 +391,12 @@ function MultiQueryResp_(props: { data: any[] }) {
       setTop(0);
       setOpacity(1);
     }, 600);
-  }, [oldData]);
+  }, [data.length, oldData, value]);
   useEffect(() => {
     setTimeout(() => {
       setData(oldData);
     }, 500);
   }, [oldData]);
-
   if (data.length == 0) {
     return <></>;
   }
@@ -411,7 +415,7 @@ function MultiQueryResp_(props: { data: any[] }) {
           height: "100%",
         }}
       >
-        <QueryResp data={data[0].Ok}></QueryResp>
+        <QueryResp data={data[0].Ok} />
       </div>
     );
   }
@@ -450,7 +454,7 @@ function MultiQueryResp_(props: { data: any[] }) {
               {e.Err ? (
                 <Alert severity="error">{e.Err}</Alert>
               ) : (
-                <QueryResp data={e.Ok}></QueryResp>
+                <QueryResp data={e.Ok} />
               )}
             </div>
           );

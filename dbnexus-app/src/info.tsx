@@ -10,7 +10,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <SeparateWindow>
       <div style={{ height: "100%" }}>
-        <ConnConfigInfo uuid={SomeTempStore.get<string>()}></ConnConfigInfo>
+        <ConnConfigInfo uuid={SomeTempStore.get<string>()} />
       </div>
     </SeparateWindow>
   </React.StrictMode>,

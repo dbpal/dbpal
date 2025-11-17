@@ -120,13 +120,13 @@ function SelectPath(props: { path; setPath; label: string; required: boolean }) 
                   }}
                   color="primary"
                 >
-                  <AttachFileIcon></AttachFileIcon>
+                  <AttachFileIcon />
                 </IconButton>
               </>
             ),
           },
         }}
-      ></TextField>
+      />
     </Stack>
   );
 }
@@ -247,7 +247,7 @@ function SqlServerCert(props: { data: SqlServerCertData; setData }) {
             "https://docs.rs/tiberius/0.12.3/tiberius/struct.Config.html#method.trust_cert",
           );
         }}
-      ></Chip>
+      />
     </Stack>
   );
 }
@@ -276,7 +276,7 @@ function SslFiles(props: { files: types.SSLFiles; setFiles; enabled: boolean }) 
             <Chip
               label={"CA Cert:" + (files.ssl_ca ? extractBaseName(files.ssl_ca) : "")}
               variant="outlined"
-            ></Chip>
+            />
           </Tooltip>
           <Tooltip title={files.ssl_cert}>
             <Chip
@@ -290,7 +290,7 @@ function SslFiles(props: { files: types.SSLFiles; setFiles; enabled: boolean }) 
               label={
                 "Certificate:" + (files.ssl_cert ? extractBaseName(files.ssl_cert) : "")
               }
-            ></Chip>
+            />
           </Tooltip>
           <Tooltip title={files.ssl_key}>
             <Chip
@@ -304,7 +304,7 @@ function SslFiles(props: { files: types.SSLFiles; setFiles; enabled: boolean }) 
               label={
                 "Key File:" + (files.ssl_key ? extractBaseName(files.ssl_key) : "")
               }
-            ></Chip>
+            />
           </Tooltip>
         </Stack>
       </>
@@ -339,7 +339,7 @@ function PGSSL(props: { ssl: types.PgSsl; setSsl: any }) {
           ))}
         </Select>
       </FormControl>
-      <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/postgres/enum.PgSslMode.html"></UrlDocument>
+      <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/postgres/enum.PgSslMode.html" />
 
       <SslFiles enabled={ssl.ssl_mode != "disable"} files={ssl} setFiles={setSsl} />
     </Stack>
@@ -370,7 +370,7 @@ function MysqlSSl(props: { ssl: types.MysqlSsl; setSsl: any }) {
           ))}
         </Select>
       </FormControl>
-      <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/mysql/enum.MySqlSslMode.html"></UrlDocument>
+      <UrlDocument url="https://docs.rs/sqlx/latest/sqlx/mysql/enum.MySqlSslMode.html" />
 
       <SslFiles enabled={ssl.ssl_mode != "disabled"} files={ssl} setFiles={setSsl} />
     </Stack>
@@ -463,7 +463,7 @@ function Mysql(props: { config?: types.MysqlDBConfig; kind: DataSourceKind }) {
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
 
   function makeConfig(): types.DBConnectionConfig {
-    let x: types.MysqlDBConfig = {
+    const x: types.MysqlDBConfig = {
       host,
       port: parseInt(port),
       username: user,
@@ -493,12 +493,7 @@ function Mysql(props: { config?: types.MysqlDBConfig; kind: DataSourceKind }) {
 
   return (
     <Stack>
-      <HostAndPort
-        host={host}
-        port={port}
-        setHost={setHost}
-        setPort={setPort}
-      ></HostAndPort>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
       <UserAndPassword
         user={user}
         password={password}
@@ -506,13 +501,13 @@ function Mysql(props: { config?: types.MysqlDBConfig; kind: DataSourceKind }) {
         setPassword={setPassword}
         savePassword={savePassword}
         setSavePassword={setSavePassword}
-      ></UserAndPassword>
+      />
       <DbSchemaCadidates
         name={database}
         label="database"
         setName={setDatabase}
         makeConfig={makeConfig}
-      ></DbSchemaCadidates>
+      />
       <MysqlSSl ssl={ssl} setSsl={setSsl} />
     </Stack>
   );
@@ -558,12 +553,7 @@ function Oracle(props: { config?: types.OracleDBConfig }) {
       >
         oracle need extra driver
       </Typography>
-      <HostAndPort
-        host={host}
-        port={port}
-        setHost={setHost}
-        setPort={setPort}
-      ></HostAndPort>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
       <UserAndPassword
         user={user}
         password={password}
@@ -571,21 +561,21 @@ function Oracle(props: { config?: types.OracleDBConfig }) {
         setPassword={setPassword}
         savePassword={savePassword}
         setSavePassword={setSavePassword}
-      ></UserAndPassword>
+      />
       <TextField
         value={database}
         label="database"
         onChange={e => {
           setDatabase(e.target.value);
         }}
-      ></TextField>
+      />
       {database && (
         <DbSchemaCadidates
           name={schema}
           setName={setSchema}
           makeConfig={makeConfig}
           label="schema"
-        ></DbSchemaCadidates>
+        />
       )}
     </Stack>
   );
@@ -620,12 +610,7 @@ function ClickHouse(props: { config?: types.ClickHouseConfig }) {
 
   return (
     <Stack>
-      <HostAndPort
-        host={host}
-        port={port}
-        setHost={setHost}
-        setPort={setPort}
-      ></HostAndPort>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
       <UserAndPassword
         user={user}
         password={password}
@@ -633,14 +618,14 @@ function ClickHouse(props: { config?: types.ClickHouseConfig }) {
         setPassword={setPassword}
         savePassword={savePassword}
         setSavePassword={setSavePassword}
-      ></UserAndPassword>
+      />
       <DbSchemaCadidates
         name={database}
         setName={setDatabase}
         makeConfig={makeConfig}
         label="database"
-      ></DbSchemaCadidates>
-      <Https https={https} setHttps={setHttps}></Https>
+      />
+      <Https https={https} setHttps={setHttps} />
     </Stack>
   );
 }
@@ -664,7 +649,7 @@ function PostGres(props: { config?: types.PGDBConfig; kind: DataSourceKind }) {
   const [savePassword, setSavePassword] = useState(getSavePassword(config));
 
   function makeConfig(): types.DBConnectionConfig {
-    let x: types.PGDBConfig = {
+    const x: types.PGDBConfig = {
       host,
       port: parseInt(port),
       username: user,
@@ -694,12 +679,7 @@ function PostGres(props: { config?: types.PGDBConfig; kind: DataSourceKind }) {
 
   return (
     <Stack>
-      <HostAndPort
-        host={host}
-        port={port}
-        setHost={setHost}
-        setPort={setPort}
-      ></HostAndPort>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
       <UserAndPassword
         user={user}
         password={password}
@@ -707,20 +687,20 @@ function PostGres(props: { config?: types.PGDBConfig; kind: DataSourceKind }) {
         setPassword={setPassword}
         savePassword={savePassword}
         setSavePassword={setSavePassword}
-      ></UserAndPassword>
+      />
       <DbSchemaCadidates
         name={database}
         setName={setDatabase}
         makeConfig={makeConfig}
         label="database"
-      ></DbSchemaCadidates>
+      />
       {database && (
         <DbSchemaCadidates
           name={schema}
           setName={setSchema}
           label="schema"
           makeConfig={makeConfig}
-        ></DbSchemaCadidates>
+        />
       )}
       <PGSSL ssl={ssl} setSsl={setSSl} />
     </Stack>
@@ -745,12 +725,7 @@ function Sqlite(props: { config?: types.SqliteDBConfig }) {
 
   return (
     <Stack>
-      <SelectPath
-        path={path}
-        setPath={setPath}
-        required
-        label="sqlite database file"
-      ></SelectPath>
+      <SelectPath path={path} setPath={setPath} required label="sqlite database file" />
     </Stack>
   );
 }
@@ -821,7 +796,7 @@ function TestConnAndSave(props: { connectionNameDom }) {
       config["password"] = "";
     }
     ConnectionHandler.save(config)
-      .then(_ => {
+      .then(() => {
         showNotification("success", "add connection OK");
         emit(connectionChangeEvent, "");
         // handleClose();
@@ -832,7 +807,7 @@ function TestConnAndSave(props: { connectionNameDom }) {
   };
   return (
     <Stack>
-      <Divider></Divider>
+      <Divider />
       <Stack direction="row" style={{ alignItems: "center" }}>
         <Button
           color="primary"
@@ -903,12 +878,7 @@ function FireBird(props: { config?: types.FireBirdConfig }) {
 
   return (
     <Stack>
-      <HostAndPort
-        host={host}
-        port={port}
-        setHost={setHost}
-        setPort={setPort}
-      ></HostAndPort>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
       <UserAndPassword
         user={user}
         password={password}
@@ -916,14 +886,14 @@ function FireBird(props: { config?: types.FireBirdConfig }) {
         setPassword={setPassword}
         savePassword={savePassword}
         setSavePassword={setSavePassword}
-      ></UserAndPassword>
+      />
       <TextField
         label="database"
         value={database}
         onChange={e => {
           setDatabase(e.target.value);
         }}
-      ></TextField>
+      />
     </Stack>
   );
 }
@@ -958,12 +928,7 @@ function Redis(props: { config?: types.RedisDBConfig }) {
 
   return (
     <Stack>
-      <HostAndPort
-        host={host}
-        port={port}
-        setHost={setHost}
-        setPort={setPort}
-      ></HostAndPort>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
       <UserAndPassword
         user={user}
         password={password}
@@ -971,13 +936,13 @@ function Redis(props: { config?: types.RedisDBConfig }) {
         setPassword={setPassword}
         savePassword={savePassword}
         setSavePassword={setSavePassword}
-      ></UserAndPassword>
+      />
       <DbSchemaCadidates
         name={database}
         setName={setDatabase}
         label="database"
         makeConfig={makeConfig}
-      ></DbSchemaCadidates>
+      />
       <FormControlLabel
         control={
           <Switch checked={enableSSL} onChange={e => setEnableSSL(e.target.checked)} />
@@ -1023,12 +988,7 @@ function MongoDb(props: { config?: types.MongoDBConfig }) {
   globalMakeConfig = makeConfig;
   return (
     <Stack>
-      <HostAndPort
-        host={host}
-        port={port}
-        setHost={setHost}
-        setPort={setPort}
-      ></HostAndPort>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
       <UserAndPassword
         user={user}
         password={password}
@@ -1036,13 +996,13 @@ function MongoDb(props: { config?: types.MongoDBConfig }) {
         setPassword={setPassword}
         savePassword={savePassword}
         setSavePassword={setSavePassword}
-      ></UserAndPassword>
+      />
       <DbSchemaCadidates
         name={database}
         setName={setDatabase}
         label="database"
         makeConfig={makeConfig}
-      ></DbSchemaCadidates>
+      />
       <Stack direction="row" alignItems="center">
         <FormControlLabel
           style={{ width: "180px" }}
@@ -1054,7 +1014,7 @@ function MongoDb(props: { config?: types.MongoDBConfig }) {
           }
           label="Enable SSL"
         />
-        <SslFiles enabled={enableSSL} files={sslFiles} setFiles={setSslFile}></SslFiles>
+        <SslFiles enabled={enableSSL} files={sslFiles} setFiles={setSslFile} />
       </Stack>
     </Stack>
   );
@@ -1088,12 +1048,7 @@ function Cassandra(props: { config?: types.CassandraDBConfig }) {
 
   return (
     <Stack>
-      <HostAndPort
-        host={host}
-        port={port}
-        setHost={setHost}
-        setPort={setPort}
-      ></HostAndPort>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
       <UserAndPassword
         user={user}
         password={password}
@@ -1101,13 +1056,13 @@ function Cassandra(props: { config?: types.CassandraDBConfig }) {
         setPassword={setPassword}
         savePassword={savePassword}
         setSavePassword={setSavePassword}
-      ></UserAndPassword>
+      />
       <DbSchemaCadidates
         name={database}
         setName={setDatabase}
         label="database"
         makeConfig={makeConfig}
-      ></DbSchemaCadidates>
+      />
     </Stack>
   );
 }
@@ -1149,12 +1104,7 @@ function SqlServer(props: { config?: types.SqlServerDBConfig }) {
 
   return (
     <Stack>
-      <HostAndPort
-        host={host}
-        port={port}
-        setHost={setHost}
-        setPort={setPort}
-      ></HostAndPort>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
       <UserAndPassword
         user={user}
         password={password}
@@ -1162,22 +1112,22 @@ function SqlServer(props: { config?: types.SqlServerDBConfig }) {
         setPassword={setPassword}
         savePassword={savePassword}
         setSavePassword={setSavePassword}
-      ></UserAndPassword>
+      />
       <DbSchemaCadidates
         name={database}
         setName={setDatabase}
         label="database"
         makeConfig={makeConfig}
-      ></DbSchemaCadidates>
+      />
       {database && (
         <DbSchemaCadidates
           name={schema}
           setName={setSchema}
           label="schema"
           makeConfig={makeConfig}
-        ></DbSchemaCadidates>
+        />
       )}
-      <SqlServerCert data={sqlserverCert} setData={setSqlServerCert}></SqlServerCert>
+      <SqlServerCert data={sqlserverCert} setData={setSqlServerCert} />
     </Stack>
   );
 }
@@ -1186,7 +1136,7 @@ function AddConnection(props: {
   handleClose: () => void;
   config?: types.DBConnectionConfig;
 }) {
-  let { handleClose, config } = props;
+  const { handleClose, config } = props;
   const [connectionType, setConnectionType] = useState(config?.conn_type || "mysql");
   const [connectionName, setConnectionName] = useState(config?.name);
   const [connTimeout, setConnTimeout] = useState<string>(
@@ -1296,22 +1246,22 @@ function AddConnection(props: {
       >
         <Stack>
           <Typography variant="h6"> server info </Typography>
-          <Divider></Divider>
+          <Divider />
           {(connectionType === DataSourceKind.Mysql ||
             connectionType === DataSourceKind.MariaDB ||
             connectionType === DataSourceKind.TiDB) && (
             <Mysql
               config={config as types.MysqlDBConfig}
               kind={connectionType as DataSourceKind}
-            ></Mysql>
+            />
           )}
 
           {connectionType === DataSourceKind.LibSql && (
-            <LibSql config={config as types.LibSqlDBConfig}></LibSql>
+            <LibSql config={config as types.LibSqlDBConfig} />
           )}
 
           {connectionType === DataSourceKind.FireBird && (
-            <FireBird config={config as types.FireBirdConfig}></FireBird>
+            <FireBird config={config as types.FireBirdConfig} />
           )}
 
           {(connectionType === DataSourceKind.Postgres ||
@@ -1319,35 +1269,35 @@ function AddConnection(props: {
             <PostGres
               config={config as types.PGDBConfig}
               kind={connectionType as DataSourceKind}
-            ></PostGres>
+            />
           )}
           {connectionType === DataSourceKind.ClickHouse && (
-            <ClickHouse config={config as types.ClickHouseConfig}></ClickHouse>
+            <ClickHouse config={config as types.ClickHouseConfig} />
           )}
 
           {connectionType === DataSourceKind.Cassandra && (
-            <Cassandra config={config as types.CassandraDBConfig}></Cassandra>
+            <Cassandra config={config as types.CassandraDBConfig} />
           )}
 
           {connectionType === DataSourceKind.Redis && (
-            <Redis config={config as types.RedisDBConfig}></Redis>
+            <Redis config={config as types.RedisDBConfig} />
           )}
           {connectionType === DataSourceKind.Mongo && (
-            <MongoDb config={config as types.MongoDBConfig}></MongoDb>
+            <MongoDb config={config as types.MongoDBConfig} />
           )}
           {connectionType === DataSourceKind.SqlServer && (
-            <SqlServer config={config as types.SqlServerDBConfig}></SqlServer>
+            <SqlServer config={config as types.SqlServerDBConfig} />
           )}
           {connectionType === DataSourceKind.Oracle && (
-            <Oracle config={config as types.OracleDBConfig}></Oracle>
+            <Oracle config={config as types.OracleDBConfig} />
           )}
           {connectionType === DataSourceKind.Sqlite && (
-            <Sqlite config={config as types.SqliteDBConfig}></Sqlite>
+            <Sqlite config={config as types.SqliteDBConfig} />
           )}
         </Stack>
       </AddConnectionContext>
 
-      <TestConnAndSave connectionNameDom={connectionNameDom}></TestConnAndSave>
+      <TestConnAndSave connectionNameDom={connectionNameDom} />
     </Stack>
   );
 }
@@ -1357,11 +1307,9 @@ function LibSql(props: { config?: types.LibSqlDBConfig }) {
   const urlOld = config && config.source == "remote" && config.url;
   const [url, setUrl] = useState(urlOld ? urlOld : "");
   // const [replica, setReplica] = useState(config?.replica);
-  let oldAuth = config && config.source == "remote" && config.auth_token;
+  const oldAuth = config && config.source == "remote" && config.auth_token;
   const [authToken, setAuthToken] = useState(oldAuth ? oldAuth : "");
-  const [libSqlModel, _setLibSqlModal] = useState<"remote" | "local">(
-    config?.source || "remote",
-  );
+  const [libSqlModel] = useState<"remote" | "local">(config?.source || "remote");
   const [path, setPath] = useState(config?.path);
   const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
 
@@ -1404,7 +1352,7 @@ function LibSql(props: { config?: types.LibSqlDBConfig }) {
           setPath={setPath}
           required
           label="libsql database file"
-        ></SelectPath>
+        />
       )}
       {libSqlModel === "remote" && (
         <>
@@ -1432,7 +1380,7 @@ function LibSql(props: { config?: types.LibSqlDBConfig }) {
                   ),
                 },
               }}
-            ></TextField>
+            />
             <TextField
               fullWidth
               value={authToken}
@@ -1456,7 +1404,7 @@ function LibSql(props: { config?: types.LibSqlDBConfig }) {
                   ),
                 },
               }}
-            ></TextField>
+            />
           </Stack>
           {/* <Stack
             direction="row"

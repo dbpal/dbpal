@@ -73,7 +73,7 @@ class QueryLogHandler {
     return appDatabase.select(sql, [this.uuid]);
   }
   async queryCount(matchSql: string): Promise<number> {
-    let sql = `select count(*) as total from query_log where uuid=? ${
+    const sql = `select count(*) as total from query_log where uuid=? ${
       matchSql ? `and sql like '%${matchSql}%'` : ""
     }`;
     return appDatabase.select(sql, [this.uuid]).then(e => (e ? e[0].total : 0));
@@ -348,6 +348,7 @@ class SaveMatchPattern {
         return [];
       }
     } catch (e) {
+      console.log("get match pattern failed", e);
       return [];
     }
   }
@@ -525,7 +526,7 @@ const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
 class TabContent {
   constructor(
     public id: string,
-    public header: ReactNode,
+    public header: string,
     public content: ReactNode,
     public icon: ReactElement,
     public closeConfirmText?: string,
@@ -610,7 +611,7 @@ function saveAndSetSize(
   });
   e.observe(dom);
   return () => {
-    e.unobserve(dom);
+    e.disconnect();
   };
 }
 
@@ -695,7 +696,6 @@ class UserSettingAppearance {
   darkBgColor: string = "";
   datagridRowHeightFactor = 2;
   maxTreeSize: number = 150;
-  maxTabTitleLength: number = 12;
   intputVariant: string = "standard";
   static key = "dbpal-appearance-setting";
   save() {
@@ -713,7 +713,7 @@ class UserSettingAppearance {
       Object.setPrototypeOf(setting, UserSettingAppearance.prototype);
       return setting;
     } catch (e) {
-      // ignore
+      console.log("get user setting failed, use default", e);
       return new UserSettingAppearance();
     }
   }
@@ -734,7 +734,7 @@ class UserSettingExport {
       Object.setPrototypeOf(setting, UserSettingExport.prototype);
       return setting;
     } catch (e) {
-      // ignore
+      console.log("get user setting failed, use default", e);
       return new UserSettingExport();
     }
   }
@@ -752,10 +752,10 @@ class UserSettingEditor {
 
   static get() {
     try {
-      let x = JSON.parse(localStorage.getItem(UserSettingEditor.key));
+      const x = JSON.parse(localStorage.getItem(UserSettingEditor.key));
       return { ...new UserSettingEditor(), ...x };
     } catch (e) {
-      // ignore
+      console.log("get user setting failed, use default", e);
       return new UserSettingEditor();
     }
   }
@@ -793,10 +793,10 @@ class UserSettingMisc {
 
   static get() {
     try {
-      let x = JSON.parse(localStorage.getItem(UserSettingMisc.key));
+      const x = JSON.parse(localStorage.getItem(UserSettingMisc.key));
       return { ...new UserSettingMisc(), ...x };
     } catch (e) {
-      // ignore
+      console.log("get user setting failed, use default", e);
       return new UserSettingMisc();
     }
   }
@@ -891,7 +891,7 @@ class SaveQueryLogConfigure {
     try {
       return "1" == localStorage.getItem(SaveQueryLogConfigure.key);
     } catch (e) {
-      console.error("get query log failed");
+      console.error("get query log failed", e);
       return false;
     }
   }
@@ -956,6 +956,7 @@ class SavePageSize {
         return x;
       }
     } catch (e) {
+      console.log("get page size failed", e);
       console.error("get page size failed");
     }
     return 100;
@@ -969,8 +970,8 @@ function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
       return ["json", "jsonline"];
     default:
       return isTable
-        ? ["csv", "sql", "json", "jsonline", "xlsx"]
-        : ["csv", "json", "jsonline", "xlsx"];
+        ? ["csv", "sql", "json", "jsonline", "xlsx", "html"]
+        : ["csv", "json", "jsonline", "xlsx", "html"];
   }
 }
 
@@ -1131,7 +1132,7 @@ async function setUpEditorThemes() {
       themes[key] = JSON.parse(themes[key]);
     }
     for (const key in themelist) {
-      let v = themelist[key];
+      const v = themelist[key];
       monaco.editor.defineTheme(key, themes[v]);
       registeredThemes.push(key);
     }
@@ -1185,7 +1186,9 @@ class LLMConfig {
       } else {
         try {
           PassWordManager.deletePassword(LLMConfig.key);
-        } catch (_e) {}
+        } catch (e) {
+          console.log("delete passwd failed", e);
+        }
       }
       this.apiKey = "";
       appStore.set(LLMConfig.key, this);
@@ -1343,7 +1346,7 @@ async function webviewWIndowInit() {
         appTheme = theme;
         notifySettingChange();
       });
-    }, 1000);
+    }, 3000);
   }
 
   if (!import.meta.env.DEV) {

@@ -128,7 +128,7 @@ function SetFilterSort(props: {
   tableName;
   kind: DataSourceKind;
   uuid: string;
-  extractFn: (sql: string) => Promise<String | null>;
+  extractFn: (sql: string) => Promise<string | null>;
 }) {
   let { open, handleClose, value, setValue, label, tableName, kind, extractFn, uuid } =
     props;
@@ -172,7 +172,7 @@ function SetFilterSort(props: {
         height="30vh"
         ref={setModalBox}
       >
-        <ModalHeader title={`set ${label}`} handleClose={handleClose}></ModalHeader>
+        <ModalHeader title={`set ${label}`} handleClose={handleClose} />
         <SimpleFlexEditor
           value={
             makeFormatFn(kind)(
@@ -189,7 +189,7 @@ function SetFilterSort(props: {
             SetAutoCompletionName.set(e.getModel().id, new NameAndQueryId(uuid, kind));
           }}
           language={getLanguageFromDataSourceKind(kind)}
-        ></SimpleFlexEditor>
+        />
 
         <Stack direction="row" style={{ alignItems: "center" }}>
           <Button onClick={handleSet}>set {label}</Button>
@@ -245,7 +245,7 @@ function EditInModal(props: { content: string; handleModify }) {
               setLanguage(e.language);
               EditInModalLanguage = e.language;
             }}
-          ></Chip>
+          />
         ))}
       </Stack>
       <SimpleFlexEditor
@@ -272,7 +272,7 @@ function EditInModal(props: { content: string; handleModify }) {
             </Typography>
           ) : undefined
         }
-      ></SimpleFlexEditor>
+      />
       <Divider />
       <Stack direction="row">
         <Button
@@ -308,8 +308,8 @@ function SqlTableView_(props: {
   tableName: string;
   uuid;
   invalidCassandraTableViewCache?: () => Promise<void>;
-  extractTableSelectWhere: (sql: string) => Promise<String | null>;
-  extractTableSelectSort: (sql: string) => Promise<String | null>;
+  extractTableSelectWhere: (sql: string) => Promise<string | null>;
+  extractTableSelectSort: (sql: string) => Promise<string | null>;
   isTable: boolean;
 }) {
   const {
@@ -356,7 +356,7 @@ function SqlTableView_(props: {
       data[keyNotInTable] = index;
     });
     for (let i = 0; i < resp.fields.length; i++) {
-      let field = resp.fields[i] as FieldAndGridField;
+      const field = resp.fields[i] as FieldAndGridField;
       field.renderHeader = e => {
         const def = e.colDef as unknown as FieldAndGridField;
         const makeTitle = (): string => {
@@ -381,7 +381,7 @@ function SqlTableView_(props: {
             <Tooltip title={makeTitle()}>
               <Typography fontSize={dataGridheaderFontSize}>{def.field}</Typography>
             </Tooltip>
-            {def.is_primary && <KeyIcon style={{ fontSize: "16px" }}></KeyIcon>}
+            {def.is_primary && <KeyIcon style={{ fontSize: "16px" }} />}
           </Stack>
         );
       };
@@ -392,34 +392,43 @@ function SqlTableView_(props: {
     }
   };
 
-  const handleReload = async (showOK: boolean) => {
-    setLoading(true);
-    try {
-      let extra = null as types.ShowTableExtraArgs;
-      switch (kind) {
-        case DataSourceKind.Cassandra:
-          extra = { extra: "cassandra", allow_filtering: allowFiltering };
-          break;
-      }
-      const resp = await reloadOP(where.trim(), sort.trim(), page + 1, pageSize, extra);
-      await handleResp(resp);
-      resp.fields.forEach(field => {
-        const width = ColumnWidth.instance.get(field.field);
-        if (width) {
-          field["width"] = width;
+  const handleReload = useCallback(
+    async (showOK: boolean) => {
+      setLoading(true);
+      try {
+        let extra = null as types.ShowTableExtraArgs;
+        switch (kind) {
+          case DataSourceKind.Cassandra:
+            extra = { extra: "cassandra", allow_filtering: allowFiltering };
+            break;
         }
-      });
-      setResp(resp);
-      if (showOK) {
-        reloadOK(showNotification);
+        const resp = await reloadOP(
+          where.trim(),
+          sort.trim(),
+          page + 1,
+          pageSize,
+          extra,
+        );
+        await handleResp(resp);
+        resp.fields.forEach(field => {
+          const width = ColumnWidth.instance.get(field.field);
+          if (width) {
+            field["width"] = width;
+          }
+        });
+        setResp(resp);
+        if (showOK) {
+          reloadOK(showNotification);
+        }
+      } catch (e) {
+        showNotification("error", "query data failed", e);
+        return;
+      } finally {
+        setLoading(false);
       }
-    } catch (e) {
-      showNotification("error", "query data failed", e);
-      return;
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [allowFiltering, kind, page, pageSize, reloadOP, showNotification, sort, where],
+  );
 
   const handleProcessRowUpdate = useCallback(
     async (newRow: object, oldRow: object) => {
@@ -461,47 +470,50 @@ function SqlTableView_(props: {
       }
       return newRow;
     },
-    [resp],
+    [handleReload, notWarnPri, resp.fields, showNotification, updateOP],
   );
 
-  const handleDelete = async id => {
-    if (!(await confirmAboutPrimary(notWarnPri, resp.fields))) {
-      return;
-    }
-    let old;
-    for (const e of resp.data) {
-      if (e[keyNotInTable] == id) {
-        old = new Map(Object.entries(e));
-        break;
+  const handleDelete = useCallback(
+    async id => {
+      if (!(await confirmAboutPrimary(notWarnPri, resp.fields))) {
+        return;
       }
-    }
-    if (!old) {
-      showNotification(
-        "error",
-        "not found the record to delete this is a internal bug",
-      );
-      return;
-    }
-    try {
-      old.delete(keyNotInTable);
-      const ret = await deleteOP(old);
-      showNotification(
-        "success",
-        "delete OK",
-        <Stack>
-          <Typography> sql:{ret.sql} </Typography>
-          <Typography> row affected :{ret.changes} </Typography>
-        </Stack>,
-      );
-    } catch (e) {
-      showNotification("error", "delete failed", e);
-    }
-    handleReload(false);
-  };
+      let old;
+      for (const e of resp.data) {
+        if (e[keyNotInTable] == id) {
+          old = new Map(Object.entries(e));
+          break;
+        }
+      }
+      if (!old) {
+        showNotification(
+          "error",
+          "not found the record to delete this is a internal bug",
+        );
+        return;
+      }
+      try {
+        old.delete(keyNotInTable);
+        const ret = await deleteOP(old);
+        showNotification(
+          "success",
+          "delete OK",
+          <Stack>
+            <Typography> sql:{ret.sql} </Typography>
+            <Typography> row affected :{ret.changes} </Typography>
+          </Stack>,
+        );
+      } catch (e) {
+        showNotification("error", "delete failed", e);
+      }
+      handleReload(false);
+    },
+    [deleteOP, handleReload, notWarnPri, resp.data, resp.fields, showNotification],
+  );
 
   useEffect(() => {
     handleReload(false);
-  }, [page, pageSize, where, sort, allowFiltering]);
+  }, [page, pageSize, where, sort, allowFiltering, handleReload]);
 
   const paginationModel = useMemo(() => {
     return { page, pageSize };
@@ -511,28 +523,36 @@ function SqlTableView_(props: {
       setPage(e.page);
       setPageSize(e.pageSize);
       if (reason.reason == "setPaginationModel") {
-        SavePageSize.instance.save(pageSize);
+        SavePageSize.instance.save(e.pageSize);
       }
     },
     [],
   );
   const { setUpMenu } = useContext(ContextMenuContext);
-  const onSortModelChange = useCallback((sorts: GridSortModel) => {
-    if (sorts.length == 0) {
-      setSort("");
-      return;
-    }
-    const sort = sorts[0];
-    if (!sort.sort) {
-      setSort("");
-      return;
-    }
-    setSort(`${quoteDatabaseIdentifier(kind)(sort.field)} ${sort.sort.toUpperCase()}`);
-  }, []);
+  const onSortModelChange = useCallback(
+    (sorts: GridSortModel) => {
+      if (sorts.length == 0) {
+        setSort("");
+        return;
+      }
+      const sort = sorts[0];
+      if (!sort.sort) {
+        setSort("");
+        return;
+      }
+      setSort(
+        `${quoteDatabaseIdentifier(kind)(sort.field)} ${sort.sort.toUpperCase()}`,
+      );
+    },
+    [kind],
+  );
 
-  const onProcessRowUpdateError = useCallback(e => {
-    showNotification("error", "update failed", e);
-  }, []);
+  const onProcessRowUpdateError = useCallback(
+    e => {
+      showNotification("error", "update failed", e);
+    },
+    [showNotification],
+  );
 
   const onColumnResize = useCallback(({ colDef, width }) => {
     ColumnWidth.instance.save(colDef.field, width);
@@ -546,7 +566,7 @@ function SqlTableView_(props: {
           if (!field) {
             return;
           }
-          let row = { ...resp.data.find(e => e[keyNotInTable] == id) };
+          const row = { ...resp.data.find(e => e[keyNotInTable] == id) };
           const content = row[field];
           delete row[keyNotInTable];
           const nullable = resp.fields.find(e => e.field == field).nullable;
@@ -579,11 +599,7 @@ function SqlTableView_(props: {
                 addOP={
                   addOP
                     ? async row => {
-                        try {
-                          await addOP(row);
-                        } catch (e) {
-                          throw e;
-                        }
+                        await addOP(row);
                         handleReload(false);
                       }
                     : undefined
@@ -623,7 +639,7 @@ function SqlTableView_(props: {
                 viewInModal={() => {
                   setViewInModal(row);
                 }}
-              ></Menu>
+              />
             ),
             event: e,
           });
@@ -637,7 +653,21 @@ function SqlTableView_(props: {
         },
       },
     } as GridSlotsComponentsProps;
-  }, [resp]);
+  }, [
+    addOP,
+    deleteOP,
+    handleDelete,
+    handleReload,
+    kind,
+    put_value_in_sql,
+    resp.data,
+    resp.fields,
+    setUpMenu,
+    setting.export.csvDelimiter,
+    setting.export.includeHeader,
+    showNotification,
+    updateOP,
+  ]);
 
   const [editInModalBox, setEditInModalBox] = useState(null);
   useEffect(() => {
@@ -691,7 +721,7 @@ function SqlTableView_(props: {
             size="medium"
             color="primary"
             icon={<FilterAltIcon />}
-          ></Chip>
+          />
         </Tooltip>
         {/* <Typography color="info"> order by </Typography> */}
         <Tooltip title="sort something like 'age asc'">
@@ -705,7 +735,7 @@ function SqlTableView_(props: {
             color="secondary"
             variant="outlined"
             icon={<FaArrowsAltV />}
-          ></Chip>
+          />
         </Tooltip>
         {kind == DataSourceKind.Cassandra && (
           <>
@@ -782,7 +812,7 @@ function SqlTableView_(props: {
             alignItems: "center",
           }}
         >
-          <ExecutingTime loading={loading} title="loading time"></ExecutingTime>
+          <ExecutingTime loading={loading} title="loading time" />
         </Stack>
       </Stack>
 
@@ -809,7 +839,7 @@ function SqlTableView_(props: {
         onColumnResize={onColumnResize}
         processRowUpdate={handleProcessRowUpdate}
         onProcessRowUpdateError={onProcessRowUpdateError}
-      ></DataGrid>
+      />
 
       {viewInModal && (
         <Modal
@@ -830,12 +860,8 @@ function SqlTableView_(props: {
               handleClose={() => {
                 setViewInModal(null);
               }}
-            ></ModalHeader>
-            <ViewRowInModal
-              fields={resp.fields}
-              data={viewInModal}
-              isTable={isTable}
-            ></ViewRowInModal>
+            />
+            <ViewRowInModal fields={resp.fields} data={viewInModal} isTable={isTable} />
           </Box>
         </Modal>
       )}
@@ -858,7 +884,7 @@ function SqlTableView_(props: {
               handleClose={() => {
                 setEditCellInModal(null);
               }}
-            ></ModalHeader>
+            />
             <EditInModal
               content={editCellInModal.content}
               handleModify={async value => {
@@ -868,7 +894,7 @@ function SqlTableView_(props: {
                 handleReload(false);
                 setEditCellInModal(null);
               }}
-            ></EditInModal>
+            />
           </Box>
         </Modal>
       )}
@@ -890,7 +916,7 @@ function SqlTableView_(props: {
               handleClose={() => {
                 setEditInModalRow(null);
               }}
-            ></ModalHeader>
+            />
             <SqlTableViewData
               initValues={editInModalRow}
               buttonName="modify"
@@ -901,7 +927,7 @@ function SqlTableView_(props: {
                 handleReload(false);
               }}
               handleClose={() => setEditInModalRow(null)}
-            ></SqlTableViewData>
+            />
           </Box>
         </Modal>
       )}
@@ -920,7 +946,7 @@ function SqlTableView_(props: {
               handleClose={() => {
                 setShowExportMarkDown(false);
               }}
-            ></ModalHeader>
+            />
             <ExportMarkDownTable fields={resp.fields} data={resp.data} />
           </Box>
         </Modal>
@@ -941,7 +967,7 @@ function SqlTableView_(props: {
           label="filter"
           kind={kind}
           uuid={uuid}
-        ></SetFilterSort>
+        />
       )}
 
       {showSetSort && (
@@ -959,7 +985,7 @@ function SqlTableView_(props: {
           label="sort"
           uuid={uuid}
           extractFn={extractTableSelectSort}
-        ></SetFilterSort>
+        />
       )}
     </Stack>
   );
@@ -1000,25 +1026,26 @@ function SqlTableViewData(props: {
   const { showNotification } = useContext(NotificationContext);
   const inputDoms = useRef({});
   const handleModify = () => {
+    const argsclone = structuredClone(args);
     for (let i = 0; i < fields.length; i++) {
       const f = fields[i];
       if (f.is_auto_increment) {
         continue;
       }
-      if (!args[f.field] && !f.nullable && !f.default_value) {
+      if (!argsclone[f.field] && !f.nullable && !f.default_value) {
         inputDoms.current[f.field].focus();
         showNotification("error", `filed '${f.field}' need be filled`);
         return;
       }
     }
-    for (const key in args) {
-      if (!args[key]) {
+    for (const key in argsclone) {
+      if (!argsclone[key]) {
         // make sure '' convert to null
-        args[key] = null;
+        argsclone[key] = null;
       }
     }
     setLoading(true);
-    handleData(args)
+    handleData(argsclone)
       .then(() => {
         console.info("insert done");
         showNotification("success", `${buttonName} OK`);
@@ -1074,7 +1101,7 @@ function SqlTableViewData(props: {
                   newArgs[f.field] = value;
                   setArgs(newArgs);
                 }}
-              ></TextField>
+              />
             </Stack>
           );
         })}
@@ -1107,7 +1134,7 @@ function SqlTableViewData(props: {
               ),
             },
           }}
-        ></TextField>
+        />
       </Stack>
     </Stack>
   );
@@ -1177,7 +1204,7 @@ function Menu(props: {
             }}
           >
             <ListItemIcon>
-              <EditIcon></EditIcon>
+              <EditIcon />
             </ListItemIcon>
             <ListItemText> Edit Cell in Modal </ListItemText>
           </MenuItem>
@@ -1190,7 +1217,7 @@ function Menu(props: {
             }}
           >
             <ListItemIcon>
-              <MdEditNote fontSize="1.7rem"></MdEditNote>
+              <MdEditNote fontSize="1.7rem" />
             </ListItemIcon>
             <ListItemText> Edit Row in Modal </ListItemText>
           </MenuItem>
@@ -1203,7 +1230,7 @@ function Menu(props: {
             }}
           >
             <ListItemIcon>
-              <CancelIcon></CancelIcon>
+              <CancelIcon />
             </ListItemIcon>
             <ListItemText> Set As Null </ListItemText>
           </MenuItem>
@@ -1211,7 +1238,7 @@ function Menu(props: {
 
         <MenuItem onClick={viewInModal}>
           <ListItemIcon>
-            <VisibilityIcon style={{ fontSize: "1.4rem" }}></VisibilityIcon>
+            <VisibilityIcon style={{ fontSize: "1.4rem" }} />
           </ListItemIcon>
           <ListItemText> View in Modal </ListItemText>
         </MenuItem>
@@ -1223,7 +1250,7 @@ function Menu(props: {
             }}
           >
             <ListItemIcon>
-              <FaCopy fontSize="1.4rem"></FaCopy>
+              <FaCopy fontSize="1.4rem" />
             </ListItemIcon>
             <ListItemText> Copy </ListItemText>
           </MenuItem>
@@ -1236,7 +1263,7 @@ function Menu(props: {
           }}
         >
           <ListItemIcon>
-            <ArrowUpwardIcon></ArrowUpwardIcon>
+            <ArrowUpwardIcon />
           </ListItemIcon>
           <ListItemText> {field} ASC </ListItemText>
         </MenuItem>
@@ -1246,7 +1273,7 @@ function Menu(props: {
           }}
         >
           <ListItemIcon>
-            <ArrowDownwardIcon></ArrowDownwardIcon>
+            <ArrowDownwardIcon />
           </ListItemIcon>
           <ListItemText> {field} DESC </ListItemText>
         </MenuItem>
@@ -1258,7 +1285,7 @@ function Menu(props: {
             }}
           >
             <ListItemIcon>
-              <FilterAltIcon></FilterAltIcon>
+              <FilterAltIcon />
             </ListItemIcon>
             <ListItemText> Quick Filter </ListItemText>
           </MenuItem>
@@ -1272,7 +1299,7 @@ function Menu(props: {
             }}
           >
             <ListItemIcon>
-              <FileCopyIcon></FileCopyIcon>
+              <FileCopyIcon />
             </ListItemIcon>
             <ListItemText> Clone Row </ListItemText>
           </MenuItem>
@@ -1280,16 +1307,14 @@ function Menu(props: {
         {handleDelete && (
           <MenuItem onClick={handleDelete}>
             <ListItemIcon>
-              <DeleteForeverIcon></DeleteForeverIcon>
+              <DeleteForeverIcon />
             </ListItemIcon>
             <ListItemText> Delete Row</ListItemText>
           </MenuItem>
         )}
-        <MenuResetColumnWidths reset={resetColumnWidthCallBack}></MenuResetColumnWidths>
+        <MenuResetColumnWidths reset={resetColumnWidthCallBack} />
 
-        <MenuExportMarkDownTable
-          showExportMarkDown={showExportMarkDown}
-        ></MenuExportMarkDownTable>
+        <MenuExportMarkDownTable showExportMarkDown={showExportMarkDown} />
       </MenuList>
 
       {showClone && (
@@ -1310,7 +1335,7 @@ function Menu(props: {
               handleClose={() => {
                 setShowClone(false);
               }}
-            ></ModalHeader>
+            />
             <SqlTableViewData
               buttonName="add"
               handleData={addOP}
@@ -1318,7 +1343,7 @@ function Menu(props: {
               handleClose={() => setShowClone(false)}
               initValues={row}
               isAdd
-            ></SqlTableViewData>
+            />
           </Box>
         </Modal>
       )}
@@ -1337,7 +1362,7 @@ function Menu(props: {
               handleClose={() => {
                 setShowFilter(false);
               }}
-            ></ModalHeader>
+            />
             <FilterOnValue
               content={content}
               setWhere={setWhere}
@@ -1349,7 +1374,7 @@ function Menu(props: {
               put_value_in_sql={value => {
                 return put_value_in_sql(value);
               }}
-            ></FilterOnValue>
+            />
           </Box>
         </Modal>
       )}
@@ -1382,7 +1407,7 @@ function FilterOnValue(props: {
       .catch(e => {
         showNotification("error", "put value in sql failed", e);
       });
-  }, []);
+  }, [content, put_value_in_sql, showNotification]);
 
   const where = () => {
     const quoteField = quoteDatabaseIdentifier(kind)(field);
@@ -1404,7 +1429,7 @@ function FilterOnValue(props: {
     return `${quoteField} ${compare} ${formatValue}`;
   };
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1}>
       <Stack direction="row">
         {compares.map(x => (
           <Chip
@@ -1415,7 +1440,7 @@ function FilterOnValue(props: {
             label={x}
             color={compare == x ? "success" : "default"}
             style={{ minWidth: "3rem" }}
-          ></Chip>
+          />
         ))}
       </Stack>
       <Stack direction="row">

@@ -24,7 +24,7 @@ function View() {
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <SeparateWindow>
-      <View></View>
+      <View />
     </SeparateWindow>
   </React.StrictMode>,
 );

@@ -54,7 +54,7 @@ function QueryResponse() {
   return (
     <div style={{ height: "100%" }}>
       {resp.length == 0 && <Typography color="info"> No Data </Typography>}
-      <MultiQueryResp data={resp}></MultiQueryResp>
+      <MultiQueryResp data={resp} />
     </div>
   );
 }

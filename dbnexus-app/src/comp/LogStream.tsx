@@ -38,10 +38,6 @@ function LogTip({ width }) {
         problem.
       </Typography>
 
-      <Typography>
-        Dbpal will log sql been execute via `log::info("sql:" ,sql)`,so you can search
-        for them and dependencies can generate various logs maybe very useful.
-      </Typography>
       <Typography color="warning">
         dbpal will not trying to save logs to local file because maybe be danger.
         <br />
@@ -101,7 +97,7 @@ function LogStream() {
           color="primary"
           disabled={pinToBotton}
         >
-          <ArrowUpwardIcon></ArrowUpwardIcon>
+          <ArrowUpwardIcon />
         </IconButton>
         <IconButton
           onClick={() => {
@@ -112,7 +108,7 @@ function LogStream() {
           color="primary"
           disabled={pinToBotton}
         >
-          <ArrowDownwardIcon></ArrowDownwardIcon>
+          <ArrowDownwardIcon />
         </IconButton>
         <Button
           variant="outlined"
@@ -129,7 +125,7 @@ function LogStream() {
             checked={pinToBotton}
             onChange={e => setPinToBotton(e.target.checked)}
           />
-        ></FormControlLabel>
+        />
         <LogLevelSelection
           level={loggerLevel}
           handleChange={async level => {
@@ -141,10 +137,10 @@ function LogStream() {
               return;
             }
           }}
-        ></LogLevelSelection>
+        />
 
         <Tooltip
-          title={<LogTip width="40vw"></LogTip>}
+          title={<LogTip width="40vw" />}
           slotProps={{
             tooltip: {
               style: { maxWidth: "40vw" },
@@ -164,7 +160,7 @@ function LogStream() {
         }}
         readOnly
         language="log"
-      ></SimpleFlexEditor>
+      />
     </Stack>
   );
 }

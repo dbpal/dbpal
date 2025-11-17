@@ -82,9 +82,6 @@ function AppearanceSetting() {
     setting.datagridRowHeightFactor + "",
   );
   const [maxTreeSize, setMaxTreeSize] = useState(setting.maxTreeSize + "");
-  const [maxTabTitleLength, setMaxTabTitleLength] = useState(
-    setting.maxTabTitleLength + "",
-  );
   const [intputVariant, setInputVariant] = useState(setting.intputVariant);
   const [zoom, setZoom] = useState(1);
   useEffect(() => {
@@ -108,7 +105,7 @@ function AppearanceSetting() {
   }, [bgColor]);
 
   useEffect(() => {
-    let key = "zoom";
+    const key = "zoom";
     appStore.get<number>(key).then(z => {
       setZoom(z);
     });
@@ -130,11 +127,11 @@ function AppearanceSetting() {
       .catch(e => {
         showNotification("error", "list all fonts failed", e);
       });
-  }, []);
+  }, [showNotification]);
 
   const handleSave = () => {
     try {
-      let x = {
+      const x = {
         fontFamily,
         fontSize,
         fontWeight,
@@ -143,7 +140,6 @@ function AppearanceSetting() {
         datagridRowHeightFactor: parseFloat(datagridRowHeightFactor),
         maxTreeSize: parseInt(maxTreeSize),
         intputVariant,
-        maxTabTitleLength: parseInt(maxTabTitleLength),
       } as UserSettingAppearance;
       Object.setPrototypeOf(x, UserSettingAppearance.prototype);
       x.save();
@@ -168,7 +164,7 @@ function AppearanceSetting() {
           }}
           min={10}
           max={30}
-        ></Slider>
+        />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize} style={{ fontWeight }}>
@@ -195,7 +191,7 @@ function AppearanceSetting() {
               ),
             },
           }}
-        ></TextField>
+        />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "flex-end" }}>
         <Typography width={headerSize} style={{ fontFamily }}>
@@ -217,7 +213,7 @@ function AppearanceSetting() {
           )}
         />
         <Typography color="info" fontFamily={fontFamily}>
-          SELECT * FROM employees WHERE gender = 'M' LIMIT 100
+          SELECT * FROM employees WHERE gender = &apos;M&apos; LIMIT 100
         </Typography>
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -229,7 +225,7 @@ function AppearanceSetting() {
           }}
           error={isNaN(parseFloat(datagridRowHeightFactor))}
           helperText=""
-        ></TextField>
+        />
         <Tooltip title="a float value,this parameter multiply font size as the table row height">
           <Typography> ?? </Typography>
         </Tooltip>
@@ -279,7 +275,7 @@ function AppearanceSetting() {
               ),
             },
           }}
-        ></TextField>
+        />
         {bgColorErr && <Typography color="error"> {bgColorErr} </Typography>}
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -291,17 +287,7 @@ function AppearanceSetting() {
           }}
           label="max tree item size"
           error={isNaN(parseInt(maxTreeSize))}
-        ></TextField>
-      </Stack>
-      <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography width={headerSize}>max tab title length </Typography>
-        <TextField
-          value={maxTabTitleLength}
-          onChange={e => {
-            setMaxTabTitleLength(e.target.value);
-          }}
-          error={isNaN(parseInt(maxTabTitleLength))}
-        ></TextField>
+        />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -319,10 +305,7 @@ function AppearanceSetting() {
             setInputVariant(variant);
           }}
         />
-        <TextField
-          value={"this is demo"}
-          variant={intputVariant as "filled"}
-        ></TextField>
+        <TextField value={"this is demo"} variant={intputVariant as "filled"} />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -331,7 +314,7 @@ function AppearanceSetting() {
           <Typography color="info"> {zoom}</Typography>
         </Tooltip>
       </Stack>
-      <Divider></Divider>
+      <Divider />
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Button onClick={handleSave}> save </Button>
       </Stack>
@@ -352,7 +335,7 @@ function EditorSetting() {
   const { showNotification } = useContext(NotificationContext);
   const handleSave = () => {
     try {
-      let obj = {
+      const obj = {
         tabSize,
         theme: customEditorTheme,
         editorOption: editorOptions ? JSON.parse(editorOptions) : null,
@@ -378,7 +361,7 @@ function EditorSetting() {
               setTabSize(e);
             }}
             key={e}
-          ></Chip>
+          />
         ))}
       </Stack>
       <Stack>
@@ -414,7 +397,7 @@ function EditorSetting() {
                 }}
                 editorOptions={editorOptions}
                 setEditorOptions={setEditorOptions}
-              ></EditorOptions>
+              />
             )}
           </Stack>
         </Stack>
@@ -444,7 +427,7 @@ function EditorSetting() {
               height: "15vh",
             }}
             theme={highLightTheme ? highLightTheme : customEditorTheme}
-          ></EditorThemeDemo>
+          />
         </Stack>
       </Stack>
       <Divider />
@@ -464,7 +447,7 @@ function ExportSetting() {
   const { showNotification } = useContext(NotificationContext);
   const handleSave = () => {
     try {
-      let x = { csvDelimiter, includeHeader } as UserSettingExport;
+      const x = { csvDelimiter, includeHeader } as UserSettingExport;
       Object.setPrototypeOf(x, UserSettingExport.prototype);
       x.save();
     } catch (e) {
@@ -483,7 +466,7 @@ function ExportSetting() {
           onChange={e => setCsvDelimiter(e.target.value)}
           error={csvDelimiter.length > 1}
           helperText="only accept one character"
-        ></TextField>
+        />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>include header</Typography>
@@ -520,7 +503,7 @@ async function listLLMModels(baseURl: string, apiKey: string): Promise<ModelDef[
     // 404、401 等会进这里
     throw new Error(`HTTP ${res.status}`);
   }
-  let resp = await res.json();
+  const resp = await res.json();
   if (import.meta.env.DEV) {
     console.log("models response:", resp);
   }
@@ -646,7 +629,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
               ),
             },
           }}
-        ></TextField>
+        />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -671,7 +654,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
               ),
             },
           }}
-        ></TextField>
+        />
       </Stack>
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>model </Typography>
@@ -730,7 +713,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
           value={temperature}
           error={temperature ? isNaN(parseFloat(temperature)) : false}
           onChange={e => setTemperature(e.target.value)}
-        ></TextField>
+        />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -755,7 +738,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
               ),
             },
           }}
-        ></TextField>
+        />
       </Stack>
 
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -780,7 +763,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
               ),
             },
           }}
-        ></TextField>
+        />
       </Stack>
 
       <Divider />
@@ -805,7 +788,7 @@ function MiscSetting() {
   const { showNotification } = useContext(NotificationContext);
   const handleSave = () => {
     try {
-      let x = { autoStart } as UserSettingMisc;
+      const x = { autoStart } as UserSettingMisc;
       Object.setPrototypeOf(x, UserSettingMisc.prototype);
       x.save();
     } catch (e) {
@@ -824,7 +807,7 @@ function MiscSetting() {
           onChange={e => {
             setAutoStart(e.target.checked);
           }}
-        ></Switch>
+        />
       </Stack>
       <Divider />
       <Stack direction="row">
@@ -854,19 +837,19 @@ function ModifySetting() {
           let content: ReactNode;
           switch (setting) {
             case "appearance":
-              content = <AppearanceSetting></AppearanceSetting>;
+              content = <AppearanceSetting />;
               break;
             case "editor":
-              content = <EditorSetting></EditorSetting>;
+              content = <EditorSetting />;
               break;
             case "export":
-              content = <ExportSetting></ExportSetting>;
+              content = <ExportSetting />;
               break;
             case "misc":
-              content = <MiscSetting></MiscSetting>;
+              content = <MiscSetting />;
               break;
             case "llm":
-              content = <LLMSetting></LLMSetting>;
+              content = <LLMSetting />;
               break;
           }
           return (
@@ -893,7 +876,7 @@ function EditorThemeDemo(props: { style: CSSProperties; theme: string }) {
         language="sql"
         options={{ fontSize, fontFamily, fontWeight, readOnly: true }}
         theme={theme}
-      ></Editor>
+      />
     </Stack>
   );
 }
@@ -925,7 +908,7 @@ function EditorOptions(props: {
               "https://microsoft.github.io/monaco-editor/typedoc/variables/editor.EditorOptions.html",
             );
           }}
-        ></Chip>
+        />
       </Stack>
       <SimpleFlexEditor
         errPos={jsonErrPos}
@@ -950,7 +933,7 @@ function EditorOptions(props: {
             </Typography>
           ) : null
         }
-      ></SimpleFlexEditor>
+      />
       <Divider />
       <Stack direction="row">
         <Button
@@ -999,14 +982,7 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
         },
       },
     },
-    MuiMenuItem: {
-      styleOverrides: {
-        root: {
-          height: "1.7rem",
-          fontSize: "1rem",
-        },
-      },
-    },
+
     MuiAlert: {
       styleOverrides: {
         root: {
@@ -1066,6 +1042,17 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
       styleOverrides: {
         root: {
           padding: "0px",
+        },
+      },
+      defaultProps: {
+        dense: true,
+      },
+    },
+    MuiMenuItem: {
+      styleOverrides: {
+        root: {
+          height: "1.6rem",
+          fontSize: "1rem",
         },
       },
     },
@@ -1144,7 +1131,7 @@ function SettingComp(props: { children: ReactNode }) {
   const { children } = props;
   const [setting, setSetting] = useState<UserSetting>(null);
   const reload = async () => {
-    let setting = new UserSetting();
+    const setting = new UserSetting();
     setSetting(setting);
     document.documentElement.style.fontSize = setting.appearance.fontSize + "px";
     document.documentElement.style.fontFamily = setting.appearance.fontFamily;
@@ -1224,12 +1211,12 @@ function ModifyLLMConfigModal() {
               handleClose={() => {
                 setShowEdit(false);
               }}
-            ></ModalHeader>
+            />
             <LLMSetting
               handleClose={() => {
                 setShowEdit(false);
               }}
-            ></LLMSetting>
+            />
           </Box>
         </Modal>
       )}

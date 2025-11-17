@@ -1,7 +1,7 @@
 "use strict";
 import { ListItemIcon, ListItemText, MenuItem, MenuList, Stack } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import InfoIcon from "@mui/icons-material/Info";
 import { tabsHasId } from "./Common";
@@ -32,7 +32,7 @@ function ProceduresTree() {
   const [ps, setPos] = useState<types.NamedStaff[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
-  const reload = () => {
+  const reload = useCallback(() => {
     listProcedure(uuid)
       .then(ts => {
         setPos(ts);
@@ -40,7 +40,7 @@ function ProceduresTree() {
       .catch(e => {
         showNotification("error", "list procedure failed", e);
       });
-  };
+  }, [showNotification, uuid]);
 
   const [exceed, setExceed] = useState(0);
   const matchPattern = useContext(MatchPatternContext);
@@ -54,7 +54,7 @@ function ProceduresTree() {
   const { setUpMenu } = useContext(ContextMenuContext);
   useEffect(() => {
     reload();
-  }, []);
+  }, [reload]);
 
   const idForTrees = useRef(generateRandomString());
   return (
@@ -67,14 +67,14 @@ function ProceduresTree() {
           setUpMenu({
             content: (
               <MenuList>
-                <MenuRefresh reload={reload}></MenuRefresh>
+                <MenuRefresh reload={reload} />
               </MenuList>
             ),
             event: e,
           });
         }}
       >
-        <SiProcessingfoundation></SiProcessingfoundation>
+        <SiProcessingfoundation />
         <span> procedures </span>
       </Stack>
     >
@@ -99,23 +99,20 @@ function ProceduresTree() {
                         uuid={uuid}
                         kind={kind}
                         procedure={p}
-                      ></ProcedureMenu>
+                      />
                     ),
                     event: e,
                   });
                 }}
                 sx={{ alignItems: "center" }}
               >
-                <SiProcessingfoundation></SiProcessingfoundation>
-                <UdfNameAndParameters udf={p} kind={kind}></UdfNameAndParameters>
+                <SiProcessingfoundation />
+                <UdfNameAndParameters udf={p} kind={kind} />
               </Stack>
-            ></TreeItem>
+            />
           );
         })}
-      <ExceedMaxTreeItem
-        maxTreeSize={setting.appearance.maxTreeSize}
-        exceed={exceed}
-      ></ExceedMaxTreeItem>
+      <ExceedMaxTreeItem maxTreeSize={setting.appearance.maxTreeSize} exceed={exceed} />
     </TreeItem>
   );
 }
@@ -155,9 +152,9 @@ function ProcedureMenu(props: {
                 }}
                 kind={kind}
                 uuid={uuid}
-              ></DefAndMetasView>
+              />
             ),
-            <SiProcessingfoundation></SiProcessingfoundation>,
+            <SiProcessingfoundation />,
           ),
         ];
       });
@@ -173,7 +170,7 @@ function ProcedureMenu(props: {
     if (!confirm) {
       return;
     }
-    let arg = makeShowProcedureExtraArg(procedure, kind);
+    const arg = makeShowProcedureExtraArg(procedure, kind);
     invoke("drop_procedure", { name: uuid, procedure, arg })
       .then(() => {
         showNotification("success", "Drop procedure OK");
@@ -191,7 +188,7 @@ function ProcedureMenu(props: {
         }}
       >
         <ListItemIcon>
-          <InfoIcon></InfoIcon>
+          <InfoIcon />
         </ListItemIcon>
         <ListItemText> Detail </ListItemText>
       </MenuItem>
@@ -203,7 +200,7 @@ function ProcedureMenu(props: {
         }}
       >
         <ListItemIcon>
-          <DeleteForeverIcon color="error"></DeleteForeverIcon>
+          <DeleteForeverIcon color="error" />
         </ListItemIcon>
         <ListItemText> Drop</ListItemText>
       </MenuItem>

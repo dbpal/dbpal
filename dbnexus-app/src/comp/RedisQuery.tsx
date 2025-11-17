@@ -103,11 +103,11 @@ function RedisQuery(props: {
                   style={shrinkAble}
                   color={showDoc ? "success" : "primary"}
                   label={`${showDoc ? "hidden" : "show"} doc`}
-                ></Chip>
+                />
               </Tooltip>
             </>
           }
-        ></SqlQuery>
+        />
       </Panel>
 
       {showDoc && <PanelResizeHandle style={{ width: 4 }} className="resize-handle" />}
@@ -130,10 +130,9 @@ function RedisQuery(props: {
               padding: "0.4rem",
             }}
           >
-            <AppMarkDown
-              children={doc}
-              placeHolder="when typing markdown document will show atomically"
-            />
+            <AppMarkDown placeHolder="when typing markdown document will show atomically">
+              {doc}
+            </AppMarkDown>
           </div>
         </Panel>
       )}

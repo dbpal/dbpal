@@ -164,6 +164,9 @@ impl ExportQueryResult for OracleDB {
                 self.export_query_result_as_xlsx(sql, include_header, sender)
                     .await
             }
+            ExportKind::Html => {
+                anyhow::bail!("html export use jsonline as internal format,this is a bug");
+            }
         }
     }
 }
@@ -1136,6 +1139,9 @@ impl SchemaTrait for OracleDB {
             ExportKind::Xlsx { include_header } => {
                 self.export_table_as_xlsx(name, include_header, sender)
                     .await
+            }
+            ExportKind::Html => {
+                anyhow::bail!("html export use jsonline as internal format,this is a bug");
             }
         }
     }

@@ -17,7 +17,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         table={table}
         kind={kind}
         redisTableType={redisTableType}
-      ></AddTableView>
+       />
     </SeparateWindow>
   </React.StrictMode>,
 );

@@ -10,7 +10,7 @@ import { invoke } from "@tauri-apps/api/core";
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <SeparateWindow>
-      <LogStream></LogStream>
+      <LogStream />
     </SeparateWindow>
   </React.StrictMode>,
 );

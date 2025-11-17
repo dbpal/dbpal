@@ -1,6 +1,6 @@
 "use strict";
 import { SxProps } from "@mui/material";
-import { languages, editor, Position, CancellationToken } from "monaco-editor";
+import { languages, editor, Position } from "monaco-editor";
 import { types } from "./ApiStruct";
 import { format as formatSql, SqlLanguage } from "sql-formatter";
 import { createContext } from "react";
@@ -49,7 +49,7 @@ class Connection {
 class ConnectionHandler {
   static async getByName(name: string): Promise<types.DBConnectionConfig> {
     try {
-      let x = await appDatabase.select<Connection[]>(
+      const x = await appDatabase.select<Connection[]>(
         "select * from connection where name=?",
         [name],
       );
@@ -57,7 +57,7 @@ class ConnectionHandler {
         message("database should return one result", { kind: "error" });
         return null;
       }
-      let c = JSON.parse(x[0].config);
+      const c = JSON.parse(x[0].config);
       return c as types.DBConnectionConfig;
     } catch (e) {
       message(`get connection failed`, { kind: "error" });
@@ -69,7 +69,7 @@ class ConnectionHandler {
     return appDatabase.execute("delete from connection where name = ?", [name]);
   }
   static async getAll(): Promise<types.DBConnectionConfig[]> {
-    let c = await appDatabase.select<Connection[]>(
+    const c = await appDatabase.select<Connection[]>(
       "select * from connection order by id desc",
     );
     return c.map(x => JSON.parse(x.config));
@@ -216,12 +216,7 @@ const aiTextAutoCompletion = async (
 loader.init().then(monaco => {
   monaco.languages.registerCompletionItemProvider("sql", {
     triggerCharacters: ["."],
-    provideCompletionItems(
-      model,
-      position: Position,
-      _context: any,
-      _token: CancellationToken,
-    ) {
+    provideCompletionItems(model, position: Position) {
       return autoCompletion(model, position);
     },
   });
@@ -229,24 +224,19 @@ loader.init().then(monaco => {
 
   monaco.languages.registerCompletionItemProvider("text", {
     triggerCharacters: ["."],
-    provideCompletionItems(
-      model,
-      position: Position,
-      _context: any,
-      _token: CancellationToken,
-    ) {
+    provideCompletionItems(model, position: Position) {
       return aiTextAutoCompletion(model, position);
     },
   });
 
   monaco.languages.registerDocumentFormattingEditProvider("sql", {
-    provideDocumentFormattingEdits(model, options, _) {
+    provideDocumentFormattingEdits(model, options) {
       const name = SetAutoCompletionName.get(model.id);
       if (!name) {
         console.error("editor id map to backend name is nul,this is internal bug");
         return;
       }
-      let text = makeFormatFn(name.kind)(model.getValue(), {
+      const text = makeFormatFn(name.kind)(model.getValue(), {
         insertSpaces: options.insertSpaces,
         tabSize: options.tabSize,
       });
@@ -258,12 +248,7 @@ loader.init().then(monaco => {
   });
 
   monaco.languages.registerCompletionItemProvider("redis", {
-    provideCompletionItems(
-      model,
-      position: Position,
-      _context: any,
-      _token: CancellationToken,
-    ) {
+    provideCompletionItems(model, position: Position) {
       return autoCompletion(model, position);
     },
   });
@@ -508,6 +493,7 @@ class PassWordManager {
     } catch (e) {
       console.log(
         "get password failed,this is fine maybe this connection don't have password",
+        e,
       );
     }
     return null;

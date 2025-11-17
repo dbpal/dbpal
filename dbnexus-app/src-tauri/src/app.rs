@@ -128,51 +128,45 @@ impl DBConnectionConfig {
                 );
                 anyhow::Ok(DatabaseBackend::Schema(db))
             }
-            DBConnectionConfig::Mysql { conn, name: _ } => {
-                match &conn.db {
-                    Some(_) => {
-                        let db: Arc<dyn SchemaTrait> =
-                            Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
-                        anyhow::Ok(DatabaseBackend::Schema(db))
-                    }
-                    None => {
-                        let db: Arc<dyn DBTrait> =
-                            Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
-                        anyhow::Ok(DatabaseBackend::DataBase(db))
-                    }
+            DBConnectionConfig::Mysql { conn, name: _ } => match &conn.db {
+                Some(_) => {
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
+                    anyhow::Ok(DatabaseBackend::Schema(db))
                 }
-            }
-            DBConnectionConfig::MariaDB { conn, name: _ } => {
-                match &conn.db {
-                    Some(_) => {
-                        let db: Arc<dyn SchemaTrait> =
-                            Arc::new(dbnexus_db::mariadb::MariaDB::new(conn.clone()).await?);
-                        anyhow::Ok(DatabaseBackend::Schema(db))
-                    }
-                    None => {
-                        let db: Arc<dyn DBTrait> = Arc::new({
-                            let x = dbnexus_db::mariadb::MariaDB::new(conn.clone()).await?;
-                            x
-                        });
-                        anyhow::Ok(DatabaseBackend::DataBase(db))
-                    }
+                None => {
+                    let db: Arc<dyn DBTrait> =
+                        Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
+                    anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
-            }
-            DBConnectionConfig::Tidb { conn, name: _ } => {
-                match &conn.db {
-                    Some(_) => {
-                        let db: Arc<dyn SchemaTrait> =
-                            Arc::new(dbnexus_db::tidb::TiDB::new(conn.clone()).await?);
+            },
+            DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db {
+                Some(_) => {
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(dbnexus_db::mariadb::MariaDB::new(conn.clone()).await?);
+                    anyhow::Ok(DatabaseBackend::Schema(db))
+                }
+                None => {
+                    let db: Arc<dyn DBTrait> = Arc::new({
+                        let x = dbnexus_db::mariadb::MariaDB::new(conn.clone()).await?;
+                        x
+                    });
+                    anyhow::Ok(DatabaseBackend::DataBase(db))
+                }
+            },
+            DBConnectionConfig::Tidb { conn, name: _ } => match &conn.db {
+                Some(_) => {
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(dbnexus_db::tidb::TiDB::new(conn.clone()).await?);
 
-                        anyhow::Ok(DatabaseBackend::Schema(db))
-                    }
-                    None => {
-                        let db: Arc<dyn DBTrait> =
-                            Arc::new(dbnexus_db::tidb::TiDB::new(conn.clone()).await?);
-                        anyhow::Ok(DatabaseBackend::DataBase(db))
-                    }
+                    anyhow::Ok(DatabaseBackend::Schema(db))
                 }
-            }
+                None => {
+                    let db: Arc<dyn DBTrait> =
+                        Arc::new(dbnexus_db::tidb::TiDB::new(conn.clone()).await?);
+                    anyhow::Ok(DatabaseBackend::DataBase(db))
+                }
+            },
             DBConnectionConfig::Postgres { conn, name: _ } => {
                 let o = Arc::new(dbnexus_db::pg::PostGresDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
@@ -221,20 +215,18 @@ impl DBConnectionConfig {
 
                 anyhow::Ok(db)
             }
-            DBConnectionConfig::Oracle { conn, name: _ } => {
-                match conn.schema.as_ref() {
-                    Some(_) => {
-                        let db: Arc<dyn SchemaTrait> =
-                            Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
-                        anyhow::Ok(DatabaseBackend::Schema(db))
-                    }
-                    None => {
-                        let db: Arc<dyn DBTrait> =
-                            Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
-                        anyhow::Ok(DatabaseBackend::DataBase(db))
-                    }
+            DBConnectionConfig::Oracle { conn, name: _ } => match conn.schema.as_ref() {
+                Some(_) => {
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
+                    anyhow::Ok(DatabaseBackend::Schema(db))
                 }
-            }
+                None => {
+                    let db: Arc<dyn DBTrait> =
+                        Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);
+                    anyhow::Ok(DatabaseBackend::DataBase(db))
+                }
+            },
             DBConnectionConfig::Cassandra { conn, .. } => {
                 let db = dbnexus_db::cassandra::CassandraDB::new(conn.clone()).await?;
                 let db = match &conn.db {
@@ -248,20 +240,14 @@ impl DBConnectionConfig {
                 {
                     let db = dbnexus_db::duckdb::DuckDB::new(_conn.clone())?;
                     return match &_conn.db {
-                        Some(_) => {
-                            match &_conn.schema {
-                                Some(_) => {
-                                    anyhow::Ok(DatabaseBackend::from(
-                                        Arc::new(db) as Arc<dyn SchemaTrait>
-                                    ))
-                                }
-                                None => {
-                                    anyhow::Ok(DatabaseBackend::from(
-                                        Arc::new(db) as Arc<dyn DBTrait>
-                                    ))
-                                }
+                        Some(_) => match &_conn.schema {
+                            Some(_) => anyhow::Ok(DatabaseBackend::from(
+                                Arc::new(db) as Arc<dyn SchemaTrait>
+                            )),
+                            None => {
+                                anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn DBTrait>))
                             }
-                        }
+                        },
                         None => {
                             anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn CatalogTrait>))
                         }
@@ -502,14 +488,12 @@ impl DBPal {
                 let db_name = format!("{}/{}", &name_parts[0], &name_parts[1]);
                 let open = self.backend.lock().await.get(&db_name).cloned();
                 let db_trait = match open {
-                    Some(x) => {
-                        match x {
-                            DatabaseBackend::DataBase(x) => x.clone(),
-                            x => {
-                                anyhow::bail!("this must be db trait but:{:?}", x)
-                            }
+                    Some(x) => match x {
+                        DatabaseBackend::DataBase(x) => x.clone(),
+                        x => {
+                            anyhow::bail!("this must be db trait but:{:?}", x)
                         }
-                    }
+                    },
                     None => {
                         let c = self
                             .backend
@@ -518,25 +502,17 @@ impl DBPal {
                             .get(&name_parts[0].to_string())
                             .cloned();
                         match c {
-                            Some(x) => {
-                                match x {
-                                    DatabaseBackend::Catalog(x) => {
-                                        let db = x.open_db(name_parts[1]).await?;
-                                        self.backend
-                                            .lock()
-                                            .await
-                                            .insert(db_name, db.clone().into());
-                                        db
-                                    }
-                                    _ => {
-                                        log::error!("internal error,catalog must been entered ");
-                                        anyhow::bail!(format!(
-                                            "connection '{}' not established",
-                                            name
-                                        ))
-                                    }
+                            Some(x) => match x {
+                                DatabaseBackend::Catalog(x) => {
+                                    let db = x.open_db(name_parts[1]).await?;
+                                    self.backend.lock().await.insert(db_name, db.clone().into());
+                                    db
                                 }
-                            }
+                                _ => {
+                                    log::error!("internal error,catalog must been entered ");
+                                    anyhow::bail!(format!("connection '{}' not established", name))
+                                }
+                            },
                             None => {
                                 log::error!("internal error,catalog must been entered");
                                 anyhow::bail!(format!("connection '{}' not established", name))

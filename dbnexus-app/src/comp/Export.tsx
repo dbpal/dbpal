@@ -43,7 +43,7 @@ function ExportView(props: {
   handleClose: () => void;
 }) {
   const { exportOP, supportKind, name, handleClose } = props;
-  let lastKind = supportKind.find(k => k === lastExportKind);
+  const lastKind = supportKind.find(k => k === lastExportKind);
   const [kind, setKind] = useState(lastExportKind ? lastKind : supportKind[0]);
   const setting = useContext(SettingContext);
   const [includeHeader, setIncludeHeader] = useState(setting.export.includeHeader);
@@ -77,6 +77,8 @@ function ExportView(props: {
         return { export_kind: "jsonline" };
       case "xlsx":
         return { export_kind: "xlsx", include_header: includeHeader };
+      case "html":
+        return { export_kind: "html" };
     }
   };
 
@@ -109,7 +111,7 @@ function ExportView(props: {
   }, [kind]);
   return (
     <Stack>
-      <ModalHeader title={`export ${name}`} handleClose={handleClose}></ModalHeader>
+      <ModalHeader title={`export ${name}`} handleClose={handleClose} />
       <Stack direction="row">
         {supportKind.map(e => (
           <Chip
@@ -119,7 +121,7 @@ function ExportView(props: {
             key={e}
             label={e}
             color={e == kind ? "success" : "default"}
-          ></Chip>
+          />
         ))}
       </Stack>
       {kind == "csv" && (
@@ -127,7 +129,7 @@ function ExportView(props: {
           <IncludeHeader
             includeHeader={includeHeader}
             setIncludeHeader={setIncludeHeader}
-          ></IncludeHeader>
+          />
           <Stack direction="row">
             <TextField
               value={delimiter}
@@ -137,7 +139,7 @@ function ExportView(props: {
               label="delimiter"
               error={delimiter.length > 1}
               helperText="only accept one character"
-            ></TextField>
+            />
           </Stack>
         </Stack>
       )}
@@ -146,7 +148,7 @@ function ExportView(props: {
           <IncludeHeader
             includeHeader={includeHeader}
             setIncludeHeader={setIncludeHeader}
-          ></IncludeHeader>
+          />
         </Stack>
       )}
       {kind == "sql" && (
@@ -210,7 +212,7 @@ function ExportTableOrView(props: {
   supportKind: string[];
   handleClose: () => void;
 }) {
-  let { uuid, name, supportKind, handleClose } = props;
+  const { uuid, name, supportKind, handleClose } = props;
   return (
     <ExportView
       exportOP={async (kind, filepath) => {
@@ -224,7 +226,7 @@ function ExportTableOrView(props: {
       supportKind={supportKind}
       name={name}
       handleClose={handleClose}
-    ></ExportView>
+    />
   );
 }
 
