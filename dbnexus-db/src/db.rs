@@ -930,8 +930,8 @@ async fn write_export_html_file(
     {
         let t = "<table>";
         let index = template.find(t).unwrap();
-        file.write_all(template[..index].as_bytes()).await?;
-        file.write_all(t.as_bytes()).await?;
+        file.write_all(&template.as_bytes()[..index + t.len()])
+            .await?;
     }
     let mut first = true;
     while let Some(data) = receiver.recv().await {
@@ -954,18 +954,24 @@ async fn write_export_html_file(
             file.write_all("<tr>".as_bytes()).await?;
             for v in data.values() {
                 file.write_all("<td>".as_bytes()).await?;
-                file.write_all(serde_json::to_string(v)?.as_bytes()).await?;
+                file.write_all(
+                    match v {
+                        serde_json::Value::String(c) => c.clone(),
+                        _ => serde_json::to_string(v)?,
+                    }
+                    .as_bytes(),
+                )
+                .await?;
                 file.write_all("</td>\n".as_bytes()).await?;
             }
             file.write_all("</tr>\n".as_bytes()).await?;
         }
     }
     {
-        let t = "</table>\n";
+        let t = "</table>";
         let index = template.find(t).unwrap();
-        file.write_all(t.as_bytes()).await?;
-        file.write_all(template[index + t.len()..].as_bytes())
-            .await?;
+
+        file.write_all(&template.as_bytes()[index..]).await?;
     }
     anyhow::Ok(())
 }
