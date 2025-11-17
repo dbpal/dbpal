@@ -743,7 +743,7 @@ function SqlQuery(props: {
         >
           <Box sx={modalStyle} width="45%">
             <ExportView
-              supportKind={["csv", "json", "jsonline", "xlsx"]}
+              supportKind={["csv", "json", "jsonline", "xlsx", "html"]}
               exportOP={async (kind, file) => {
                 const sql = getEditorText(editor, showNotification);
                 return conn.exportQueryResult(sql, kind, file);

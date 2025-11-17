@@ -881,12 +881,16 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         let j1 = {
             let x = self.clone();
             let sql = sql.to_string();
-            tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await })
+            tokio::spawn(async move {
+                x.export_query_result(&sql, kind.to_internal(), sender)
+                    .await
+            })
         };
         let j2 = {
             let filepath = file.to_string();
             tokio::spawn(async move {
                 match kind {
+                    ExportKind::Html => write_export_html_file(&filepath, receiver).await?,
                     ExportKind::Xlsx { .. } => write_export_xlsx_file(&filepath, receiver).await?,
                     _ => {
                         let mut file = tokio::fs::File::create(&filepath).await?;
