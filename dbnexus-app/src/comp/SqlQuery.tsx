@@ -75,7 +75,7 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
       const c = await conn.getAutoCommit();
       setCommit(c);
     } catch (e) {
-      showNotification("error", "get commit modal failed", e);
+      showNotification("error", "get commit model failed", e);
     }
   }, [conn, showNotification]);
   useEffect(() => {

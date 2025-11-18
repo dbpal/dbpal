@@ -8,7 +8,7 @@ use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::cockroach::CockRoachDB;
 use dbnexus_db::db::{
     ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef,
-    DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     ProcedureDetail, QueryResp, SequenceDetail, ShowTableExtraArgs, SqlEvent, SqlExecuteRet,
     TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
 };
@@ -16,15 +16,18 @@ use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
 use dbnexus_db::libsql::LibSqlDB;
 
+use dbnexus_db::mariadb::MariaDB;
 use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mssql::SqlServerDB;
 
+use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable, RedisToken};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use dbnexus_db::sqlite::SqliteDB;
 
+use dbnexus_db::tidb::TiDB;
 use font_kit::error::SelectionError;
 use include_dir::{Dir, include_dir};
 use mongodb::bson::{self, Document, doc};
@@ -671,30 +674,92 @@ pub async fn get_redis_type_hint(
     x.map_err(ErrorFrontend::from)
 }
 
+impl DatabaseBackend {
+    fn db_trait(&self) -> Option<&dyn DBTrait> {
+        match self {
+            DatabaseBackend::Catalog(_x) => None,
+            DatabaseBackend::DataBase(x) => Some(x.as_ref()),
+            DatabaseBackend::Schema(x) => {
+                let a = x.as_any();
+                if let Some(x) = a.downcast_ref::<MysqlDB>() {
+                    Some(x)
+                } else if let Some(x) = a.downcast_ref::<TiDB>() {
+                    Some(x)
+                } else if let Some(x) = a.downcast_ref::<MariaDB>() {
+                    Some(x)
+                } else if let Some(x) = a.downcast_ref::<PostGresDB>() {
+                    Some(x)
+                } else if let Some(x) = a.downcast_ref::<CockRoachDB>() {
+                    Some(x)
+                } else if let Some(x) = a.downcast_ref::<SqlServerDB>() {
+                    Some(x)
+                } else if let Some(x) = a.downcast_ref::<OracleDB>() {
+                    Some(x)
+                } else if let Some(x) = a.downcast_ref::<CassandraDB>() {
+                    Some(x)
+                } else if let Some(x) = a.downcast_ref::<ClickHouseDB>() {
+                    Some(x)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+}
+impl DBPal {
+    async fn ai_get_search_path(
+        &self, backend: DatabaseBackend, name: &str, query_id: u32, text: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        match &backend {
+            DatabaseBackend::Catalog(..) => {
+                anyhow::bail!("this is a interval error,we should never hit here")
+            }
+            DatabaseBackend::DataBase(x) => {
+                // a
+                let text = text.to_lowercase();
+                let mut r = HashSet::<String>::new();
+                let databasese = x.list_schema().await?;
+                for d in databasese {
+                    if text.contains(d.to_lowercase().as_str()) {
+                        r.insert(d);
+                    }
+                }
+                r.extend(x.get_search_path(query_id).await?.into_iter());
+                Ok(r.into_iter().map(|x| format!("{}/{}", name, x)).collect())
+            }
+            DatabaseBackend::Schema(..) => {
+                let names = name_to_parts(&name);
+                let db_trait = backend.db_trait();
+                match db_trait {
+                    Some(x) if names.len() == 2 => {
+                        let text = text.to_lowercase();
+                        let mut r = HashSet::<String>::new();
+                        let databasese = x.list_schema().await?;
+                        for d in databasese {
+                            if text.contains(d.to_lowercase().as_str()) {
+                                r.insert(d);
+                            }
+                        }
+                        r.extend(x.get_search_path(query_id).await?.into_iter());
+                        Ok(r.into_iter()
+                            .map(|x| format!("{}/{}", names[0], x))
+                            .collect())
+                    }
+                    _ => anyhow::Ok(vec![name.to_string()]),
+                }
+            }
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn ai_get_search_path(
     name: String, query_id: u32, text: String, app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<String>, ErrorFrontend> {
     let backend = app.get_backend(&name).await.map_err(ErrorFrontend::from)?;
-    match backend {
-        DatabaseBackend::Catalog(..) => Err(ErrorFrontend::from(
-            "this is a interval error,we should never hit here",
-        )),
-        DatabaseBackend::DataBase(x) => {
-            // a
-            let text = text.to_lowercase();
-            let mut r = HashSet::<String>::new();
-            let databasese = x.list_schema().await?;
-            for d in databasese {
-                if text.contains(d.to_lowercase().as_str()) {
-                    r.insert(d);
-                }
-            }
-            r.extend(x.get_search_path(query_id).await?.into_iter());
-            Ok(r.into_iter().map(|x| format!("{}/{}", name, x)).collect())
-        }
-        DatabaseBackend::Schema(..) => Ok(vec![name]),
-    }
+    app.ai_get_search_path(backend, &name, query_id, &text)
+        .await
+        .map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]

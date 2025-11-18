@@ -64,7 +64,7 @@ impl LanguageServer for MysqlDB {
                 }
                 anyhow::Ok(r)
             }
-            None => anyhow::bail!("query_connection not found"),
+            None => anyhow::bail!(format!("query_connection not found , id :{}", query_id)),
         }
     }
 
