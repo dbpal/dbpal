@@ -385,11 +385,10 @@ human:{question}
     let ret = "";
     const databases = await this.allSqlElements();
     for (const elements of databases) {
-      if (databases.length > 1) {
-        ret += `==============================database ${extractLastNameFromUuid(
-          elements.uuid,
-        )}==============================\n`;
-      }
+      ret += `==============================database ${extractLastNameFromUuid(
+        elements.uuid,
+      )}==============================\n`;
+
       for (const table of elements.tables) {
         if (!this.question.includes(table.name)) {
           continue;
