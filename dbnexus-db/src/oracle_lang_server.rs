@@ -224,6 +224,17 @@ impl LangServerCommon for OracleDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for OracleDB {
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        let sql = format!("SELECT MAX(id) FROM \"{name}\"");
+        let conn = self.get_conn().await?;
+        let row = block_in_place(|| conn.query_row(&sql, &[]))?;
+
+        if row.sql_values().len() > 0 {
+            return anyhow::Ok("".to_string());
+        }
+        anyhow::Ok(row.sql_values()[0].to_string())
+    }
+
     async fn ai_text_completion(
         &self, text: &str, line: u32, col: u32,
     ) -> anyhow::Result<CompletionList> {

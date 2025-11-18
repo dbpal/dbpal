@@ -54,6 +54,15 @@ impl GetKeyWords for MysqlDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for MysqlDB {
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        let sql = format!("SELECT MAX(id) FROM `{name}`");
+        let mut conn = self.get_conn().await?;
+        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_one(conn.deref_mut())
+            .await?;
+        let id: Option<i64> = row.try_get_unchecked(0)?;
+        anyhow::Ok(id.unwrap_or_default().to_string())
+    }
     async fn ai_text_completion(
         &self, text: &str, line: u32, col: u32,
     ) -> anyhow::Result<CompletionList> {
@@ -74,15 +83,7 @@ impl LanguageServer for MysqlDB {
     }
 
     async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        let sql = format!("explain {sql}");
-        let mut conn = self.get_conn().await?;
-        let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await;
-        anyhow::Ok(match r {
-            Ok(_) => None,
-            Err(e) => Some(ErrAndLoc::from(e.to_string())),
-        })
+        LangServerCommon::parse_err(self, sql)
     }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)
@@ -482,7 +483,7 @@ mod tests {
             host: TEST_HOST.to_string(),
             username: "root".to_string(),
             password: Some("root".to_string()),
-            port: 3306, // use mariadb to test mysql have bugs.
+            port: 3306,
             db: Some("test".to_string()),
             read_only: false,
             save_password: true,
@@ -518,6 +519,12 @@ mod tests {
             )
             .await
             .unwrap();
+
+        db.execute_sql(query_id, "replace into departments values (1,'test')")
+            .await
+            .unwrap()
+            .unwrap();
+
         let _ = db
             .query_sql(
                 query_id,
@@ -609,6 +616,14 @@ mod tests {
         });
 
         assert!(list.items.iter().any(|x| x.item == "my_var"));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+
+    async fn test_try_get_max_id() {
+        let db = make_test_object(make_config()).await;
+        let max_id = db.try_get_max_id("departments").await.unwrap();
+        println!("max id is:{}", max_id);
     }
 }
 

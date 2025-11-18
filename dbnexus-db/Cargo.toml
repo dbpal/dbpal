@@ -70,7 +70,6 @@ oracle = { version = "0.6.3", features = ["chrono"] }
 pg_interval = "*"
 typescript-type-def = "*"
 humantime = "*"
-humansize = "*"
 memory-stats = "1.2.0"
 rand.workspace = true
 num-bigint = "*"

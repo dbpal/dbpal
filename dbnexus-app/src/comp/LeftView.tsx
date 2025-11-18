@@ -80,6 +80,7 @@ import {
   makeShowViewFn,
   showViewColumns,
 } from "./handlers";
+import { filesize } from "filesize";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
   const { uuid } = useContext(UuidContext);
@@ -409,10 +410,10 @@ function getIcon(viewKind: ViewKind) {
       return <VisibilityIcon />;
   }
 }
-function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: string }) {
+function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: number }) {
   const { view, reload, viewKind, size } = props;
   const { uuid } = useContext(UuidContext);
-  const { kind: conn_type } = useContext(ConnTypeContext);
+  const { kind } = useContext(ConnTypeContext);
   const { setUpMenu } = useContext(ContextMenuContext);
   const icon = getIcon(viewKind);
 
@@ -427,7 +428,7 @@ function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: stri
             setUpMenu({
               content: (
                 <ViewMenu
-                  kind={conn_type}
+                  kind={kind}
                   reload={reload}
                   view={view}
                   uuid={uuid}
@@ -441,7 +442,9 @@ function ViewTree(props: { view: string; reload; viewKind: ViewKind; size?: stri
           <Stack direction="row">
             {icon} <span> {view} </span>
           </Stack>
-          {viewKind == ViewKind.MaterializedView && <span> {size} </span>}
+          {viewKind == ViewKind.MaterializedView && size && (
+            <span> {filesize(size, { round: 0 })} </span>
+          )}
         </Stack>
       }
     />

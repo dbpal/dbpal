@@ -1,12 +1,11 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset};
-use serde::Serializer;
 use tokio::io::AsyncWriteExt;
 use typescript_type_def::TypeDef;
 
@@ -234,7 +233,10 @@ pub trait SchemaTrait:
         };
         let h2 = {
             let filepath = filepath.to_string();
-            tokio::spawn(async move { write_export_file(kind, &filepath, receiver).await })
+            let table_name = table_name.to_string();
+            tokio::spawn(
+                async move { write_export_file(kind, &filepath, receiver, &table_name).await },
+            )
         };
         h1.await??;
         h2.await??;
@@ -875,8 +877,9 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
             })
         };
         let j2 = {
+            let sql = sql.to_string();
             let filepath = file.to_string();
-            tokio::spawn(async move { write_export_file(kind, &filepath, receiver).await })
+            tokio::spawn(async move { write_export_file(kind, &filepath, receiver, &sql).await })
         };
         j1.await??;
         j2.await??;
@@ -900,9 +903,10 @@ async fn write_export_xlsx_file(
 
 async fn write_export_file(
     kind: ExportKind, filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<Cow<'static, str>>,
+    title: &str,
 ) -> anyhow::Result<()> {
     match kind {
-        ExportKind::Html => write_export_html_file(&filepath, receiver).await,
+        ExportKind::Html => write_export_html_file(&filepath, receiver, title).await,
         ExportKind::Xlsx { .. } => write_export_xlsx_file(&filepath, receiver).await,
         _ => {
             let mut file = tokio::fs::File::create(&filepath).await?;
@@ -914,7 +918,7 @@ async fn write_export_file(
     }
 }
 async fn write_export_html_file(
-    filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<Cow<'static, str>>,
+    filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<Cow<'static, str>>, title: &str,
 ) -> anyhow::Result<()> {
     let mut file = tokio::fs::File::create(&filepath).await?;
 
@@ -925,8 +929,9 @@ async fn write_export_html_file(
     {
         let t = "<table>";
         let index = template.find(t).unwrap();
-        file.write_all(&template.as_bytes()[..index + t.len()])
-            .await?;
+        let x = &template[..index + t.len()];
+        let x = x.replacen("THIS_IS_TITLE", title, 1);
+        file.write_all(x.as_bytes()).await?;
     }
     let mut first = true;
     while let Some(data) = receiver.recv().await {
@@ -1007,44 +1012,7 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
 #[derive(Debug, serde::Serialize, TypeDef)]
 pub struct ListTable {
     pub name: String,
-    pub size: Option<HumanSize>,
-}
-
-/// humansize formatted string.
-pub struct HumanSize(pub(crate) Box<dyn humansize::ToF64 + Send + 'static>);
-
-impl serde::Serialize for HumanSize {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-
-impl Display for HumanSize {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            humansize::format_size_i(
-                self.0.as_ref().to_f64(),
-                humansize::FormatSizeOptions::default()
-            )
-        )
-    }
-}
-
-impl Debug for HumanSize {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-}
-
-impl HumanSize {
-    fn new<T: humansize::ToF64 + Send + 'static>(t: T) -> Self {
-        Self(Box::new(t) as Box<dyn humansize::ToF64 + Send + 'static>)
-    }
+    pub size: Option<u64>,
 }
 
 impl From<String> for ListTable {
@@ -1057,12 +1025,10 @@ impl From<String> for ListTable {
 }
 
 impl ListTable {
-    pub(crate) fn new<T: humansize::ToF64 + Send + 'static>(
-        name: impl Into<String>, t: Option<T>,
-    ) -> Self {
+    pub(crate) fn new(name: impl Into<String>, size: Option<u64>) -> Self {
         Self {
             name: name.into(),
-            size: t.map(|x| HumanSize::new(x)),
+            size,
         }
     }
 }

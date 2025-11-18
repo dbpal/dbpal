@@ -56,6 +56,7 @@ import {
   showProcedure,
   showTableColumn,
   showUdf,
+  tryGetMaxID,
   showViewColumns,
 } from "./handlers";
 
@@ -372,6 +373,12 @@ human:{question}
           .map(x => (x.is_auto_increment ? `${x.field}(auto increment)` : x.field))
           .join(",")}\n`;
       {
+        const maxID = await tryGetMaxID(this.uuid, table.name);
+        if (maxID) {
+          ret += `${table.name} max id is ${maxID}\n`;
+        }
+      }
+      {
         const def = await callErrorable(async () => {
           return createTableAndIndexSql(this.uuid, table.name);
         }, null);
@@ -390,6 +397,12 @@ human:{question}
       ret += `${view.name} is view 
         Columns:${cols.map(x => x.field).join(",")}\n`;
       {
+        const maxID = await tryGetMaxID(this.uuid, view.name);
+        if (maxID) {
+          ret += `${view.name} max id is ${maxID}\n`;
+        }
+      }
+      {
         const def = await callErrorable(async () => {
           return createViewSql(this.uuid, view.name, ViewKind.View);
         }, null);
@@ -405,6 +418,12 @@ human:{question}
       const cols = await showViewColumns(this.uuid, view.name);
       ret += `${view.name} is materalized view 
         Columns:${cols.map(x => x.field).join(",")}\n`;
+      {
+        const maxID = await tryGetMaxID(this.uuid, view.name);
+        if (maxID) {
+          ret += `${view.name} max id is ${maxID}\n`;
+        }
+      }
       {
         const def = await callErrorable(async () => {
           return createViewSql(this.uuid, view.name, ViewKind.MaterializedView);

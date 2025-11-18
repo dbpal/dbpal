@@ -39,6 +39,9 @@ impl GetKeyWords for TiDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for TiDB {
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        LanguageServer::try_get_max_id(self.db.as_ref(), name).await
+    }
     async fn ai_text_completion(
         &self, text: &str, line: u32, col: u32,
     ) -> anyhow::Result<CompletionList> {
@@ -57,7 +60,7 @@ impl LanguageServer for TiDB {
         LanguageServer::auto_completion(self.db.as_ref(), query_id, sql, line, col, use_lexer).await
     }
     async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LanguageServer::check_sql(self.db.as_ref(), sql).await
+        LangServerCommon::parse_err(self, sql)
     }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)

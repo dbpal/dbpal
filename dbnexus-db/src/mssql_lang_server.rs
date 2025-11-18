@@ -7,7 +7,7 @@ use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, DBExecutable, ErrAndLoc,
     GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
-use crate::mssql::SqlServerDB;
+use crate::mssql::{ConvertColumnDataToString, SqlServerDB};
 use crate::sqlparser_completion::TempTableColumn;
 use futures_util::StreamExt;
 use std::ops::DerefMut;
@@ -26,6 +26,25 @@ impl GetKeyWords for SqlServerDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for SqlServerDB {
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        let sql = format!("SELECT MAX(id) FROM \"{name}\"");
+        let mut conn = self.get_conn().await?;
+        let mut stream = conn.simple_query(&sql).await?;
+        while let Some(item) = stream.next().await {
+            let item = item?;
+            match item {
+                QueryItem::Row(row) => {
+                    let x: Option<ConvertColumnDataToString> = row.try_get(0)?;
+                    if let Some(x) = x {
+                        return anyhow::Ok(x.value);
+                    }
+                }
+                QueryItem::Metadata(..) => {}
+            }
+        }
+        anyhow::bail!("no max id found.")
+    }
+
     async fn ai_text_completion(
         &self, text: &str, line: u32, col: u32,
     ) -> anyhow::Result<CompletionList> {
@@ -45,24 +64,7 @@ impl LanguageServer for SqlServerDB {
     }
 
     async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        let sql = format!(
-            r#"
-            SET NOEXEC ON;
-            {sql}
-        "#
-        );
-        let mut conn = self.get_conn().await?;
-        let r = conn.execute(&sql, &[]).await;
-        conn.execute("SET NOEXEC OFF;", &[]).await.map_err(|e| {
-            anyhow::Error::msg(format!(
-                "set noexec off failed,this is internal error,err:{}",
-                e
-            ))
-        })?;
-        anyhow::Ok(match r {
-            Ok(_) => None,
-            Err(err) => Some(ErrAndLoc::from(err.to_string())),
-        })
+        LangServerCommon::parse_err(self, sql)
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
@@ -389,8 +391,8 @@ mod tests {
 
     use crate::db::QuerySql;
     use crate::enable_test_log;
-    use crate::language_server::LangServerCommon;
     use crate::language_server::completion_test::test_file_auto_completion;
+    use crate::language_server::{LangServerCommon, LanguageServer};
     use crate::mssql::{make_test_object, test_lock};
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -417,6 +419,14 @@ mod tests {
         "#,
             )
             .await;
+
+        db.execute_sql(
+            query_id,
+            "INSERT INTO departments (name) VALUES ('人力资源'), ('财务部'), ('市场部');",
+        )
+        .await
+        .unwrap()
+        .unwrap();
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");
@@ -446,6 +456,14 @@ mod tests {
         let db = make_test_object().await;
         let x = db.list_execute(None).await;
         println!("###########:{:?}", x);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+
+    async fn test_try_get_max_id() {
+        let db = make_test_object().await;
+        let max_id = db.try_get_max_id("departments").await.unwrap();
+        println!("max id is:{}", max_id);
     }
 }
 

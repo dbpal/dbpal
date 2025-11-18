@@ -29,6 +29,26 @@ impl GetKeyWords for LibSqlDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for LibSqlDB {
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        let sql = format!("SELECT MAX(id) FROM \"{name}\"");
+        let conn = self.get_conn().await?;
+        let mut row = conn.query(&sql, params!()).await?;
+        while let Some(item) = row.next().await? {
+            let value = item.get_value(0)?;
+            return anyhow::Ok(match value {
+                libsql::Value::Null => "null".to_string(),
+                libsql::Value::Integer(x) => x.to_string(),
+                libsql::Value::Real(x) => x.to_string(),
+                libsql::Value::Text(x) => x.to_string(),
+                libsql::Value::Blob(..) => {
+                    continue;
+                }
+            });
+        }
+
+        anyhow::bail!("no max id found")
+    }
+
     async fn ai_text_completion(
         &self, text: &str, line: u32, col: u32,
     ) -> anyhow::Result<CompletionList> {
@@ -50,17 +70,7 @@ impl LanguageServer for LibSqlDB {
     }
 
     async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        let sql = format!("explain {sql}");
-        let conn = self.get_conn().await?;
-        let r = conn.query(&sql, params!()).await;
-        anyhow::Ok(match r {
-            Ok(_) => None,
-            Err(x) => Some(ErrAndLoc {
-                line: None,
-                column: None,
-                msg: x.to_string(),
-            }),
-        })
+        LangServerCommon::parse_err(self, sql)
     }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)
@@ -257,6 +267,7 @@ impl LibSqlDB {
 mod tests {
     use crate::db::{QuerySql, SchemaTrait};
     use crate::enable_test_log;
+    use crate::language_server::LanguageServer;
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::libsql::make_test_object;
     use std::path::Path;
@@ -302,6 +313,11 @@ mod tests {
             )
             .await;
 
+        db.execute_sql(query_id, "replace into departments values (1,'test')")
+            .await
+            .unwrap()
+            .unwrap();
+
         let _ = db
             .query_sql(
                 query_id,
@@ -334,5 +350,13 @@ mod tests {
             false,
         )
         .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+
+    async fn test_try_get_max_id() {
+        let db = make_test_object().await;
+        let max_id = db.try_get_max_id("departments").await.unwrap();
+        println!("max id is:{}", max_id);
     }
 }

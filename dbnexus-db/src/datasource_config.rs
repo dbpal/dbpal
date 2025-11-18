@@ -46,7 +46,7 @@ impl From<i32> for ConnTimeOut {
 
 impl From<ConnTimeOut> for std::time::Duration {
     fn from(value: ConnTimeOut) -> Self {
-        std::time::Duration::from_micros(value.0 as u64)
+        std::time::Duration::from_millis(value.0 as u64)
     }
 }
 

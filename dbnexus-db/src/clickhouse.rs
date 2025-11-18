@@ -384,8 +384,10 @@ impl SchemaTrait for ClickHouseDB {
             default_value: String,
             #[allow(unused)]
             is_partition_key: bool,
+            // “不是排序键” ≠ 不能排序，只是会走额外排序算子，更慢、更耗资源；
+            // 把最常用的排序/过滤列放进排序键，就是为了省掉这一步。
             #[allow(unused)]
-            is_in_sorting_key: bool,
+            is_sorting_key: u8,
         }
         let rows: Vec<Row> = conn.query(&sql).fetch_all().await.unwrap();
         let mut ret = Vec::with_capacity(rows.len());
@@ -1480,8 +1482,6 @@ from test
         db.execute_sql(
             query_id,
             r#"
-    
-             
             INSERT INTO test_materialized_view_table (id, name, value) VALUES
             (1, 'Test A', 10.5),
             (2, 'Test B', 20.0),
@@ -2145,7 +2145,7 @@ from test
             (
                 low_cardinality_field LowCardinality(String),  -- 使用 LowCardinality 优化存储和查询性能[^4^]
                 nullable_field Nullable(String),               -- 可以存储 NULL 值的字段[^2^]
-                 -- json_field JSON                                -- JSON 类型字段，用于存储 JSON 数据[^3^]
+                -- json_field JSON                                -- JSON 类型字段，用于存储 JSON 数据[^3^]
             )
             ENGINE = MergeTree()
             ORDER BY low_cardinality_field;

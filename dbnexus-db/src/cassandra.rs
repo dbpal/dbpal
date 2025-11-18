@@ -67,7 +67,7 @@ use std::time::Duration;
 
 #[derive(Clone)]
 pub struct CassandraDB {
-    session: Arc<AppSession>,
+    pub(crate) session: Arc<AppSession>,
     pub(crate) query_connection: Arc<DashMap<u32, Arc<AppSession>>>,
     pub(crate) config: CassandraDBConfig,
     paging_cache: Arc<DashMap<String, Arc<PageCache>>>,

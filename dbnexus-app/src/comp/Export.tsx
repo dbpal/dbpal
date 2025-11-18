@@ -7,8 +7,10 @@ import {
   IconButton,
   Stack,
   TextField,
+  Typography,
 } from "@mui/material";
-import { useContext, useEffect, useState } from "react";
+import { filesize } from "filesize";
+import { useContext, useEffect, useRef, useState } from "react";
 import types from "./ApiStruct";
 import { NotificationContext } from "./Notification";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -16,6 +18,7 @@ import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
 import { invoke } from "@tauri-apps/api/core";
 import { ModalHeader, OpenFileWithDefaultApp } from "./CommonComp";
 import { generateDefaultFilename, SettingContext } from "./helper";
+import { stat } from "@tauri-apps/plugin-fs";
 
 function IncludeHeader({ includeHeader, setIncludeHeader }) {
   return (
@@ -56,7 +59,7 @@ function ExportView(props: {
   useEffect(() => {
     lastExportKind = kind;
   }, [kind]);
-
+  const exportedSize = useRef(null);
   const makeConfig = (): types.ExportKind | null => {
     switch (kind) {
       case "csv":
@@ -93,6 +96,11 @@ function ExportView(props: {
     if (!file) {
       return;
     }
+    const int = setInterval(() => {
+      stat(file).then(e => {
+        exportedSize.current.innerText = `export file ${filesize(e.size)} bytes`;
+      });
+    }, 1000);
     try {
       setLoading(true);
       await exportOP(config, file);
@@ -100,6 +108,7 @@ function ExportView(props: {
       showNotification("error", "export failure", e);
       return;
     } finally {
+      clearInterval(int);
       setLoading(false);
     }
     showNotification("success", "export OK");
@@ -191,7 +200,7 @@ function ExportView(props: {
 
       <Divider />
       <OpenFileWithDefaultApp file={file} />
-      <Stack>
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <IconButton
           onClick={async () => {
             handleExport();
@@ -201,6 +210,7 @@ function ExportView(props: {
         >
           <ArrowCircleDownIcon> </ArrowCircleDownIcon>
         </IconButton>
+        <Typography ref={exportedSize} />
       </Stack>
     </Stack>
   );

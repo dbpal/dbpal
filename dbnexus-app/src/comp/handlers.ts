@@ -42,6 +42,18 @@ function makeShowTableFn(uuid: string, table: string) {
   };
 }
 
+async function tryGetMaxID(uuid: string, tableOrView: string) {
+  try {
+    const r = await invoke<string>("try_get_max_id", {
+      name: uuid,
+      table: tableOrView,
+    });
+    return r;
+  } catch (e) {
+    console.error("get max id failed", e);
+    return null;
+  }
+}
 function makeShowViewFn(uuid: string, view: string) {
   return async (
     where: string,
@@ -326,4 +338,5 @@ export {
   formatCreateTableAndIndexSql,
   listTable,
   listView,
+  tryGetMaxID,
 };

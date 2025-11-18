@@ -24,6 +24,10 @@ pub trait LanguageServer: GetBackendKind {
         &self, sql: &str, line: u32, col: u32,
     ) -> anyhow::Result<CompletionList>;
 
+    async fn try_get_max_id(&self, _name: &str) -> anyhow::Result<String> {
+        not_support_feature(self.backend_name())
+    }
+
     async fn check_sql(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         anyhow::Ok(None)
     }
@@ -401,6 +405,14 @@ pub trait GetKeyWords: GetBackendKind {
 #[async_trait::async_trait]
 
 pub trait LangServerCommon: GetBackendKind + GetKeyWords {
+    fn parse_err(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        let dialect = self.dialect();
+        let ss = block_in_place(|| sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql));
+        match ss {
+            Ok(_) => anyhow::Ok(None),
+            Err(err) => anyhow::Ok(Some(ErrAndLoc::from(err))),
+        }
+    }
     async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
         anyhow::Ok(vec![])
     }
@@ -503,7 +515,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
 
     fn parse_statements(&self, sql: &str) -> anyhow::Result<Vec<sqlparser::ast::Statement>> {
         let dialect = self.dialect();
-        let ss = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql)?;
+        let ss = block_in_place(|| sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql))?;
         anyhow::Ok(ss)
     }
 
@@ -516,15 +528,6 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
     async fn list_sequence(&self, _schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
         anyhow::Ok(vec![])
     }
-
-    // async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-    //     let dialect = self.dialect();
-    //     let x = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql);
-    //     anyhow::Ok(match x {
-    //         Ok(_) => None,
-    //         Err(x) => Some(ErrAndLoc::from(x)),
-    //     })
-    // }
 
     async fn hit_schema(&self, name: &str) -> bool {
         self.list_schema()

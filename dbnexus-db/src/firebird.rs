@@ -1079,21 +1079,23 @@ impl CheckConn for FireBirdDB {
 
 impl FireBirdDB {
     pub fn new(config: FireBirdConfig) -> anyhow::Result<Self> {
-        let mut builder = r2d2::Pool::builder();
-        builder = builder.max_size(POOL_MAX_CONNECTIONS);
-        if let Some(x) = config.conn_timeout {
-            builder = builder.connection_timeout(x.into());
-        }
-        let pool = builder.build(PoolManager {
-            config: config.clone(),
-        })?;
-        anyhow::Ok(Self {
-            config,
-            pool,
-            query_connection: Default::default(),
-            query_connections_tx: Default::default(),
-            key_words_completion: Default::default(),
-            next_query_id: Default::default(),
+        block_in_place(|| {
+            let mut builder = r2d2::Pool::builder();
+            builder = builder.max_size(POOL_MAX_CONNECTIONS);
+            if let Some(x) = config.conn_timeout {
+                builder = builder.connection_timeout(x.into());
+            }
+            let pool = builder.build(PoolManager {
+                config: config.clone(),
+            })?;
+            anyhow::Ok(Self {
+                config,
+                pool,
+                query_connection: Default::default(),
+                query_connections_tx: Default::default(),
+                key_words_completion: Default::default(),
+                next_query_id: Default::default(),
+            })
         })
     }
 

@@ -1343,7 +1343,7 @@ impl SchemaTrait for PostGresDB {
                 Ok(row) => row.get(0),
                 Err(_) => None,
             };
-            let t = ListTable::new(table, size);
+            let t = ListTable::new(table, size.map(|x| x as u64));
             ret.push(t);
         }
 

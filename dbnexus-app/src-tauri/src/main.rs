@@ -46,7 +46,7 @@ use handlers::{
     redis_zset_add, redis_zset_del, redis_zset_replace, redis_zset_show_table, rename_index,
     rename_sequence, rename_table, server_metas, show_indexes, show_procedure, show_table,
     show_table_columns, show_trigger, show_udf, show_view, show_view_columns, table_delete,
-    table_insert, table_update, test_connection, truncate_table, valid_json,
+    table_insert, table_update, test_connection, truncate_table, try_get_max_id, valid_json,
 };
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Wry};
@@ -622,7 +622,8 @@ fn run_app() {
             monaco_editor_themes,
             ai_text_completion,
             get_redis_type_hint,
-            get_locale
+            get_locale,
+            try_get_max_id
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

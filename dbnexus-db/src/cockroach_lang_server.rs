@@ -18,6 +18,10 @@ impl GetKeyWords for CockRoachDB {
 #[async_trait::async_trait]
 
 impl LanguageServer for CockRoachDB {
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        LanguageServer::try_get_max_id(self.db.as_ref(), name).await
+    }
+
     async fn ai_text_completion(
         &self, text: &str, line: u32, col: u32,
     ) -> anyhow::Result<CompletionList> {

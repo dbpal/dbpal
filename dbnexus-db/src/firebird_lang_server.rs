@@ -1,4 +1,5 @@
 use rsfbclient::{Queryable, Row};
+use tokio::task::block_in_place;
 
 use crate::db::SchemaTrait;
 use crate::firebird::FireBirdDB;
@@ -22,6 +23,16 @@ impl GetKeyWords for FireBirdDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for FireBirdDB {
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        let sql = format!("SELECT MAX(id) FROM \"{name}\"");
+        let mut conn = self.get_conn()?;
+        let row: Option<(i64,)> = block_in_place(|| conn.query_first(&sql, ()))?;
+        if let Some(row) = row {
+            anyhow::Ok(row.0.to_string())
+        } else {
+            anyhow::bail!("no max id found")
+        }
+    }
     async fn ai_text_completion(
         &self, text: &str, line: u32, col: u32,
     ) -> anyhow::Result<CompletionList> {
@@ -39,6 +50,7 @@ impl LanguageServer for FireBirdDB {
     ) -> anyhow::Result<CompletionList> {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
+
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)
     }
@@ -77,9 +89,10 @@ impl LexerCompletionTrait for FireBirdDB {
 mod tests {
     use std::path::Path;
 
-    use crate::db::QuerySql;
+    use crate::db::{QuerySql, SchemaTrait};
     use crate::enable_test_log;
     use crate::firebird::make_test_object;
+    use crate::language_server::LanguageServer;
     use crate::language_server::completion_test::test_file_auto_completion;
 
     // partition test failed , sqlparser can't parse a valid partition statement.
@@ -88,12 +101,14 @@ mod tests {
         let db = make_test_object();
         enable_test_log();
         let query_id = db.open_connection().await.unwrap();
+        let _ = db.drop_table("EMPLOYEE", false).await;
         let _ = db
             .execute_sql(
                 query_id,
                 r#"
                     CREATE TABLE EMPLOYEE (
                         EMPLOYEEID INTEGER NOT NULL PRIMARY KEY, -- 雇员编号，主键
+                        ID INTEGER,
                         FIRSTNAME VARCHAR(50) NOT NULL, -- 雇员名字
                         LASTNAME VARCHAR(50) NOT NULL, -- 雇员姓氏
                         GENDER CHAR(1) CHECK (GENDER IN ('M', 'F')), -- 性别，M 表示男性，F 表示女性
@@ -104,13 +119,31 @@ mod tests {
             )
             .await
             .unwrap();
-
+        db.execute_sql(query_id, "INSERT INTO EMPLOYEE (GENDER, EMPLOYEEID, ID, FIRSTNAME, LASTNAME, BIRTHDATE, HIREDATE) VALUES ('M', 1, 1, 'John', 'Doe', '1985-05-15', '2020-01-10')")
+            .await
+            .unwrap()
+            .unwrap();
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");
         file_path.push("firebird_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
         test_file_auto_completion(&content, &db, false).await;
+    }
+
+    #[ignore = "手动跑跑的测试"]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_completion_xxx() {
+        enable_test_log();
+        let db = make_test_object();
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, true).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_try_get_max_id() {
+        let db = make_test_object();
+        let max_id = db.try_get_max_id("EMPLOYEE").await.unwrap();
+        println!("max id is:{}", max_id);
     }
 }
 

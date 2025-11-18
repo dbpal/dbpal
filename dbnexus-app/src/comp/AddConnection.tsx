@@ -386,11 +386,13 @@ function DbSchemaCadidates(props: {
   const { name, setName, label, makeConfig } = props;
   const [candidates, setCadidates] = useState([]);
   const { showNotification } = useContext(NotificationContext);
+  const [loading, setLoading] = useState(false);
   const handleReload = () => {
     const config = makeConfig();
     if (!config.name) {
       config.name = "test_conn";
     }
+    setLoading(true);
     invoke<string[]>("config_list_database_or_schema", { conn: config })
       .then(e => {
         showNotification("success", "fetch candidates success");
@@ -398,6 +400,9 @@ function DbSchemaCadidates(props: {
       })
       .catch(e => {
         showNotification("warning", `list ${label} failed`, e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
   return (
@@ -435,7 +440,9 @@ function DbSchemaCadidates(props: {
           },
         }}
       />
-      <Button onClick={handleReload}> load candidates </Button>
+      <Button onClick={handleReload} loading={loading}>
+        load candidates
+      </Button>
     </Stack>
   );
 }
@@ -1096,7 +1103,7 @@ function SqlServer(props: { config?: types.SqlServerDBConfig }) {
       port: parseInt(port),
       save_password: savePassword,
       trust_cert: sqlserverCert.trust_cert,
-      cert_ca: sqlserverCert.cert_ca,
+      cert_ca: sqlserverCert.cert_ca ? sqlserverCert.cert_ca : null,
       schema: schema ? schema : null,
     };
   }

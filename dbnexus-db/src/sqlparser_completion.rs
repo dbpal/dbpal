@@ -235,7 +235,12 @@ impl Scope {
     }
 
     pub(crate) fn enter_temp_table(&mut self, alias: Option<Ident>, temp: TempTable) {
-        log::info!("enter temp table {:?} {:?}", alias, temp);
+        if temp.columns.is_empty() {
+            log::error!("enter temp table {:?} {:?}", alias, temp);
+        } else {
+            log::info!("enter temp table {:?} {:?}", alias, temp);
+        }
+
         self.tables.push(TableEntered::Temp { table: temp, alias });
     }
     pub(crate) fn enter_temp_cols(&mut self, cols: Vec<TempTableColumn>) {

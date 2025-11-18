@@ -190,7 +190,7 @@ impl SqlServerDB {
 
 fn make_config(c: &SqlServerDBConfig) -> anyhow::Result<tiberius::Config> {
     if c.trust_cert && c.cert_ca.is_some() {
-        anyhow::bail!("can't be able both trust_cert and cert_ca")
+        anyhow::bail!("can't be able both trust_cert and use trust certificate.")
     }
     let mut config = tiberius::Config::new();
     config.host(&c.host);
@@ -228,9 +228,8 @@ fn get_fields_from_meta(meta: &tiberius::ResultMetadata) -> Vec<Field> {
     }
     ret
 }
-
-struct ConvertColumnDataToString {
-    value: String,
+pub struct ConvertColumnDataToString {
+    pub(crate) value: String,
 }
 
 impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
@@ -2171,7 +2170,7 @@ mod tests {
         {
             let x = extract_trigger_event_from_sql(
                 r#"
-             CREATE TRIGGER tr_test_create_trigger_insert
+            CREATE TRIGGER tr_test_create_trigger_insert
             ON test_create_trigger
             AFTER INSERT
             AS
@@ -2218,7 +2217,7 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-             CREATE TABLE test_commit (
+            CREATE TABLE test_commit (
                 ID INTEGER PRIMARY KEY,
                 NAME VARCHAR(50)
             );

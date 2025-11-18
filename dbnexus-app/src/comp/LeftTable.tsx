@@ -89,6 +89,7 @@ import {
   makeTableUpdate,
   showTableColumn,
 } from "./handlers";
+import { filesize } from "filesize";
 
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
@@ -173,7 +174,7 @@ function TablesTree(props: { typ: TableType }) {
   );
 }
 
-function TableTree(props: { table: string; reloadTables; size: string | null }) {
+function TableTree(props: { table: string; reloadTables; size: number | null }) {
   const { table, reloadTables, size } = props;
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -203,7 +204,11 @@ function TableTree(props: { table: string; reloadTables; size: string | null }) 
           <Stack direction="row" style={{ alignItems: "center" }}>
             <TableViewIcon> </TableViewIcon> <span>{table}</span>
           </Stack>
-          <span style={{ ...shrinkAble, minWidth: 0 }}> {size} </span>
+          {size && (
+            <span style={{ ...shrinkAble, minWidth: 0 }}>
+              {filesize(size, { round: 0 })}
+            </span>
+          )}
         </Stack>
       }
     />

@@ -35,6 +35,7 @@
     "@types/esprima": "^4.0.6",
     "bson": "^7.0.0",
     "esprima": "^4.0.1",
+    "filesize": "^11.0.13",
     "langchain": "^1.0.4",
     "monaco-editor": "^0.53.0",
     "react": "^19.2.0",

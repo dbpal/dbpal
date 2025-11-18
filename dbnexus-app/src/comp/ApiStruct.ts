@@ -266,9 +266,10 @@ export namespace types {
     } & (types.DuckDBConfig & {
         "name": string;
     })));
+    export type U64 = number;
     export type ListTable = {
         "name": string;
-        "size": (string | null);
+        "size": (types.U64 | null);
     };
     export type I64 = number;
     export type Field = {
@@ -295,7 +296,6 @@ export namespace types {
         "kind": types.IndexKind;
         "columns": (string)[];
     };
-    export type U64 = number;
     export type SqlExecuteRet = {
         "sql": string;
         "changes": (types.U64 | null);

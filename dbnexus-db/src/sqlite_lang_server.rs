@@ -171,6 +171,15 @@ impl crate::language_server::LexerCompletionTrait for SqliteDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for SqliteDB {
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        let sql = format!("SELECT MAX(id) FROM \"{name}\"");
+        let mut conn = self.get_conn().await?;
+        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_one(conn.deref_mut())
+            .await?;
+        let id: i64 = row.try_get_unchecked(0)?;
+        anyhow::Ok(id.to_string())
+    }
     async fn ai_text_completion(
         &self, text: &str, line: u32, col: u32,
     ) -> anyhow::Result<CompletionList> {
@@ -192,20 +201,7 @@ impl LanguageServer for SqliteDB {
     }
 
     async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        let sql = format!("explain {sql}");
-        let mut conn = self.get_conn().await?;
-
-        let r = sqlx::query(AssertSqlSafe(sql.as_str()))
-            .fetch_one(conn.deref_mut())
-            .await;
-        anyhow::Ok(match r {
-            Ok(_) => None,
-            Err(x) => Some(ErrAndLoc {
-                line: None,
-                column: None,
-                msg: x.to_string(),
-            }),
-        })
+        LangServerCommon::parse_err(self, sql)
     }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
         LangServerCommon::is_dangerous_sql_by_parser(self, sql)
@@ -290,6 +286,7 @@ impl AstCompletionHelper for SqliteDB {
 mod tests {
     use crate::db::QuerySql;
     use crate::enable_test_log;
+    use crate::language_server::LanguageServer;
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::sqlite::make_test_object;
     use std::path::Path;
@@ -324,6 +321,11 @@ mod tests {
             )
             .await;
 
+        db.execute_sql(query_id, "replace into departments values (1,'test')")
+            .await
+            .unwrap()
+            .unwrap();
+
         let _ = db
             .query_sql(
                 query_id,
@@ -349,6 +351,14 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(include_str!("./xxx.sql"), &db, true).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+
+    async fn test_try_get_max_id() {
+        let db = make_test_object().await;
+        let max_id = db.try_get_max_id("departments").await.unwrap();
+        println!("max id is:{}", max_id);
     }
 }
 

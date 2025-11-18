@@ -568,6 +568,16 @@ impl LangServerCommon for PostGresDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for PostGresDB {
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        let sql = format!("SELECT MAX(id) FROM \"{name}\"");
+        let mut conn = self.get_conn().await?;
+        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
+            .fetch_one(conn.deref_mut())
+            .await?;
+        let id: Option<i64> = row.try_get_unchecked(0)?;
+        anyhow::Ok(id.unwrap_or_default().to_string())
+    }
+
     async fn ai_text_completion(
         &self, text: &str, line: u32, col: u32,
     ) -> anyhow::Result<CompletionList> {
@@ -608,8 +618,8 @@ impl LanguageServer for PostGresDB {
 mod tests {
     use crate::db::QuerySql;
     use crate::enable_test_log;
-    use crate::language_server::LangServerCommon;
     use crate::language_server::completion_test::test_file_auto_completion;
+    use crate::language_server::{LangServerCommon, LanguageServer};
     use crate::pg::make_test_object;
     use std::path::Path;
 
@@ -691,6 +701,14 @@ mod tests {
             }
         }
 
+        db.execute_sql(
+            query_id,
+            "INSERT INTO departments (name) VALUES ('人力资源'), ('财务部'), ('市场部');",
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");
@@ -728,6 +746,14 @@ mod tests {
                 .iter()
                 .any(|x| x.name.eq("select_one"))
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+
+    async fn test_try_get_max_id() {
+        let db = make_test_object().await;
+        let max_id = db.try_get_max_id("departments").await.unwrap();
+        println!("max id is:{}", max_id);
     }
 }
 pub(crate) const POSTGRES_TYPES: &[&str] = &[

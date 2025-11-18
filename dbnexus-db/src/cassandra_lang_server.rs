@@ -15,8 +15,8 @@ use cql3_parser::select::SelectElement;
 use crate::cassandra::{AppSession, CassandraDB};
 use crate::db::{CreatedTypeDef, DBTrait};
 use crate::language_server::{
-    CompletionItem, CompletionKind, CompletionList, ErrAndLoc, GetKeyWords, LangServerCommon,
-    LanguageServer, LexerCompletionTrait, remove_duplicate,
+    CompletionItem, CompletionKind, CompletionList, GetKeyWords, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, remove_duplicate,
 };
 
 use crate::sqlparser_completion::TempTableColumn;
@@ -70,10 +70,6 @@ impl LanguageServer for CassandraDB {
             return anyhow::Ok(vec![].into());
         }
         return LexerCompletionTrait::do_auto_completion(self, sql, line, col).await;
-    }
-    async fn check_sql(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        // don't provide parse error for cassandra
-        anyhow::Ok(None)
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
@@ -1458,7 +1454,7 @@ mod tests {
                 query_id,
                 r#"
                 CREATE TABLE employees (
-                    employee_id UUID PRIMARY KEY,
+                    id UUID PRIMARY KEY,
                     first_name TEXT,
                     last_name TEXT,
                     email TEXT,
@@ -1510,7 +1506,7 @@ mod tests {
             .execute_sql(
                 query_id,
                 r#"
- 
+
                 CREATE OR REPLACE FUNCTION no_op_state_function(state int, input int)
                 RETURNS NULL ON NULL INPUT
                 RETURNS int

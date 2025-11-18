@@ -1,2 +1,2 @@
-帮我删除p 
-1 persons
+select EMPLOYEEID from EMPLOYEE
+18 EMPLOYEEID  ; 32 EMPLOYEE
