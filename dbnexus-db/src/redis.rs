@@ -32,15 +32,25 @@ pub struct RedisDB {
 }
 
 impl RedisDB {
-    pub async fn get_redis_type_hint(&self, text: &str) -> anyhow::Result<HashMap<String, String>> {
-        let mut conn = self.get_conn().await?;
+    pub async fn get_redis_type_hint(
+        &self, text: &str, query_id: u32,
+    ) -> anyhow::Result<HashMap<String, String>> {
+        let conn = match self.query_connection.get(&query_id) {
+            Some(x) => x.clone(),
+            None => anyhow::bail!(format!(
+                "should be able to get connection for id:{query_id}"
+            )),
+        };
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+
         let mut ret = HashMap::new();
         for line in text.lines() {
             let tokens = RedisToken::tokenize(line, 1).unwrap_or_default();
             for t in tokens {
                 match t {
                     RedisToken::String(value) | RedisToken::NotString { value, .. } => {
-                        if let Ok(t) = Self::get_key_type(&mut conn, &value).await {
+                        if let Ok(t) = conn.key_type::<'_, _, String>(&value).await {
                             ret.insert(value.to_string(), t.to_string());
                         }
                     }

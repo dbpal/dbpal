@@ -54,6 +54,20 @@ impl GetKeyWords for MysqlDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for MysqlDB {
+    async fn get_search_path(&self, query_id: u32) -> anyhow::Result<HashSet<String>> {
+        match self.query_connection.get(&query_id) {
+            Some(x) => {
+                let mut conn = x.lock().await;
+                let mut r = HashSet::new();
+                if let Some(x) = self.query_select_database(conn.deref_mut()).await? {
+                    r.insert(x.to_string());
+                }
+                anyhow::Ok(r)
+            }
+            None => anyhow::bail!("query_connection not found"),
+        }
+    }
+
     async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!("SELECT MAX(id) FROM `{name}`");
         let mut conn = self.get_conn().await?;
@@ -91,6 +105,24 @@ impl LanguageServer for MysqlDB {
 }
 
 impl MysqlDB {
+    const SELECT_DB_SQL: &str = "SELECT DATABASE()";
+}
+
+impl MysqlDB {
+    pub(crate) async fn query_select_database(
+        &self, mut conn: &mut sqlx::MySqlConnection,
+    ) -> anyhow::Result<Option<String>> {
+        let sql = Self::SELECT_DB_SQL;
+        let row = sqlx::raw_sql(sql).fetch_one(conn.deref_mut()).await.ok();
+        let r = match row {
+            Some(row) => {
+                let name: Option<String> = row.try_get(0).ok().flatten();
+                name
+            }
+            None => None,
+        };
+        anyhow::Ok(r)
+    }
     pub(crate) async fn merge_schema(&self, schema: Option<&str>) -> Option<String> {
         if schema.is_some() {
             return schema.map(|x| x.to_string());
@@ -100,7 +132,7 @@ impl MysqlDB {
             Some(x) => {
                 let mut conn = x.lock().await;
                 let conn = conn.deref_mut();
-                let sql = "SELECT DATABASE();";
+                let sql = Self::SELECT_DB_SQL;
                 let row = sqlx::raw_sql(sql).fetch_one(conn.deref_mut()).await.ok();
                 match row {
                     Some(row) => {

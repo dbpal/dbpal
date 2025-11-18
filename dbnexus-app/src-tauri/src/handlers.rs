@@ -15,13 +15,16 @@ use dbnexus_db::db::{
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
 use dbnexus_db::libsql::LibSqlDB;
+
 use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mssql::SqlServerDB;
+
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable, RedisToken};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use dbnexus_db::sqlite::SqliteDB;
+
 use font_kit::error::SelectionError;
 use include_dir::{Dir, include_dir};
 use mongodb::bson::{self, Document, doc};
@@ -653,7 +656,7 @@ pub async fn server_metas(
 
 #[tauri::command]
 pub async fn get_redis_type_hint(
-    name: String, text: String, app: tauri::State<'_, DBPal>,
+    name: String, text: String, query_id: u32, app: tauri::State<'_, DBPal>,
 ) -> Result<HashMap<String, String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -662,10 +665,36 @@ pub async fn get_redis_type_hint(
         .await
         .map_err(ErrorFrontend::from)?;
     let x = match s.as_any().downcast_ref::<RedisDB>() {
-        Some(x) => x.get_redis_type_hint(&text).await,
+        Some(x) => x.get_redis_type_hint(&text, query_id).await,
         None => return Err(ErrorFrontend::from("this is not redis db")),
     };
     x.map_err(ErrorFrontend::from)
+}
+
+#[tauri::command]
+pub async fn ai_get_search_path(
+    name: String, query_id: u32, text: String, app: tauri::State<'_, DBPal>,
+) -> Result<Vec<String>, ErrorFrontend> {
+    let backend = app.get_backend(&name).await.map_err(ErrorFrontend::from)?;
+    match backend {
+        DatabaseBackend::Catalog(..) => Err(ErrorFrontend::from(
+            "this is a interval error,we should never hit here",
+        )),
+        DatabaseBackend::DataBase(x) => {
+            // a
+            let text = text.to_lowercase();
+            let mut r = HashSet::<String>::new();
+            let databasese = x.list_schema().await?;
+            for d in databasese {
+                if text.contains(d.to_lowercase().as_str()) {
+                    r.insert(d);
+                }
+            }
+            r.extend(x.get_search_path(query_id).await?.into_iter());
+            Ok(r.into_iter().map(|x| format!("{}/{}", name, x)).collect())
+        }
+        DatabaseBackend::Schema(..) => Ok(vec![name]),
+    }
 }
 
 #[tauri::command]

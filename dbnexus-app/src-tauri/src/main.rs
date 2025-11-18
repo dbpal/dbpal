@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use app::DBPal;
 use handlers::{
-    add_table_column, ai_text_completion, all_font_family, auto_completion,
+    add_table_column, ai_get_search_path, ai_text_completion, all_font_family, auto_completion,
     cassandra_drop_aggregate, cassandra_invalid_table_or_view_caching, cassandra_list_aggregate,
     cassandra_show_aggregate, check_conn, check_sql, close_conn, close_log_channel, command_panic,
     config_list_database_or_schema, conn_opened, create_database, create_index, create_schema,
@@ -623,7 +623,8 @@ fn run_app() {
             ai_text_completion,
             get_redis_type_hint,
             get_locale,
-            try_get_max_id
+            try_get_max_id,
+            ai_get_search_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

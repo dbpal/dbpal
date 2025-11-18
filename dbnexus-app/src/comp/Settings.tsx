@@ -63,7 +63,7 @@ import {
 import { message } from "@tauri-apps/plugin-dialog";
 import { Editor } from "@monaco-editor/react";
 import { listen } from "@tauri-apps/api/event";
-import { createChatAPI, EscDownEvent, modalHandleClose, modalStyle } from "./Common";
+import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import { ModalHeader } from "./CommonComp";
 
 function AppearanceSetting() {
@@ -572,7 +572,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
     setLoading(true);
     try {
       const config = makeConfig();
-      const llm = createChatAPI(config);
+      const llm = config.createChatAPI();
       const resp = await llm.invoke("hello!");
       showNotification(
         "success",

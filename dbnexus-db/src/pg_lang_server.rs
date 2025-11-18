@@ -36,6 +36,30 @@ impl GetKeyWords for PostGresDB {
 }
 
 impl PostGresDB {
+    pub(crate) async fn query_search_path(
+        &self, conn: &mut sqlx::pool::PoolConnection<sqlx::Postgres>,
+    ) -> anyhow::Result<Option<HashSet<String>>> {
+        let row = sqlx::raw_sql("SHOW search_path;")
+            .fetch_one(conn.deref_mut())
+            .await
+            .map_err(|e| log::error!("query search path failed,err:{}", e))
+            .ok();
+        let r = match row {
+            Some(x) => {
+                // information_schema, public like this
+                let s: Option<String> = x.try_get(0).ok().flatten();
+                s.map(|string| {
+                    string
+                        .split(",")
+                        .map(|x| x.trim().to_string())
+                        .collect::<HashSet<_>>()
+                })
+            }
+            None => None,
+        };
+        anyhow::Ok(r)
+    }
+
     pub(crate) async fn get_search_path(
         &self, schema: Option<&str>, include_catalog: bool,
     ) -> HashSet<String> {
@@ -47,25 +71,13 @@ impl PostGresDB {
         let ret = match self.query_connection.get(&self.completion_id.get()) {
             Some(conn) => {
                 let mut conn = conn.lock().await;
-                let conn = conn.deref_mut();
-                let row = sqlx::raw_sql("SHOW search_path;")
-                    .fetch_one(conn.deref_mut())
+                let conn: &mut sqlx::pool::PoolConnection<sqlx::Postgres> = conn.deref_mut();
+                let r = self
+                    .query_search_path(conn)
                     .await
-                    .map_err(|e| log::error!("query search path failed,err:{}", e))
-                    .ok();
-                match row {
-                    Some(x) => {
-                        // information_schema, public like this
-                        let s: Option<String> = x.try_get(0).ok().flatten();
-                        s.map(|string| {
-                            string
-                                .split(",")
-                                .map(|x| x.trim().to_string())
-                                .collect::<HashSet<_>>()
-                        })
-                    }
-                    None => None,
-                }
+                    .map_err(|e| log::error!("get search path failed,err:{}", e))
+                    .unwrap_or_default();
+                r
             }
             None => None,
         };
@@ -568,6 +580,19 @@ impl LangServerCommon for PostGresDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for PostGresDB {
+    async fn get_search_path(&self, query_id: u32) -> anyhow::Result<HashSet<String>> {
+        match self.query_connection.get(&query_id) {
+            Some(conn) => {
+                let conn = conn.clone();
+                let mut conn = conn.lock().await;
+                self.query_search_path(conn.deref_mut())
+                    .await
+                    .map(|x| x.unwrap_or_default())
+            }
+            None => anyhow::bail!("query_id should be able get connection"),
+        }
+    }
+
     async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!("SELECT MAX(id) FROM \"{name}\"");
         let mut conn = self.get_conn().await?;

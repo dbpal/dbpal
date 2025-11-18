@@ -20,7 +20,8 @@ import themelist from "../../monaco-themes/themes/themelist.json";
 import { loader } from "@monaco-editor/react";
 import { emit } from "@tauri-apps/api/event";
 import { PassWordManager } from "./Common";
-
+import { ChatOpenAI } from "@langchain/openai";
+import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 const pageSizeOptions = [10, 20, 50, 100];
 const appStore = await load("store.json");
 
@@ -257,6 +258,15 @@ function extractConfigNameFromUuid(uuid: string): string {
     return uuid;
   }
 }
+
+function extractLastNameFromUuid(uuid: string) {
+  if (uuid.includes("/")) {
+    return uuid.substring(uuid.indexOf("/") + 1);
+  } else {
+    return uuid;
+  }
+}
+
 function getViewportSize() {
   const width = window.innerWidth; // 获取视口的宽度
   const height = window.innerHeight; // 获取视口的高度
@@ -1177,7 +1187,26 @@ class LLMConfig {
   maxToken: number = 0;
   topP: number = 0;
   aiTextTemplates: any = {};
-
+  createChatAPI() {
+    console.log("createChatAPI", this);
+    const llm = new ChatOpenAI({
+      apiKey: this.apiKey,
+      temperature: this.temperature,
+      modelName: this.model,
+      configuration: {
+        baseURL: this.baseUrl,
+        defaultHeaders: {
+          "X-Accel-Buffering": "no",
+          "Cache-Control": "no-cache",
+        },
+        fetch: tauriFetch,
+      },
+      topP: this.topP,
+      maxTokens: this.maxToken,
+      streaming: true,
+    });
+    return llm;
+  }
   async save() {
     try {
       // save to password manager
@@ -1300,6 +1329,7 @@ export {
   LLMConfig,
   LLMConfigContext,
   MongoLanguage,
+  extractLastNameFromUuid,
 };
 
 export type { ErrAndLoc, NewWindowTableParameter, DetachQueyRespViewParameter };

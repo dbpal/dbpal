@@ -28,6 +28,10 @@ pub trait LanguageServer: GetBackendKind {
         not_support_feature(self.backend_name())
     }
 
+    async fn get_search_path(&self, _query_id: u32) -> anyhow::Result<HashSet<String>> {
+        anyhow::Ok(HashSet::new())
+    }
+
     async fn check_sql(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         anyhow::Ok(None)
     }

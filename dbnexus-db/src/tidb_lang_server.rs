@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::ops::DerefMut;
 
 #[cfg(test)]
@@ -39,6 +40,9 @@ impl GetKeyWords for TiDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for TiDB {
+    async fn get_search_path(&self, query_id: u32) -> anyhow::Result<HashSet<String>> {
+        LanguageServer::get_search_path(self.db.as_ref(), query_id).await
+    }
     async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
         LanguageServer::try_get_max_id(self.db.as_ref(), name).await
     }

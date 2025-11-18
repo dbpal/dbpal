@@ -13,13 +13,11 @@ import {
   AppStoreKey,
   backendCompletionItemToEditor,
   DataSourceKind,
-  LLMConfig,
   secondConfirm,
 } from "./helper";
 import { GridColDef } from "@mui/x-data-grid";
 import { loader } from "@monaco-editor/react";
-import { ChatOpenAI } from "@langchain/openai";
-import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+
 const modalStyle: SxProps = {
   position: "fixed",
   transform: "translate(50%, 50%)",
@@ -537,29 +535,7 @@ async function editorAppendContent(editor: editor.IStandaloneCodeEditor, text) {
   editor.revealLine(lastLine + 1);
 }
 
-function createChatAPI(config: LLMConfig) {
-  console.log("createChatAPI", config);
-  const llm = new ChatOpenAI({
-    apiKey: config.apiKey,
-    temperature: config.temperature,
-    modelName: config.model,
-    configuration: {
-      baseURL: config.baseUrl,
-      defaultHeaders: {
-        "X-Accel-Buffering": "no",
-        "Cache-Control": "no-cache",
-      },
-      fetch: tauriFetch,
-    },
-    topP: config.topP,
-    maxTokens: config.maxToken,
-    streaming: true,
-  });
-  return llm;
-}
-
 export {
-  createChatAPI,
   modalStyle,
   tabsHasId,
   OpenedContext,

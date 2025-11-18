@@ -2,6 +2,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import {
   appStore,
   DataSourceKind,
+  extractLastNameFromUuid,
   handleCopyToClipboard,
   LLMConfig,
   LLMConfigContext,
@@ -29,7 +30,11 @@ import EventNoteIcon from "@mui/icons-material/EventNote";
 import EditIcon from "@mui/icons-material/Edit";
 import { NotificationContext } from "./Notification";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { AITextCompletionName, createChatAPI, editorAppendContent } from "./Common";
+import {
+  AITextCompletionName,
+  editorAppendContent,
+  SetAutoCompletionName,
+} from "./Common";
 import { ModalHeader } from "./CommonComp";
 import { AllKindQuery } from "./Left";
 import { invoke } from "@tauri-apps/api/core";
@@ -179,6 +184,19 @@ function Chat(props: {
   );
 }
 
+type DatabaseElements = {
+  tables: types.ListTable[];
+  views: types.ListTable[];
+  materializedViews: types.ListTable[];
+  udfs: types.NamedStaff[];
+  types: types.CreatedTypeDef[];
+  events: types.SqlEvent[];
+  sequences: types.SequenceDetail[];
+  cassandraAggs: types.NamedStaff[];
+  procedures: types.NamedStaff[];
+  uuid: string;
+};
+
 class MakePrompt {
   static getDefaultTemplatePredefineVariables(kind: DataSourceKind) {
     switch (kind) {
@@ -267,6 +285,7 @@ human:{question}
     public kind: DataSourceKind,
     public question: string,
     public memory: SimpleArrayMemory,
+    public editor: editor.IStandaloneCodeEditor,
     public language?: string,
   ) {}
 
@@ -280,10 +299,14 @@ human:{question}
   }
 
   async redisDatabaseInformation() {
+    let name = SetAutoCompletionName.get(this.editor.getModel().id);
+
     const typeHints = await invoke<object>("get_redis_type_hint", {
       name: this.uuid,
       text: this.question.trim(),
+      queryId: name?.queryId,
     });
+
     let ret = "";
     for (const key in typeHints) {
       ret += `  ${key} has type '${typeHints[key]}'\n`;
@@ -360,192 +383,206 @@ human:{question}
 
   async sqlDatabaseInformation() {
     let ret = "";
-    const elements = await this.allSqlElements();
-    for (const table of elements.tables) {
-      if (!this.question.includes(table.name)) {
-        continue;
+    const databases = await this.allSqlElements();
+    for (const elements of databases) {
+      if (databases.length > 1) {
+        ret += `==============================database ${extractLastNameFromUuid(
+          elements.uuid,
+        )}==============================\n`;
       }
-      const cols = await showTableColumn(this.uuid, table.name);
-      ret += `${table.name} is table
+      for (const table of elements.tables) {
+        if (!this.question.includes(table.name)) {
+          continue;
+        }
+        const cols = await showTableColumn(elements.uuid, table.name);
+        ret += `${table.name} is table
         Columns:${cols.map(x => x.field).join(",")}
         Primary key: ${cols
           .filter(x => x.is_primary)
           .map(x => (x.is_auto_increment ? `${x.field}(auto increment)` : x.field))
           .join(",")}\n`;
-      {
-        const maxID = await tryGetMaxID(this.uuid, table.name);
-        if (maxID) {
-          ret += `${table.name} max id is ${maxID}\n`;
+        {
+          const maxID = await tryGetMaxID(elements.uuid, table.name);
+          if (maxID) {
+            ret += `${table.name} max id is ${maxID}\n`;
+          }
+        }
+        {
+          const def = await callErrorable(async () => {
+            return createTableAndIndexSql(elements.uuid, table.name);
+          }, null);
+          if (def) {
+            ret += `${table.name} create table sql is:\n${formatCreateTableAndIndexSql(
+              def,
+            )}\n`;
+          }
         }
       }
-      {
-        const def = await callErrorable(async () => {
-          return createTableAndIndexSql(this.uuid, table.name);
-        }, null);
-        if (def) {
-          ret += `${table.name} create table sql is:\n${formatCreateTableAndIndexSql(
-            def,
-          )}\n`;
+      for (const view of elements.views) {
+        if (!this.question.includes(view.name)) {
+          continue;
         }
-      }
-    }
-    for (const view of elements.views) {
-      if (!this.question.includes(view.name)) {
-        continue;
-      }
-      const cols = await showViewColumns(this.uuid, view.name);
-      ret += `${view.name} is view 
+        const cols = await showViewColumns(elements.uuid, view.name);
+        ret += `${view.name} is view 
         Columns:${cols.map(x => x.field).join(",")}\n`;
-      {
-        const maxID = await tryGetMaxID(this.uuid, view.name);
-        if (maxID) {
-          ret += `${view.name} max id is ${maxID}\n`;
+        {
+          const maxID = await tryGetMaxID(elements.uuid, view.name);
+          if (maxID) {
+            ret += `${view.name} max id is ${maxID}\n`;
+          }
+        }
+        {
+          const def = await callErrorable(async () => {
+            return createViewSql(elements.uuid, view.name, ViewKind.View);
+          }, null);
+          if (def) {
+            ret += `${view.name} create view sql is:\n${def}\n`;
+          }
         }
       }
-      {
-        const def = await callErrorable(async () => {
-          return createViewSql(this.uuid, view.name, ViewKind.View);
-        }, null);
-        if (def) {
-          ret += `${view.name} create view sql is:\n${def}\n`;
+      for (const view of elements.materializedViews) {
+        if (!this.question.includes(view.name)) {
+          continue;
         }
-      }
-    }
-    for (const view of elements.materializedViews) {
-      if (!this.question.includes(view.name)) {
-        continue;
-      }
-      const cols = await showViewColumns(this.uuid, view.name);
-      ret += `${view.name} is materalized view 
+        const cols = await showViewColumns(elements.uuid, view.name);
+        ret += `${view.name} is materalized view 
         Columns:${cols.map(x => x.field).join(",")}\n`;
-      {
-        const maxID = await tryGetMaxID(this.uuid, view.name);
-        if (maxID) {
-          ret += `${view.name} max id is ${maxID}\n`;
+        {
+          const maxID = await tryGetMaxID(elements.uuid, view.name);
+          if (maxID) {
+            ret += `${view.name} max id is ${maxID}\n`;
+          }
+        }
+        {
+          const def = await callErrorable(async () => {
+            return createViewSql(elements.uuid, view.name, ViewKind.MaterializedView);
+          }, null);
+          if (def) {
+            ret += `${view.name} create view sql is:\n${def}\n`;
+          }
         }
       }
-      {
-        const def = await callErrorable(async () => {
-          return createViewSql(this.uuid, view.name, ViewKind.MaterializedView);
-        }, null);
-        if (def) {
-          ret += `${view.name} create view sql is:\n${def}\n`;
+
+      // udf
+      for (const udf of elements.udfs) {
+        if (!this.question.includes(udf.name)) {
+          continue;
         }
+        ret += `${udf.name} is user define function \n`;
+        const detail = await showUdf(elements.uuid, udf, this.kind);
+        ret += `define sql is:\n${detail.def}\n`;
+      }
+      // cassandra agg
+      for (const udf of elements.cassandraAggs) {
+        if (!this.question.includes(udf.name)) {
+          continue;
+        }
+        ret += `${udf.name} is user cassandra aggregate function \n`;
+        const detail = await showCassandraAgg(
+          elements.uuid,
+          udf.name,
+          udf.cassandra_parameters,
+        );
+        ret += `define sql is:\n${detail.def}\n`;
+      }
+
+      for (const udf of elements.procedures) {
+        if (!this.question.includes(udf.name)) {
+          continue;
+        }
+        ret += `${udf.name} is procedure \n`;
+        const detail = await showProcedure(elements.uuid, udf, this.kind);
+        ret += `define sql is:\n${detail.def}\n`;
+      }
+
+      // types
+      for (const ty of elements.types) {
+        if (!this.question.includes(ty.name)) {
+          continue;
+        }
+        ret += `${ty.name} is user created type \n`;
+        ret += `define sql is:\n${ty.sql}\n`;
+      }
+      // sequence
+      for (const ty of elements.sequences) {
+        if (!this.question.includes(ty.name)) {
+          continue;
+        }
+        ret += `${ty.name} is user created sequence \n`;
+        ret += `define sql is:\n${ty.sql}\n`;
+      }
+      // events
+      for (const event of elements.events) {
+        if (!this.question.includes(event.name)) {
+          continue;
+        }
+        ret += `${event.name} is user created event \n`;
+        ret += `define sql is:\n${event.sql}\n`;
       }
     }
 
-    // udf
-    for (const udf of elements.udfs) {
-      if (!this.question.includes(udf.name)) {
-        continue;
-      }
-      ret += `${udf.name} is user define function \n`;
-      const detail = await showUdf(this.uuid, udf, this.kind);
-      ret += `define sql is:\n${detail.def}\n`;
-    }
-    // cassandra agg
-    for (const udf of elements.cassandraAggs) {
-      if (!this.question.includes(udf.name)) {
-        continue;
-      }
-      ret += `${udf.name} is user cassandra aggregate function \n`;
-      const detail = await showCassandraAgg(
-        this.uuid,
-        udf.name,
-        udf.cassandra_parameters,
-      );
-      ret += `define sql is:\n${detail.def}\n`;
-    }
-
-    for (const udf of elements.procedures) {
-      if (!this.question.includes(udf.name)) {
-        continue;
-      }
-      ret += `${udf.name} is procedure \n`;
-      const detail = await showProcedure(this.uuid, udf, this.kind);
-      ret += `define sql is:\n${detail.def}\n`;
-    }
-
-    // types
-    for (const ty of elements.types) {
-      if (!this.question.includes(ty.name)) {
-        continue;
-      }
-      ret += `${ty.name} is user created type \n`;
-      ret += `define sql is:\n${ty.sql}\n`;
-    }
-    // sequence
-    for (const ty of elements.sequences) {
-      if (!this.question.includes(ty.name)) {
-        continue;
-      }
-      ret += `${ty.name} is user created sequence \n`;
-      ret += `define sql is:\n${ty.sql}\n`;
-    }
-    // events
-    for (const event of elements.events) {
-      if (!this.question.includes(event.name)) {
-        continue;
-      }
-      ret += `${event.name} is user created event \n`;
-      ret += `define sql is:\n${event.sql}\n`;
-    }
     return ret;
   }
 
-  async allSqlElements(): Promise<{
-    tables: types.ListTable[];
-    views: types.ListTable[];
-    materializedViews: types.ListTable[];
-    udfs: types.NamedStaff[];
-    types: types.CreatedTypeDef[];
-    events: types.SqlEvent[];
-    sequences: types.SequenceDetail[];
-    cassandraAggs: types.NamedStaff[];
-    procedures: types.NamedStaff[];
-  }> {
-    const tables = await callErrorable(async () => {
-      return await listTable(this.uuid, TableType.Normal);
-    });
-    const views = await callErrorable(async () => {
-      return await listView(this.uuid, ViewKind.View);
-    });
-    const materializedViews = await callErrorable(async () => {
-      return listView(this.uuid, ViewKind.MaterializedView);
-    });
-    const udfs = await callErrorable(async () => {
-      return await listUdf(this.uuid);
-    });
+  async allSqlElements(): Promise<DatabaseElements[]> {
+    let fixed = [this.uuid];
+    try {
+      let name = SetAutoCompletionName.get(this.editor.getModel().id);
+      fixed = await invoke<string[]>("ai_get_search_path", {
+        name: this.uuid,
+        queryId: name?.queryId,
+        text: this.question,
+      });
+      console.log("ai search path", fixed);
+    } catch (e) {
+      console.log("get ai search path failed", e);
+    }
+    let ret: DatabaseElements[] = [];
+    for (const uuid of fixed) {
+      const tables = await callErrorable(async () => {
+        return await listTable(uuid, TableType.Normal);
+      });
+      const views = await callErrorable(async () => {
+        return await listView(uuid, ViewKind.View);
+      });
+      const materializedViews = await callErrorable(async () => {
+        return listView(uuid, ViewKind.MaterializedView);
+      });
+      const udfs = await callErrorable(async () => {
+        return await listUdf(uuid);
+      });
 
-    const events = await callErrorable(async () => {
-      return await listEvent(this.uuid);
-    });
-    const sequences = await callErrorable(async () => {
-      return await listSequence(this.uuid);
-    });
+      const events = await callErrorable(async () => {
+        return await listEvent(uuid);
+      });
+      const sequences = await callErrorable(async () => {
+        return await listSequence(uuid);
+      });
 
-    const procedures = await callErrorable(async () => {
-      return await listProcedure(this.uuid);
-    });
+      const procedures = await callErrorable(async () => {
+        return await listProcedure(uuid);
+      });
 
-    const types = await callErrorable(async () => {
-      return await listCreatedTypes(this.uuid);
-    });
-    const cassandraAggs = await callErrorable(async () => {
-      return await listCassandraAgg(this.uuid);
-    });
-
-    return {
-      tables,
-      views,
-      materializedViews,
-      udfs,
-      events,
-      sequences,
-      types,
-      procedures,
-      cassandraAggs,
-    };
+      const types = await callErrorable(async () => {
+        return await listCreatedTypes(uuid);
+      });
+      const cassandraAggs = await callErrorable(async () => {
+        return await listCassandraAgg(uuid);
+      });
+      ret.push({
+        tables,
+        views,
+        materializedViews,
+        udfs,
+        events,
+        sequences,
+        types,
+        procedures,
+        cassandraAggs,
+        uuid,
+      });
+    }
+    return ret;
   }
   async createPrompt(): Promise<string> {
     switch (this.kind) {
@@ -595,7 +632,7 @@ function SqlChatTextInput(props: {
   const { showNotification } = useContext(NotificationContext);
   const [showPrompt, setShowPrompt] = useState(false);
   useEffect(() => {
-    setChatApi(createChatAPI(config));
+    setChatApi(config.createChatAPI());
   }, [config]);
 
   const [loading, setLoading] = useState(false);
@@ -636,6 +673,7 @@ function SqlChatTextInput(props: {
         kind,
         newQuestion,
         chatMemory.current,
+        editor,
         editor.getModel().getLanguageId(),
       ).createPrompt();
       chatMemory.current.addUserMessage(newQuestion);
@@ -784,6 +822,7 @@ function SqlChatTextInput(props: {
           handleClose={() => {
             setShowPrompt(false);
           }}
+          editor={editor}
         />
       )}
     </Stack>
@@ -989,8 +1028,10 @@ function ShowPrompt(props: {
   handleClose: () => void;
   chatMemory: SimpleArrayMemory;
   language: string;
+  editor: editor.IStandaloneCodeEditor;
 }) {
-  const { uuid, kind, question, config, handleClose, chatMemory, language } = props;
+  const { uuid, kind, question, config, handleClose, chatMemory, language, editor } =
+    props;
   const [prompt, setPrompt] = useState("");
   const vis = useContext(TabActiveContext);
   const { showNotification } = useContext(NotificationContext);
@@ -1008,12 +1049,12 @@ function ShowPrompt(props: {
   }, [vis, handleClose]);
 
   useEffect(() => {
-    new MakePrompt(uuid, config, kind, question, chatMemory, language)
+    new MakePrompt(uuid, config, kind, question, chatMemory, editor, language)
       .createPrompt()
       .then(e => {
         setPrompt(e);
       });
-  }, [chatMemory, config, kind, language, question, uuid]);
+  }, [chatMemory, config, editor, kind, language, question, uuid]);
   return (
     <Paper
       style={{
