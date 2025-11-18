@@ -9,10 +9,11 @@ use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field,
-    GetBackendKind, Index, IndexKind, ListTable, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder,
-    SqlEvent, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data,
+    GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS,
+    ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableExtraArgs, SqlBuilder, SqlEvent, SqlExecuteRet, TriggerDetail, TriggerEvent,
+    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, escape_sql_str,
+    export_query_as_xlsx_send_data,
 };
 use chrono::Utc;
 use dashmap::DashMap;
@@ -24,7 +25,6 @@ use sqlx::{AssertSqlSafe, Column, Executor, MySqlConnection, Row, SqlSafeStr, Ty
 use tokio::sync::Mutex;
 
 use crate::helper::{NextId, create_csv};
-use crate::meta_value::MetaValue;
 
 #[derive(Clone)]
 pub struct MysqlDB {
@@ -479,7 +479,7 @@ async fn query_trigger_detail(
         TriggerEvent::try_from(event.as_str())?,
         timing,
         vec![
-            MetaValue::new("created", create_time),
+            MetaValue::new("created", create_time.to_string()),
             MetaValue::new("sql_mode", sql_mode),
         ],
     ))
@@ -559,7 +559,7 @@ impl ServerMetas for MysqlDB {
                 }
                 1 => {
                     let now: chrono::DateTime<Utc> = row.try_get(0)?;
-                    metas.push(MetaValue::new("now", now.naive_utc()));
+                    metas.push(MetaValue::new("now", now.naive_utc().to_string()));
                 }
                 2 => {
                     let comment: String = row.try_get(0)?;
@@ -714,8 +714,8 @@ impl MysqlDB {
                 name,
                 sql: create_sql,
                 metas: vec![
-                    MetaValue::new_opt("status", status),
-                    MetaValue::new_opt("event_type", event_type),
+                    MetaValue::new("status", status),
+                    MetaValue::new("event_type", event_type),
                     MetaValue::new(
                         "interval",
                         format!(
@@ -724,7 +724,7 @@ impl MysqlDB {
                             interval_field.unwrap_or_default()
                         ),
                     ),
-                    MetaValue::new_opt("last_executed", last_executed),
+                    MetaValue::new("last_executed", last_executed.map(|x| x.to_string())),
                 ],
             });
         }
@@ -907,7 +907,7 @@ impl SchemaTrait for MysqlDB {
         let sql: String = row.try_get(2)?;
         anyhow::Ok(ProcedureDetail::new(
             sql,
-            vec![MetaValue::new_opt("sql_mode", sql_mode)],
+            vec![MetaValue::new("sql_mode", sql_mode)],
         ))
     }
 
@@ -936,7 +936,7 @@ impl SchemaTrait for MysqlDB {
         let sql: String = row.try_get(2)?;
         anyhow::Ok(DefAndMetas::new(
             sql,
-            vec![MetaValue::new_opt("sql_mode", sql_mode)],
+            vec![MetaValue::new("sql_mode", sql_mode)],
         ))
     }
 

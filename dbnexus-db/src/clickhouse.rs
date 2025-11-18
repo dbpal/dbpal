@@ -12,13 +12,12 @@ use crate::MemoryLimit;
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, NamedStaff,
-    POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue,
+    NamedStaff, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
     escape_sql_str, ty_is_float, ty_is_int,
 };
 use crate::helper::{NextId, create_csv, separate_sql_by_sqlparser_tokenizer};
-use crate::meta_value::MetaValue;
 
 impl GetBackendKind for ClickHouseDB {
     fn backend_name(&self) -> BackendKind {

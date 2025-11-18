@@ -69,7 +69,7 @@ function RedisQuery(props: {
     };
     const int = setInterval(() => {
       tryUpdateCommand();
-    }, 200);
+    }, 1000);
     return () => {
       clearInterval(int);
     };

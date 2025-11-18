@@ -11,11 +11,11 @@ use crate::datasource_config::PGDBConfig;
 use crate::db::{
     BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind,
-    Index, IndexKind, ListTable, NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
+    Index, IndexKind, ListTable, MetaValue, NamedStaff, ProcedureDetail, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
     UdfOrProcedureExtraParameter,
 };
-use crate::meta_value::MetaValue;
+
 use crate::pg::PostGresDB;
 use crate::pg_format::encode_rows;
 impl GetBackendKind for CockRoachDB {

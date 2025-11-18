@@ -17,14 +17,13 @@ use crate::MemoryLimit;
 use crate::datasource_config::SqliteDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
-    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
+    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
     XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
 };
 use crate::helper::{NextId, create_csv};
 use crate::language_server::CompletionItem;
-use crate::meta_value::MetaValue;
 
 #[derive(Clone)]
 pub struct SqliteDB {

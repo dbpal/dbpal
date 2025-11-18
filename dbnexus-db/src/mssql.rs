@@ -21,15 +21,13 @@ use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
-    ListTable, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql,
+    ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
     XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset,
     not_support_feature,
 };
 use crate::helper::{NextId, create_csv};
-
-use crate::meta_value::MetaValue;
 
 #[derive(Clone)]
 pub struct SqlServerDB {
@@ -158,7 +156,7 @@ impl ServerMetas for SqlServerDB {
         }
         let metas = encode_rows(&rows)?;
         for m in metas.iter() {
-            ret.push(MetaValue::new_opt(
+            ret.push(MetaValue::new(
                 m.first().unwrap().as_ref().unwrap().to_string(),
                 m[1].clone(),
             ));
@@ -1125,15 +1123,15 @@ impl SchemaTrait for SqlServerDB {
                     let modify_date: Option<chrono::NaiveDateTime> = row.try_get(2)?;
                     metas.push(MetaValue::new(
                         "type_desc",
-                        type_desc.unwrap_or_default().to_string(),
+                        type_desc.map(|x| x.to_string()),
                     ));
                     metas.push(MetaValue::new(
                         "create_date",
-                        create_date.unwrap_or_default(),
+                        create_date.map(|x| x.to_string()),
                     ));
                     metas.push(MetaValue::new(
                         "modify_date",
-                        modify_date.unwrap_or_default(),
+                        modify_date.map(|x| x.to_string()),
                     ));
                 }
                 tiberius::QueryItem::Metadata(_result_metadata) => {}
@@ -1209,8 +1207,8 @@ impl SchemaTrait for SqlServerDB {
                     return anyhow::Ok(ProcedureDetail::new(
                         def.unwrap_or_default().to_string(),
                         vec![
-                            MetaValue::new("create_date", create_date.unwrap_or_default()),
-                            MetaValue::new("modify_date", modify_date.unwrap_or_default()),
+                            MetaValue::new("create_date", create_date.map(|x| x.to_string())),
+                            MetaValue::new("modify_date", modify_date.map(|x| x.to_string())),
                         ],
                     ));
                 }

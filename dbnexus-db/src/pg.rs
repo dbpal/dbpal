@@ -15,14 +15,14 @@ use crate::datasource_config::PGDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
     CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind,
-    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
+    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
     SequenceDetail, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
     TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
     export_query_as_xlsx_send_data,
 };
 use crate::helper::{NextId, create_csv};
-use crate::meta_value::MetaValue;
+
 use crate::pg_format::*;
 use crate::pg_lang_server::POSTGRES_TYPES;
 
@@ -433,7 +433,7 @@ impl ServerMetas for PostGresDB {
                 let name: String = r.try_get(0)?;
                 let setting: Option<String> = r.try_get(1)?;
                 let desc: Option<String> = r.try_get(2)?;
-                let mut meta = MetaValue::new_opt(name, setting);
+                let mut meta = MetaValue::new(name, setting);
                 if let Some(desc) = desc {
                     meta.with_desc(desc);
                 }
@@ -812,7 +812,7 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ProcedureDetail {
             def: code,
             metas: vec![
-                MetaValue::new_opt("return_type", return_type),
+                MetaValue::new("return_type", return_type),
                 MetaValue::new("parameters", parameters),
             ],
         })
@@ -867,7 +867,7 @@ impl SchemaTrait for PostGresDB {
             ret.push(NamedStaff {
                 name,
                 parameters: arguments,
-                metas: vec![MetaValue::new_opt("return_type", return_type)],
+                metas: vec![MetaValue::new("return_type", return_type)],
                 cassandra_parameters: None,
             });
         }
@@ -910,8 +910,8 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(DefAndMetas::new(
             function_definition,
             vec![
-                MetaValue::new_opt("result_type", result_type),
-                MetaValue::new_opt("parameters", arguments),
+                MetaValue::new("result_type", result_type),
+                MetaValue::new("parameters", arguments),
             ],
         ))
     }

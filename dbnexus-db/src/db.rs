@@ -10,7 +10,6 @@ use tokio::io::AsyncWriteExt;
 use typescript_type_def::TypeDef;
 
 use crate::language_server::LanguageServer;
-use crate::meta_value::MetaValue;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BackendKind {
@@ -1451,6 +1450,28 @@ pub(crate) fn ty_is_int(x: &sqlparser::ast::DataType) -> bool {
         | DataType::Int8Unsigned(_) => true,
 
         _ => false,
+    }
+}
+
+/// meta value can used in various place.
+#[derive(Debug, serde::Serialize, TypeDef)]
+pub struct MetaValue {
+    pub name: String,
+    pub value: Option<String>,
+    pub desc: Option<String>,
+}
+
+impl MetaValue {
+    pub(crate) fn new(name: impl Into<String>, value: impl Into<Option<String>>) -> Self {
+        Self {
+            name: name.into(),
+            value: value.into(),
+            desc: None,
+        }
+    }
+
+    pub(crate) fn with_desc(&mut self, desc: impl Into<String>) {
+        self.desc = Some(desc.into());
     }
 }
 

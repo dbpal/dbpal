@@ -16,10 +16,10 @@ use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
-    GetBackendKind, Index, IndexKind, ListTable, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableExtraArgs, SqlExecuteRet, not_support_feature,
+    GetBackendKind, Index, IndexKind, ListTable, MetaValue, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlExecuteRet, not_support_feature,
 };
-use crate::meta_value::MetaValue;
+
 #[derive(Clone)]
 pub struct MongoDB {
     client: mongodb::Client,
@@ -443,7 +443,7 @@ impl ServerMetas for MongoDB {
             let up_time = server_status.get_i64("uptimeMillis")?;
             ret.push(MetaValue::new(
                 "up_time",
-                humantime::format_duration(Duration::from_millis(up_time as u64)),
+                humantime::format_duration(Duration::from_millis(up_time as u64)).to_string(),
             ));
         }
         let to_string_keys = &["catalogStats", "connections", "storageEngine"];

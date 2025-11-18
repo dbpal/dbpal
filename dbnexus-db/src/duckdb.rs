@@ -21,7 +21,7 @@ use crate::db::{
     ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, not_support_features,
 };
 use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
-use crate::meta_value::MetaValue;
+
 use crate::query_log::{QueryLogEvent, QueryLogMap};
 pub struct PoolManage {
     path: String,

@@ -16,11 +16,10 @@ use typescript_type_def::TypeDef;
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind,
-    ExportQueryResult, Field, GetBackendKind, ListTable, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlExecuteRet, XlsxEdit,
+    ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlExecuteRet, XlsxEdit,
 };
 use crate::helper::{NextId, OffsetLimitIter, create_csv};
-use crate::meta_value::MetaValue;
 
 #[derive(Clone)]
 pub struct RedisDB {

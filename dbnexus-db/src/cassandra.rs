@@ -31,14 +31,14 @@ use crate::datasource_config::CassandraDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff, POOL_MAX_CONNECTIONS,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder,
-    SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit, escape_sql_str,
-    export_query_as_xlsx_send_data,
+    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
+    escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::{NextId, create_csv, current_timestamp};
 use crate::language_server::LexerCompletionTrait;
-use crate::meta_value::MetaValue;
+
 use cdrs_tokio::authenticators::StaticPasswordAuthenticatorProvider;
 use cdrs_tokio::cluster::NodeTcpConfigBuilder;
 use cdrs_tokio::cluster::connection_pool::ConnectionPoolConfigBuilder;
@@ -1771,7 +1771,7 @@ impl SchemaTrait for CassandraDB {
             }
             return anyhow::Ok(DefAndMetas {
                 def: create_statement,
-                metas: vec![MetaValue::new_opt("type", typ)],
+                metas: vec![MetaValue::new("type", typ)],
             });
         }
         anyhow::bail!(format!(
@@ -1961,8 +1961,8 @@ impl CassandraDB {
                 parameters: None,
                 cassandra_parameters: Some(parameters),
                 metas: vec![
-                    MetaValue::new_opt("return_type", return_type),
-                    MetaValue::new_opt("language", language),
+                    MetaValue::new("return_type", return_type),
+                    MetaValue::new("language", language),
                 ],
             });
         }
@@ -2063,10 +2063,10 @@ impl CassandraDB {
                 parameters: None,
                 name: name.unwrap(),
                 metas: vec![
-                    MetaValue::new_opt("return_type", return_type),
-                    MetaValue::new_opt("state_func", state_func),
-                    MetaValue::new_opt("final_func", final_func),
-                    MetaValue::new_opt("initcond", initcond),
+                    MetaValue::new("return_type", return_type),
+                    MetaValue::new("state_func", state_func),
+                    MetaValue::new("final_func", final_func),
+                    MetaValue::new("initcond", initcond),
                 ],
                 cassandra_parameters: Some(cassandra_parameters),
             });
@@ -2109,7 +2109,7 @@ impl CassandraDB {
             }
             return anyhow::Ok(DefAndMetas {
                 def: create_statement,
-                metas: vec![MetaValue::new_opt("type", typ)],
+                metas: vec![MetaValue::new("type", typ)],
             });
         }
         anyhow::bail!(format!(

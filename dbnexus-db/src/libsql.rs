@@ -13,14 +13,14 @@ use crate::MemoryLimit;
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
-    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, NamedStaff,
+    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_data,
 };
 use crate::helper::{NextId, create_csv};
 use crate::language_server::CompletionItem;
-use crate::meta_value::MetaValue;
+
 use crate::sqlite::{
     SqliteDB, encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql,
     gen_show_sql, integer_like, numeric_like, real_like, text_like,

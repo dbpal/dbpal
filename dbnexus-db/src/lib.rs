@@ -7,7 +7,6 @@ use log::{Level, LevelFilter, Metadata, Record};
 pub mod datasource_config;
 pub mod db;
 pub mod language_server;
-pub mod meta_value;
 
 pub mod cassandra;
 pub mod cassandra_lang_server;
