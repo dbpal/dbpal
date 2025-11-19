@@ -2796,13 +2796,13 @@ pub(crate) mod test_fns {
         let id = "";
         db.open_connection("").await.unwrap();
 
-        let ret = db.query_sql(id.clone(), "begin").await.unwrap();
-        db.query_sql(id.clone(), "drop table if exists test_query ")
+        let ret = db.query_sql(id, "begin").await.unwrap();
+        db.query_sql(id, "drop table if exists test_query ")
             .await
             .unwrap();
 
         db.query_sql(
-            id.clone(),
+            id,
             r#"
         CREATE TABLE test_query (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -2815,7 +2815,7 @@ pub(crate) mod test_fns {
         .unwrap();
 
         db.query_sql(
-            id.clone(),
+            id,
             r#"
             INSERT INTO test_query (name, age)
             VALUES
@@ -2827,7 +2827,7 @@ pub(crate) mod test_fns {
         .await
         .unwrap();
 
-        db.query_sql(id.clone(), "commit").await.unwrap();
+        db.query_sql(id, "commit").await.unwrap();
 
         println!("begin ret:{:?}", ret);
     }
@@ -2839,7 +2839,7 @@ pub(crate) mod test_fns {
         let name = "test_event";
         let _ = db.drop_event(name).await;
         db.execute_sql(
-            id.clone(),
+            id,
             r#"
             CREATE EVENT test_event
             ON SCHEDULE EVERY 10 SECOND

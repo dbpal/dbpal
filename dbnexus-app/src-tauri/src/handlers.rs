@@ -780,7 +780,7 @@ impl DBPal {
                 Ok(r.into_iter().map(|x| format!("{}/{}", name, x)).collect())
             }
             DatabaseBackend::Schema(..) => {
-                let names = name_to_parts(&name);
+                let names = name_to_parts(name);
                 let db_trait = backend.db_trait();
                 match db_trait {
                     Some(x) if names.len() == 2 => {

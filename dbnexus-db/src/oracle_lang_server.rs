@@ -229,7 +229,7 @@ impl LanguageServer for OracleDB {
         let conn = self.get_conn().await?;
         let row = block_in_place(|| conn.query_row(&sql, &[]))?;
 
-        if row.sql_values().len() > 0 {
+        if !row.sql_values().is_empty() {
             return anyhow::Ok("".to_string());
         }
         anyhow::Ok(row.sql_values()[0].to_string())

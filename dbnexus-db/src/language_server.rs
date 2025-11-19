@@ -521,7 +521,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
 
     fn parse_statements(&self, sql: &str) -> anyhow::Result<Vec<sqlparser::ast::Statement>> {
         let dialect = self.dialect();
-        let ss = block_in_place(|| sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql))?;
+        let ss = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql)?;
         anyhow::Ok(ss)
     }
 

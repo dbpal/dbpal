@@ -1673,7 +1673,7 @@ mod tests {
         {
             let r = db
                 .query_sql(
-                    id.clone(),
+                    id,
                     r#"
             SELECT * from test_table;
             PRAGMA table_info('test_table')

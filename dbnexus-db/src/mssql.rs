@@ -2405,7 +2405,7 @@ mod tests {
         db.open_connection("").await.unwrap();
         let ret = db
             .query_sql(
-                id.clone(),
+                id,
                 r#"BEGIN TRANSACTION;
         
             drop table if exists test_query;

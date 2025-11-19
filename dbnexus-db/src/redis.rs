@@ -2218,13 +2218,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let _ = db.drop_table(table_name, false).await;
 
         let ret = db
-            .query_sql(query_id.clone(), "hset hash_value key11111 value2222")
+            .query_sql(query_id, "hset hash_value key11111 value2222")
             .await
             .unwrap();
         println!("query ret :{:?}", ret);
 
         let ret = db
-            .query_sql(query_id.clone(), "hset hash_value key2222 value33333")
+            .query_sql(query_id, "hset hash_value key2222 value33333")
             .await
             .unwrap();
         println!("query ret :{:?}", ret);
@@ -2322,13 +2322,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let _ = db.drop_table(table_name, false).await;
 
         let ret = db
-            .query_sql(query_id.clone(), "zadd zset_value 1 haha")
+            .query_sql(query_id, "zadd zset_value 1 haha")
             .await
             .unwrap();
         println!("query ret :{:?}", ret);
 
         let ret = db
-            .query_sql(query_id.clone(), "zadd zset_value 2 xxx")
+            .query_sql(query_id, "zadd zset_value 2 xxx")
             .await
             .unwrap();
         println!("query ret :{:?}", ret);
@@ -2405,16 +2405,10 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
         let _ = db.drop_table(table_name, false).await;
 
-        let ret = db
-            .query_sql(query_id.clone(), "sadd set_value a")
-            .await
-            .unwrap();
+        let ret = db.query_sql(query_id, "sadd set_value a").await.unwrap();
         println!("query ret :{:?}", ret);
 
-        let ret = db
-            .query_sql(query_id.clone(), "sadd set_value b")
-            .await
-            .unwrap();
+        let ret = db.query_sql(query_id, "sadd set_value b").await.unwrap();
         println!("query ret :{:?}", ret);
         // export
         {
@@ -2483,16 +2477,10 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
         let _ = db.drop_table(table_name, false).await;
 
-        let ret = db
-            .query_sql(query_id.clone(), "lpush list_value a")
-            .await
-            .unwrap();
+        let ret = db.query_sql(query_id, "lpush list_value a").await.unwrap();
         println!("query ret :{:?}", ret);
 
-        let ret = db
-            .query_sql(query_id.clone(), "lpush list_value b")
-            .await
-            .unwrap();
+        let ret = db.query_sql(query_id, "lpush list_value b").await.unwrap();
         println!("query ret :{:?}", ret);
         // export
         {
@@ -2570,7 +2558,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let _ = db.drop_table(table_name, false).await;
 
         let ret = db
-            .query_sql(query_id.clone(), "set string_value string_value")
+            .query_sql(query_id, "set string_value string_value")
             .await
             .unwrap();
         println!("query_ret:{:?}", ret);

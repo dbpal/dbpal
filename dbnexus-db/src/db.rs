@@ -896,7 +896,7 @@ async fn write_export_xlsx_file(
         let edit = XlsxEdit::from(edit);
         worksheet.write_string(edit.row, edit.column, edit.content)?;
     }
-    workbook.save(&filepath)?;
+    workbook.save(filepath)?;
     anyhow::Ok(())
 }
 
@@ -905,8 +905,8 @@ async fn write_export_file(
     title: &str,
 ) -> anyhow::Result<()> {
     match kind {
-        ExportKind::Html => write_export_html_file(&filepath, receiver, title).await,
-        ExportKind::Xlsx { .. } => write_export_xlsx_file(&filepath, receiver).await,
+        ExportKind::Html => write_export_html_file(filepath, receiver, title).await,
+        ExportKind::Xlsx { .. } => write_export_xlsx_file(filepath, receiver).await,
         _ => {
             let mut file = tokio::fs::File::create(&filepath).await?;
             while let Some(r) = receiver.recv().await {

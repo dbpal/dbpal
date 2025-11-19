@@ -1775,7 +1775,7 @@ mod tests {
             "#
             );
 
-            let result = db.query_sql(query_id.clone(), &create_table).await;
+            let result = db.query_sql(query_id, &create_table).await;
             println!("create table result:{:?}", result);
             for _ in 0..1550 {
                 let sql = format!(
@@ -2158,7 +2158,7 @@ mod tests {
         {
             let r = db
                 .query_sql(
-                    id.clone(),
+                    id,
                     r#"
             SELECT * from test_table;
             PRAGMA table_info('test_table')
