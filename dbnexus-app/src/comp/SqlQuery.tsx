@@ -30,10 +30,10 @@ import { editor, Position } from "monaco-editor";
 import {
   EscDownEvent,
   IQueryConn,
-  makeQueryConn,
   modalHandleClose,
   modalStyle,
   NameAndQueryId,
+  QueryConn,
   SetAutoCompletionName,
 } from "./Common.ts";
 import { BsFillLightbulbFill } from "react-icons/bs";
@@ -198,10 +198,13 @@ function SqlQuery(props: {
   const setting = useContext(SettingContext);
   const queryLogHandler = useRef(new QueryLogHandler(uuid));
   const [executeTimes, setExecuteTimes] = useState(0);
-  const [conn, setConn] = useState<IQueryConn | null>(undefined);
+  const [conn] = useState<IQueryConn>(
+    new QueryConn(uuid, generateRandomString(5), kind),
+  );
   const [showExport, setShowExport] = useState(false);
   const [queryRespView, setQueryRespView] = useState<WebviewWindow>(null);
   const queryRespViewEventName = useRef(generateRandomString());
+  const [openOk, setOpenOk] = useState(false);
   const handleEditorDidMount = useCallback(
     (ed: editor.IStandaloneCodeEditor) => {
       setEditor(ed);
@@ -216,46 +219,32 @@ function SqlQuery(props: {
     [handleEditor],
   );
 
-  const setConnxxx = conn => {
-    setConn(e => {
-      if (e) {
-        e.destroy();
-      }
-      return conn;
-    });
-  };
-
   useEffect(() => {
-    makeQueryConn(uuid, kind).then(e => {
-      setConnxxx(e);
-    });
-  }, [kind, uuid]);
+    setMakeConnLoading(true);
+
+    conn
+      .open()
+      .then(() => {
+        setOpenOk(true);
+      })
+      .catch(e => {
+        showNotification("error", "establish connection failed", e);
+      })
+      .finally(() => {
+        setMakeConnLoading(false);
+      });
+  }, [conn, showNotification]);
 
   useEffect(() => {
     return () => {
-      if (conn) {
-        conn.destroy();
-      }
+      conn.destroy();
     };
   }, [conn]);
-
   const handleReconnect = async () => {
     setMakeConnLoading(true);
     conn
-      .reconnect()
-      .then(conn => {
-        setConnxxx(conn);
-        if (queryRespView) {
-          // send new query id
-          queryRespView.setTitle(makeWindowTitle(uuid, conn.queryId)).catch(e => {
-            showNotification("error", "set query response view title failed", e);
-          });
-          const payload = {};
-          payload[QuerySeparateWindowMsg.newQueryIDName] = conn.queryId;
-          queryRespView.emit(queryRespViewEventName.current, payload).catch(e => {
-            showNotification("error", "send new query id failed", e);
-          });
-        }
+      .open()
+      .then(() => {
         showNotification("success", "Reconnect OK");
       })
       .catch(e => {
@@ -492,7 +481,7 @@ function SqlQuery(props: {
             uuid={uuid}
             executeTimes={executeTimes}
             kind={kind}
-            queryId={conn?.queryId}
+            queryId={conn.queryId}
           />
 
           <Stack
@@ -503,7 +492,7 @@ function SqlQuery(props: {
               paddingBottom: "0.7rem",
             }}
           >
-            {conn && (
+            {openOk && (
               <>
                 <Tooltip title="query">
                   <IconButton
@@ -557,11 +546,11 @@ function SqlQuery(props: {
                 )}
               </>
             )}
-
-            {conn && conn.supportTransaction() && (
+            {openOk && conn.supportTransaction() && (
               <SqlTransaction executeTimes={executeTimes} conn={conn} />
             )}
-            {conn && (
+
+            {openOk && (
               <Tooltip title={"reconnect"}>
                 <IconButton onClick={handleReconnect} color="primary">
                   <RefreshIcon />
@@ -569,7 +558,7 @@ function SqlQuery(props: {
               </Tooltip>
             )}
 
-            {conn && (
+            {openOk && (
               <Tooltip title="export query result to a file,implemented it not using query connection,uncommit row may not be found">
                 <IconButton
                   loading={loading}
@@ -617,7 +606,7 @@ function SqlQuery(props: {
             </Tooltip>
             {extras}
 
-            {conn && (
+            {openOk && (
               <Tooltip
                 title={
                   queryRespView
@@ -635,7 +624,7 @@ function SqlQuery(props: {
                 />
               </Tooltip>
             )}
-            {conn && (
+            {openOk && (
               <Tooltip title="connection id">
                 <Typography> #{conn.queryId} </Typography>
               </Tooltip>
@@ -724,7 +713,6 @@ function SqlQuery(props: {
 
 class QuerySeparateWindowMsg {
   static listenOK = "listen_ok";
-  static newQueryIDName = "new_query_id";
   static reloadData = "reload_data";
 }
 

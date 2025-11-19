@@ -580,8 +580,8 @@ impl LangServerCommon for PostGresDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for PostGresDB {
-    async fn get_search_path(&self, query_id: u32) -> anyhow::Result<HashSet<String>> {
-        match self.query_connection.get(&query_id) {
+    async fn get_search_path(&self, query_id: &str) -> anyhow::Result<HashSet<String>> {
+        match self.query_connection.get(&query_id.to_string()) {
             Some(conn) => {
                 let conn = conn.clone();
                 let mut conn = conn.lock().await;
@@ -616,7 +616,7 @@ impl LanguageServer for PostGresDB {
     }
 
     async fn auto_completion(
-        &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
@@ -652,7 +652,8 @@ mod tests {
     async fn test_auto_completion() {
         enable_test_log();
         let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         let sql = [
             r#"CREATE TABLE departments (
@@ -754,7 +755,8 @@ mod tests {
     #[tokio::test]
     async fn test_prepare() {
         let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"

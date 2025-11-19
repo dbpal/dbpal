@@ -19,23 +19,22 @@ use crate::db::{
     ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlExecuteRet, XlsxEdit,
 };
-use crate::helper::{NextId, OffsetLimitIter, create_csv};
+use crate::helper::{OffsetLimitIter, create_csv};
 
 #[derive(Clone)]
 pub struct RedisDB {
     config: RedisDBConfig,
     conn_manager: ConnectionManager,
-    pub(crate) query_connection: Arc<DashMap<u32, Arc<Mutex<MultiplexedConnection>>>>,
+    pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<MultiplexedConnection>>>>,
     created_database: Arc<DashSet<String>>,
-    next_query_id: NextId,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
 impl RedisDB {
     pub async fn get_redis_type_hint(
-        &self, text: &str, query_id: u32,
+        &self, text: &str, query_id: &str,
     ) -> anyhow::Result<HashMap<String, String>> {
-        let conn = match self.query_connection.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!(
                 "should be able to get connection for id:{query_id}"
@@ -75,7 +74,6 @@ impl RedisDB {
             conn_manager: m,
             query_connection: Default::default(),
             created_database: Default::default(),
-            next_query_id: Default::default(),
             completion_id: Default::default(),
         })
     }
@@ -1380,26 +1378,16 @@ impl RedisDB {
 impl QuerySql for RedisDB {
     /// redis have no transaction any connection is fine
     /// so connection management for redis is dummy
-    async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self.next_query_id.next();
+    async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let client: redis::Client = self.get_client().await?;
         let conn = client.get_multiplexed_async_connection().await?;
-        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(id)
-    }
-
-    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
-        self.query_connection.remove(&id);
-        let new_id = self.next_query_id.next();
-        let client = self.get_client().await?;
-        let conn = client.get_multiplexed_async_connection().await?;
         self.query_connection
-            .insert(new_id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(new_id)
+            .insert(id.to_owned(), Arc::new(Mutex::new(conn)));
+        anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
-        self.query_connection.remove(&id);
+    async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
+        self.query_connection.remove(&id.to_string());
         anyhow::Ok(())
     }
     async fn execute_sql_no_open_conn(
@@ -1408,9 +1396,9 @@ impl QuerySql for RedisDB {
         anyhow::bail!("the frontend will not use the api for now.")
     }
     async fn execute_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let conn = match self.query_connection.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => {
                 anyhow::bail!(format!("can't find connection for id '{}'", query_id))
@@ -1434,9 +1422,9 @@ impl QuerySql for RedisDB {
     }
 
     async fn query_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let conn = match self.query_connection.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => {
                 anyhow::bail!(format!("can't find connection for id '{}'", query_id))
@@ -2096,7 +2084,8 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         enable_test_log();
         let db = make_test_object().await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.query_sql(
             query_id,
             r#"
@@ -2138,7 +2127,8 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     async fn test_check_a_lot_of_key() {
         let db = make_test_object().await;
         crate::db::CheckConn::check_conn(&db).await.unwrap();
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         for i in 0..100000 {
             db.query_sql(
                 query_id,
@@ -2160,7 +2150,8 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let db = make_test_object().await;
             let key_name = "large_list";
             let _ = db.drop_table(key_name, false).await;
-            let query_id = db.open_connection().await.unwrap();
+            let query_id = "";
+            db.open_connection(query_id).await.unwrap();
             for i in 0..3000 {
                 db.query_sql(
                     query_id,
@@ -2175,7 +2166,8 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let db = make_test_object().await;
             let key_name = "large_set";
             let _ = db.drop_table(key_name, false).await;
-            let query_id = db.open_connection().await.unwrap();
+            let query_id = "";
+            db.open_connection(query_id).await.unwrap();
             for i in 0..3000 {
                 db.query_sql(query_id, format!(r#"sadd {} data{}"#, key_name, i).as_str())
                     .await
@@ -2187,7 +2179,8 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let db = make_test_object().await;
             let key_name = "large_zset";
             let _ = db.drop_table(key_name, false).await;
-            let query_id = db.open_connection().await.unwrap();
+            let query_id = "";
+            db.open_connection(query_id).await.unwrap();
             for i in 0..3000 {
                 db.query_sql(
                     query_id,
@@ -2202,7 +2195,8 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let db = make_test_object().await;
             let key_name = "large_hash";
             let _ = db.drop_table(key_name, false).await;
-            let query_id = db.open_connection().await.unwrap();
+            let query_id = "";
+            db.open_connection(query_id).await.unwrap();
             for i in 0..3000 {
                 db.query_sql(
                     query_id,
@@ -2217,7 +2211,8 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     async fn test_hash_key() {
         let db = make_test_object().await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let table_name = "hash_value";
 
         let _ = db.drop_table(table_name, false).await;
@@ -2295,7 +2290,8 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     async fn test_query_sql() {
         let db = make_test_object().await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let resp = db.query_sql(query_id, "keys *").await.unwrap();
         println!("key*:{:?}", resp);
         let resp = db
@@ -2319,7 +2315,8 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     async fn test_zset_key() {
         let db = make_test_object().await;
         enable_test_log();
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let table_name = "zset_value";
 
         let _ = db.drop_table(table_name, false).await;
@@ -2402,7 +2399,8 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     async fn test_set_key() {
         let db = make_test_object().await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let table_name = "set_value";
 
         let _ = db.drop_table(table_name, false).await;
@@ -2479,7 +2477,8 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     async fn test_list_key() {
         let db = make_test_object().await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let table_name = "list_value";
 
         let _ = db.drop_table(table_name, false).await;
@@ -2564,7 +2563,8 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     async fn test_string_key() {
         let db = make_test_object().await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let table_name = "string_value";
 
         let _ = db.drop_table(table_name, false).await;

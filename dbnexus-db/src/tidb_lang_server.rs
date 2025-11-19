@@ -40,7 +40,7 @@ impl GetKeyWords for TiDB {
 
 #[async_trait::async_trait]
 impl LanguageServer for TiDB {
-    async fn get_search_path(&self, query_id: u32) -> anyhow::Result<HashSet<String>> {
+    async fn get_search_path(&self, query_id: &str) -> anyhow::Result<HashSet<String>> {
         LanguageServer::get_search_path(self.db.as_ref(), query_id).await
     }
     async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
@@ -59,7 +59,7 @@ impl LanguageServer for TiDB {
     }
 
     async fn auto_completion(
-        &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         LanguageServer::auto_completion(self.db.as_ref(), query_id, sql, line, col, use_lexer).await
     }
@@ -217,7 +217,7 @@ mod tests {
     #[tokio::test]
     async fn test_prepare() {
         let db = make_test_object_tidb(make_config()).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";  db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"

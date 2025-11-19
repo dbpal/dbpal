@@ -73,24 +73,24 @@ impl ReadOnlyTrait for CockRoachDB {
 #[async_trait::async_trait]
 
 impl QuerySql for CockRoachDB {
-    async fn get_auto_commit(&self, _query_id: u32) -> anyhow::Result<bool> {
+    async fn get_auto_commit(&self, _query_id: &str) -> anyhow::Result<bool> {
         self.db.get_auto_commit(_query_id).await
     }
 
-    async fn set_auto_commit(&self, query_id: u32, c: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: &str, c: bool) -> anyhow::Result<()> {
         self.db.set_auto_commit(query_id, c).await
     }
 
-    async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
+    async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
         self.db.commit(query_id).await
     }
 
-    async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
+    async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
         self.db.rollback(query_id).await
     }
 
     async fn query_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         self.db.query_sql(query_id, sql).await
     }
@@ -100,20 +100,15 @@ impl QuerySql for CockRoachDB {
         self.db.execute_sql_no_open_conn(sql).await
     }
     async fn execute_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.db.execute_sql(query_id, sql).await
     }
 
-    async fn open_connection(&self) -> anyhow::Result<u32> {
-        self.db.open_connection().await
+    async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
+        self.db.open_connection(id).await
     }
-
-    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
-        self.db.re_connect(id).await
-    }
-
-    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
+    async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
         self.db.close_connection(id).await
     }
 }
@@ -504,7 +499,8 @@ mod tests {
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -564,7 +560,8 @@ mod tests {
         let db = make_test_object().await;
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _resp = db
             .query_sql(
                 query_id,
@@ -616,7 +613,8 @@ mod tests {
 
         let _ = db.drop_index(table_name, &index_name).await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         db.query_sql(query_id, format!(
             r#" create table {table_name} (a int, b int, c int, constraint pk_test primary key(a, b)); "#,
@@ -683,7 +681,8 @@ mod tests {
     async fn test_rename() {
         let db = make_test_object().await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
         db.query_sql(
@@ -710,7 +709,8 @@ mod tests {
         let db = make_test_object().await;
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.query_sql(
             query_id,
             r#"
@@ -743,7 +743,8 @@ mod tests {
     #[tokio::test]
     async fn test_procedure() {
         let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_procedure("test_procedure", None).await;
         db.query_sql(
             query_id,
@@ -780,7 +781,8 @@ mod tests {
         let _ = db.drop_view("test_view").await;
         let _ = db.drop_table("test_view_table", true).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let query_resp = db
             .query_sql(
                 query_id,
@@ -823,7 +825,8 @@ mod tests {
         let _ = db.drop_materialized_view("test_material_view").await;
         let _ = db.drop_table("test_material_view_table", true).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let query_resp = db
             .query_sql(
                 query_id,
@@ -877,7 +880,8 @@ mod tests {
     #[tokio::test]
     async fn test_udf() {
         let pg = make_test_object().await;
-        let query_id = pg.open_connection().await.unwrap();
+        let query_id = "";
+        pg.open_connection("").await.unwrap();
         let udf_name = "test_udf";
         let _ = pg
             .drop_udf(
@@ -928,7 +932,8 @@ mod tests {
         let table_name = "test_types1";
         let db = make_test_object().await;
         let _ = db.drop_table(&table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.query_sql(
             query_id,
             format!(

@@ -291,7 +291,7 @@ mod tests {
     async fn test_auto_completion() {
         let db = make_test_object(Some("main".to_string()));
         enable_test_log();
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";  db.open_connection(query_id).await.unwrap();
         let _err = db
             .execute_sql(
                 query_id,

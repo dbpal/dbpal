@@ -1117,7 +1117,7 @@ interface NewWindowTableParameter {
 
 interface DetachQueyRespViewParameter {
   uuid: string;
-  queryId: number;
+  queryId: string;
   eventName: string;
 }
 

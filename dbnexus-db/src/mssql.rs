@@ -27,14 +27,13 @@ use crate::db::{
     XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset,
     not_support_feature,
 };
-use crate::helper::{NextId, create_csv};
+use crate::helper::create_csv;
 
 #[derive(Clone)]
 pub struct SqlServerDB {
     pool: bb8::Pool<bb8_tiberius::ConnectionManager>,
     pub(crate) config: SqlServerDBConfig,
-    query_connection: Arc<DashMap<u32, Arc<Mutex<Connection>>>>,
-    next_query_id: NextId,
+    query_connection: Arc<DashMap<String, Arc<Mutex<Connection>>>>,
 }
 
 impl std::fmt::Debug for SqlServerDB {
@@ -181,7 +180,6 @@ impl SqlServerDB {
             config: c,
             pool,
             query_connection: Default::default(),
-            next_query_id: Default::default(),
         })
     }
 }
@@ -1733,8 +1731,8 @@ impl ExportQueryResult for SqlServerDB {
 
 #[async_trait::async_trait]
 impl QuerySql for SqlServerDB {
-    async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
-        let conn = match self.query_connection.get(&query_id) {
+    async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
@@ -1759,11 +1757,11 @@ impl QuerySql for SqlServerDB {
         anyhow::Ok(true)
     }
 
-    async fn set_auto_commit(&self, query_id: u32, commit: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: &str, commit: bool) -> anyhow::Result<()> {
         if commit {
             anyhow::bail!("mssql use commit or rollback to end transaction");
         }
-        let conn = match self.query_connection.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
@@ -1773,8 +1771,8 @@ impl QuerySql for SqlServerDB {
         anyhow::Ok(())
     }
 
-    async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
-        let conn = match self.query_connection.get(&query_id) {
+    async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
@@ -1785,8 +1783,8 @@ impl QuerySql for SqlServerDB {
         anyhow::Ok(())
     }
 
-    async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
-        let conn = match self.query_connection.get(&query_id) {
+    async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
@@ -1797,25 +1795,15 @@ impl QuerySql for SqlServerDB {
         anyhow::Ok(())
     }
 
-    async fn open_connection(&self) -> anyhow::Result<u32> {
-        let conn = self.new_tcp_conn().await?;
-
-        let id = self.next_query_id.next();
-        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(id)
-    }
-
-    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
-        self.query_connection.remove(&id);
-        let new_id = self.next_query_id.next();
+    async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let conn = self.new_tcp_conn().await?;
         self.query_connection
-            .insert(new_id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(new_id)
+            .insert(id.to_owned(), Arc::new(Mutex::new(conn)));
+        anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
-        self.query_connection.remove(&id);
+    async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
+        self.query_connection.remove(&id.to_string());
 
         anyhow::Ok(())
     }
@@ -1831,9 +1819,9 @@ impl QuerySql for SqlServerDB {
     }
 
     async fn execute_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let conn = match self.query_connection.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
@@ -1848,9 +1836,9 @@ impl QuerySql for SqlServerDB {
     }
 
     async fn query_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let conn = match self.query_connection.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
@@ -2073,7 +2061,8 @@ mod tests {
     async fn test_procedure() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_procedure("test_procedure", None).await;
         db.query_sql(
             query_id,
@@ -2099,7 +2088,8 @@ mod tests {
     async fn test_udf() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_udf("test_udf", None).await;
         db.query_sql(
             query_id,
@@ -2207,7 +2197,8 @@ mod tests {
         let db = make_test_object().await;
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -2269,7 +2260,8 @@ mod tests {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
         db.execute_sql(
@@ -2299,7 +2291,8 @@ mod tests {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
 
@@ -2337,7 +2330,8 @@ mod tests {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
         let x = db
@@ -2407,8 +2401,8 @@ mod tests {
         enable_test_log();
         let db = make_test_object().await;
 
-        let id = db.open_connection().await.unwrap();
-
+        let id = "";
+        db.open_connection("").await.unwrap();
         let ret = db
             .query_sql(
                 id.clone(),
@@ -2450,7 +2444,8 @@ mod tests {
     async fn test_select_xxx() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         let x = db
             .query_sql(query_id, "SELECT  COUNT(*) from test_type1 ")
@@ -2469,8 +2464,8 @@ mod tests {
 
         let _ = db.drop_table("test_view_table", false).await;
         let _ = db.drop_view("test_view").await;
-        let conn_id = db.open_connection().await.unwrap();
-
+        let conn_id = "";
+        db.open_connection("").await.unwrap();
         let _ = db
             .execute_sql(
                 conn_id,
@@ -2522,7 +2517,8 @@ mod tests {
         let db = make_test_object().await;
         let _ = db.drop_table("test_index_table", false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         let _ = db
             .query_sql(
@@ -2660,7 +2656,8 @@ mod tests {
         let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let r = db
             .query_sql(
                 query_id,
@@ -2687,7 +2684,8 @@ FROM sys.sequences;
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _resp = db
             .query_sql(
                 query_id,

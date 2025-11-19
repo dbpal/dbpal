@@ -22,7 +22,7 @@ use crate::db::{
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
     XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
 };
-use crate::helper::{NextId, create_csv};
+use crate::helper::create_csv;
 use crate::language_server::CompletionItem;
 
 #[derive(Clone)]
@@ -30,11 +30,10 @@ pub struct SqliteDB {
     pool: sqlx::SqlitePool,
     read_only: bool,
     path: String,
-    pub(crate) query_connection: Arc<DashMap<u32, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
+    pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
     pub(crate) build_in_fn_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_cache: Arc<Mutex<Vec<String>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
-    next_query_id: NextId,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
@@ -1205,7 +1204,6 @@ impl SqliteDB {
             build_in_fn_completion: Default::default(),
             keywords_cache: Default::default(),
             pragma_completion: Default::default(),
-            next_query_id: Default::default(),
             completion_id: Default::default(),
         })
     }
@@ -1298,10 +1296,10 @@ impl ExportQueryResult for SqliteDB {
 
 #[async_trait::async_trait]
 impl QuerySql for SqliteDB {
-    async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
+    async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         use sqlx_core::any::AnyConnectionBackend;
 
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1312,12 +1310,12 @@ impl QuerySql for SqliteDB {
         anyhow::Ok(d == 0)
     }
 
-    async fn set_auto_commit(&self, query_id: u32, commit: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: &str, commit: bool) -> anyhow::Result<()> {
         if commit {
             anyhow::bail!("sqlite use  commit or rollback to end transaction");
         }
         use sqlx_core::any::AnyConnectionBackend;
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1330,10 +1328,10 @@ impl QuerySql for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
+    async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
         use sqlx_core::any::AnyConnectionBackend;
 
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1345,10 +1343,10 @@ impl QuerySql for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
+    async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
         use sqlx_core::any::AnyConnectionBackend;
 
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1373,10 +1371,10 @@ impl QuerySql for SqliteDB {
     }
 
     async fn execute_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1394,10 +1392,10 @@ impl QuerySql for SqliteDB {
     }
 
     async fn query_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1459,24 +1457,15 @@ impl QuerySql for SqliteDB {
         anyhow::Ok(ret)
     }
 
-    async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self.next_query_id.next();
-        let conn = self.get_conn().await?;
-        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(id)
-    }
-
-    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
-        self.query_connection.remove(&id);
-        let new_id = self.next_query_id.next();
+    async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
         self.query_connection
-            .insert(new_id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(new_id)
+            .insert(id.to_owned(), Arc::new(Mutex::new(conn)));
+        anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
-        if let Some((_, _x)) = self.query_connection.remove(&id) {}
+    async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
+        if let Some((_, _x)) = self.query_connection.remove(&id.to_string()) {}
         anyhow::Ok(())
     }
 }
@@ -1531,7 +1520,8 @@ mod tests {
     #[tokio::test]
     async fn test_do_has_data_query() {
         let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let now = std::time::Instant::now();
         let _x = db
             .query_sql(query_id, "SELECT * from has_data_0")
@@ -1562,7 +1552,8 @@ mod tests {
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _resp = db
             .query_sql(
                 query_id,
@@ -1700,7 +1691,8 @@ mod tests {
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -1760,7 +1752,8 @@ mod tests {
     #[tokio::test]
     async fn test_do_has_data() {
         let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let mut conn = db.get_conn().await.unwrap();
 
         for i in 0..10 {
@@ -1821,7 +1814,8 @@ mod tests {
 
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -1849,7 +1843,8 @@ mod tests {
 
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.query_sql(
             query_id,
             r#"
@@ -1970,7 +1965,8 @@ mod tests {
         let db = make_test_object().await;
         let table_name = "Persons";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -2156,7 +2152,8 @@ mod tests {
 
         let indexes = db.show_indexes(table_name).await.unwrap();
         println!("indexes{:?}", indexes);
-        let id = db.open_connection().await.unwrap();
+        let id = "";
+        db.open_connection(id).await.unwrap();
         let _ = db.drop_view("test_view").await;
         {
             let r = db

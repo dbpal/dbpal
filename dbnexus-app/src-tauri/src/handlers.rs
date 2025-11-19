@@ -211,7 +211,7 @@ pub async fn all_font_family() -> Result<Vec<String>, ErrorFrontend> {
 
 #[tauri::command]
 pub async fn get_query_cache(
-    name: String, query_id: u32, app: tauri::State<'_, DBPal>,
+    name: String, query_id: &str, app: tauri::State<'_, DBPal>,
 ) -> Result<CachedQueryResp, ErrorFrontend> {
     let x = app.query_cache.get(&name, query_id);
     Ok(x)
@@ -711,7 +711,7 @@ pub async fn server_metas(
 
 #[tauri::command]
 pub async fn get_redis_type_hint(
-    name: String, text: String, query_id: u32, app: tauri::State<'_, DBPal>,
+    name: String, text: String, query_id: &str, app: tauri::State<'_, DBPal>,
 ) -> Result<HashMap<String, String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -760,7 +760,7 @@ impl DatabaseBackend {
 }
 impl DBPal {
     async fn ai_get_search_path(
-        &self, backend: DatabaseBackend, name: &str, query_id: u32, text: &str,
+        &self, backend: DatabaseBackend, name: &str, query_id: &str, text: &str,
     ) -> anyhow::Result<Vec<String>> {
         match &backend {
             DatabaseBackend::Catalog(..) => {
@@ -806,7 +806,7 @@ impl DBPal {
 
 #[tauri::command]
 pub async fn ai_get_search_path(
-    name: String, query_id: u32, text: String, app: tauri::State<'_, DBPal>,
+    name: String, query_id: &str, text: String, app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<String>, ErrorFrontend> {
     let backend = app.get_backend(&name).await.map_err(ErrorFrontend::from)?;
     app.ai_get_search_path(backend, &name, query_id, &text)
@@ -998,7 +998,7 @@ pub async fn get_backend_crash(
 
 #[tauri::command]
 pub async fn query_sql(
-    name: String, query_id: u32, sql: String, append: bool, app: tauri::State<'_, DBPal>,
+    name: String, query_id: &str, sql: String, append: bool, app: tauri::State<'_, DBPal>,
 ) -> Result<Arc<Vec<Result<MuiDataGridData, String>>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1047,7 +1047,7 @@ pub async fn execute_sql_no_open_conn(
 }
 #[tauri::command]
 pub async fn execute_sql(
-    name: String, query_id: u32, sql: String, app: tauri::State<'_, DBPal>,
+    name: String, query_id: &str, sql: String, app: tauri::State<'_, DBPal>,
 ) -> Result<Result<MuiDataGridData, String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1069,8 +1069,8 @@ pub async fn execute_sql(
 
 #[tauri::command]
 pub async fn query_sql_open_connection(
-    name: String, app: tauri::State<'_, DBPal>,
-) -> Result<u32, ErrorFrontend> {
+    name: String, id: String, app: tauri::State<'_, DBPal>,
+) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
@@ -1079,9 +1079,9 @@ pub async fn query_sql_open_connection(
         .map_err(|e| e.to_string())?;
     let result = tokio::time::timeout(Duration::from_secs(5), async {
         match db {
-            DatabaseBackend::DataBase(x) => x.open_connection().await,
-            DatabaseBackend::Schema(x) => x.open_connection().await,
-            DatabaseBackend::Catalog(x) => x.open_connection().await,
+            DatabaseBackend::DataBase(x) => x.open_connection(&id).await,
+            DatabaseBackend::Schema(x) => x.open_connection(&id).await,
+            DatabaseBackend::Catalog(x) => x.open_connection(&id).await,
         }
     })
     .await
@@ -1090,36 +1090,8 @@ pub async fn query_sql_open_connection(
 }
 
 #[tauri::command]
-pub async fn query_sql_re_connection(
-    name: String, query_id: i64, app: tauri::State<'_, DBPal>,
-) -> Result<u32, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let query_id = if query_id < 0 {
-        u32::MAX
-    } else {
-        query_id as u32
-    };
-
-    let db = app
-        .get_backend(name.as_str())
-        .await
-        .map_err(|e| e.to_string())?;
-    let result = tokio::time::timeout(Duration::from_secs(5), async {
-        match db {
-            DatabaseBackend::DataBase(x) => x.re_connect(query_id).await,
-            DatabaseBackend::Schema(x) => x.re_connect(query_id).await,
-            DatabaseBackend::Catalog(x) => x.re_connect(query_id).await,
-        }
-    })
-    .await
-    .map_err(|_| format!("make connection not finished in reasonable time"))?;
-    result.map_err(ErrorFrontend::from)
-}
-
-#[tauri::command]
 pub async fn query_sql_close_connection(
-    name: String, query_id: u32, app: tauri::State<'_, DBPal>,
+    name: String, query_id: &str, app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1344,7 +1316,7 @@ fn auto_completion_mutex(name: &str) -> Arc<tokio::sync::Mutex<()>> {
 
 #[tauri::command]
 pub async fn auto_completion(
-    name: String, query_id: Option<u32>, sql: String, line: u32, col: u32,
+    name: String, query_id: Option<String>, sql: String, line: u32, col: u32,
     app: tauri::State<'_, DBPal>,
 ) -> Result<CompletionList, ErrorFrontend> {
     random_sleep().await;
@@ -1380,7 +1352,7 @@ pub async fn auto_completion(
 
 #[tauri::command]
 pub async fn ai_text_completion(
-    name: String, text: String, query_id: u32, line: u32, col: u32, app: tauri::State<'_, DBPal>,
+    name: String, text: String, query_id: &str, line: u32, col: u32, app: tauri::State<'_, DBPal>,
 ) -> Result<CompletionList, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1445,7 +1417,7 @@ pub async fn try_get_max_id(
 
 #[tauri::command]
 pub async fn query_set_autocommit(
-    name: String, query_id: u32, commit: bool, app: tauri::State<'_, DBPal>,
+    name: String, query_id: &str, commit: bool, app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1464,7 +1436,7 @@ pub async fn query_set_autocommit(
 
 #[tauri::command]
 pub async fn query_get_commit(
-    name: String, query_id: u32, app: tauri::State<'_, DBPal>,
+    name: String, query_id: &str, app: tauri::State<'_, DBPal>,
 ) -> Result<bool, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1482,7 +1454,7 @@ pub async fn query_get_commit(
 
 #[tauri::command]
 pub async fn query_commit(
-    name: String, query_id: u32, app: tauri::State<'_, DBPal>,
+    name: String, query_id: &str, app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1500,7 +1472,7 @@ pub async fn query_commit(
 
 #[tauri::command]
 pub async fn query_rollback(
-    name: String, query_id: u32, app: tauri::State<'_, DBPal>,
+    name: String, query_id: &str, app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;

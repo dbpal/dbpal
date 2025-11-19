@@ -46,7 +46,7 @@ impl LanguageServer for ClickHouseDB {
     }
 
     async fn auto_completion(
-        &self, _query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, _query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         // self.completion_id.set_optional(query_id);
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
@@ -259,7 +259,7 @@ mod tests {
     async fn test_auto_completion() {
         let db = make_test_object();
         // enable_test_log();
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";  db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,

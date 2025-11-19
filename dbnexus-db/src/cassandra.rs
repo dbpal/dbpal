@@ -36,7 +36,8 @@ use crate::db::{
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
     escape_sql_str, export_query_as_xlsx_send_data,
 };
-use crate::helper::{NextId, create_csv, current_timestamp};
+
+use crate::helper::{create_csv, current_timestamp};
 use crate::language_server::LexerCompletionTrait;
 
 use cdrs_tokio::authenticators::StaticPasswordAuthenticatorProvider;
@@ -68,10 +69,9 @@ use std::time::Duration;
 #[derive(Clone)]
 pub struct CassandraDB {
     pub(crate) session: Arc<AppSession>,
-    pub(crate) query_connection: Arc<DashMap<u32, Arc<AppSession>>>,
+    pub(crate) query_connection: Arc<DashMap<String, Arc<AppSession>>>,
     pub(crate) config: CassandraDBConfig,
     paging_cache: Arc<DashMap<String, Arc<PageCache>>>,
-    next_query_id: NextId,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
@@ -178,7 +178,6 @@ impl CassandraDB {
             config,
             paging_cache: Default::default(),
             query_connection: Default::default(),
-            next_query_id: Default::default(),
             completion_id: Default::default(),
         })
     }
@@ -860,10 +859,10 @@ impl QuerySql for CassandraDB {
         anyhow::Ok(ret)
     }
     async fn execute_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.invalid_table_or_view_caching(None);
-        let conn = match self.query_connection.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("query connection closed???"),
         };
@@ -875,12 +874,12 @@ impl QuerySql for CassandraDB {
     }
 
     async fn query_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         self.invalid_table_or_view_caching(None);
         let mut ret = vec![];
         let mut ml = MemoryLimit::new();
-        let conn = match self.query_connection.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("query connection closed???"),
         };
@@ -914,23 +913,15 @@ impl QuerySql for CassandraDB {
         anyhow::Ok(ret)
     }
 
-    async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self.next_query_id.next();
+    async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let session = make_session(&self.config, 1).await?;
-        self.query_connection.insert(id, Arc::new(session));
-        anyhow::Ok(id)
+        self.query_connection
+            .insert(id.to_string(), Arc::new(session));
+        anyhow::Ok(())
     }
 
-    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
-        self.query_connection.remove(&id);
-        let new_id = self.next_query_id.next();
-        let session = make_session(&self.config, 1).await?;
-        self.query_connection.insert(new_id, Arc::new(session));
-        anyhow::Ok(new_id)
-    }
-
-    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
-        self.query_connection.remove(&id);
+    async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
+        self.query_connection.remove(&id.to_string());
         anyhow::Ok(())
     }
 }
@@ -2174,7 +2165,8 @@ mod tests {
                 }),
             );
         }
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         let _resp = db
             .query_sql(
@@ -2249,7 +2241,8 @@ mod tests {
 
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let x = db
             .query_sql(
                 query_id,
@@ -2312,7 +2305,8 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let _ = db.drop_table(table_dup, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let x = db
             .query_sql(
                 query_id,
@@ -2352,7 +2346,8 @@ mod tests {
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_created_type("test_type").await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _resp = db
             .query_sql(
                 query_id,
@@ -2378,7 +2373,8 @@ mod tests {
         let table_name = "test_types1";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let x = db
             .execute_sql(
                 query_id,
@@ -2471,7 +2467,8 @@ mod tests {
         let table_name = "test_types_list1";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let x = db
             .query_sql(
                 query_id,
@@ -2566,7 +2563,8 @@ mod tests {
         let table_name = "test_types2";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let x = db
             .query_sql(
                 query_id,
@@ -2660,7 +2658,8 @@ mod tests {
         let table_name = "test_types_list2";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let x = db
             .query_sql(
                 query_id,
@@ -2757,7 +2756,8 @@ mod tests {
         let table_name = "test_types3";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let x = db
             .query_sql(
                 query_id,
@@ -2854,7 +2854,8 @@ mod tests {
         let table_name = "test_types_list3";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let x = db
             .query_sql(
                 query_id,
@@ -2954,7 +2955,8 @@ mod tests {
         let table_name = "test_types4";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let x = db
             .query_sql(
                 query_id,
@@ -3038,7 +3040,8 @@ mod tests {
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _resp = db
             .query_sql(
                 query_id,
@@ -3090,7 +3093,8 @@ mod tests {
         let table_name = "test_counter";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let x = db
             .query_sql(
                 query_id,
@@ -3223,7 +3227,8 @@ mod tests {
         let table_name2 = format!("{}2", table_name);
         let _ = db.drop_table(table_name, false).await;
         let _ = db.drop_table(&table_name2, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let x = db
             .query_sql(
                 query_id,
@@ -3249,7 +3254,8 @@ mod tests {
         let _ = db.drop_index(table_name, "test_index_email_index").await;
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let x = db
             .query_sql(
                 query_id,
@@ -3285,7 +3291,8 @@ mod tests {
         let view_name = "test_view";
         let _ = db.drop_materialized_view(view_name).await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let x = db
             .query_sql(
                 query_id,

@@ -15,6 +15,7 @@ use crate::db::{
     TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_data,
 };
+use crate::helper::create_csv;
 use chrono::Utc;
 use dashmap::DashMap;
 use futures_util::{StreamExt, TryStreamExt};
@@ -24,15 +25,12 @@ use sqlx::types::BigDecimal;
 use sqlx::{AssertSqlSafe, Column, Executor, MySqlConnection, Row, SqlSafeStr, TypeInfo};
 use tokio::sync::Mutex;
 
-use crate::helper::{NextId, create_csv};
-
 #[derive(Clone)]
 pub struct MysqlDB {
     pool: sqlx::MySqlPool,
     pub(crate) config: MysqlDBConfig,
-    pub(crate) query_connection: Arc<DashMap<u32, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
+    pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<PoolConnection<sqlx::MySql>>>>>,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
-    next_query_id: NextId,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
@@ -1496,7 +1494,6 @@ impl MysqlDB {
             pool,
             config,
             query_connection: Default::default(),
-            next_query_id: Default::default(),
             key_words_cache: Default::default(),
             completion_id: Default::default(),
         })
@@ -1658,10 +1655,10 @@ impl ExportQueryResult for MysqlDB {
 
 #[async_trait::async_trait]
 impl QuerySql for MysqlDB {
-    async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
+    async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         use sqlx_core::any::AnyConnectionBackend;
 
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1675,12 +1672,12 @@ impl QuerySql for MysqlDB {
         anyhow::Ok(d == 0)
     }
 
-    async fn set_auto_commit(&self, query_id: u32, commit: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: &str, commit: bool) -> anyhow::Result<()> {
         if commit {
             anyhow::bail!("sqlite use commit or rollback to end transaction");
         }
         use sqlx_core::any::AnyConnectionBackend;
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1692,9 +1689,9 @@ impl QuerySql for MysqlDB {
         anyhow::Ok(())
     }
 
-    async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
+    async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
         use sqlx_core::any::AnyConnectionBackend;
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1706,9 +1703,9 @@ impl QuerySql for MysqlDB {
         anyhow::Ok(())
     }
 
-    async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
+    async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
         use sqlx_core::any::AnyConnectionBackend;
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1719,24 +1716,15 @@ impl QuerySql for MysqlDB {
         anyhow::Ok(())
     }
 
-    async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self.next_query_id.next();
-        let conn = self.get_conn().await?;
-        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(id)
-    }
-
-    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
-        self.query_connection.remove(&id);
-        let new_id = self.next_query_id.next();
+    async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
         self.query_connection
-            .insert(new_id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(new_id)
+            .insert(id.to_string(), Arc::new(Mutex::new(conn)));
+        anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
-        self.query_connection.remove(&id);
+    async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
+        self.query_connection.remove(&id.to_string());
 
         anyhow::Ok(())
     }
@@ -1751,10 +1739,10 @@ impl QuerySql for MysqlDB {
         anyhow::Ok(ret)
     }
     async fn execute_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1772,10 +1760,10 @@ impl QuerySql for MysqlDB {
     }
 
     async fn query_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1922,7 +1910,8 @@ pub(crate) mod test_fns {
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -1978,7 +1967,8 @@ pub(crate) mod test_fns {
     }
 
     pub(crate) async fn test_procedure(db: MysqlDB) {
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let f = "test_procedure";
 
         let _ = db
@@ -2011,7 +2001,8 @@ pub(crate) mod test_fns {
     }
 
     pub(crate) async fn test_udf(db: MysqlDB) {
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let f = "test_function";
 
         let _ = db.drop_udf(f, None).await;
@@ -2039,7 +2030,8 @@ pub(crate) mod test_fns {
     }
 
     pub(crate) async fn test_rename(db: MysqlDB) {
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
         db.query_sql(
@@ -2067,7 +2059,8 @@ pub(crate) mod test_fns {
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _resp = db
             .query_sql(
                 query_id,
@@ -2112,7 +2105,8 @@ pub(crate) mod test_fns {
     }
 
     pub(crate) async fn test_duplicate(db: MysqlDB) {
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
 
@@ -2165,7 +2159,8 @@ pub(crate) mod test_fns {
                 .await;
         }
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"CREATE TABLE test_create_trigger (
@@ -2360,7 +2355,8 @@ pub(crate) mod test_fns {
 
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
             query_id,
@@ -2393,7 +2389,8 @@ pub(crate) mod test_fns {
         let table_name = "test_types1";
 
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
             query_id,
@@ -2475,7 +2472,8 @@ pub(crate) mod test_fns {
         // enable_test_log();
         let table_name = "test_types2";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             format!(
@@ -2556,7 +2554,8 @@ pub(crate) mod test_fns {
         // enable_test_log();
         let table_name = "test_types3";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             format!(
@@ -2639,7 +2638,8 @@ pub(crate) mod test_fns {
         let table_name = "test_types4";
 
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.query_sql(
             query_id,
             r#"
@@ -2735,7 +2735,8 @@ pub(crate) mod test_fns {
         let view_name = "test_view";
         let _ = db.drop_view(view_name).await;
         let _ = db.drop_table(table_name, true).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -2792,8 +2793,8 @@ pub(crate) mod test_fns {
 
     pub(crate) async fn test_query(db: MysqlDB) {
         enable_test_log();
-
-        let id = db.open_connection().await.unwrap();
+        let id = "";
+        db.open_connection("").await.unwrap();
 
         let ret = db.query_sql(id.clone(), "begin").await.unwrap();
         db.query_sql(id.clone(), "drop table if exists test_query ")
@@ -2833,7 +2834,8 @@ pub(crate) mod test_fns {
 
     pub(crate) async fn test_event(db: MysqlDB) {
         enable_test_log();
-        let id = db.open_connection().await.unwrap();
+        let id = "";
+        db.open_connection(id).await.unwrap();
         let name = "test_event";
         let _ = db.drop_event(name).await;
         db.execute_sql(
@@ -2885,7 +2887,8 @@ mod tests {
         config.db = Some("information_schema".to_string());
         let db = make_test_object(config).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         let resp = db
             .query_sql(
@@ -2924,7 +2927,8 @@ mod tests {
         config.db = Some("test".to_string());
         let db = make_test_object(config).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         let resp = db
             .query_sql(

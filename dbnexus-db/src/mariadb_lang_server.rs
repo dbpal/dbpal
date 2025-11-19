@@ -35,7 +35,7 @@ impl LanguageServer for MariaDB {
     }
 
     async fn auto_completion(
-        &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         LanguageServer::auto_completion(self.db.as_ref(), query_id, sql, line, col, use_lexer).await
     }

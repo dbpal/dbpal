@@ -17,7 +17,7 @@ use crate::db::{
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
     escape_sql_str, ty_is_float, ty_is_int,
 };
-use crate::helper::{NextId, create_csv, separate_sql_by_sqlparser_tokenizer};
+use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
 
 impl GetBackendKind for ClickHouseDB {
     fn backend_name(&self) -> BackendKind {
@@ -881,7 +881,7 @@ impl QuerySql for ClickHouseDB {
         anyhow::Ok(ret)
     }
     async fn execute_sql(
-        &self, _query_id: u32, sql: &str,
+        &self, _query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.not_allow_switch_db(sql)?;
         let conn = self.get_conn()?;
@@ -893,7 +893,7 @@ impl QuerySql for ClickHouseDB {
     }
 
     async fn query_sql(
-        &self, _query_id: u32, sql: &str,
+        &self, _query_id: &str, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         self.not_allow_switch_db(sql)?;
         let dialect = sqlparser::dialect::ClickHouseDialect {};
@@ -924,16 +924,10 @@ impl QuerySql for ClickHouseDB {
 
         anyhow::Ok(ret)
     }
-
-    async fn open_connection(&self) -> anyhow::Result<u32> {
-        anyhow::Ok(self.next_query_id.next())
+    async fn open_connection(&self, _id: &str) -> anyhow::Result<()> {
+        anyhow::Ok(())
     }
-
-    async fn re_connect(&self, _id: u32) -> anyhow::Result<u32> {
-        anyhow::Ok(self.next_query_id.next())
-    }
-
-    async fn close_connection(&self, _id: u32) -> anyhow::Result<()> {
+    async fn close_connection(&self, _id: &str) -> anyhow::Result<()> {
         anyhow::Ok(())
     }
 }
@@ -954,7 +948,6 @@ pub struct ClickHouseDB {
     pool: r2d2::Pool<PoolManager>,
     client: reqwest::Client,
     pub(crate) key_words_cache: Arc<tokio::sync::Mutex<Vec<String>>>,
-    pub(crate) next_query_id: NextId,
 }
 
 impl ReadOnlyTrait for ClickHouseDB {
@@ -993,7 +986,6 @@ impl ClickHouseDB {
             pool,
             client,
             key_words_cache: Default::default(),
-            next_query_id: Default::default(),
         })
     }
 
@@ -1340,7 +1332,8 @@ from test
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_udf() {
         let db = make_test_object();
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let name = "test_udf_add";
 
         let _ = db.drop_udf(name, None).await;
@@ -1372,7 +1365,8 @@ from test
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -1436,7 +1430,8 @@ from test
         let _ = db.drop_materialized_view(view_name).await;
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
             query_id,
@@ -1509,7 +1504,8 @@ from test
         let _ = db.drop_view(view_name).await;
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
             query_id,
@@ -1572,7 +1568,8 @@ from test
         let name = "test_rename";
         let _ = db.drop_table(name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -1604,7 +1601,8 @@ from test
         let _ = db.drop_table(name, false).await;
         let _ = db.drop_table(&name2, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -1683,7 +1681,8 @@ from test
         let db = make_test_object();
         let table_name = "test_types1";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _resp = db
             .execute_sql(
                 query_id,
@@ -1766,7 +1765,8 @@ from test
         let db = make_test_object();
         let table_name = "test_types2";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -1848,7 +1848,8 @@ from test
         let db = make_test_object();
         let table_name = "test_types3";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db
             .execute_sql (
                 query_id,
@@ -1934,7 +1935,8 @@ from test
         let db = make_test_object();
         let table_name = "test_types4";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -2031,7 +2033,8 @@ from test
         let db = make_test_object();
         let table_name = "test_types5";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db
             .execute_sql (
                 query_id,
@@ -2131,7 +2134,8 @@ from test
         let db = make_test_object();
         let table_name = "test_types6";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db
             .execute_sql (
                 query_id,
@@ -2208,7 +2212,8 @@ from test
     async fn test_error_query() {
         // enable_test_log();
         let db = make_test_object();
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         let x = db
             .query_sql(query_id, "SELECT * fro test_types4")

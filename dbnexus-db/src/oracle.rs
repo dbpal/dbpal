@@ -21,17 +21,16 @@ use crate::db::{
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
     XlsxEdit, escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
-use crate::helper::{NextId, create_csv};
+use crate::helper::create_csv;
 
 use crate::oracle_lang_server::ORACLE_TYPES;
 
 #[derive(Clone)]
 pub struct OracleDB {
     pool: Arc<Pool>,
-    query_connection: Arc<DashMap<u32, Arc<Mutex<Connection>>>>,
+    query_connection: Arc<DashMap<String, Arc<Mutex<Connection>>>>,
     pub(crate) config: OracleDBConfig,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
-    next_query_id: NextId,
 }
 
 #[async_trait::async_trait]
@@ -78,16 +77,15 @@ impl OracleDB {
             query_connection: Default::default(),
             config,
             key_words_cache: Default::default(),
-            next_query_id: Default::default(),
         })
     }
 }
 
 impl OracleDB {
     async fn with_query_connection<R>(
-        &self, id: u32, f: impl FnOnce(&mut Connection) -> anyhow::Result<R>,
+        &self, id: &str, f: impl FnOnce(&mut Connection) -> anyhow::Result<R>,
     ) -> anyhow::Result<R> {
-        let conn = match self.query_connection.get(&id) {
+        let conn = match self.query_connection.get(&id.to_string()) {
             Some(x) => x.clone(),
             None => {
                 anyhow::bail!(format!("id '{}' not found", id));
@@ -171,14 +169,14 @@ impl ExportQueryResult for OracleDB {
 
 #[async_trait::async_trait]
 impl QuerySql for OracleDB {
-    async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
+    async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         self.with_query_connection(query_id, |x| -> anyhow::Result<bool> {
             anyhow::Ok(x.autocommit())
         })
         .await
     }
 
-    async fn set_auto_commit(&self, query_id: u32, commit: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: &str, commit: bool) -> anyhow::Result<()> {
         self.with_query_connection(query_id, |x| -> anyhow::Result<()> {
             x.set_autocommit(commit);
             anyhow::Ok(())
@@ -186,7 +184,7 @@ impl QuerySql for OracleDB {
         .await
     }
 
-    async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
+    async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
         self.with_query_connection(query_id, |f| -> anyhow::Result<()> {
             f.commit()?;
             anyhow::Ok(())
@@ -196,38 +194,25 @@ impl QuerySql for OracleDB {
         anyhow::Ok(())
     }
 
-    async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
+    async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
         self.with_query_connection(query_id, |f| -> anyhow::Result<()> {
             f.rollback()?;
             anyhow::Ok(())
         })
         .await?;
-
         anyhow::Ok(())
     }
 
-    async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self.next_query_id.next();
-        let mut conn = self.get_conn().await?;
-        conn.set_autocommit(QUERY_AUTO_COMMIT);
-        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(id)
-    }
-
-    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
-        if let Some((_, conn)) = self.query_connection.remove(&id) {
-            tokio::spawn(async move { conn.lock().await.close() });
-        }
-        let new_id = self.next_query_id.next();
+    async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         conn.set_autocommit(QUERY_AUTO_COMMIT);
         self.query_connection
-            .insert(new_id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(new_id)
+            .insert(id.to_owned(), Arc::new(Mutex::new(conn)));
+        anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
-        if let Some((_, x)) = self.query_connection.remove(&id) {
+    async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
+        if let Some((_, x)) = self.query_connection.remove(&id.to_owned()) {
             tokio::spawn(async move { x.lock().await.close() });
         }
         anyhow::Ok(())
@@ -245,9 +230,9 @@ impl QuerySql for OracleDB {
     }
 
     async fn execute_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let conn = match self.query_connection.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
@@ -261,9 +246,9 @@ impl QuerySql for OracleDB {
     }
 
     async fn query_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let conn = match self.query_connection.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
@@ -1816,7 +1801,8 @@ mod tests {
     async fn test_procedure() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let udf_name = "DO_NOTHING_P";
         let _ = db.drop_procedure(udf_name, None).await;
 
@@ -1847,7 +1833,8 @@ mod tests {
     async fn test_udf() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let udf_name = "DO_NOTHING";
         let _ = db.drop_udf(udf_name, None).await;
         db.query_sql(
@@ -1892,7 +1879,8 @@ mod tests {
     async fn test_trigger() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let table_name = "TEST_TRIGGER";
         let _ = db.drop_table(&table_name, false).await;
 
@@ -1936,7 +1924,8 @@ mod tests {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("TEST_RENAME", false).await;
         let _ = db.drop_table("TEST_RENAME2", false).await;
         db.execute_sql(
@@ -1969,7 +1958,8 @@ mod tests {
 
         let db = make_test_object(Some("SYSTEM".to_string()));
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("TEST_DUPLICATE", false).await;
         let _ = db.drop_table("TEST_DUPLICATE2", false).await;
 
@@ -2137,7 +2127,8 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         let table_name = "TEST_COLUMN";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -2211,7 +2202,8 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         let db: OracleDB = make_test_object(Some("SYSTEM".to_string()));
 
         // get query_uuid
-        let query_uuid = db.open_connection().await.unwrap();
+        let query_uuid = "";
+        db.open_connection(query_uuid).await.unwrap();
         // test auto commit
         db.set_auto_commit(query_uuid, false).await.unwrap();
         assert!(!db.get_auto_commit(query_uuid).await.unwrap());

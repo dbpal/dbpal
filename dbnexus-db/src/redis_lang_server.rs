@@ -1092,7 +1092,7 @@ impl LanguageServer for RedisDB {
     }
 
     async fn auto_completion(
-        &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, _use_lexer: bool,
+        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, _use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         let pos = sqlparser::tokenizer::Location {
@@ -1191,7 +1191,8 @@ mod tests {
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
         let db = make_test_object().await;
         // set up environment
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("value_string", false).await;
         let _ = db.drop_table("value_hash", false).await;
         let _ = db.drop_table("value_set", false).await;

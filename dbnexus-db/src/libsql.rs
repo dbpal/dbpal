@@ -18,7 +18,7 @@ use crate::db::{
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_data,
 };
-use crate::helper::{NextId, create_csv};
+use crate::helper::create_csv;
 use crate::language_server::CompletionItem;
 
 use crate::sqlite::{
@@ -30,10 +30,8 @@ use crate::sqlite::{
 pub struct LibSqlDB {
     config: LibSqlDBConfig,
     pool: bb8::Pool<PoolManager>,
-    pub(crate) query_connection: Arc<DashMap<u32, Connection>>,
-    next_query_id: NextId,
-    query_connections_transaction: Arc<DashMap<u32, libsql::Transaction>>,
-
+    pub(crate) query_connection: Arc<DashMap<String, Connection>>,
+    query_connections_transaction: Arc<DashMap<String, libsql::Transaction>>,
     pub(crate) build_in_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_cache: Arc<Mutex<Vec<String>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
@@ -128,26 +126,33 @@ impl ExportQueryResult for LibSqlDB {
 #[async_trait::async_trait]
 
 impl QuerySql for LibSqlDB {
-    async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
-        anyhow::Ok(self.query_connections_transaction.get(&query_id).is_none())
+    async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
+        anyhow::Ok(
+            self.query_connections_transaction
+                .get(&query_id.to_string())
+                .is_none(),
+        )
     }
 
-    async fn set_auto_commit(&self, query_id: u32, c: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: &str, c: bool) -> anyhow::Result<()> {
         if c {
             anyhow::bail!("libsql use commit or rollback to end transaction");
         }
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match &conn {
             Some(x) => x.deref(),
             None => anyhow::bail!("collection closed????"),
         };
         let t = conn.transaction().await?;
-        self.query_connections_transaction.insert(query_id, t);
+        self.query_connections_transaction
+            .insert(query_id.to_owned(), t);
         anyhow::Ok(())
     }
 
-    async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
-        let t = self.query_connections_transaction.remove(&query_id);
+    async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
+        let t = self
+            .query_connections_transaction
+            .remove(&query_id.to_string());
         match t {
             Some(x) => {
                 x.1.commit().await?;
@@ -160,8 +165,10 @@ impl QuerySql for LibSqlDB {
         }
     }
 
-    async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
-        let t = self.query_connections_transaction.remove(&query_id);
+    async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
+        let t = self
+            .query_connections_transaction
+            .remove(&query_id.to_string());
         match t {
             Some(x) => {
                 x.1.rollback().await?;
@@ -184,10 +191,10 @@ impl QuerySql for LibSqlDB {
         anyhow::Ok(ret)
     }
     async fn execute_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let tr = self.query_connections_transaction.get(&query_id);
-        let conn = self.query_connection.get(&query_id);
+        let tr = self.query_connections_transaction.get(&query_id.to_owned());
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = conn.as_deref();
         let conn = match &tr {
             Some(x) => x.deref().deref(),
@@ -204,10 +211,10 @@ impl QuerySql for LibSqlDB {
     }
 
     async fn query_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let tr = self.query_connections_transaction.get(&query_id);
-        let conn = self.query_connection.get(&query_id);
+        let tr = self.query_connections_transaction.get(&query_id.to_owned());
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = conn.as_deref();
         let conn = match &tr {
             Some(x) => x.deref().deref(),
@@ -244,22 +251,13 @@ impl QuerySql for LibSqlDB {
         anyhow::Ok(ret)
     }
 
-    async fn open_connection(&self) -> anyhow::Result<u32> {
+    async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let conn = self.connect().await?;
-        let id = self.next_query_id.next();
-        self.query_connection.insert(id, conn);
-        anyhow::Ok(id)
+        self.query_connection.insert(id.to_owned(), conn);
+        anyhow::Ok(())
     }
-    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
-        self.query_connection.remove(&id);
-        self.query_connections_transaction.remove(&id);
-        let new_id = self.next_query_id.next();
-        let conn = self.connect().await?;
-        self.query_connection.insert(new_id, conn);
-        anyhow::Ok(new_id)
-    }
-
-    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
+    async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
+        let id = id.to_string();
         self.query_connections_transaction.remove(&id);
         self.query_connection.remove(&id);
         anyhow::Ok(())
@@ -372,7 +370,6 @@ impl LibSqlDB {
             build_in_fn_cache: Default::default(),
             keywords_cache: Default::default(),
             pragma_completion: Default::default(),
-            next_query_id: Default::default(),
             completion_id: Default::default(),
         })
     }
@@ -1213,7 +1210,8 @@ mod tests {
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _resp = db
             .query_sql(
                 query_id,
@@ -1250,7 +1248,8 @@ mod tests {
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -1335,7 +1334,8 @@ mod tests {
 
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.query_sql(
             query_id,
             r#"
@@ -1361,7 +1361,8 @@ mod tests {
 
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -1389,7 +1390,8 @@ mod tests {
         let db = make_test_object().await;
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         db.query_sql(
             query_id,
@@ -1484,7 +1486,8 @@ mod tests {
 
         let table_name = "Persons";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         db.query_sql(
             query_id,
@@ -1603,7 +1606,8 @@ mod tests {
         let db = make_test_object().await;
         let table_name = "test_table";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         db.query_sql(
             query_id,
@@ -1663,7 +1667,8 @@ mod tests {
 
         let indexes = db.show_indexes(table_name).await.unwrap();
         println!("indexes{:?}", indexes);
-        let id = db.open_connection().await.unwrap();
+        let id = "";
+        db.open_connection(id).await.unwrap();
         let _ = db.drop_view("test_view").await;
         {
             let r = db

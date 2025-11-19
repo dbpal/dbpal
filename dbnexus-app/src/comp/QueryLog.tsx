@@ -55,7 +55,7 @@ function QueryLog(props: {
   showQueryLog: boolean;
   setShowQueryLog: (x: boolean) => void;
   executeTimes: number;
-  queryId?: number;
+  queryId?: string;
   kind: DataSourceKind;
 }) {
   const { uuid, showQueryLog, setShowQueryLog, executeTimes, queryId, kind } = props;

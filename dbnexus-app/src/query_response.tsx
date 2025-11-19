@@ -32,14 +32,6 @@ function QueryResponse() {
         handleReload();
         return;
       }
-      if (
-        typeof e.payload == "object" &&
-        e.payload[QuerySeparateWindowMsg.newQueryIDName]
-      ) {
-        queryId = e.payload[QuerySeparateWindowMsg.newQueryIDName];
-        console.info("send new query id:", queryId);
-        return;
-      }
       console.error("unhandled event:", e.payload);
     });
     // notify the parent I setup ok.

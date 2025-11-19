@@ -39,7 +39,7 @@ use crate::db::{
     ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, XlsxEdit, escape_sql_str,
     export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
-use crate::helper::{NextId, create_csv};
+use crate::helper::create_csv;
 
 pub struct PoolManager {
     config: FireBirdConfig,
@@ -362,59 +362,59 @@ impl ExportQueryResult for FireBirdDB {
 
 #[async_trait::async_trait]
 impl QuerySql for FireBirdDB {
-    async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
-        let tx = self.query_connections_tx.contains(&query_id);
+    async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
+        let tx = self.query_connections_tx.contains(&query_id.to_string());
         anyhow::Ok(!tx)
     }
 
-    async fn set_auto_commit(&self, query_id: u32, commit: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: &str, commit: bool) -> anyhow::Result<()> {
         if commit {
             anyhow::bail!("firebird use commit or rollback to end transaction");
         }
-        let conn = match self.query_connection.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         conn.begin_transaction()?;
-        self.query_connections_tx.insert(query_id);
+        self.query_connections_tx.insert(query_id.to_string());
         anyhow::Ok(())
     }
 
-    async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
-        let conn = match self.query_connection.get(&query_id) {
+    async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         conn.commit()?;
-        self.query_connections_tx.remove(&query_id);
+        self.query_connections_tx.remove(&query_id.to_string());
 
         anyhow::Ok(())
     }
 
-    async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
-        let conn = match self.query_connection.get(&query_id) {
+    async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         conn.rollback()?;
-        self.query_connections_tx.remove(&query_id);
+        self.query_connections_tx.remove(&query_id.to_string());
 
         anyhow::Ok(())
     }
 
     async fn query_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
 
         let mut ret = vec![];
-        let conn = match self.query_connection.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
@@ -453,10 +453,10 @@ impl QuerySql for FireBirdDB {
         anyhow::Ok(resp)
     }
     async fn execute_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
-        let conn = match self.query_connection.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
@@ -470,25 +470,14 @@ impl QuerySql for FireBirdDB {
         anyhow::Ok(resp)
     }
 
-    async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self.next_query_id.next();
-        let conn = self.get_conn()?;
-        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(id)
-    }
-    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
-        self.query_connection.remove(&id);
-        self.query_connections_tx.remove(&id);
-        let new_id = self.next_query_id.next();
+    async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let conn = self.get_conn()?;
         self.query_connection
-            .insert(new_id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(new_id)
+            .insert(id.to_string(), Arc::new(Mutex::new(conn)));
+        anyhow::Ok(())
     }
-
-    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
-        self.query_connection.remove(&id);
-
+    async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
+        self.query_connection.remove(&id.to_string());
         anyhow::Ok(())
     }
 }
@@ -497,10 +486,9 @@ impl QuerySql for FireBirdDB {
 pub struct FireBirdDB {
     config: FireBirdConfig,
     pool: Pool<PoolManager>,
-    query_connection: Arc<DashMap<u32, Arc<Mutex<PooledConnection<PoolManager>>>>>,
-    query_connections_tx: Arc<DashSet<u32>>,
+    query_connection: Arc<DashMap<String, Arc<Mutex<PooledConnection<PoolManager>>>>>,
+    query_connections_tx: Arc<DashSet<String>>,
     pub(crate) key_words_completion: Arc<Mutex<Vec<String>>>,
-    next_query_id: NextId,
 }
 
 impl std::fmt::Debug for FireBirdDB {
@@ -1090,7 +1078,6 @@ impl FireBirdDB {
                 query_connection: Default::default(),
                 query_connections_tx: Default::default(),
                 key_words_completion: Default::default(),
-                next_query_id: Default::default(),
             })
         })
     }
@@ -1157,7 +1144,8 @@ mod tests {
         let table_name = "TEST_COMMIT";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -1223,7 +1211,8 @@ mod tests {
 
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
             query_id,
@@ -1293,7 +1282,8 @@ mod tests {
         if let Err(err) = _err {
             println!("drop table err:{}", err.to_string());
         }
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
             query_id,
@@ -1343,7 +1333,8 @@ mod tests {
             println!("drop table err:{}", err.to_string());
         }
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         db.execute_sql(
             query_id,
@@ -1391,7 +1382,8 @@ mod tests {
         if let Err(err) = _err {
             println!("drop table err:{}", err.to_string());
         }
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -1482,7 +1474,8 @@ mod tests {
         if let Err(err) = _err {
             println!("drop table err:{}", err.to_string());
         }
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"

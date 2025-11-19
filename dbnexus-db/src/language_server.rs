@@ -17,7 +17,7 @@ use crate::sqlparser_completion::{CompletionStatement, Scopes, TempTableColumn};
 #[async_trait::async_trait]
 pub trait LanguageServer: GetBackendKind {
     async fn auto_completion(
-        &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList>;
 
     async fn ai_text_completion(
@@ -28,7 +28,7 @@ pub trait LanguageServer: GetBackendKind {
         not_support_feature(self.backend_name())
     }
 
-    async fn get_search_path(&self, _query_id: u32) -> anyhow::Result<HashSet<String>> {
+    async fn get_search_path(&self, _query_id: &str) -> anyhow::Result<HashSet<String>> {
         anyhow::Ok(HashSet::new())
     }
 

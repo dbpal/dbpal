@@ -74,7 +74,7 @@ impl r2d2::ManageConnection for PoolManage {
 pub struct DuckDB {
     pub(crate) config: DuckDBConfig,
     pool: r2d2::Pool<PoolManage>,
-    query_connection: Arc<DashMap<u32, Arc<Mutex<duckdb::Connection>>>>,
+    query_connection: Arc<DashMap<String, Arc<Mutex<duckdb::Connection>>>>,
     query_logs: QueryLogMap,
 }
 
@@ -427,10 +427,10 @@ impl QuerySql for DuckDB {
     }
 
     async fn query_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         let mut _log_guard = self.query_logs.get_guard(query_id, sql);
-        let conn = match self.query_connection.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
@@ -464,10 +464,10 @@ impl QuerySql for DuckDB {
     }
 
     async fn execute_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let mut _log_guard = self.query_logs.get_guard(query_id, sql);
-        let conn = match self.query_connection.get(&query_id) {
+        let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
@@ -481,7 +481,7 @@ impl QuerySql for DuckDB {
         anyhow::Ok(resp)
     }
 
-    async fn open_connection(&self) -> anyhow::Result<u32> {
+    async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let uuid = uuid::Uuid::new_v4();
         let conn = make_conn(&self.config.path)?;
         self.query_connection
@@ -489,13 +489,7 @@ impl QuerySql for DuckDB {
         anyhow::Ok(uuid)
     }
 
-    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
-        let conn = make_conn(&self.config.path)?;
-        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(())
-    }
-
-    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
+    async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
         self.query_connection.remove(&id);
         anyhow::Ok(())
     }
@@ -1724,7 +1718,8 @@ mod tests {
         let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         // let _ = db.truncate_table("test_table_view").await;
         let _ = db
             .execute_sql(
@@ -1794,7 +1789,8 @@ mod tests {
         let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         // let _ = db.truncate_table("test_materialized_table_view").await;
         let _ = db
             .execute_sql(
@@ -1936,7 +1932,8 @@ mod tests {
         let table_name = "test_index";
         let _ = db.drop_index(table_name, "test_index_name").await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,
@@ -1973,7 +1970,8 @@ mod tests {
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_column";
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,
@@ -2040,7 +2038,8 @@ mod tests {
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types1";
         let _ = db.truncate_table(table_name).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,
@@ -2127,7 +2126,8 @@ mod tests {
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types1_array";
         let _ = db.truncate_table(table_name).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,
@@ -2229,7 +2229,8 @@ mod tests {
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types2";
         let _ = db.truncate_table(table_name).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,
@@ -2319,7 +2320,8 @@ mod tests {
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types2_array";
         let _ = db.truncate_table(table_name).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,
@@ -2409,7 +2411,8 @@ mod tests {
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types3";
         let _ = db.truncate_table(table_name).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,
@@ -2498,7 +2501,8 @@ mod tests {
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types3_array";
         let _ = db.truncate_table(table_name).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,
@@ -2588,7 +2592,8 @@ mod tests {
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types4";
         let _ = db.truncate_table(table_name).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,
@@ -2669,7 +2674,8 @@ mod tests {
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types5";
         let _ = db.truncate_table(table_name).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,

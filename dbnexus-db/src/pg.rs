@@ -21,7 +21,7 @@ use crate::db::{
     TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
     export_query_as_xlsx_send_data,
 };
-use crate::helper::{NextId, create_csv};
+use crate::helper::create_csv;
 
 use crate::pg_format::*;
 use crate::pg_lang_server::POSTGRES_TYPES;
@@ -31,9 +31,8 @@ use crate::pg_lang_server::POSTGRES_TYPES;
 pub struct PostGresDB {
     pool: sqlx::PgPool,
     pub(crate) config: PGDBConfig,
-    pub(crate) query_connection: Arc<DashMap<u32, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
+    pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<PoolConnection<sqlx::Postgres>>>>>,
     pub(crate) key_words_cache: Arc<Mutex<Vec<String>>>,
-    next_query_id: NextId,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
@@ -1694,7 +1693,6 @@ impl PostGresDB {
             config,
             query_connection: Default::default(),
             key_words_cache: Default::default(),
-            next_query_id: Default::default(),
             completion_id: Default::default(),
         })
     }
@@ -1872,10 +1870,10 @@ impl ExportQueryResult for PostGresDB {
 
 #[async_trait::async_trait]
 impl QuerySql for PostGresDB {
-    async fn get_auto_commit(&self, query_id: u32) -> anyhow::Result<bool> {
+    async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         use sqlx_core::any::AnyConnectionBackend;
 
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1889,12 +1887,12 @@ impl QuerySql for PostGresDB {
         anyhow::Ok(d == 0)
     }
 
-    async fn set_auto_commit(&self, query_id: u32, commit: bool) -> anyhow::Result<()> {
+    async fn set_auto_commit(&self, query_id: &str, commit: bool) -> anyhow::Result<()> {
         if commit {
             anyhow::bail!("sqlite use  commit or rollback to end transaction");
         }
         use sqlx_core::any::AnyConnectionBackend;
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1906,9 +1904,9 @@ impl QuerySql for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn commit(&self, query_id: u32) -> anyhow::Result<()> {
+    async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
         use sqlx_core::any::AnyConnectionBackend;
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1920,9 +1918,9 @@ impl QuerySql for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn rollback(&self, query_id: u32) -> anyhow::Result<()> {
+    async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
         use sqlx_core::any::AnyConnectionBackend;
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1934,26 +1932,16 @@ impl QuerySql for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn open_connection(&self) -> anyhow::Result<u32> {
-        let id = self.next_query_id.next();
+    async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
         let conn = self.get_conn().await?;
 
-        self.query_connection.insert(id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(id)
-    }
-
-    async fn re_connect(&self, id: u32) -> anyhow::Result<u32> {
-        self.query_connection.remove(&id);
-        let new_id = self.next_query_id.next();
-        let conn = self.get_conn().await?;
         self.query_connection
-            .insert(new_id, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(new_id)
+            .insert(id.to_owned(), Arc::new(Mutex::new(conn)));
+        anyhow::Ok(())
     }
 
-    async fn close_connection(&self, id: u32) -> anyhow::Result<()> {
-        self.query_connection.remove(&id);
-
+    async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
+        self.query_connection.remove(&id.to_owned());
         anyhow::Ok(())
     }
     async fn execute_sql_no_open_conn(
@@ -1968,10 +1956,10 @@ impl QuerySql for PostGresDB {
     }
 
     async fn execute_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -1987,10 +1975,10 @@ impl QuerySql for PostGresDB {
     }
 
     async fn query_sql(
-        &self, query_id: u32, sql: &str,
+        &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
-        let conn = self.query_connection.get(&query_id);
+        let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -2208,7 +2196,8 @@ mod tests {
     async fn test_list_created_types() {
         let db = make_test_object().await;
         let _ = db.drop_created_type("test_type").await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         let _resp = db
             .query_sql(
@@ -2229,7 +2218,8 @@ mod tests {
     async fn test_procedure() {
         enable_test_log();
         let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let parameter = "a integer".to_string();
         let name = "test_procedure";
         let err = db
@@ -2280,7 +2270,8 @@ mod tests {
         let _ = db.drop_view("test_view").await;
         let _ = db.drop_table("test_view_table", true).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let query_resp = db
             .query_sql(
                 query_id,
@@ -2323,7 +2314,8 @@ mod tests {
         let _ = db.drop_materialized_view("test_material_view").await;
         let _ = db.drop_table("test_material_view_table", true).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let query_resp = db
             .query_sql(
                 query_id,
@@ -2376,7 +2368,8 @@ mod tests {
     async fn test_rename() {
         let db = make_test_object().await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
         db.query_sql(
@@ -2405,7 +2398,8 @@ mod tests {
 
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         db.query_sql(
             query_id,
@@ -2444,7 +2438,8 @@ mod tests {
 
         let _ = db.drop_index(table_name, &index_name).await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
 
         db.query_sql(query_id, format!(
             r#" create table {table_name} (a int, b int, c int, constraint pk_test primary key(a, b)); "#,
@@ -2495,7 +2490,8 @@ mod tests {
                 }),
             )
             .await;
-        let query_id = pg.open_connection().await.unwrap();
+        let query_id = "";
+        pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
             query_id,
             r#"
@@ -2536,7 +2532,8 @@ mod tests {
 
         //
         let _ = db.drop_table("test_create_trigger", false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.query_sql(
             query_id,
             r#"
@@ -2618,7 +2615,8 @@ mod tests {
         let table_name = "test_commit";
         let _ = db.drop_table(table_name, false).await;
 
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"
@@ -2677,7 +2675,8 @@ mod tests {
     async fn test_sequence() {
         enable_test_log();
         let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let name = "test_seq";
         let _ = db.drop_sequence(name, true).await;
         db.execute_sql(
@@ -2704,7 +2703,8 @@ mod tests {
     #[tokio::test]
     async fn test_export() {
         let db = make_test_object().await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let table_name = "test_export_table";
 
         let _ = db.drop_table(table_name, false).await;
@@ -2816,7 +2816,8 @@ mod tests {
         let table_name = "test_types1";
         let pg = make_test_object().await;
         let _ = pg.drop_table(&table_name, false).await;
-        let query_id = pg.open_connection().await.unwrap();
+        let query_id = "";
+        pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
             query_id,
             format!(
@@ -2905,7 +2906,8 @@ mod tests {
         let table_name = "test_types2";
         let pg = make_test_object().await;
         let _ = pg.drop_table(&table_name, false).await;
-        let query_id = pg.open_connection().await.unwrap();
+        let query_id = "";
+        pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
             query_id,
             format!(
@@ -3016,7 +3018,8 @@ mod tests {
         let db = make_test_object().await;
         let table_name = "test_column";
         let _ = db.drop_table(table_name, false).await;
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _resp = db
             .query_sql(
                 query_id,
@@ -3074,7 +3077,8 @@ mod tests {
         let pg = make_test_object().await;
         let table_name = "test_types3";
         let _ = pg.drop_table(&table_name, false).await;
-        let query_id = pg.open_connection().await.unwrap();
+        let query_id = "";
+        pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
             query_id,
             format!(
@@ -3176,7 +3180,8 @@ mod tests {
         let table_name = "test_types4";
         let pg = make_test_object().await;
         let _ = pg.drop_table(&table_name, false).await;
-        let query_id = pg.open_connection().await.unwrap();
+        let query_id = "";
+        pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
             query_id,
             format!(
@@ -3272,7 +3277,8 @@ mod tests {
         let table_name = "test_types5";
         let pg = make_test_object().await;
         let _ = pg.drop_table(&table_name, false).await;
-        let query_id = pg.open_connection().await.unwrap();
+        let query_id = "";
+        pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
             query_id,
             // TODO Support path
@@ -3392,7 +3398,8 @@ mod tests {
 
         let _ = pg.drop_table(&table_name, false).await;
 
-        let query_id = pg.open_connection().await.unwrap();
+        let query_id = "";
+        pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
             query_id,
             format!(
@@ -3504,7 +3511,8 @@ mod tests {
         let pg = make_test_object().await;
         let _ = pg.drop_table(&table_name, false).await;
 
-        let query_id = pg.open_connection().await.unwrap();
+        let query_id = "";
+        pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
             query_id,
             format!(
@@ -3601,7 +3609,8 @@ mod tests {
 
         let _ = pg.drop_table(&table_name, false).await;
 
-        let query_id = pg.open_connection().await.unwrap();
+        let query_id = "";
+        pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
             query_id,
             format!(
@@ -3689,7 +3698,8 @@ mod tests {
         let pg = make_test_object().await;
         let _ = pg.drop_table(&table_name, false).await;
 
-        let query_id = pg.open_connection().await.unwrap();
+        let query_id = "";
+        pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
             query_id,
             format!(
@@ -3798,7 +3808,8 @@ mod tests {
 
         let _ = pg.drop_table(&table_name, false).await;
 
-        let query_id = pg.open_connection().await.unwrap();
+        let query_id = "";
+        pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
             query_id,
             format!(
@@ -3896,7 +3907,8 @@ mod tests {
         let table_name = "test_types11";
         let pg = make_test_object().await;
         let _ = pg.drop_table(&table_name, false).await;
-        let query_id = pg.open_connection().await.unwrap();
+        let query_id = "";
+        pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
             query_id,
             format!(

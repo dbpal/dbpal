@@ -44,7 +44,7 @@ impl LanguageServer for CassandraDB {
     }
 
     async fn auto_completion(
-        &self, query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         self.completion_id.set_optional(query_id);
         //
@@ -1448,7 +1448,8 @@ mod tests {
     async fn test_auto_completion() {
         let db = make_test_object(Some("test".to_string())).await;
         enable_test_log();
-        let query_id = db.open_connection().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,

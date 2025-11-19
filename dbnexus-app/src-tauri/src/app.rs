@@ -333,7 +333,7 @@ pub struct QueryCache {
 }
 
 impl QueryCache {
-    pub(crate) fn set(&self, name: &str, query_id: u32, data: CachedQueryResp, append: bool) {
+    pub(crate) fn set(&self, name: &str, query_id: &str, data: CachedQueryResp, append: bool) {
         let key = self.get_key(name, query_id);
         log::info!("set query cache:{}", key);
         if append {
@@ -345,17 +345,17 @@ impl QueryCache {
         }
     }
 
-    pub(crate) fn get(&self, name: &str, query_id: u32) -> CachedQueryResp {
+    pub(crate) fn get(&self, name: &str, query_id: &str) -> CachedQueryResp {
         let key = self.get_key(name, query_id);
         log::info!("get cache named:{}", key);
         self.datas.get(&key).map(|x| x.clone()).unwrap_or_default()
     }
 
-    fn get_key(&self, name: &str, query_id: u32) -> String {
+    fn get_key(&self, name: &str, query_id: &str) -> String {
         format!("{}:{}", name, query_id)
     }
 
-    pub(crate) fn remove(&self, name: &str, query_id: u32) {
+    pub(crate) fn remove(&self, name: &str, query_id: &str) {
         let key = self.get_key(name, query_id);
         log::info!("remove cache:{}", key);
         self.datas.remove(&key);

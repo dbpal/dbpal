@@ -305,7 +305,6 @@ function makeFormatFn(kind: DataSourceKind) {
 interface IQueryConn {
   queryOP: (text: string, append: boolean) => Promise<any[]>;
   executeOP: (text: string) => Promise<any>;
-  reconnect: () => Promise<IQueryConn>;
   exportQueryResult: (
     sql: string,
     kind: types.ExportKind,
@@ -319,18 +318,25 @@ interface IQueryConn {
   commit: () => Promise<void>;
   rollback: () => Promise<void>;
   supportTransaction: () => boolean;
-  queryId: number;
+  queryId: string;
+  open(): Promise<void>;
 }
 
 class QueryConn implements IQueryConn {
-  queryId: number;
+  queryId: string;
   uuid: string;
   kind: DataSourceKind;
 
-  constructor(uuid, queryId: number, kind: DataSourceKind) {
+  constructor(uuid, queryId: string, kind: DataSourceKind) {
     this.queryId = queryId;
     this.uuid = uuid;
     this.kind = kind;
+  }
+  open(): Promise<void> {
+    return invoke("query_sql_open_connection", {
+      name: this.uuid,
+      id: this.queryId,
+    });
   }
 
   supportTransaction(): boolean {
@@ -404,14 +410,6 @@ class QueryConn implements IQueryConn {
     });
   }
 
-  reconnect(): Promise<IQueryConn> {
-    return invoke<number>("query_sql_re_connection", {
-      name: this.uuid,
-      queryId: this.queryId,
-    }).then(queryid => {
-      return new QueryConn(this.uuid, queryid, this.kind);
-    });
-  }
   isDangerSql(sql: string): Promise<boolean> {
     return invoke("is_dangerous_sql", { name: this.uuid, sql });
   }
@@ -444,7 +442,6 @@ function extractBaseName(file: string) {
   return fileName;
 }
 
-type MakeIQueryConn = () => Promise<IQueryConn>;
 const keyNotInTable = "KWfCwJ62hRf6TKuvMcsQ3eXGtD1tdg2J";
 
 type EscDownEvent = { preventDefault: () => void };
@@ -453,7 +450,7 @@ class NameAndQueryId {
   constructor(
     public name: string,
     public kind: DataSourceKind,
-    public queryId?: number,
+    public queryId?: string,
   ) {}
 }
 class SetAutoCompletionName {
@@ -519,16 +516,6 @@ class PassWordManager {
 }
 
 const connectionChangeEvent = "connection-has-changged";
-
-const makeQueryConn = async (uuid: string, kind: DataSourceKind) => {
-  const queryId = await invoke<number>("query_sql_open_connection", {
-    name: uuid,
-  });
-  console.info("open connection:", queryId);
-  const ret = new QueryConn(uuid, queryId, kind);
-  return ret;
-};
-
 async function editorAppendContent(editor: editor.IStandaloneCodeEditor, text) {
   const model = editor.getModel();
   const lastLine = model.getLineCount();
@@ -564,17 +551,10 @@ export {
   NameAndQueryId,
   PassWordManager,
   connectionChangeEvent,
-  makeQueryConn,
   editorAppendContent,
   AITextCompletionName,
   makeFormatFn,
-};
-
-export type {
-  DefAndMetas,
-  IQueryConn,
-  MakeIQueryConn,
-  EscDownEvent,
-  FieldAndGridField,
   QueryConn,
 };
+
+export type { DefAndMetas, IQueryConn, EscDownEvent, FieldAndGridField };

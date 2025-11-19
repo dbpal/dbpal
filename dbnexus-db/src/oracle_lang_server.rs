@@ -248,7 +248,7 @@ impl LanguageServer for OracleDB {
     }
 
     async fn auto_completion(
-        &self, _query_id: Option<u32>, sql: &str, line: u32, col: u32, use_lexer: bool,
+        &self, _query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
