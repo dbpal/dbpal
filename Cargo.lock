@@ -1731,6 +1731,7 @@ dependencies = [
  "tauri-plugin-sql",
  "tauri-plugin-store",
  "tokio",
+ "tokio-util",
  "typescript-type-def",
  "uuid",
 ]

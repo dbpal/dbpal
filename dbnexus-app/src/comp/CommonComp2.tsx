@@ -270,6 +270,7 @@ function SimpleFlexEditor(props: {
   errPos?: Position;
   disableEditorBar?: boolean;
   handleEditor?: (editor: editor.IStandaloneCodeEditor) => void;
+  dontFocus?: boolean;
 }) {
   const {
     language,
@@ -280,6 +281,7 @@ function SimpleFlexEditor(props: {
     errPos,
     handleEditor,
     disableEditorBar,
+    dontFocus,
   } = props;
   const [pos, setPos] = useState<Position>(null);
   const setting = useContext(SettingContext);
@@ -288,7 +290,9 @@ function SimpleFlexEditor(props: {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (ed: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
       editor.current = ed;
-      ed.focus();
+      if (!dontFocus) {
+        ed.focus();
+      }
       if (handleEditor) {
         handleEditor(ed);
       }
@@ -301,7 +305,7 @@ function SimpleFlexEditor(props: {
         }
       });
     },
-    [handleEditor, handleValue],
+    [dontFocus, handleEditor, handleValue],
   );
   useEffect(() => {
     if (editor.current && errPos) {

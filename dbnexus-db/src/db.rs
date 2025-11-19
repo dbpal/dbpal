@@ -622,7 +622,7 @@ impl UdfOrProcedureExtraParameter {
     }
 }
 
-pub(crate) fn not_support_feature<T>(name: BackendKind) -> anyhow::Result<T> {
+pub fn not_support_feature<T>(name: BackendKind) -> anyhow::Result<T> {
     anyhow::bail!(format!("'{}' don't support this feature", name))
 }
 
@@ -1317,6 +1317,14 @@ impl ExportKind {
             _ => self,
         }
     }
+
+    pub(crate) fn not_to_internal_bug<T>(self) -> anyhow::Result<T> {
+        anyhow::bail!(format!(
+            "this kind {:?}  should converted to internal but not.",
+            self
+        ));
+    }
+
     pub(crate) fn cannot_query_result_export_as_sql() -> anyhow::Result<()> {
         anyhow::bail!("can't export sql result as sql")
     }

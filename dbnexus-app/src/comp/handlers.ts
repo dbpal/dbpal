@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import types from "./ApiStruct";
 import { DataSourceKind, MuiDataGridData, TableType, ViewKind } from "./helper";
+import { message } from "@tauri-apps/plugin-dialog";
 
 function makeExtractTableSelectWhere(uuid: string) {
   return (sql: string) => {
@@ -207,7 +208,7 @@ async function callErrorable<T>(x: () => Promise<T>, defaultValue: any = []) {
   try {
     return await x();
   } catch (e) {
-    if (import.meta.env.DEV) {
+    if (!String(e).includes("support this feature")) {
       console.error(e);
     }
     return defaultValue as T;
@@ -304,6 +305,13 @@ function listView(uuid: string, viewKind: ViewKind) {
   return invoke<types.ListTable[]>(invokeName, { name: uuid });
 }
 
+function cancelTask(taskId: string): Promise<void> {
+  return invoke<void>("cancel_task", { taskId }).catch(e => {
+    message("cancel task failed,err" + String(e), { kind: "error" });
+    console.error(e);
+  });
+}
+
 export {
   makeExtractTableSelectWhere,
   makeExtractTableSelectSort,
@@ -339,4 +347,5 @@ export {
   listTable,
   listView,
   tryGetMaxID,
+  cancelTask,
 };

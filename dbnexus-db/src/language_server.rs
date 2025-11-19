@@ -66,6 +66,7 @@ impl From<Field> for CompletionItem {
 pub struct CompletionList {
     pub items: Vec<CompletionItem>,
     pub incomplete: bool,
+    pub from_dot: bool,
 }
 
 impl From<Vec<CompletionItem>> for CompletionList {
@@ -73,6 +74,7 @@ impl From<Vec<CompletionItem>> for CompletionList {
         CompletionList {
             items: value,
             incomplete: false,
+            from_dot: false,
         }
     }
 }
@@ -704,7 +706,11 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
                                 desc: x.statement.map(|x| x.into()),
                             }),
                     );
-                    return anyhow::Ok(remove_duplicate(ret).into());
+                    return anyhow::Ok(CompletionList {
+                        items: remove_duplicate(ret),
+                        incomplete: true,
+                        from_dot: true,
+                    });
                 }
 
                 {
@@ -739,6 +745,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords {
                 return anyhow::Ok(CompletionList {
                     items: ret,
                     incomplete: false,
+                    from_dot: true,
                 });
             }
         }

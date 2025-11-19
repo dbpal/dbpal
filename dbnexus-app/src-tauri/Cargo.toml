@@ -48,7 +48,7 @@ rustls = { version = "0.23", features = ["aws-lc-rs"] }
 tauri-plugin-shell = "2"
 sys-locale = "0.3.2"
 tauri-plugin-http = "2"
-
+tokio-util = "0.7.17"
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]

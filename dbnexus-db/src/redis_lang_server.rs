@@ -53,7 +53,11 @@ impl RedisDB {
                 }
             }
         }
-        anyhow::Ok(CompletionList { items, incomplete })
+        anyhow::Ok(CompletionList {
+            items,
+            incomplete,
+            from_dot: false,
+        })
     }
 
     async fn completion_hash_keys(
@@ -85,6 +89,7 @@ impl RedisDB {
                 })
                 .collect::<Vec<_>>(),
             incomplete,
+            from_dot: false,
         })
     }
 
@@ -116,6 +121,7 @@ impl RedisDB {
                 })
                 .collect(),
             incomplete,
+            from_dot: false,
         })
     }
 
@@ -150,6 +156,7 @@ impl RedisDB {
                 })
                 .collect(),
             incomplete,
+            from_dot: false,
         })
     }
 
@@ -176,6 +183,7 @@ impl RedisDB {
                             })
                             .collect(),
                         incomplete: false,
+                        from_dot: false,
                     })
                 }
                 .boxed(),
@@ -1047,6 +1055,7 @@ impl LanguageServer for RedisDB {
                             return anyhow::Ok(CompletionList {
                                 items: ret,
                                 incomplete,
+                                from_dot: false,
                             });
                         }
                     }

@@ -85,3 +85,10 @@ cargo tree -d
 
 
  
+
+ SELECT
+    *
+from
+    has_data_2,
+    Persons ,
+    has_data_1  

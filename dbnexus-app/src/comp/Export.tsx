@@ -17,9 +17,14 @@ import { save } from "@tauri-apps/plugin-dialog";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
 import { invoke } from "@tauri-apps/api/core";
 import { ModalHeader, OpenFileWithDefaultApp } from "./CommonComp";
-import { generateDefaultFilename, SettingContext } from "./helper";
+import {
+  generateDefaultFilename,
+  generateRandomString,
+  SettingContext,
+} from "./helper";
 import { stat } from "@tauri-apps/plugin-fs";
-
+import CancelIcon from "@mui/icons-material/Cancel";
+import { cancelTask } from "./handlers";
 function IncludeHeader({ includeHeader, setIncludeHeader }) {
   return (
     <FormControlLabel
@@ -41,7 +46,7 @@ function IncludeHeader({ includeHeader, setIncludeHeader }) {
 let lastExportKind = "csv";
 function ExportView(props: {
   name: string;
-  exportOP: (kind: types.ExportKind, file: string) => Promise<void>;
+  exportOP: (kind: types.ExportKind, file: string, taskId: string) => Promise<void>;
   supportKind: string[];
   handleClose: () => void;
 }) {
@@ -56,6 +61,7 @@ function ExportView(props: {
   const { showNotification } = useContext(NotificationContext);
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<string | null>(null);
+  const taskId = useRef(generateRandomString(5));
   useEffect(() => {
     lastExportKind = kind;
   }, [kind]);
@@ -103,9 +109,9 @@ function ExportView(props: {
     }, 1000);
     try {
       setLoading(true);
-      await exportOP(config, file);
+      await exportOP(config, file, taskId.current);
     } catch (e) {
-      showNotification("error", "export failure", e);
+      showNotification("warning", "export failure", e);
       return;
     } finally {
       clearInterval(int);
@@ -210,6 +216,16 @@ function ExportView(props: {
         >
           <ArrowCircleDownIcon> </ArrowCircleDownIcon>
         </IconButton>
+        {loading && (
+          <IconButton
+            color="warning"
+            onClick={() => {
+              cancelTask(taskId.current);
+            }}
+          >
+            <CancelIcon />
+          </IconButton>
+        )}
         <Typography ref={exportedSize} />
       </Stack>
     </Stack>
@@ -225,12 +241,13 @@ function ExportTableOrView(props: {
   const { uuid, name, supportKind, handleClose } = props;
   return (
     <ExportView
-      exportOP={async (kind, filepath) => {
+      exportOP={async (kind, filepath, taskId) => {
         return await invoke("export_table_or_view", {
           name: uuid,
           tableOrView: name,
           filepath,
           kind,
+          taskId,
         });
       }}
       supportKind={supportKind}

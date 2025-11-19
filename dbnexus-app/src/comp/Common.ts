@@ -195,7 +195,8 @@ const aiTextAutoCompletion = async (
             text,
             line: pos.lineNumber,
             col: pos.column,
-            name,
+            name: name.name,
+            queryId: name.queryId,
           },
         );
         const suggestions = backendCompletionItemToEditor(completionItem.items);
@@ -309,6 +310,7 @@ interface IQueryConn {
     sql: string,
     kind: types.ExportKind,
     file: string,
+    taskId: string,
   ) => Promise<void>;
   isDangerSql: (sql: string) => Promise<boolean>;
   destroy: () => void;
@@ -346,12 +348,18 @@ class QueryConn implements IQueryConn {
     ].includes(this.kind);
   }
 
-  exportQueryResult(sql: string, kind: types.ExportKind, file: string): Promise<void> {
+  exportQueryResult(
+    sql: string,
+    kind: types.ExportKind,
+    file: string,
+    taskId: string,
+  ): Promise<void> {
     return invoke<void>("export_query_result_to_file", {
       name: this.uuid,
       sql,
       kind,
       file,
+      taskId,
     });
   }
 
@@ -461,12 +469,16 @@ class SetAutoCompletionName {
 
 class AITextCompletionName {
   static id2Name = new Map<string, string>();
-  static set(editorId: string, name: string) {
-    AITextCompletionName.id2Name.set(editorId, name);
+  static set(editorID: string, queryEditorID: string) {
+    AITextCompletionName.id2Name.set(editorID, queryEditorID);
   }
 
-  static get(editorId: string): string | null {
-    return AITextCompletionName.id2Name.get(editorId);
+  static get(editorId: string): NameAndQueryId | null {
+    let id = AITextCompletionName.id2Name.get(editorId);
+    if (!id) {
+      return null;
+    }
+    return SetAutoCompletionName.get(id);
   }
 }
 

@@ -248,9 +248,7 @@ impl SchemaTrait for ClickHouseDB {
                 self.export_table_as_xlsx(name, include_header, sender)
                     .await
             }
-            ExportKind::Html => {
-                anyhow::bail!("html export use jsonline as internal format,this is a bug");
-            }
+            _ => kind.not_to_internal_bug(),
         }
     }
 
@@ -850,9 +848,7 @@ impl ExportQueryResult for ClickHouseDB {
                 self.export_query_result_as_xlsx(sql, include_header, sender)
                     .await
             }
-            ExportKind::Html => {
-                anyhow::bail!("html export use jsonline as internal format,this is a bug");
-            }
+            _ => kind.not_to_internal_bug(),
         }
     }
 }

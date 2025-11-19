@@ -49,7 +49,6 @@ impl LanguageServer for CassandraDB {
         self.completion_id.set_optional(query_id);
         //
         let dot = self.try_completion_dot(sql, line, col).await;
-
         let r = AstCompletion::completion(sql, line - 1, col - 1, Clone::clone(self)).await;
         match r {
             Ok(mut x) => {
@@ -57,6 +56,7 @@ impl LanguageServer for CassandraDB {
                 return anyhow::Ok(CompletionList {
                     items: remove_duplicate(x),
                     incomplete: false,
+                    from_dot: false,
                 });
             }
             Err(x) => {

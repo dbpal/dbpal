@@ -36,6 +36,31 @@ use tauri::ipc::Channel;
 use crate::app::{
     self, CachedQueryResp, DBConnectionConfig, DBPal, DatabaseBackend, name_to_parts,
 };
+use tauri::State;
+use tokio_util::sync::CancellationToken;
+
+// 管理所有任务的取消令牌
+
+#[derive(Clone, Default)]
+pub struct TaskManager {
+    tokens: Arc<tokio::sync::Mutex<HashMap<String, CancellationToken>>>,
+}
+
+#[tauri::command]
+pub async fn cancel_task(
+    task_id: String, state: State<'_, TaskManager>,
+) -> Result<(), ErrorFrontend> {
+    // 通知取消
+    if let Some(token) = state.tokens.lock().await.remove(&task_id) {
+        token.cancel(); // 触发取消
+    } else {
+        return Err(ErrorFrontend::from(format!(
+            "task id not found '{}'",
+            task_id
+        )));
+    }
+    Ok(())
+}
 
 pub fn log_channel_store() -> &'static std::sync::Mutex<Option<Channel<String>>> {
     static X: std::sync::Mutex<Option<Channel<String>>> = std::sync::Mutex::new(None);
@@ -879,34 +904,49 @@ pub async fn drop_event(
 
 #[tauri::command]
 pub async fn export_query_result_to_file(
-    name: String, sql: String, kind: ExportKind, file: String, app: tauri::State<'_, DBPal>,
+    name: String, task_id: String, sql: String, kind: ExportKind, file: String,
+    task_manager: tauri::State<'_, TaskManager>, app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
+    let token = CancellationToken::new();
+    let token_clone = token.clone();
+
+    // 保存令牌到状态
+    task_manager
+        .tokens
+        .lock()
+        .await
+        .insert(task_id.clone(), token_clone);
 
     let opened = app
         .get_backend(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    match opened {
-        DatabaseBackend::Catalog(x) => {
-            x.export_query_result_to_file(&sql, kind, &file)
+    let fur = async {
+        match opened {
+            DatabaseBackend::Catalog(x) => x
+                .export_query_result_to_file(&sql, kind, &file)
                 .await
-                .map_err(ErrorFrontend::from)?;
-        }
-        DatabaseBackend::DataBase(x) => {
-            x.export_query_result_to_file(&sql, kind, &file)
+                .map_err(ErrorFrontend::from),
+            DatabaseBackend::DataBase(x) => x
+                .export_query_result_to_file(&sql, kind, &file)
                 .await
-                .map_err(ErrorFrontend::from)?;
-        }
-        DatabaseBackend::Schema(x) => {
-            x.export_query_result_to_file(&sql, kind, &file)
+                .map_err(ErrorFrontend::from),
+            DatabaseBackend::Schema(x) => x
+                .export_query_result_to_file(&sql, kind, &file)
                 .await
-                .map_err(ErrorFrontend::from)?;
+                .map_err(ErrorFrontend::from),
         }
     };
-
-    Ok(())
+    let r = tokio::select! {
+        res =  fur  => res,
+        _ = token.cancelled() => {
+            Err(ErrorFrontend::from(format!("cancel the task file:{}",file )))
+        }
+    };
+    task_manager.tokens.lock().await.remove(&task_id);
+    r
 }
 
 #[tauri::command]
@@ -1296,22 +1336,35 @@ pub async fn auto_completion(
 
 #[tauri::command]
 pub async fn ai_text_completion(
-    name: String, text: String, line: u32, col: u32, app: tauri::State<'_, DBPal>,
+    name: String, text: String, query_id: u32, line: u32, col: u32, app: tauri::State<'_, DBPal>,
 ) -> Result<CompletionList, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_backend(name.as_str()).await?;
-    let ret = tokio::time::timeout(std::time::Duration::from_secs(4), async {
-        match db {
-            DatabaseBackend::Catalog(x) => x.ai_text_completion(&text, line, col).await,
-            DatabaseBackend::DataBase(x) => x.ai_text_completion(&text, line, col).await,
-            DatabaseBackend::Schema(x) => x.ai_text_completion(&text, line, col).await,
+
+    let uuids = app.ai_get_search_path(db, &name, query_id, &text).await?;
+
+    let mut ret = vec![];
+
+    for uuid in uuids {
+        let db = app.get_backend(&uuid).await?;
+        let list = tokio::time::timeout(std::time::Duration::from_secs(4), async {
+            match db {
+                DatabaseBackend::Catalog(x) => x.ai_text_completion(&text, line, col).await,
+                DatabaseBackend::DataBase(x) => x.ai_text_completion(&text, line, col).await,
+                DatabaseBackend::Schema(x) => x.ai_text_completion(&text, line, col).await,
+            }
+        })
+        .await
+        .map_err(|_| ErrorFrontend::from("ai auto completion timeout"))?
+        .map_err(|e| log::error!("completion failed,err:{}", e))
+        .unwrap_or_default();
+        if list.from_dot {
+            return Ok(list);
         }
-    })
-    .await
-    .map_err(|_| ErrorFrontend::from("ai auto completion timeout"))?
-    .map_err(ErrorFrontend::from)?;
-    Ok(ret)
+        ret.extend(list.items);
+    }
+    Ok(ret.into())
 }
 
 #[tauri::command]

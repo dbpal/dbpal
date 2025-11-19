@@ -168,7 +168,7 @@ function Chat(props: {
             className="resize-handle"
           />
         )}
-        {llmconfig && (
+        {llmconfig && editor && (
           <Panel id="chat-input" collapsible maxSize={65} collapsedSize={0} minSize={8}>
             <SqlChatTextInput
               uuid={uuid}
@@ -654,6 +654,24 @@ function SqlChatTextInput(props: {
     chatMemory.current.setK(size);
   }, [chatBufferSize, showNotification]);
 
+  const makePrompt = async () => {
+    try {
+      const prompt = await new MakePrompt(
+        uuid,
+        config,
+        kind,
+        newQuestion,
+        chatMemory.current,
+        editor,
+        editor.getModel().getLanguageId(),
+      ).createPrompt();
+      return prompt;
+    } catch (e) {
+      showNotification("error", "make prompt failed", e);
+      return null;
+    }
+  };
+
   const handleChat = async () => {
     try {
       setLoading(true);
@@ -666,19 +684,14 @@ function SqlChatTextInput(props: {
       ]);
       setPrevQuestion(newQuestion);
       setInvokeStatus("making prompt");
-      const prompt = await new MakePrompt(
-        uuid,
-        config,
-        kind,
-        newQuestion,
-        chatMemory.current,
-        editor,
-        editor.getModel().getLanguageId(),
-      ).createPrompt();
       chatMemory.current.addUserMessage(newQuestion);
       setChatHistory(e => [...e, newQuestion]);
       let wholeText = "";
       setInvokeStatus("trying getting stream response");
+      const prompt = await makePrompt();
+      if (!prompt) {
+        return;
+      }
       const stream = await chatApi.stream(prompt);
       let i = 0;
       for await (const msg of stream) {
@@ -787,8 +800,9 @@ function SqlChatTextInput(props: {
         }}
         barLeft={invokeStatus && <Typography color="info">{invokeStatus}</Typography>}
         handleEditor={e => {
-          AITextCompletionName.set(e.getModel().id, uuid);
+          AITextCompletionName.set(e.getModel().id, editor.getModel().id);
         }}
+        dontFocus
       />
       {showChatHistory && (
         <ChatHistory
@@ -812,16 +826,10 @@ function SqlChatTextInput(props: {
       )}
       {showPrompt && (
         <ShowPrompt
-          chatMemory={chatMemory.current}
-          uuid={uuid}
-          kind={kind}
-          question={newQuestion}
-          config={config}
-          language={editor.getModel().getLanguageId()}
           handleClose={() => {
             setShowPrompt(false);
           }}
-          editor={editor}
+          makePrompt={makePrompt}
         />
       )}
     </Stack>
@@ -1020,17 +1028,10 @@ function ChatHistory(props: {
 }
 
 function ShowPrompt(props: {
-  uuid: string;
-  kind: DataSourceKind;
-  question: string;
-  config: LLMConfig;
+  makePrompt: () => Promise<string>;
   handleClose: () => void;
-  chatMemory: SimpleArrayMemory;
-  language: string;
-  editor: editor.IStandaloneCodeEditor;
 }) {
-  const { uuid, kind, question, config, handleClose, chatMemory, language, editor } =
-    props;
+  const { handleClose, makePrompt } = props;
   const [prompt, setPrompt] = useState("");
   const vis = useContext(TabActiveContext);
   const { showNotification } = useContext(NotificationContext);
@@ -1048,12 +1049,10 @@ function ShowPrompt(props: {
   }, [vis, handleClose]);
 
   useEffect(() => {
-    new MakePrompt(uuid, config, kind, question, chatMemory, editor, language)
-      .createPrompt()
-      .then(e => {
-        setPrompt(e);
-      });
-  }, [chatMemory, config, editor, kind, language, question, uuid]);
+    makePrompt().then(e => {
+      setPrompt(e);
+    });
+  }, [makePrompt]);
   return (
     <Paper
       style={{
