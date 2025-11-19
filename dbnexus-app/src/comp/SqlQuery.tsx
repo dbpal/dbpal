@@ -183,20 +183,22 @@ function SqlQuery(props: {
   handleEditor: (ed: editor.IStandaloneCodeEditor) => void;
 }) {
   const { uuid, value, favoriteName, kind, extras, handleEditor } = props;
-  const makeConn = useCallback(async () => {
-    return makeQueryConn(uuid, kind);
-  }, [kind, uuid]);
+
   const [resp, setResp] = useState([]);
   const [sqlErr] = useState<ErrAndLoc | null>(null);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position | null>(null);
   const [loading, setLoading] = useState(false);
+  const [makeConnLoading, setMakeConnLoading] = useState(false);
+  useEffect(() => {
+    console.log("makeConnLoading", makeConnLoading);
+  }, [makeConnLoading]);
   const { showNotification } = useContext(NotificationContext);
   const [showQueryLog, setShowQueryLog] = useState(false);
   const setting = useContext(SettingContext);
   const queryLogHandler = useRef(new QueryLogHandler(uuid));
   const [executeTimes, setExecuteTimes] = useState(0);
-  const [conn, setConn] = useState<IQueryConn | null>(null);
+  const [conn, setConn] = useState<IQueryConn | null>(undefined);
   const [showExport, setShowExport] = useState(false);
   const [queryRespView, setQueryRespView] = useState<WebviewWindow>(null);
   const queryRespViewEventName = useRef(generateRandomString());
@@ -214,56 +216,56 @@ function SqlQuery(props: {
     [handleEditor],
   );
 
-  const handleReconnect = async () => {
-    if (conn) {
-      const confirm = await secondConfirm({
-        title: "reconnection",
-        content: "unsaved data may lost.",
-        confirmText: "Connect",
-        kind: "info",
-      });
-      if (!confirm) {
-        return;
+  const setConnxxx = conn => {
+    setConn(e => {
+      if (e) {
+        e.destroy();
       }
-    }
-    if (conn) {
-      conn
-        .reconnect()
-        .then(conn => {
-          setConn(conn);
-          if (queryRespView) {
-            // send new query id
-            queryRespView.setTitle(makeWindowTitle(uuid, conn.queryId)).catch(e => {
-              showNotification("error", "set query response view title failed", e);
-            });
-            const payload = {};
-            payload[QuerySeparateWindowMsg.newQueryIDName] = conn.queryId;
-            queryRespView.emit(queryRespViewEventName.current, payload).catch(e => {
-              showNotification("error", "send new query id failed", e);
-            });
-          }
-          showNotification("success", "Reconnect OK");
-        })
-        .catch(e => {
-          showNotification("error", "Reconnect Failure", e);
-        })
-        .finally(() => {
-          // trigger some reload like sqltransaction
-          setExecuteTimes(e => e + 1);
-        });
-    } else {
-      makeConn()
-        .then(conn => {
-          setConn(conn);
-          showNotification("success", "Reconnect OK");
-        })
-        .catch(e => {
-          showNotification("error", "Reconnect Failure", e);
-        })
-        .finally(() => {
-          setExecuteTimes(e => e + 1);
-        });
-    }
+      return conn;
+    });
+  };
+
+  useEffect(() => {
+    makeQueryConn(uuid, kind).then(e => {
+      setConnxxx(e);
+    });
+  }, [kind, uuid]);
+
+  useEffect(() => {
+    return () => {
+      if (conn) {
+        conn.destroy();
+      }
+    };
+  }, [conn]);
+
+  const handleReconnect = async () => {
+    setMakeConnLoading(true);
+    conn
+      .reconnect()
+      .then(conn => {
+        setConnxxx(conn);
+        if (queryRespView) {
+          // send new query id
+          queryRespView.setTitle(makeWindowTitle(uuid, conn.queryId)).catch(e => {
+            showNotification("error", "set query response view title failed", e);
+          });
+          const payload = {};
+          payload[QuerySeparateWindowMsg.newQueryIDName] = conn.queryId;
+          queryRespView.emit(queryRespViewEventName.current, payload).catch(e => {
+            showNotification("error", "send new query id failed", e);
+          });
+        }
+        showNotification("success", "Reconnect OK");
+      })
+      .catch(e => {
+        showNotification("error", "Reconnect Failure", e);
+      })
+      .finally(() => {
+        // trigger some reload like sqltransaction
+        setExecuteTimes(e => e + 1);
+        setMakeConnLoading(false);
+      });
   };
   const warnDangerousSql = useCallback(
     async (text: string): Promise<boolean> => {
@@ -354,31 +356,6 @@ function SqlQuery(props: {
     },
     [conn, editor, showNotification, warnDangerousSql],
   );
-
-  // make connection for the first time
-  useEffect(() => {
-    makeConn()
-      .then(conn => {
-        setConn(prev => {
-          if (prev) {
-            prev.destroy();
-          }
-          return conn;
-        });
-      })
-      .catch(e => {
-        showNotification("error", "make connection failed", e);
-      });
-  }, [makeConn, showNotification]);
-  // destroy connection
-  useEffect(() => {
-    return () => {
-      if (conn) {
-        console.log("destry connection", conn.queryId);
-        conn.destroy();
-      }
-    };
-  }, [conn]);
   useEffect(() => {
     return () => {
       if (queryRespView) {
@@ -424,19 +401,7 @@ function SqlQuery(props: {
   }, [setting]);
 
   const editorDivDom = useRef(null);
-  useEffect(() => {
-    if (editorDivDom.current && conn) {
-      (editorDivDom.current as HTMLDivElement).addEventListener(
-        "keydown",
-        function (event) {
-          if (event.ctrlKey && event.key.toLowerCase() === "e") {
-            event.preventDefault();
-            handleQuery(false);
-          }
-        },
-      );
-    }
-  }, [conn, handleQuery]);
+
   useEffect(() => {
     if (conn && editor) {
       SetAutoCompletionName.set(
@@ -596,16 +561,14 @@ function SqlQuery(props: {
             {conn && conn.supportTransaction() && (
               <SqlTransaction executeTimes={executeTimes} conn={conn} />
             )}
-            <Tooltip title={"reconnect"}>
-              <IconButton
-                onClick={() => {
-                  handleReconnect();
-                }}
-                color="primary"
-              >
-                <RefreshIcon />
-              </IconButton>
-            </Tooltip>
+            {conn && (
+              <Tooltip title={"reconnect"}>
+                <IconButton onClick={handleReconnect} color="primary">
+                  <RefreshIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+
             {conn && (
               <Tooltip title="export query result to a file,implemented it not using query connection,uncommit row may not be found">
                 <IconButton
@@ -677,10 +640,9 @@ function SqlQuery(props: {
                 <Typography> #{conn.queryId} </Typography>
               </Tooltip>
             )}
-            {!conn && <CircularProgress />}
-            <ExecutingTime loading={loading} disableTime />
-
+            {makeConnLoading && <CircularProgress />}
             <ModifyLLMConfigModal />
+            <ExecutingTime loading={loading} disableTime />
           </Stack>
           <div
             style={{

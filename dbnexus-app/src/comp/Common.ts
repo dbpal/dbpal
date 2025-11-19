@@ -416,7 +416,7 @@ class QueryConn implements IQueryConn {
     return invoke("is_dangerous_sql", { name: this.uuid, sql });
   }
   destroy() {
-    console.info("destroy connection of:", this.queryId);
+    console.log("destroy connection of:", this.queryId);
     invoke("query_sql_close_connection", {
       name: this.uuid,
       queryId: this.queryId,
@@ -525,7 +525,8 @@ const makeQueryConn = async (uuid: string, kind: DataSourceKind) => {
     name: uuid,
   });
   console.info("open connection:", queryId);
-  return new QueryConn(uuid, queryId, kind);
+  const ret = new QueryConn(uuid, queryId, kind);
+  return ret;
 };
 
 async function editorAppendContent(editor: editor.IStandaloneCodeEditor, text) {
@@ -555,7 +556,6 @@ export {
   dropDatabase,
   dropSchema,
   reloadOK,
-  QueryConn,
   AppStoreKey,
   keyNotInTable,
   extractBaseName,
@@ -576,4 +576,5 @@ export type {
   MakeIQueryConn,
   EscDownEvent,
   FieldAndGridField,
+  QueryConn,
 };

@@ -43,7 +43,33 @@ use tokio_util::sync::CancellationToken;
 
 #[derive(Clone, Default)]
 pub struct TaskManager {
-    tokens: Arc<tokio::sync::Mutex<HashMap<String, CancellationToken>>>,
+    tokens: Arc<std::sync::Mutex<HashMap<String, CancellationToken>>>,
+}
+
+impl TaskManager {
+    fn add(&self, task_id: String) -> (CancellationToken, impl Drop) {
+        let token = CancellationToken::new();
+        struct X {
+            task_id: String,
+            manager: TaskManager,
+        }
+        impl Drop for X {
+            fn drop(&mut self) {
+                self.manager.tokens.lock().unwrap().remove(&self.task_id);
+            }
+        }
+        self.tokens
+            .lock()
+            .unwrap()
+            .insert(task_id.clone(), token.clone());
+        (
+            token,
+            X {
+                task_id,
+                manager: self.clone(),
+            },
+        )
+    }
 }
 
 #[tauri::command]
@@ -51,7 +77,8 @@ pub async fn cancel_task(
     task_id: String, state: State<'_, TaskManager>,
 ) -> Result<(), ErrorFrontend> {
     // 通知取消
-    if let Some(token) = state.tokens.lock().await.remove(&task_id) {
+
+    if let Some(token) = state.tokens.lock().unwrap().remove(&task_id) {
         token.cancel(); // 触发取消
     } else {
         return Err(ErrorFrontend::from(format!(
@@ -909,20 +936,12 @@ pub async fn export_query_result_to_file(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let token = CancellationToken::new();
-    let token_clone = token.clone();
-
-    // 保存令牌到状态
-    task_manager
-        .tokens
-        .lock()
-        .await
-        .insert(task_id.clone(), token_clone);
-
+    let (token, _guard) = task_manager.add(task_id);
     let opened = app
         .get_backend(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
+
     let fur = async {
         match opened {
             DatabaseBackend::Catalog(x) => x
@@ -942,10 +961,9 @@ pub async fn export_query_result_to_file(
     let r = tokio::select! {
         res =  fur  => res,
         _ = token.cancelled() => {
-            Err(ErrorFrontend::from(format!("cancel the task file:{}",file )))
+            Err(ErrorFrontend::from("this task is cancelled"))
         }
     };
-    task_manager.tokens.lock().await.remove(&task_id);
     r
 }
 
@@ -1059,29 +1077,43 @@ pub async fn query_sql_open_connection(
         .get_backend(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let result = match db {
-        DatabaseBackend::DataBase(x) => x.open_connection().await,
-        DatabaseBackend::Schema(x) => x.open_connection().await,
-        DatabaseBackend::Catalog(x) => x.open_connection().await,
-    };
+    let result = tokio::time::timeout(Duration::from_secs(5), async {
+        match db {
+            DatabaseBackend::DataBase(x) => x.open_connection().await,
+            DatabaseBackend::Schema(x) => x.open_connection().await,
+            DatabaseBackend::Catalog(x) => x.open_connection().await,
+        }
+    })
+    .await
+    .map_err(|_e| ErrorFrontend::from("open connection not finished in reasonable time"))?;
     result.map_err(ErrorFrontend::from)
 }
 
 #[tauri::command]
 pub async fn query_sql_re_connection(
-    name: String, query_id: u32, app: tauri::State<'_, DBPal>,
+    name: String, query_id: i64, app: tauri::State<'_, DBPal>,
 ) -> Result<u32, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
+    let query_id = if query_id < 0 {
+        u32::MAX
+    } else {
+        query_id as u32
+    };
+
     let db = app
         .get_backend(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    let result = match db {
-        DatabaseBackend::DataBase(x) => x.re_connect(query_id).await,
-        DatabaseBackend::Schema(x) => x.re_connect(query_id).await,
-        DatabaseBackend::Catalog(x) => x.re_connect(query_id).await,
-    };
+    let result = tokio::time::timeout(Duration::from_secs(5), async {
+        match db {
+            DatabaseBackend::DataBase(x) => x.re_connect(query_id).await,
+            DatabaseBackend::Schema(x) => x.re_connect(query_id).await,
+            DatabaseBackend::Catalog(x) => x.re_connect(query_id).await,
+        }
+    })
+    .await
+    .map_err(|_| format!("make connection not finished in reasonable time"))?;
     result.map_err(ErrorFrontend::from)
 }
 
@@ -1107,8 +1139,8 @@ pub async fn query_sql_close_connection(
 
 #[tauri::command]
 pub async fn export_table_or_view(
-    name: String, table_or_view: String, filepath: String, kind: ExportKind,
-    app: tauri::State<'_, DBPal>,
+    name: String, task_id: String, task_manager: tauri::State<'_, TaskManager>,
+    table_or_view: String, filepath: String, kind: ExportKind, app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1116,9 +1148,21 @@ pub async fn export_table_or_view(
         .get_schema(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    db.export_table_or_view_to_file(table_or_view.as_str(), filepath.as_str(), kind)
-        .await
-        .map_err(ErrorFrontend::from)
+    let (token, _guard) = task_manager.add(task_id);
+    let fur = async {
+        #[cfg(feature = "random-sleep")]
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        db.export_table_or_view_to_file(table_or_view.as_str(), filepath.as_str(), kind)
+            .await
+            .map_err(ErrorFrontend::from)
+    };
+    let r = tokio::select! {
+        x = fur => x,
+        _ = token.cancelled() => {
+            Err(ErrorFrontend::from("this task is cancelled"))
+        }
+    };
+    r
 }
 
 #[tauri::command]
