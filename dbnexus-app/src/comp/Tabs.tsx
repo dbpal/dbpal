@@ -96,7 +96,7 @@ function getLength(header: string, width: number, tabs: TabContent[]) {
   let total: number = tabs.reduce((acc, cur) => {
     return acc + cur.header.length;
   }, 0);
-  return (width * header.length) / total;
+  return (width * header.length * 1.3) / total;
 }
 
 function TabsWithContent_(props: {
@@ -149,6 +149,7 @@ function TabsWithContent_(props: {
           const max = getLength(tab.header, tabWidth, tabs);
           return (
             <Tab
+              style={{ maxWidth: max + "px" }}
               key={tab.id}
               label=<Tooltip title={tab.header}>
                 <Chip
@@ -157,10 +158,9 @@ function TabsWithContent_(props: {
                     handleClose(index);
                   }}
                   style={{
-                    maxWidth: max + "px",
                     textTransform: "none",
                   }}
-                  icon={max > 120 ? tab.icon : undefined}
+                  icon={tabs.length <= 8 ? tab.icon : undefined}
                   variant={index == selectIndex ? "filled" : "outlined"}
                   color={index == selectIndex ? "success" : "default"}
                   onContextMenu={e => {

@@ -269,7 +269,6 @@ impl AstCompletionHelper for SqliteDB {
                     .await?
             }
         };
-
         let ret = s
             .columns()
             .iter()

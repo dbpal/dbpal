@@ -321,7 +321,6 @@ impl From<Arc<dyn dbnexus_db::db::SchemaTrait>> for DatabaseBackend {
 pub struct DBPal {
     /// all the databases
     pub backend: Arc<Mutex<HashMap<String, DatabaseBackend>>>,
-    pub backend_crash_msg: BackendCrashMsg,
     pub query_cache: QueryCache,
 }
 

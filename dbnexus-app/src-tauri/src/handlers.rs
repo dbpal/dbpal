@@ -27,16 +27,16 @@ use dbnexus_db::redis::{RedisDB, RedisListTable, RedisToken};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use dbnexus_db::sqlite::SqliteDB;
 
+use crate::app::{
+    self, BackendCrashMsg, CachedQueryResp, DBConnectionConfig, DBPal, DatabaseBackend,
+    name_to_parts,
+};
 use dbnexus_db::tidb::TiDB;
 use font_kit::error::SelectionError;
 use include_dir::{Dir, include_dir};
 use mongodb::bson::{self, Document, doc};
-use tauri::ipc::Channel;
-
-use crate::app::{
-    self, CachedQueryResp, DBConnectionConfig, DBPal, DatabaseBackend, name_to_parts,
-};
 use tauri::State;
+use tauri::ipc::Channel;
 use tokio_util::sync::CancellationToken;
 
 // 管理所有任务的取消令牌
@@ -49,11 +49,11 @@ pub struct TaskManager {
 impl TaskManager {
     fn add(&self, task_id: String) -> (CancellationToken, impl Drop) {
         let token = CancellationToken::new();
-        struct X {
+        struct XDrop {
             task_id: String,
             manager: TaskManager,
         }
-        impl Drop for X {
+        impl Drop for XDrop {
             fn drop(&mut self) {
                 self.manager.tokens.lock().unwrap().remove(&self.task_id);
             }
@@ -64,7 +64,7 @@ impl TaskManager {
             .insert(task_id.clone(), token.clone());
         (
             token,
-            X {
+            XDrop {
                 task_id,
                 manager: self.clone(),
             },
@@ -95,7 +95,6 @@ pub fn log_channel_store() -> &'static std::sync::Mutex<Option<Channel<String>>>
 }
 
 #[tauri::command]
-
 pub fn get_locale() -> Result<String, ErrorFrontend> {
     let r = sys_locale::get_locale().unwrap_or_else(|| String::from("en-US"));
     Ok(r)
@@ -958,12 +957,21 @@ pub async fn export_query_result_to_file(
                 .map_err(ErrorFrontend::from),
         }
     };
+
+    let remove_file = async {
+        if let Err(e) = tokio::fs::remove_file(&file).await {
+            log::error!("remove file failed:{}", e);
+        }
+    };
+
     let r = tokio::select! {
         res =  fur  => res,
         _ = token.cancelled() => {
-            Err(ErrorFrontend::from("this task is cancelled"))
+            remove_file.await;
+            Err(ErrorFrontend::cancelled())
         }
     };
+
     r
 }
 
@@ -991,14 +999,15 @@ pub async fn is_dangerous_sql(
 
 #[tauri::command]
 pub async fn get_backend_crash(
-    id: u32, app: tauri::State<'_, DBPal>,
+    id: u32, app: tauri::State<'_, BackendCrashMsg>,
 ) -> Result<String, ErrorFrontend> {
-    Ok(app.backend_crash_msg.get(id))
+    Ok(app.get(id))
 }
 
 #[tauri::command]
 pub async fn query_sql(
     name: String, query_id: &str, sql: String, append: bool, app: tauri::State<'_, DBPal>,
+    task_manager: tauri::State<'_, TaskManager>,
 ) -> Result<Arc<Vec<Result<MuiDataGridData, String>>>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1006,11 +1015,22 @@ pub async fn query_sql(
         .get_backend(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
+    let (token, _guard) = task_manager.add(query_id.to_string());
 
-    let result = match db {
-        DatabaseBackend::DataBase(x) => x.query_sql(query_id, &sql).await,
-        DatabaseBackend::Schema(x) => x.query_sql(query_id, &sql).await,
-        DatabaseBackend::Catalog(x) => x.query_sql(query_id, &sql).await,
+    let fur = async {
+        #[cfg(feature = "random-sleep")]
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        match db {
+            DatabaseBackend::DataBase(x) => x.query_sql(query_id, &sql).await,
+            DatabaseBackend::Schema(x) => x.query_sql(query_id, &sql).await,
+            DatabaseBackend::Catalog(x) => x.query_sql(query_id, &sql).await,
+        }
+    };
+    let result = tokio::select! {
+        res = fur => res,
+        _ = token.cancelled() => {
+            return Err(ErrorFrontend::cancelled());
+        }
     };
     let r = result.map_err(ErrorFrontend::from).map(|x| {
         x.into_iter()
@@ -1045,23 +1065,34 @@ pub async fn execute_sql_no_open_conn(
     .map_err(ErrorFrontend::from)?;
     Ok(result.map(MuiDataGridData::from))
 }
+
 #[tauri::command]
 pub async fn execute_sql(
     name: String, query_id: &str, sql: String, app: tauri::State<'_, DBPal>,
+    task_manager: tauri::State<'_, TaskManager>,
 ) -> Result<Result<MuiDataGridData, String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-
     let db = app.get_backend(&name).await.map_err(ErrorFrontend::from)?;
-
-    let result = match db {
-        DatabaseBackend::DataBase(x) => x.execute_sql(query_id, &sql).await,
-        DatabaseBackend::Schema(x) => x.execute_sql(query_id, &sql).await,
-        DatabaseBackend::Catalog(x) => x.execute_sql(query_id, &sql).await,
-    }
-    .map_err(ErrorFrontend::from)?;
+    let (token, _guard) = task_manager.add(query_id.to_string());
+    let fur = async {
+        #[cfg(feature = "random-sleep")]
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        match db {
+            DatabaseBackend::DataBase(x) => x.execute_sql(query_id, &sql).await,
+            DatabaseBackend::Schema(x) => x.execute_sql(query_id, &sql).await,
+            DatabaseBackend::Catalog(x) => x.execute_sql(query_id, &sql).await,
+        }
+        .map_err(ErrorFrontend::from)
+    };
+    let result = tokio::select! {
+        res = fur => res,
+        _ = token.cancelled() => {
+            return Err(ErrorFrontend::cancelled());
+        }
+    };
+    let result = result?;
     let result = result.map(MuiDataGridData::from);
-
     app.query_cache
         .set(&name, query_id, Arc::new(vec![result.clone()]), false);
     Ok(result)
@@ -1128,10 +1159,16 @@ pub async fn export_table_or_view(
             .await
             .map_err(ErrorFrontend::from)
     };
+    let remove_file = async {
+        if let Err(e) = tokio::fs::remove_file(&filepath).await {
+            log::error!("remove file failed:{}", e);
+        }
+    };
     let r = tokio::select! {
-        x = fur => x,
+        res = fur => res,
         _ = token.cancelled() => {
-            Err(ErrorFrontend::from("this task is cancelled"))
+            remove_file.await;
+            Err(ErrorFrontend::cancelled())
         }
     };
     r
@@ -1146,8 +1183,8 @@ pub async fn check_conn(
 > {
     random_sleep().await;
     random_error()?;
-    let t = 5;
-    tokio::time::timeout(Duration::from_secs(t), async move {
+    let timeout = 5;
+    tokio::time::timeout(Duration::from_secs(timeout), async move {
         let db = app.get_backend(&name).await?;
         match db {
             app::DatabaseBackend::DataBase(x) => x.check_conn().await,
@@ -1164,7 +1201,12 @@ pub async fn check_conn(
         })
     })
     .await
-    .map_err(|_| ErrorFrontend::from(format!("check connection status not finished in {}s", t)))?
+    .map_err(|_| {
+        ErrorFrontend::from(format!(
+            "check connection status not finished in {}s",
+            timeout
+        ))
+    })?
 }
 
 #[tauri::command]
@@ -1175,8 +1217,7 @@ pub async fn test_connection(
     ErrorFrontend,
 > {
     random_error()?;
-
-    let t = 5;
+    let timeout = 5;
     tokio::time::timeout(Duration::from_secs(5), async {
         let db = config.open().await.map_err(|e| e.to_string())?;
         match db {
@@ -1188,11 +1229,11 @@ pub async fn test_connection(
         .map(|d| d.as_millis() as u64)
     })
     .await
-    .map_err(|_| ErrorFrontend::from(format!("test connection not finished in {}s", t)))?
+    .map_err(|_| ErrorFrontend::from(format!("test connection not finished in {}s", timeout)))?
 }
 
 #[tauri::command]
-pub async fn config_list_database_or_schema(
+pub async fn try_list_database_schema_candidates(
     conn: DBConnectionConfig,
 ) -> Result<Vec<String>, ErrorFrontend> {
     let x = conn.open().await?;
@@ -1233,7 +1274,7 @@ pub async fn list_database(
         app::DatabaseBackend::Catalog(x) => x.list_database().await,
         _ => {
             return Err(ErrorFrontend::from(format!(
-                "not catalog trait  of  {}",
+                "not catalog trait but:{}",
                 name
             )));
         }
@@ -1248,7 +1289,6 @@ pub async fn list_schema(
     random_sleep().await;
     random_error()?;
     let db = app.get_backend(name.as_str()).await?;
-
     match db {
         app::DatabaseBackend::DataBase(x) => x.list_schema().await,
         app::DatabaseBackend::Catalog(_) => {
@@ -1303,7 +1343,6 @@ fn auto_completion_mutex(name: &str) -> Arc<tokio::sync::Mutex<()>> {
     static LOCKS: LazyLock<Arc<DashMap<String, Arc<tokio::sync::Mutex<()>>>>> =
         LazyLock::new(|| Arc::new(DashMap::new()));
     let name = name.to_owned();
-
     match LOCKS.get(&name) {
         Some(x) => x.clone(),
         None => {
@@ -1357,11 +1396,8 @@ pub async fn ai_text_completion(
     random_sleep().await;
     random_error()?;
     let db = app.get_backend(name.as_str()).await?;
-
     let uuids = app.ai_get_search_path(db, &name, query_id, &text).await?;
-
     let mut ret = vec![];
-
     for uuid in uuids {
         let db = app.get_backend(&uuid).await?;
         let list = tokio::time::timeout(std::time::Duration::from_secs(4), async {
@@ -1421,11 +1457,11 @@ pub async fn query_set_autocommit(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let open = app
+    let backend = app
         .get_backend(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    match open {
+    match backend {
         DatabaseBackend::Catalog(x) => x.set_auto_commit(query_id, commit).await,
         DatabaseBackend::DataBase(x) => x.set_auto_commit(query_id, commit).await,
         DatabaseBackend::Schema(x) => x.set_auto_commit(query_id, commit).await,
@@ -1440,11 +1476,11 @@ pub async fn query_get_commit(
 ) -> Result<bool, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let open = app
+    let backend = app
         .get_backend(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    match open {
+    match backend {
         DatabaseBackend::Catalog(x) => x.get_auto_commit(query_id).await,
         DatabaseBackend::DataBase(x) => x.get_auto_commit(query_id).await,
         DatabaseBackend::Schema(x) => x.get_auto_commit(query_id).await,
@@ -1458,11 +1494,11 @@ pub async fn query_commit(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let open = app
+    let backend = app
         .get_backend(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    match open {
+    match backend {
         DatabaseBackend::Catalog(x) => x.commit(query_id).await,
         DatabaseBackend::DataBase(x) => x.commit(query_id).await,
         DatabaseBackend::Schema(x) => x.commit(query_id).await,
@@ -1558,10 +1594,8 @@ pub async fn show_trigger(
             .show_trigger(&table_name, &tri.name)
             .await
             .map_err(ErrorFrontend::from)?;
-
         ret.push(d);
     }
-
     Ok(ret)
 }
 
@@ -1619,18 +1653,32 @@ pub async fn create_view_sql(
 
 #[tauri::command]
 pub async fn duplicate_table(
-    name: String, from: String, to: String, app: tauri::State<'_, DBPal>,
+    name: String, from: String, task_id: String, task_manager: tauri::State<'_, TaskManager>,
+    to: String, app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
+    let (token, _guard) = task_manager.add(task_id);
+
     let db = app
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
 
-    db.duplicate_table(&from, &to)
-        .await
-        .map_err(ErrorFrontend::from)
+    let fur = async {
+        #[cfg(feature = "random-sleep")]
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        db.duplicate_table(&from, &to)
+            .await
+            .map_err(ErrorFrontend::from)
+    };
+    let result = tokio::select! {
+        r = fur => r,
+        _ = token.cancelled() => {
+            Err(ErrorFrontend::from(ErrorFrontend::cancelled()))
+        }
+    };
+    result
 }
 
 #[tauri::command]
@@ -2439,7 +2487,6 @@ pub async fn redis_set_del(
     name: String, key: String, member: String, app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(ErrorFrontend::from)?;
-
     let schema = app
         .get_schema(name.as_str())
         .await
@@ -2460,7 +2507,6 @@ pub async fn redis_set_add(
     name: String, key: String, member: String, app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     let member = hex::decode(member.as_bytes()).map_err(ErrorFrontend::from)?;
-
     let schema = app
         .get_schema(name.as_str())
         .await
@@ -2675,7 +2721,6 @@ pub async fn list_sequence(
         .await
         .map_err(ErrorFrontend::from)?;
     let sx = schema.list_sequence().await.map_err(ErrorFrontend::from)?;
-
     Ok(sx)
 }
 
@@ -3043,12 +3088,15 @@ pub struct ErrorFrontend {
     reason: String,
     // long message about why and backtrace
     detail: String,
+    cancelled: bool,
 }
+
 impl From<SelectionError> for ErrorFrontend {
     fn from(value: SelectionError) -> Self {
         ErrorFrontend {
             reason: value.to_string(),
             detail: value.to_string(),
+            cancelled: false,
         }
     }
 }
@@ -3057,6 +3105,7 @@ impl From<tauri::Error> for ErrorFrontend {
         let x = Self {
             reason: format!("{}", value),
             detail: format!("{:?}", value),
+            cancelled: false,
         };
         log::error!("error:{}", x.reason);
         x
@@ -3067,6 +3116,7 @@ impl From<anyhow::Error> for ErrorFrontend {
         let x = Self {
             reason: format!("{}", value),
             detail: format!("{:?}", value),
+            cancelled: false,
         };
         log::error!("error:{}", x.reason);
         x
@@ -3078,6 +3128,7 @@ impl From<std::io::Error> for ErrorFrontend {
         let x = Self {
             reason: format!("{}", value),
             detail: "".to_string(),
+            cancelled: false,
         };
         log::error!("error:{}", x.reason);
         x
@@ -3089,6 +3140,7 @@ impl From<hex::FromHexError> for ErrorFrontend {
         let x = Self {
             reason: format!("{}", value),
             detail: "".to_string(),
+            cancelled: false,
         };
         log::error!("error:{}", x.reason);
         x
@@ -3099,6 +3151,7 @@ impl From<String> for ErrorFrontend {
         Self {
             reason: value,
             detail: "".to_string(),
+            cancelled: false,
         }
     }
 }
@@ -3107,6 +3160,7 @@ impl From<&str> for ErrorFrontend {
         Self {
             reason: value.to_owned(),
             detail: "".to_string(),
+            cancelled: false,
         }
     }
 }
@@ -3116,6 +3170,7 @@ impl From<bson::oid::Error> for ErrorFrontend {
         Self {
             reason: format!("{}", value),
             detail: format!("{:?}", value),
+            cancelled: false,
         }
     }
 }
@@ -3124,6 +3179,7 @@ impl From<serde_json::Error> for ErrorFrontend {
         Self {
             reason: format!("{}", value),
             detail: format!("{:?}", value),
+            cancelled: false,
         }
     }
 }
@@ -3141,6 +3197,16 @@ async fn random_sleep() {
     }
 }
 
+impl ErrorFrontend {
+    fn cancelled() -> Self {
+        Self {
+            reason: "this task is cancelled".to_string(),
+            detail: "".to_string(),
+            cancelled: true,
+        }
+    }
+}
+
 fn random_error() -> Result<(), ErrorFrontend> {
     if cfg!(feature = "random-error") {
         {
@@ -3151,6 +3217,7 @@ fn random_error() -> Result<(), ErrorFrontend> {
                 Err(ErrorFrontend {
                     reason: format!("random error of {}", x),
                     detail: "".to_string(),
+                    cancelled: false,
                 })
             } else {
                 Ok(())

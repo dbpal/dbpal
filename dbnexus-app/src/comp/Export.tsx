@@ -23,8 +23,9 @@ import {
   SettingContext,
 } from "./helper";
 import { stat } from "@tauri-apps/plugin-fs";
-import CancelIcon from "@mui/icons-material/Cancel";
+
 import { cancelTask } from "./handlers";
+import { CancelButton } from "./CommonComp2";
 function IncludeHeader({ includeHeader, setIncludeHeader }) {
   return (
     <FormControlLabel
@@ -87,7 +88,7 @@ function ExportView(props: {
       case "xlsx":
         return { export_kind: "xlsx", include_header: includeHeader };
       case "html":
-        return { export_kind: "html" };
+        return { export_kind: "html", include_header: includeHeader };
     }
   };
 
@@ -102,6 +103,7 @@ function ExportView(props: {
     if (!file) {
       return;
     }
+    exportedSize.current.innerText = "";
     const int = setInterval(() => {
       stat(file).then(e => {
         exportedSize.current.innerText = `export file ${filesize(e.size)} bytes`;
@@ -120,13 +122,21 @@ function ExportView(props: {
     showNotification("success", "export OK");
     setFile(file);
   };
-
   useEffect(() => {
     setFile("");
   }, [kind]);
   return (
     <Stack>
-      <ModalHeader title={`export ${name}`} handleClose={handleClose} />
+      <ModalHeader
+        title={`export ${name}`}
+        handleClose={() => {
+          if (loading) {
+            showNotification("warning", "exporting, please wait");
+            return;
+          }
+          handleClose();
+        }}
+      />
       <Stack direction="row">
         {supportKind.map(e => (
           <Chip
@@ -204,6 +214,13 @@ function ExportView(props: {
 
       {kind == "jsonline" && <></>}
 
+      {kind == "html" && (
+        <IncludeHeader
+          includeHeader={includeHeader}
+          setIncludeHeader={setIncludeHeader}
+        />
+      )}
+
       <Divider />
       <OpenFileWithDefaultApp file={file} />
       <Stack direction="row" style={{ alignItems: "center" }}>
@@ -217,14 +234,12 @@ function ExportView(props: {
           <ArrowCircleDownIcon> </ArrowCircleDownIcon>
         </IconButton>
         {loading && (
-          <IconButton
-            color="warning"
-            onClick={() => {
+          <CancelButton
+            handleCancel={() => {
               cancelTask(taskId.current);
+              exportedSize.current.innerText = "";
             }}
-          >
-            <CancelIcon />
-          </IconButton>
+          />
         )}
         <Typography ref={exportedSize} />
       </Stack>

@@ -34,7 +34,8 @@ use crate::db::{
     Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
-    escape_sql_str, export_query_as_xlsx_send_data,
+    create_html_table_data, create_html_table_header, escape_sql_str,
+    export_query_as_xlsx_send_data,
 };
 
 use crate::helper::{create_csv, current_timestamp};
@@ -843,7 +844,10 @@ impl ExportQueryResult for CassandraDB {
             ExportKind::Xlsx { include_header } => {
                 self.export_as_xlsx(sql, include_header, sender).await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_query_result_as_html(sql, include_header, sender)
+                    .await
+            }
         }
     }
 }
@@ -1132,6 +1136,31 @@ impl CassandraDB {
         anyhow::Ok(())
     }
 
+    async fn export_query_result_as_html(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let resp = self.session.query(sql).await?.response_body()?;
+        let meta = resp.as_rows_metadata().cloned();
+        if meta.is_none() {
+            anyhow::bail!("no metadata")
+        }
+        let meta = meta.unwrap();
+        let rows = resp.into_rows().unwrap_or_default();
+        let rows = encode_rows(&meta, &rows)?;
+        if include_header {
+            let cols: Vec<_> = meta.col_specs.iter().map(|x| x.name.clone()).collect();
+            sender
+                .send(Cow::Owned(create_html_table_header(cols.as_slice())))
+                .await?;
+        }
+        sender
+            .send(Cow::Owned(create_html_table_data(&rows)))
+            .await?;
+
+        anyhow::Ok(())
+    }
+
     async fn export_query_result_as_json_line(
         &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -1164,6 +1193,15 @@ impl CassandraDB {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
         self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
+            .await
+    }
+    async fn export_table_as_html(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_html(&sql, include_header, sender)
             .await
     }
 
@@ -1372,7 +1410,10 @@ impl SchemaTrait for CassandraDB {
                 self.export_table_as_xlsx(name, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_table_as_html(name, include_header, sender)
+                    .await
+            }
         }
     }
 

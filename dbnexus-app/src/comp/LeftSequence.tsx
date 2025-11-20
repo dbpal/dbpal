@@ -136,12 +136,12 @@ function details2DefMetas(d: types.SequenceDetail): DefAndMetas {
   return {
     def: d.sql,
     metas: [
-      { name: "data type", value: d.data_type },
-      { name: "start_value", value: d.start_value },
-      { name: "min value", value: d.min_value },
-      { name: "max value", value: d.max_value },
-      { name: "increment by", value: d.increment_by },
-      { name: "last value", value: d.last_value },
+      { name: "data type", value: d.data_type, desc: null },
+      { name: "start_value", value: d.start_value, desc: null },
+      { name: "min value", value: d.min_value, desc: null },
+      { name: "max value", value: d.max_value, desc: null },
+      { name: "increment by", value: d.increment_by, desc: null },
+      { name: "last value", value: d.last_value, desc: null },
     ],
   };
 }

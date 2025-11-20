@@ -333,6 +333,7 @@ class QueryConn implements IQueryConn {
     this.kind = kind;
   }
   open(): Promise<void> {
+    console.log("open connection", this.uuid, this.queryId);
     return invoke("query_sql_open_connection", {
       name: this.uuid,
       id: this.queryId,

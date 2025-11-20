@@ -12,8 +12,8 @@ use crate::db::{
     GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS,
     ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableExtraArgs, SqlBuilder, SqlEvent, SqlExecuteRet, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, escape_sql_str,
-    export_query_as_xlsx_send_data,
+    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
 use chrono::Utc;
@@ -404,6 +404,40 @@ impl MysqlDB {
         anyhow::Ok(())
     }
 
+    async fn export_query_result_as_html(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let mut first = true;
+
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch(conn.deref_mut())
+            .try_chunks(100);
+
+        while let Some(rows) = stream.next().await {
+            let rows = rows?;
+            if first && !rows.is_empty() && include_header {
+                let fs = rows
+                    .first()
+                    .unwrap()
+                    .columns()
+                    .iter()
+                    .map(|x| x.name().to_string())
+                    .collect::<Vec<_>>();
+                sender
+                    .send(Cow::Owned(create_html_table_header(&fs)))
+                    .await?;
+                first = false
+            }
+            let data = encode_rows(&rows, true)?;
+            sender
+                .send(Cow::Owned(create_html_table_data(&data)))
+                .await?;
+        }
+        anyhow::Ok(())
+    }
+
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -420,6 +454,15 @@ impl MysqlDB {
         let sql = format!("SELECT * from `{}`", table_name);
         log::info!("sql:{}", sql);
         self.export_query_result_as_xlsx(sql.as_str(), include_header, sender)
+            .await
+    }
+    async fn export_table_as_html(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!("SELECT * from `{}`", table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_html(sql.as_str(), include_header, sender)
             .await
     }
 }
@@ -1073,7 +1116,10 @@ impl SchemaTrait for MysqlDB {
                 self.export_table_as_xlsx(name, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_table_as_html(name, include_header, sender)
+                    .await
+            }
         }
     }
 
@@ -1648,7 +1694,10 @@ impl ExportQueryResult for MysqlDB {
                 self.export_query_result_as_xlsx(sql, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_query_result_as_html(sql, include_header, sender)
+                    .await
+            }
         }
     }
 }

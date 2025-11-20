@@ -15,7 +15,7 @@ use crate::db::{
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue,
     NamedStaff, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
-    escape_sql_str, ty_is_float, ty_is_int,
+    create_html_table_data, create_html_table_header, escape_sql_str, ty_is_float, ty_is_int,
 };
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
 
@@ -37,6 +37,19 @@ impl ClickHouseDB {
         );
         log::info!("sql:{}", sql);
         self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
+            .await
+    }
+    async fn export_table_as_html(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"SELECT * from `{}`.`{}`"#,
+            self.config.db_str(),
+            table_name
+        );
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_html(&sql, include_header, sender)
             .await
     }
 
@@ -248,7 +261,10 @@ impl SchemaTrait for ClickHouseDB {
                 self.export_table_as_xlsx(name, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_table_as_html(name, include_header, sender)
+                    .await
+            }
         }
     }
 
@@ -747,6 +763,27 @@ impl ClickHouseDB {
             .await?;
         anyhow::Ok(())
     }
+    async fn export_query_result_as_html(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let result = self.query_as_json(sql).await?;
+        if include_header {
+            let x = result
+                .infer_fields()
+                .into_iter()
+                .map(|x| x.field.clone())
+                .collect::<Vec<_>>();
+            sender
+                .send(Cow::Owned(create_html_table_header(&x[..])))
+                .await?;
+        }
+        let datas = result.encode_json_result()?;
+        sender
+            .send(Cow::Owned(create_html_table_data(&datas)))
+            .await?;
+        anyhow::Ok(())
+    }
 
     async fn export_query_result_as_json(
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -848,7 +885,10 @@ impl ExportQueryResult for ClickHouseDB {
                 self.export_query_result_as_xlsx(sql, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_query_result_as_html(sql, include_header, sender)
+                    .await
+            }
         }
     }
 }

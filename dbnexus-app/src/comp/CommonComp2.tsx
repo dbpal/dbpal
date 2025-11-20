@@ -14,6 +14,7 @@ import InfoIcon from "@mui/icons-material/Info";
 import CloseIcon from "@mui/icons-material/Close";
 import SaveIcon from "@mui/icons-material/Save";
 import { FaBookmark } from "react-icons/fa";
+import CancelIcon from "@mui/icons-material/Cancel";
 import {
   Autocomplete,
   Box,
@@ -44,7 +45,7 @@ import {
   SomeTempStore,
   TabActiveContext,
 } from "./helper";
-import { Editor, Monaco } from "@monaco-editor/react";
+import { Editor } from "@monaco-editor/react";
 import { editor, Position } from "monaco-editor";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -285,33 +286,35 @@ function SimpleFlexEditor(props: {
   } = props;
   const [pos, setPos] = useState<Position>(null);
   const setting = useContext(SettingContext);
-  const editor = useRef<editor.IStandaloneCodeEditor>(null);
-  const handleDidMount = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    (ed: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
-      editor.current = ed;
-      if (!dontFocus) {
-        ed.focus();
-      }
-      if (handleEditor) {
-        handleEditor(ed);
-      }
-      ed.onDidChangeCursorPosition(() => {
-        setPos(ed.getPosition());
-      });
-      ed.onDidChangeModelContent(() => {
-        if (handleValue) {
-          handleValue(ed.getValue());
-        }
-      });
-    },
-    [dontFocus, handleEditor, handleValue],
-  );
+  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
+  const handleDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
+    setEditor(ed);
+  }, []);
   useEffect(() => {
-    if (editor.current && errPos) {
-      editorSetPositionAndReveal(editor.current, errPos);
+    if (!editor) {
+      return;
     }
-  }, [errPos]);
+    if (!dontFocus) {
+      editor.focus();
+    }
+    if (handleEditor) {
+      handleEditor(editor);
+    }
+    editor.onDidChangeCursorPosition(() => {
+      setPos(editor.getPosition());
+    });
+    editor.onDidChangeModelContent(() => {
+      if (handleValue) {
+        handleValue(editor.getValue());
+      }
+    });
+  }, [dontFocus, editor, handleEditor, handleValue]);
+
+  useEffect(() => {
+    if (editor && errPos) {
+      editorSetPositionAndReveal(editor, errPos);
+    }
+  }, [editor, errPos]);
 
   const options = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     const { fontSize, fontFamily, fontWeight } = setting.appearance;
@@ -828,6 +831,18 @@ function SaveFavoriteSqlView(props: {
     </>
   );
 }
+function CancelButton({ handleCancel }) {
+  return (
+    <IconButton
+      color="warning"
+      onClick={() => {
+        handleCancel();
+      }}
+    >
+      <CancelIcon />
+    </IconButton>
+  );
+}
 
 export {
   CreateDatabase,
@@ -841,4 +856,5 @@ export {
   UrlDocument,
   syntaxHightLightTheme,
   SaveFavoriteSqlView,
+  CancelButton,
 };

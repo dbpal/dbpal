@@ -18,6 +18,7 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind,
     ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlExecuteRet, XlsxEdit,
+    create_html_table_data,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 
@@ -372,6 +373,73 @@ impl RedisDB {
         anyhow::Ok(())
     }
 
+    async fn export_table_as_html(
+        &self, key: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let ty = Self::get_key_type(&mut conn, key).await?;
+        match ty {
+            RedisType::String => {
+                let value: Vec<u8> = conn.get(key).await?;
+                sender
+                    .send(create_html_table_data(&vec![vec![Some(to_string_or_hex(value))]]).into())
+                    .await?;
+            }
+
+            RedisType::List => {
+                let total: isize = conn.llen(key).await?;
+                let size: isize = 100;
+                let iter = OffsetLimitIter::new(total, 100);
+                for x in iter {
+                    let list: Vec<Vec<u8>> = conn.lrange(key, x, x + size).await?;
+                    let list = list
+                        .into_iter()
+                        .map(|x| vec![Some(to_string_or_hex(x))])
+                        .collect::<Vec<_>>();
+                    sender.send(create_html_table_data(&list).into()).await?;
+                }
+            }
+
+            RedisType::Set => {
+                let mut iter = conn.sscan::<_, Vec<u8>>(key).await?;
+                while let Some(set) = iter.next_item().await {
+                    let set = set
+                        .into_iter()
+                        .map(|x| vec![Some(to_string_or_hex(x))])
+                        .collect::<Vec<_>>();
+                    sender.send(create_html_table_data(&set).into()).await?;
+                }
+            }
+
+            RedisType::Hash => {
+                let mut stream = conn.hscan::<_, Vec<u8>>(key).await?.chunks(2);
+                while let Some(value) = stream.next().await {
+                    let kv = check_resp(value)?;
+                    sender
+                        .send(Cow::Owned(create_html_table_data(&vec![vec![
+                            Some(to_string_or_hex(kv[0].clone())),
+                            Some(to_string_or_hex(kv[1].clone())),
+                        ]])))
+                        .await?;
+                }
+            }
+            RedisType::Zset => {
+                let mut stream = conn.zscan::<_, Vec<u8>>(key).await?.chunks(2);
+                while let Some(value) = stream.next().await {
+                    let kv = check_resp(value)?;
+                    sender
+                        .send(Cow::Owned(create_html_table_data(&vec![vec![
+                            Some(to_string_or_hex(kv[0].clone())),
+                            Some(to_string_or_hex(kv[1].clone())),
+                        ]])))
+                        .await?;
+                }
+            }
+        }
+
+        anyhow::Ok(())
+    }
+
     async fn export_table_as_json(
         &self, key: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -719,6 +787,34 @@ impl RedisDB {
         }
         anyhow::Ok(())
     }
+
+    async fn export_query_result_as_html(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        if include_header {
+            anyhow::bail!("don't support export without header")
+        }
+        let commands = get_command_from_sql(sql)?;
+        if commands.len() != 1 {
+            anyhow::bail!("Redis does not support multiple commands");
+        }
+        let c = &commands[0];
+        log::info!("cmd is:{:?}", c);
+        let client = self.get_client().await?;
+        let args = &c[1..];
+        let mut conn = client.get_multiplexed_async_connection().await?;
+        let mut redis_cmd = redis::cmd(c[0].as_str());
+        redis_cmd.arg(args);
+        let mut stream = redis_cmd.iter_async::<String>(&mut conn).await?;
+        while let Some(value) = stream.next().await {
+            let value = value?;
+            sender
+                .send(create_html_table_data(&vec![vec![Some(value)]]).into())
+                .await?;
+        }
+        anyhow::Ok(())
+    }
     async fn export_query_result_as_json(
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -813,7 +909,10 @@ impl ExportQueryResult for RedisDB {
                 self.export_query_result_as_xlsx(sql, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_query_result_as_html(sql, include_header, sender)
+                    .await
+            }
         }
     }
 
@@ -1073,7 +1172,12 @@ impl SchemaTrait for RedisDB {
             ExportKind::Xlsx { include_header } => {
                 self.export_table_as_xlsx(key, include_header, sender).await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                if include_header {
+                    anyhow::bail!("redis have no header")
+                }
+                self.export_table_as_html(key, sender).await
+            }
         }
     }
 

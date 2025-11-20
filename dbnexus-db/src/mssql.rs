@@ -24,8 +24,8 @@ use crate::db::{
     ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
-    XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset,
-    not_support_feature,
+    XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
+    export_query_as_xlsx_send_data, format_data_time_fix_offset, not_support_feature,
 };
 use crate::helper::create_csv;
 
@@ -783,7 +783,10 @@ impl SchemaTrait for SqlServerDB {
                 self.export_table_as_xlsx(table_name, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_table_as_html(table_name, include_header, sender)
+                    .await
+            }
         }
     }
 
@@ -1568,39 +1571,63 @@ impl SqlServerDB {
         let conn = conn.deref_mut();
         let mut first = true;
 
-        let mut stream = conn.query(sql, &[]).await?.try_chunks(100);
+        let mut stream = conn.query(sql, &[]).await?;
         while let Some(rows) = stream.next().await {
-            let rows = rows?;
-
-            let mut rows_row = Vec::new();
-            for r in rows.into_iter() {
-                match r {
-                    tiberius::QueryItem::Row(r) => {
-                        rows_row.push(r);
-                    }
-                    tiberius::QueryItem::Metadata(meta) => {
-                        if first && include_header {
-                            let fs = meta
-                                .columns()
-                                .iter()
-                                .map(|x| x.name().to_string())
-                                .map(Some)
-                                .collect::<Vec<_>>();
-                            sender
-                                .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
-                                .await?;
-                            first = false
-                        }
+            let row = rows?;
+            match row {
+                tiberius::QueryItem::Row(r) => {
+                    let s = create_csv(&encode_rows(&vec![r])?, delimiter);
+                    sender.send(Cow::Owned(s)).await?;
+                }
+                tiberius::QueryItem::Metadata(meta) => {
+                    if first && include_header {
+                        let fs = meta
+                            .columns()
+                            .iter()
+                            .map(|x| x.name().to_string())
+                            .map(Some)
+                            .collect::<Vec<_>>();
+                        sender
+                            .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
+                            .await?;
+                        first = false
                     }
                 }
             }
+        }
+        anyhow::Ok(())
+    }
 
-            if !rows_row.is_empty() {
-                let s = create_csv(&encode_rows(&rows_row)?, delimiter);
-                sender.send(Cow::Owned(s)).await?;
+    async fn export_query_result_as_html(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let mut first = true;
+        let mut stream = conn.query(sql, &[]).await?;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            match row {
+                tiberius::QueryItem::Row(r) => {
+                    let s = create_html_table_data(&encode_rows(&vec![r])?);
+                    sender.send(Cow::Owned(s)).await?;
+                }
+                tiberius::QueryItem::Metadata(meta) => {
+                    if first && include_header {
+                        let fs = meta
+                            .columns()
+                            .iter()
+                            .map(|x| x.name().to_string())
+                            .collect::<Vec<_>>();
+                        sender
+                            .send(Cow::Owned(create_html_table_header(&fs)))
+                            .await?;
+                        first = false
+                    }
+                }
             }
         }
-
         anyhow::Ok(())
     }
 
@@ -1611,6 +1638,15 @@ impl SqlServerDB {
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
         self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
+            .await
+    }
+    async fn export_table_as_html(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!("SELECT * from {}", table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_html(&sql, include_header, sender)
             .await
     }
 
@@ -1724,7 +1760,10 @@ impl ExportQueryResult for SqlServerDB {
                 self.export_query_result_as_xlsx(sql, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_query_result_as_html(sql, include_header, sender)
+                    .await
+            }
         }
     }
 }

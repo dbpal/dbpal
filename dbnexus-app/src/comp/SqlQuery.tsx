@@ -4,6 +4,7 @@ import { MultiQueryResp } from "./QueryResp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   Box,
+  Checkbox,
   Chip,
   CircularProgress,
   IconButton,
@@ -13,7 +14,6 @@ import {
   Typography,
 } from "@mui/material";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { FaExclamation } from "react-icons/fa";
 import {
@@ -61,9 +61,15 @@ import {
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
 import { ExecutingTime, PossibleParseError } from "./CommonComp.tsx";
-import { EditorBar, LoadStoreFile, SaveFavoriteSqlView } from "./CommonComp2.tsx";
+import {
+  CancelButton,
+  EditorBar,
+  LoadStoreFile,
+  SaveFavoriteSqlView,
+} from "./CommonComp2.tsx";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { ModifyLLMConfigModal } from "./Settings.tsx";
+import { cancelTask, checkSql } from "./handlers.ts";
 function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
@@ -174,6 +180,15 @@ function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
   );
 }
 
+class SaveCheckSql {
+  static key = "dbpal-save-check-sql";
+  static get(): boolean {
+    return localStorage.getItem(SaveCheckSql.key) == "1";
+  }
+  static save(x: boolean) {
+    localStorage.setItem(SaveCheckSql.key, x ? "1" : "0");
+  }
+}
 function SqlQuery(props: {
   uuid: string;
   value?: string;
@@ -185,7 +200,7 @@ function SqlQuery(props: {
   const { uuid, value, favoriteName, kind, extras, handleEditor } = props;
 
   const [resp, setResp] = useState([]);
-  const [sqlErr] = useState<ErrAndLoc | null>(null);
+  const [sqlErr, setSqlErr] = useState<ErrAndLoc | null>(null);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position | null>(null);
   const [loading, setLoading] = useState(false);
@@ -205,23 +220,39 @@ function SqlQuery(props: {
   const [queryRespView, setQueryRespView] = useState<WebviewWindow>(null);
   const queryRespViewEventName = useRef(generateRandomString());
   const [openOk, setOpenOk] = useState(false);
-  const handleEditorDidMount = useCallback(
-    (ed: editor.IStandaloneCodeEditor) => {
-      setEditor(ed);
-      if (handleEditor) {
-        handleEditor(ed);
+  const [tryCheckSql, setTryCheckSql] = useState(SaveCheckSql.get());
+  useEffect(() => {
+    SaveCheckSql.save(tryCheckSql);
+  }, [tryCheckSql]);
+
+  const handleEditorDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
+    setEditor(ed);
+    ed.onDidChangeCursorPosition(() => {
+      const p = ed.getPosition();
+      setPos(p);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+    if (handleEditor) {
+      handleEditor(editor);
+    }
+    editor.getModel().onDidChangeContent(() => {
+      if (!tryCheckSql) {
+        setSqlErr(null);
+        return;
       }
-      ed.onDidChangeCursorPosition(() => {
-        const p = ed.getPosition();
-        setPos(p);
+      checkSql(uuid, editor.getValue()).then(e => {
+        setSqlErr(e);
       });
-    },
-    [handleEditor],
-  );
+    });
+  }, [editor, handleEditor, tryCheckSql, uuid]);
 
   useEffect(() => {
     setMakeConnLoading(true);
-
     conn
       .open()
       .then(() => {
@@ -483,7 +514,6 @@ function SqlQuery(props: {
             kind={kind}
             queryId={conn.queryId}
           />
-
           <Stack
             direction="row"
             sx={{
@@ -544,6 +574,16 @@ function SqlQuery(props: {
                     </IconButton>
                   </Tooltip>
                 )}
+                <Tooltip title="try check sql,right now implemented it using parser">
+                  <Checkbox
+                    checked={tryCheckSql}
+                    onChange={e => {
+                      setTryCheckSql(e.target.checked);
+                    }}
+                    name="myCheckbox"
+                    color="primary"
+                  />
+                </Tooltip>
               </>
             )}
             {openOk && conn.supportTransaction() && (
@@ -632,6 +672,16 @@ function SqlQuery(props: {
             {makeConnLoading && <CircularProgress />}
             <ModifyLLMConfigModal />
             <ExecutingTime loading={loading} disableTime />
+
+            {loading && (
+              <Tooltip title="cancel this operation">
+                <CancelButton
+                  handleCancel={() => {
+                    cancelTask(conn.queryId);
+                  }}
+                />
+              </Tooltip>
+            )}
           </Stack>
           <div
             style={{

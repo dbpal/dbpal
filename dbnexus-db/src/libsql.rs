@@ -15,8 +15,8 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit, escape_sql_str,
-    export_query_as_xlsx_send_data,
+    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit, create_html_table_data,
+    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
 use crate::language_server::CompletionItem;
@@ -118,7 +118,10 @@ impl ExportQueryResult for LibSqlDB {
                 self.export_query_result_as_xlsx(sql, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_query_result_as_html(sql, include_header, sender)
+                    .await
+            }
         }
     }
 }
@@ -644,7 +647,10 @@ impl SchemaTrait for LibSqlDB {
                 self.export_query_result_as_xlsx(name, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_table_as_html(name, include_header, sender)
+                    .await
+            }
         }
     }
 
@@ -1056,6 +1062,31 @@ impl LibSqlDB {
         anyhow::Ok(())
     }
 
+    async fn export_query_result_as_html(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let conn = self.get_conn().await?;
+
+        let mut stream = conn.query(sql, params!()).await?;
+        let mut first = true;
+        while let Some(row) = stream.next().await? {
+            if first && include_header {
+                let fs = get_row_types(&row);
+                let fs = fs.into_iter().map(|x| x.field).collect::<Vec<_>>();
+                sender
+                    .send(Cow::Owned(create_html_table_header(&fs)))
+                    .await?;
+                first = false;
+            }
+            let data = encode_rows(&vec![row])?;
+            sender
+                .send(Cow::Owned(create_html_table_data(&data)))
+                .await?;
+        }
+        anyhow::Ok(())
+    }
+
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -1063,6 +1094,16 @@ impl LibSqlDB {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
         self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
+            .await
+    }
+
+    async fn export_table_as_html(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_html(&sql, include_header, sender)
             .await
     }
 }

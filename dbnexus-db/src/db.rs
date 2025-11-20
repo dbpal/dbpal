@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset};
 use tokio::io::AsyncWriteExt;
+use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
 
 use crate::language_server::LanguageServer;
@@ -224,10 +225,11 @@ pub trait SchemaTrait:
         let h1 = {
             let x = SchemaTrait::clone(self);
             let table_name = table_name.to_string();
-            let h1 = tokio::spawn(async move {
-                x.export_table_or_view(&table_name, kind.to_internal(), sender)
-                    .await
-            });
+            let h1 =
+                tokio::spawn(
+                    async move { x.export_table_or_view(&table_name, kind, sender).await },
+                );
+
             h1
         };
         let h2 = {
@@ -870,10 +872,7 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         let j1 = {
             let x = self.clone();
             let sql = sql.to_string();
-            tokio::spawn(async move {
-                x.export_query_result(&sql, kind.to_internal(), sender)
-                    .await
-            })
+            tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await })
         };
         let j2 = {
             let sql = sql.to_string();
@@ -891,12 +890,12 @@ async fn write_export_xlsx_file(
 ) -> anyhow::Result<()> {
     let mut workbook = rust_xlsxwriter::workbook::Workbook::new();
     // Add a worksheet to the workbook.
-    let worksheet = workbook.add_worksheet();
+    let worksheet = block_in_place(|| workbook.add_worksheet_with_constant_memory());
     while let Some(edit) = receiver.recv().await {
         let edit = XlsxEdit::from(edit);
-        worksheet.write_string(edit.row, edit.column, edit.content)?;
+        block_in_place(|| worksheet.write_string(edit.row, edit.column, edit.content))?;
     }
-    workbook.save(filepath)?;
+    block_in_place(|| workbook.save(filepath))?;
     anyhow::Ok(())
 }
 
@@ -905,7 +904,7 @@ async fn write_export_file(
     title: &str,
 ) -> anyhow::Result<()> {
     match kind {
-        ExportKind::Html => write_export_html_file(filepath, receiver, title).await,
+        ExportKind::Html { .. } => write_export_html_file(filepath, receiver, title).await,
         ExportKind::Xlsx { .. } => write_export_xlsx_file(filepath, receiver).await,
         _ => {
             let mut file = tokio::fs::File::create(&filepath).await?;
@@ -932,39 +931,8 @@ async fn write_export_html_file(
         let x = x.replacen("THIS_IS_TITLE", title, 1);
         file.write_all(x.as_bytes()).await?;
     }
-    let mut first = true;
     while let Some(data) = receiver.recv().await {
-        for line in data.lines() {
-            if line.trim().is_empty() {
-                continue;
-            }
-            let data: serde_json::Map<String, serde_json::Value> = serde_json::from_str(line)?;
-            if first {
-                // writer header
-                first = false;
-                file.write_all("<tr>".as_bytes()).await?;
-                for k in data.keys() {
-                    file.write_all("<th>".as_bytes()).await?;
-                    file.write_all(k.as_bytes()).await?;
-                    file.write_all("</th>\n".as_bytes()).await?;
-                }
-                file.write_all("</tr>\n".as_bytes()).await?;
-            }
-            file.write_all("<tr>".as_bytes()).await?;
-            for v in data.values() {
-                file.write_all("<td>".as_bytes()).await?;
-                file.write_all(
-                    match v {
-                        serde_json::Value::String(c) => c.clone(),
-                        _ => serde_json::to_string(v)?,
-                    }
-                    .as_bytes(),
-                )
-                .await?;
-                file.write_all("</td>\n".as_bytes()).await?;
-            }
-            file.write_all("</tr>\n".as_bytes()).await?;
-        }
+        file.write_all(data.as_bytes()).await?;
     }
     {
         let t = "</table>";
@@ -1305,24 +1273,12 @@ pub enum ExportKind {
     Xlsx {
         include_header: bool,
     },
-    Html,
+    Html {
+        include_header: bool,
+    },
 }
 
 impl ExportKind {
-    pub fn to_internal(self) -> Self {
-        match self {
-            ExportKind::Html => ExportKind::JsonLine,
-            _ => self,
-        }
-    }
-
-    pub(crate) fn not_to_internal_bug<T>(self) -> anyhow::Result<T> {
-        anyhow::bail!(format!(
-            "this kind {:?}  should converted to internal but not.",
-            self
-        ));
-    }
-
     pub(crate) fn cannot_query_result_export_as_sql() -> anyhow::Result<()> {
         anyhow::bail!("can't export sql result as sql")
     }
@@ -1533,6 +1489,45 @@ impl AutoCompletionQueryId {
             self.set(x);
         }
     }
+}
+
+pub(crate) fn create_html_table_header(x: &[String]) -> String {
+    format!(
+        r#"
+        <tr>
+            {}
+        </tr>
+    "#,
+        x.iter()
+            .map(|x| format!("<th>{x}</th>"))
+            .collect::<Vec<_>>()
+            .join("")
+    )
+}
+
+pub(crate) fn create_html_table_data(data: &Vec<Vec<Option<String>>>) -> String {
+    let mut ret = "".to_owned();
+    for d in data.iter() {
+        let x = &format!(
+            r#"
+            <tr>
+                {}
+            </tr>
+        "#,
+            d.iter()
+                .map(|x| {
+                    if x.is_none() {
+                        "<td></td>".to_owned()
+                    } else {
+                        format!("<td>{}</td>", x.as_ref().unwrap())
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("")
+        );
+        ret.push_str(x.as_str());
+    }
+    ret
 }
 
 pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;

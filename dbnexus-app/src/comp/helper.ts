@@ -886,15 +886,6 @@ function getEditorText(editor: editor.IStandaloneCodeEditor, showNotification) {
   return text;
 }
 
-function makeCheckSql(uuid) {
-  return (sql: string): Promise<ErrAndLoc | null> => {
-    return invoke<ErrAndLoc | null>("check_sql", {
-      name: uuid,
-      sql,
-    });
-  };
-}
-
 class SaveQueryLogConfigure {
   static key = "dbpal-save-query-log";
   static get() {
@@ -1172,12 +1163,11 @@ enum TableType {
   MongoTimeSerial,
 }
 
-const shrinkAble: CSSProperties = {
+const shrinkAble = {
   flexShrink: 1,
   overflow: "hidden",
   minWidth: "3rem",
 };
-
 class LLMConfig {
   baseUrl: string;
   apiKey: string;
@@ -1289,7 +1279,6 @@ export {
   postgresLike,
   udfIdGenerate,
   getEditorText,
-  makeCheckSql,
   makeExecuteSql,
   QueryLogHandler,
   ColorFn,

@@ -36,8 +36,9 @@ use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     BackendKind, CheckConn, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
     ListTable, MetaValue, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, XlsxEdit, escape_sql_str,
-    export_query_as_xlsx_send_blocking_data, not_support_feature,
+    ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, XlsxEdit, create_html_table_data,
+    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_blocking_data,
+    not_support_feature,
 };
 use crate::helper::create_csv;
 
@@ -202,6 +203,35 @@ impl FireBirdDB {
         anyhow::Ok(())
     }
 
+    async fn export_query_result_as_html(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let firebird = Clone::clone(self);
+        let sql = sql.to_owned();
+
+        spawn_blocking(move || {
+            let mut conn = firebird.get_conn()?;
+            let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
+                conn.query_iter(&sql, ())?;
+            let mut first = true;
+            for row in stream {
+                let row = row?;
+                if first && include_header {
+                    let fs: Vec<_> = row.cols.iter().map(|x| x.name.clone()).collect();
+                    sender.blocking_send(Cow::Owned(create_html_table_header(&fs)))?;
+                    first = false;
+                }
+                let data = encode_rows(&vec![row], true, None)?;
+                sender.blocking_send(Cow::Owned(create_html_table_data(&data)))?;
+            }
+            anyhow::Ok(())
+        })
+        .await??;
+
+        anyhow::Ok(())
+    }
+
     async fn export_query_result_as_json(
         &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -355,7 +385,10 @@ impl ExportQueryResult for FireBirdDB {
                 self.export_query_result_as_xlsx(sql, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_query_result_as_html(sql, include_header, sender)
+                    .await
+            }
         }
     }
 }
@@ -526,6 +559,16 @@ impl FireBirdDB {
             .await
     }
 
+    async fn export_table_as_html(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_html(&sql, include_header, sender)
+            .await
+    }
+
     async fn export_table_as_json(
         &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
@@ -626,7 +669,10 @@ impl SchemaTrait for FireBirdDB {
                 self.export_table_as_xlsx(name, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_table_as_html(name, include_header, sender)
+                    .await
+            }
         }
     }
 

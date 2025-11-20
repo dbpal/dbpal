@@ -17,7 +17,7 @@ import {
 
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { editor, Position } from "monaco-editor";
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { initMongoQueryGlobals, MongoDBQuery } from "./MongoQueryBackend";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
@@ -514,14 +514,20 @@ function MongoQuery(props: {
   const setUpClean = (name: string, fn: () => void) => {
     setCleanFns(e => [...e, { name, fn }]);
   };
-  const jsCodeMount = (ed: editor.IStandaloneCodeEditor) => {
+  const jsCodeMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
     ed.focus();
     ed.onDidChangeCursorPosition(() => {
       setPos(ed.getPosition());
     });
-    handleEditor(ed);
-  };
+  }, []);
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+    handleEditor(editor);
+  }, [editor, handleEditor]);
+
   useEffect(() => {
     import("bson").then(e => {
       setBson(e);

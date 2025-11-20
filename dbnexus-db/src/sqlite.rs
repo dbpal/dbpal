@@ -20,7 +20,8 @@ use crate::db::{
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
-    XlsxEdit, escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
+    XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
+    export_query_as_xlsx_send_data, not_support_feature,
 };
 use crate::helper::create_csv;
 use crate::language_server::CompletionItem;
@@ -247,6 +248,34 @@ impl SqliteDB {
         anyhow::Ok(())
     }
 
+    async fn export_query_result_as_html(
+        &self, sql: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql))
+            .fetch(conn.deref_mut())
+            .try_chunks(1000);
+        let mut first = true;
+        while let Some(rows) = stream.next().await {
+            let rows = rows?;
+            if first && !rows.is_empty() && include_header {
+                let cols: Vec<_> = rows[0]
+                    .columns()
+                    .iter()
+                    .map(|x| x.name().to_string())
+                    .collect();
+                sender
+                    .send(create_html_table_header(&cols[..]).into())
+                    .await?;
+                first = false;
+            }
+            let data = encode_rows(&rows)?;
+            sender.send(create_html_table_data(&data).into()).await?;
+        }
+        anyhow::Ok(())
+    }
+
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -256,6 +285,17 @@ impl SqliteDB {
         self.export_query_result_as_csv(&sql, include_header, delimiter, sender.clone())
             .await
     }
+
+    async fn export_table_as_html(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_html(&sql, include_header, sender.clone())
+            .await
+    }
+
     async fn export_table_as_xlsx(
         &self, table_name: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -658,7 +698,10 @@ impl SchemaTrait for SqliteDB {
                 self.export_table_as_xlsx(name, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_table_as_html(name, include_header, sender)
+                    .await
+            }
         }
     }
 
@@ -1289,7 +1332,10 @@ impl ExportQueryResult for SqliteDB {
                 self.export_query_result_as_xlsx(sql, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_query_result_as_html(sql, include_header, sender)
+                    .await
+            }
         }
     }
 }

@@ -393,7 +393,7 @@ function DbSchemaCadidates(props: {
       config.name = "test_conn";
     }
     setLoading(true);
-    invoke<string[]>("config_list_database_or_schema", { conn: config })
+    invoke<string[]>("try_list_database_schema_candidates", { conn: config })
       .then(e => {
         showNotification("success", "fetch candidates success");
         setCadidates(e);

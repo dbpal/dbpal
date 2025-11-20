@@ -19,7 +19,8 @@ use crate::db::{
     MetaValue, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
     TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
-    XlsxEdit, escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
+    XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
+    export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
 use crate::helper::create_csv;
 
@@ -162,7 +163,10 @@ impl ExportQueryResult for OracleDB {
                 self.export_query_result_as_xlsx(sql, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_query_result_as_html(sql, include_header, sender)
+                    .await
+            }
         }
     }
 }
@@ -862,6 +866,36 @@ impl OracleDB {
         .await?
     }
 
+    async fn export_query_result_as_html(
+        &self,
+        sql: &str,
+        include_header: bool, // include header if possible,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let conn = self.get_conn().await?;
+        let sql = sql.to_owned();
+        spawn_blocking(move || {
+            let mut first = true;
+            let rows = conn.query(&sql, &[])?;
+            for row in rows {
+                let row = row?;
+                if include_header && first {
+                    let fs: Vec<_> = row
+                        .column_info()
+                        .iter()
+                        .map(|x| x.name().to_owned())
+                        .collect();
+                    sender.blocking_send(Cow::Owned(create_html_table_header(&fs)))?;
+                    first = false;
+                }
+                let data = encode_rows(vec![Ok(row)])?;
+                sender.blocking_send(Cow::Owned(create_html_table_data(&data)))?;
+            }
+            anyhow::Ok(())
+        })
+        .await?
+    }
+
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -872,6 +906,19 @@ impl OracleDB {
             &sql,
             include_header, // we have emit header before
             delimiter,
+            sender,
+        )
+        .await
+    }
+    async fn export_table_as_html(
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_html(
+            &sql,
+            include_header, // we have emit header before
             sender,
         )
         .await
@@ -1119,7 +1166,10 @@ impl SchemaTrait for OracleDB {
                 self.export_table_as_xlsx(name, include_header, sender)
                     .await
             }
-            _ => kind.not_to_internal_bug(),
+            ExportKind::Html { include_header } => {
+                self.export_table_as_html(name, include_header, sender)
+                    .await
+            }
         }
     }
 

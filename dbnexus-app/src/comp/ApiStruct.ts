@@ -300,10 +300,14 @@ export namespace types {
         "sql": string;
         "changes": (types.U64 | null);
     };
+
+    /**
+     * meta value can used in various place.
+     */
     export type MetaValue = {
         "name": string;
         "value": (string | null);
-        "desc"?: (string | null);
+        "desc": (string | null);
     };
 
     /**
@@ -334,9 +338,11 @@ export namespace types {
         "export_kind": "xlsx";
     } & {
         "include_header": boolean;
-    }) | {
+    }) | ({
         "export_kind": "html";
-    });
+    } & {
+        "include_header": boolean;
+    }));
     export type RedisListTable = {
         "string_tables": (string)[];
         "list_tables": (string)[];
@@ -426,5 +432,6 @@ export namespace types {
     export type CompletionList = {
         "items": (types.CompletionItem)[];
         "incomplete": boolean;
+        "from_dot": boolean;
     };
 }

@@ -33,37 +33,35 @@ function NotificationProvider(props: { children: ReactNode }) {
     title: "",
     message: "" as ReactElement | string | null | undefined,
   });
-  const showNotification = (
-    severity: AlertColor,
-    title: string,
-    msg: any | ReactElement,
-  ) => {
-    if (typeof msg == "object" && "reason" in msg) {
-      console.error("detail:", msg);
+
+  const showNotification = (severity: AlertColor, title: string, err) => {
+    const iscancelled = isCancelledError(err);
+    if (typeof err == "object" && "reason" in err) {
+      console.error("detail:", err);
       // this a error from the backend
       // we only show `reason` the short message
-      msg = msg["reason"];
+      err = err["reason"];
     }
-    if (severity == "error" && !React.isValidElement(msg)) {
-      msg = msg ? String(msg) : "";
-      message(msg, {
+    if (severity == "error" && !React.isValidElement(err) && !iscancelled) {
+      err = err ? String(err) : "";
+      message(err, {
         kind: severity,
         title,
         buttons: {
-          ok: msg ? "copy error" : "ok",
+          ok: err ? "copy error" : "ok",
           cancel: "dismiss",
         },
       }).then((e: MessageDialogResult) => {
         if (e == "copy error") {
-          handleCopyToClipboard(msg);
+          handleCopyToClipboard(err);
         }
       });
       return;
     }
-    if (!React.isValidElement(msg) && msg) {
-      msg = String(msg);
+    if (!React.isValidElement(err) && err) {
+      err = String(err);
     }
-    setNotification({ severity, title, message: msg });
+    setNotification({ severity, title, message: err });
     setOpen(true);
   };
 
@@ -119,4 +117,7 @@ function NotificationProvider(props: { children: ReactNode }) {
   );
 }
 
+function isCancelledError(e: { cancelled?: boolean }) {
+  return typeof e == "object" && e.cancelled;
+}
 export { NotificationProvider };

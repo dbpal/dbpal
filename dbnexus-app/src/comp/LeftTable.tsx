@@ -78,6 +78,7 @@ import { ExceedMaxTreeItem, MenuRefresh, ModalHeader } from "./CommonComp";
 import { TableStructure } from "./TableStructure";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import {
+  cancelTask,
   listTable,
   makeExtractTableSelectSort,
   makeExtractTableSelectWhere,
@@ -90,6 +91,7 @@ import {
   showTableColumn,
 } from "./handlers";
 import { filesize } from "filesize";
+import { CancelButton } from "./CommonComp2";
 
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
@@ -1010,13 +1012,19 @@ function DupTable(props: {
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState(table);
   const { showNotification } = useContext(NotificationContext);
+  const taskId = useRef(generateRandomString());
   const handleRename = () => {
     if (name == table) {
       showNotification("error", "name not changed");
       return;
     }
     setLoading(true);
-    invoke("duplicate_table", { name: uuid, from: table, to: name })
+    invoke("duplicate_table", {
+      name: uuid,
+      from: table,
+      to: name,
+      taskId: taskId.current,
+    })
       .then(() => {
         showNotification("success", "duplicate OK");
         reloadTables();
@@ -1043,6 +1051,14 @@ function DupTable(props: {
         <Button loading={loading} color="primary" onClick={handleRename}>
           duplicate
         </Button>
+        {loading && (
+          <CancelButton
+            handleCancel={() => {
+              cancelTask(taskId.current);
+              handleClose();
+            }}
+          />
+        )}
       </Stack>
     </Stack>
   );

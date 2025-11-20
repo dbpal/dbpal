@@ -200,6 +200,7 @@
     "innodb",
     "INTN",
     "ipnetwork",
+    "iscancelled",
     "ISDATE",
     "ISJSON",
     "ISNULL",

@@ -1,6 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import types from "./ApiStruct";
-import { DataSourceKind, MuiDataGridData, TableType, ViewKind } from "./helper";
+import {
+  DataSourceKind,
+  ErrAndLoc,
+  MuiDataGridData,
+  TableType,
+  ViewKind,
+} from "./helper";
 import { message } from "@tauri-apps/plugin-dialog";
 
 function makeExtractTableSelectWhere(uuid: string) {
@@ -305,10 +311,22 @@ function listView(uuid: string, viewKind: ViewKind) {
   return invoke<types.ListTable[]>(invokeName, { name: uuid });
 }
 
-function cancelTask(taskId: string): Promise<void> {
-  return invoke<void>("cancel_task", { taskId }).catch(e => {
+async function cancelTask(taskId: string): Promise<void> {
+  try {
+    return await invoke<void>("cancel_task", { taskId });
+  } catch (e) {
     message("cancel task failed,err" + String(e), { kind: "error" });
     console.error(e);
+  }
+}
+
+function checkSql(uuid: string, sql: string) {
+  return invoke<ErrAndLoc | null>("check_sql", {
+    name: uuid,
+    sql,
+  }).catch(e => {
+    console.error("this check sql function should not throw error,but", e);
+    return null;
   });
 }
 
@@ -348,4 +366,5 @@ export {
   listView,
   tryGetMaxID,
   cancelTask,
+  checkSql,
 };
