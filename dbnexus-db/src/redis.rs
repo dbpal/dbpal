@@ -2122,7 +2122,7 @@ mod tests {
         {
             // xlsx
             let name = db.backend_name().make_test_xlsx_file(key);
-            db.export_query_result_to_file(cmd, kind, &name)
+            db.export_query_result_to_file(cmd, kind, &name, Arc::new(|_| {}))
                 .await
                 .unwrap();
             opener::open(name.as_str()).unwrap();

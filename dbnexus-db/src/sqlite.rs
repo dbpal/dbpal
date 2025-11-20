@@ -2116,6 +2116,7 @@ mod tests {
                 ExportKind::Xlsx {
                     include_header: true,
                 },
+                Arc::new(|_| {}),
             )
             .await
             .unwrap();

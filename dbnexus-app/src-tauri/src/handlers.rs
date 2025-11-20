@@ -931,7 +931,8 @@ pub async fn drop_event(
 #[tauri::command]
 pub async fn export_query_result_to_file(
     name: String, task_id: String, sql: String, kind: ExportKind, file: String,
-    task_manager: tauri::State<'_, TaskManager>, app: tauri::State<'_, DBPal>,
+    size_emitter: Channel<usize>, task_manager: tauri::State<'_, TaskManager>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -940,19 +941,23 @@ pub async fn export_query_result_to_file(
         .get_backend(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-
+    let size_emitter = Arc::new(move |size| {
+        if let Err(err) = size_emitter.send(size) {
+            log::error!("Error sending size to frontend: {}", err);
+        }
+    });
     let fur = async {
         match opened {
             DatabaseBackend::Catalog(x) => x
-                .export_query_result_to_file(&sql, kind, &file)
+                .export_query_result_to_file(&sql, kind, &file, size_emitter.clone())
                 .await
                 .map_err(ErrorFrontend::from),
             DatabaseBackend::DataBase(x) => x
-                .export_query_result_to_file(&sql, kind, &file)
+                .export_query_result_to_file(&sql, kind, &file, size_emitter.clone())
                 .await
                 .map_err(ErrorFrontend::from),
             DatabaseBackend::Schema(x) => x
-                .export_query_result_to_file(&sql, kind, &file)
+                .export_query_result_to_file(&sql, kind, &file, size_emitter.clone())
                 .await
                 .map_err(ErrorFrontend::from),
         }
@@ -1143,7 +1148,8 @@ pub async fn query_sql_close_connection(
 #[tauri::command]
 pub async fn export_table_or_view(
     name: String, task_id: String, task_manager: tauri::State<'_, TaskManager>,
-    table_or_view: String, filepath: String, kind: ExportKind, app: tauri::State<'_, DBPal>,
+    size_emitter: Channel<usize>, table_or_view: String, filepath: String, kind: ExportKind,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1152,12 +1158,22 @@ pub async fn export_table_or_view(
         .await
         .map_err(|e| e.to_string())?;
     let (token, _guard) = task_manager.add(task_id);
-    let fur = async {
+    let filepath2 = filepath.clone();
+    let fur = async move {
         #[cfg(feature = "random-sleep")]
         tokio::time::sleep(Duration::from_secs(10)).await;
-        db.export_table_or_view_to_file(table_or_view.as_str(), filepath.as_str(), kind)
-            .await
-            .map_err(ErrorFrontend::from)
+        db.export_table_or_view_to_file(
+            table_or_view.as_str(),
+            filepath2.as_str(),
+            kind,
+            Arc::new(move |size| {
+                if let Err(err) = size_emitter.send(size) {
+                    log::error!("Error sending size: {}", err);
+                }
+            }),
+        )
+        .await
+        .map_err(ErrorFrontend::from)
     };
     let remove_file = async {
         if let Err(e) = tokio::fs::remove_file(&filepath).await {
@@ -1171,6 +1187,7 @@ pub async fn export_table_or_view(
             Err(ErrorFrontend::cancelled())
         }
     };
+
     r
 }
 

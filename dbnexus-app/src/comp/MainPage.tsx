@@ -112,7 +112,7 @@ function App() {
                       height: "100%",
                     }}
                     minSize={10}
-                    maxSize={65}
+                    maxSize={85}
                     collapsible
                     collapsedSize={0}
                   >

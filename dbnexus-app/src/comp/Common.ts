@@ -5,7 +5,7 @@ import { types } from "./ApiStruct";
 import { format as formatSql, SqlLanguage } from "sql-formatter";
 import { createContext } from "react";
 import { TabContent } from "./Tabs";
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
 import * as keyring from "tauri-plugin-keyring-api";
 import {
@@ -310,6 +310,7 @@ interface IQueryConn {
     kind: types.ExportKind,
     file: string,
     taskId: string,
+    sizeEmitter: Channel<number>,
   ) => Promise<void>;
   isDangerSql: (sql: string) => Promise<boolean>;
   destroy: () => void;
@@ -360,6 +361,7 @@ class QueryConn implements IQueryConn {
     kind: types.ExportKind,
     file: string,
     taskId: string,
+    sizeEmitter: Channel<number>,
   ): Promise<void> {
     return invoke<void>("export_query_result_to_file", {
       name: this.uuid,
@@ -367,6 +369,7 @@ class QueryConn implements IQueryConn {
       kind,
       file,
       taskId,
+      sizeEmitter,
     });
   }
 

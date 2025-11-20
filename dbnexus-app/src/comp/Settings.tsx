@@ -5,6 +5,7 @@ import {
   Autocomplete,
   Box,
   Button,
+  Checkbox,
   Chip,
   Components,
   createTheme,
@@ -17,7 +18,6 @@ import {
   Modal,
   Slider,
   Stack,
-  Switch,
   Tab,
   Tabs,
   TextField,
@@ -474,7 +474,7 @@ function ExportSetting() {
         <Typography width={headerSize}>include header</Typography>
         <FormControlLabel
           control={
-            <Switch
+            <Checkbox
               checked={includeHeader}
               onChange={e => setIncludeHeader(e.target.checked)}
             />
@@ -804,7 +804,7 @@ function MiscSetting() {
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>auto start</Typography>
 
-        <Switch
+        <Checkbox
           checked={autoStart}
           onChange={e => {
             setAutoStart(e.target.checked);

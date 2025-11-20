@@ -2,6 +2,7 @@
 import {
   Box,
   Button,
+  Checkbox,
   FormControlLabel,
   ListItemIcon,
   ListItemText,
@@ -9,7 +10,6 @@ import {
   MenuList,
   Modal,
   Stack,
-  Switch,
 } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
@@ -250,7 +250,7 @@ function SequenceMenu(props: {
                 <Stack>
                   <FormControlLabel
                     control={
-                      <Switch
+                      <Checkbox
                         checked={cascade}
                         onChange={e => setCascade(e.target.checked)}
                       />

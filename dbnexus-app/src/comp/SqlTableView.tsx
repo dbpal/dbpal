@@ -13,6 +13,7 @@ import types from "./ApiStruct";
 import {
   Box,
   Button,
+  Checkbox,
   Chip,
   Divider,
   FormControlLabel,
@@ -24,7 +25,6 @@ import {
   MenuList,
   Modal,
   Stack,
-  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -741,7 +741,7 @@ function SqlTableView_(props: {
           <>
             <FormControlLabel
               control={
-                <Switch
+                <Checkbox
                   checked={allowFiltering}
                   onChange={e => setAllowFiltering(e.target.checked)}
                 />

@@ -2,12 +2,12 @@
 import {
   Box,
   Button,
+  Checkbox,
   FormControlLabel,
   IconButton,
   Modal,
   Paper,
   Stack,
-  Switch,
   TextField,
   Tooltip,
 } from "@mui/material";
@@ -252,7 +252,7 @@ function QueryLog(props: {
           <Tooltip title={`auto save query log to local database maybe danger.`}>
             <FormControlLabel
               control={
-                <Switch
+                <Checkbox
                   checked={saveQueryLog}
                   onChange={() => {
                     const newValue = !saveQueryLog;

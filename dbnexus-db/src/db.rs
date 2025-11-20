@@ -92,6 +92,8 @@ pub trait ReadOnlyTrait {
     }
 }
 
+pub type ExportedSizeEmitter = Arc<dyn Fn(usize) -> () + Send + Sync>;
+
 /// representation of schema
 #[async_trait::async_trait]
 pub trait SchemaTrait:
@@ -216,7 +218,7 @@ pub trait SchemaTrait:
     /// when this is view
 
     async fn export_table_or_view_to_file(
-        &self, table_name: &str, filepath: &str, kind: ExportKind,
+        &self, table_name: &str, filepath: &str, kind: ExportKind, emit: ExportedSizeEmitter,
     ) -> anyhow::Result<()> {
         if !self.table_exists(table_name).await? {
             anyhow::bail!("table not exists")
@@ -235,9 +237,9 @@ pub trait SchemaTrait:
         let h2 = {
             let filepath = filepath.to_string();
             let table_name = table_name.to_string();
-            tokio::spawn(
-                async move { write_export_file(kind, &filepath, receiver, &table_name).await },
-            )
+            tokio::spawn(async move {
+                write_export_file(kind, &filepath, receiver, &table_name, emit).await
+            })
         };
         h1.await??;
         h2.await??;
@@ -865,7 +867,7 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         j2.await?
     }
     async fn export_query_result_to_file(
-        &self, sql: &str, kind: ExportKind, file: &str,
+        &self, sql: &str, kind: ExportKind, file: &str, emit: ExportedSizeEmitter,
     ) -> anyhow::Result<()> {
         log::info!("sql:{}", sql);
         let (sender, receiver) = tokio::sync::mpsc::channel(10);
@@ -877,7 +879,9 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         let j2 = {
             let sql = sql.to_string();
             let filepath = file.to_string();
-            tokio::spawn(async move { write_export_file(kind, &filepath, receiver, &sql).await })
+            tokio::spawn(
+                async move { write_export_file(kind, &filepath, receiver, &sql, emit).await },
+            )
         };
         j1.await??;
         j2.await??;
@@ -885,62 +889,65 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
     }
 }
 
-async fn write_export_xlsx_file(
-    filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<Cow<'static, str>>,
-) -> anyhow::Result<()> {
-    let mut workbook = rust_xlsxwriter::workbook::Workbook::new();
-    // Add a worksheet to the workbook.
-    let worksheet = block_in_place(|| workbook.add_worksheet_with_constant_memory());
-    while let Some(edit) = receiver.recv().await {
-        let edit = XlsxEdit::from(edit);
-        block_in_place(|| worksheet.write_string(edit.row, edit.column, edit.content))?;
-    }
-    block_in_place(|| workbook.save(filepath))?;
-    anyhow::Ok(())
-}
-
 async fn write_export_file(
     kind: ExportKind, filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<Cow<'static, str>>,
-    title: &str,
+    title: &str, emit: ExportedSizeEmitter,
 ) -> anyhow::Result<()> {
-    match kind {
-        ExportKind::Html { .. } => write_export_html_file(filepath, receiver, title).await,
-        ExportKind::Xlsx { .. } => write_export_xlsx_file(filepath, receiver).await,
-        _ => {
+    let mut size = TimeAcc::new(Duration::from_millis(200));
+    let r = match kind {
+        ExportKind::Html { .. } => {
             let mut file = tokio::fs::File::create(&filepath).await?;
-            while let Some(r) = receiver.recv().await {
-                file.write_all(r.as_bytes()).await?;
+            // Add a worksheet to the workbook.
+            let template = include_str!("./export_html_template.html");
+
+            {
+                let t = "<table>";
+                let index = template.find(t).unwrap();
+                let x = &template[..index + t.len()];
+                let x = x.replacen("THIS_IS_TITLE", title, 1);
+                file.write_all(x.as_bytes()).await?;
+            }
+            while let Some(data) = receiver.recv().await {
+                file.write_all(data.as_bytes()).await?;
+                if size.add(data.len()) {
+                    emit(size.acc)
+                }
+            }
+            {
+                let t = "</table>";
+                let index = template.find(t).unwrap();
+
+                file.write_all(&template.as_bytes()[index..]).await?;
             }
             anyhow::Ok(())
         }
-    }
-}
-async fn write_export_html_file(
-    filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<Cow<'static, str>>, title: &str,
-) -> anyhow::Result<()> {
-    let mut file = tokio::fs::File::create(&filepath).await?;
-
-    // Add a worksheet to the workbook.
-
-    let template = include_str!("./export_html_template.html");
-
-    {
-        let t = "<table>";
-        let index = template.find(t).unwrap();
-        let x = &template[..index + t.len()];
-        let x = x.replacen("THIS_IS_TITLE", title, 1);
-        file.write_all(x.as_bytes()).await?;
-    }
-    while let Some(data) = receiver.recv().await {
-        file.write_all(data.as_bytes()).await?;
-    }
-    {
-        let t = "</table>";
-        let index = template.find(t).unwrap();
-
-        file.write_all(&template.as_bytes()[index..]).await?;
-    }
-    anyhow::Ok(())
+        ExportKind::Xlsx { .. } => {
+            let mut workbook = rust_xlsxwriter::workbook::Workbook::new();
+            // Add a worksheet to the workbook.
+            let worksheet = block_in_place(|| workbook.add_worksheet_with_constant_memory());
+            while let Some(edit) = receiver.recv().await {
+                let edit = XlsxEdit::from(edit);
+                if size.add(edit.content.len()) {
+                    emit(size.acc)
+                }
+                block_in_place(|| worksheet.write_string(edit.row, edit.column, edit.content))?;
+            }
+            block_in_place(|| workbook.save(filepath))?;
+            anyhow::Ok(())
+        }
+        _ => {
+            let mut file = tokio::fs::File::create(&filepath).await?;
+            while let Some(data) = receiver.recv().await {
+                file.write_all(data.as_bytes()).await?;
+                if size.add(data.len()) {
+                    emit(size.acc)
+                }
+            }
+            anyhow::Ok(())
+        }
+    };
+    emit(size.acc);
+    r
 }
 
 #[async_trait::async_trait]
@@ -1488,6 +1495,31 @@ impl AutoCompletionQueryId {
         if let Some(x) = x {
             self.set(x);
         }
+    }
+}
+
+pub struct TimeAcc {
+    d: Duration,
+    acc: usize,
+    ins: std::time::Instant,
+}
+
+impl TimeAcc {
+    fn new(d: Duration) -> Self {
+        Self {
+            d,
+            acc: Default::default(),
+            ins: std::time::Instant::now(),
+        }
+    }
+
+    fn add(&mut self, a: usize) -> bool {
+        let e = self.ins.elapsed() > self.d;
+        if e {
+            self.ins = std::time::Instant::now();
+        }
+        self.acc += a;
+        e
     }
 }
 

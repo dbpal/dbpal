@@ -560,6 +560,15 @@ function SqlQuery(props: {
                     <FaExclamation />
                   </IconButton>
                 </Tooltip>
+                {loading && (
+                  <Tooltip title="cancel this operation">
+                    <CancelButton
+                      handleCancel={() => {
+                        cancelTask(conn.queryId);
+                      }}
+                    />
+                  </Tooltip>
+                )}
                 {supportExplain && (
                   <Tooltip title="explain sql">
                     <IconButton
@@ -672,16 +681,6 @@ function SqlQuery(props: {
             {makeConnLoading && <CircularProgress />}
             <ModifyLLMConfigModal />
             <ExecutingTime loading={loading} disableTime />
-
-            {loading && (
-              <Tooltip title="cancel this operation">
-                <CancelButton
-                  handleCancel={() => {
-                    cancelTask(conn.queryId);
-                  }}
-                />
-              </Tooltip>
-            )}
           </Stack>
           <div
             style={{
@@ -745,9 +744,9 @@ function SqlQuery(props: {
           <Box sx={modalStyle} width="45%">
             <ExportView
               supportKind={["csv", "json", "jsonline", "xlsx", "html"]}
-              exportOP={async (kind, file, taskId) => {
+              exportOP={async (kind, file, taskId, sizeEmitter) => {
                 const sql = getEditorText(editor, showNotification);
-                return conn.exportQueryResult(sql, kind, file, taskId);
+                return conn.exportQueryResult(sql, kind, file, taskId, sizeEmitter);
               }}
               handleClose={() => {
                 setShowExport(false);

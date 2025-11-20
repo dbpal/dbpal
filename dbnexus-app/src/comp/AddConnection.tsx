@@ -11,7 +11,6 @@ import ClearIcon from "@mui/icons-material/Clear";
 import {
   TextField,
   Button,
-  Switch,
   FormControlLabel,
   Typography,
   FormControl,
@@ -216,7 +215,7 @@ function Https(props: { https; setHttps }) {
   const { https, setHttps } = props;
   return (
     <FormControlLabel
-      control={<Switch checked={https} onChange={e => setHttps(e.target.checked)} />}
+      control={<Checkbox checked={https} onChange={e => setHttps(e.target.checked)} />}
       label="HTTPS"
     />
   );
@@ -228,7 +227,7 @@ function SqlServerCert(props: { data: SqlServerCertData; setData }) {
     <Stack direction="row" style={{ alignItems: "center" }}>
       <FormControlLabel
         control={
-          <Switch
+          <Checkbox
             checked={data.trust_cert}
             onChange={e =>
               setData({
@@ -952,7 +951,10 @@ function Redis(props: { config?: types.RedisDBConfig }) {
       />
       <FormControlLabel
         control={
-          <Switch checked={enableSSL} onChange={e => setEnableSSL(e.target.checked)} />
+          <Checkbox
+            checked={enableSSL}
+            onChange={e => setEnableSSL(e.target.checked)}
+          />
         }
         label="enable ssl"
       />
@@ -1014,7 +1016,7 @@ function MongoDb(props: { config?: types.MongoDBConfig }) {
         <FormControlLabel
           style={{ width: "180px" }}
           control={
-            <Switch
+            <Checkbox
               checked={enableSSL}
               onChange={e => setEnableSSL(e.target.checked)}
             />
@@ -1236,7 +1238,10 @@ function AddConnection(props: {
         <FormControlLabel
           style={{ width: "180px" }}
           control={
-            <Switch checked={readOnly} onChange={e => setReadOnly(e.target.checked)} />
+            <Checkbox
+              checked={readOnly}
+              onChange={e => setReadOnly(e.target.checked)}
+            />
           }
           label="Read Only"
         />

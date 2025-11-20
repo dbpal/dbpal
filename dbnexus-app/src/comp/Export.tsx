@@ -15,14 +15,13 @@ import types from "./ApiStruct";
 import { NotificationContext } from "./Notification";
 import { save } from "@tauri-apps/plugin-dialog";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { ModalHeader, OpenFileWithDefaultApp } from "./CommonComp";
 import {
   generateDefaultFilename,
   generateRandomString,
   SettingContext,
 } from "./helper";
-import { stat } from "@tauri-apps/plugin-fs";
 
 import { cancelTask } from "./handlers";
 import { CancelButton } from "./CommonComp2";
@@ -47,7 +46,12 @@ function IncludeHeader({ includeHeader, setIncludeHeader }) {
 let lastExportKind = "csv";
 function ExportView(props: {
   name: string;
-  exportOP: (kind: types.ExportKind, file: string, taskId: string) => Promise<void>;
+  exportOP: (
+    kind: types.ExportKind,
+    file: string,
+    taskId: string,
+    c: Channel<number>,
+  ) => Promise<void>;
   supportKind: string[];
   handleClose: () => void;
 }) {
@@ -104,19 +108,16 @@ function ExportView(props: {
       return;
     }
     exportedSize.current.innerText = "";
-    const int = setInterval(() => {
-      stat(file).then(e => {
-        exportedSize.current.innerText = `export file ${filesize(e.size)} bytes`;
-      });
-    }, 1000);
+    const c = new Channel<number>(x => {
+      exportedSize.current.innerText = `exported ${filesize(x)}`;
+    });
     try {
       setLoading(true);
-      await exportOP(config, file, taskId.current);
+      await exportOP(config, file, taskId.current, c);
     } catch (e) {
       showNotification("warning", "export failure", e);
       return;
     } finally {
-      clearInterval(int);
       setLoading(false);
     }
     showNotification("success", "export OK");
@@ -256,12 +257,13 @@ function ExportTableOrView(props: {
   const { uuid, name, supportKind, handleClose } = props;
   return (
     <ExportView
-      exportOP={async (kind, filepath, taskId) => {
+      exportOP={async (kind, filepath, taskId, sizeEmitter) => {
         return await invoke("export_table_or_view", {
           name: uuid,
           tableOrView: name,
           filepath,
           kind,
+          sizeEmitter,
           taskId,
         });
       }}

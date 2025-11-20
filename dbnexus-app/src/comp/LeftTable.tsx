@@ -19,6 +19,7 @@ import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import {
   Box,
   Button,
+  Checkbox,
   Chip,
   CircularProgress,
   Divider,
@@ -31,7 +32,6 @@ import {
   MenuList,
   Modal,
   Stack,
-  Switch,
   TextField,
   Tooltip,
 } from "@mui/material";
@@ -274,7 +274,7 @@ function DropTable(props: {
       {supportCascade() && (
         <FormControlLabel
           control={
-            <Switch checked={cascade} onChange={e => setCascade(e.target.checked)} />
+            <Checkbox checked={cascade} onChange={e => setCascade(e.target.checked)} />
           }
           label="CASCADE"
         />

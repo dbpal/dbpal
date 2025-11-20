@@ -284,7 +284,7 @@ fn make_table_list_from_meta_and_row(
     anyhow::Ok(QueryResp::new(fields, total, data, Some(sql.into()))?)
 }
 
-fn encode_rows(rows: &Vec<tiberius::Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+fn encode_rows(rows: &[tiberius::Row]) -> anyhow::Result<Vec<Vec<Option<String>>>> {
     let mut data = vec![];
     for r in rows.iter() {
         let mut values: Vec<Option<String>> = Vec::new();

@@ -1,10 +1,10 @@
 "use strict";
 import {
   Button,
+  Checkbox,
   FormControlLabel,
   IconButton,
   Stack,
-  Switch,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -121,7 +121,7 @@ function LogStream() {
         </Button>
         <FormControlLabel
           label="pin to bottom"
-          control=<Switch
+          control=<Checkbox
             checked={pinToBotton}
             onChange={e => setPinToBotton(e.target.checked)}
           />
