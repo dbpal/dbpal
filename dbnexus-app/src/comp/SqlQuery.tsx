@@ -214,7 +214,7 @@ function SqlQuery(props: {
   const queryLogHandler = useRef(new QueryLogHandler(uuid));
   const [executeTimes, setExecuteTimes] = useState(0);
   const [conn] = useState<IQueryConn>(
-    new QueryConn(uuid, generateRandomString(5), kind),
+    new QueryConn(uuid, generateRandomString(8), kind),
   );
   const [showExport, setShowExport] = useState(false);
   const [queryRespView, setQueryRespView] = useState<WebviewWindow>(null);
@@ -241,15 +241,11 @@ function SqlQuery(props: {
       handleEditor(editor);
     }
     editor.getModel().onDidChangeContent(() => {
-      if (!tryCheckSql) {
-        setSqlErr(null);
-        return;
-      }
       checkSql(uuid, editor.getValue()).then(e => {
         setSqlErr(e);
       });
     });
-  }, [editor, handleEditor, tryCheckSql, uuid]);
+  }, [editor, handleEditor, uuid]);
 
   useEffect(() => {
     setMakeConnLoading(true);
@@ -655,7 +651,7 @@ function SqlQuery(props: {
             </Tooltip>
             {extras}
 
-            {openOk && (
+            {openOk && resp.length > 0 && (
               <Tooltip
                 title={
                   queryRespView
@@ -675,7 +671,7 @@ function SqlQuery(props: {
             )}
             {openOk && (
               <Tooltip title="connection id">
-                <Typography> #{conn.queryId} </Typography>
+                <Typography style={shrinkAble}> #{conn.queryId} </Typography>
               </Tooltip>
             )}
             {makeConnLoading && <CircularProgress />}
@@ -708,7 +704,9 @@ function SqlQuery(props: {
                 }}
                 direction="row"
               >
-                {sqlErr && <PossibleParseError parseErr={sqlErr} editor={editor} />}
+                {sqlErr && tryCheckSql && (
+                  <PossibleParseError parseErr={sqlErr} editor={editor} />
+                )}
               </Stack>
             }
             pos={pos}
