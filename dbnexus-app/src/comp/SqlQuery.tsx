@@ -244,6 +244,10 @@ function SqlQuery(props: {
       handleEditor(editor);
     }
     let x = editor.getModel().onDidChangeContent(() => {
+      if (!tryCheckSql) {
+        setSqlErr(null);
+        return;
+      }
       checkSql(uuid, editor.getValue()).then(e => {
         setSqlErr(e);
       });
@@ -251,7 +255,7 @@ function SqlQuery(props: {
     return () => {
       x.dispose();
     };
-  }, [editor, handleEditor, uuid]);
+  }, [editor, handleEditor, tryCheckSql, uuid]);
 
   useEffect(() => {
     setMakeConnLoading(true);
@@ -710,9 +714,7 @@ function SqlQuery(props: {
                 }}
                 direction="row"
               >
-                {sqlErr && tryCheckSql && (
-                  <PossibleParseError parseErr={sqlErr} editor={editor} />
-                )}
+                {sqlErr && <PossibleParseError parseErr={sqlErr} editor={editor} />}
               </Stack>
             }
             pos={pos}
