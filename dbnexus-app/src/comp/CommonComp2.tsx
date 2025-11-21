@@ -300,14 +300,18 @@ function SimpleFlexEditor(props: {
     if (handleEditor) {
       handleEditor(editor);
     }
-    editor.onDidChangeCursorPosition(() => {
+    const d1 = editor.onDidChangeCursorPosition(() => {
       setPos(editor.getPosition());
     });
-    editor.onDidChangeModelContent(() => {
+    const d2 = editor.onDidChangeModelContent(() => {
       if (handleValue) {
         handleValue(editor.getValue());
       }
     });
+    return () => {
+      d1.dispose();
+      d2.dispose();
+    };
   }, [dontFocus, editor, handleEditor, handleValue]);
 
   useEffect(() => {

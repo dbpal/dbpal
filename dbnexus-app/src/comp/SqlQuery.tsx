@@ -227,10 +227,13 @@ function SqlQuery(props: {
 
   const handleEditorDidMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
-    ed.onDidChangeCursorPosition(() => {
+    const d1 = ed.onDidChangeCursorPosition(() => {
       const p = ed.getPosition();
       setPos(p);
     });
+    return () => {
+      d1.dispose();
+    };
   }, []);
 
   useEffect(() => {
@@ -240,11 +243,14 @@ function SqlQuery(props: {
     if (handleEditor) {
       handleEditor(editor);
     }
-    editor.getModel().onDidChangeContent(() => {
+    let x = editor.getModel().onDidChangeContent(() => {
       checkSql(uuid, editor.getValue()).then(e => {
         setSqlErr(e);
       });
     });
+    return () => {
+      x.dispose();
+    };
   }, [editor, handleEditor, uuid]);
 
   useEffect(() => {

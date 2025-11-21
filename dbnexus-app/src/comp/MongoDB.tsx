@@ -265,7 +265,7 @@ function MongoBsonEditor(props: {
   const handleEditorDidMount = useCallback((ce: editor.IStandaloneCodeEditor) => {
     editor.current = ce;
     ce.focus();
-    ce.onDidChangeModelContent(() => {
+    let d1 = ce.onDidChangeModelContent(() => {
       const text = ce.getValue();
       try {
         const doc = parseMongoBson(text).compile();
@@ -275,9 +275,13 @@ function MongoBsonEditor(props: {
         setErr(e);
       }
     });
-    ce.onDidChangeCursorPosition(event => {
+    let d2 = ce.onDidChangeCursorPosition(event => {
       setPos(event.position);
     });
+    return () => {
+      d1.dispose();
+      d2.dispose();
+    };
   }, []);
 
   const { showNotification } = useContext(NotificationContext);

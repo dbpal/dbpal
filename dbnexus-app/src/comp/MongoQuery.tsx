@@ -517,9 +517,12 @@ function MongoQuery(props: {
   const jsCodeMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     setEditor(ed);
     ed.focus();
-    ed.onDidChangeCursorPosition(() => {
+    let d1 = ed.onDidChangeCursorPosition(() => {
       setPos(ed.getPosition());
     });
+    return () => {
+      d1.dispose();
+    };
   }, []);
   useEffect(() => {
     if (!editor) {
