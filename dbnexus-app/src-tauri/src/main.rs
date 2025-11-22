@@ -58,26 +58,6 @@ use crate::handlers::{TaskManager, log_channel_store};
 mod migration;
 use rustls::crypto::{CryptoProvider, aws_lc_rs};
 
-fn main() {
-    // logger_test();
-    // panic_test();
-
-    // https://github.com/tauri-apps/tauri/issues/4788
-    let _ = fix_path_env::fix();
-    CryptoProvider::install_default(aws_lc_rs::default_provider())
-        .expect("Failed to install default crypto provider");
-
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .thread_stack_size(4 * 1024 * 1024)
-        .build()
-        .unwrap();
-
-    runtime.block_on(async {
-        run_app();
-    })
-}
-
 // is this macbook computer
 #[inline(always)]
 fn is_macos() -> bool {
@@ -206,7 +186,14 @@ fn panic_test() {
 // api key sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO
 // https://api.moonshot.cn/v1
 
-fn run_app() {
+fn main() {
+    // logger_test();
+    // panic_test();
+
+    // https://github.com/tauri-apps/tauri/issues/4788
+    let _ = fix_path_env::fix();
+    CryptoProvider::install_default(aws_lc_rs::default_provider())
+        .expect("Failed to install default crypto provider");
     let dbpal = DBPal::new();
     let task_manager = TaskManager::default();
     let backend_crash_msg = BackendCrashMsg::default();
