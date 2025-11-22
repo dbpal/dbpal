@@ -1,6 +1,4 @@
 use std::borrow::Cow;
-use std::sync::Arc;
-use std::sync::atomic::AtomicU32;
 
 use sqlparser::dialect::Dialect;
 use sqlparser::tokenizer::Token;
@@ -121,18 +119,6 @@ impl Drop for TimeSome {
             self.start.elapsed().as_millis(),
             self.some
         );
-    }
-}
-
-#[derive(Default, Clone)]
-pub struct NextId {
-    next_id: Arc<AtomicU32>,
-}
-
-impl NextId {
-    pub fn next(&self) -> u32 {
-        self.next_id
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     }
 }
 

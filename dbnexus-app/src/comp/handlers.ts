@@ -320,14 +320,16 @@ async function cancelTask(taskId: string): Promise<void> {
   }
 }
 
-function checkSql(uuid: string, sql: string) {
-  return invoke<ErrAndLoc | null>("check_sql", {
-    name: uuid,
-    sql,
-  }).catch(e => {
+async function checkSql(uuid: string, sql: string) {
+  try {
+    return await invoke<ErrAndLoc | null>("check_sql", {
+      name: uuid,
+      sql,
+    });
+  } catch (e) {
     console.error("this check sql function should not throw error,but", e);
     return null;
-  });
+  }
 }
 
 export {

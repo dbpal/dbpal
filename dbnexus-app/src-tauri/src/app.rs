@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 
 use dashmap::DashMap;
@@ -11,7 +12,6 @@ use dbnexus_db::datasource_config::{
     SqliteDBConfig,
 };
 use dbnexus_db::db::{CatalogTrait, DBTrait, SchemaTrait};
-use dbnexus_db::helper::NextId;
 
 use dbnexus_db::mongo::MongoDB;
 
@@ -365,6 +365,18 @@ impl QueryCache {
 pub struct BackendCrashMsg {
     pub backend_crash_msg: Arc<DashMap<u32, String>>,
     pub backend_crash_next_id: NextId,
+}
+
+#[derive(Default, Clone)]
+pub struct NextId {
+    next_id: Arc<AtomicU32>,
+}
+
+impl NextId {
+    pub fn next(&self) -> u32 {
+        self.next_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    }
 }
 
 impl BackendCrashMsg {

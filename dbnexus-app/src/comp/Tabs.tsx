@@ -1,6 +1,15 @@
 "use strict";
 import React, { useContext, useEffect, useRef, useState } from "react";
-import { Stack, MenuItem, MenuList, Chip, Tabs, Tab, Tooltip } from "@mui/material";
+import {
+  Stack,
+  MenuItem,
+  MenuList,
+  Chip,
+  Tabs,
+  Tab,
+  Tooltip,
+  Typography,
+} from "@mui/material";
 
 import {
   ContextMenuContext,
@@ -96,7 +105,7 @@ function getLength(header: string, width: number, tabs: TabContent[]) {
   let total: number = tabs.reduce((acc, cur) => {
     return acc + cur.header.length;
   }, 0);
-  return (width * header.length * 1.3) / total;
+  return (width * header.length * 1.5) / total;
 }
 
 function TabsWithContent_(props: {
@@ -153,13 +162,19 @@ function TabsWithContent_(props: {
               key={tab.id}
               label=<Tooltip title={tab.header}>
                 <Chip
-                  label={tab.header}
+                  label=<Typography
+                    style={{
+                      textOverflow: "clip",
+                      overflow: "hidden",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {tab.header}
+                  </Typography>
                   onDelete={() => {
                     handleClose(index);
                   }}
-                  style={{
-                    textTransform: "none",
-                  }}
+                  style={{ textTransform: "none" }}
                   icon={tabs.length <= 8 ? tab.icon : undefined}
                   variant={index == selectIndex ? "filled" : "outlined"}
                   color={index == selectIndex ? "success" : "default"}
