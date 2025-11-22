@@ -1104,7 +1104,7 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
 }
 
 const makeTheme = (appearance: UserSettingAppearance) => {
-  let color;
+  let color: string;
   if (isDarkTheme()) {
     color = appearance.darkBgColor ? appearance.darkBgColor : "#000";
   } else {

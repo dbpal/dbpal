@@ -299,8 +299,7 @@ human:{question}
   }
 
   async redisDatabaseInformation() {
-    let name = SetAutoCompletionName.get(this.editor.getModel().id);
-
+    const name = SetAutoCompletionName.get(this.editor.getModel().id);
     const typeHints = await invoke<object>("get_redis_type_hint", {
       name: this.uuid,
       text: this.question.trim(),

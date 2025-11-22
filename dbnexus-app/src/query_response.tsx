@@ -10,7 +10,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Typography } from "@mui/material";
 import { QuerySeparateWindowMsg } from "./comp/SqlQuery.tsx";
 
-let { uuid, queryId, eventName } = SomeTempStore.get<DetachQueyRespViewParameter>();
+const { uuid, queryId, eventName } = SomeTempStore.get<DetachQueyRespViewParameter>();
 
 function QueryResponse() {
   const [resp, setResp] = useState([]);

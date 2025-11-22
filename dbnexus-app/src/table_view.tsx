@@ -41,7 +41,7 @@ switch (kind) {
         modifyOP={isTable ? MongoTableHandler.modifyOP(uuid, table) : undefined}
         loadOne={MongoTableHandler.loadOne(uuid, table)}
         deleteOP={isTable ? MongoTableHandler.deleteOP(uuid, table) : undefined}
-       />
+      />
     );
     break;
 
@@ -60,7 +60,7 @@ switch (kind) {
         updateOP={isTable ? makeTableUpdate(uuid, table) : undefined}
         deleteOP={isTable ? makeTableDelete(uuid, table) : undefined}
         put_value_in_sql={makePutValueInSql(uuid)}
-       />
+      />
     );
 }
 
