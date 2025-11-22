@@ -1,6 +1,5 @@
 // mongodb query interfaces and implementation.
 
-"use strict";
 import { loader } from "@monaco-editor/react";
 import { invoke } from "@tauri-apps/api/core";
 import { BSON } from "bson";

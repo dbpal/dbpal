@@ -1,4 +1,3 @@
-"use strict";
 import ReactDOM from "react-dom/client";
 
 import { DetachQueyRespViewParameter, SomeTempStore } from "./comp/helper.ts";

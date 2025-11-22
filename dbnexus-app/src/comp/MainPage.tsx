@@ -1,4 +1,3 @@
-"use strict";
 import { NotificationProvider } from "./Notification";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { CSSProperties, ReactNode, useCallback, useEffect, useState } from "react";

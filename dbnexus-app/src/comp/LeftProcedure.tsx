@@ -1,4 +1,3 @@
-"use strict";
 import { ListItemIcon, ListItemText, MenuItem, MenuList, Stack } from "@mui/material";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";

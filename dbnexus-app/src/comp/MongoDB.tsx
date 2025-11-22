@@ -1,4 +1,3 @@
-"use strict";
 import Editor from "@monaco-editor/react";
 import {
   Box,

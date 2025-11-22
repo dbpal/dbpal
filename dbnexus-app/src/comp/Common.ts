@@ -1,4 +1,3 @@
-"use strict";
 import { SxProps } from "@mui/material";
 import { languages, editor, Position } from "monaco-editor";
 import { types } from "./ApiStruct";

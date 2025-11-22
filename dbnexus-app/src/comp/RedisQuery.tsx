@@ -1,4 +1,3 @@
-"use strict";
 import { useState, useRef, useEffect } from "react";
 import { editor } from "monaco-editor";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";

@@ -1,4 +1,3 @@
-"use strict";
 import ReactDOM from "react-dom/client";
 import React, { useEffect, useState } from "react";
 import {
@@ -105,7 +104,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         sql={sqlData.sql}
         favoriteName={sqlData.name}
         language={sqlData.language}
-       />
+      />
     </SeparateWindow>
   </React.StrictMode>,
 );

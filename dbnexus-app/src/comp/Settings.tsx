@@ -1,4 +1,3 @@
-"use strict";
 import { CSSProperties, ReactNode, useContext, useEffect, useState } from "react";
 
 import {

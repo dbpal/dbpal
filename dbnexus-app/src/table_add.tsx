@@ -1,4 +1,3 @@
-"use strict";
 import ReactDOM from "react-dom/client";
 
 import { NewWindowTableParameter, SomeTempStore } from "./comp/helper.ts";
@@ -17,7 +16,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         table={table}
         kind={kind}
         redisTableType={redisTableType}
-       />
+      />
     </SeparateWindow>
   </React.StrictMode>,
 );

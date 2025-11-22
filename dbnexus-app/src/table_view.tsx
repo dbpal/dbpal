@@ -1,4 +1,3 @@
-"use strict";
 import ReactDOM from "react-dom/client";
 import React, { ReactNode } from "react";
 import {

@@ -1,4 +1,3 @@
-"use strict";
 import { tokenize } from "esprima";
 import {
   BSON,

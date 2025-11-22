@@ -1,4 +1,3 @@
-"use strict";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 
 import { NotificationContext } from "./Notification";

@@ -1,4 +1,3 @@
-"use strict";
 import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { modalStyle, tabsHasId, EscDownEvent, modalHandleClose } from "./Common";
 import types from "./ApiStruct";

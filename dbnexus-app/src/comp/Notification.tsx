@@ -1,4 +1,3 @@
-"use strict";
 import React, { useState, ReactNode, createContext, ReactElement } from "react";
 import { Snackbar, Alert, AlertTitle, Slide, Stack, Typography } from "@mui/material";
 import { AlertColor } from "@mui/material/Alert";

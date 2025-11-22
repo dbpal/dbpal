@@ -1,4 +1,3 @@
-"use strict";
 import { editor, languages, Position } from "monaco-editor";
 import types from "./ApiStruct";
 import {

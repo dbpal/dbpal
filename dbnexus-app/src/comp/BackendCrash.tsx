@@ -1,4 +1,3 @@
-"use strict";
 import { Button, Paper, Stack, useTheme } from "@mui/material";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { handleCopyToClipboard } from "./helper";

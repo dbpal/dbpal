@@ -1,4 +1,3 @@
-"use strict";
 import {
   Checkbox,
   Chip,
