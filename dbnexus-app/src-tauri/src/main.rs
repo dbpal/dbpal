@@ -51,7 +51,7 @@ use handlers::{
 };
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Wry};
-use tauri_plugin_store::{Store, StoreExt};
+use tauri_plugin_store::Store;
 
 use crate::app::{BackendCrashMsg, generate_random_string};
 use crate::handlers::{TaskManager, log_channel_store};
@@ -226,18 +226,28 @@ fn main() {
             let window = app.get_webview_window("main").unwrap();
             window.open_devtools();
         }
-        let store = app.store(STORE_FILE).unwrap();
-        let logger = AppLogger {
-            config: store.clone(),
-        };
-        log::set_boxed_logger(Box::new(logger)).unwrap();
-        log::set_max_level(log::LevelFilter::Trace);
+        #[cfg(not(debug_assertions))]
+        {
+            let store = app.store(STORE_FILE).unwrap();
+            let logger = AppLogger {
+                config: store.clone(),
+            };
+            log::set_boxed_logger(Box::new(logger)).unwrap();
+            log::set_max_level(log::LevelFilter::Trace);
+        }
+
         Ok(())
     };
     let log_window_id = generate_random_string(10);
     let setting_window_id = generate_random_string(10);
-
-    tauri::Builder::default()
+    #[cfg(debug_assertions)] // only enable instrumentation in development builds
+    let devtools = tauri_plugin_devtools::init();
+    let mut builder = tauri::Builder::default();
+    #[cfg(debug_assertions)]
+    {
+        builder = builder.plugin(devtools);
+    }
+    builder
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::Builder::new().build())
