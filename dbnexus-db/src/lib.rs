@@ -104,7 +104,7 @@ impl MemoryLimit {
 impl MemoryLimit {
     pub fn instance() -> &'static AtomicUsize {
         // default to 200M
-        static SIZE: AtomicUsize = AtomicUsize::new(400 * 1024 * 1024);
+        static SIZE: AtomicUsize = AtomicUsize::new(1200 * 1024 * 1024);
         &SIZE
     }
 
