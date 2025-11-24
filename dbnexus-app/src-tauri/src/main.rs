@@ -51,7 +51,7 @@ use handlers::{
 };
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Wry};
-use tauri_plugin_store::Store;
+use tauri_plugin_store::{Store, StoreExt};
 
 use crate::app::{BackendCrashMsg, generate_random_string};
 use crate::handlers::{TaskManager, log_channel_store};
@@ -226,11 +226,11 @@ fn main() {
             let window = app.get_webview_window("main").unwrap();
             window.open_devtools();
         }
+        let _store = app.store(STORE_FILE).unwrap();
         #[cfg(not(debug_assertions))]
         {
-            let store = app.store(STORE_FILE).unwrap();
             let logger = AppLogger {
-                config: store.clone(),
+                config: _store.clone(),
             };
             log::set_boxed_logger(Box::new(logger)).unwrap();
             log::set_max_level(log::LevelFilter::Trace);
