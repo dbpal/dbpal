@@ -265,7 +265,7 @@ function QueryLog(props: {
           </Tooltip>
         </Stack>
       </Stack>
-      {showQueryLog && (
+      {showQueryLog && logs.length > 0 && (
         <DataGrid
           showToolbar
           showCellVerticalBorder
