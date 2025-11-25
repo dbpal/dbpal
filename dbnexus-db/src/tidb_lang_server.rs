@@ -6,7 +6,7 @@ use crate::datasource_config::MysqlDBConfig;
 use crate::db::DBTrait;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, DBExecutable, ErrAndLoc,
-    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::mysql::MysqlDB;
 use crate::sqlparser_completion::TempTableColumn;
@@ -49,7 +49,7 @@ impl LanguageServer for TiDB {
     async fn ai_text_completion(
         &self, text: &str, line: u32, col: u32,
     ) -> anyhow::Result<CompletionList> {
-        LexerCompletionTrait::ai_text_completion(self.db.as_ref(), text, line, col).await
+        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
     }
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_selection(self.db.as_ref(), sql)
@@ -57,11 +57,13 @@ impl LanguageServer for TiDB {
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_sort(self.db.as_ref(), sql)
     }
-
     async fn auto_completion(
         &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
-        LanguageServer::auto_completion(self.db.as_ref(), query_id, sql, line, col, use_lexer).await
+        if let Some(query_id) = query_id {
+            self.db.completion_id.set(query_id);
+        }
+        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
     async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         LangServerCommon::parse_err(self, sql)
@@ -217,7 +219,8 @@ mod tests {
     #[tokio::test]
     async fn test_prepare() {
         let db = make_test_object_tidb(make_config()).await;
-        let query_id = "";  db.open_connection(query_id).await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         db.execute_sql(
             query_id,
             r#"

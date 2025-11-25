@@ -1,7 +1,7 @@
 use crate::db::{DBTrait, SequenceDetail, SqlEvent};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, DBExecutable, ErrAndLoc,
-    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait,
+    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::mariadb::MariaDB;
 use crate::mysql::MysqlDB;
@@ -25,7 +25,7 @@ impl LanguageServer for MariaDB {
     async fn ai_text_completion(
         &self, text: &str, line: u32, col: u32,
     ) -> anyhow::Result<CompletionList> {
-        LexerCompletionTrait::ai_text_completion(self.db.as_ref(), text, line, col).await
+        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
     }
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         LangServerCommon::extract_table_select_selection(self.db.as_ref(), sql)
@@ -37,8 +37,12 @@ impl LanguageServer for MariaDB {
     async fn auto_completion(
         &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
-        LanguageServer::auto_completion(self.db.as_ref(), query_id, sql, line, col, use_lexer).await
+        if let Some(query_id) = query_id {
+            self.db.completion_id.set(query_id);
+        }
+        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
+
     async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         LanguageServer::check_sql(self.db.as_ref(), sql).await
     }
