@@ -28,12 +28,11 @@ impl LanguageServer for MariaDB {
         LexerCompletionTrait::ai_text_completion(self, text, line, col).await
     }
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
-        LangServerCommon::extract_table_select_selection(self.db.as_ref(), sql)
+        LanguageServer::extract_table_select_selection(self.db.as_ref(), sql)
     }
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
-        LangServerCommon::extract_table_select_sort(self.db.as_ref(), sql)
+        LanguageServer::extract_table_select_sort(self.db.as_ref(), sql)
     }
-
     async fn auto_completion(
         &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
@@ -48,7 +47,7 @@ impl LanguageServer for MariaDB {
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        LangServerCommon::is_dangerous_sql_by_parser(self, sql)
+        LanguageServer::is_dangerous_sql(self.db.as_ref(), sql)
     }
 }
 

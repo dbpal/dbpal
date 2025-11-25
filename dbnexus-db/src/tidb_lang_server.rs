@@ -66,10 +66,10 @@ impl LanguageServer for TiDB {
         try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
     async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LangServerCommon::parse_err(self, sql)
+        LanguageServer::check_sql(self.db.as_ref(), sql).await
     }
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        LangServerCommon::is_dangerous_sql_by_parser(self, sql)
+        LanguageServer::is_dangerous_sql(self.db.as_ref(), sql)
     }
 }
 

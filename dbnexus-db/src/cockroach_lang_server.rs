@@ -30,10 +30,10 @@ impl LanguageServer for CockRoachDB {
     }
 
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
-        LangServerCommon::extract_table_select_selection(self.db.as_ref(), sql)
+        LanguageServer::extract_table_select_selection(self.db.as_ref(), sql)
     }
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
-        LangServerCommon::extract_table_select_sort(self.db.as_ref(), sql)
+        LanguageServer::extract_table_select_sort(self.db.as_ref(), sql)
     }
 
     async fn auto_completion(
@@ -50,7 +50,7 @@ impl LanguageServer for CockRoachDB {
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        LangServerCommon::is_dangerous_sql_by_parser(self, sql)
+        LanguageServer::is_dangerous_sql(self.db.as_ref(), sql)
     }
 }
 
