@@ -46,6 +46,9 @@ pub mod tidb;
 pub mod tidb_lang_server;
 pub mod typedef;
 
+pub mod sub;
+pub mod sub_lang_server;
+
 lazy_static! {
     static ref TEST_HOST: String =
         std::env::var("NEXUS_TEST_HOST").unwrap_or("127.0.0.1".to_string());
