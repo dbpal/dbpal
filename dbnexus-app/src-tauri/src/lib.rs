@@ -8,7 +8,7 @@ mod tests {
     };
     use dbnexus_db::db::{
         ColumnType, CreateTableAndIndexSql, CreatedTypeDef, SequenceDetail, ShowTableExtraArgs,
-        SqlEvent,
+        SqlEvent, UdfOrProcedureExtraParameter,
     };
     use dbnexus_db::language_server::CompletionList;
 
@@ -78,6 +78,7 @@ mod tests {
             &PgSslMode::INFO,
             &MySqlSslMode::INFO,
             &SSLFiles::INFO,
+            &UdfOrProcedureExtraParameter::INFO,
         ];
 
         let options: DefinitionFileOptions = DefinitionFileOptions::default();

@@ -30,7 +30,6 @@ pub enum BackendKind {
     Oracle,
 }
 
-#[allow(dead_code)]
 impl BackendKind {
     pub fn mysql_like(self) -> bool {
         match self {
@@ -46,12 +45,6 @@ impl BackendKind {
     pub(crate) fn postgres_like(self) -> bool {
         match self {
             Self::PostGres | Self::CockRoach => true,
-            _ => false,
-        }
-    }
-    pub(crate) fn sqlite_like(self) -> bool {
-        match self {
-            Self::Sqlite | Self::LibSql => true,
             _ => false,
         }
     }
@@ -86,7 +79,7 @@ pub trait ReadOnlyTrait {
     fn read_only(&self) -> bool;
     fn can_write(&self) -> anyhow::Result<()> {
         if self.read_only() {
-            return Err(anyhow::Error::msg("this connection is read only"));
+            return Err(anyhow::Error::msg("this connection is read only."));
         }
         anyhow::Ok(())
     }
@@ -609,7 +602,7 @@ pub struct ColumnType {
     pub(crate) default_value: Option<String>,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, TypeDef)]
 #[serde(tag = "extra", rename_all = "lowercase")]
 pub enum UdfOrProcedureExtraParameter {
     PostGres {
@@ -702,7 +695,7 @@ impl From<String> for NamedStaff {
     }
 }
 #[async_trait::async_trait]
-pub trait CheckConn {
+pub trait CheckConn: Send + Sync + 'static {
     /// Duration is basic `select 1` execution time.
     async fn check_conn(&self) -> anyhow::Result<Duration>;
 }
@@ -1016,7 +1009,7 @@ impl From<&str> for ListTable {
 
 /// get server metas info
 #[async_trait::async_trait]
-pub trait ServerMetas {
+pub trait ServerMetas: Sync + Send + 'static {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>>;
 }
 
@@ -1548,11 +1541,10 @@ pub(crate) fn create_html_table_data(data: &Vec<Vec<Option<String>>>) -> String 
         "#,
             d.iter()
                 .map(|x| {
-                    if x.is_none() {
-                        "<td></td>".to_owned()
-                    } else {
-                        format!("<td>{}</td>", x.as_ref().unwrap())
-                    }
+                    format!(
+                        "<td>{}</td>",
+                        x.as_ref().map(|x| x.as_str()).unwrap_or_default()
+                    )
                 })
                 .collect::<Vec<_>>()
                 .join("")

@@ -142,7 +142,10 @@ function listUdf(uuid: string) {
   return invoke<types.NamedStaff[]>("list_udf", { name: uuid });
 }
 
-function makeUdfExtraArg(udf: types.NamedStaff, kind: DataSourceKind) {
+function makeUdfExtraArg(
+  udf: types.NamedStaff,
+  kind: DataSourceKind,
+): types.UdfOrProcedureExtraParameter {
   let arg = null;
   switch (kind) {
     case DataSourceKind.Postgres:
@@ -153,7 +156,6 @@ function makeUdfExtraArg(udf: types.NamedStaff, kind: DataSourceKind) {
       arg = { extra: "cassandra", parameters: udf.cassandra_parameters };
       break;
   }
-
   return arg;
 }
 function showUdf(uuid: string, udf: types.NamedStaff, kind: DataSourceKind) {
@@ -214,7 +216,16 @@ async function callErrorable<T>(x: () => Promise<T>, defaultValue: any = []) {
   try {
     return await x();
   } catch (e) {
-    if (!String(e).includes("support this feature")) {
+    console.log(String(e));
+    let r = "reason";
+
+    if (
+      !(
+        typeof e == "object" &&
+        r in e &&
+        (e[r] as string).includes("don't support this feature")
+      )
+    ) {
       console.error(e);
     }
     return defaultValue as T;

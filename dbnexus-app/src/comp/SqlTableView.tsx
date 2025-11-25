@@ -1025,7 +1025,7 @@ function SqlTableViewData(props: {
   const { showNotification } = useContext(NotificationContext);
   const inputDoms = useRef({});
   const handleModify = () => {
-    const argsclone = structuredClone(args);
+    const argsclone = { ...args };
     for (let i = 0; i < fields.length; i++) {
       const f = fields[i];
       if (f.is_auto_increment) {

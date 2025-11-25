@@ -848,26 +848,25 @@ function EditPromptTemplate(props: {
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const { showNotification } = useContext(NotificationContext);
   const handleSave = async () => {
-    const configClone = structuredClone(config);
     try {
-      if (!configClone.aiTextTemplates) {
-        configClone.aiTextTemplates = {};
+      const config = await LLMConfig.get();
+      if (!config.aiTextTemplates) {
+        config.aiTextTemplates = {};
       }
-      configClone.aiTextTemplates[kind] = newTemplate;
-      await configClone.save();
+      config.aiTextTemplates[kind] = newTemplate;
+      await config.save();
+      showNotification("success", "save template ok");
+      handleClose();
     } catch (e) {
       showNotification("error", "save template failed", e);
       return;
     }
-    showNotification("success", "save template ok");
-    handleClose();
   };
-
   const handleDelete = async () => {
-    const configClone = structuredClone(config);
     try {
-      configClone.aiTextTemplates[kind] = "";
-      await configClone.save();
+      const config = await LLMConfig.get();
+      config.aiTextTemplates[kind] = "";
+      await config.save();
     } catch (e) {
       showNotification("error", "reset template failed", e);
       return;

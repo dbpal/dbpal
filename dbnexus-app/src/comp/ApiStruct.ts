@@ -434,4 +434,13 @@ export namespace types {
         "incomplete": boolean;
         "from_dot": boolean;
     };
+    export type UdfOrProcedureExtraParameter = (({
+        "extra": "postgres";
+    } & {
+        "parameters": string;
+    }) | ({
+        "extra": "cassandra";
+    } & {
+        "parameters": (string)[];
+    }));
 }

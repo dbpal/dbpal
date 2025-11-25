@@ -15,7 +15,7 @@ use crate::helper::try_remove_one_at;
 use crate::sqlparser_completion::{CompletionStatement, Scopes, TempTableColumn};
 
 #[async_trait::async_trait]
-pub trait LanguageServer: GetBackendKind {
+pub trait LanguageServer: GetBackendKind + Send + Sync + 'static {
     async fn auto_completion(
         &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList>;

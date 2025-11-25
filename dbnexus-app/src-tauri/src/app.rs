@@ -11,8 +11,11 @@ use dbnexus_db::datasource_config::{
     MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
     SqliteDBConfig,
 };
-use dbnexus_db::db::{CatalogTrait, DBTrait, SchemaTrait};
+use dbnexus_db::db::{
+    CatalogTrait, CheckConn, DBTrait, ExportQueryResult, QuerySql, SchemaTrait, ServerMetas,
+};
 
+use dbnexus_db::language_server::LanguageServer;
 use dbnexus_db::mongo::MongoDB;
 
 use tokio::sync::Mutex;
@@ -292,10 +295,42 @@ pub enum DatabaseBackend {
 
 impl DatabaseBackend {
     pub(crate) async fn check_conn(&self) -> anyhow::Result<Duration> {
+        self.as_check_conn().check_conn().await
+    }
+    pub(crate) fn as_query_sql(&self) -> &dyn QuerySql {
         match self {
-            DatabaseBackend::Catalog(x) => x.check_conn().await,
-            DatabaseBackend::DataBase(x) => x.check_conn().await,
-            DatabaseBackend::Schema(x) => x.check_conn().await,
+            DatabaseBackend::Catalog(x) => x.as_ref(),
+            DatabaseBackend::DataBase(x) => x.as_ref(),
+            DatabaseBackend::Schema(x) => x.as_ref(),
+        }
+    }
+    pub(crate) fn as_export_query_result(&self) -> &dyn ExportQueryResult {
+        match self {
+            DatabaseBackend::Catalog(x) => x.as_ref(),
+            DatabaseBackend::DataBase(x) => x.as_ref(),
+            DatabaseBackend::Schema(x) => x.as_ref(),
+        }
+    }
+
+    pub(crate) fn as_language_server(&self) -> &dyn LanguageServer {
+        match self {
+            DatabaseBackend::Catalog(x) => x.as_ref(),
+            DatabaseBackend::DataBase(x) => x.as_ref(),
+            DatabaseBackend::Schema(x) => x.as_ref(),
+        }
+    }
+    pub(crate) fn as_check_conn(&self) -> &dyn CheckConn {
+        match self {
+            DatabaseBackend::Catalog(x) => x.as_ref(),
+            DatabaseBackend::DataBase(x) => x.as_ref(),
+            DatabaseBackend::Schema(x) => x.as_ref(),
+        }
+    }
+    pub(crate) fn as_server_mates(&self) -> &dyn ServerMetas {
+        match self {
+            DatabaseBackend::Catalog(x) => x.as_ref(),
+            DatabaseBackend::DataBase(x) => x.as_ref(),
+            DatabaseBackend::Schema(x) => x.as_ref(),
         }
     }
 }
