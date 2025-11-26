@@ -20,11 +20,11 @@ impl LexerCompletionTrait for OracleDB {
 
 impl GetKeyWords for OracleDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let mut lock = self.key_words_cache.lock().await;
+        let mut lock = self.key_words_cache.lock().unwrap();
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let sql = r#"
             SELECT  keyword 
                 FROM V$RESERVED_WORDS
@@ -67,7 +67,7 @@ impl OracleDB {
 
 impl OracleDB {
     async fn extact_names(&self, sql: &str) -> anyhow::Result<Vec<String>> {
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let rows = conn.query(sql, &[])?;
         let mut ret = Vec::new();
         for row in rows {
@@ -83,7 +83,7 @@ impl OracleDB {
 #[async_trait::async_trait]
 impl AstCompletionHelper for OracleDB {
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
 
         let row = conn.query_row(sql, &[])?;
 
@@ -108,7 +108,7 @@ impl LangServerCommon for OracleDB {
             schema
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let rows = conn.query(&sql, &[])?;
         let mut ret = Vec::new();
         for row in rows {
@@ -229,7 +229,7 @@ impl LangServerCommon for OracleDB {
 impl LanguageServer for OracleDB {
     async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!("SELECT MAX(id) FROM \"{name}\"");
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let row = block_in_place(|| conn.query_row(&sql, &[]))?;
 
         if !row.sql_values().is_empty() {

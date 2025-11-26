@@ -5,10 +5,9 @@ use oracle::{Connection, Row};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::vec;
-use tokio::sync::Mutex;
 use tokio::task::{block_in_place, spawn_blocking};
 
 use crate::datasource_config::OracleDBConfig;
@@ -36,7 +35,7 @@ pub struct OracleDB {
 #[async_trait::async_trait]
 impl ServerMetas for OracleDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         block_in_place(|| -> anyhow::Result<Vec<MetaValue>> {
             let mut ret = Vec::new();
 
@@ -91,8 +90,7 @@ impl OracleDB {
                 anyhow::bail!(format!("id '{}' not found", id));
             }
         };
-        let mut lock = conn.lock().await;
-        block_in_place(|| f(&mut lock))
+        block_in_place(|| f(conn.lock().unwrap().deref_mut()))
     }
 }
 
@@ -101,8 +99,8 @@ impl OracleDB {
         &self, query_id: Option<&str>, sql: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let conn = conn.lock().await;
+        let conn = self.get_conn_by_query_id(query_id)?;
+        let conn = conn.lock().unwrap();
         block_in_place(|| {
             let mut rows = conn.query(&sql, &[])?;
             let mut row_num = 0;
@@ -217,7 +215,7 @@ impl QuerySql for OracleDB {
     }
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let mut conn = self.get_conn()?;
         conn.set_autocommit(QUERY_AUTO_COMMIT);
         self.query_connection
             .insert(id.to_owned(), Arc::new(Mutex::new(conn)));
@@ -226,7 +224,7 @@ impl QuerySql for OracleDB {
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
         if let Some((_, x)) = self.query_connection.remove(&id.to_owned()) {
-            tokio::spawn(async move { x.lock().await.close() });
+            tokio::spawn(async move { x.lock().unwrap().close() });
         }
         anyhow::Ok(())
     }
@@ -234,7 +232,7 @@ impl QuerySql for OracleDB {
     async fn execute_sql_no_open_conn(
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let ret = match block_in_place(|| conn.execute(sql, &[])) {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_owned())),
             Err(err) => Err(err.to_string()),
@@ -249,7 +247,7 @@ impl QuerySql for OracleDB {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
-        let mut lock = conn.lock().await;
+        let mut lock = conn.lock().unwrap();
         let conn = lock.deref_mut();
         let ret = match block_in_place(|| conn.execute(sql, &[])) {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_owned())),
@@ -261,28 +259,31 @@ impl QuerySql for OracleDB {
     async fn query_sql(
         &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let conn = match self.query_connection.get(&query_id.to_string()) {
-            Some(x) => x.clone(),
-            None => anyhow::bail!("connection closed???"),
-        };
-        let mut lock = conn.lock().await;
-        let conn = lock.deref_mut();
-
-        let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
-
-        match block_in_place(|| conn.query(sql, &[])) {
-            Ok(rows) => {
-                let rows = rows.into_iter().collect::<Vec<_>>();
-                let cols = infer_schema_by_result(&rows)?;
-                let data = encode_rows(rows)?;
-                ret.push(Ok(QueryResp::new(cols, 0, data, sql.to_owned())?));
+        let this = Clone::clone(self);
+        let query_id = query_id.to_owned();
+        let sql = sql.to_owned();
+        spawn_blocking(move || {
+            let conn = match this.query_connection.get(&query_id.to_string()) {
+                Some(x) => x.clone(),
+                None => anyhow::bail!("connection closed???"),
+            };
+            let mut lock = conn.lock().unwrap();
+            let conn = lock.deref_mut();
+            let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
+            match conn.query(&sql, &[]) {
+                Ok(rows) => {
+                    let rows = rows.into_iter().collect::<Vec<_>>();
+                    let cols = infer_schema_by_result(&rows)?;
+                    let data = encode_rows(rows)?;
+                    ret.push(Ok(QueryResp::new(cols, 0, data, sql.to_owned())?));
+                }
+                Err(err) => {
+                    ret.push(Err(err.to_string()));
+                }
             }
-            Err(err) => {
-                ret.push(Err(err.to_string()));
-            }
-        }
-
-        anyhow::Ok(ret)
+            anyhow::Ok(ret)
+        })
+        .await?
     }
 }
 
@@ -739,7 +740,7 @@ impl OracleDB {
         &self, table_name: &str, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let sql = format!(r#"SELECT * from "{}"."{}""#, self.schema_str(), table_name);
         let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
@@ -778,9 +779,12 @@ impl OracleDB {
         &self, query_id: Option<&str>, sql: &str,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let conn = conn.lock().await;
-        block_in_place(|| {
+        let this = Clone::clone(self);
+        let query_id = query_id.map(|x| x.to_string());
+        let sql = sql.to_owned();
+        spawn_blocking(move || {
+            let conn = this.get_conn_by_query_id(query_id.as_deref())?;
+            let conn = conn.lock().unwrap();
             let rows = conn.query(&sql, &[])?;
             for row in rows {
                 let row = row?;
@@ -791,6 +795,7 @@ impl OracleDB {
             }
             anyhow::Ok(())
         })
+        .await?
     }
 
     async fn export_table_as_json_line(
@@ -806,12 +811,15 @@ impl OracleDB {
         &self, query_id: Option<&str>, sql: &str, pretty: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let conn = conn.lock().await;
-        block_in_place(|| {
+        let this = Clone::clone(self);
+        let sql = sql.to_string();
+        let query_id = query_id.map(|x| x.to_string());
+        spawn_blocking(move || {
+            let conn = this.get_conn_by_query_id(query_id.as_deref())?;
+            let conn = conn.lock().unwrap();
             sender.blocking_send("[".into())?;
             let mut first = true;
-            let rows = block_in_place(|| conn.query(&sql, &[]))?;
+            let rows = conn.query(&sql, &[])?;
             for row in rows {
                 let row = row?;
                 let json = encode_row_as_json(&row)?;
@@ -835,6 +843,7 @@ impl OracleDB {
             sender.blocking_send("]".into())?;
             anyhow::Ok(())
         })
+        .await?
     }
 
     async fn export_table_as_json(
@@ -846,7 +855,7 @@ impl OracleDB {
             .await
     }
 
-    async fn get_conn_by_query_id(
+    fn get_conn_by_query_id(
         &self, query_id: Option<&str>,
     ) -> anyhow::Result<Arc<Mutex<oracle::Connection>>> {
         match query_id {
@@ -854,7 +863,7 @@ impl OracleDB {
                 Some(x) => anyhow::Ok(x.clone()),
                 None => anyhow::bail!("query_id not found"),
             },
-            None => anyhow::Ok(Arc::new(Mutex::new(self.get_conn().await?))),
+            None => anyhow::Ok(Arc::new(Mutex::new(self.get_conn()?))),
         }
     }
 
@@ -866,9 +875,13 @@ impl OracleDB {
         delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let conn = conn.lock().await;
-        block_in_place(|| {
+        let s = Clone::clone(self);
+        let query_id = query_id.map(|x| x.to_string());
+        let sql = sql.to_string();
+        spawn_blocking(move || {
+            let query_id = query_id.as_ref().map(|x| x.as_str());
+            let conn = s.get_conn_by_query_id(query_id)?;
+            let conn = conn.lock().unwrap();
             let mut first = true;
             let rows = conn.query(&sql, &[])?;
             for row in rows {
@@ -887,6 +900,7 @@ impl OracleDB {
             }
             anyhow::Ok(())
         })
+        .await?
     }
 
     async fn export_query_result_as_html(
@@ -896,9 +910,12 @@ impl OracleDB {
         include_header: bool, // include header if possible,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let conn = conn.lock().await;
-        block_in_place(|| {
+        let this = Clone::clone(self);
+        let sql = sql.to_string();
+        let query_id = query_id.map(|x| x.to_string());
+        spawn_blocking(move || {
+            let conn = this.get_conn_by_query_id(query_id.as_deref())?;
+            let conn = conn.lock().unwrap();
             let mut first = true;
             let rows = conn.query(&sql, &[])?;
             for row in rows {
@@ -917,6 +934,7 @@ impl OracleDB {
             }
             anyhow::Ok(())
         })
+        .await?
     }
 
     async fn export_table_as_csv(
@@ -974,7 +992,7 @@ impl OracleDB {
 impl CheckConn for OracleDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let ins = std::time::Instant::now();
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let _ = block_in_place(|| conn.query("SELECT 1 FROM DUAL", &[]))?;
         anyhow::Ok(ins.elapsed())
     }
@@ -998,7 +1016,7 @@ impl OracleDB {
             names.join("','")
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let mut ret = HashMap::new();
         for row in rows {
@@ -1016,7 +1034,7 @@ impl OracleDB {
             schema
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let result = block_in_place(|| conn.query(&sql, &[]))?;
         let mut ret = Vec::new();
         for r in result {
@@ -1037,7 +1055,7 @@ impl OracleDB {
     }
 
     pub(crate) async fn list_view_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let sql = format!(
             r#"
         SELECT VIEW_NAME   FROM all_views WHERE OWNER  = '{}'
@@ -1073,7 +1091,7 @@ impl SchemaTrait for OracleDB {
             self.schema_str()
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let rows = block_in_place(|| conn.query(&sql, &[]))?;
 
         let mut ret = Vec::new();
@@ -1099,7 +1117,7 @@ impl SchemaTrait for OracleDB {
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP MATERIALIZED VIEW "{name}""#);
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
 
         block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
@@ -1115,7 +1133,7 @@ impl SchemaTrait for OracleDB {
             self.schema_str()
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let mut ret = Vec::new();
 
@@ -1134,13 +1152,13 @@ impl SchemaTrait for OracleDB {
         }
         let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}""#);
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         block_in_place(|| conn.execute(format!(r#"RENAME "{old}" TO "{new}""#).as_str(), &[]))?;
         anyhow::Ok(())
     }
@@ -1148,7 +1166,7 @@ impl SchemaTrait for OracleDB {
     async fn create_table_and_index_sql(
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
 
         let create_table = create_table_sql(&conn, table_name)?;
         let indexes = self.show_indexes(table_name).await?;
@@ -1164,7 +1182,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn create_view_sql(&self, view_name: &str, materialized: bool) -> anyhow::Result<String> {
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
 
         anyhow::Ok(create_view_sql(&conn, view_name, materialized)?)
     }
@@ -1206,7 +1224,7 @@ impl SchemaTrait for OracleDB {
         );
         log::info!("sql:{}", sql);
         let mut ret = Vec::new();
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
 
         let rows = block_in_place(|| conn.query(sql.as_str(), &[]))?;
         for r in rows {
@@ -1277,7 +1295,7 @@ impl SchemaTrait for OracleDB {
             fields.join(",")
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
 
         anyhow::Ok(())
@@ -1288,7 +1306,7 @@ impl SchemaTrait for OracleDB {
     ) -> anyhow::Result<()> {
         let sql = format!(r#"ALTER INDEX "{oldname}" RENAME TO "{newname}""#);
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
     }
@@ -1296,7 +1314,7 @@ impl SchemaTrait for OracleDB {
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
         let sql = format!("DROP INDEX {index}");
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
 
         block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
@@ -1305,7 +1323,7 @@ impl SchemaTrait for OracleDB {
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
         let sql = format!(r#"ALTER TABLE "{table}" DROP COLUMN "{col}""#);
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
     }
@@ -1317,7 +1335,7 @@ impl SchemaTrait for OracleDB {
     async fn modify_table_column(
         &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         if old_name != new_name {
             let sql =
                 format!(r#"ALTER TABLE "{table}" RENAME COLUMN "{old_name}" TO "{new_name}""#);
@@ -1366,7 +1384,7 @@ impl SchemaTrait for OracleDB {
             }
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
     }
@@ -1375,7 +1393,7 @@ impl SchemaTrait for OracleDB {
         &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
         log::info!("query sql:{}", sql);
         let total = OracleDB::query_count(&conn, table_name, where_str)?;
@@ -1398,7 +1416,7 @@ impl SchemaTrait for OracleDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let mut ret: HashMap<String, Index> = HashMap::new();
         for r in rows {
@@ -1437,7 +1455,7 @@ impl SchemaTrait for OracleDB {
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         self.can_write()?;
-        let mut conn = self.get_conn().await?;
+        let mut conn = self.get_conn()?;
         conn.set_autocommit(true);
 
         let fs = self.show_table_columns(table_name).await?;
@@ -1461,7 +1479,7 @@ impl SchemaTrait for OracleDB {
         let fs = self.show_table_columns(table_name).await?;
         let sql = self.update_sql(None, table_name, &fs, &values, &wheres)?;
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
 
         let stmt = block_in_place(|| conn.execute(sql.as_str(), &[]))?;
         anyhow::Ok(SqlExecuteRet {
@@ -1474,7 +1492,7 @@ impl SchemaTrait for OracleDB {
         self.can_write()?;
         let sql = format!(r#"TRUNCATE TABLE  "{table_name}""#);
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
     }
@@ -1487,7 +1505,7 @@ impl SchemaTrait for OracleDB {
         let fields = self.show_table_columns(table_name).await?;
         let sql = self.delete_sql(None, table_name, &fields, &wheres)?;
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let stmt = block_in_place(|| conn.execute(&sql, &[]))?;
         let row_count = stmt.row_count()?;
         anyhow::Ok(SqlExecuteRet {
@@ -1503,7 +1521,7 @@ impl SchemaTrait for OracleDB {
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP VIEW "{view_name}""#);
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
     }
@@ -1515,7 +1533,7 @@ impl SchemaTrait for OracleDB {
             format!(r#"DROP TABLE "{table}""#)
         };
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let _ = block_in_place(|| conn.execute(sql.as_str(), &[]))?;
         anyhow::Ok(())
     }
@@ -1524,7 +1542,7 @@ impl SchemaTrait for OracleDB {
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let sql = gen_select_sql(view_name, where_str, order_by, page, page_size);
         log::info!("sql:{}", sql);
         let total = OracleDB::query_count(&conn, view_name, where_str)?;
@@ -1553,7 +1571,7 @@ impl SchemaTrait for OracleDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let mut ret = Vec::new();
         let rows = block_in_place(|| conn.query(&sql, &[]))?;
         for row in rows {
@@ -1567,14 +1585,14 @@ impl SchemaTrait for OracleDB {
     async fn show_trigger(&self, table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
         let sql = format!(
             r#"
-       SELECT trigger_type, triggering_event, status ,
+        SELECT trigger_type, triggering_event, status ,
             dbms_metadata.get_ddl('TRIGGER', trigger_name) AS trigger_ddl
             FROM USER_TRIGGERS
             WHERE table_name = '{table}' and TRIGGER_NAME='{name}'
         "#
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let row = block_in_place(|| conn.query_row(&sql, &[]))?;
 
         let trigger_type: String = row.get(0)?;
@@ -1597,7 +1615,7 @@ impl SchemaTrait for OracleDB {
     async fn drop_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP TRIGGER "{name}""#);
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
 
         block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
@@ -1606,7 +1624,7 @@ impl SchemaTrait for OracleDB {
     async fn disable_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
         let sql = format!(r#"ALTER TRIGGER "{name}" DISABLE"#);
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
     }
@@ -1614,7 +1632,7 @@ impl SchemaTrait for OracleDB {
     async fn enable_trigger(&self, _table: &str, name: &str) -> anyhow::Result<()> {
         let sql = format!(r#"ALTER TRIGGER "{name}" ENABLE"#);
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
     }
@@ -1630,7 +1648,7 @@ impl SchemaTrait for OracleDB {
             self.schema_str()
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let mut ret = Vec::new();
         for row in block_in_place(|| conn.query(&sql, &[]))? {
             let row = row?;
@@ -1656,7 +1674,7 @@ impl SchemaTrait for OracleDB {
     ) -> anyhow::Result<()> {
         let sql = format!(r#"DROP FUNCTION "{name}""#);
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
     }
@@ -1681,7 +1699,7 @@ impl SchemaTrait for OracleDB {
     ) -> anyhow::Result<()> {
         let sql = format!(r#"DROP PROCEDURE "{name}""#);
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         block_in_place(|| conn.execute(&sql, &[]))?;
         anyhow::Ok(())
     }
@@ -1701,7 +1719,7 @@ impl OracleDB {
             schema
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let rows = block_in_place(|| conn.query(&sql, &[]))?;
         let mut ret = Vec::new();
         for row in rows {
@@ -1750,7 +1768,7 @@ impl OracleDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let rows = block_in_place(|| conn.query(&sql, &[]))?;
 
         let mut sql = "".to_owned();
@@ -1777,7 +1795,7 @@ impl DBTrait for OracleDB {
     }
 
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let conn = self.get_conn().await?;
+        let conn = self.get_conn()?;
         let rows = block_in_place(|| conn.query(r#"SELECT USERNAME FROM DBA_USERS"#, &[]))?;
         let mut ret = Vec::new();
         for r in rows {
@@ -1808,14 +1826,8 @@ impl DBTrait for OracleDB {
 }
 
 impl OracleDB {
-    pub(crate) async fn get_conn(&self) -> anyhow::Result<oracle::Connection> {
-        let mut conn: oracle::Connection = match self.config.conn_timeout {
-            Some(timeout) => {
-                tokio::time::timeout(timeout.into(), async { block_in_place(|| self.pool.get()) })
-                    .await?
-            }
-            None => block_in_place(|| self.pool.get()),
-        }?;
+    pub(crate) fn get_conn(&self) -> anyhow::Result<oracle::Connection> {
+        let mut conn: oracle::Connection = self.pool.get()?;
         if let Some(db_name) = &self.config.schema {
             let sql = format!("ALTER SESSION SET CURRENT_SCHEMA={db_name}");
             log::info!("sql:{}", sql);
@@ -1855,6 +1867,7 @@ mod tests {
 
     use super::*;
     use crate::enable_test_log;
+    use tokio::sync::Mutex;
 
     // when I test via `cargo test`
     // sometimes I have this error
@@ -2085,7 +2098,7 @@ mod tests {
     async fn test_view() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
-        let conn = db.get_conn().await.unwrap();
+        let conn = db.get_conn().unwrap();
         let db = db;
         let _ = db.drop_table("TEST_VIEW_TABLE", false).await;
         let _ = db.drop_view("TEST_VIEW").await;
@@ -2125,7 +2138,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
     async fn test_materialized_view() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
-        let conn = db.get_conn().await.unwrap();
+        let conn = db.get_conn().unwrap();
         let db = db;
         let _ = db.drop_table("TEST_MATERIALIZED_VIEW_TABLE", false).await;
         let _ = db.drop_materialized_view("TEST_MATERIALIZED_VIEW").await;
@@ -2171,7 +2184,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
     async fn test_show_indexes() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
-        let conn = db.get_conn().await.unwrap();
+        let conn = db.get_conn().unwrap();
         let db = db;
         let table_name = "TEST_INDEXES";
         let _ = db.drop_table(&table_name, false).await;
@@ -2321,7 +2334,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         enable_test_log();
         let table_name = "TEST_TYPES1";
         let db = make_test_object(Some("SYSTEM".to_string()));
-        let mut conn = db.get_conn().await.unwrap();
+        let mut conn = db.get_conn().unwrap();
         conn.set_autocommit(true);
         let db = db;
         let _ = db.drop_table(&table_name, false).await;
@@ -2410,7 +2423,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         enable_test_log();
         let table_name = "TEST_TYPES2";
         let db = make_test_object(Some("SYSTEM".to_string()));
-        let mut conn = db.get_conn().await.unwrap();
+        let mut conn = db.get_conn().unwrap();
         conn.set_autocommit(true);
         let db = db;
         let _ = db.drop_table(&table_name, false).await;
@@ -2494,7 +2507,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         enable_test_log();
         let table_name = "TEST_TYPES3";
         let db = make_test_object(Some("SYSTEM".to_string()));
-        let mut conn = db.get_conn().await.unwrap();
+        let mut conn = db.get_conn().unwrap();
         conn.set_autocommit(true);
         let db = db;
         let _ = db.drop_table(&table_name, false).await;
@@ -2581,7 +2594,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         enable_test_log();
         let table_name = "TEST_TYPES4";
         let db = make_test_object(Some("SYSTEM".to_string()));
-        let mut conn = db.get_conn().await.unwrap();
+        let mut conn = db.get_conn().unwrap();
         conn.set_autocommit(true);
         let _ = db.drop_table(&table_name, false).await;
 

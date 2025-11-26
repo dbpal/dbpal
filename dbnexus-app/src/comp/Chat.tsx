@@ -565,9 +565,12 @@ human:{question}
       const types = await callErrorable(async () => {
         return await listCreatedTypes(uuid);
       });
-      const cassandraAggs = await callErrorable(async () => {
-        return await listCassandraAgg(uuid);
-      });
+      const cassandraAggs =
+        this.kind == DataSourceKind.Cassandra
+          ? await callErrorable(async () => {
+              return await listCassandraAgg(uuid);
+            })
+          : [];
       ret.push({
         tables,
         views,
