@@ -5,12 +5,11 @@ use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use crate::language_server::LanguageServer;
 use chrono::{DateTime, FixedOffset};
 use tokio::io::AsyncWriteExt;
 use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
-
-use crate::language_server::LanguageServer;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BackendKind {
@@ -85,7 +84,7 @@ pub trait ReadOnlyTrait {
     }
 }
 
-pub type ExportedSizeEmitter = Arc<dyn Fn(usize) -> () + Send + Sync>;
+pub type ExportedSizeEmitter = Arc<dyn Fn(usize) + Send + Sync>;
 
 /// representation of schema
 #[async_trait::async_trait]
@@ -140,9 +139,7 @@ pub trait SchemaTrait:
 
     fn clone(&self) -> Box<dyn SchemaTrait>;
 
-    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        not_support_feature(self.backend_name())
-    }
+    async fn list_data_types(&self) -> anyhow::Result<Vec<String>>;
 
     async fn drop_table_column(&self, _table: &str, _col: &str) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())

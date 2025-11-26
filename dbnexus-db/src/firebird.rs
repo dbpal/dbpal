@@ -41,6 +41,7 @@ use crate::db::{
     not_support_feature,
 };
 use crate::helper::create_csv;
+use crate::language_server::LexerCompletionTrait;
 
 pub struct PoolManager {
     config: FireBirdConfig,
@@ -642,6 +643,10 @@ impl FireBirdDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for FireBirdDB {
+    async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
+        LexerCompletionTrait::get_types(self).await
+    }
+
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }

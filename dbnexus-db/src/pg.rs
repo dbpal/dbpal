@@ -23,8 +23,8 @@ use crate::db::{
 };
 use crate::helper::create_csv;
 
+use crate::language_server::LexerCompletionTrait;
 use crate::pg_format::*;
-use crate::pg_lang_server::POSTGRES_TYPES;
 
 /// postgres version of pg.
 #[derive(Clone)]
@@ -699,8 +699,8 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(POSTGRES_TYPES)
+    async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
+        LexerCompletionTrait::get_types(self).await
     }
 
     async fn modify_table_column(

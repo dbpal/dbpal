@@ -14,7 +14,10 @@ use std::ops::DerefMut;
 use tiberius::QueryItem;
 #[async_trait::async_trait]
 impl LexerCompletionTrait for SqlServerDB {
-    const TYPES: &'static [&'static str] = SQLSERVER_TYPES;
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        let r = SQLSERVER_TYPES.iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(r)
+    }
 }
 
 #[async_trait::async_trait]

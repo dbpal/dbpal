@@ -16,6 +16,7 @@ use crate::db::{
     create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
+use crate::language_server::LexerCompletionTrait;
 use chrono::Utc;
 use dashmap::DashMap;
 use futures_util::{StreamExt, TryStreamExt};
@@ -853,8 +854,8 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(())
     }
 
-    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(crate::mysql_lang_server::MYSQL_TYPES)
+    async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
+        LexerCompletionTrait::get_types(self).await
     }
 
     async fn modify_table_column(

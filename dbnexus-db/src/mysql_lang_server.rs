@@ -23,7 +23,9 @@ use std::ops::DerefMut;
 use sqlx::{Column, Executor, Statement};
 #[async_trait::async_trait]
 impl LexerCompletionTrait for MysqlDB {
-    const TYPES: &'static [&'static str] = MYSQL_TYPES;
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        return anyhow::Ok(MYSQL_TYPES.iter().map(|x| x.to_string()).collect());
+    }
 }
 
 #[async_trait::async_trait]

@@ -143,8 +143,11 @@ pub(crate) fn remove_duplicate(items: Vec<CompletionItem>) -> Vec<CompletionItem
 
 #[async_trait::async_trait]
 pub trait LexerCompletionTrait: LangServerCommon {
-    const TYPES: &'static [&'static str];
-    const TEXTS: &'static [&'static str] = &[];
+    async fn get_types(&self) -> anyhow::Result<Vec<String>>;
+
+    async fn get_text(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
 
     async fn ai_text_completion(
         &self, sql: &str, line: u32, col: u32,
@@ -212,24 +215,28 @@ pub trait LexerCompletionTrait: LangServerCommon {
         let mut ret = Vec::new();
         ret.extend(self.key_words_completion().await);
         ret.extend(
-            Self::TYPES
-                .iter()
+            self.get_types()
+                .await
+                .map_err(|e| log::error!("get types faied,err:{}", e))
+                .unwrap_or_default()
+                .into_iter()
                 .map(|x| CompletionItem {
-                    item: Cow::Borrowed(*x),
+                    item: x.into(),
                     kind: CompletionKind::Type,
                     desc: None,
-                })
-                .collect::<Vec<_>>(),
+                }),
         );
         ret.extend(
-            Self::TEXTS
-                .iter()
+            self.get_text()
+                .await
+                .map_err(|e| log::error!("get text failed,err:{}", e))
+                .unwrap_or_default()
+                .into_iter()
                 .map(|x| CompletionItem {
-                    item: Cow::Borrowed(*x),
+                    item: x.into(),
                     kind: CompletionKind::Text,
                     desc: None,
-                })
-                .collect::<Vec<_>>(),
+                }),
         );
         ret.extend(
             self.list_table(None)
@@ -410,8 +417,7 @@ pub trait GetKeyWords: GetBackendKind {
 }
 
 #[async_trait::async_trait]
-
-pub trait LangServerCommon: GetBackendKind + GetKeyWords {
+pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
     fn parse_err(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         let dialect = self.dialect();
         let ss = block_in_place(|| sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql));

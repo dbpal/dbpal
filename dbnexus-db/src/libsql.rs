@@ -19,7 +19,7 @@ use crate::db::{
     create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
-use crate::language_server::CompletionItem;
+use crate::language_server::{CompletionItem, LexerCompletionTrait};
 
 use crate::sqlite::{
     SqliteDB, encode_bytes, extract_auto_increment_key, extract_trigger_detail_from_sql,
@@ -480,8 +480,8 @@ impl SchemaTrait for LibSqlDB {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
 
-    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(crate::sqlite_lang_server::SQLITE_TYPES)
+    async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
+        LexerCompletionTrait::get_types(self).await
     }
 
     async fn create_index(

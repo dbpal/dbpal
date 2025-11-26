@@ -1,27 +1,20 @@
-use std::collections::HashSet;
 use std::ops::DerefMut;
 
 #[cfg(test)]
 use crate::datasource_config::MysqlDBConfig;
-use crate::db::DBTrait;
-use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, DBExecutable, ErrAndLoc,
-    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
-};
-use crate::mysql::MysqlDB;
-use crate::sqlparser_completion::TempTableColumn;
-use crate::tidb::TiDB;
-use sqlx::Row;
-#[async_trait::async_trait]
+use crate::language_server::{CompletionItem, CompletionKind, GetKeyWords};
 
-impl GetKeyWords for TiDB {
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+#[cfg(test)]
+use crate::sub::SubBackend;
+use crate::tidb::TIDB;
+use sqlx::Row;
+
+impl TIDB {
+    pub(crate) async fn key_words(self) -> anyhow::Result<Vec<String>> {
         /*
             原因一句话：TiDB v7.5.1 还没有 information_schema.keywords 这张表，所以你查不到。
 
             该表是 v7.5.3（2024-08-05 发布的 LTS）才正式加入的
-
-        。
         你当前的 8.0.11-TiDB-v7.5.1 恰好是 7.5.1，版本号里前面只是伪装成 MySQL 8.0 的“兼容前缀”，实际内核仍是 7.5.1，因此 表不存在。
          */
         let result = GetKeyWords::key_words(self.db.as_ref())
@@ -36,124 +29,12 @@ impl GetKeyWords for TiDB {
             .collect::<Vec<_>>();
         anyhow::Ok(result)
     }
-}
 
-#[async_trait::async_trait]
-impl LanguageServer for TiDB {
-    async fn get_search_path(&self, query_id: &str) -> anyhow::Result<HashSet<String>> {
-        LanguageServer::get_search_path(self.db.as_ref(), query_id).await
-    }
-    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
-        LanguageServer::try_get_max_id(self.db.as_ref(), name).await
-    }
-    async fn ai_text_completion(
-        &self, text: &str, line: u32, col: u32,
-    ) -> anyhow::Result<CompletionList> {
-        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
-    }
-    fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
-        LangServerCommon::extract_table_select_selection(self.db.as_ref(), sql)
-    }
-    fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
-        LangServerCommon::extract_table_select_sort(self.db.as_ref(), sql)
-    }
-    async fn auto_completion(
-        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<CompletionList> {
-        if let Some(query_id) = query_id {
-            self.db.completion_id.set(query_id);
-        }
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
-    }
-    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LanguageServer::check_sql(self.db.as_ref(), sql).await
-    }
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        LanguageServer::is_dangerous_sql(self.db.as_ref(), sql)
-    }
-}
-
-#[async_trait::async_trait]
-impl AstCompletionHelper for TiDB {
-    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::get_query_columns(self.db.as_ref(), sql).await
-    }
-
-    async fn list_partition(
-        &self, schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_partition(self.db.as_ref(), schema, table).await
-    }
-
-    async fn list_constraint(
-        &self, schema: Option<&str>, table_name: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_constraint(self.db.as_ref(), schema, table_name).await
-    }
-
-    async fn list_table_trigger(
-        &self, schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_table_trigger(self.db.as_ref(), schema, table).await
-    }
-}
-
-#[async_trait::async_trait]
-
-impl LangServerCommon for TiDB {
-    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_index(self.db.as_ref(), schema).await
-    }
-    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_variable(self.db.as_ref()).await
-    }
-
-    async fn list_user(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_user(self.db.as_ref()).await
-    }
-
-    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_user(self.db.as_ref()).await
-    }
-
-    async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
-    ) -> anyhow::Result<Vec<TempTableColumn>> {
-        LangServerCommon::list_column(self.db.as_ref(), schema, name, is_call).await
-    }
-    // some backend can use a query to query this.
-
-    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_procedure(self.db.as_ref(), schema).await
-    }
-    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
-        Box::new(sqlparser::dialect::MySqlDialect {})
-    }
-    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        DBTrait::list_schema(self).await
-    }
-    async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
-        LangServerCommon::list_execute(self.db.as_ref(), None).await
-    }
-    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_table(self.db.as_ref(), schema).await
-    }
-
-    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_view(self.db.as_ref(), schema).await
-    }
-
-    async fn list_function(
+    pub(crate) async fn list_function(
         &self, _schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         if !include_build_in {
             return anyhow::Ok(vec![]);
-        }
-
-        // right now we only support build in functions.
-        let mut lock = self.build_in_fn.lock().await;
-        if !lock.is_empty() {
-            return anyhow::Ok(lock.clone());
         }
         let mut ret = vec![];
         let mut conn = self.db.get_conn().await?;
@@ -170,15 +51,8 @@ impl LangServerCommon for TiDB {
                 });
             }
         }
-        *lock = ret.clone();
         anyhow::Ok(ret)
     }
-}
-
-#[async_trait::async_trait]
-impl LexerCompletionTrait for TiDB {
-    const TEXTS: &'static [&'static str] = MysqlDB::TEXTS;
-    const TYPES: &'static [&'static str] = MysqlDB::TYPES;
 }
 
 #[allow(dead_code)]
@@ -198,8 +72,9 @@ pub(crate) fn make_config() -> MysqlDBConfig {
 }
 
 #[cfg(test)]
-pub(crate) async fn make_test_object_tidb(config: MysqlDBConfig) -> TiDB {
-    let db: TiDB = TiDB::new(config).await.unwrap();
+pub(crate) async fn make_test_object_tidb(config: MysqlDBConfig) -> SubBackend {
+    use std::sync::Arc;
+    let db = SubBackend::TiDB(Arc::new(crate::mysql::MysqlDB::new(config).await.unwrap()));
     db
 }
 

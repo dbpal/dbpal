@@ -24,7 +24,7 @@ use crate::db::{
     export_query_as_xlsx_send_data, not_support_feature,
 };
 use crate::helper::create_csv;
-use crate::language_server::CompletionItem;
+use crate::language_server::{CompletionItem, LexerCompletionTrait};
 
 #[derive(Clone)]
 pub struct SqliteDB {
@@ -503,8 +503,8 @@ impl SchemaTrait for SqliteDB {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
 
-    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(crate::sqlite_lang_server::SQLITE_TYPES)
+    async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
+        LexerCompletionTrait::get_types(self).await
     }
 
     /*

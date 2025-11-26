@@ -80,8 +80,15 @@ impl AstCompletionHelper for FireBirdDB {
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for FireBirdDB {
-    const TEXTS: &'static [&'static str] = &["true", "false"];
-    const TYPES: &'static [&'static str] = FIREBIRD_TYPES;
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        let r = FIREBIRD_TYPES.iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(r)
+    }
+
+    async fn get_text(&self) -> anyhow::Result<Vec<String>> {
+        let r = ["true", "false"].iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(r)
+    }
 }
 
 #[cfg(test)]

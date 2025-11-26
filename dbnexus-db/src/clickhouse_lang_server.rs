@@ -208,8 +208,14 @@ impl AstCompletionHelper for ClickHouseDB {
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for ClickHouseDB {
-    const TEXTS: &'static [&'static str] = &["true", "false"];
-    const TYPES: &'static [&'static str] = CLICKHOUSE_TYPES;
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        let r = ["true", "false"].iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(r)
+    }
+
+    async fn get_text(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(CLICKHOUSE_TYPES.iter().map(|x| x.to_string()).collect())
+    }
 }
 
 const CLICKHOUSE_TYPES: &[&str] = &[
@@ -259,7 +265,8 @@ mod tests {
     async fn test_auto_completion() {
         let db = make_test_object();
         // enable_test_log();
-        let query_id = "";  db.open_connection(query_id).await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db
             .execute_sql(
                 query_id,

@@ -1,117 +1,10 @@
-use crate::db::{DBTrait, SequenceDetail, SqlEvent};
-use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, DBExecutable, ErrAndLoc,
-    GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
-};
+use crate::language_server::{CompletionItem, CompletionKind, LangServerCommon};
 use crate::mariadb::MariaDB;
-use crate::mysql::MysqlDB;
-use crate::sqlparser_completion::TempTableColumn;
 use sqlx::{AssertSqlSafe, Row};
 use std::ops::DerefMut;
 
-#[async_trait::async_trait]
-
-impl GetKeyWords for MariaDB {
-    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        GetKeyWords::key_words(self.db.as_ref()).await
-    }
-}
-
-#[async_trait::async_trait]
-impl LanguageServer for MariaDB {
-    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
-        LanguageServer::try_get_max_id(self.db.as_ref(), name).await
-    }
-    async fn ai_text_completion(
-        &self, text: &str, line: u32, col: u32,
-    ) -> anyhow::Result<CompletionList> {
-        LexerCompletionTrait::ai_text_completion(self, text, line, col).await
-    }
-    fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
-        LanguageServer::extract_table_select_selection(self.db.as_ref(), sql)
-    }
-    fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
-        LanguageServer::extract_table_select_sort(self.db.as_ref(), sql)
-    }
-    async fn auto_completion(
-        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<CompletionList> {
-        if let Some(query_id) = query_id {
-            self.db.completion_id.set(query_id);
-        }
-        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
-    }
-
-    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        LanguageServer::check_sql(self.db.as_ref(), sql).await
-    }
-
-    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        LanguageServer::is_dangerous_sql(self.db.as_ref(), sql)
-    }
-}
-
-#[async_trait::async_trait]
-impl AstCompletionHelper for MariaDB {
-    async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        AstCompletionHelper::get_query_columns(self.db.as_ref(), sql).await
-    }
-
-    async fn list_partition(
-        &self, schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_partition(self.db.as_ref(), schema, table).await
-    }
-
-    async fn mysql_show_create_trigger(
-        &self, schema: Option<&str>,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::mysql_show_create_trigger(self.db.as_ref(), schema).await
-    }
-
-    async fn list_constraint(
-        &self, schema: Option<&str>, table_name: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_constraint(self.db.as_ref(), schema, table_name).await
-    }
-
-    async fn list_table_trigger(
-        &self, schema: Option<&str>, table: &str,
-    ) -> anyhow::Result<Vec<String>> {
-        AstCompletionHelper::list_table_trigger(self.db.as_ref(), schema, table).await
-    }
-}
-
-#[async_trait::async_trait]
-
-impl LangServerCommon for MariaDB {
-    async fn list_event(&self, schema: Option<&str>) -> anyhow::Result<Vec<SqlEvent>> {
-        LangServerCommon::list_event(self.db.as_ref(), schema).await
-    }
-    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_index(self.db.as_ref(), schema).await
-    }
-    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_variable(self.db.as_ref()).await
-    }
-    async fn list_user(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_user(self.db.as_ref()).await
-    }
-
-    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_user(self.db.as_ref()).await
-    }
-    async fn list_sequence(&self, schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
-        let schema = self.db.not_allow_empty_schema(schema).await?;
-        self.list_sequences_impl(&schema).await
-    }
-    async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
-    ) -> anyhow::Result<Vec<TempTableColumn>> {
-        LangServerCommon::list_column(self.db.as_ref(), schema, name, is_call).await
-    }
-
-    async fn list_function(
+impl MariaDB {
+    pub(crate) async fn language_server_list_function(
         &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         let mut ret = LangServerCommon::list_function(self.db.as_ref(), schema, false).await?;
@@ -125,19 +18,9 @@ impl LangServerCommon for MariaDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_procedure(self.db.as_ref(), schema).await
-    }
-    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        DBTrait::list_schema(self).await
-    }
-    async fn list_execute(&self, _: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
-        LangServerCommon::list_execute(self.db.as_ref(), None).await
-    }
-    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
-        Box::new(sqlparser::dialect::MySqlDialect {})
-    }
-    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+    pub(crate) async fn lang_server_list_table(
+        &self, schema: Option<&str>,
+    ) -> anyhow::Result<Vec<String>> {
         let mut result = LangServerCommon::list_table(self.db.as_ref(), schema).await?;
         let mut conn = self.db.get_conn().await?;
         let sql = format!(
@@ -153,16 +36,6 @@ impl LangServerCommon for MariaDB {
         }
         anyhow::Ok(result)
     }
-
-    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        LangServerCommon::list_view(self.db.as_ref(), schema).await
-    }
-}
-
-#[async_trait::async_trait]
-impl LexerCompletionTrait for MariaDB {
-    const TEXTS: &'static [&'static str] = MysqlDB::TEXTS;
-    const TYPES: &'static [&'static str] = MysqlDB::TYPES;
 }
 
 // AI generate this cool.

@@ -28,6 +28,7 @@ use crate::db::{
     export_query_as_xlsx_send_data, format_data_time_fix_offset, not_support_feature,
 };
 use crate::helper::create_csv;
+use crate::language_server::LexerCompletionTrait;
 
 #[derive(Clone)]
 pub struct SqlServerDB {
@@ -588,8 +589,8 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(())
     }
 
-    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(crate::mysql_lang_server::MYSQL_TYPES)
+    async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
+        LexerCompletionTrait::get_types(self).await
     }
 
     async fn modify_table_column(
@@ -1576,7 +1577,7 @@ impl SqlServerDB {
             let row = rows?;
             match row {
                 tiberius::QueryItem::Row(r) => {
-                    let s = create_csv(&encode_rows(&vec![r])?, delimiter);
+                    let s = create_csv(&encode_rows(&[r])?, delimiter);
                     sender.send(Cow::Owned(s)).await?;
                 }
                 tiberius::QueryItem::Metadata(meta) => {
@@ -1610,7 +1611,7 @@ impl SqlServerDB {
             let row = row?;
             match row {
                 tiberius::QueryItem::Row(r) => {
-                    let s = create_html_table_data(&encode_rows(&vec![r])?);
+                    let s = create_html_table_data(&encode_rows(&[r])?);
                     sender.send(Cow::Owned(s)).await?;
                 }
                 tiberius::QueryItem::Metadata(meta) => {

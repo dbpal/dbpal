@@ -593,6 +593,9 @@ impl MongoDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for MongoDB {
+    async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
     async fn duplicate_table(&self, old_collection: &str, dup: &str) -> anyhow::Result<()> {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));

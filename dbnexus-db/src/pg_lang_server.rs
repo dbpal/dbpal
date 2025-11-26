@@ -11,7 +11,13 @@ use std::collections::HashSet;
 use std::ops::DerefMut;
 #[async_trait::async_trait]
 impl LexerCompletionTrait for PostGresDB {
-    const TYPES: &'static [&'static str] = POSTGRES_TYPES;
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        let r = POSTGRES_TYPES
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>();
+        return anyhow::Ok(r);
+    }
 }
 
 #[async_trait::async_trait]

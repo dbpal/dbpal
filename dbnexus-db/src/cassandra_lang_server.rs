@@ -125,8 +125,13 @@ impl LanguageServer for CassandraDB {
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for CassandraDB {
-    const TEXTS: &'static [&'static str] = &["true", "false"];
-    const TYPES: &'static [&'static str] = CASSANDRA_TYPES;
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(CASSANDRA_TYPES.iter().map(|x| x.to_string()).collect())
+    }
+    async fn get_text(&self) -> anyhow::Result<Vec<String>> {
+        let r = ["true", "false"].iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(r)
+    }
 }
 
 impl CassandraDB {

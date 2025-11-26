@@ -165,8 +165,15 @@ impl LangServerCommon for SqliteDB {
 
 #[async_trait::async_trait]
 impl crate::language_server::LexerCompletionTrait for SqliteDB {
-    const TEXTS: &'static [&'static str] = &["true", "false"];
-    const TYPES: &'static [&'static str] = SQLITE_TYPES;
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        let r = SQLITE_TYPES.iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(r)
+    }
+
+    async fn get_text(&self) -> anyhow::Result<Vec<String>> {
+        let r = ["true", "false"].iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(r)
+    }
 }
 
 #[async_trait::async_trait]

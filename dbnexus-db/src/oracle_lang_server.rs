@@ -10,7 +10,10 @@ use crate::sqlparser_completion::TempTableColumn;
 
 #[async_trait::async_trait]
 impl LexerCompletionTrait for OracleDB {
-    const TYPES: &'static [&'static str] = ORACLE_TYPES;
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        let r = ORACLE_TYPES.iter().map(|x| x.to_string()).collect();
+        anyhow::Ok(r)
+    }
 }
 
 #[async_trait::async_trait]

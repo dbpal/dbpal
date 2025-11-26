@@ -5,7 +5,6 @@ use std::time::Duration;
 use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
-use dbnexus_db::cockroach::CockRoachDB;
 use dbnexus_db::db::{
     ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef,
     DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, MetaValue, NamedStaff,
@@ -16,7 +15,6 @@ use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
 use dbnexus_db::libsql::LibSqlDB;
 
-use dbnexus_db::mariadb::MariaDB;
 use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mssql::SqlServerDB;
 
@@ -26,12 +24,12 @@ use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable, RedisToken};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use dbnexus_db::sqlite::SqliteDB;
+use dbnexus_db::sub::SubBackend;
 
 use crate::app::{
     self, BackendCrashMsg, CachedQueryResp, DBConnectionConfig, DBPal, DatabaseBackend,
     name_to_parts,
 };
-use dbnexus_db::tidb::TiDB;
 use font_kit::error::SelectionError;
 use include_dir::{Dir, include_dir};
 use mongodb::bson::{self, Document, doc};
@@ -644,15 +642,17 @@ pub async fn add_table_column(
 #[tauri::command]
 pub async fn list_data_types(
     name: String, app: tauri::State<'_, DBPal>,
-) -> Result<&'static [&'static str], ErrorFrontend> {
+) -> Result<Vec<String>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let schema = app
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let ret = schema.list_data_types().map_err(ErrorFrontend::from)?;
-
+    let ret = schema
+        .list_data_types()
+        .await
+        .map_err(ErrorFrontend::from)?;
     Ok(ret)
 }
 
@@ -732,13 +732,9 @@ impl DatabaseBackend {
                 let a = x.as_any();
                 if let Some(x) = a.downcast_ref::<MysqlDB>() {
                     Some(x)
-                } else if let Some(x) = a.downcast_ref::<TiDB>() {
-                    Some(x)
-                } else if let Some(x) = a.downcast_ref::<MariaDB>() {
+                } else if let Some(x) = a.downcast_ref::<SubBackend>() {
                     Some(x)
                 } else if let Some(x) = a.downcast_ref::<PostGresDB>() {
-                    Some(x)
-                } else if let Some(x) = a.downcast_ref::<CockRoachDB>() {
                     Some(x)
                 } else if let Some(x) = a.downcast_ref::<SqlServerDB>() {
                     Some(x)
@@ -1012,7 +1008,7 @@ pub async fn query_sql(
         #[cfg(feature = "random-sleep")]
         tokio::time::sleep(Duration::from_secs(10)).await;
         db.as_query_sql()
-            .query_sql(&query_id, &sql)
+            .query_sql(query_id, &sql)
             .await
             .map_err(ErrorFrontend::from)
     };
@@ -1022,7 +1018,7 @@ pub async fn query_sql(
             return Err(ErrorFrontend::cancelled());
         }
     };
-    let r = result.map_err(ErrorFrontend::from).map(|x| {
+    let r = result.map(|x| {
         x.into_iter()
             .map(|x| match x {
                 Err(e) => Err(e),
@@ -1068,7 +1064,7 @@ pub async fn execute_sql(
         #[cfg(feature = "random-sleep")]
         tokio::time::sleep(Duration::from_secs(10)).await;
         db.as_query_sql()
-            .execute_sql(&query_id, &sql)
+            .execute_sql(query_id, &sql)
             .await
             .map_err(ErrorFrontend::from)
     };
@@ -1633,7 +1629,7 @@ pub async fn duplicate_table(
     let result = tokio::select! {
         r = fur => r,
         _ = token.cancelled() => {
-            Err(ErrorFrontend::from(ErrorFrontend::cancelled()))
+            Err(ErrorFrontend::cancelled())
         }
     };
     result
@@ -2857,9 +2853,6 @@ pub async fn put_value_in_sql(
         return Ok(e);
     }
     if let Ok(e) = xxx::<PostGresDB>(a, &typ, value) {
-        return Ok(e);
-    }
-    if let Ok(e) = xxx::<CockRoachDB>(a, &typ, value) {
         return Ok(e);
     }
     if let Ok(e) = xxx::<OracleDB>(a, &typ, value) {

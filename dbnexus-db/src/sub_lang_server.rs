@@ -1,14 +1,25 @@
 use std::collections::HashSet;
 
 use crate::{
-    language_server::{CompletionList, ErrAndLoc, LanguageServer},
+    cockroach::COCKROACH_TYPES,
+    db::{CreatedTypeDef, SequenceDetail, SqlEvent},
+    language_server::{
+        AstCompletionHelper, CompletionItem, CompletionList, DBExecutable, ErrAndLoc, GetKeyWords,
+        LangServerCommon, LanguageServer, LexerCompletionTrait, PostGresExtension,
+        try_parser_dot_lexer,
+    },
+    mariadb::MariaDB,
+    sqlparser_completion::TempTableColumn,
     sub::SubBackend,
+    tidb::TIDB,
 };
 
 impl SubBackend {
     fn as_lang_server(&self) -> &dyn LanguageServer {
         match self {
             SubBackend::TiDB(x) => x.as_ref(),
+            SubBackend::MariaDb(db) => db.as_ref(),
+            SubBackend::CocoRoach(db) => db.as_ref(),
         }
     }
 }
@@ -18,17 +29,26 @@ impl LanguageServer for SubBackend {
     async fn auto_completion(
         &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
-        self.as_lang_server()
-            .auto_completion(query_id, sql, line, col, use_lexer)
-            .await
+        if let Some(query_id) = query_id {
+            match self {
+                SubBackend::TiDB(x) => {
+                    x.completion_id.set(query_id);
+                }
+                SubBackend::MariaDb(db) => {
+                    db.completion_id.set(query_id);
+                }
+                SubBackend::CocoRoach(db) => {
+                    db.completion_id.set(query_id);
+                }
+            }
+        }
+        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
     async fn ai_text_completion(
         &self, sql: &str, line: u32, col: u32,
     ) -> anyhow::Result<CompletionList> {
-        self.as_lang_server()
-            .ai_text_completion(sql, line, col)
-            .await
+        LexerCompletionTrait::ai_text_completion(self, sql, line, col).await
     }
 
     async fn try_get_max_id(&self, _name: &str) -> anyhow::Result<String> {
@@ -54,5 +74,204 @@ impl LanguageServer for SubBackend {
     // extrat name asc from a select statement.
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
         self.as_lang_server().extract_table_select_sort(sql)
+    }
+}
+
+#[async_trait::async_trait]
+
+impl GetKeyWords for SubBackend {
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        match self {
+            SubBackend::TiDB(x) => {
+                let t = TIDB { db: x.clone() };
+                t.key_words().await
+            }
+            _ => self.as_lang_server_common().key_words().await,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+
+impl LexerCompletionTrait for SubBackend {
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        match self {
+            SubBackend::TiDB(db) => db.as_ref().get_types().await,
+            SubBackend::MariaDb(db) => db.as_ref().get_types().await,
+            SubBackend::CocoRoach(..) => {
+                anyhow::Ok(COCKROACH_TYPES.iter().map(|x| x.to_string()).collect())
+            }
+        }
+    }
+}
+
+impl SubBackend {
+    fn as_lang_server_common(&self) -> &dyn LangServerCommon {
+        match self {
+            SubBackend::TiDB(x) => x.as_ref(),
+            SubBackend::MariaDb(db) => db.as_ref(),
+            SubBackend::CocoRoach(db) => db.as_ref(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+
+impl LangServerCommon for SubBackend {
+    async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
+        self.as_lang_server_common().list_cluster().await
+    }
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        self.as_lang_server_common().list_index(schema).await
+    }
+
+    async fn list_variable(&self) -> anyhow::Result<Vec<String>> {
+        self.as_lang_server_common().list_variable().await
+    }
+    async fn list_event(&self, _schema: Option<&str>) -> anyhow::Result<Vec<SqlEvent>> {
+        self.as_lang_server_common().list_event(_schema).await
+    }
+
+    async fn list_role(&self) -> anyhow::Result<Vec<String>> {
+        self.as_lang_server_common().list_role().await
+    }
+    async fn list_user(&self) -> anyhow::Result<Vec<String>> {
+        self.as_lang_server_common().list_user().await
+    }
+    async fn list_domain(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        self.as_lang_server_common().list_domain(_schema).await
+    }
+
+    async fn list_created_type(
+        &self, _schema: Option<&str>,
+    ) -> anyhow::Result<Vec<CreatedTypeDef>> {
+        self.as_lang_server_common()
+            .list_created_type(_schema)
+            .await
+    }
+    async fn list_sequence(&self, _schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
+        self.as_lang_server_common().list_sequence(_schema).await
+    }
+    async fn list_execute(&self, _schema: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
+        self.as_lang_server_common().list_execute(_schema).await
+    }
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        self.as_lang_server_common().dialect()
+    }
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        match self {
+            SubBackend::MariaDb(x) => {
+                let t = MariaDB { db: x.clone() };
+                t.lang_server_list_table(schema).await
+            }
+            _ => self.as_lang_server_common().list_table(schema).await,
+        }
+    }
+    // list view or materialized view
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        self.as_lang_server_common().list_view(schema).await
+    }
+
+    async fn list_function(
+        &self, schema: Option<&str>, include_build_in: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        match self {
+            SubBackend::TiDB(x) => {
+                let t = TIDB { db: x.clone() };
+                t.list_function(schema, include_build_in).await
+            }
+            SubBackend::MariaDb(db) => {
+                let t = MariaDB { db: db.clone() };
+                t.language_server_list_function(schema, include_build_in)
+                    .await
+            }
+            _ => {
+                self.as_lang_server_common()
+                    .list_function(schema, include_build_in)
+                    .await
+            }
+        }
+    }
+    async fn list_procedure(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        self.as_lang_server_common().list_procedure(_schema).await
+    }
+    async fn list_column(
+        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        self.as_lang_server_common()
+            .list_column(schema, name, is_call)
+            .await
+    }
+}
+
+impl SubBackend {
+    fn as_ast_completion_helper(&self) -> &dyn AstCompletionHelper {
+        match self {
+            SubBackend::TiDB(x) => x.as_ref(),
+            SubBackend::MariaDb(db) => db.as_ref(),
+            SubBackend::CocoRoach(db) => db.as_ref(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+
+impl AstCompletionHelper for SubBackend {
+    async fn postgres_list_extension(
+        &self, _installed: bool,
+    ) -> anyhow::Result<Vec<PostGresExtension>> {
+        self.as_ast_completion_helper()
+            .postgres_list_extension(_installed)
+            .await
+    }
+    async fn get_query_columns(&self, _sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
+        self.as_ast_completion_helper()
+            .get_query_columns(_sql)
+            .await
+    }
+
+    async fn mysql_show_create_trigger(
+        &self, _schema: Option<&str>,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        self.as_ast_completion_helper()
+            .mysql_show_create_trigger(_schema)
+            .await
+    }
+
+    async fn list_partition(
+        &self, _schema: Option<&str>, _table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        self.as_ast_completion_helper()
+            .list_partition(_schema, _table)
+            .await
+    }
+    async fn table_policy(
+        &self, _schema: Option<&str>, _table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        self.as_ast_completion_helper()
+            .table_policy(_schema, _table)
+            .await
+    }
+
+    async fn list_postgres_rule(
+        &self, _schema: Option<&str>, _table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        self.as_ast_completion_helper()
+            .list_postgres_rule(_schema, _table)
+            .await
+    }
+    async fn list_constraint(
+        &self, _schema: Option<&str>, _table_name: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        self.as_ast_completion_helper()
+            .list_constraint(_schema, _table_name)
+            .await
+    }
+    async fn list_table_trigger(
+        &self, _schema: Option<&str>, _table: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        self.as_ast_completion_helper()
+            .list_table_trigger(_schema, _table)
+            .await
     }
 }

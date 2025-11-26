@@ -18,6 +18,7 @@ use crate::db::{
     create_html_table_data, create_html_table_header, escape_sql_str, ty_is_float, ty_is_int,
 };
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
+use crate::language_server::LexerCompletionTrait;
 
 impl GetBackendKind for ClickHouseDB {
     fn backend_name(&self) -> BackendKind {
@@ -202,6 +203,9 @@ impl ClickHouseDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for ClickHouseDB {
+    async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
+        LexerCompletionTrait::get_types(self).await
+    }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }

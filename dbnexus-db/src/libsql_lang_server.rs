@@ -79,9 +79,22 @@ impl LanguageServer for LibSqlDB {
 
 #[async_trait::async_trait]
 
-impl crate::language_server::LexerCompletionTrait for LibSqlDB {
-    const TEXTS: &'static [&'static str] = &["true", "false"];
-    const TYPES: &'static [&'static str] = SQLITE_TYPES;
+impl LexerCompletionTrait for LibSqlDB {
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        let r = SQLITE_TYPES
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>();
+        anyhow::Ok(r)
+    }
+
+    async fn get_text(&self) -> anyhow::Result<Vec<String>> {
+        let r = ["true", "false"]
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>();
+        anyhow::Ok(r)
+    }
 }
 
 #[async_trait::async_trait]
@@ -279,7 +292,8 @@ mod tests {
         let db = make_test_object().await;
         let _ = db.drop_table("departments", false).await;
         let _ = db.drop_table("employees", false).await;
-        let query_id = "";  db.open_connection(query_id).await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let _ = db
             .query_sql(
                 query_id,

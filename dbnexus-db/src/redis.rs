@@ -1072,6 +1072,10 @@ impl RedisDB {
 
 #[async_trait::async_trait]
 impl SchemaTrait for RedisDB {
+    async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
+    }
+
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
         let mut conn = self.get_conn().await?;
         let e = conn.exists(table).await?;

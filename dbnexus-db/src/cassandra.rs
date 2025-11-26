@@ -1830,8 +1830,8 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(())
     }
 
-    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(<Self as LexerCompletionTrait>::TYPES)
+    async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
+        LexerCompletionTrait::get_types(self).await
     }
 }
 

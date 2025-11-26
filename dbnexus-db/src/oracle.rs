@@ -24,7 +24,7 @@ use crate::db::{
 };
 use crate::helper::create_csv;
 
-use crate::oracle_lang_server::ORACLE_TYPES;
+use crate::language_server::LexerCompletionTrait;
 
 #[derive(Clone)]
 pub struct OracleDB {
@@ -1284,8 +1284,8 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(())
     }
 
-    fn list_data_types(&self) -> anyhow::Result<&'static [&'static str]> {
-        anyhow::Ok(ORACLE_TYPES)
+    async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
+        LexerCompletionTrait::get_types(self).await
     }
 
     async fn modify_table_column(
