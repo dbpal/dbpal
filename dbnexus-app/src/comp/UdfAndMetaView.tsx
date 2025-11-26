@@ -10,6 +10,7 @@ import {
   getEditorText,
   getLanguageFromDataSourceKind,
   makeExecuteSql,
+  resizeHandlerSize,
 } from "./helper";
 import { MultiQueryResp } from "./QueryResp";
 import { editor } from "monaco-editor";
@@ -130,7 +131,10 @@ function DefAndMetasView(props: {
 
       {(queryResp.length > 0 || (detail.metas && detail.metas.length > 0)) && (
         <>
-          <PanelResizeHandle style={{ height: "4px" }} className="resize-handle" />
+          <PanelResizeHandle
+            style={{ height: resizeHandlerSize }}
+            className="resize-handle"
+          />
           <Panel
             minSize={10}
             collapsible

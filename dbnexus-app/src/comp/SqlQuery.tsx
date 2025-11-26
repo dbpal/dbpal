@@ -49,6 +49,7 @@ import {
   getEditorText,
   getLanguageFromDataSourceKind,
   QueryLogHandler,
+  resizeHandlerSize,
   rustResultOk,
   SaveQueryLogConfigure,
   secondConfirm,
@@ -720,7 +721,10 @@ function SqlQuery(props: {
           />
         </Panel>
         {!queryRespView && resp.length > 0 && (
-          <PanelResizeHandle style={{ height: 4 }} className="resize-handle" />
+          <PanelResizeHandle
+            style={{ height: resizeHandlerSize }}
+            className="resize-handle"
+          />
         )}
 
         {!queryRespView && resp.length > 0 && (

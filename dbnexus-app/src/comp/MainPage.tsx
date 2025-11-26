@@ -11,6 +11,7 @@ import {
   WindowFocusContext,
   getViewportSize,
   KeyPressed,
+  resizeHandlerSize,
 } from "./helper.ts";
 import "../app.css";
 import { Paper, useTheme } from "@mui/material";
@@ -117,7 +118,10 @@ function App() {
                   >
                     <Left />
                   </Panel>
-                  <PanelResizeHandle style={{ width: 4 }} className="resize-handle" />
+                  <PanelResizeHandle
+                    style={{ width: resizeHandlerSize }}
+                    className="resize-handle"
+                  />
                   <Panel
                     style={{
                       overflow: "auto",

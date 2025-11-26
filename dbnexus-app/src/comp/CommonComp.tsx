@@ -63,6 +63,7 @@ import {
   handleCopyToClipboard,
   pageSizeOptions,
   QueryLogHandler,
+  resizeHandlerSize,
   SaveAlign,
   saveAndSetSize,
   SaveDomSizes,
@@ -1070,7 +1071,7 @@ function ResizeParentHeight(props: {
 
   return (
     <div
-      style={{ height: "4px", cursor: "ns-resize" }}
+      style={{ height: resizeHandlerSize, cursor: "ns-resize" }}
       className="resize-handle"
       onMouseDown={handleDown}
     />

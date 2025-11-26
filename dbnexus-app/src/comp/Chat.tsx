@@ -6,6 +6,7 @@ import {
   handleCopyToClipboard,
   LLMConfig,
   LLMConfigContext,
+  resizeHandlerSize,
   TabActiveContext,
   TableType,
   ViewKind,
@@ -161,8 +162,8 @@ function Chat(props: {
         {llmconfig && (
           <PanelResizeHandle
             style={{
-              width: chatDirection != "vertical" ? 4 : undefined,
-              height: chatDirection == "vertical" ? 4 : undefined,
+              width: chatDirection != "vertical" ? resizeHandlerSize : undefined,
+              height: chatDirection == "vertical" ? resizeHandlerSize : undefined,
             }}
             id="chat-resize-bar"
             className="resize-handle"

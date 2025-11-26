@@ -3,7 +3,7 @@ import { editor } from "monaco-editor";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { SqlQuery } from "./SqlQuery.tsx";
-import { DataSourceKind, shrinkAble } from "./helper.ts";
+import { DataSourceKind, resizeHandlerSize, shrinkAble } from "./helper.ts";
 import { Chip, Tooltip } from "@mui/material";
 import { invoke } from "@tauri-apps/api/core";
 import { AppMarkDown } from "./CommonComp2.tsx";
@@ -109,7 +109,12 @@ function RedisQuery(props: {
         />
       </Panel>
 
-      {showDoc && <PanelResizeHandle style={{ width: 4 }} className="resize-handle" />}
+      {showDoc && (
+        <PanelResizeHandle
+          style={{ width: resizeHandlerSize }}
+          className="resize-handle"
+        />
+      )}
       {showDoc && (
         <Panel
           collapsible

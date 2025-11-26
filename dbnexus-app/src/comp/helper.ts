@@ -1237,6 +1237,7 @@ enum MongoLanguage {
   js = "javascript",
   ts = "typescript",
 }
+const resizeHandlerSize = 2;
 
 export {
   TabsSetContext,
@@ -1318,6 +1319,7 @@ export {
   LLMConfigContext,
   MongoLanguage,
   extractLastNameFromUuid,
+  resizeHandlerSize,
 };
 
 export type { ErrAndLoc, NewWindowTableParameter, DetachQueyRespViewParameter };
