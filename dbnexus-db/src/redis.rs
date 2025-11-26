@@ -760,8 +760,27 @@ impl RedisDB {
 }
 
 impl RedisDB {
+    async fn get_conn_by_query_id(
+        &self, query_id: Option<&str>,
+    ) -> anyhow::Result<Arc<Mutex<MultiplexedConnection>>> {
+        match query_id {
+            Some(x) => match self.query_connection.get(&x.to_string()) {
+                Some(x) => anyhow::Ok(x.clone()),
+                None => anyhow::bail!("should be a valid query id"),
+            },
+            None => {
+                let x = self
+                    .get_client()
+                    .await?
+                    .get_multiplexed_async_connection()
+                    .await?;
+                anyhow::Ok(Arc::new(Mutex::new(x)))
+            }
+        }
+    }
+
     async fn export_query_result_as_csv(
-        &self, sql: &str, include_header: bool, delimiter: char,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         if include_header {
@@ -773,12 +792,13 @@ impl RedisDB {
         }
         let c = &commands[0];
         log::info!("cmd is:{:?}", c);
-        let client = self.get_client().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         let args = &c[1..];
-        let mut conn = client.get_multiplexed_async_connection().await?;
         let mut redis_cmd = redis::cmd(c[0].as_str());
         redis_cmd.arg(args);
-        let mut stream = redis_cmd.iter_async::<String>(&mut conn).await?;
+        let mut stream = redis_cmd.iter_async::<String>(conn).await?;
         while let Some(value) = stream.next().await {
             let value = value?;
             sender
@@ -789,7 +809,7 @@ impl RedisDB {
     }
 
     async fn export_query_result_as_html(
-        &self, sql: &str, include_header: bool,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         if include_header {
@@ -801,12 +821,13 @@ impl RedisDB {
         }
         let c = &commands[0];
         log::info!("cmd is:{:?}", c);
-        let client = self.get_client().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         let args = &c[1..];
-        let mut conn = client.get_multiplexed_async_connection().await?;
         let mut redis_cmd = redis::cmd(c[0].as_str());
         redis_cmd.arg(args);
-        let mut stream = redis_cmd.iter_async::<String>(&mut conn).await?;
+        let mut stream = redis_cmd.iter_async::<String>(conn).await?;
         while let Some(value) = stream.next().await {
             let value = value?;
             sender
@@ -816,7 +837,8 @@ impl RedisDB {
         anyhow::Ok(())
     }
     async fn export_query_result_as_json(
-        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: Option<&str>, sql: &str, pretty: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let commands = get_command_from_sql(sql)?;
         if commands.len() != 1 {
@@ -828,12 +850,13 @@ impl RedisDB {
         }
         let c = &commands[0];
         log::info!("cmd is:{:?}", c);
-        let client = self.get_client().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         let args = &c[1..];
-        let mut conn = client.get_multiplexed_async_connection().await?;
         let mut redis_cmd = redis::cmd(c[0].as_str());
         redis_cmd.arg(args);
-        let mut stream = redis_cmd.iter_async::<Vec<u8>>(&mut conn).await?;
+        let mut stream = redis_cmd.iter_async::<Vec<u8>>(conn).await?;
         let mut first = true;
         while let Some(value) = stream.next().await {
             if !first {
@@ -863,7 +886,8 @@ impl RedisDB {
     }
 
     async fn export_query_result_as_jsonline(
-        &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: Option<&str>, sql: &str,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         let commands = get_command_from_sql(sql)?;
         if commands.len() != 1 {
@@ -871,12 +895,13 @@ impl RedisDB {
         }
         let c = &commands[0];
         log::info!("cmd is:{:?}", c);
-        let client = self.get_client().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         let args = &c[1..];
-        let mut conn = client.get_multiplexed_async_connection().await?;
         let mut redis_cmd = redis::cmd(c[0].as_str());
         redis_cmd.arg(args);
-        let mut stream = redis_cmd.iter_async::<Vec<u8>>(&mut conn).await?;
+        let mut stream = redis_cmd.iter_async::<Vec<u8>>(conn).await?;
         while let Some(value) = stream.next().await {
             let value = value?;
             sender.send(serde_json::to_string(&value)?.into()).await?;
@@ -890,27 +915,38 @@ impl RedisDB {
 
 impl ExportQueryResult for RedisDB {
     async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: &str, sql: &str, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::CSV {
                 include_header,
                 delimiter,
             } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
-                    .await
+                self.export_query_result_as_csv(
+                    Some(query_id),
+                    sql,
+                    include_header,
+                    delimiter,
+                    sender,
+                )
+                .await
             }
             ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
+                self.export_query_result_as_json(Some(query_id), sql, pretty, sender)
+                    .await
             }
-            ExportKind::JsonLine => self.export_query_result_as_jsonline(sql, sender).await,
+            ExportKind::JsonLine => {
+                self.export_query_result_as_jsonline(Some(query_id), sql, sender)
+                    .await
+            }
             ExportKind::Sql { .. } => ExportKind::cannot_query_result_export_as_sql(),
             ExportKind::Xlsx { include_header } => {
-                self.export_query_result_as_xlsx(sql, include_header, sender)
+                self.export_query_result_as_xlsx(Some(query_id), sql, include_header, sender)
                     .await
             }
             ExportKind::Html { include_header } => {
-                self.export_query_result_as_html(sql, include_header, sender)
+                self.export_query_result_as_html(Some(query_id), sql, include_header, sender)
                     .await
             }
         }
@@ -923,7 +959,7 @@ impl ExportQueryResult for RedisDB {
 
 impl RedisDB {
     async fn export_query_result_as_xlsx(
-        &self, sql: &str, include_header: bool,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         if include_header {
@@ -933,14 +969,16 @@ impl RedisDB {
         if commands.len() != 1 {
             anyhow::bail!("Redis does not support multiple commands");
         }
+
         let c = &commands[0];
         log::info!("cmd is:{:?}", c);
-        let client = self.get_client().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         let args = &c[1..];
-        let mut conn = client.get_multiplexed_async_connection().await?;
         let mut redis_cmd = redis::cmd(c[0].as_str());
         redis_cmd.arg(args);
-        let mut stream = redis_cmd.iter_async::<String>(&mut conn).await?;
+        let mut stream = redis_cmd.iter_async::<String>(conn).await?;
         let mut row = 0;
         while let Some(value) = stream.next().await {
             let value = value?;
@@ -2126,7 +2164,7 @@ mod tests {
         {
             // xlsx
             let name = db.backend_name().make_test_xlsx_file(key);
-            db.export_query_result_to_file(cmd, kind, &name, Arc::new(|_| {}))
+            db.export_query_result_to_file("", cmd, kind, &name, Arc::new(|_| {}))
                 .await
                 .unwrap();
             opener::open(name.as_str()).unwrap();

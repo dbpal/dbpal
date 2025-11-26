@@ -17,7 +17,7 @@ use dbnexus_db::language_server::LanguageServer;
 use dbnexus_db::mongo::MongoDB;
 
 use crate::handlers::MuiDataGridData;
-use dbnexus_db::sub::SubBackend;
+use dbnexus_db::sub::SubDB;
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 impl DBConnectionConfig {
@@ -145,37 +145,26 @@ impl DBConnectionConfig {
             },
             DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db {
                 Some(_) => {
-                    let db: Arc<dyn SchemaTrait> = Arc::new(SubBackend::MariaDb(Arc::new(
-                        dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?,
-                    )));
+                    let db: Arc<dyn SchemaTrait> =
+                        Arc::new(SubDB::new_mariadb(conn.clone()).await?);
                     anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
-                    let db: Arc<dyn DBTrait> = Arc::new(SubBackend::MariaDb(Arc::new({
-                        let x = dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?;
-                        x
-                    })));
+                    let db: Arc<dyn DBTrait> = Arc::new(SubDB::new_mariadb(conn.clone()).await?);
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
             DBConnectionConfig::Tidb { conn, name: _ } => match &conn.db {
                 Some(_) => {
-                    let db: Arc<dyn SchemaTrait> = Arc::new(SubBackend::TiDB(Arc::new(
-                        dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?,
-                    )));
-
+                    let db: Arc<dyn SchemaTrait> = Arc::new(SubDB::new_tidb(conn.clone()).await?);
                     anyhow::Ok(DatabaseBackend::Schema(db))
                 }
                 None => {
-                    let db: Arc<dyn DBTrait> = Arc::new(SubBackend::TiDB(Arc::new({
-                        let x = dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?;
-                        x
-                    })));
-
-                    Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
+                    let db: Arc<dyn DBTrait> = Arc::new(SubDB::new_tidb(conn.clone()).await?);
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
+
             DBConnectionConfig::Postgres { conn, name: _ } => {
                 let o = Arc::new(dbnexus_db::pg::PostGresDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
@@ -188,9 +177,7 @@ impl DBConnectionConfig {
                 }
             }
             DBConnectionConfig::CockRoach { conn, .. } => {
-                let o = Arc::new(SubBackend::CocoRoach(Arc::new(
-                    dbnexus_db::pg::PostGresDB::new(conn.clone()).await?,
-                )));
+                let o = Arc::new(SubDB::new_cockroach(conn.clone()).await?);
                 if conn.db.is_none() {
                     return anyhow::Ok(DatabaseBackend::Catalog(o as Arc<dyn CatalogTrait>));
                 }

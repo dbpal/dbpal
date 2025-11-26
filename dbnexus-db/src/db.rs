@@ -831,17 +831,22 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
     fn clone(&self) -> Box<dyn ExportQueryResult>;
 
     async fn export_query_result(
-        &self, _sql: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: &str, _sql: &str, _kind: ExportKind,
+        _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()>;
 
     async fn export_query_result_to_string(
-        &self, sql: &str, kind: ExportKind,
+        &self, query_id: &str, sql: &str, kind: ExportKind,
     ) -> anyhow::Result<String> {
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
         let j1 = {
             let x = ExportQueryResult::clone(self);
             let sql = sql.to_string();
-            let h1 = tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await });
+            let query_id = query_id.to_string();
+            let h1 =
+                tokio::spawn(
+                    async move { x.export_query_result(&query_id, &sql, kind, sender).await },
+                );
             h1
         };
         let j2 = {
@@ -857,14 +862,15 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
         j2.await?
     }
     async fn export_query_result_to_file(
-        &self, sql: &str, kind: ExportKind, file: &str, emit: ExportedSizeEmitter,
+        &self, query_id: &str, sql: &str, kind: ExportKind, file: &str, emit: ExportedSizeEmitter,
     ) -> anyhow::Result<()> {
         log::info!("sql:{}", sql);
         let (sender, receiver) = tokio::sync::mpsc::channel(10);
         let j1 = {
             let x = self.clone();
             let sql = sql.to_string();
-            tokio::spawn(async move { x.export_query_result(&sql, kind, sender).await })
+            let query_id = query_id.to_string();
+            tokio::spawn(async move { x.export_query_result(&query_id, &sql, kind, sender).await })
         };
         let j2 = {
             let sql = sql.to_string();

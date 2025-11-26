@@ -24,7 +24,7 @@ use dbnexus_db::pg::PostGresDB;
 use dbnexus_db::redis::{RedisDB, RedisListTable, RedisToken};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use dbnexus_db::sqlite::SqliteDB;
-use dbnexus_db::sub::SubBackend;
+use dbnexus_db::sub::SubDB;
 
 use crate::app::{
     self, BackendCrashMsg, CachedQueryResp, DBConnectionConfig, DBPal, DatabaseBackend,
@@ -732,7 +732,7 @@ impl DatabaseBackend {
                 let a = x.as_any();
                 if let Some(x) = a.downcast_ref::<MysqlDB>() {
                     Some(x)
-                } else if let Some(x) = a.downcast_ref::<SubBackend>() {
+                } else if let Some(x) = a.downcast_ref::<SubDB>() {
                     Some(x)
                 } else if let Some(x) = a.downcast_ref::<PostGresDB>() {
                     Some(x)
@@ -915,7 +915,6 @@ pub async fn drop_event(
     random_sleep().await;
     random_error()?;
     let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
-
     schema
         .drop_event(&event_name)
         .await
@@ -924,12 +923,17 @@ pub async fn drop_event(
 
 #[tauri::command]
 pub async fn export_query_result_to_file(
-    name: String, task_id: String, sql: String, kind: ExportKind, file: String,
+    name: String, task_id: String, sql: String, query_id: String, kind: ExportKind, file: String,
     size_emitter: Channel<usize>, task_manager: tauri::State<'_, TaskManager>,
     app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
+    log::info!(
+        "export_query_result_to_file sql{} query_id:{}",
+        sql,
+        query_id
+    );
     let (token, _guard) = task_manager.add(task_id);
     let opened = app
         .get_backend(name.as_str())
@@ -943,7 +947,7 @@ pub async fn export_query_result_to_file(
     let fur = async {
         opened
             .as_export_query_result()
-            .export_query_result_to_file(&sql, kind, &file, size_emitter.clone())
+            .export_query_result_to_file(&query_id, &sql, kind, &file, size_emitter.clone())
             .await
             .map_err(ErrorFrontend::from)
     };

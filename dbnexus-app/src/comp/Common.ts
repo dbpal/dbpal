@@ -12,6 +12,7 @@ import {
   AppStoreKey,
   backendCompletionItemToEditor,
   DataSourceKind,
+  extractConfigNameFromUuid,
   secondConfirm,
 } from "./helper";
 import { GridColDef } from "@mui/x-data-grid";
@@ -305,6 +306,7 @@ interface IQueryConn {
   queryOP: (text: string, append: boolean) => Promise<any[]>;
   executeOP: (text: string) => Promise<any>;
   exportQueryResult: (
+    queryId: string,
     sql: string,
     kind: types.ExportKind,
     file: string,
@@ -356,6 +358,7 @@ class QueryConn implements IQueryConn {
   }
 
   exportQueryResult(
+    queryId: string,
     sql: string,
     kind: types.ExportKind,
     file: string,
@@ -369,6 +372,7 @@ class QueryConn implements IQueryConn {
       file,
       taskId,
       sizeEmitter,
+      queryId,
     });
   }
 
@@ -538,6 +542,48 @@ async function editorAppendContent(editor: editor.IStandaloneCodeEditor, text) {
   editor.revealLine(lastLine + 1);
 }
 
+interface TableFilter {
+  filter: string;
+}
+
+class TableFilterHandler {
+  static async get(uuid: string, name: string) {
+    return appDatabase.select<TableFilter[]>(
+      "select filter from table_filter where uuid=? and name=?",
+      [uuid, name],
+    );
+  }
+
+  static async add(uuid: string, name: string, filter: string) {
+    await appDatabase.execute(
+      "replace into table_filter (uuid,connection_name,name,filter,last_modified) values (?,?,?,?,?)",
+      [uuid, extractConfigNameFromUuid(uuid), name, filter, new Date()],
+    );
+    let count = (
+      await appDatabase.select(
+        "select count(*) as count  from table_filter where uuid=? and name=?",
+        [uuid, name],
+      )
+    )[0].count;
+    if (count > 5) {
+      await appDatabase.execute(
+        "delete from table_filter where uuid =? and name=? order by last_modified limit 1",
+        [uuid, name],
+      );
+    }
+  }
+  static async deleteByConnectionName(name: string) {
+    try {
+      await appDatabase.execute("delete from table_filter where connection_name=?", [
+        name,
+      ]);
+    } catch (e) {
+      console.error("delete table filter failed,err:", e);
+      message("delete table filter failed,err:" + String(e), { kind: "error" });
+    }
+  }
+}
+
 export {
   modalStyle,
   tabsHasId,
@@ -558,6 +604,7 @@ export {
   AITextCompletionName,
   makeFormatFn,
   QueryConn,
+  TableFilterHandler,
 };
 
-export type { DefAndMetas, IQueryConn, EscDownEvent, FieldAndGridField };
+export type { DefAndMetas, IQueryConn, EscDownEvent, FieldAndGridField, TableFilter };

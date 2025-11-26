@@ -171,10 +171,28 @@ impl PostGresDB {
         anyhow::Ok(())
     }
 
+    async fn get_conn_by_query_id(
+        &self, query_id: Option<&str>,
+    ) -> anyhow::Result<Arc<Mutex<PoolConnection<sqlx::Postgres>>>> {
+        match query_id {
+            Some(id) => match self.query_connection.get(&id.to_string()) {
+                Some(x) => anyhow::Ok(x.clone()),
+                None => anyhow::bail!("should be able to get connection"),
+            },
+            None => {
+                let conn = self.get_conn().await?;
+                anyhow::Ok(Arc::new(Mutex::new(conn)))
+            }
+        }
+    }
+
     async fn export_query_result_as_json_line(
-        &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: Option<&str>, sql: &str,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         while let Some(row) = stream.next().await {
             let row = row?;
@@ -197,13 +215,17 @@ impl PostGresDB {
             table_name
         );
         log::info!("sql:{}", sql);
-        self.export_query_result_as_json_line(&sql, sender).await
+        self.export_query_result_as_json_line(None, &sql, sender)
+            .await
     }
 
     async fn export_query_result_as_json(
-        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: Option<&str>, sql: &str, pretty: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         sender.send("[".into()).await?;
         let mut first = true;
@@ -241,7 +263,8 @@ impl PostGresDB {
             table_name
         );
         log::info!("sql:{}", sql);
-        self.export_query_result_as_json(&sql, pretty, sender).await
+        self.export_query_result_as_json(None, &sql, pretty, sender)
+            .await
     }
 
     async fn export_table_as_xlsx(
@@ -254,17 +277,18 @@ impl PostGresDB {
             table_name
         );
         log::info!("sql:{}", sql);
-        self.export_query_result_as_xlsx(&sql, include_header, sender)
+        self.export_query_result_as_xlsx(None, &sql, include_header, sender)
             .await
     }
 
     async fn export_query_result_as_csv(
-        &self, sql: &str, include_header: bool, delimiter: char,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         let mut first = true;
-
         let mut stream = sqlx::query(AssertSqlSafe(sql))
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -295,10 +319,12 @@ impl PostGresDB {
     }
 
     async fn export_query_result_as_html(
-        &self, sql: &str, include_header: bool,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         let mut first = true;
 
         let mut stream = sqlx::query(AssertSqlSafe(sql))
@@ -339,7 +365,7 @@ impl PostGresDB {
             table_name
         );
         log::info!("sql:{}", sql);
-        self.export_query_result_as_csv(sql.as_str(), include_header, delimiter, sender)
+        self.export_query_result_as_csv(None, sql.as_str(), include_header, delimiter, sender)
             .await
     }
     async fn export_table_as_html(
@@ -352,7 +378,7 @@ impl PostGresDB {
             table_name
         );
         log::info!("sql:{}", sql);
-        self.export_query_result_as_html(sql.as_str(), include_header, sender)
+        self.export_query_result_as_html(None, sql.as_str(), include_header, sender)
             .await
     }
 }
@@ -1848,10 +1874,12 @@ async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Re
 
 impl PostGresDB {
     async fn export_query_result_as_xlsx(
-        &self, sql: &str, include_header: bool,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         let mut first = true;
 
         let mut stream = sqlx::query(AssertSqlSafe(sql))
@@ -1893,29 +1921,40 @@ impl ExportQueryResult for PostGresDB {
     }
 
     async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: &str, sql: &str, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::CSV {
                 include_header,
                 delimiter,
             } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
-                    .await
+                self.export_query_result_as_csv(
+                    Some(query_id),
+                    sql,
+                    include_header,
+                    delimiter,
+                    sender,
+                )
+                .await
             }
             ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
+                self.export_query_result_as_json(Some(query_id), sql, pretty, sender)
+                    .await
             }
-            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::JsonLine => {
+                self.export_query_result_as_json_line(Some(query_id), sql, sender)
+                    .await
+            }
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
             ExportKind::Xlsx { include_header } => {
-                self.export_query_result_as_xlsx(sql, include_header, sender)
+                self.export_query_result_as_xlsx(Some(query_id), sql, include_header, sender)
                     .await
             }
             ExportKind::Html { include_header } => {
-                self.export_query_result_as_html(sql, include_header, sender)
+                self.export_query_result_as_html(Some(query_id), sql, include_header, sender)
                     .await
             }
         }
@@ -2828,6 +2867,7 @@ mod tests {
         {
             let e = schema_trait
                 .export_query_result_to_string(
+                    query_id,
                     "select * from test_export_table",
                     ExportKind::CSV {
                         include_header: true,
@@ -2842,6 +2882,7 @@ mod tests {
         {
             let e = schema_trait
                 .export_query_result_to_string(
+                    query_id,
                     "select * from test_export_table",
                     ExportKind::Json { pretty: true },
                 )
@@ -2854,6 +2895,7 @@ mod tests {
         {
             let e = schema_trait
                 .export_query_result_to_string(
+                    query_id,
                     "select * from test_export_table",
                     ExportKind::JsonLine,
                 )

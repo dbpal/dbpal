@@ -1,3 +1,6 @@
+use dashmap::DashMap;
+use oracle::pool::Pool;
+use oracle::{Connection, Row};
 /// notice oracle sql 不能带有分号
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -5,10 +8,6 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
-
-use dashmap::DashMap;
-use oracle::pool::Pool;
-use oracle::{Connection, Row};
 use tokio::sync::Mutex;
 use tokio::task::{block_in_place, spawn_blocking};
 
@@ -99,12 +98,12 @@ impl OracleDB {
 
 impl OracleDB {
     async fn export_query_result_as_xlsx(
-        &self, sql: &str, include_header: bool,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn().await?;
-        let sql = sql.to_owned();
-        spawn_blocking(move || {
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let conn = conn.lock().await;
+        block_in_place(|| {
             let mut rows = conn.query(&sql, &[])?;
             let mut row_num = 0;
             let mut first = true;
@@ -130,7 +129,6 @@ impl OracleDB {
             }
             anyhow::Ok(())
         })
-        .await?
     }
 }
 
@@ -142,29 +140,40 @@ impl ExportQueryResult for OracleDB {
     }
 
     async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: &str, sql: &str, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::CSV {
                 include_header,
                 delimiter,
             } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
-                    .await
+                self.export_query_result_as_csv(
+                    Some(query_id),
+                    sql,
+                    include_header,
+                    delimiter,
+                    sender,
+                )
+                .await
             }
             ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
+                self.export_query_result_as_json(Some(query_id), sql, pretty, sender)
+                    .await
             }
-            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::JsonLine => {
+                self.export_query_result_as_json_line(Some(query_id), sql, sender)
+                    .await
+            }
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
             ExportKind::Xlsx { include_header } => {
-                self.export_query_result_as_xlsx(sql, include_header, sender)
+                self.export_query_result_as_xlsx(Some(query_id), sql, include_header, sender)
                     .await
             }
             ExportKind::Html { include_header } => {
-                self.export_query_result_as_html(sql, include_header, sender)
+                self.export_query_result_as_html(Some(query_id), sql, include_header, sender)
                     .await
             }
         }
@@ -766,11 +775,12 @@ impl OracleDB {
     }
 
     async fn export_query_result_as_json_line(
-        &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: Option<&str>, sql: &str,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn().await?;
-        let sql = sql.to_owned();
-        spawn_blocking(move || {
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let conn = conn.lock().await;
+        block_in_place(|| {
             let rows = conn.query(&sql, &[])?;
             for row in rows {
                 let row = row?;
@@ -781,7 +791,6 @@ impl OracleDB {
             }
             anyhow::Ok(())
         })
-        .await?
     }
 
     async fn export_table_as_json_line(
@@ -789,15 +798,17 @@ impl OracleDB {
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_json_line(&sql, sender).await
+        self.export_query_result_as_json_line(None, &sql, sender)
+            .await
     }
 
     async fn export_query_result_as_json(
-        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: Option<&str>, sql: &str, pretty: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn().await?;
-        let sql = sql.to_owned();
-        spawn_blocking(move || {
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let conn = conn.lock().await;
+        block_in_place(|| {
             sender.blocking_send("[".into())?;
             let mut first = true;
             let rows = block_in_place(|| conn.query(&sql, &[]))?;
@@ -824,7 +835,6 @@ impl OracleDB {
             sender.blocking_send("]".into())?;
             anyhow::Ok(())
         })
-        .await?
     }
 
     async fn export_table_as_json(
@@ -832,19 +842,33 @@ impl OracleDB {
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_json(&sql, pretty, sender).await
+        self.export_query_result_as_json(None, &sql, pretty, sender)
+            .await
+    }
+
+    async fn get_conn_by_query_id(
+        &self, query_id: Option<&str>,
+    ) -> anyhow::Result<Arc<Mutex<oracle::Connection>>> {
+        match query_id {
+            Some(query_id) => match self.query_connection.get(&query_id.to_string()) {
+                Some(x) => anyhow::Ok(x.clone()),
+                None => anyhow::bail!("query_id not found"),
+            },
+            None => anyhow::Ok(Arc::new(Mutex::new(self.get_conn().await?))),
+        }
     }
 
     async fn export_query_result_as_csv(
         &self,
+        query_id: Option<&str>,
         sql: &str,
         include_header: bool, // include header if possible,
         delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn().await?;
-        let sql = sql.to_owned();
-        spawn_blocking(move || {
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let conn = conn.lock().await;
+        block_in_place(|| {
             let mut first = true;
             let rows = conn.query(&sql, &[])?;
             for row in rows {
@@ -863,18 +887,18 @@ impl OracleDB {
             }
             anyhow::Ok(())
         })
-        .await?
     }
 
     async fn export_query_result_as_html(
         &self,
+        query_id: Option<&str>,
         sql: &str,
         include_header: bool, // include header if possible,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn().await?;
-        let sql = sql.to_owned();
-        spawn_blocking(move || {
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let conn = conn.lock().await;
+        block_in_place(|| {
             let mut first = true;
             let rows = conn.query(&sql, &[])?;
             for row in rows {
@@ -893,7 +917,6 @@ impl OracleDB {
             }
             anyhow::Ok(())
         })
-        .await?
     }
 
     async fn export_table_as_csv(
@@ -903,6 +926,7 @@ impl OracleDB {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
         self.export_query_result_as_csv(
+            None,
             &sql,
             include_header, // we have emit header before
             delimiter,
@@ -917,6 +941,7 @@ impl OracleDB {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
         self.export_query_result_as_html(
+            None,
             &sql,
             include_header, // we have emit header before
             sender,
@@ -930,6 +955,7 @@ impl OracleDB {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
         self.export_query_result_as_xlsx(
+            None,
             &sql,
             include_header, // we have emit header before
             sender,

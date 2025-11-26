@@ -778,11 +778,25 @@ fn sql_to_each(sql: &str) -> Vec<&str> {
 }
 
 impl CassandraDB {
+    fn get_session_by_query_id(&self, query_id: Option<&str>) -> anyhow::Result<Arc<AppSession>> {
+        match query_id {
+            Some(query_id) => match self.query_connection.get(&query_id.to_string()) {
+                Some(x) => anyhow::Ok(x.clone()),
+                None => anyhow::bail!("query_id not found"),
+            },
+            None => anyhow::Ok(self.session.clone()),
+        }
+    }
+
     async fn export_as_xlsx(
-        &self, sql: &str, include_header: bool,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let resp = self.session.query(sql).await?.response_body()?;
+        let resp = self
+            .get_session_by_query_id(query_id)?
+            .query(sql)
+            .await?
+            .response_body()?;
         let meta = resp.as_rows_metadata().cloned();
         let meta = match meta {
             Some(x) => x,
@@ -824,28 +838,40 @@ impl ExportQueryResult for CassandraDB {
     }
 
     async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: &str, sql: &str, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::CSV {
                 include_header,
                 delimiter,
             } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
-                    .await
+                self.export_query_result_as_csv(
+                    Some(query_id),
+                    sql,
+                    include_header,
+                    delimiter,
+                    sender,
+                )
+                .await
             }
             ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
+                self.export_query_result_as_json(Some(query_id), sql, pretty, sender)
+                    .await
             }
-            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::JsonLine => {
+                self.export_query_result_as_json_line(Some(query_id), sql, sender)
+                    .await
+            }
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
             ExportKind::Xlsx { include_header } => {
-                self.export_as_xlsx(sql, include_header, sender).await
+                self.export_as_xlsx(Some(query_id), sql, include_header, sender)
+                    .await
             }
             ExportKind::Html { include_header } => {
-                self.export_query_result_as_html(sql, include_header, sender)
+                self.export_query_result_as_html(Some(query_id), sql, include_header, sender)
                     .await
             }
         }
@@ -1084,9 +1110,14 @@ impl CassandraDB {
 
 impl CassandraDB {
     async fn export_query_result_as_json(
-        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: Option<&str>, sql: &str, pretty: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let resp = self.session.query(sql).await?.response_body()?;
+        let resp = self
+            .get_session_by_query_id(query_id)?
+            .query(sql)
+            .await?
+            .response_body()?;
         let meta = resp.as_rows_metadata().cloned();
         if meta.is_none() {
             anyhow::bail!("no matadata")
@@ -1105,10 +1136,14 @@ impl CassandraDB {
     }
 
     async fn export_query_result_as_csv(
-        &self, sql: &str, include_header: bool, delimiter: char,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let resp = self.session.query(sql).await?.response_body()?;
+        let resp = self
+            .get_session_by_query_id(query_id)?
+            .query(sql)
+            .await?
+            .response_body()?;
         let meta = resp.as_rows_metadata().cloned();
         if meta.is_none() {
             anyhow::bail!("no metadata")
@@ -1137,10 +1172,14 @@ impl CassandraDB {
     }
 
     async fn export_query_result_as_html(
-        &self, sql: &str, include_header: bool,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let resp = self.session.query(sql).await?.response_body()?;
+        let resp = self
+            .get_session_by_query_id(query_id)?
+            .query(sql)
+            .await?
+            .response_body()?;
         let meta = resp.as_rows_metadata().cloned();
         if meta.is_none() {
             anyhow::bail!("no metadata")
@@ -1162,9 +1201,14 @@ impl CassandraDB {
     }
 
     async fn export_query_result_as_json_line(
-        &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: Option<&str>, sql: &str,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let resp = self.session.query(sql).await?.response_body()?;
+        let resp = self
+            .get_session_by_query_id(query_id)?
+            .query(sql)
+            .await?
+            .response_body()?;
         let meta = resp.as_rows_metadata().cloned();
         if meta.is_none() {
             anyhow::bail!("no meta data found")
@@ -1192,7 +1236,7 @@ impl CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
+        self.export_query_result_as_csv(None, &sql, include_header, delimiter, sender)
             .await
     }
     async fn export_table_as_html(
@@ -1201,7 +1245,7 @@ impl CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_html(&sql, include_header, sender)
+        self.export_query_result_as_html(None, &sql, include_header, sender)
             .await
     }
 
@@ -1210,7 +1254,8 @@ impl CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_json(&sql, pretty, sender).await
+        self.export_query_result_as_json(None, &sql, pretty, sender)
+            .await
     }
 
     async fn export_table_as_json_line(
@@ -1218,7 +1263,8 @@ impl CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_json_line(&sql, sender).await
+        self.export_query_result_as_json_line(None, &sql, sender)
+            .await
     }
 
     async fn export_table_as_xlsx(
@@ -1227,7 +1273,8 @@ impl CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
-        self.export_as_xlsx(&sql, include_header, sender).await
+        self.export_as_xlsx(None, &sql, include_header, sender)
+            .await
     }
 
     async fn export_table_as_sql(

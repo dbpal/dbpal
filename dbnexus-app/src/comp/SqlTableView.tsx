@@ -10,6 +10,7 @@ import {
 import CancelIcon from "@mui/icons-material/Cancel";
 import types from "./ApiStruct";
 import {
+  Autocomplete,
   Box,
   Button,
   Checkbox,
@@ -31,7 +32,7 @@ import {
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import { NotificationContext } from "./Notification";
-
+import SaveIcon from "@mui/icons-material/Save";
 import {
   DataGrid,
   GridCallbackDetails,
@@ -51,6 +52,8 @@ import {
   NameAndQueryId,
   reloadOK,
   SetAutoCompletionName,
+  TableFilter,
+  TableFilterHandler,
 } from "./Common";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import KeyIcon from "@mui/icons-material/Key";
@@ -132,8 +135,7 @@ function SetFilterSort(props: {
   let { open, handleClose, value, setValue, label, tableName, kind, extractFn, uuid } =
     props;
   tableName = quoteDatabaseIdentifier(kind)(tableName);
-
-  const editor = useRef<editor.IStandaloneCodeEditor>(null);
+  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [modalBox, setModalBox] = useState(null);
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
@@ -143,10 +145,26 @@ function SetFilterSort(props: {
       return clean;
     }
   }, [modalBox]);
+  const isFilter = label == "filter";
+  const [selectFilter, setSelectFilter] = useState("");
+  const [filters, setFileters] = useState<TableFilter[]>([]);
+
+  const loadFilter = useCallback(async () => {
+    const x = await TableFilterHandler.get(uuid, tableName);
+    if (x) {
+      setFileters(x);
+    }
+  }, [tableName, uuid]);
+  useEffect(() => {
+    if (!isFilter) {
+      return;
+    }
+    loadFilter();
+  }, [isFilter, loadFilter]);
 
   const handleSet = async () => {
     try {
-      let value = await extractFn(editor.current.getValue());
+      let value = await extractFn(editor.getValue());
       if (value == null) {
         value = "";
       }
@@ -175,14 +193,14 @@ function SetFilterSort(props: {
         <SimpleFlexEditor
           value={
             makeFormatFn(kind)(
-              label == "filter"
+              isFilter
                 ? `SELECT * FROM ${tableName} WHERE ${value}`
                 : `SELECT * FROM ${tableName} ORDER BY ${value}`,
               { tabSize: setting.editor.tabSize, insertSpaces: true },
             ) + " "
           }
           handleEditor={e => {
-            editor.current = e;
+            setEditor(e);
             e.focus();
             editorPositionToEnd(e);
             SetAutoCompletionName.set(e.getModel().id, new NameAndQueryId(uuid, kind));
@@ -194,12 +212,49 @@ function SetFilterSort(props: {
           <Button onClick={handleSet}>set {label}</Button>
           <Button
             onClick={() => {
-              editor.current.setValue(`select * from ${tableName}`);
+              editor.setValue(`select * from ${tableName}`);
             }}
             variant="outlined"
           >
             clear
           </Button>
+          {isFilter && (
+            <Tooltip title="save current value to filter bookmark">
+              <IconButton
+                onClick={async () => {
+                  const value = editor.getValue();
+                  if (!value) {
+                    showNotification("warning", "this editor is empty");
+                    return;
+                  }
+                  try {
+                    const filter = await extractFn(value);
+                    await TableFilterHandler.add(uuid, tableName, filter);
+                    loadFilter();
+                  } catch (e) {
+                    showNotification("error", "save filter failed", e);
+                  }
+                }}
+              >
+                <SaveIcon />
+              </IconButton>
+            </Tooltip>
+          )}
+          {isFilter && (
+            <Autocomplete
+              value={selectFilter}
+              style={{ flex: 1 }}
+              options={filters.map(e => e.filter)}
+              freeSolo={false}
+              onChange={async (_, value) => {
+                editor.setValue(
+                  makeFormatFn(kind)(`SELECT * FROM ${tableName} WHERE ${value}`),
+                );
+                setSelectFilter(value);
+              }}
+              renderInput={params => <TextField {...params} label="filters" />}
+            />
+          )}
         </Stack>
       </Box>
     </Modal>

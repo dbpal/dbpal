@@ -8,7 +8,7 @@ use crate::datasource_config::MysqlDBConfig;
 use crate::db::SequenceDetail;
 use crate::mysql::MysqlDB;
 #[cfg(test)]
-use crate::sub::SubBackend;
+use crate::sub::SubDB;
 
 impl MariaDB {
     pub(crate) async fn list_sequences_impl(
@@ -103,9 +103,9 @@ pub(crate) fn make_config() -> MysqlDBConfig {
 }
 
 #[cfg(test)]
-pub(crate) async fn make_test_object_mariadb(config: MysqlDBConfig) -> SubBackend {
-    use crate::{mysql::MysqlDB, sub::SubBackend};
-    let db = SubBackend::MariaDb(MysqlDB::new(config).await.unwrap().into());
+pub(crate) async fn make_test_object_mariadb(config: MysqlDBConfig) -> SubDB {
+    use crate::{mysql::MysqlDB, sub::SubDB};
+    let db = SubDB::MariaDb(MysqlDB::new(config).await.unwrap().into());
     db
 }
 

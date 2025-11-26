@@ -7,15 +7,15 @@ pub fn migrations() -> Vec<Migration> {
             version: 1,
             description: "create_query_log",
             sql: r#"
-CREATE TABLE IF NOT EXISTS query_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    uuid TEXT NOT NULL,          -- uuid like mysql/xxx
-    name TEXT NOT NULL,          -- name like mysql
-    sql TEXT NOT NULL,
-    language TEXT NULL, 
-    create_at DATETIME NOT NULL DEFAULT current_timestamp,
-    success INTEGER NOT NULL
-);"#,
+            CREATE TABLE IF NOT EXISTS query_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT NOT NULL,          -- uuid like mysql/xxx
+                name TEXT NOT NULL,          -- name like mysql
+                sql TEXT NOT NULL,
+                language TEXT NULL, 
+                create_at DATETIME NOT NULL DEFAULT current_timestamp,
+                success INTEGER NOT NULL
+            );"#,
             kind: MigrationKind::Up,
         },
         Migration {
@@ -28,37 +28,37 @@ CREATE TABLE IF NOT EXISTS query_log (
             version: 3,
             description: "create_element_size",
             sql: r#"
-CREATE TABLE IF NOT EXISTS element_size (
-    name TEXT PRIMARY KEY NOT NULL,
-    width INTEGER NULL,
-    height INTEGER NULL
-);"#,
+            CREATE TABLE IF NOT EXISTS element_size (
+                name TEXT PRIMARY KEY NOT NULL,
+                width INTEGER NULL,
+                height INTEGER NULL
+            );"#,
             kind: MigrationKind::Up,
         },
         Migration {
             version: 4,
             description: "create_column_width",
             sql: r#"
-CREATE TABLE IF NOT EXISTS column_width (
-    name TEXT PRIMARY KEY NOT NULL,
-    width INTEGER NOT NULL
-);"#,
+                CREATE TABLE IF NOT EXISTS column_width (
+                    name TEXT PRIMARY KEY NOT NULL,
+                    width INTEGER NOT NULL
+                );"#,
             kind: MigrationKind::Up,
         },
         Migration {
             version: 5,
             description: "create_favorite_sql",
             sql: r#"
-CREATE TABLE IF NOT EXISTS favorite_sql (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    uuid TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    sql TEXT NOT NULL,
-    name TEXT NOT NULL,
-    connection_name TEXT NOT NULL,
-    language text null,
-    last_modified DATETIME NOT NULL DEFAULT current_timestamp
-);"#,
+            CREATE TABLE IF NOT EXISTS favorite_sql (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                sql TEXT NOT NULL,
+                name TEXT NOT NULL,
+                connection_name TEXT NOT NULL,
+                language text null,
+                last_modified DATETIME NOT NULL DEFAULT current_timestamp
+            );"#,
             kind: MigrationKind::Up,
         },
         Migration {
@@ -83,6 +83,36 @@ CREATE TABLE IF NOT EXISTS favorite_sql (
                     config TEXT
                 );
                 
+            "#,
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 9,
+            description: "create table filter",
+            sql: r#"            
+                CREATE table IF NOT EXISTS table_filter ( 
+                    connection_name TEXT NOT NULL,
+                    uuid TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    filter TEXT not null,
+                    last_modified DATETIME NOT NULL DEFAULT current_timestamp
+                )
+            "#,
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 10,
+            description: "create table filter index",
+            sql: r#"            
+                CREATE INDEX table_filter_uuid_name on table_filter (uuid, name)
+            "#,
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 11,
+            description: "create table filter index",
+            sql: r#"            
+                CREATE UNIQUE INDEX table_filter_unique on table_filter (uuid, name,filter)
             "#,
             kind: MigrationKind::Up,
         },

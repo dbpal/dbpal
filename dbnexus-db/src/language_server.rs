@@ -420,7 +420,7 @@ pub trait GetKeyWords: GetBackendKind {
 pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
     fn parse_err(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         let dialect = self.dialect();
-        let ss = block_in_place(|| sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql));
+        let ss = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql);
         match ss {
             Ok(_) => anyhow::Ok(None),
             Err(err) => anyhow::Ok(Some(ErrAndLoc::from(err))),

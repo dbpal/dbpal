@@ -1,14 +1,13 @@
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::ops::DerefMut;
-use std::sync::Arc;
-use std::time::Duration;
-
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use futures_core::future::BoxFuture;
 use futures_util::{StreamExt, TryStreamExt};
 use sqlparser::tokenizer::Token;
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::ops::DerefMut;
+use std::sync::Arc;
+use std::time::Duration;
 use tiberius::{Client, ColumnData, ExecuteResult, FromSql, Row};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
@@ -1481,9 +1480,11 @@ impl SqlServerDB {
     }
 
     async fn export_query_result_as_json_line(
-        &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: Option<&str>, sql: &str,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
 
         let mut stream = conn.query(sql, &[]).await?;
@@ -1512,13 +1513,16 @@ impl SqlServerDB {
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_json_line(&sql, sender).await
+        self.export_query_result_as_json_line(None, &sql, sender)
+            .await
     }
 
     async fn export_query_result_as_json(
-        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: Option<&str>, sql: &str, pretty: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
 
         let mut stream = conn.query(sql, &[]).await?;
@@ -1561,17 +1565,33 @@ impl SqlServerDB {
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_json(&sql, pretty, sender).await
+        self.export_query_result_as_json(None, &sql, pretty, sender)
+            .await
+    }
+
+    async fn get_conn_by_query_id(
+        &self, query_id: Option<&str>,
+    ) -> anyhow::Result<Arc<Mutex<Connection>>> {
+        match query_id {
+            Some(query_id) => match self.query_connection.get(&query_id.to_string()) {
+                Some(x) => anyhow::Ok(x.clone()),
+                None => anyhow::bail!("query_id not found"),
+            },
+            None => {
+                let r = self.new_tcp_conn().await?;
+                anyhow::Ok(Arc::new(Mutex::new(r)))
+            }
+        }
     }
 
     async fn export_query_result_as_csv(
-        &self, sql: &str, include_header: bool, delimiter: char,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let mut first = true;
-
         let mut stream = conn.query(sql, &[]).await?;
         while let Some(rows) = stream.next().await {
             let row = rows?;
@@ -1600,10 +1620,11 @@ impl SqlServerDB {
     }
 
     async fn export_query_result_as_html(
-        &self, sql: &str, include_header: bool,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let mut first = true;
         let mut stream = conn.query(sql, &[]).await?;
@@ -1638,7 +1659,7 @@ impl SqlServerDB {
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
+        self.export_query_result_as_csv(None, &sql, include_header, delimiter, sender)
             .await
     }
     async fn export_table_as_html(
@@ -1647,7 +1668,7 @@ impl SqlServerDB {
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_html(&sql, include_header, sender)
+        self.export_query_result_as_html(None, &sql, include_header, sender)
             .await
     }
 
@@ -1657,7 +1678,7 @@ impl SqlServerDB {
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_xlsx(&sql, include_header, sender)
+        self.export_query_result_as_xlsx(None, &sql, include_header, sender)
             .await
     }
 }
@@ -1684,15 +1705,15 @@ type Connection = Client<Compat<TcpStream>>;
 
 impl SqlServerDB {
     async fn export_query_result_as_xlsx(
-        &self, sql: &str, include_header: bool,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let mut first = true;
         let mut stream = conn.query(sql, &[]).await?.try_chunks(100);
         let mut row_num = 0;
-
         while let Some(rows) = stream.next().await {
             let rows = rows?;
             let mut rows_row = Vec::new();
@@ -1740,29 +1761,40 @@ impl ExportQueryResult for SqlServerDB {
     }
 
     async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: &str, sql: &str, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::CSV {
                 include_header,
                 delimiter,
             } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
-                    .await
+                self.export_query_result_as_csv(
+                    Some(query_id),
+                    sql,
+                    include_header,
+                    delimiter,
+                    sender,
+                )
+                .await
             }
             ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
+                self.export_query_result_as_json(Some(query_id), sql, pretty, sender)
+                    .await
             }
-            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::JsonLine => {
+                self.export_query_result_as_json_line(Some(query_id), sql, sender)
+                    .await
+            }
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
             ExportKind::Xlsx { include_header } => {
-                self.export_query_result_as_xlsx(sql, include_header, sender)
+                self.export_query_result_as_xlsx(Some(query_id), sql, include_header, sender)
                     .await
             }
             ExportKind::Html { include_header } => {
-                self.export_query_result_as_html(sql, include_header, sender)
+                self.export_query_result_as_html(Some(query_id), sql, include_header, sender)
                     .await
             }
         }
@@ -1947,11 +1979,13 @@ async fn set_current_schema(conn: &mut Connection, schema: &str) -> anyhow::Resu
 }
 
 impl SqlServerDB {
-    pub(crate) async fn get_conn<'a>(
-        &'a self,
-    ) -> anyhow::Result<bb8::PooledConnection<'a, bb8_tiberius::ConnectionManager>> {
-        let conn =
-            tokio::time::timeout(Duration::from_secs(5), async { self.pool.get().await }).await??;
+    pub(crate) async fn get_conn(
+        &self,
+    ) -> anyhow::Result<bb8::PooledConnection<'static, bb8_tiberius::ConnectionManager>> {
+        let conn = tokio::time::timeout(Duration::from_secs(5), async {
+            self.pool.get_owned().await
+        })
+        .await??;
 
         anyhow::Ok(conn)
     }
@@ -2587,8 +2621,8 @@ mod tests {
         let _guard = test_lock().lock().await;
         let table_name = "test_export";
         let db = make_test_object().await;
-        let mut conn = db.get_conn().await.unwrap();
-        let conn = conn.deref_mut();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let rs = vec![
             r#"drop table if exists test_export;"#,
             r#"CREATE TABLE test_export (
@@ -2602,7 +2636,7 @@ mod tests {
             "INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');",
         ];
         for s in rs.iter() {
-            conn.execute(*s, &[]).await.unwrap();
+            let _ = db.execute_sql(query_id, s).await.unwrap();
         }
 
         {
@@ -2651,14 +2685,14 @@ mod tests {
         let sql = sql.as_str();
         {
             let s = db
-                .export_query_result_to_string(sql, ExportKind::JsonLine)
+                .export_query_result_to_string(query_id, sql, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("json:{}", s);
         }
         {
             let s = db
-                .export_query_result_to_string(sql, ExportKind::Json { pretty: true })
+                .export_query_result_to_string(query_id, sql, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", s);
@@ -2667,6 +2701,7 @@ mod tests {
         {
             let s = db
                 .export_query_result_to_string(
+                    query_id,
                     sql,
                     ExportKind::CSV {
                         include_header: true,

@@ -751,7 +751,14 @@ function SqlQuery(props: {
               supportKind={["csv", "json", "jsonline", "xlsx", "html"]}
               exportOP={async (kind, file, taskId, sizeEmitter) => {
                 const sql = getEditorText(editor, showNotification);
-                return conn.exportQueryResult(sql, kind, file, taskId, sizeEmitter);
+                return conn.exportQueryResult(
+                  conn.queryId,
+                  sql,
+                  kind,
+                  file,
+                  taskId,
+                  sizeEmitter,
+                );
               }}
               handleClose={() => {
                 setShowExport(false);

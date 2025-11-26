@@ -189,6 +189,13 @@ fn panic_test() {
 fn main() {
     // logger_test();
     // panic_test();
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(num_cpus::get() * 2)
+        .build()
+        .unwrap();
+
+    tauri::async_runtime::set(runtime.handle().clone());
 
     // https://github.com/tauri-apps/tauri/issues/4788
     let _ = fix_path_env::fix();
@@ -235,7 +242,6 @@ fn main() {
             log::set_boxed_logger(Box::new(logger)).unwrap();
             log::set_max_level(log::LevelFilter::Trace);
         }
-
         Ok(())
     };
     let log_window_id = generate_random_string(10);

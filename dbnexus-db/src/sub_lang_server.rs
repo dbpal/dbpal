@@ -10,34 +10,34 @@ use crate::{
     },
     mariadb::MariaDB,
     sqlparser_completion::TempTableColumn,
-    sub::SubBackend,
+    sub::SubDB,
     tidb::TIDB,
 };
 
-impl SubBackend {
+impl SubDB {
     fn as_lang_server(&self) -> &dyn LanguageServer {
         match self {
-            SubBackend::TiDB(x) => x.as_ref(),
-            SubBackend::MariaDb(db) => db.as_ref(),
-            SubBackend::CocoRoach(db) => db.as_ref(),
+            SubDB::TiDB(x) => x.as_ref(),
+            SubDB::MariaDb(db) => db.as_ref(),
+            SubDB::CocoRoach(db) => db.as_ref(),
         }
     }
 }
 
 #[async_trait::async_trait]
-impl LanguageServer for SubBackend {
+impl LanguageServer for SubDB {
     async fn auto_completion(
         &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
         if let Some(query_id) = query_id {
             match self {
-                SubBackend::TiDB(x) => {
+                SubDB::TiDB(x) => {
                     x.completion_id.set(query_id);
                 }
-                SubBackend::MariaDb(db) => {
+                SubDB::MariaDb(db) => {
                     db.completion_id.set(query_id);
                 }
-                SubBackend::CocoRoach(db) => {
+                SubDB::CocoRoach(db) => {
                     db.completion_id.set(query_id);
                 }
             }
@@ -63,15 +63,14 @@ impl LanguageServer for SubBackend {
         self.as_lang_server().check_sql(_sql).await
     }
 
-    fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
-        self.as_lang_server().is_dangerous_sql(_sql)
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        self.as_lang_server().is_dangerous_sql(sql)
     }
 
-    // extract `a=`` from `select * from where a =1`
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
         self.as_lang_server().extract_table_select_selection(sql)
     }
-    // extrat name asc from a select statement.
+
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
         self.as_lang_server().extract_table_select_sort(sql)
     }
@@ -79,10 +78,10 @@ impl LanguageServer for SubBackend {
 
 #[async_trait::async_trait]
 
-impl GetKeyWords for SubBackend {
+impl GetKeyWords for SubDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
         match self {
-            SubBackend::TiDB(x) => {
+            SubDB::TiDB(x) => {
                 let t = TIDB { db: x.clone() };
                 t.key_words().await
             }
@@ -93,31 +92,31 @@ impl GetKeyWords for SubBackend {
 
 #[async_trait::async_trait]
 
-impl LexerCompletionTrait for SubBackend {
+impl LexerCompletionTrait for SubDB {
     async fn get_types(&self) -> anyhow::Result<Vec<String>> {
         match self {
-            SubBackend::TiDB(db) => db.as_ref().get_types().await,
-            SubBackend::MariaDb(db) => db.as_ref().get_types().await,
-            SubBackend::CocoRoach(..) => {
+            SubDB::TiDB(db) => db.as_ref().get_types().await,
+            SubDB::MariaDb(db) => db.as_ref().get_types().await,
+            SubDB::CocoRoach(..) => {
                 anyhow::Ok(COCKROACH_TYPES.iter().map(|x| x.to_string()).collect())
             }
         }
     }
 }
 
-impl SubBackend {
+impl SubDB {
     fn as_lang_server_common(&self) -> &dyn LangServerCommon {
         match self {
-            SubBackend::TiDB(x) => x.as_ref(),
-            SubBackend::MariaDb(db) => db.as_ref(),
-            SubBackend::CocoRoach(db) => db.as_ref(),
+            SubDB::TiDB(x) => x.as_ref(),
+            SubDB::MariaDb(db) => db.as_ref(),
+            SubDB::CocoRoach(db) => db.as_ref(),
         }
     }
 }
 
 #[async_trait::async_trait]
 
-impl LangServerCommon for SubBackend {
+impl LangServerCommon for SubDB {
     async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
         self.as_lang_server_common().list_cluster().await
     }
@@ -160,7 +159,7 @@ impl LangServerCommon for SubBackend {
     }
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         match self {
-            SubBackend::MariaDb(x) => {
+            SubDB::MariaDb(x) => {
                 let t = MariaDB { db: x.clone() };
                 t.lang_server_list_table(schema).await
             }
@@ -176,11 +175,11 @@ impl LangServerCommon for SubBackend {
         &self, schema: Option<&str>, include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
         match self {
-            SubBackend::TiDB(x) => {
+            SubDB::TiDB(x) => {
                 let t = TIDB { db: x.clone() };
                 t.list_function(schema, include_build_in).await
             }
-            SubBackend::MariaDb(db) => {
+            SubDB::MariaDb(db) => {
                 let t = MariaDB { db: db.clone() };
                 t.language_server_list_function(schema, include_build_in)
                     .await
@@ -204,19 +203,19 @@ impl LangServerCommon for SubBackend {
     }
 }
 
-impl SubBackend {
+impl SubDB {
     fn as_ast_completion_helper(&self) -> &dyn AstCompletionHelper {
         match self {
-            SubBackend::TiDB(x) => x.as_ref(),
-            SubBackend::MariaDb(db) => db.as_ref(),
-            SubBackend::CocoRoach(db) => db.as_ref(),
+            SubDB::TiDB(x) => x.as_ref(),
+            SubDB::MariaDb(db) => db.as_ref(),
+            SubDB::CocoRoach(db) => db.as_ref(),
         }
     }
 }
 
 #[async_trait::async_trait]
 
-impl AstCompletionHelper for SubBackend {
+impl AstCompletionHelper for SubDB {
     async fn postgres_list_extension(
         &self, _installed: bool,
     ) -> anyhow::Result<Vec<PostGresExtension>> {

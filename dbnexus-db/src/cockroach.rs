@@ -2,12 +2,12 @@ use crate::db::{ListTable, QueryResp, SchemaTrait, ShowTableExtraArgs};
 use crate::pg::PostGresDB;
 use crate::pg_format::encode_rows;
 #[cfg(test)]
-use crate::sub::SubBackend;
+use crate::sub::SubDB;
 use sqlx::{AssertSqlSafe, Row};
 use std::ops::DerefMut;
 
 #[cfg(test)]
-pub(crate) async fn make_test_object() -> SubBackend {
+pub(crate) async fn make_test_object() -> SubDB {
     use std::sync::Arc;
 
     use crate::datasource_config::PGDBConfig;
@@ -25,7 +25,7 @@ pub(crate) async fn make_test_object() -> SubBackend {
         conn_timeout: Some(5000.into()),
     };
 
-    let pg = SubBackend::CocoRoach(Arc::new(PostGresDB::new(r).await.unwrap()));
+    let pg = SubDB::CocoRoach(Arc::new(PostGresDB::new(r).await.unwrap()));
     pg
 }
 

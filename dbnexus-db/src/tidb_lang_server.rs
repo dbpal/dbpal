@@ -5,7 +5,7 @@ use crate::datasource_config::MysqlDBConfig;
 use crate::language_server::{CompletionItem, CompletionKind, GetKeyWords};
 
 #[cfg(test)]
-use crate::sub::SubBackend;
+use crate::sub::SubDB;
 use crate::tidb::TIDB;
 use sqlx::Row;
 
@@ -72,9 +72,9 @@ pub(crate) fn make_config() -> MysqlDBConfig {
 }
 
 #[cfg(test)]
-pub(crate) async fn make_test_object_tidb(config: MysqlDBConfig) -> SubBackend {
+pub(crate) async fn make_test_object_tidb(config: MysqlDBConfig) -> SubDB {
     use std::sync::Arc;
-    let db = SubBackend::TiDB(Arc::new(crate::mysql::MysqlDB::new(config).await.unwrap()));
+    let db = SubDB::TiDB(Arc::new(crate::mysql::MysqlDB::new(config).await.unwrap()));
     db
 }
 

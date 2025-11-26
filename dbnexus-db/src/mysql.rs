@@ -298,10 +298,27 @@ impl MysqlDB {
         anyhow::Ok(())
     }
 
+    async fn get_conn_by_query_id(
+        &self, query_id: Option<&str>,
+    ) -> anyhow::Result<Arc<Mutex<PoolConnection<sqlx::MySql>>>> {
+        match query_id {
+            Some(id) => match self.query_connection.get(&id.to_string()) {
+                Some(x) => anyhow::Ok(x.clone()),
+                None => anyhow::bail!("should be able to get connection"),
+            },
+            None => {
+                let conn = self.get_conn().await?;
+                anyhow::Ok(Arc::new(Mutex::new(conn)))
+            }
+        }
+    }
     async fn export_query_result_as_json_line(
-        &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: Option<&str>, sql: &str,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         while let Some(row) = stream.next().await {
             let row = row?;
@@ -321,14 +338,17 @@ impl MysqlDB {
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from `{}`", table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_json_line(sql.as_str(), sender)
+        self.export_query_result_as_json_line(None, sql.as_str(), sender)
             .await
     }
 
     async fn export_query_result_as_json(
-        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: Option<&str>, sql: &str, pretty: bool,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
 
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
 
@@ -364,15 +384,17 @@ impl MysqlDB {
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from `{}`", table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_json(sql.as_str(), pretty, sender)
+        self.export_query_result_as_json(None, sql.as_str(), pretty, sender)
             .await
     }
 
     async fn export_query_result_as_csv(
-        &self, sql: &str, include_header: bool, delimiter: char,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         let mut first = true;
 
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql))
@@ -406,12 +428,13 @@ impl MysqlDB {
     }
 
     async fn export_query_result_as_html(
-        &self, sql: &str, include_header: bool,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         let mut first = true;
-
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql))
             .fetch(conn.deref_mut())
             .try_chunks(100);
@@ -445,7 +468,7 @@ impl MysqlDB {
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from `{}`", table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_csv(sql.as_str(), include_header, delimiter, sender)
+        self.export_query_result_as_csv(None, sql.as_str(), include_header, delimiter, sender)
             .await
     }
     async fn export_table_as_xlsx(
@@ -454,7 +477,7 @@ impl MysqlDB {
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from `{}`", table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_xlsx(sql.as_str(), include_header, sender)
+        self.export_query_result_as_xlsx(None, sql.as_str(), include_header, sender)
             .await
     }
     async fn export_table_as_html(
@@ -463,7 +486,7 @@ impl MysqlDB {
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from `{}`", table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_html(sql.as_str(), include_header, sender)
+        self.export_query_result_as_html(None, sql.as_str(), include_header, sender)
             .await
     }
 }
@@ -1628,10 +1651,12 @@ impl DBTrait for MysqlDB {
 
 impl MysqlDB {
     async fn export_query_result_as_xlsx(
-        &self, sql: &str, include_header: bool,
+        &self, query_id: Option<&str>, sql: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn().await?;
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
         let mut first = true;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql))
             .fetch(conn.deref_mut())
@@ -1639,7 +1664,6 @@ impl MysqlDB {
         let mut row_num = 0;
         while let Some(rows) = stream.next().await {
             let rows = rows?;
-
             if first && !rows.is_empty() && include_header {
                 for (index, col) in rows[0].columns().iter().enumerate() {
                     let col = col.name();
@@ -1674,29 +1698,40 @@ impl ExportQueryResult for MysqlDB {
     }
 
     async fn export_query_result(
-        &self, sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: &str, sql: &str, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::CSV {
                 include_header,
                 delimiter,
             } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
-                    .await
+                self.export_query_result_as_csv(
+                    Some(query_id),
+                    sql,
+                    include_header,
+                    delimiter,
+                    sender,
+                )
+                .await
             }
             ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
+                self.export_query_result_as_json(Some(query_id), sql, pretty, sender)
+                    .await
             }
-            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
+            ExportKind::JsonLine => {
+                self.export_query_result_as_json_line(Some(query_id), sql, sender)
+                    .await
+            }
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
             ExportKind::Xlsx { include_header } => {
-                self.export_query_result_as_xlsx(sql, include_header, sender)
+                self.export_query_result_as_xlsx(Some(query_id), sql, include_header, sender)
                     .await
             }
             ExportKind::Html { include_header } => {
-                self.export_query_result_as_html(sql, include_header, sender)
+                self.export_query_result_as_html(Some(query_id), sql, include_header, sender)
                     .await
             }
         }
@@ -2287,8 +2322,8 @@ pub(crate) mod test_fns {
     pub(crate) async fn test_export(db: MysqlDB) {
         // init_log();
         let table_name = "test_export";
-
-        let mut conn = db.get_conn().await.unwrap();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
         let rs = vec![
             r#"drop table if exists test_export;"#,
             r#"CREATE TABLE test_export (
@@ -2302,7 +2337,7 @@ pub(crate) mod test_fns {
             "INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');",
         ];
         for s in rs.iter() {
-            sqlx::raw_sql(*s).execute(conn.deref_mut()).await.unwrap();
+            let _ = db.execute_sql(query_id, s).await.unwrap();
         }
 
         {
@@ -2365,6 +2400,7 @@ pub(crate) mod test_fns {
         {
             let s = schema_trait
                 .export_query_result_to_string(
+                    query_id,
                     format!("select * from {table_name}").as_str(),
                     ExportKind::Json { pretty: true },
                 )
@@ -2376,6 +2412,7 @@ pub(crate) mod test_fns {
         {
             let s = schema_trait
                 .export_query_result_to_string(
+                    "",
                     format!("select * from {table_name}").as_str(),
                     ExportKind::CSV {
                         include_header: true,
@@ -2390,6 +2427,7 @@ pub(crate) mod test_fns {
         {
             let s = schema_trait
                 .export_query_result_to_string(
+                    query_id,
                     format!("select * from {table_name}").as_str(),
                     ExportKind::JsonLine,
                 )

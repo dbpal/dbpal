@@ -1,4 +1,5 @@
 use crate::{
+    datasource_config::{MysqlDBConfig, PGDBConfig},
     db::{
         BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
         CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind,
@@ -14,56 +15,69 @@ use crate::{
 use std::{borrow::Cow, collections::HashMap, sync::Arc, time::Duration};
 
 #[derive(Clone)]
-pub enum SubBackend {
+pub enum SubDB {
     TiDB(Arc<MysqlDB>),
     MariaDb(Arc<MysqlDB>),
     CocoRoach(Arc<PostGresDB>),
 }
 
+impl SubDB {
+    pub async fn new_tidb(config: MysqlDBConfig) -> anyhow::Result<Self> {
+        let r = MysqlDB::new(config).await?;
+        anyhow::Ok(SubDB::TiDB(Arc::new(r)))
+    }
+    pub async fn new_mariadb(config: MysqlDBConfig) -> anyhow::Result<Self> {
+        let r = MysqlDB::new(config).await?;
+        anyhow::Ok(SubDB::MariaDb(Arc::new(r)))
+    }
+
+    pub async fn new_cockroach(config: PGDBConfig) -> anyhow::Result<Self> {
+        let r = PostGresDB::new(config).await?;
+        anyhow::Ok(SubDB::CocoRoach(Arc::new(r)))
+    }
+
+    fn as_db_trait(&self) -> &dyn DBTrait {
+        match self {
+            SubDB::TiDB(db) => db.as_ref(),
+            SubDB::MariaDb(db) => db.as_ref(),
+            SubDB::CocoRoach(db) => db.as_ref(),
+        }
+    }
+}
+
 #[async_trait::async_trait]
 
-impl DBTrait for SubBackend {
+impl DBTrait for SubDB {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        match self {
-            SubBackend::TiDB(db) => db.list_schema().await,
-            SubBackend::MariaDb(mysql_db) => mysql_db.list_schema().await,
-            SubBackend::CocoRoach(post_gres_db) => post_gres_db.list_schema().await,
-        }
+        self.as_db_trait().list_schema().await
     }
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
         match self {
-            SubBackend::TiDB(db) => {
+            SubDB::TiDB(db) => {
                 let r = db.open_schema(name).await?;
                 let r = Clone::clone(r.as_any().downcast_ref::<MysqlDB>().unwrap());
-                anyhow::Ok(Arc::new(SubBackend::TiDB(Arc::new(r))))
+                anyhow::Ok(Arc::new(SubDB::TiDB(Arc::new(r))))
             }
-            SubBackend::MariaDb(db) => {
+            SubDB::MariaDb(db) => {
                 let r = db.open_schema(name).await?;
                 let r = Clone::clone(r.as_any().downcast_ref::<MysqlDB>().unwrap());
-                anyhow::Ok(Arc::new(SubBackend::MariaDb(Arc::new(r))))
+                anyhow::Ok(Arc::new(SubDB::MariaDb(Arc::new(r))))
             }
-            SubBackend::CocoRoach(db) => {
+            SubDB::CocoRoach(db) => {
                 let r = db.open_schema(name).await?;
                 let r = Clone::clone(r.as_any().downcast_ref::<PostGresDB>().unwrap());
-                anyhow::Ok(Arc::new(SubBackend::CocoRoach(Arc::new(r))))
+                anyhow::Ok(Arc::new(SubDB::CocoRoach(Arc::new(r))))
             }
         }
     }
+
     async fn create_schema(
         &self, name: &str, extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
-        match self {
-            SubBackend::TiDB(db) => db.create_schema(name, extra).await,
-            SubBackend::MariaDb(mysql_db) => mysql_db.create_schema(name, extra).await,
-            SubBackend::CocoRoach(post_gres_db) => post_gres_db.create_schema(name, extra).await,
-        }
+        self.as_db_trait().create_schema(name, extra).await
     }
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
-        match self {
-            SubBackend::TiDB(db) => db.drop_schema(name).await,
-            SubBackend::MariaDb(mysql_db) => mysql_db.drop_schema(name).await,
-            SubBackend::CocoRoach(post_gres_db) => post_gres_db.drop_schema(name).await,
-        }
+        self.as_db_trait().drop_schema(name).await
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -71,20 +85,19 @@ impl DBTrait for SubBackend {
 }
 
 #[async_trait::async_trait]
-
-impl CatalogTrait for SubBackend {
+impl CatalogTrait for SubDB {
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         match self {
-            SubBackend::CocoRoach(db) => db.list_database().await,
+            SubDB::CocoRoach(db) => db.list_database().await,
             _ => anyhow::bail!("not support"),
         }
     }
     async fn open_db(&self, name: &str) -> anyhow::Result<Arc<dyn DBTrait>> {
         match self {
-            SubBackend::CocoRoach(db) => {
+            SubDB::CocoRoach(db) => {
                 let r = db.open_db(name).await?;
                 let r = Clone::clone(r.as_any().downcast_ref::<PostGresDB>().unwrap());
-                anyhow::Ok(Arc::new(SubBackend::CocoRoach(Arc::new(r))))
+                anyhow::Ok(Arc::new(SubDB::CocoRoach(Arc::new(r))))
             }
             _ => anyhow::bail!("not support"),
         }
@@ -94,79 +107,81 @@ impl CatalogTrait for SubBackend {
         &self, name: &str, extra: Option<CreateDatabaseExtra>,
     ) -> anyhow::Result<()> {
         match self {
-            SubBackend::CocoRoach(db) => db.create_database(name, extra).await,
+            SubDB::CocoRoach(db) => db.create_database(name, extra).await,
             _ => anyhow::bail!("not support"),
         }
     }
     async fn drop_database(&self, name: &str) -> anyhow::Result<()> {
         match self {
-            SubBackend::CocoRoach(db) => db.drop_created_type(name).await,
+            SubDB::CocoRoach(db) => db.drop_created_type(name).await,
             _ => anyhow::bail!("not support"),
         }
     }
 }
 
-impl SubBackend {
+impl SubDB {
     fn as_schema(&self) -> &dyn SchemaTrait {
         match self {
-            SubBackend::TiDB(db) => db.as_ref(),
-            SubBackend::MariaDb(mysql_db) => mysql_db.as_ref(),
-            SubBackend::CocoRoach(post_gres_db) => post_gres_db.as_ref(),
+            SubDB::TiDB(db) => db.as_ref(),
+            SubDB::MariaDb(mysql_db) => mysql_db.as_ref(),
+            SubDB::CocoRoach(post_gres_db) => post_gres_db.as_ref(),
         }
     }
     fn as_export_query_result(&self) -> &dyn ExportQueryResult {
         match self {
-            SubBackend::TiDB(db) => db.as_ref(),
-            SubBackend::MariaDb(mysql_db) => mysql_db.as_ref(),
-            SubBackend::CocoRoach(post_gres_db) => post_gres_db.as_ref(),
+            SubDB::TiDB(db) => db.as_ref(),
+            SubDB::MariaDb(mysql_db) => mysql_db.as_ref(),
+            SubDB::CocoRoach(post_gres_db) => post_gres_db.as_ref(),
         }
     }
 
     fn as_query_sql(&self) -> &dyn QuerySql {
         match self {
-            SubBackend::TiDB(db) => db.as_ref(),
-            SubBackend::MariaDb(mysql_db) => mysql_db.as_ref(),
-            SubBackend::CocoRoach(post_gres_db) => post_gres_db.as_ref(),
+            SubDB::TiDB(db) => db.as_ref(),
+            SubDB::MariaDb(mysql_db) => mysql_db.as_ref(),
+            SubDB::CocoRoach(post_gres_db) => post_gres_db.as_ref(),
         }
     }
 }
 
-impl GetBackendKind for SubBackend {
+impl GetBackendKind for SubDB {
     fn backend_name(&self) -> BackendKind {
         match self {
-            SubBackend::TiDB(..) => BackendKind::Tidb,
-            SubBackend::MariaDb(..) => BackendKind::Mariadb,
-            SubBackend::CocoRoach(..) => BackendKind::CockRoach,
+            SubDB::TiDB(..) => BackendKind::Tidb,
+            SubDB::MariaDb(..) => BackendKind::Mariadb,
+            SubDB::CocoRoach(..) => BackendKind::CockRoach,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl ExportQueryResult for SubBackend {
+impl ExportQueryResult for SubDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
         Box::new(Clone::clone(self))
     }
 
     async fn export_query_result(
-        &self, _sql: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: &str, _sql: &str, _kind: ExportKind,
+        _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         self.as_export_query_result()
-            .export_query_result(_sql, _kind, _sender)
+            .export_query_result(query_id, _sql, _kind, _sender)
             .await
     }
 }
 
-impl ReadOnlyTrait for SubBackend {
+impl ReadOnlyTrait for SubDB {
     fn read_only(&self) -> bool {
         match self {
-            SubBackend::TiDB(mysql_db) => mysql_db.read_only(),
-            SubBackend::MariaDb(mysql_db) => mysql_db.read_only(),
-            SubBackend::CocoRoach(post_gres_db) => post_gres_db.read_only(),
+            SubDB::TiDB(db) => db.read_only(),
+            SubDB::MariaDb(db) => db.read_only(),
+            SubDB::CocoRoach(db) => db.read_only(),
         }
     }
 }
+
 #[async_trait::async_trait]
-impl QuerySql for SubBackend {
+impl QuerySql for SubDB {
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         self.as_query_sql().get_auto_commit(query_id).await
     }
@@ -208,36 +223,36 @@ impl QuerySql for SubBackend {
 
 #[async_trait::async_trait]
 
-impl ServerMetas for SubBackend {
+impl ServerMetas for SubDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         match self {
-            SubBackend::TiDB(db) => db.show_metas().await,
-            SubBackend::MariaDb(mysql_db) => mysql_db.show_metas().await,
-            SubBackend::CocoRoach(post_gres_db) => post_gres_db.show_metas().await,
+            SubDB::TiDB(db) => db.show_metas().await,
+            SubDB::MariaDb(db) => db.show_metas().await,
+            SubDB::CocoRoach(db) => db.show_metas().await,
         }
     }
 }
 
 #[async_trait::async_trait]
 
-impl CheckConn for SubBackend {
+impl CheckConn for SubDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         match self {
-            SubBackend::TiDB(db) => db.check_conn().await,
-            SubBackend::MariaDb(mysql_db) => mysql_db.check_conn().await,
-            SubBackend::CocoRoach(post_gres_db) => post_gres_db.check_conn().await,
+            SubDB::TiDB(db) => db.check_conn().await,
+            SubDB::MariaDb(db) => db.check_conn().await,
+            SubDB::CocoRoach(db) => db.check_conn().await,
         }
     }
 }
 
-impl std::fmt::Debug for SubBackend {
+impl std::fmt::Debug for SubDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {:?}", self.backend_name(), self)
     }
 }
 
 #[async_trait::async_trait]
-impl SchemaTrait for SubBackend {
+impl SchemaTrait for SubDB {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -260,7 +275,7 @@ impl SchemaTrait for SubBackend {
         page_size: usize, extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
         match self {
-            SubBackend::CocoRoach(x) => {
+            SubDB::CocoRoach(x) => {
                 x.cock_roach_show_table(table_name, where_str, order_by, page, page_size, extra)
                     .await
             }
@@ -298,7 +313,7 @@ impl SchemaTrait for SubBackend {
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         match self {
-            SubBackend::CocoRoach(x) => x.cock_roach_list_view().await,
+            SubDB::CocoRoach(x) => x.cock_roach_list_view().await,
             _ => self.as_schema().list_view().await,
         }
     }
@@ -479,9 +494,8 @@ impl SchemaTrait for SubBackend {
 
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         match self {
-            SubBackend::MariaDb(db) => {
+            SubDB::MariaDb(db) => {
                 let t = MariaDB { db: db.clone() };
-
                 t.list_sequence().await
             }
             _ => self.as_schema().list_sequence().await,
@@ -489,7 +503,7 @@ impl SchemaTrait for SubBackend {
     }
     async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
         match self {
-            SubBackend::MariaDb(db) => {
+            SubDB::MariaDb(db) => {
                 let t = MariaDB { db: db.clone() };
                 t.rename_sequence(_old, _new).await
             }
@@ -500,7 +514,7 @@ impl SchemaTrait for SubBackend {
 
     async fn drop_sequence(&self, _name: &str, _cascade: bool) -> anyhow::Result<()> {
         match self {
-            SubBackend::MariaDb(db) => {
+            SubDB::MariaDb(db) => {
                 let t = MariaDB { db: db.clone() };
                 t.drop_sequence(_name, false).await
             }
