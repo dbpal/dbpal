@@ -83,7 +83,7 @@ impl LibSqlDB {
                 row_num += 1;
             }
 
-            let data = encode_rows(&vec![row])?;
+            let data = encode_rows(&[row])?;
             export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
         }
         anyhow::Ok(())
@@ -101,7 +101,7 @@ impl ExportQueryResult for LibSqlDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -641,7 +641,7 @@ impl SchemaTrait for LibSqlDB {
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -967,7 +967,7 @@ impl LibSqlDB {
         let mut rows = conn.query(&sql, params!()).await?;
 
         while let Some(row) = rows.next().await? {
-            let data = encode_rows(&vec![row])?;
+            let data = encode_rows(&[row])?;
             for d in data.into_iter() {
                 let mut m = HashMap::new();
                 for (d, f) in d.into_iter().zip(cols.iter()) {
@@ -1082,11 +1082,11 @@ impl LibSqlDB {
                     .map(Some)
                     .collect::<Vec<_>>();
                 sender
-                    .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
+                    .send(Cow::Owned(create_csv(&[fs], delimiter)))
                     .await?;
                 first = false;
             }
-            let data = encode_rows(&vec![row])?;
+            let data = encode_rows(&[row])?;
 
             sender
                 .send(Cow::Owned(create_csv(&data, delimiter)))
@@ -1111,7 +1111,7 @@ impl LibSqlDB {
                     .await?;
                 first = false;
             }
-            let data = encode_rows(&vec![row])?;
+            let data = encode_rows(&[row])?;
             sender
                 .send(Cow::Owned(create_html_table_data(&data)))
                 .await?;
@@ -1156,7 +1156,7 @@ async fn query_trigger_detail(conn: &mut Connection, name: &str) -> anyhow::Resu
     extract_trigger_detail_from_sql(name, sql)
 }
 
-fn encode_rows(rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+fn encode_rows(rows: &[Row]) -> anyhow::Result<Vec<Vec<Option<String>>>> {
     let mut ret = Vec::with_capacity(rows.len());
 
     for r in rows.iter() {
@@ -1614,7 +1614,7 @@ mod tests {
             let s = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -1649,7 +1649,7 @@ mod tests {
                 .export_query_result_to_string(
                     query_id,
                     "select * from persons",
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },

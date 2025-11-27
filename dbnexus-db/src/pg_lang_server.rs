@@ -69,9 +69,9 @@ impl PostGresDB {
     pub(crate) async fn get_search_path(
         &self, schema: Option<&str>, include_catalog: bool,
     ) -> HashSet<String> {
-        if schema.is_some() {
+        if let Some(schema) = schema {
             let mut m = HashSet::new();
-            m.insert(schema.unwrap().to_string());
+            m.insert(schema.to_string());
             return m;
         }
         let ret = match self.query_connection.get(&self.completion_id.get()) {
@@ -87,8 +87,7 @@ impl PostGresDB {
             }
             None => None,
         };
-        if ret.is_some() {
-            let mut ret = ret.unwrap();
+        if let Some(mut ret) = ret {
             if include_catalog {
                 ret.insert(Self::SCHEMA_CATALOG.to_string());
             }

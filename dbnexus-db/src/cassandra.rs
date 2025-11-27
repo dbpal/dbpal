@@ -224,7 +224,7 @@ fn infer_fields(meta: &RowsMetadata) -> Vec<Field> {
 }
 
 fn encode_rows_as_json(
-    meta: &RowsMetadata, rows: &Vec<Row>,
+    meta: &RowsMetadata, rows: &[Row],
 ) -> anyhow::Result<Vec<serde_json::Value>> {
     let mut ret = vec![];
     for row in rows.iter() {
@@ -408,7 +408,7 @@ fn encode_rows_as_json(
 
     return anyhow::Ok(ret);
 
-    fn encode_list(vs: &mut Vec<CassandraType>) -> anyhow::Result<Vec<serde_json::Value>> {
+    fn encode_list(vs: &mut [CassandraType]) -> anyhow::Result<Vec<serde_json::Value>> {
         let mut ret = Vec::with_capacity(vs.len());
         for v in vs.iter_mut() {
             ret.push(encode_rows_cassandra_type(v)?);
@@ -416,12 +416,12 @@ fn encode_rows_as_json(
         anyhow::Ok(ret)
     }
 
-    fn encode_tuple(vs: &mut Vec<CassandraType>) -> anyhow::Result<Vec<serde_json::Value>> {
+    fn encode_tuple(vs: &mut [CassandraType]) -> anyhow::Result<Vec<serde_json::Value>> {
         encode_list(vs)
     }
 
     fn encode_map(
-        vs: &mut Vec<(CassandraType, CassandraType)>,
+        vs: &mut [(CassandraType, CassandraType)],
     ) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
         let mut ret = serde_json::Map::new();
 
@@ -432,7 +432,7 @@ fn encode_rows_as_json(
         }
         anyhow::Ok(ret)
     }
-    fn encode_set(vs: &mut Vec<CassandraType>) -> anyhow::Result<Vec<serde_json::Value>> {
+    fn encode_set(vs: &mut [CassandraType]) -> anyhow::Result<Vec<serde_json::Value>> {
         encode_list(vs)
     }
     fn encode_udf(
@@ -489,7 +489,7 @@ fn encode_rows_as_json(
     }
 }
 
-fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+fn encode_rows(meta: &RowsMetadata, rows: &[Row]) -> anyhow::Result<Vec<Vec<Option<String>>>> {
     let mut ret = vec![];
     for row in rows.iter() {
         let mut data = vec![];
@@ -653,22 +653,21 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
 
     return anyhow::Ok(ret);
 
-    fn encode_list(vs: &mut Vec<CassandraType>) -> anyhow::Result<String> {
+    fn encode_list(vs: &mut [CassandraType]) -> anyhow::Result<String> {
         let mut ret = Vec::with_capacity(vs.len());
         for v in vs.iter_mut() {
             ret.push(encode_rows_cassandra_type(v)?);
         }
         anyhow::Ok(format!("[{}]", ret.join(",")))
     }
-    fn encode_tuple(vs: &mut Vec<CassandraType>) -> anyhow::Result<String> {
+    fn encode_tuple(vs: &mut [CassandraType]) -> anyhow::Result<String> {
         let mut ret = Vec::with_capacity(vs.len());
         for v in vs.iter_mut() {
             ret.push(encode_rows_cassandra_type(v)?);
         }
         anyhow::Ok(format!("({})", ret.join(",")))
     }
-
-    fn encode_map(vs: &mut Vec<(CassandraType, CassandraType)>) -> anyhow::Result<String> {
+    fn encode_map(vs: &mut [(CassandraType, CassandraType)]) -> anyhow::Result<String> {
         let mut ret = Vec::with_capacity(vs.len());
         for v in vs.iter_mut() {
             ret.push(format!(
@@ -679,7 +678,7 @@ fn encode_rows(meta: &RowsMetadata, rows: &Vec<Row>) -> anyhow::Result<Vec<Vec<O
         }
         anyhow::Ok(format!("{{{}}}", ret.join(",")))
     }
-    fn encode_set(vs: &mut Vec<CassandraType>) -> anyhow::Result<String> {
+    fn encode_set(vs: &mut [CassandraType]) -> anyhow::Result<String> {
         let mut ret = Vec::with_capacity(vs.len());
         for v in vs.iter_mut() {
             ret.push(encode_rows_cassandra_type(v)?);
@@ -842,7 +841,7 @@ impl ExportQueryResult for CassandraDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -920,8 +919,7 @@ impl QuerySql for CassandraDB {
                     ml.exceed_error()?;
                     let meta = body.as_rows_metadata().cloned();
                     let rows = body.into_rows().unwrap_or_default();
-                    if meta.is_some() {
-                        let meta = meta.unwrap();
+                    if let Some(meta) = meta {
                         let fields = infer_fields(&meta);
                         let data = encode_rows(&meta, &rows)?;
                         ret.push(Ok(QueryResp {
@@ -1052,10 +1050,10 @@ impl CassandraDB {
 
         let sql = format!(
             r#"SELECT * FROM "{name}"  {}  {} {} {}"#,
-            if let Some(where_str) = where_str {
-                format!(" WHERE {} ", where_str,)
+            if let Some(where_str) = where_str.as_ref() {
+                format!(" WHERE {} ", where_str)
             } else {
-                "".to_string()
+                format!("")
             },
             if order_by.is_some() {
                 format!(" ORDER BY {} ", order_by.unwrap())
@@ -1154,12 +1152,11 @@ impl CassandraDB {
         if include_header {
             sender
                 .send(Cow::Owned(create_csv(
-                    &vec![
-                        meta.col_specs
-                            .iter()
-                            .map(|x| Some(x.name.clone()))
-                            .collect(),
-                    ],
+                    &[meta
+                        .col_specs
+                        .iter()
+                        .map(|x| Some(x.name.clone()))
+                        .collect()],
                     delimiter,
                 )))
                 .await?;
@@ -1438,7 +1435,7 @@ impl SchemaTrait for CassandraDB {
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -2238,19 +2235,23 @@ mod tests {
             let _ = db
                 .drop_aggregate("test_aggregate", vec!["int".to_string()])
                 .await;
-            let _ = db.drop_udf(
-                "sum_state_function",
-                Some(UdfOrProcedureExtraParameter::Cassandra {
-                    parameters: vec!["int".to_string(), "int".to_string()],
-                }),
-            );
+            let _ = db
+                .drop_udf(
+                    "sum_state_function",
+                    Some(UdfOrProcedureExtraParameter::Cassandra {
+                        parameters: vec!["int".to_string(), "int".to_string()],
+                    }),
+                )
+                .await;
 
-            let _ = db.drop_udf(
-                "sum_final_function",
-                Some(UdfOrProcedureExtraParameter::Cassandra {
-                    parameters: vec!["int".to_string()],
-                }),
-            );
+            let _ = db
+                .drop_udf(
+                    "sum_final_function",
+                    Some(UdfOrProcedureExtraParameter::Cassandra {
+                        parameters: vec!["int".to_string()],
+                    }),
+                )
+                .await;
         }
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
@@ -2514,7 +2515,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2608,7 +2609,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2703,7 +2704,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2801,7 +2802,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2899,7 +2900,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -3000,7 +3001,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -3084,7 +3085,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },

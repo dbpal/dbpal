@@ -305,7 +305,7 @@ impl PostGresDB {
                     .map(Some)
                     .collect::<Vec<_>>();
                 sender
-                    .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
+                    .send(Cow::Owned(create_csv(&[fs], delimiter)))
                     .await?;
                 first = false
             }
@@ -462,12 +462,12 @@ fn parse_trigger_type(tgtype: i16) -> anyhow::Result<(TriggerEvent, TriggerTimin
 }
 
 fn type_support_compare(typ: &str) -> bool {
-    match typ.to_uppercase().as_str() {
-        "JSON" | "JSON[]" => false,
-        "JSONPATH" | "JSONPATH[]" => false,
-        _ => true,
-    }
+    !matches!(
+        typ.to_uppercase().as_str(),
+        "JSON" | "JSON[]" | "JSONPATH" | "JSONPATH[]"
+    )
 }
+
 #[async_trait::async_trait]
 
 impl ServerMetas for PostGresDB {
@@ -1138,7 +1138,7 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -1783,7 +1783,7 @@ impl PostGresDB {
     }
 }
 
-fn get_rows_types(rows: &Vec<PgRow>) -> Vec<Field> {
+fn get_rows_types(rows: &[PgRow]) -> Vec<Field> {
     if rows.is_empty() {
         log::warn!("info type on empty rows");
         return vec![];
@@ -1812,7 +1812,6 @@ fn test_output_bytes() {
     assert_eq!(x, "\\x627E")
 }
 
-///
 fn get_pg_type_base_on_data_type_and_udtname(
     data_type: &str, udt_name: &str,
 ) -> anyhow::Result<String> {
@@ -1925,7 +1924,7 @@ impl ExportQueryResult for PostGresDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -2825,7 +2824,7 @@ mod tests {
             let e = schema_trait
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2869,7 +2868,7 @@ mod tests {
                 .export_query_result_to_string(
                     query_id,
                     "select * from test_export_table",
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2970,7 +2969,7 @@ mod tests {
             let csv = pg
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -3083,7 +3082,7 @@ mod tests {
             let csv = pg
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -3244,7 +3243,7 @@ mod tests {
             let csv = pg
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -3341,7 +3340,7 @@ mod tests {
             let csv = pg
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -3460,7 +3459,7 @@ mod tests {
             let csv = pg
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -3574,7 +3573,7 @@ mod tests {
             let csv = pg
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -3671,7 +3670,7 @@ mod tests {
             let csv = pg
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -3761,7 +3760,7 @@ mod tests {
             let csv = pg
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -3870,7 +3869,7 @@ mod tests {
             let csv = pg
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -3971,7 +3970,7 @@ mod tests {
             let csv = pg
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -4081,7 +4080,7 @@ mod tests {
             let csv = pg
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },

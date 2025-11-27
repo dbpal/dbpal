@@ -1190,7 +1190,7 @@ fn get_commands_from_docs() -> Vec<String> {
                             // this is sub command
                             continue;
                         }
-                        ret.push(name[..name.len() - 3].to_uppercase());
+                        ret.push(name.strip_suffix(".md").unwrap_or_default().to_uppercase());
                     }
                 }
             }

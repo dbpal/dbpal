@@ -224,7 +224,7 @@ impl SqliteDB {
                     .collect();
 
                 sender
-                    .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
+                    .send(Cow::Owned(create_csv(&[fs], delimiter)))
                     .await?;
                 first = false;
             }
@@ -707,7 +707,7 @@ impl SchemaTrait for SqliteDB {
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -979,7 +979,7 @@ impl SqliteDB {
     }
 }
 
-fn get_rows_types(rows: &Vec<SqliteRow>) -> Vec<Field> {
+fn get_rows_types(rows: &[SqliteRow]) -> Vec<Field> {
     if rows.is_empty() {
         return vec![];
     }
@@ -1010,13 +1010,10 @@ impl SqlBuilder for SqliteDB {
             return anyhow::Result::Ok(value.unwrap().to_string());
         }
         let typ = typ.to_uppercase();
-
         let v = match typ.as_str() {
             "" | "NULL" => match value {
                 Some(x) => {
                     if x.parse::<f64>().is_ok() {
-                        x.to_string()
-                    } else if x.parse::<i64>().is_ok() {
                         x.to_string()
                     } else {
                         format!("'{}'", escape_sql_str(x))
@@ -1166,7 +1163,7 @@ pub(crate) fn real_like(typ: &str) -> bool {
     typ == "REAL" || typ == "DOUBLE" || typ == "DOUBLE PRECISION" || typ == "FLOAT"
 }
 
-fn encode_rows(rows: &Vec<SqliteRow>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+fn encode_rows(rows: &[SqliteRow]) -> anyhow::Result<Vec<Vec<Option<String>>>> {
     let mut ret = Vec::with_capacity(rows.len());
 
     for r in rows.iter() {
@@ -1343,7 +1340,7 @@ impl ExportQueryResult for SqliteDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -2096,7 +2093,7 @@ mod tests {
             let s = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2131,7 +2128,7 @@ mod tests {
                 .export_query_result_to_string(
                     query_id,
                     "select * from persons",
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },

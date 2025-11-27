@@ -28,7 +28,7 @@ where
 
 /// create csv file list of string
 /// each line of line separator
-pub(crate) fn create_csv(ds: &Vec<Vec<Option<String>>>, delimiter: char) -> String {
+pub(crate) fn create_csv(ds: &[Vec<Option<String>>], delimiter: char) -> String {
     let mut s = String::new();
     for d in ds.iter() {
         let mut s2 = String::new();

@@ -11,7 +11,7 @@ use crate::{
     mariadb::MariaDB,
     sqlparser_completion::TempTableColumn,
     sub::SubDB,
-    tidb::TIDB,
+    tidb::TiDB,
 };
 
 impl SubDB {
@@ -82,7 +82,7 @@ impl GetKeyWords for SubDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
         match self {
             SubDB::TiDB(x) => {
-                let t = TIDB { db: x.clone() };
+                let t = TiDB { db: x.clone() };
                 t.key_words().await
             }
             _ => self.as_lang_server_common().key_words().await,
@@ -176,7 +176,7 @@ impl LangServerCommon for SubDB {
     ) -> anyhow::Result<Vec<CompletionItem>> {
         match self {
             SubDB::TiDB(x) => {
-                let t = TIDB { db: x.clone() };
+                let t = TiDB { db: x.clone() };
                 t.list_function(schema, include_build_in).await
             }
             SubDB::MariaDb(db) => {

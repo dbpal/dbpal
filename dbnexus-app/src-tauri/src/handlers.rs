@@ -2821,7 +2821,7 @@ pub async fn put_value_in_sql(
     let a = schema.as_any();
     #[inline]
     fn xxx<T: SqlBuilder + 'static>(
-        a: &dyn std::any::Any, typ: &String, value: Option<&str>,
+        a: &dyn std::any::Any, typ: &str, value: Option<&str>,
     ) -> Result<String, ErrorFrontend> {
         if let Some(x) = a.downcast_ref::<T>() {
             return x
@@ -2991,7 +2991,7 @@ pub async fn command_panic() -> Result<(), ErrorFrontend> {
 }
 
 #[tauri::command]
-pub fn valid_json(json_str: String) -> Result<Option<ErrAndLoc>, ()> {
+pub fn valid_json(json_str: String) -> Result<Option<ErrAndLoc>, ErrorFrontend> {
     use serde_json::Value;
     match serde_json::from_str::<Value>(&json_str) {
         Ok(_) => Ok(None),

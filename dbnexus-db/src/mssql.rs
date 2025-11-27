@@ -275,8 +275,7 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
 }
 
 fn make_table_list_from_meta_and_row(
-    meta: &tiberius::ResultMetadata, rows: &Vec<tiberius::Row>, total: usize,
-    sql: impl Into<String>,
+    meta: &tiberius::ResultMetadata, rows: &[tiberius::Row], total: usize, sql: impl Into<String>,
 ) -> anyhow::Result<QueryResp> {
     let fields = get_fields_from_meta(meta);
     let data = encode_rows(rows)?;
@@ -762,7 +761,7 @@ impl SchemaTrait for SqlServerDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -1609,7 +1608,7 @@ impl SqlServerDB {
                             .map(Some)
                             .collect::<Vec<_>>();
                         sender
-                            .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
+                            .send(Cow::Owned(create_csv(&[fs], delimiter)))
                             .await?;
                         first = false
                     }
@@ -1765,7 +1764,7 @@ impl ExportQueryResult for SqlServerDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -2919,7 +2918,8 @@ mod tests {
         let db = make_test_object().await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let rs = [r#"drop table if exists test_export;"#,
+        let rs = [
+            r#"drop table if exists test_export;"#,
             r#"CREATE TABLE test_export (
                 id INT IDENTITY(1,1) PRIMARY KEY,
                 name VARCHAR(50),
@@ -2928,7 +2928,8 @@ mod tests {
             );"#,
             "INSERT INTO test_export (name, age, email) VALUES ('John', 25, 'john@example.com');",
             "INSERT INTO test_export (name, age, email) VALUES ('Jane', 30, 'jane@example.com');",
-            "INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');"];
+            "INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');",
+        ];
         for s in rs.iter() {
             let _ = db.execute_sql(query_id, s).await.unwrap();
         }
@@ -2952,7 +2953,7 @@ mod tests {
             let s = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2997,7 +2998,7 @@ mod tests {
                 .export_query_result_to_string(
                     query_id,
                     sql,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },

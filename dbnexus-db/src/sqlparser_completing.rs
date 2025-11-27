@@ -1428,8 +1428,8 @@ impl<'a> CompletionStatement<'a> {
             3 => {
                 let table: ObjectName = ObjectName(
                     idents[0..idents.len() - 1]
-                        .to_vec()
-                        .into_iter()
+                        .iter()
+                        .cloned()
                         .map(ObjectNamePart::Identifier)
                         .collect::<Vec<_>>(),
                 );
@@ -1500,8 +1500,7 @@ impl<'a> CompletionStatement<'a> {
                     results.extend(
                         table
                             .columns
-                            .to_vec()
-                            .into_iter()
+                            .iter()
                             .map(CompletionItem::from)
                             .collect::<Vec<_>>(),
                     );
@@ -3957,7 +3956,7 @@ impl<'a> CompletionStatement<'a> {
             Password::NullPassword => {}
         }
     }
-    pub(crate) fn extract_schema_and_item<'b>(
+    pub(crate) fn extract_schema_and_item(
         &self, item_name: &ObjectName,
     ) -> (Option<String>, String) {
         let mut schema = None;

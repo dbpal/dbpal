@@ -125,7 +125,7 @@ impl ExportQueryResult for OracleDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -346,7 +346,7 @@ impl OracleDB {
     }
 }
 
-fn infer_schema_by_result(rows: &Vec<Row>) -> anyhow::Result<Vec<Field>> {
+fn infer_schema_by_result(rows: &[Row]) -> anyhow::Result<Vec<Field>> {
     if rows.is_empty() {
         return anyhow::Ok(vec![]);
     }
@@ -913,7 +913,7 @@ impl OracleDB {
                         .iter()
                         .map(|x| Some(x.name().to_owned()))
                         .collect();
-                    sender.blocking_send(Cow::Owned(create_csv(&vec![fs], delimiter)))?;
+                    sender.blocking_send(Cow::Owned(create_csv(&[fs], delimiter)))?;
                     first = false;
                 }
                 let data = encode_rows(vec![row])?;
@@ -1233,7 +1233,7 @@ impl SchemaTrait for OracleDB {
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -1851,7 +1851,6 @@ impl OracleDB {
 // ORACLE_PWD=welcome123   container-registry.oracle.com/database/express:latest
 #[cfg(test)]
 pub(crate) fn make_test_object(schema: Option<String>) -> OracleDB {
-    
     OracleDB::new(
         OracleDBConfig {
             conn_timeout: Some(5000.into()),
@@ -2111,7 +2110,8 @@ mod tests {
         let _ = db.drop_table("TEST_VIEW_TABLE", false).await;
         let _ = db.drop_view("TEST_VIEW").await;
 
-        let ss = [r#"
+        let ss = [
+            r#"
         CREATE TABLE TEST_VIEW_TABLE (
             product_id   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             product_name VARCHAR2(50) NOT NULL,
@@ -2126,7 +2126,8 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
             r#"
             CREATE VIEW TEST_VIEW AS
             SELECT product_id, product_name, category, price
-            FROM  TEST_VIEW_TABLE"#];
+            FROM  TEST_VIEW_TABLE"#,
+        ];
         for s in ss.iter() {
             db.execute_sql(query_id, s).await.unwrap().unwrap();
         }
@@ -2149,7 +2150,8 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
         let _ = db.drop_table("TEST_MATERIALIZED_VIEW_TABLE", false).await;
         let _ = db.drop_materialized_view("TEST_MATERIALIZED_VIEW").await;
 
-        let ss = [r#"
+        let ss = [
+            r#"
         CREATE TABLE  TEST_MATERIALIZED_VIEW_TABLE (
             product_id   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             product_name VARCHAR2(50) NOT NULL,
@@ -2164,7 +2166,8 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             r#"
             CREATE MATERIALIZED VIEW TEST_MATERIALIZED_VIEW AS
             SELECT product_id, product_name, category, price
-            FROM  TEST_MATERIALIZED_VIEW_TABLE"#];
+            FROM  TEST_MATERIALIZED_VIEW_TABLE"#,
+        ];
         for s in ss.iter() {
             db.execute_sql(query_id, s).await.unwrap().unwrap();
         }
@@ -2301,7 +2304,8 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         db.set_auto_commit(query_uuid, false).await.unwrap();
         assert!(!db.get_auto_commit(query_uuid).await.unwrap());
 
-        let sqls = [r#"
+        let sqls = [
+            r#"
             CREATE TABLE TEST_QUERY (
                 id NUMBER PRIMARY KEY,
                 name VARCHAR2(50),
@@ -2311,7 +2315,8 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             "INSERT INTO TEST_QUERY (id, name, age) VALUES (1, 'Alice', 25)",
             "INSERT INTO TEST_QUERY (id, name, age) VALUES (2, 'Bob', 32)",
             "INSERT INTO TEST_QUERY (id, name, age) VALUES (3, 'Charlie',
-18)"];
+18)",
+        ];
         // test a rollback but we rollback nothings
 
         db.rollback(query_uuid).await.unwrap();
@@ -2383,7 +2388,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             let e = db
                 .export_table_to_string(
                     table_name,
-                    crate::db::ExportKind::CSV {
+                    crate::db::ExportKind::Csv {
                         include_header: false,
                         delimiter: ',',
                     },
@@ -2394,7 +2399,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             let e = db
                 .export_table_to_string(
                     table_name,
-                    crate::db::ExportKind::CSV {
+                    crate::db::ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2469,7 +2474,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             let e = db
                 .export_table_to_string(
                     table_name,
-                    crate::db::ExportKind::CSV {
+                    crate::db::ExportKind::Csv {
                         include_header: false,
                         delimiter: ',',
                     },
@@ -2480,7 +2485,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             let e = db
                 .export_table_to_string(
                     table_name,
-                    crate::db::ExportKind::CSV {
+                    crate::db::ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2554,7 +2559,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             let e = db
                 .export_table_to_string(
                     table_name,
-                    crate::db::ExportKind::CSV {
+                    crate::db::ExportKind::Csv {
                         include_header: false,
                         delimiter: ',',
                     },
@@ -2565,7 +2570,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             let e = db
                 .export_table_to_string(
                     table_name,
-                    crate::db::ExportKind::CSV {
+                    crate::db::ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },

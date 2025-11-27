@@ -35,7 +35,7 @@ pub struct MysqlDB {
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
-fn get_rows_types(rows: &Vec<MySqlRow>) -> Vec<Field> {
+fn get_rows_types(rows: &[MySqlRow]) -> Vec<Field> {
     if rows.is_empty() {
         return vec![];
     }
@@ -168,21 +168,22 @@ fn encode_row_as_json(row: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<s
 
             _ if type_is_blob(&ty) => {
                 let string_value = row.try_get::<String, _>(c);
-                if try_blob_to_str && string_value.is_ok() {
-                    serde_json::Value::from(string_value.unwrap())
-                } else {
-                    let value: Option<Vec<u8>> = row.try_get(c)?;
-                    value
-                        .map(|x| {
-                            x.into_iter()
-                                .map(serde_json::Value::from)
-                                .collect::<Vec<_>>()
-                        })
-                        .map(serde_json::Value::Array)
-                        .unwrap_or(null_value.clone())
+
+                match (string_value, try_blob_to_str) {
+                    (Ok(v), true) => serde_json::Value::from(v),
+                    _ => {
+                        let value: Option<Vec<u8>> = row.try_get(c)?;
+                        value
+                            .map(|x| {
+                                x.into_iter()
+                                    .map(serde_json::Value::from)
+                                    .collect::<Vec<_>>()
+                            })
+                            .map(serde_json::Value::Array)
+                            .unwrap_or(null_value.clone())
+                    }
                 }
             }
-
             "TIMESTAMP" => {
                 let value: Option<chrono::DateTime<Utc>> = row.try_get(c)?;
                 value
@@ -232,10 +233,10 @@ fn encode_row_as_json(row: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<s
 }
 
 fn type_is_blob(ty: &str) -> bool {
-    match ty {
-        "VARBINARY" | "BINARY" | "BLOB" | "LONGBLOB" | "TINYBLOB" | "MEDIUMBLOB" => true,
-        _ => false,
-    }
+    matches!(
+        ty,
+        "VARBINARY" | "BINARY" | "BLOB" | "LONGBLOB" | "TINYBLOB" | "MEDIUMBLOB"
+    )
 }
 
 fn type_is_string(ty: &str) -> bool {
@@ -414,7 +415,7 @@ impl MysqlDB {
                     .map(Some)
                     .collect::<Vec<_>>();
                 sender
-                    .send(Cow::Owned(create_csv(&vec![fs], delimiter)))
+                    .send(Cow::Owned(create_csv(&[fs], delimiter)))
                     .await?;
                 first = false
             }
@@ -1121,7 +1122,7 @@ impl SchemaTrait for MysqlDB {
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -1414,7 +1415,7 @@ impl SchemaTrait for MysqlDB {
 }
 
 fn encode_rows(
-    rows: &Vec<MySqlRow>, try_blob_to_str: bool,
+    rows: &[MySqlRow], try_blob_to_str: bool,
 ) -> anyhow::Result<Vec<Vec<Option<String>>>> {
     let mut ret = Vec::with_capacity(rows.len());
     for r in rows.iter() {
@@ -1481,10 +1482,9 @@ fn encode_rows(
                     let x: Option<Vec<u8>> = r.try_get(c)?;
                     let str_value: sqlx::Result<Option<String>> = r.try_get(c);
                     let str_value = str_value.ok().flatten();
-                    x.map(|x| {
-                        if try_blob_to_str && str_value.is_some() {
-                            str_value.unwrap()
-                        } else {
+                    x.map(|x| match (str_value, try_blob_to_str) {
+                        (Some(value), true) => value,
+                        _ => {
                             format!("0x{}", hex::encode_upper(x.as_slice()))
                         }
                     })
@@ -1702,7 +1702,7 @@ impl ExportQueryResult for MysqlDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -2324,7 +2324,8 @@ pub(crate) mod test_fns {
         let table_name = "test_export";
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let rs = [r#"drop table if exists test_export;"#,
+        let rs = [
+            r#"drop table if exists test_export;"#,
             r#"CREATE TABLE test_export (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(50),
@@ -2333,7 +2334,8 @@ pub(crate) mod test_fns {
             );"#,
             "INSERT INTO test_export (name, age, email) VALUES ('John', 25, 'john@example.com');",
             "INSERT INTO test_export (name, age, email) VALUES ('Jane', 30, 'jane@example.com');",
-            "INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');"];
+            "INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');",
+        ];
         for s in rs.iter() {
             let _ = db.execute_sql(query_id, s).await.unwrap();
         }
@@ -2350,7 +2352,7 @@ pub(crate) mod test_fns {
             let s = (db)
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2412,7 +2414,7 @@ pub(crate) mod test_fns {
                 .export_query_result_to_string(
                     "",
                     format!("select * from {table_name}").as_str(),
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2528,7 +2530,7 @@ pub(crate) mod test_fns {
             let e = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2610,7 +2612,7 @@ pub(crate) mod test_fns {
             let e = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2693,7 +2695,7 @@ pub(crate) mod test_fns {
             let e = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2783,7 +2785,7 @@ pub(crate) mod test_fns {
             let e = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },

@@ -356,8 +356,10 @@ pub type CachedQueryResp = Arc<Vec<Result<MuiDataGridData, String>>>;
 
 #[derive(Clone, Default)]
 pub struct QueryCache {
-    datas: Arc<DashMap<String, Arc<Vec<Result<MuiDataGridData, String>>>>>,
+    datas: QueryCacheData,
 }
+
+pub type QueryCacheData = Arc<DashMap<String, Arc<Vec<Result<MuiDataGridData, String>>>>>;
 
 impl QueryCache {
     pub(crate) fn set(&self, name: &str, query_id: &str, data: CachedQueryResp, append: bool) {
@@ -483,8 +485,8 @@ impl DBPal {
 
     pub async fn get_backend(&self, name: &str) -> anyhow::Result<DatabaseBackend> {
         let db = self.backend.lock().await.get(name).cloned();
-        if db.is_some() {
-            return anyhow::Ok(db.unwrap());
+        if let Some(db) = db {
+            return anyhow::Ok(db);
         }
         // try open and enter
         let name_parts = name_to_parts(name);

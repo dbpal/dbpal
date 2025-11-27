@@ -285,7 +285,7 @@ fn to_json_value(x: Vec<u8>) -> serde_json::Value {
 }
 
 fn escape_string(s: &str) -> String {
-    s.replace("'", "\'").replace("\n", "\\n")
+    s.replace("'", "\\'").replace("\n", "\\n")
 }
 
 fn check_resp(
@@ -310,7 +310,7 @@ impl RedisDB {
             RedisType::String => {
                 let value: Vec<u8> = conn.get(key).await?;
                 sender
-                    .send(create_csv(&vec![vec![Some(to_string_or_hex(value))]], delimiter).into())
+                    .send(create_csv(&[vec![Some(to_string_or_hex(value))]], delimiter).into())
                     .await?;
             }
 
@@ -345,7 +345,7 @@ impl RedisDB {
                     let kv = check_resp(value)?;
                     sender
                         .send(Cow::Owned(create_csv(
-                            &vec![vec![
+                            &[vec![
                                 Some(to_string_or_hex(kv[0].clone())),
                                 Some(to_string_or_hex(kv[1].clone())),
                             ]],
@@ -360,7 +360,7 @@ impl RedisDB {
                     let kv = check_resp(value)?;
                     sender
                         .send(Cow::Owned(create_csv(
-                            &vec![vec![
+                            &[vec![
                                 Some(to_string_or_hex(kv[0].clone())),
                                 Some(to_string_or_hex(kv[1].clone())),
                             ]],
@@ -381,11 +381,11 @@ impl RedisDB {
         match ty {
             RedisType::String => {
                 let value: Vec<u8> = conn.get(key).await?;
+                let value = Some(to_string_or_hex(value));
                 sender
-                    .send(create_html_table_data(&vec![vec![Some(to_string_or_hex(value))]]).into())
+                    .send(create_html_table_data(&[vec![value]]).into())
                     .await?;
             }
-
             RedisType::List => {
                 let total: isize = conn.llen(key).await?;
                 let size: isize = 100;
@@ -416,7 +416,7 @@ impl RedisDB {
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
                     sender
-                        .send(Cow::Owned(create_html_table_data(&vec![vec![
+                        .send(Cow::Owned(create_html_table_data(&[vec![
                             Some(to_string_or_hex(kv[0].clone())),
                             Some(to_string_or_hex(kv[1].clone())),
                         ]])))
@@ -428,7 +428,7 @@ impl RedisDB {
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
                     sender
-                        .send(Cow::Owned(create_html_table_data(&vec![vec![
+                        .send(Cow::Owned(create_html_table_data(&[vec![
                             Some(to_string_or_hex(kv[0].clone())),
                             Some(to_string_or_hex(kv[1].clone())),
                         ]])))
@@ -802,7 +802,7 @@ impl RedisDB {
         while let Some(value) = stream.next().await {
             let value = value?;
             sender
-                .send(create_csv(&vec![vec![Some(value)]], delimiter).into())
+                .send(create_csv(&[vec![Some(value)]], delimiter).into())
                 .await?;
         }
         anyhow::Ok(())
@@ -831,7 +831,7 @@ impl RedisDB {
         while let Some(value) = stream.next().await {
             let value = value?;
             sender
-                .send(create_html_table_data(&vec![vec![Some(value)]]).into())
+                .send(create_html_table_data(&[vec![Some(value)]]).into())
                 .await?;
         }
         anyhow::Ok(())
@@ -871,7 +871,7 @@ impl RedisDB {
                     if pretty {
                         serde_json::to_string_pretty(&value)?
                     } else {
-                        serde_json::to_string_pretty(&value)?
+                        serde_json::to_string(&value)?
                     }
                     .into(),
                 )
@@ -919,7 +919,7 @@ impl ExportQueryResult for RedisDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -1197,7 +1197,7 @@ impl SchemaTrait for RedisDB {
         &self, key: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -2379,7 +2379,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let s = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: false,
                         delimiter: ',',
                     },
@@ -2483,7 +2483,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let s = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: false,
                         delimiter: ',',
                     },
@@ -2561,7 +2561,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let s = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: false,
                         delimiter: ',',
                     },
@@ -2633,7 +2633,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let s = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: false,
                         delimiter: ',',
                     },
@@ -2714,7 +2714,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let s = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: false,
                         delimiter: ',',
                     },

@@ -597,7 +597,7 @@ pub(crate) fn encode_row_as_json(
 }
 
 /// encode rows to `Vec<Vec<String>>`
-pub(crate) fn encode_rows(rows: &Vec<PgRow>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+pub(crate) fn encode_rows(rows: &[PgRow]) -> anyhow::Result<Vec<Vec<Option<String>>>> {
     let mut ret = Vec::with_capacity(rows.len());
     for r in rows.iter() {
         let mut values = Vec::with_capacity(r.columns().len());
@@ -1065,7 +1065,7 @@ impl From<PgMoney> for PgMoneyFmt {
     }
 }
 
-pub(crate) fn output_pg_money_array(array: &Vec<PgMoney>) -> String {
+pub(crate) fn output_pg_money_array(array: &[PgMoney]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }
@@ -1116,7 +1116,7 @@ pub(crate) fn output_range_data_time_fixoffset(
 }
 
 pub(crate) fn output_range_data_time_fix_offset_array(
-    array: &Vec<PgRange<chrono::DateTime<FixedOffset>>>,
+    array: &[PgRange<chrono::DateTime<FixedOffset>>],
 ) -> String {
     if array.is_empty() {
         return "{}".to_string();
@@ -1175,7 +1175,7 @@ pub(crate) fn test_output_int_range() {
     }
 }
 
-pub(crate) fn output_range_array<T: std::fmt::Display>(array: &Vec<PgRange<T>>) -> String {
+pub(crate) fn output_range_array<T: std::fmt::Display>(array: &[PgRange<T>]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }
@@ -1203,7 +1203,7 @@ pub(crate) fn output_bit_vec(v: &bit_vec::BitVec) -> String {
     ret
 }
 
-pub(crate) fn output_bit_vec_array(array: &Vec<bit_vec::BitVec>) -> String {
+pub(crate) fn output_bit_vec_array(array: &[bit_vec::BitVec]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }
@@ -1223,7 +1223,7 @@ pub(crate) fn output_pg_timez(v: &PgTimeTz) -> String {
     format!("{}{}", v.time, v.offset)
 }
 
-pub(crate) fn output_pg_timez_array(array: &Vec<PgTimeTz>) -> String {
+pub(crate) fn output_pg_timez_array(array: &[PgTimeTz]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }
@@ -1244,7 +1244,7 @@ pub(crate) fn output_pg_interval(v: &PgInterval) -> String {
     x.to_postgres()
 }
 
-pub(crate) fn output_pg_interval_array(array: &Vec<PgInterval>) -> String {
+pub(crate) fn output_pg_interval_array(array: &[PgInterval]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }
@@ -1260,9 +1260,7 @@ pub(crate) fn output_pg_interval_array(array: &Vec<PgInterval>) -> String {
     ret
 }
 
-pub(crate) fn output_date_time_fixoffset_array(
-    array: &Vec<chrono::DateTime<FixedOffset>>,
-) -> String {
+pub(crate) fn output_date_time_fixoffset_array(array: &[chrono::DateTime<FixedOffset>]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }
@@ -1278,7 +1276,7 @@ pub(crate) fn output_date_time_fixoffset_array(
     ret
 }
 
-pub(crate) fn output_naive_time_array(array: &Vec<chrono::NaiveTime>) -> String {
+pub(crate) fn output_naive_time_array(array: &[chrono::NaiveTime]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }
@@ -1293,7 +1291,7 @@ pub(crate) fn output_naive_time_array(array: &Vec<chrono::NaiveTime>) -> String 
     ret.push('}');
     ret
 }
-pub(crate) fn output_naive_date_array(array: &Vec<chrono::NaiveDate>) -> String {
+pub(crate) fn output_naive_date_array(array: &[chrono::NaiveDate]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }
@@ -1309,7 +1307,7 @@ pub(crate) fn output_naive_date_array(array: &Vec<chrono::NaiveDate>) -> String 
     ret
 }
 
-pub(crate) fn output_naive_datetime_array(array: &Vec<chrono::NaiveDateTime>) -> String {
+pub(crate) fn output_naive_datetime_array(array: &[chrono::NaiveDateTime]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }
@@ -1325,7 +1323,7 @@ pub(crate) fn output_naive_datetime_array(array: &Vec<chrono::NaiveDateTime>) ->
     ret
 }
 
-pub(crate) fn output_jsonb_array(array: &Vec<serde_json::Value>) -> String {
+pub(crate) fn output_jsonb_array(array: &[serde_json::Value]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }
@@ -1340,7 +1338,7 @@ pub(crate) fn output_jsonb_array(array: &Vec<serde_json::Value>) -> String {
     ret.push('}');
     ret
 }
-pub(crate) fn output_bool_array(array: &Vec<bool>) -> String {
+pub(crate) fn output_bool_array(array: &[bool]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }
@@ -1355,7 +1353,7 @@ pub(crate) fn output_bool_array(array: &Vec<bool>) -> String {
     ret.push('}');
     ret
 }
-pub(crate) fn output_array<T: std::fmt::Display>(array: &Vec<T>) -> String {
+pub(crate) fn output_array<T: std::fmt::Display>(array: &[T]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }
@@ -1370,7 +1368,7 @@ pub(crate) fn output_array<T: std::fmt::Display>(array: &Vec<T>) -> String {
     ret.push('}');
     ret
 }
-pub(crate) fn output_bytes_array(array: &Vec<Vec<u8>>) -> String {
+pub(crate) fn output_bytes_array(array: &[Vec<u8>]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }
@@ -1390,7 +1388,7 @@ pub(crate) fn output_bytes(bs: &[u8]) -> String {
     format!("\\x{}", hex::encode_upper(bs))
 }
 
-pub(crate) fn output_macaddr8_array(array: &Vec<MacAddr8>) -> String {
+pub(crate) fn output_macaddr8_array(array: &[MacAddr8]) -> String {
     if array.is_empty() {
         return "{}".to_string();
     }

@@ -245,7 +245,7 @@ impl DuckDB {
 }
 
 fn encode_row_as_json<'stmt>(
-    names: &Vec<String>, row: &duckdb::Row<'stmt>,
+    names: &[String], row: &duckdb::Row<'stmt>,
 ) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
     let mut ret = serde_json::Map::new();
     for (index, name) in names.iter().enumerate() {

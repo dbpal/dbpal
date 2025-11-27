@@ -6,10 +6,10 @@ use crate::language_server::{CompletionItem, CompletionKind, GetKeyWords};
 
 #[cfg(test)]
 use crate::sub::SubDB;
-use crate::tidb::TIDB;
+use crate::tidb::TiDB;
 use sqlx::Row;
 
-impl TIDB {
+impl TiDB {
     pub(crate) async fn key_words(self) -> anyhow::Result<Vec<String>> {
         /*
             原因一句话：TiDB v7.5.1 还没有 information_schema.keywords 这张表，所以你查不到。

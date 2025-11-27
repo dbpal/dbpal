@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::datasource_config::MysqlDBConfig;
 use crate::mysql::MysqlDB;
 
-pub struct TIDB {
+pub struct TiDB {
     pub(crate) db: Arc<MysqlDB>,
 }
 #[cfg(test)]

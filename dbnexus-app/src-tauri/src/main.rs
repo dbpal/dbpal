@@ -60,11 +60,7 @@ use rustls::crypto::{CryptoProvider, aws_lc_rs};
 // is this macbook computer
 #[inline(always)]
 fn is_macos() -> bool {
-    if cfg!(target_os = "macos") {
-        true
-    } else {
-        false
-    }
+    cfg!(target_os = "macos")
 }
 
 pub struct AppLogger {
@@ -252,6 +248,16 @@ fn main() {
     {
         builder = builder.plugin(devtools);
     }
+    let about_meta = AboutMetadata {
+        website: Some("https://dbpal.site".to_string()),
+        name: Some("dbpal".to_string()),
+        authors: Some(vec![
+            "756445638@qq.com".to_string(),
+            "yuyangxxxmail@gmail.com".to_string(),
+        ]),
+        copyright: Some("Copyright © yuyang 2025 All rights reserved.".to_string()),
+        ..AboutMetadata::default()
+    };
     builder
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
@@ -333,7 +339,7 @@ fn main() {
                             &PredefinedMenuItem::maximize(handle, None)?,
                             #[cfg(any(target_os = "windows", target_os = "macos"))]
                             &PredefinedMenuItem::minimize(handle, None)?,
-                            #[cfg(any(target_os = "macos"))]
+                            #[cfg(target_os = "macos")]
                             &PredefinedMenuItem::fullscreen(handle, None)?,
                             // #[cfg(any(target_os = "macos"))]
                             // &PredefinedMenuItem::show_all(handle, None)?,
@@ -377,19 +383,7 @@ fn main() {
                             &PredefinedMenuItem::about(
                                 handle,
                                 Some("make database management easy."),
-                                Some({
-                                    let mut meta = AboutMetadata::default();
-                                    meta.website = Some("https://dbpal.site".to_string());
-                                    meta.name = Some("dbpal".to_string());
-                                    meta.authors = Some(vec![
-                                        "756445638@qq.com".to_string(),
-                                        "yuyangxxxmail@gmail.com".to_string(),
-                                    ]);
-                                    meta.copyright = Some(
-                                        "Copyright © yuyang 2025 All rights reserved.".to_string(),
-                                    );
-                                    meta
-                                }),
+                                Some(about_meta),
                             )?,
                         ],
                     )?,

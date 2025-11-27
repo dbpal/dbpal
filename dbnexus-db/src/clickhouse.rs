@@ -243,7 +243,7 @@ impl SchemaTrait for ClickHouseDB {
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -754,9 +754,7 @@ impl ClickHouseDB {
                 .map(|x| Some(x.field))
                 .collect::<Vec<_>>();
 
-            sender
-                .send(Cow::Owned(create_csv(&vec![x], delimiter)))
-                .await?;
+            sender.send(Cow::Owned(create_csv(&[x], delimiter))).await?;
         }
         let datas = result.encode_json_result()?;
         sender
@@ -869,7 +867,7 @@ impl ExportQueryResult for ClickHouseDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -1258,7 +1256,7 @@ pub const CH_CURRENT_LITERALS: &[&str] = &[
 impl SqlBuilder for ClickHouseDB {
     const CURRENT_VALUES: &'static [&'static str] = CH_CURRENT_LITERALS;
     fn update_sql(
-        &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
+        &self, schema: Option<&str>, table_name: &str, fs: &[Field],
         values: &HashMap<String, Option<String>>, wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         //
@@ -1781,7 +1779,7 @@ from test
             let csv = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -1864,7 +1862,7 @@ from test
             let csv = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -1951,7 +1949,7 @@ from test
             let csv = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2049,7 +2047,7 @@ from test
             let csv = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2150,7 +2148,7 @@ from test
             let csv = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2230,7 +2228,7 @@ from test
             let csv = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },

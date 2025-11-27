@@ -31,10 +31,7 @@ pub enum BackendKind {
 
 impl BackendKind {
     pub fn mysql_like(self) -> bool {
-        match self {
-            Self::Mariadb | Self::Tidb | Self::Mysql => true,
-            _ => false,
-        }
+        matches!(self, Self::Mariadb | Self::Tidb | Self::Mysql)
     }
 
     // 支持这样的语法 @@或者@访问一些全局或者局部的变量
@@ -42,10 +39,7 @@ impl BackendKind {
         self.mysql_like() || self == Self::SqlServer
     }
     pub(crate) fn postgres_like(self) -> bool {
-        match self {
-            Self::PostGres | Self::CockRoach => true,
-            _ => false,
-        }
+        matches!(self, Self::PostGres | Self::CockRoach)
     }
 
     pub(crate) fn quote_style(self) -> &'static str {
@@ -396,7 +390,7 @@ pub trait SqlBuilder: GetBackendKind {
     ) -> anyhow::Result<String>;
 
     fn make_where(
-        &self, fs: &Vec<Field>, wheres: &HashMap<String, Option<String>>,
+        &self, fs: &[Field], wheres: &HashMap<String, Option<String>>,
         field_by_name: &HashMap<&String, &Field>,
     ) -> anyhow::Result<String> {
         // if contains primary key should use primary key to delete
@@ -441,7 +435,7 @@ pub trait SqlBuilder: GetBackendKind {
     }
 
     fn delete_sql(
-        &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
+        &self, schema: Option<&str>, table_name: &str, fs: &[Field],
         wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let mut field_by_name = HashMap::new();
@@ -465,7 +459,7 @@ pub trait SqlBuilder: GetBackendKind {
     }
 
     fn update_sql(
-        &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
+        &self, schema: Option<&str>, table_name: &str, fs: &[Field],
         values: &HashMap<String, Option<String>>, wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         //
@@ -516,13 +510,13 @@ pub trait SqlBuilder: GetBackendKind {
     }
 
     fn insert_sql(
-        &self, schema: Option<&str>, table_name: &str, fs: &Vec<Field>,
+        &self, schema: Option<&str>, table_name: &str, fs: &[Field],
         values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         let mut sql = format!(
             "INSERT INTO {}{}(",
-            if let Some(schema) = schema {
-                format!("{}.", self.quote(schema))
+            if let Some(schema) = schema.as_ref() {
+                format!("{}.", self.quote(&schema))
             } else {
                 "".to_string()
             },
@@ -1266,7 +1260,7 @@ pub fn format_data_time_fix_offset(x: &DateTime<FixedOffset>) -> String {
 #[derive(Clone, Debug, Copy, serde::Deserialize, serde::Serialize, TypeDef)]
 #[serde(tag = "export_kind", rename_all = "lowercase")]
 pub enum ExportKind {
-    CSV {
+    Csv {
         include_header: bool,
         delimiter: char,
     },
@@ -1386,40 +1380,38 @@ pub enum TriggerTiming {
 
 pub(crate) fn ty_is_int(x: &sqlparser::ast::DataType) -> bool {
     use sqlparser::ast::DataType;
-
-    match x {
+    matches!(
+        x,
         DataType::TinyInt(_)
-        | DataType::TinyIntUnsigned(_)
-        | DataType::Int2(_)
-        | DataType::Int2Unsigned(_)
-        | DataType::SmallInt(_)
-        | DataType::SmallIntUnsigned(_)
-        | DataType::MediumInt(_)
-        | DataType::MediumIntUnsigned(_)
-        | DataType::Int(_)
-        | DataType::Int4(_)
-        | DataType::Int8(_)
-        | DataType::Int16
-        | DataType::Int32
-        | DataType::Int64
-        | DataType::Int128
-        | DataType::Int256
-        | DataType::Integer(_)
-        | DataType::IntUnsigned(_)
-        | DataType::Int4Unsigned(_)
-        | DataType::UnsignedInteger
-        | DataType::UInt8
-        | DataType::UInt16
-        | DataType::UInt32
-        | DataType::UInt64
-        | DataType::UInt128
-        | DataType::UInt256
-        | DataType::BigInt(_)
-        | DataType::BigIntUnsigned(_)
-        | DataType::Int8Unsigned(_) => true,
-
-        _ => false,
-    }
+            | DataType::TinyIntUnsigned(_)
+            | DataType::Int2(_)
+            | DataType::Int2Unsigned(_)
+            | DataType::SmallInt(_)
+            | DataType::SmallIntUnsigned(_)
+            | DataType::MediumInt(_)
+            | DataType::MediumIntUnsigned(_)
+            | DataType::Int(_)
+            | DataType::Int4(_)
+            | DataType::Int8(_)
+            | DataType::Int16
+            | DataType::Int32
+            | DataType::Int64
+            | DataType::Int128
+            | DataType::Int256
+            | DataType::Integer(_)
+            | DataType::IntUnsigned(_)
+            | DataType::Int4Unsigned(_)
+            | DataType::UnsignedInteger
+            | DataType::UInt8
+            | DataType::UInt16
+            | DataType::UInt32
+            | DataType::UInt64
+            | DataType::UInt128
+            | DataType::UInt256
+            | DataType::BigInt(_)
+            | DataType::BigIntUnsigned(_)
+            | DataType::Int8Unsigned(_)
+    )
 }
 
 /// meta value can used in various place.
@@ -1448,23 +1440,22 @@ impl MetaValue {
 pub(crate) fn ty_is_float(x: &sqlparser::ast::DataType) -> bool {
     use sqlparser::ast::DataType;
 
-    match x {
+    matches!(
+        x,
         DataType::Numeric(_)
-        | DataType::Decimal(_)
-        | DataType::BigNumeric(_)
-        | DataType::BigDecimal(_)
-        | DataType::Dec(_)
-        | DataType::Float(_)
-        | DataType::Float4
-        | DataType::Float32
-        | DataType::Float64
-        | DataType::Real
-        | DataType::Float8
-        | DataType::Double(_)
-        | DataType::DoublePrecision => true,
-
-        _ => false,
-    }
+            | DataType::Decimal(_)
+            | DataType::BigNumeric(_)
+            | DataType::BigDecimal(_)
+            | DataType::Dec(_)
+            | DataType::Float(_)
+            | DataType::Float4
+            | DataType::Float32
+            | DataType::Float64
+            | DataType::Real
+            | DataType::Float8
+            | DataType::Double(_)
+            | DataType::DoublePrecision
+    )
 }
 
 pub fn escape_sql_str(s: &str) -> String {
@@ -1537,7 +1528,7 @@ pub(crate) fn create_html_table_header(x: &[String]) -> String {
     )
 }
 
-pub(crate) fn create_html_table_data(data: &Vec<Vec<Option<String>>>) -> String {
+pub(crate) fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
     let mut ret = "".to_owned();
     for d in data.iter() {
         let x = &format!(
@@ -1560,6 +1551,8 @@ pub(crate) fn create_html_table_data(data: &Vec<Vec<Option<String>>>) -> String 
     }
     ret
 }
+
+pub type StatusEmitter = Arc<dyn Fn(&str) + Send + Sync>;
 
 pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;
 

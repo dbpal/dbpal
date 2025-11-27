@@ -110,7 +110,7 @@ fn is_time(x: &Option<&String>) -> bool {
 }
 
 fn encode_rows(
-    rows: &Vec<Row>, try_blob_2_str: bool, types: Option<HashMap<&String, &Field>>,
+    rows: &[Row], try_blob_2_str: bool, types: Option<HashMap<&String, &Field>>,
 ) -> anyhow::Result<Vec<Vec<Option<String>>>> {
     let get_binary_sub_type = |name: &String| {
         types
@@ -187,10 +187,10 @@ impl FireBirdDB {
                 let row = row?;
                 if first && include_header {
                     let fs = row.cols.iter().map(|x| x.name.clone()).map(Some).collect();
-                    sender.blocking_send(Cow::Owned(create_csv(&vec![fs], delimiter)))?;
+                    sender.blocking_send(Cow::Owned(create_csv(&[fs], delimiter)))?;
                     first = false;
                 }
-                let data = encode_rows(&vec![row], true, None)?;
+                let data = encode_rows(&[row], true, None)?;
                 sender.blocking_send(Cow::Owned(create_csv(&data, delimiter)))?;
             }
             anyhow::Ok(())
@@ -219,7 +219,7 @@ impl FireBirdDB {
                     sender.blocking_send(Cow::Owned(create_html_table_header(&fs)))?;
                     first = false;
                 }
-                let data = encode_rows(&vec![row], true, None)?;
+                let data = encode_rows(&[row], true, None)?;
                 sender.blocking_send(Cow::Owned(create_html_table_data(&data)))?;
             }
             anyhow::Ok(())
@@ -346,7 +346,7 @@ impl FireBirdDB {
                     }
                     first = false;
                 }
-                let data = encode_rows(&vec![row], true, None)?;
+                let data = encode_rows(&[row], true, None)?;
                 export_query_as_xlsx_send_blocking_data(&mut row_num, data, sender.clone())?;
             }
             anyhow::Ok(())
@@ -366,7 +366,7 @@ impl ExportQueryResult for FireBirdDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -653,7 +653,7 @@ impl FireBirdDB {
             let rows: Box<dyn Iterator<Item = Result<Row, FbError>>> = conn.query_iter(&sql, ())?;
             for row in rows {
                 let row = row?;
-                let data = encode_rows(&vec![row], true, Some(types.clone()))?;
+                let data = encode_rows(&[row], true, Some(types.clone()))?;
                 for d in data.into_iter() {
                     let mut m = HashMap::new();
                     for (d, f) in d.into_iter().zip(cols.iter()) {
@@ -751,7 +751,7 @@ impl SchemaTrait for FireBirdDB {
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -1558,7 +1558,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -1660,7 +1660,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
