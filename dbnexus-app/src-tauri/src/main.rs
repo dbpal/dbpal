@@ -186,7 +186,6 @@ fn main() {
     // panic_test();
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .worker_threads(num_cpus::get() * 2)
         .build()
         .unwrap();
 
