@@ -43,7 +43,6 @@ import { QueryLog } from "./QueryLog.tsx";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   DataSourceKind,
-  DetachQueyRespViewParameter,
   ErrAndLoc,
   generateRandomString,
   getEditorText,
@@ -56,7 +55,6 @@ import {
   SetCloseConfirmTextContext,
   SettingContext,
   shrinkAble,
-  SomeTempStore,
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
@@ -67,7 +65,6 @@ import {
   LoadStoreFile,
   SaveFavoriteSqlView,
 } from "./CommonComp2.tsx";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { ModifyLLMConfigModal } from "./Settings.tsx";
 import { cancelTask, checkSql } from "./handlers.ts";
 function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
@@ -217,8 +214,6 @@ function SqlQuery(props: {
     new QueryConn(uuid, generateRandomString(8), kind),
   );
   const [showExport, setShowExport] = useState(false);
-  const [queryRespView, setQueryRespView] = useState<WebviewWindow>(null);
-  const queryRespViewEventName = useRef(generateRandomString());
   const [openOk, setOpenOk] = useState(false);
   const [tryCheckSql, setTryCheckSql] = useState(SaveCheckSql.get());
   useEffect(() => {
@@ -382,40 +377,6 @@ function SqlQuery(props: {
     },
     [conn, editor, showNotification, warnDangerousSql],
   );
-  useEffect(() => {
-    return () => {
-      if (queryRespView) {
-        queryRespView.close();
-      }
-    };
-  }, [queryRespView]);
-  // destroy query response view window
-  useEffect(() => {
-    if (!queryRespView) {
-      return;
-    }
-    const unlisten = queryRespView.onCloseRequested(() => {
-      setQueryRespView(null);
-    });
-    return () => {
-      unlisten.then(e => {
-        e();
-      });
-    };
-  }, [queryRespView]);
-
-  // send data to query response view
-  useEffect(() => {
-    if (!queryRespView) {
-      return;
-    }
-    queryRespView
-      .emit(queryRespViewEventName.current, QuerySeparateWindowMsg.reloadData)
-      .catch(e => {
-        showNotification("error", "emit query response failed", e);
-      });
-  }, [queryRespView, resp, showNotification]);
-
   const editorOptions = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
       fontSize: setting.appearance.fontSize,
@@ -449,46 +410,6 @@ function SqlQuery(props: {
     DataSourceKind.ClickHouse,
     DataSourceKind.FireBird,
   ].includes(kind);
-
-  const toggleQueryRespView = (maximized: boolean, x?: number, y?: number) => {
-    if (queryRespView) {
-      try {
-        queryRespView.close();
-      } catch (e) {
-        console.error(e);
-        return;
-      }
-    } else {
-      SomeTempStore.set({
-        uuid,
-        queryId: conn.queryId,
-        eventName: queryRespViewEventName.current,
-      } as DetachQueyRespViewParameter);
-      const webview = new WebviewWindow(generateRandomString(), {
-        title: makeWindowTitle(uuid, conn.queryId),
-        url: "query_response.html",
-        width: 800,
-        height: 600,
-        maximized,
-        x,
-        y,
-      });
-      webview.once("tauri://created", () => {
-        console.info("create query response view successfully");
-      });
-      webview.once(queryRespViewEventName.current, e => {
-        console.info("query window send me something:", e.payload);
-        if (e.payload == QuerySeparateWindowMsg.listenOK) {
-          setQueryRespView(webview);
-        } else {
-          console.log("query window send me something wrong:", e.payload);
-        }
-      });
-      webview.once("tauri://error", e => {
-        showNotification("error", "create webview failed", e.event.toString());
-      });
-    }
-  };
 
   return (
     <div
@@ -661,24 +582,6 @@ function SqlQuery(props: {
             </Tooltip>
             {extras}
 
-            {openOk && resp.length > 0 && (
-              <Tooltip
-                title={
-                  queryRespView
-                    ? "close query response view"
-                    : "can open the query results in a separate window."
-                }
-              >
-                <Chip
-                  variant={queryRespView ? "outlined" : "filled"}
-                  onClick={() => {
-                    toggleQueryRespView(true);
-                  }}
-                  style={shrinkAble}
-                  label={queryRespView ? "close response window" : "detach response"}
-                />
-              </Tooltip>
-            )}
             {openOk && (
               <Tooltip title="connection id">
                 <Typography style={shrinkAble}> #{conn.queryId} </Typography>
@@ -720,14 +623,14 @@ function SqlQuery(props: {
             pos={pos}
           />
         </Panel>
-        {!queryRespView && resp.length > 0 && (
+        {resp.length > 0 && (
           <PanelResizeHandle
             style={{ height: resizeHandlerSize }}
             className="resize-handle"
           />
         )}
 
-        {!queryRespView && resp.length > 0 && (
+        {resp.length > 0 && (
           <Panel
             style={{ overflow: "auto" }}
             collapsible
@@ -776,13 +679,4 @@ function SqlQuery(props: {
   );
 }
 
-class QuerySeparateWindowMsg {
-  static listenOK = "listen_ok";
-  static reloadData = "reload_data";
-}
-
-function makeWindowTitle(uuid, queryid): string {
-  return `query result ${uuid}#${queryid}`;
-}
-
-export { SqlQuery, QuerySeparateWindowMsg };
+export { SqlQuery };

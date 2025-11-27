@@ -8,17 +8,14 @@ use dbnexus_db::datasource_config::{
 use dbnexus_db::db::{
     CatalogTrait, CheckConn, DBTrait, ExportQueryResult, QuerySql, SchemaTrait, ServerMetas,
 };
+use dbnexus_db::language_server::LanguageServer;
+use dbnexus_db::mongo::MongoDB;
+use dbnexus_db::sub::SubDB;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU32;
 use std::time::Duration;
-
-use dbnexus_db::language_server::LanguageServer;
-use dbnexus_db::mongo::MongoDB;
-
-use crate::handlers::MuiDataGridData;
-use dbnexus_db::sub::SubDB;
 use tokio::sync::Mutex;
 use typescript_type_def::TypeDef;
 impl DBConnectionConfig {
@@ -349,46 +346,6 @@ impl From<Arc<dyn dbnexus_db::db::SchemaTrait>> for DatabaseBackend {
 pub struct DBPal {
     /// all the databases
     pub backend: Arc<Mutex<HashMap<String, DatabaseBackend>>>,
-    pub query_cache: QueryCache,
-}
-
-pub type CachedQueryResp = Arc<Vec<Result<MuiDataGridData, String>>>;
-
-#[derive(Clone, Default)]
-pub struct QueryCache {
-    datas: QueryCacheData,
-}
-
-pub type QueryCacheData = Arc<DashMap<String, Arc<Vec<Result<MuiDataGridData, String>>>>>;
-
-impl QueryCache {
-    pub(crate) fn set(&self, name: &str, query_id: &str, data: CachedQueryResp, append: bool) {
-        let key = self.get_key(name, query_id);
-        log::info!("set query cache:{}", key);
-        if append {
-            let mut r = self.datas.get(&key).map(|x| x.to_vec()).unwrap_or_default();
-            r.extend(data.to_vec());
-            self.datas.insert(key, Arc::new(r));
-        } else {
-            self.datas.insert(key, data);
-        }
-    }
-
-    pub(crate) fn get(&self, name: &str, query_id: &str) -> CachedQueryResp {
-        let key = self.get_key(name, query_id);
-        log::info!("get cache named:{}", key);
-        self.datas.get(&key).map(|x| x.clone()).unwrap_or_default()
-    }
-
-    fn get_key(&self, name: &str, query_id: &str) -> String {
-        format!("{}:{}", name, query_id)
-    }
-
-    pub(crate) fn remove(&self, name: &str, query_id: &str) {
-        let key = self.get_key(name, query_id);
-        log::info!("remove cache:{}", key);
-        self.datas.remove(&key);
-    }
 }
 
 #[derive(Default, Clone)]

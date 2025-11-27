@@ -1552,7 +1552,13 @@ pub(crate) fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
     ret
 }
 
-pub type StatusEmitter = Arc<dyn Fn(&str) + Send + Sync>;
+pub type QueryEventEmitter = Arc<dyn Fn(QueryEvent) + Send + Sync>;
+
+pub enum QueryEvent {
+    Struct { s: QueryResp },
+    Data { data: Vec<Vec<Option<String>>> },
+    Status { status: String },
+}
 
 pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;
 

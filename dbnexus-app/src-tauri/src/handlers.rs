@@ -27,8 +27,7 @@ use dbnexus_db::sqlite::SqliteDB;
 use dbnexus_db::sub::SubDB;
 
 use crate::app::{
-    self, BackendCrashMsg, CachedQueryResp, DBConnectionConfig, DBPal, DatabaseBackend,
-    name_to_parts,
+    self, BackendCrashMsg, DBConnectionConfig, DBPal, DatabaseBackend, name_to_parts,
 };
 use font_kit::error::SelectionError;
 use include_dir::{Dir, include_dir};
@@ -204,14 +203,6 @@ pub async fn all_font_family() -> Result<Vec<String>, ErrorFrontend> {
     let source = font_kit::source::SystemSource::new();
     let fonts = source.all_families().map_err(ErrorFrontend::from)?;
     Ok(fonts)
-}
-
-#[tauri::command]
-pub async fn get_query_cache(
-    name: String, query_id: &str, app: tauri::State<'_, DBPal>,
-) -> Result<CachedQueryResp, ErrorFrontend> {
-    let x = app.query_cache.get(&name, query_id);
-    Ok(x)
 }
 
 #[tauri::command]
@@ -997,7 +988,7 @@ pub async fn get_backend_crash(
 
 #[tauri::command]
 pub async fn query_sql(
-    name: String, query_id: &str, sql: String, append: bool, app: tauri::State<'_, DBPal>,
+    name: String, query_id: &str, sql: String, app: tauri::State<'_, DBPal>,
     task_manager: tauri::State<'_, TaskManager>,
 ) -> Result<Arc<Vec<Result<MuiDataGridData, String>>>, ErrorFrontend> {
     random_sleep().await;
@@ -1031,7 +1022,6 @@ pub async fn query_sql(
             .collect::<Vec<_>>()
     })?;
     let r = Arc::new(r);
-    app.query_cache.set(&name, query_id, r.clone(), append);
     Ok(r)
 }
 
@@ -1080,8 +1070,6 @@ pub async fn execute_sql(
     };
     let result = result?;
     let result = result.map(MuiDataGridData::from);
-    app.query_cache
-        .set(&name, query_id, Arc::new(vec![result.clone()]), false);
     Ok(result)
 }
 
@@ -1114,7 +1102,6 @@ pub async fn query_sql_close_connection(
         .get_backend(name.as_str())
         .await
         .map_err(|e| e.to_string())?;
-    app.query_cache.remove(&name, query_id);
     let result = db.as_query_sql().close_connection(query_id).await;
     result.map_err(ErrorFrontend::from)
 }

@@ -1105,12 +1105,6 @@ interface NewWindowTableParameter {
   isTable?: boolean;
 }
 
-interface DetachQueyRespViewParameter {
-  uuid: string;
-  queryId: string;
-  eventName: string;
-}
-
 const dataGridStyle = {
   flexGrow: 1,
   height: "100px",
@@ -1322,7 +1316,7 @@ export {
   resizeHandlerSize,
 };
 
-export type { ErrAndLoc, NewWindowTableParameter, DetachQueyRespViewParameter };
+export type { ErrAndLoc, NewWindowTableParameter };
 
 async function webviewWIndowInit() {
   const currentWebview = await WebviewWindow.getCurrent();
