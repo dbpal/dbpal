@@ -1,5 +1,3 @@
-use tokio::task::block_in_place;
-
 use crate::db::{DBTrait, name_start_ascii_alphabetic};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, GetKeyWords,
@@ -20,19 +18,17 @@ impl LexerCompletionTrait for OracleDB {
 
 impl GetKeyWords for OracleDB {
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let mut lock = self.key_words_cache.lock().unwrap();
+        let mut lock = self.key_words_cache.lock().await;
         if !lock.is_empty() {
             return anyhow::Ok(lock.clone());
         }
-        let conn = self.get_conn()?;
         let sql = r#"
             SELECT  keyword 
                 FROM V$RESERVED_WORDS
         "#;
-        let result = block_in_place(|| conn.query(sql, &[]))?;
+        let result = self.query(sql).await?;
         let mut ret = Vec::new();
         for r in result {
-            let r = r?;
             let name: Option<String> = r.get(0)?;
             if let Some(name) = name {
                 let name = name.trim().to_string();
@@ -67,12 +63,9 @@ impl OracleDB {
 
 impl OracleDB {
     async fn extact_names(&self, sql: &str) -> anyhow::Result<Vec<String>> {
-        let conn = self.get_conn()?;
-        let rows = conn.query(sql, &[])?;
+        let rows = self.query(sql).await?;
         let mut ret = Vec::new();
         for row in rows {
-            let row = row?;
-
             let name = row.get(0)?;
             ret.push(name);
         }
@@ -83,10 +76,7 @@ impl OracleDB {
 #[async_trait::async_trait]
 impl AstCompletionHelper for OracleDB {
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
-        let conn = self.get_conn()?;
-
-        let row = conn.query_row(sql, &[])?;
-
+        let row = self.query_row(sql).await?;
         anyhow::Ok(
             row.column_info()
                 .iter()
@@ -108,14 +98,10 @@ impl LangServerCommon for OracleDB {
             schema
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
-        let rows = conn.query(&sql, &[])?;
+        let rows = self.query(&sql).await?;
         let mut ret = Vec::new();
         for row in rows {
-            let row = row?;
-
             let name: String = row.get(0)?;
-
             ret.push(name);
         }
         anyhow::Ok(ret)
@@ -229,9 +215,7 @@ impl LangServerCommon for OracleDB {
 impl LanguageServer for OracleDB {
     async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!("SELECT MAX(id) FROM \"{name}\"");
-        let conn = self.get_conn()?;
-        let row = block_in_place(|| conn.query_row(&sql, &[]))?;
-
+        let row = self.query_row(sql).await?;
         if !row.sql_values().is_empty() {
             return anyhow::Ok("".to_string());
         }
