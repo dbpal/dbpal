@@ -77,43 +77,6 @@ pub(crate) async fn make_test_object_tidb(config: MysqlDBConfig) -> SubDB {
     let db = SubDB::TiDB(Arc::new(crate::mysql::MysqlDB::new(config).await.unwrap()));
     db
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::{
-        db::QuerySql, language_server::LangServerCommon, tidb::make_config,
-        tidb_lang_server::make_test_object_tidb,
-    };
-
-    /*
-    TODO support this.
-    在 TiDB 中，“当前连接” 已经 PREPARE 的语句不会单独写入 information_schema 表，而是 保存在会话内存 里，因此官方没有 “一条 SQL 列出所有 prepare” 的固定表。
-    但你可以通过以下 两种方式 实时查看：
-     */
-    #[ignore = "xxxx"]
-    #[tokio::test]
-    async fn test_prepare() {
-        let db = make_test_object_tidb(make_config()).await;
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-        db.execute_sql(
-            query_id,
-            r#"
-            PREPARE stmtxxx FROM 'SELECT 1';
-        "#,
-        )
-        .await
-        .unwrap()
-        .unwrap();
-        assert!(
-            db.list_execute(None)
-                .await
-                .unwrap()
-                .iter()
-                .any(|x| x.name.eq("stmtxxx"))
-        );
-    }
-}
 /// TiDB 关键字全集（含保留/非保留）
 pub const TIDB_KEYWORDS: &[&str] = &[
     "ACCOUNT",
@@ -813,3 +776,40 @@ pub const TIDB_KEYWORDS: &[&str] = &[
     "YEAR_MONTH",
     "ZEROFILL",
 ];
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        db::QuerySql, language_server::LangServerCommon, tidb::make_config,
+        tidb_lang_server::make_test_object_tidb,
+    };
+
+    /*
+    TODO support this.
+    在 TiDB 中，“当前连接” 已经 PREPARE 的语句不会单独写入 information_schema 表，而是 保存在会话内存 里，因此官方没有 “一条 SQL 列出所有 prepare” 的固定表。
+    但你可以通过以下 两种方式 实时查看：
+     */
+    #[ignore = "xxxx"]
+    #[tokio::test]
+    async fn test_prepare() {
+        let db = make_test_object_tidb(make_config()).await;
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+            PREPARE stmtxxx FROM 'SELECT 1';
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(
+            db.list_execute(None)
+                .await
+                .unwrap()
+                .iter()
+                .any(|x| x.name.eq("stmtxxx"))
+        );
+    }
+}

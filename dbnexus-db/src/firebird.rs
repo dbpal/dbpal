@@ -1,7 +1,6 @@
 // docker run -d   --name some-firebird  -e FIREBIRD_DATABASE=test.fdb   -e
 // FIREBIRD_ROOT_PASSWORD=root  -e FIREBIRD_USER=alice -e
 // FIREBIRD_PASSWORD=root  -e   -e   -p 3050:3050    firebirdsql/firebird
-
 /*
     firebird 为啥 SELECT
                 RDB$RELATION_NAME AS TABLE_NAME
@@ -18,19 +17,6 @@ RDB$RELATION_NAME 的数据类型是 CHAR(31)，定长字符，不足 31 字节�
 
 所以代码里面有很多的trim
 */
-use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
-use std::ops::DerefMut;
-use std::sync::Arc;
-use std::time::Duration;
-
-use dashmap::{DashMap, DashSet};
-use r2d2::{Pool, PooledConnection};
-use rsfbclient::{Execute, FbError, Queryable, Row, SqlType, builder_pure_rust};
-use rsfbclient_rust::RustFbClient;
-use tokio::sync::Mutex;
-use tokio::task::{block_in_place, spawn_blocking};
-
 use crate::MemoryLimit;
 use crate::datasource_config::FireBirdConfig;
 use crate::db::{
@@ -40,8 +26,18 @@ use crate::db::{
     create_html_table_header, escape_sql_str, export_query_as_xlsx_send_blocking_data,
     not_support_feature,
 };
-use crate::helper::create_csv;
+use crate::helper::{create_csv, lock_err_2_anyhow};
 use crate::language_server::LexerCompletionTrait;
+use dashmap::{DashMap, DashSet};
+use r2d2::{Pool, PooledConnection};
+use rsfbclient::{Execute, FbError, Queryable, Row, SqlType, builder_pure_rust};
+use rsfbclient_rust::RustFbClient;
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
+use std::ops::DerefMut;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tokio::task::spawn_blocking;
 
 pub struct PoolManager {
     config: FireBirdConfig,
@@ -326,9 +322,10 @@ impl FireBirdDB {
         &self, sql: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut conn = self.get_conn()?;
+        let this = Clone::clone(self);
         let sql = sql.to_owned();
         spawn_blocking(move || {
+            let mut conn = this.get_conn()?;
             let mut row_num = 0;
             let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
@@ -406,41 +403,54 @@ impl QuerySql for FireBirdDB {
         if commit {
             anyhow::bail!("firebird use commit or rollback to end transaction");
         }
-        let conn = match self.query_connection.get(&query_id.to_string()) {
-            Some(x) => x.clone(),
-            None => anyhow::bail!("connection closed???"),
-        };
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        conn.begin_transaction()?;
-        self.query_connections_tx.insert(query_id.to_string());
-        anyhow::Ok(())
+        let this = Clone::clone(self);
+        let query_id = query_id.to_string();
+        spawn_blocking(move || {
+            let conn = match this.query_connection.get(&query_id.to_string()) {
+                Some(x) => x.clone(),
+                None => anyhow::bail!("connection closed???"),
+            };
+            let mut conn = conn.lock().map_err(lock_err_2_anyhow)?;
+            let conn = conn.deref_mut();
+            conn.begin_transaction()?;
+            this.query_connections_tx.insert(query_id.to_string());
+            anyhow::Ok(())
+        })
+        .await?
     }
 
     async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
-        let conn = match self.query_connection.get(&query_id.to_string()) {
-            Some(x) => x.clone(),
-            None => anyhow::bail!("connection closed???"),
-        };
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        conn.commit()?;
-        self.query_connections_tx.remove(&query_id.to_string());
-
-        anyhow::Ok(())
+        let this = Clone::clone(self);
+        let query_id = query_id.to_string();
+        spawn_blocking(move || {
+            let conn = match this.query_connection.get(&query_id.to_string()) {
+                Some(x) => x.clone(),
+                None => anyhow::bail!("connection closed???"),
+            };
+            let mut conn = conn.lock().map_err(lock_err_2_anyhow)?;
+            let conn = conn.deref_mut();
+            conn.commit()?;
+            this.query_connections_tx.remove(&query_id.to_string());
+            anyhow::Ok(())
+        })
+        .await?
     }
 
     async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
-        let conn = match self.query_connection.get(&query_id.to_string()) {
-            Some(x) => x.clone(),
-            None => anyhow::bail!("connection closed???"),
-        };
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        conn.rollback()?;
-        self.query_connections_tx.remove(&query_id.to_string());
-
-        anyhow::Ok(())
+        let this = Clone::clone(self);
+        let query_id = query_id.to_string();
+        spawn_blocking(move || {
+            let conn = match this.query_connection.get(&query_id) {
+                Some(x) => x.clone(),
+                None => anyhow::bail!("connection closed???"),
+            };
+            let mut conn = conn.lock().map_err(lock_err_2_anyhow)?;
+            let conn = conn.deref_mut();
+            conn.rollback()?;
+            this.query_connections_tx.remove(&query_id.to_string());
+            anyhow::Ok(())
+        })
+        .await?
     }
 
     async fn query_sql(
@@ -448,41 +458,48 @@ impl QuerySql for FireBirdDB {
     ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
 
-        let mut ret = vec![];
-        let conn = match self.query_connection.get(&query_id.to_string()) {
-            Some(x) => x.clone(),
-            None => anyhow::bail!("connection closed???"),
-        };
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let mut ml = MemoryLimit::new();
-        let rows: Result<Vec<Row>, _> = block_in_place(|| conn.query(sql, ()));
-        match rows {
-            Ok(rows) => {
-                ml.exceed_error()?;
-                if !rows.is_empty() {
-                    let fields = infer_fields(rows.first().unwrap());
-                    let data = encode_rows(&rows, true, None)?;
-                    ret.push(Ok(QueryResp {
-                        fields,
-                        data,
-                        sql: Some(sql.to_owned()),
-                        total: 0,
-                        has_more: false,
-                        cache_time: None,
-                    }));
+        let this = Clone::clone(self);
+        let query_id = query_id.to_string();
+        let sql = sql.to_owned();
+        spawn_blocking(move || {
+            let mut ret = vec![];
+            let conn = match this.query_connection.get(&query_id) {
+                Some(x) => x.clone(),
+                None => anyhow::bail!("connection closed???"),
+            };
+            let mut conn = conn.lock().map_err(lock_err_2_anyhow)?;
+            let conn = conn.deref_mut();
+            let mut ml = MemoryLimit::new();
+            let rows: Result<Vec<Row>, _> = conn.query(&sql, ());
+            match rows {
+                Ok(rows) => {
+                    ml.exceed_error()?;
+                    if !rows.is_empty() {
+                        let fields = infer_fields(rows.first().unwrap());
+                        let data = encode_rows(&rows, true, None)?;
+                        ret.push(Ok(QueryResp {
+                            fields,
+                            data,
+                            sql: Some(sql.to_owned()),
+                            total: 0,
+                            has_more: false,
+                            cache_time: None,
+                        }));
+                    }
                 }
+                Err(err) => ret.push(Err(err.to_string())),
             }
-            Err(err) => ret.push(Err(err.to_string())),
-        }
 
-        anyhow::Ok(ret)
+            anyhow::Ok(ret)
+        })
+        .await?
     }
     async fn execute_sql_no_open_conn(
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut conn = self.get_conn()?;
-        let resp = block_in_place(|| conn.execute(sql, ()))
+        let resp = self
+            .execute(sql)
+            .await
             .map(|x| QueryResp::row_affected(x as u64, sql.to_owned()))
             .map_err(|e| e.to_string());
         anyhow::Ok(resp)
@@ -491,25 +508,34 @@ impl QuerySql for FireBirdDB {
         &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
-        let conn = match self.query_connection.get(&query_id.to_string()) {
-            Some(x) => x.clone(),
-            None => anyhow::bail!("connection closed???"),
-        };
-        let mut conn = conn.lock().await;
-
-        let conn = conn.deref_mut();
-
-        let resp = block_in_place(|| conn.execute(sql, ()))
-            .map(|x| QueryResp::row_affected(x as u64, sql.to_owned()))
-            .map_err(|e| e.to_string());
-        anyhow::Ok(resp)
+        let this = Clone::clone(self);
+        let query_id = query_id.to_string();
+        let sql = sql.to_string();
+        spawn_blocking(move || {
+            let conn = match this.query_connection.get(&query_id.to_string()) {
+                Some(x) => x.clone(),
+                None => anyhow::bail!("connection closed???"),
+            };
+            let mut conn = conn.lock().map_err(lock_err_2_anyhow)?;
+            let conn = conn.deref_mut();
+            let resp = conn
+                .execute(&sql, ())
+                .map(|x| QueryResp::row_affected(x as u64, sql.to_owned()))
+                .map_err(|e| e.to_string());
+            anyhow::Ok(resp)
+        })
+        .await?
     }
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
-        let conn = self.get_conn()?;
-        self.query_connection
-            .insert(id.to_string(), Arc::new(Mutex::new(conn)));
-        anyhow::Ok(())
+        let this = Clone::clone(self);
+        let id = id.to_string();
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            this.query_connection.insert(id, Arc::new(Mutex::new(conn)));
+            anyhow::Ok(())
+        })
+        .await?
     }
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
         self.query_connection.remove(&id.to_string());
@@ -519,11 +545,11 @@ impl QuerySql for FireBirdDB {
 
 #[derive(Clone)]
 pub struct FireBirdDB {
-    config: FireBirdConfig,
+    config: Arc<FireBirdConfig>,
     pool: Pool<PoolManager>,
     query_connection: Arc<DashMap<String, Arc<Mutex<PooledConnection<PoolManager>>>>>,
     query_connections_tx: Arc<DashSet<String>>,
-    pub(crate) key_words_completion: Arc<Mutex<Vec<String>>>,
+    pub(crate) key_words_completion: Arc<tokio::sync::Mutex<Vec<String>>>,
 }
 
 impl std::fmt::Debug for FireBirdDB {
@@ -539,14 +565,18 @@ impl std::fmt::Debug for FireBirdDB {
 #[async_trait::async_trait]
 impl ServerMetas for FireBirdDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
-        let sql = "SELECT RDB$GET_CONTEXT('SYSTEM', 'ENGINE_VERSION') FROM RDB$DATABASE";
-        let mut conn = self.get_conn()?;
-        let version: Option<(String,)> = conn.query_first(sql, ())?;
-        let mut ret = Vec::new();
-        if let Some(version) = version {
-            ret.push(MetaValue::new("version", version.0));
-        }
-        anyhow::Ok(ret)
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let sql = "SELECT RDB$GET_CONTEXT('SYSTEM', 'ENGINE_VERSION') FROM RDB$DATABASE";
+            let mut conn = this.get_conn()?;
+            let version: Option<(String,)> = conn.query_first(sql, ())?;
+            let mut ret = Vec::new();
+            if let Some(version) = version {
+                ret.push(MetaValue::new("version", version.0));
+            }
+            anyhow::Ok(ret)
+        })
+        .await?
     }
 }
 
@@ -642,6 +672,71 @@ impl FireBirdDB {
     }
 }
 
+impl FireBirdDB {
+    fn show_table_columns_impl(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
+        let mut conn = self.get_conn()?;
+        let pri_keys = {
+            let sql = format!(
+                r#"
+                SELECT 
+                    s.RDB$FIELD_NAME AS COLUMN_NAME
+                FROM 
+                    RDB$RELATION_CONSTRAINTS rc
+                JOIN 
+                    RDB$INDEX_SEGMENTS s ON rc.RDB$INDEX_NAME = s.RDB$INDEX_NAME
+                WHERE 
+                    rc.RDB$CONSTRAINT_TYPE = 'PRIMARY KEY'
+                    AND rc.RDB$RELATION_NAME = '{table_name}'
+                ORDER BY 
+                    s.RDB$FIELD_POSITION;
+            "#
+            );
+            let x: Vec<(String,)> = conn.query(&sql, ())?;
+            x.into_iter()
+                .map(|x| x.0.trim().to_owned())
+                .collect::<HashSet<_>>()
+        };
+
+        let sql = format!(
+            r#"
+        SELECT
+            rf.RDB$FIELD_NAME AS COLUMN_NAME,
+            t.RDB$TYPE_NAME AS DATA_TYPE,
+            f.RDB$FIELD_SUB_TYPE AS SUB_TYPE,
+            CASE WHEN COALESCE(rf.RDB$NULL_FLAG, f.RDB$NULL_FLAG) = 1 THEN 'NO' ELSE 'YES' END AS IS_NULLABLE,
+            COALESCE(rf.RDB$DEFAULT_SOURCE, f.RDB$DEFAULT_SOURCE) AS DEFAULT_VALUE
+        FROM RDB$RELATION_FIELDS rf
+        JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
+        JOIN RDB$TYPES t ON f.RDB$FIELD_TYPE = t.RDB$TYPE
+        WHERE rf.RDB$RELATION_NAME = '{}'
+        AND t.RDB$FIELD_NAME = 'RDB$FIELD_TYPE';
+    
+        "#,
+            table_name
+        );
+
+        let rows: Vec<(String, String, Option<i64>, String, Option<String>)> =
+            conn.query(&sql, ())?;
+        let mut ret = Vec::new();
+        for (name, typ, sub_type, nullable, default_value) in rows {
+            let name = name.trim().to_owned();
+            let data_type = typ.trim().to_owned();
+            let is_primary = pri_keys.contains(&name);
+            ret.push(Field {
+                field: name,
+                data_type,
+                nullable: nullable == "YES",
+                default_value,
+                is_primary,
+                is_auto_increment: false,
+                sortable: true,
+                firebird_binary_sub_type: sub_type,
+            });
+        }
+        anyhow::Ok(ret)
+    }
+}
+
 #[async_trait::async_trait]
 impl SchemaTrait for FireBirdDB {
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -689,10 +784,10 @@ impl SchemaTrait for FireBirdDB {
     async fn duplicate_table(&self, _table: &str, _dup: &str) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
-
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        let sql = "
-        
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let sql = "
             SELECT 
                 RDB$RELATION_NAME AS TABLE_NAME
             FROM 
@@ -702,15 +797,16 @@ impl SchemaTrait for FireBirdDB {
                 AND RDB$SYSTEM_FLAG = 0  -- 排除系统表
             ORDER BY 
                 RDB$RELATION_NAME
-        "
-        .to_string();
-        let mut conn = self.get_conn()?;
-        let rows: Vec<(String,)> = block_in_place(|| conn.query(&sql, ()))?;
-        anyhow::Ok(
-            rows.into_iter()
-                .map(|x| ListTable::from(x.0.trim().to_owned()))
-                .collect(),
-        )
+        ";
+            let mut conn = this.get_conn()?;
+            let rows: Vec<(String,)> = conn.query(sql, ())?;
+            anyhow::Ok(
+                rows.into_iter()
+                    .map(|x| ListTable::from(x.0.trim().to_owned()))
+                    .collect(),
+            )
+        })
+        .await?
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -718,68 +814,9 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        let mut conn = self.get_conn()?;
-
-        let pri_keys = {
-            let sql = format!(
-                r#"
-                SELECT 
-                    s.RDB$FIELD_NAME AS COLUMN_NAME
-                FROM 
-                    RDB$RELATION_CONSTRAINTS rc
-                JOIN 
-                    RDB$INDEX_SEGMENTS s ON rc.RDB$INDEX_NAME = s.RDB$INDEX_NAME
-                WHERE 
-                    rc.RDB$CONSTRAINT_TYPE = 'PRIMARY KEY'
-                    AND rc.RDB$RELATION_NAME = '{table_name}'
-                ORDER BY 
-                    s.RDB$FIELD_POSITION;
-            "#
-            );
-            let x: Vec<(String,)> = block_in_place(|| conn.query(&sql, ()))?;
-            x.into_iter()
-                .map(|x| x.0.trim().to_owned())
-                .collect::<HashSet<_>>()
-        };
-
-        let sql = format!(
-            r#"
-        SELECT
-            rf.RDB$FIELD_NAME AS COLUMN_NAME,
-            t.RDB$TYPE_NAME AS DATA_TYPE,
-            f.RDB$FIELD_SUB_TYPE AS SUB_TYPE,
-            CASE WHEN COALESCE(rf.RDB$NULL_FLAG, f.RDB$NULL_FLAG) = 1 THEN 'NO' ELSE 'YES' END AS IS_NULLABLE,
-            COALESCE(rf.RDB$DEFAULT_SOURCE, f.RDB$DEFAULT_SOURCE) AS DEFAULT_VALUE
-        FROM RDB$RELATION_FIELDS rf
-        JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
-        JOIN RDB$TYPES t ON f.RDB$FIELD_TYPE = t.RDB$TYPE
-        WHERE rf.RDB$RELATION_NAME = '{}'
-        AND t.RDB$FIELD_NAME = 'RDB$FIELD_TYPE';
-    
-        "#,
-            table_name
-        );
-
-        let rows: Vec<(String, String, Option<i64>, String, Option<String>)> =
-            block_in_place(|| conn.query(&sql, ()))?;
-        let mut ret = Vec::new();
-        for (name, typ, sub_type, nullable, default_value) in rows {
-            let name = name.trim().to_owned();
-            let data_type = typ.trim().to_owned();
-            let is_primary = pri_keys.contains(&name);
-            ret.push(Field {
-                field: name,
-                data_type,
-                nullable: nullable == "YES",
-                default_value,
-                is_primary,
-                is_auto_increment: false,
-                sortable: true,
-                firebird_binary_sub_type: sub_type,
-            });
-        }
-
-        anyhow::Ok(ret)
+        let this = Clone::clone(self);
+        let table_name = table_name.to_owned();
+        spawn_blocking(move || this.show_table_columns_impl(&table_name)).await?
     }
 
     async fn show_table(
@@ -789,42 +826,44 @@ impl SchemaTrait for FireBirdDB {
         let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
         log::info!("sql:{}", sql);
         let fs = self.show_table_columns(table_name).await?;
-        let mut fields_map = HashMap::new();
-
-        fs.iter().for_each(|x| {
-            fields_map.insert(&x.field, x);
-        });
-
-        let mut conn = self.get_conn()?;
-        let rows: Vec<rsfbclient::Row> = block_in_place(|| conn.query(&sql, ()))?;
-
-        if rows.is_empty() {
-            return anyhow::Ok(QueryResp {
-                fields: fs,
-                total: 0,
-                data: vec![],
-                sql: Some(sql),
-                cache_time: None,
-                has_more: false,
+        let table_name = table_name.to_owned();
+        let this = Clone::clone(self);
+        let where_str = where_str.map(|x| x.to_owned());
+        spawn_blocking(move || {
+            let mut fields_map = HashMap::new();
+            fs.iter().for_each(|x| {
+                fields_map.insert(&x.field, x);
             });
-        }
-        let mut fields = infer_fields(&rows[0]);
-        fields.iter_mut().for_each(|x| {
-            if let Some(f) = fields_map.get(&x.field) {
-                *x = (*f).clone();
+            let mut conn = this.get_conn()?;
+            let rows: Vec<rsfbclient::Row> = conn.query(&sql, ())?;
+            if rows.is_empty() {
+                return anyhow::Ok(QueryResp {
+                    fields: fs,
+                    total: 0,
+                    data: vec![],
+                    sql: Some(sql),
+                    cache_time: None,
+                    has_more: false,
+                });
             }
-        });
-        let data = encode_rows(&rows, false, Some(fields_map))?;
-        let total = self.query_count(table_name, where_str)?;
-
-        anyhow::Ok(QueryResp {
-            fields,
-            cache_time: None,
-            total,
-            data,
-            sql: Some(sql),
-            has_more: false,
+            let mut fields = infer_fields(&rows[0]);
+            fields.iter_mut().for_each(|x| {
+                if let Some(f) = fields_map.get(&x.field) {
+                    *x = (*f).clone();
+                }
+            });
+            let data = encode_rows(&rows, false, Some(fields_map))?;
+            let total = Self::query_count(&mut conn, &table_name, where_str.as_deref())?;
+            anyhow::Ok(QueryResp {
+                fields,
+                cache_time: None,
+                total,
+                data,
+                sql: Some(sql),
+                has_more: false,
+            })
         })
+        .await?
     }
 
     async fn table_insert(
@@ -834,9 +873,7 @@ impl SchemaTrait for FireBirdDB {
 
         let sql = self.insert_sql(None, table_name, &fs, &values)?;
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn()?;
-        let changes = conn.execute(&sql, ())?;
-
+        let changes = self.execute(&sql).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(changes as u64),
@@ -849,8 +886,7 @@ impl SchemaTrait for FireBirdDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = self.update_sql(None, table_name, &fs, &values, &wheres)?;
-        let mut conn = self.get_conn()?;
-        let changes = block_in_place(|| conn.execute(&sql, ()))?;
+        let changes = self.execute(&sql).await?;
         anyhow::Ok(SqlExecuteRet {
             changes: Some(changes as u64),
             sql,
@@ -860,8 +896,7 @@ impl SchemaTrait for FireBirdDB {
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         // firebird have no truncate statement.
         let sql = format!(r#"DELETE FROM "{}""#, table_name);
-        let mut conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, ()))?;
+        self.execute(sql).await?;
         anyhow::Ok(())
     }
 
@@ -870,8 +905,7 @@ impl SchemaTrait for FireBirdDB {
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
         let sql = self.delete_sql(None, table_name, &fs, &wheres)?;
-        let mut conn = self.get_conn()?;
-        let changes = block_in_place(|| conn.execute(&sql, ()))?;
+        let changes = self.execute(&sql).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(changes as u64),
@@ -879,31 +913,33 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        let sql = r#"
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let sql = r#"
             SELECT RDB$RELATION_NAME
             FROM RDB$RELATIONS
             WHERE RDB$VIEW_BLR IS NOT NULL;
         "#;
-        let mut conn = self.get_conn()?;
-        let rows: Vec<(String,)> = block_in_place(|| conn.query(sql, ()))?;
-        anyhow::Ok(
-            rows.into_iter()
-                .map(|x| ListTable::from(x.0.trim().to_owned()))
-                .collect(),
-        )
+            let mut conn = this.get_conn()?;
+            let rows: Vec<(String,)> = conn.query(sql, ())?;
+            anyhow::Ok(
+                rows.into_iter()
+                    .map(|x| ListTable::from(x.0.trim().to_owned()))
+                    .collect(),
+            )
+        })
+        .await?
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP VIEW "{}""#, view_name);
-        let mut conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, ()))?;
+        self.execute(sql).await?;
         anyhow::Ok(())
     }
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
         let sql = format!(r#"DROP TABLE "{}""#, table);
-        let mut conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, ()))?;
+        self.execute(sql).await?;
         anyhow::Ok(())
     }
 
@@ -925,14 +961,17 @@ impl SchemaTrait for FireBirdDB {
             fields.join(",")
         );
         log::info!("sql:{}", sql);
-        let mut conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, ()))?;
+        self.execute(sql).await?;
+
         anyhow::Ok(())
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
-        let sql = format!(
-            r#"
+        let this = Clone::clone(self);
+        let table_name = table_name.to_owned();
+        spawn_blocking(move || {
+            let sql = format!(
+                r#"
         SELECT
             i.RDB$INDEX_NAME AS INDEX_NAME,
             i.RDB$UNIQUE_FLAG AS IS_UNIQUE,
@@ -951,44 +990,45 @@ impl SchemaTrait for FireBirdDB {
         ORDER BY i.RDB$INDEX_NAME, s.RDB$FIELD_POSITION;
 
         "#,
-            table_name
-        );
-        let mut conn = self.get_conn()?;
-        let rows: Vec<(String, i64, String, i32)> = block_in_place(|| conn.query(&sql, ()))?;
-        let mut m: HashMap<String, Index> = HashMap::new();
-        for (name, unique, col, is_primary) in rows.into_iter() {
-            let name = name.trim().to_owned();
-            let col = col.trim().to_owned();
-            let x = m.get_mut(&name);
-            match x {
-                Some(x) => {
-                    x.columns.push(col);
-                }
-                None => {
-                    m.insert(
-                        name.clone(),
-                        Index {
-                            name: Some(name),
-                            kind: if is_primary != 0 {
-                                IndexKind::Primary
-                            } else if unique == 1 {
-                                IndexKind::Unique
-                            } else {
-                                IndexKind::Index
+                table_name
+            );
+            let mut conn = this.get_conn()?;
+            let rows: Vec<(String, i64, String, i32)> = conn.query(&sql, ())?;
+            let mut m: HashMap<String, Index> = HashMap::new();
+            for (name, unique, col, is_primary) in rows.into_iter() {
+                let name = name.trim().to_owned();
+                let col = col.trim().to_owned();
+                let x = m.get_mut(&name);
+                match x {
+                    Some(x) => {
+                        x.columns.push(col);
+                    }
+                    None => {
+                        m.insert(
+                            name.clone(),
+                            Index {
+                                name: Some(name),
+                                kind: if is_primary != 0 {
+                                    IndexKind::Primary
+                                } else if unique == 1 {
+                                    IndexKind::Unique
+                                } else {
+                                    IndexKind::Index
+                                },
+                                columns: vec![col],
                             },
-                            columns: vec![col],
-                        },
-                    );
-                }
-            };
-        }
-        anyhow::Ok(m.values().cloned().collect())
+                        );
+                    }
+                };
+            }
+            anyhow::Ok(m.values().cloned().collect())
+        })
+        .await?
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP INDEX "{}";"#, index);
-        let mut conn = self.get_conn()?;
-        conn.execute(&sql, ())?;
+        self.execute(&sql).await?;
         anyhow::Ok(())
     }
 
@@ -996,39 +1036,43 @@ impl SchemaTrait for FireBirdDB {
         &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
         page_size: usize, _extra: Option<ShowTableExtraArgs>,
     ) -> anyhow::Result<QueryResp> {
+        let this = Clone::clone(self);
+        let fields = self.show_view_columns(view_name).await?;
         let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn()?;
-        let rows: Vec<rsfbclient::Row> = block_in_place(|| conn.query(&sql, ()))?;
-
-        if rows.is_empty() {
-            let fields = self.show_view_columns(view_name).await?;
-
-            return anyhow::Ok(QueryResp {
+        let view_name = view_name.to_owned();
+        let where_str = where_str.map(|x| x.to_owned());
+        spawn_blocking(move || {
+            log::info!("sql:{}", sql);
+            let mut conn = this.get_conn()?;
+            let rows: Vec<rsfbclient::Row> = conn.query(&sql, ())?;
+            if rows.is_empty() {
+                return anyhow::Ok(QueryResp {
+                    fields,
+                    total: 0,
+                    data: vec![],
+                    sql: Some(sql),
+                    cache_time: None,
+                    has_more: false,
+                });
+            }
+            let data = encode_rows(&rows, true, None)?;
+            let total = Self::query_count(&mut conn, &view_name, where_str.as_deref())?;
+            let fields = match rows.first() {
+                Some(x) => infer_fields(x),
+                None => {
+                    vec![]
+                }
+            };
+            anyhow::Ok(QueryResp {
                 fields,
-                total: 0,
-                data: vec![],
+                total,
+                data,
                 sql: Some(sql),
                 cache_time: None,
                 has_more: false,
-            });
-        }
-        let data = encode_rows(&rows, true, None)?;
-        let total = self.query_count(view_name, where_str)?;
-        let fields = match rows.first() {
-            Some(x) => infer_fields(x),
-            None => {
-                vec![]
-            }
-        };
-        anyhow::Ok(QueryResp {
-            fields,
-            total,
-            data,
-            sql: Some(sql),
-            cache_time: None,
-            has_more: false,
+            })
         })
+        .await?
     }
 }
 
@@ -1052,8 +1096,9 @@ impl SqlBuilder for FireBirdDB {
 }
 
 impl FireBirdDB {
-    fn query_count(&self, name: &str, where_str: Option<&str>) -> anyhow::Result<usize> {
-        let mut conn = self.get_conn()?;
+    fn query_count(
+        conn: &mut PooledConnection<PoolManager>, name: &str, where_str: Option<&str>,
+    ) -> anyhow::Result<usize> {
         let mut s = format!(r#"SELECT count(1) from "{name}" "#);
         if let Some(where_str) = where_str {
             s.push_str(format!(" where {where_str}").as_str());
@@ -1104,18 +1149,20 @@ fn put_value_in_sql(
 #[async_trait::async_trait]
 impl CheckConn for FireBirdDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
-        let mut conn = self.get_conn()?;
-        let now = std::time::Instant::now();
-        let _: Option<Row> =
-            block_in_place(|| conn.query_first("SELECT 1 FROM RDB$DATABASE;", ()))?;
-
-        anyhow::Ok(now.elapsed())
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let mut conn = this.get_conn()?;
+            let now = std::time::Instant::now();
+            let _: Option<Row> = conn.query_first("SELECT 1 FROM RDB$DATABASE;", ())?;
+            anyhow::Ok(now.elapsed())
+        })
+        .await?
     }
 }
 
 impl FireBirdDB {
-    pub fn new(config: FireBirdConfig) -> anyhow::Result<Self> {
-        block_in_place(|| {
+    pub async fn new(config: FireBirdConfig) -> anyhow::Result<Self> {
+        spawn_blocking(move || {
             let mut builder = r2d2::Pool::builder();
             builder = builder.max_size(POOL_MAX_CONNECTIONS);
             if let Some(x) = config.conn_timeout {
@@ -1125,18 +1172,35 @@ impl FireBirdDB {
                 config: config.clone(),
             })?;
             anyhow::Ok(Self {
-                config,
+                config: Arc::new(config),
                 pool,
                 query_connection: Default::default(),
                 query_connections_tx: Default::default(),
                 key_words_completion: Default::default(),
             })
         })
+        .await?
     }
 
-    pub(crate) fn get_conn(&self) -> anyhow::Result<r2d2::PooledConnection<PoolManager>> {
-        let conn = block_in_place(|| self.pool.get())?;
+    pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<PoolManager>> {
+        let conn = match self.config.conn_timeout {
+            Some(timeout) => self.pool.get_timeout(Duration::from(timeout)),
+            None => self.pool.get(),
+        }?;
         anyhow::Ok(conn)
+    }
+}
+
+impl FireBirdDB {
+    pub(crate) async fn execute(&self, sql: impl Into<String>) -> anyhow::Result<usize> {
+        let sql = sql.into();
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let mut conn = this.get_conn()?;
+            let r = conn.execute(&sql, ())?;
+            anyhow::Ok(r)
+        })
+        .await?
     }
 }
 
@@ -1157,7 +1221,7 @@ pub(crate) fn gen_show_sql(
 }
 
 #[cfg(test)]
-pub(crate) fn make_test_object() -> FireBirdDB {
+pub(crate) async fn make_test_object() -> FireBirdDB {
     FireBirdDB::new(FireBirdConfig {
         host: "localhost".to_string(),
         port: 3050,
@@ -1165,21 +1229,22 @@ pub(crate) fn make_test_object() -> FireBirdDB {
         password: "root".to_string(),
         db: "/var/lib/firebird/data/test.fdb".to_string(),
         read_only: false,
-        conn_timeout: Some(5000.into()),
+        conn_timeout: Some(500000.into()),
         save_password: true,
     })
+    .await
     .unwrap()
 }
 
 #[cfg(test)]
-
 mod tests {
     use super::*;
     use crate::db::IndexKind;
     use crate::enable_test_log;
+    use tokio::sync::Mutex;
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_check_conn() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
         println!("ping time:{:?}", d);
     }
@@ -1191,7 +1256,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_transaction() {
         let _guard = test_lock().lock().await;
-        let db = make_test_object();
+        let db = make_test_object().await;
 
         let table_name = "TEST_COMMIT";
         let _ = db.drop_table(table_name, false).await;
@@ -1256,7 +1321,7 @@ mod tests {
 
         enable_test_log();
 
-        let db = make_test_object();
+        let db = make_test_object().await;
         let table_name = "TEST_VIEW_TABLE";
         let view_name = "TEST_VIEW";
         let _ = db.drop_view(view_name).await;
@@ -1325,14 +1390,14 @@ mod tests {
         enable_test_log();
         let table_name = "TEST_INDEX";
         let index_name = "TEST_INDEX_NAME_INDEX";
-        let db = make_test_object();
+        let db = make_test_object().await;
         let _err = db.drop_index(table_name, index_name).await;
         if let Err(err) = _err {
-            println!("drop index err:{}", err.to_string());
+            println!("drop index err:{}", err);
         }
         let _err = db.drop_table(table_name, false).await;
         if let Err(err) = _err {
-            println!("drop table err:{}", err.to_string());
+            println!("drop table err:{}", err);
         }
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
@@ -1369,7 +1434,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_list_table() {
         let _guard = test_lock().lock().await;
-        let db = make_test_object();
+        let db = make_test_object().await;
         let tables = db.list_table().await.unwrap();
         for table in tables {
             println!("table:{:?}", table);
@@ -1379,10 +1444,10 @@ mod tests {
     async fn test_truncate() {
         let _guard = test_lock().lock().await;
         let table_name = "TEST_TRUNCATE";
-        let db = make_test_object();
+        let db = make_test_object().await;
         let _err = db.drop_table(table_name, false).await;
         if let Err(err) = _err {
-            println!("drop table err:{}", err.to_string());
+            println!("drop table err:{}", err);
         }
 
         let query_id = "";
@@ -1429,10 +1494,10 @@ mod tests {
         let _guard = test_lock().lock().await;
         // enable_test_log();
         let table_name = "TEST_TABLE";
-        let db = make_test_object();
+        let db = make_test_object().await;
         let _err = db.drop_table(table_name, false).await;
         if let Err(err) = _err {
-            println!("drop table err:{}", err.to_string());
+            println!("drop table err:{}", err);
         }
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
@@ -1521,10 +1586,10 @@ mod tests {
 
         enable_test_log();
         let table_name = "TEST_TABLE2";
-        let db = make_test_object();
+        let db = make_test_object().await;
         let _err = db.drop_table(table_name, false).await;
         if let Err(err) = _err {
-            println!("drop table err:{}", err.to_string());
+            println!("drop table err:{}", err);
         }
         let query_id = "";
         db.open_connection(query_id).await.unwrap();

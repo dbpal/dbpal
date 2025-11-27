@@ -387,90 +387,6 @@ impl AstCompletionHelper for SqlServerDB {
     }
 }
 
-#[cfg(test)]
-
-mod tests {
-    use std::path::Path;
-
-    use crate::db::QuerySql;
-    use crate::enable_test_log;
-    use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::language_server::{LangServerCommon, LanguageServer};
-    use crate::mssql::{make_test_object, test_lock};
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_auto_completion() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
-        enable_test_log();
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
-                CREATE TABLE departments (
-                    id INT IDENTITY(1,1) PRIMARY KEY,  -- 自增列
-                    name VARCHAR(100) NOT NULL
-                );
-
-                CREATE TABLE employees (
-                    id INT IDENTITY(1,1) PRIMARY KEY,  -- 自增列
-                    name VARCHAR(50) NOT NULL,
-                    department_id INT,
-                    FOREIGN KEY (department_id) REFERENCES departments(id)  -- 添加外键约束
-                );
-        "#,
-            )
-            .await;
-
-        db.execute_sql(
-            query_id,
-            "INSERT INTO departments (name) VALUES ('人力资源'), ('财务部'), ('市场部');",
-        )
-        .await
-        .unwrap()
-        .unwrap();
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let mut file_path = Path::new(manifest_dir).to_path_buf();
-        file_path.push("tests");
-        file_path.push("mssql_auto_completion_test.sql");
-        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, false).await;
-    }
-
-    #[ignore = "手动跑跑的测试"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_completion_xxx() {
-        let _guard = test_lock().lock().await;
-        enable_test_log();
-        let db = make_test_object().await;
-        test_file_auto_completion(
-            r#"GRANT SELECT ON dbo.employees TO public;
-20 dbo ; 30 employees"#,
-            &db,
-            false,
-        )
-        .await;
-    }
-    #[ignore = "手动跑跑的测试"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_completion_execute() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
-        let x = db.list_execute(None).await;
-        println!("###########:{:?}", x);
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-
-    async fn test_try_get_max_id() {
-        let db = make_test_object().await;
-        let max_id = db.try_get_max_id("departments").await.unwrap();
-        println!("max id is:{}", max_id);
-    }
-}
-
 /// SQL Server 2022 全部内置函数名称
 pub const SQLSERVER_FUNCTIONS: &[&str] = &[
     // 数学
@@ -939,3 +855,86 @@ pub const SQL_SERVER_GLOBAL_VARS: &[&str] = &[
     "TOTAL_READ",
     "TOTAL_WRITE",
 ];
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use crate::db::QuerySql;
+    use crate::enable_test_log;
+    use crate::language_server::completion_test::test_file_auto_completion;
+    use crate::language_server::{LangServerCommon, LanguageServer};
+    use crate::mssql::{make_test_object, test_lock};
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_auto_completion() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        enable_test_log();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+                CREATE TABLE departments (
+                    id INT IDENTITY(1,1) PRIMARY KEY,  -- 自增列
+                    name VARCHAR(100) NOT NULL
+                );
+
+                CREATE TABLE employees (
+                    id INT IDENTITY(1,1) PRIMARY KEY,  -- 自增列
+                    name VARCHAR(50) NOT NULL,
+                    department_id INT,
+                    FOREIGN KEY (department_id) REFERENCES departments(id)  -- 添加外键约束
+                );
+        "#,
+            )
+            .await;
+
+        db.execute_sql(
+            query_id,
+            "INSERT INTO departments (name) VALUES ('人力资源'), ('财务部'), ('市场部');",
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir).to_path_buf();
+        file_path.push("tests");
+        file_path.push("mssql_auto_completion_test.sql");
+        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
+        test_file_auto_completion(&content, &db, false).await;
+    }
+
+    #[ignore = "手动跑跑的测试"]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_completion_xxx() {
+        let _guard = test_lock().lock().await;
+        enable_test_log();
+        let db = make_test_object().await;
+        test_file_auto_completion(
+            r#"GRANT SELECT ON dbo.employees TO public;
+20 dbo ; 30 employees"#,
+            &db,
+            false,
+        )
+        .await;
+    }
+    #[ignore = "手动跑跑的测试"]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_completion_execute() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        let x = db.list_execute(None).await;
+        println!("###########:{:?}", x);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+
+    async fn test_try_get_max_id() {
+        let db = make_test_object().await;
+        let max_id = db.try_get_max_id("departments").await.unwrap();
+        println!("max id is:{}", max_id);
+    }
+}

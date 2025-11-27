@@ -4,6 +4,28 @@ use std::sync::PoisonError;
 use sqlparser::dialect::Dialect;
 use sqlparser::tokenizer::Token;
 
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
+pub(crate) fn run_with_timeout<F, T>(f: F, timeout: Duration) -> anyhow::Result<T>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let result = f();
+        let err = tx.send(result); // 结果发送后线程自然结束
+        if let Err(err) = err {
+            log::error!("send error:{}", err);
+        }
+    });
+    match rx.recv_timeout(timeout) {
+        Ok(val) => Ok(val),
+        Err(_) => anyhow::bail!("operation timeout"),
+    }
+}
+
 /// create csv file list of string
 /// each line of line separator
 pub(crate) fn create_csv(ds: &Vec<Vec<Option<String>>>, delimiter: char) -> String {
@@ -131,6 +153,24 @@ impl TimeSome {
     }
 }
 
+#[inline]
+pub(crate) fn remove_first_char_string(s: String) -> String {
+    s.chars().skip(1).collect()
+}
+
+// try remove a @ used for mysql etc database
+pub(crate) fn try_remove_one_at(value: String) -> String {
+    if value.starts_with('@') && !value.starts_with("@@") {
+        remove_first_char_string(value)
+    } else {
+        value
+    }
+}
+
+pub(crate) fn lock_err_2_anyhow<T>(x: PoisonError<T>) -> anyhow::Error {
+    anyhow::Error::msg(format!("lock failed,err:{}", x))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,22 +232,4 @@ mod tests {
             }
         }
     }
-}
-
-#[inline]
-pub(crate) fn remove_first_char_string(s: String) -> String {
-    s.chars().skip(1).collect()
-}
-
-// try remove a @ used for mysql etc database
-pub(crate) fn try_remove_one_at(value: String) -> String {
-    if value.starts_with('@') && !value.starts_with("@@") {
-        remove_first_char_string(value)
-    } else {
-        value
-    }
-}
-
-pub(crate) fn lock_err_2_anyhow<T>(x: PoisonError<T>) -> anyhow::Error {
-    anyhow::Error::msg(format!("lock failed,err:{}", x))
 }

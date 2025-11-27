@@ -2203,7 +2203,6 @@ impl CassandraDB {
 }
 
 #[cfg(test)]
-
 mod tests {
     use super::*;
     use crate::enable_test_log;
@@ -2362,7 +2361,7 @@ mod tests {
         .unwrap();
 
         let resp = db
-            .show_table(&table_name, None, None, 1, 100, None)
+            .show_table(table_name, None, None, 1, 100, None)
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2503,7 +2502,7 @@ mod tests {
         values.insert("decimal_column".to_string(), Some("123.45".to_string()));
         values.insert("double_column".to_string(), Some("3.14159".to_string()));
 
-        db.table_insert(&table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         {
             let resp = db.show_table(table_name, None, None, 1, 100, None).await;
@@ -2596,7 +2595,7 @@ mod tests {
         values.insert("decimal_column".to_string(), Some("[123.45]".to_string()));
         values.insert("double_column".to_string(), Some("[3.14159]".to_string()));
 
-        db.table_insert(&table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         {
             let resp = db.show_table(table_name, None, None, 1, 100, None).await;
@@ -2691,7 +2690,7 @@ mod tests {
             Some("123456789012345678901234567890".to_string()),
         );
 
-        db.table_insert(&table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         {
             let resp = db.show_table(table_name, None, None, 1, 100, None).await;
@@ -2789,7 +2788,7 @@ mod tests {
             Some("[123456789012345678901234567890]".to_string()),
         );
 
-        db.table_insert(&table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         {
             let resp = db.show_table(table_name, None, None, 1, 100, None).await;
@@ -2887,7 +2886,7 @@ mod tests {
         values.insert("smallint_value".to_string(), Some("123".to_string()));
         values.insert("tinyint_value".to_string(), Some("5".to_string()));
 
-        db.table_insert(&table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         {
             let resp = db.show_table(table_name, None, None, 1, 100, None).await;
@@ -2988,7 +2987,7 @@ mod tests {
         values.insert("smallint_value".to_string(), Some("[123]".to_string()));
         values.insert("tinyint_value".to_string(), Some("[5]".to_string()));
 
-        db.table_insert(&table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         {
             let resp = db.show_table(table_name, None, None, 1, 100, None).await;
@@ -3072,7 +3071,7 @@ mod tests {
             Some("{first_name : 'yu' ,last_name : 'yang' , email : 'xxx',age : 100}".to_string()),
         );
         values.insert("tuple_field".to_string(), Some("(1,100)".to_string()));
-        db.table_insert(&table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         {
             let resp = db.show_table(table_name, None, None, 1, 100, None).await;
@@ -3331,8 +3330,8 @@ mod tests {
             .unwrap();
         assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
 
-        db.rename_table(&table_name, &table_name2).await.unwrap();
-        db.rename_table(&table_name2, &table_name).await.unwrap();
+        db.rename_table(table_name, &table_name2).await.unwrap();
+        db.rename_table(&table_name2, table_name).await.unwrap();
     }
 
     #[tokio::test]
@@ -3360,7 +3359,7 @@ mod tests {
             .unwrap();
         assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
         db.create_index(
-            &table_name,
+            table_name,
             "test_index_email_index",
             IndexKind::Index,
             &["email".to_string()],
@@ -3368,7 +3367,7 @@ mod tests {
         .await
         .unwrap();
 
-        let list = db.show_indexes(&table_name).await.unwrap();
+        let list = db.show_indexes(table_name).await.unwrap();
         println!("indexes:{:?}", list);
     }
 
@@ -3428,7 +3427,7 @@ mod tests {
         println!("view list:{:?}", list);
         {
             let resp = db
-                .show_view(&view_name, None, None, 1, 100, None)
+                .show_view(view_name, None, None, 1, 100, None)
                 .await
                 .unwrap();
             println!("resp:{:?}", resp);
@@ -3438,7 +3437,7 @@ mod tests {
     #[test]
     fn test_parser_start_bytes() {
         let sql = "select * from test1 ; select * from test2;";
-        let ss = sql_to_each(&sql);
+        let ss = sql_to_each(sql);
         println!("{:?}", ss);
         assert!(ss.len() == 2);
     }
@@ -3450,7 +3449,7 @@ mod tests {
                 STYPE int
                 FINALFUNC count_final_function
                 INITCOND 0;"#;
-        CassandraAST::new(&sql)
+        CassandraAST::new(sql)
             .statements
             .iter()
             .for_each(|x| println!("{:?}", x.statement));

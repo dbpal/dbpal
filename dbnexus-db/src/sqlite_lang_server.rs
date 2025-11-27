@@ -288,87 +288,6 @@ impl AstCompletionHelper for SqliteDB {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::db::QuerySql;
-    use crate::enable_test_log;
-    use crate::language_server::LanguageServer;
-    use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::sqlite::make_test_object;
-    use std::path::Path;
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_auto_completion() {
-        enable_test_log();
-        let db = make_test_object().await;
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-        let _ = db
-            .query_sql(
-                query_id,
-                r#"
-            -- 测试用到的表格 和建表语句
-            -- 创建 departments 表
-            CREATE TABLE departments (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL
-            );
-
-            -- 创建 employees 表
-            CREATE TABLE employees (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL,
-                department_id INTEGER,
-                FOREIGN KEY (department_id) REFERENCES departments (id)
-            );
-
-            -- create view for test
-            create view employees_view as select * from employees;
-        "#,
-            )
-            .await;
-
-        db.execute_sql(query_id, "replace into departments values (1,'test')")
-            .await
-            .unwrap()
-            .unwrap();
-
-        let _ = db
-            .query_sql(
-                query_id,
-                r#"
-                create index employees_name on employees(name)
-        "#,
-            )
-            .await;
-
-        enable_test_log();
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let mut file_path = Path::new(manifest_dir).to_path_buf();
-        file_path.push("tests");
-        file_path.push("sqlite_auto_completion_test.sql");
-        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-
-        test_file_auto_completion(&content, &db, false).await;
-    }
-
-    #[ignore = "手动跑跑的测试"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_completion_xxx() {
-        enable_test_log();
-        let db = make_test_object().await;
-        test_file_auto_completion(include_str!("./xxx.sql"), &db, true).await;
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-
-    async fn test_try_get_max_id() {
-        let db = make_test_object().await;
-        let max_id = db.try_get_max_id("departments").await.unwrap();
-        println!("max id is:{}", max_id);
-    }
-}
-
 pub(crate) const SQLITE_TYPES: &[&str] = &[
     "INTEGER",
     "REAL",
@@ -548,3 +467,84 @@ pub(crate) const SQLITE_KEY_WORDS: &[&str] = &[
     "WITH",
     "WITHOUT",
 ];
+
+#[cfg(test)]
+mod tests {
+    use crate::db::QuerySql;
+    use crate::enable_test_log;
+    use crate::language_server::LanguageServer;
+    use crate::language_server::completion_test::test_file_auto_completion;
+    use crate::sqlite::make_test_object;
+    use std::path::Path;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_auto_completion() {
+        enable_test_log();
+        let db = make_test_object().await;
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+            -- 测试用到的表格 和建表语句
+            -- 创建 departments 表
+            CREATE TABLE departments (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL
+            );
+
+            -- 创建 employees 表
+            CREATE TABLE employees (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                department_id INTEGER,
+                FOREIGN KEY (department_id) REFERENCES departments (id)
+            );
+
+            -- create view for test
+            create view employees_view as select * from employees;
+        "#,
+            )
+            .await;
+
+        db.execute_sql(query_id, "replace into departments values (1,'test')")
+            .await
+            .unwrap()
+            .unwrap();
+
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+                create index employees_name on employees(name)
+        "#,
+            )
+            .await;
+
+        enable_test_log();
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir).to_path_buf();
+        file_path.push("tests");
+        file_path.push("sqlite_auto_completion_test.sql");
+        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
+
+        test_file_auto_completion(&content, &db, false).await;
+    }
+
+    #[ignore = "手动跑跑的测试"]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_completion_xxx() {
+        enable_test_log();
+        let db = make_test_object().await;
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, true).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+
+    async fn test_try_get_max_id() {
+        let db = make_test_object().await;
+        let max_id = db.try_get_max_id("departments").await.unwrap();
+        println!("max id is:{}", max_id);
+    }
+}

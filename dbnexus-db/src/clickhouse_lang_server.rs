@@ -250,77 +250,6 @@ const CLICKHOUSE_TYPES: &[&str] = &[
     "JSON",
 ];
 
-#[cfg(test)]
-
-mod tests {
-    use std::path::Path;
-
-    use crate::clickhouse::make_test_object;
-    use crate::db::QuerySql;
-    use crate::enable_test_log;
-    use crate::language_server::completion_test::test_file_auto_completion;
-
-    // partition test failed , sqlparser can't parse a valid partition statement.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_auto_completion() {
-        let db = make_test_object();
-        // enable_test_log();
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
-                CREATE TABLE employees (
-                    id UInt32,
-                    first_name String,
-                    last_name String,
-                    position String,
-                    department String,
-                    hire_date Date,
-                    salary Float64
-                ) ENGINE = MergeTree()
-                ORDER BY employee_id;
-            "#,
-            )
-            .await
-            .unwrap();
-
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
-                ALTER TABLE employees 
-                    ADD PROJECTION employee_salary_projection 
-                    (
-                        SELECT 
-                            department, 
-                            AVG(salary) AS avg_salary, 
-                            COUNT(*) AS employee_count 
-                        GROUP BY 
-                            department
-                    );
-            "#,
-            )
-            .await
-            .unwrap();
-
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let mut file_path = Path::new(manifest_dir).to_path_buf();
-        file_path.push("tests");
-        file_path.push("clickhouse_auto_completion_test.sql");
-        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, false).await;
-    }
-    #[ignore = "手动跑跑的测试"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_completion_xxx() {
-        enable_test_log();
-        let db = make_test_object();
-        test_file_auto_completion(include_str!("./xxx.sql"), &db, false).await;
-    }
-}
-
 // clickhouse_formats.rs
 pub const CLICKHOUSE_FORMATS: &[&str] = &[
     "Arrow",
@@ -396,3 +325,73 @@ pub const CLICKHOUSE_FORMATS: &[&str] = &[
     "XML",
     "YAML",
 ];
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use crate::clickhouse::make_test_object;
+    use crate::db::QuerySql;
+    use crate::enable_test_log;
+    use crate::language_server::completion_test::test_file_auto_completion;
+
+    // partition test failed , sqlparser can't parse a valid partition statement.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_auto_completion() {
+        let db = make_test_object();
+        // enable_test_log();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+                CREATE TABLE employees (
+                    id UInt32,
+                    first_name String,
+                    last_name String,
+                    position String,
+                    department String,
+                    hire_date Date,
+                    salary Float64
+                ) ENGINE = MergeTree()
+                ORDER BY employee_id;
+            "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+                ALTER TABLE employees 
+                    ADD PROJECTION employee_salary_projection 
+                    (
+                        SELECT 
+                            department, 
+                            AVG(salary) AS avg_salary, 
+                            COUNT(*) AS employee_count 
+                        GROUP BY 
+                            department
+                    );
+            "#,
+            )
+            .await
+            .unwrap();
+
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir).to_path_buf();
+        file_path.push("tests");
+        file_path.push("clickhouse_auto_completion_test.sql");
+        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
+        test_file_auto_completion(&content, &db, false).await;
+    }
+    #[ignore = "手动跑跑的测试"]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_completion_xxx() {
+        enable_test_log();
+        let db = make_test_object();
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, false).await;
+    }
+}

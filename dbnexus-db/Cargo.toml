@@ -65,6 +65,7 @@ tokio.workspace = true
 tokio-util.workspace = true
 rust_decimal = "*"
 regex = "*"
+v_htmlescape = "0.15.8"
 cdrs-tokio = { version = "8", features = ["rust-tls"] }
 oracle = { version = "0.6.3", features = ["chrono"] }
 pg_interval = "*"

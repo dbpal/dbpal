@@ -2306,9 +2306,9 @@ pub(crate) mod test_fns {
 
         let table = "test_create_trigger";
 
-        let ts = db.list_trigger(&table).await.unwrap();
+        let ts = db.list_trigger(table).await.unwrap();
         for t in ts.iter() {
-            let detail = db.show_trigger(&table, &t.name).await.unwrap();
+            let detail = db.show_trigger(table, &t.name).await.unwrap();
 
             println!("trigger:{} {:?}", t.name, detail);
             if t.name == "after_insert_test_create_trigger2" {
@@ -2324,8 +2324,7 @@ pub(crate) mod test_fns {
         let table_name = "test_export";
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let rs = vec![
-            r#"drop table if exists test_export;"#,
+        let rs = [r#"drop table if exists test_export;"#,
             r#"CREATE TABLE test_export (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(50),
@@ -2334,8 +2333,7 @@ pub(crate) mod test_fns {
             );"#,
             "INSERT INTO test_export (name, age, email) VALUES ('John', 25, 'john@example.com');",
             "INSERT INTO test_export (name, age, email) VALUES ('Jane', 30, 'jane@example.com');",
-            "INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');",
-        ];
+            "INSERT INTO test_export (name, age, email) VALUES ('Bob', 40, 'bob@example.com');"];
         for s in rs.iter() {
             let _ = db.execute_sql(query_id, s).await.unwrap();
         }

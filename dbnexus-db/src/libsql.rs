@@ -1249,7 +1249,6 @@ fn encode_row_as_json(r: &Row) -> anyhow::Result<serde_json::Value> {
 }
 
 #[cfg(test)]
-
 // this test no need clean up, we use memory sqlite db.
 pub(crate) async fn make_test_object() -> LibSqlDB {
     LibSqlDB::new(LibSqlDBConfig {
@@ -1531,7 +1530,7 @@ mod tests {
         let _ = db.drop_index(table_name, index_name).await;
         let _err = db.drop_table(table_name, false).await;
         if let Err(err) = _err {
-            println!("drop table failed,err:{}", err.to_string());
+            println!("drop table failed,err:{}", err);
         }
         let conn = db.get_conn().await.unwrap();
         conn.execute(
@@ -1786,7 +1785,7 @@ mod tests {
         let views = db.list_view().await.unwrap();
         for v in views.iter() {
             let list = db
-                .show_view(&v.name.as_str(), None, None, 1, 100, None)
+                .show_view(v.name.as_str(), None, None, 1, 100, None)
                 .await
                 .unwrap();
             println!("view value:{:?}", list);

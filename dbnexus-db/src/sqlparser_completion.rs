@@ -2438,7 +2438,7 @@ FROM XMLTABLE(
         let dialect = sqlparser::dialect::MySqlDialect {};
         let tokens = sqlparser::tokenizer::Tokenizer::new(&dialect, sql)
             .tokenize_with_location()
-            .unwrap_or(vec![]);
+            .unwrap_or_default();
         for t in tokens.iter() {
             println!("{:?}", t);
         }
@@ -2451,7 +2451,7 @@ FROM XMLTABLE(
         let dialect = sqlparser::dialect::PostgreSqlDialect {};
         let tokens = sqlparser::tokenizer::Tokenizer::new(&dialect, sql)
             .tokenize_with_location()
-            .unwrap_or(vec![]);
+            .unwrap_or_default();
         for t in tokens.iter() {
             println!("{:?}", t);
         }

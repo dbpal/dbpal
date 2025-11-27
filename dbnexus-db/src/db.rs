@@ -8,7 +8,7 @@ use std::time::Duration;
 use crate::language_server::LanguageServer;
 use chrono::{DateTime, FixedOffset};
 use tokio::io::AsyncWriteExt;
-use tokio::task::block_in_place;
+use tokio::task::spawn_blocking;
 use typescript_type_def::TypeDef;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -205,8 +205,6 @@ pub trait SchemaTrait:
             .map(|x| x.fields)
     }
     /// export as sql only support table so the frontend should only not pass this kind
-    /// when this is view
-
     async fn export_table_or_view_to_file(
         &self, table_name: &str, filepath: &str, kind: ExportKind, emit: ExportedSizeEmitter,
     ) -> anyhow::Result<()> {
@@ -895,7 +893,6 @@ async fn write_export_file(
             let mut file = tokio::fs::File::create(&filepath).await?;
             // Add a worksheet to the workbook.
             let template = include_str!("./export_html_template.html");
-
             {
                 let t = "<table>";
                 let index = template.find(t).unwrap();
@@ -912,24 +909,30 @@ async fn write_export_file(
             {
                 let t = "</table>";
                 let index = template.find(t).unwrap();
-
                 file.write_all(&template.as_bytes()[index..]).await?;
             }
+            emit(size.acc);
             anyhow::Ok(())
         }
         ExportKind::Xlsx { .. } => {
-            let mut workbook = rust_xlsxwriter::workbook::Workbook::new();
-            // Add a worksheet to the workbook.
-            let worksheet = block_in_place(|| workbook.add_worksheet_with_constant_memory());
-            while let Some(edit) = receiver.recv().await {
-                let edit = XlsxEdit::from(edit);
-                if size.add(edit.content.len()) {
-                    emit(size.acc)
+            let filepath = filepath.to_string();
+            let emit = emit.clone();
+            spawn_blocking(move || {
+                let mut workbook = rust_xlsxwriter::workbook::Workbook::new();
+                // Add a worksheet to the workbook.
+                let worksheet = workbook.add_worksheet_with_constant_memory();
+                while let Some(edit) = receiver.blocking_recv() {
+                    let edit = XlsxEdit::from(edit);
+                    if size.add(edit.content.len()) {
+                        emit(size.acc)
+                    }
+                    worksheet.write_string(edit.row, edit.column, edit.content)?;
                 }
-                block_in_place(|| worksheet.write_string(edit.row, edit.column, edit.content))?;
-            }
-            block_in_place(|| workbook.save(filepath))?;
-            anyhow::Ok(())
+                workbook.save(filepath)?;
+                emit(size.acc);
+                anyhow::Ok(())
+            })
+            .await?
         }
         _ => {
             let mut file = tokio::fs::File::create(&filepath).await?;
@@ -939,10 +942,11 @@ async fn write_export_file(
                     emit(size.acc)
                 }
             }
+            emit(size.acc);
             anyhow::Ok(())
         }
     };
-    emit(size.acc);
+
     r
 }
 
@@ -1527,7 +1531,7 @@ pub(crate) fn create_html_table_header(x: &[String]) -> String {
         </tr>
     "#,
         x.iter()
-            .map(|x| format!("<th>{x}</th>"))
+            .map(|x| format!("<th>{}</th>", v_htmlescape::escape(x)))
             .collect::<Vec<_>>()
             .join("")
     )
@@ -1546,7 +1550,7 @@ pub(crate) fn create_html_table_data(data: &Vec<Vec<Option<String>>>) -> String 
                 .map(|x| {
                     format!(
                         "<td>{}</td>",
-                        x.as_ref().map(|x| x.as_str()).unwrap_or_default()
+                        v_htmlescape::escape(x.as_ref().map(|x| x.as_str()).unwrap_or_default())
                     )
                 })
                 .collect::<Vec<_>>()

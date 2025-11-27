@@ -2263,7 +2263,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let db_names = db.list_schema().await.unwrap();
         for db_name in db_names.iter() {
             println!("db:{:?}", db_names);
-            db.open_schema(&db_name).await.unwrap();
+            db.open_schema(db_name).await.unwrap();
         }
 
         db.drop_schema("db11").await.unwrap();
@@ -2422,7 +2422,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let table_name_dup = format!("{}_dup", table_name);
         let _ = db.drop_table(&table_name_dup, false).await;
 
-        db.duplicate_table(&table_name, &table_name_dup)
+        db.duplicate_table(table_name, &table_name_dup)
             .await
             .unwrap();
         let resp2 = db
@@ -2526,7 +2526,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
         let _ = db.drop_table(&table_name_dup, false).await;
-        db.duplicate_table(&table_name, &table_name_dup)
+        db.duplicate_table(table_name, &table_name_dup)
             .await
             .unwrap();
 
@@ -2603,7 +2603,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
         let _ = db.drop_table(table_name_dup.as_str(), false).await;
-        db.duplicate_table(&table_name, &table_name_dup)
+        db.duplicate_table(table_name, &table_name_dup)
             .await
             .unwrap();
         let resp2 = db
@@ -2675,7 +2675,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
         let _ = db.drop_table(table_name_dup.as_str(), false).await;
-        db.duplicate_table(&table_name, &table_name_dup)
+        db.duplicate_table(table_name, &table_name_dup)
             .await
             .unwrap();
         let resp2 = db
@@ -2757,7 +2757,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         // dup table and test eq
         let table_name_dup = format!("{}_dup", table_name);
         let _ = db.drop_table(&table_name_dup, false).await;
-        db.duplicate_table(&table_name, &table_name_dup)
+        db.duplicate_table(table_name, &table_name_dup)
             .await
             .unwrap();
         let resp2 = db

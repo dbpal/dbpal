@@ -20,7 +20,7 @@ use crate::db::{
     XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
     export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
-use crate::helper::{create_csv, lock_err_2_anyhow};
+use crate::helper::{create_csv, lock_err_2_anyhow, run_with_timeout};
 
 use crate::language_server::LexerCompletionTrait;
 
@@ -62,6 +62,7 @@ impl OracleDB {
         builder
             .min_connections(min_conn.unwrap_or(10))
             .max_connections(POOL_MAX_CONNECTIONS);
+
         let pool = builder.build()?;
         anyhow::Ok(Self {
             pool: Arc::new(pool),
@@ -899,7 +900,7 @@ impl OracleDB {
         let query_id = query_id.map(|x| x.to_string());
         let sql = sql.to_string();
         spawn_blocking(move || {
-            let query_id = query_id.as_ref().map(|x| x.as_str());
+            let query_id = query_id.as_deref();
             let conn = s.get_conn_by_query_id(query_id)?;
             let conn = conn.lock().unwrap();
             let mut first = true;
@@ -1110,9 +1111,9 @@ impl OracleDB {
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            let mut rows = conn.query(&sql, &[])?;
+            let rows = conn.query(&sql, &[])?;
             let mut r = vec![];
-            while let Some(row) = rows.next() {
+            for row in rows {
                 let row = row?;
                 r.push(row);
             }
@@ -1829,7 +1830,13 @@ impl DBTrait for OracleDB {
 
 impl OracleDB {
     pub(crate) fn get_conn(&self) -> anyhow::Result<oracle::Connection> {
-        let mut conn: oracle::Connection = self.pool.get()?;
+        let mut conn: oracle::Connection = match self.config.conn_timeout {
+            Some(timeout) => {
+                let this = Clone::clone(self);
+                run_with_timeout(move || this.pool.get(), Duration::from(timeout))??
+            }
+            None => self.pool.get()?,
+        };
         if let Some(db_name) = &self.config.schema {
             let sql = format!("ALTER SESSION SET CURRENT_SCHEMA={db_name}");
             log::info!("sql:{}", sql);
@@ -1844,7 +1851,8 @@ impl OracleDB {
 // ORACLE_PWD=welcome123   container-registry.oracle.com/database/express:latest
 #[cfg(test)]
 pub(crate) fn make_test_object(schema: Option<String>) -> OracleDB {
-    let x = OracleDB::new(
+    
+    OracleDB::new(
         OracleDBConfig {
             conn_timeout: Some(5000.into()),
             username: "system".to_string(),
@@ -1858,8 +1866,7 @@ pub(crate) fn make_test_object(schema: Option<String>) -> OracleDB {
         },
         Some(2),
     )
-    .unwrap();
-    x
+    .unwrap()
 }
 
 #[cfg(test)]
@@ -1971,7 +1978,7 @@ mod tests {
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let table_name = "TEST_TRIGGER";
-        let _ = db.drop_table(&table_name, false).await;
+        let _ = db.drop_table(table_name, false).await;
 
         db.query_sql(
             query_id,
@@ -1999,12 +2006,12 @@ mod tests {
         .await
         .unwrap();
 
-        let triggers = db.list_trigger(&table_name).await.unwrap();
+        let triggers = db.list_trigger(table_name).await.unwrap();
         for tri in triggers.iter() {
-            let show_trigger = db.show_trigger(&table_name, &tri.name).await.unwrap();
+            let show_trigger = db.show_trigger(table_name, &tri.name).await.unwrap();
             println!("trigger detail:{:?}", show_trigger);
-            db.disable_trigger(&table_name, &tri.name).await.unwrap();
-            db.enable_trigger(&table_name, &tri.name).await.unwrap();
+            db.disable_trigger(table_name, &tri.name).await.unwrap();
+            db.enable_trigger(table_name, &tri.name).await.unwrap();
         }
     }
 
@@ -2104,8 +2111,7 @@ mod tests {
         let _ = db.drop_table("TEST_VIEW_TABLE", false).await;
         let _ = db.drop_view("TEST_VIEW").await;
 
-        let ss = vec![
-            r#"
+        let ss = [r#"
         CREATE TABLE TEST_VIEW_TABLE (
             product_id   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             product_name VARCHAR2(50) NOT NULL,
@@ -2120,10 +2126,9 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
             r#"
             CREATE VIEW TEST_VIEW AS
             SELECT product_id, product_name, category, price
-            FROM  TEST_VIEW_TABLE"#,
-        ];
+            FROM  TEST_VIEW_TABLE"#];
         for s in ss.iter() {
-            db.execute_sql(query_id, *s).await.unwrap().unwrap();
+            db.execute_sql(query_id, s).await.unwrap().unwrap();
         }
         let views = db.list_view().await.unwrap();
         println!("{:?}", views);
@@ -2144,8 +2149,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
         let _ = db.drop_table("TEST_MATERIALIZED_VIEW_TABLE", false).await;
         let _ = db.drop_materialized_view("TEST_MATERIALIZED_VIEW").await;
 
-        let ss = vec![
-            r#"
+        let ss = [r#"
         CREATE TABLE  TEST_MATERIALIZED_VIEW_TABLE (
             product_id   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             product_name VARCHAR2(50) NOT NULL,
@@ -2160,10 +2164,9 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             r#"
             CREATE MATERIALIZED VIEW TEST_MATERIALIZED_VIEW AS
             SELECT product_id, product_name, category, price
-            FROM  TEST_MATERIALIZED_VIEW_TABLE"#,
-        ];
+            FROM  TEST_MATERIALIZED_VIEW_TABLE"#];
         for s in ss.iter() {
-            db.execute_sql(query_id, *s).await.unwrap().unwrap();
+            db.execute_sql(query_id, s).await.unwrap().unwrap();
         }
         let views = db.list_materialized_view().await.unwrap();
         println!("list_materialized_view:{:?}", views);
@@ -2186,7 +2189,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let table_name = "TEST_INDEXES";
-        let _ = db.drop_table(&table_name, false).await;
+        let _ = db.drop_table(table_name, false).await;
         db.execute_sql(
             query_id,
             format!(
@@ -2298,8 +2301,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         db.set_auto_commit(query_uuid, false).await.unwrap();
         assert!(!db.get_auto_commit(query_uuid).await.unwrap());
 
-        let sqls = vec![
-            r#"
+        let sqls = [r#"
             CREATE TABLE TEST_QUERY (
                 id NUMBER PRIMARY KEY,
                 name VARCHAR2(50),
@@ -2309,15 +2311,14 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             "INSERT INTO TEST_QUERY (id, name, age) VALUES (1, 'Alice', 25)",
             "INSERT INTO TEST_QUERY (id, name, age) VALUES (2, 'Bob', 32)",
             "INSERT INTO TEST_QUERY (id, name, age) VALUES (3, 'Charlie',
-18)",
-        ];
+18)"];
         // test a rollback but we rollback nothings
 
         db.rollback(query_uuid).await.unwrap();
 
         let _ = db.drop_table("TEST_QUERY", false).await;
         for sql in sqls.iter() {
-            db.execute_sql(query_uuid, *sql).await.unwrap().unwrap();
+            db.execute_sql(query_uuid, sql).await.unwrap().unwrap();
         }
 
         db.commit(query_uuid).await.unwrap();
@@ -2338,7 +2339,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let db = db;
-        let _ = db.drop_table(&table_name, false).await;
+        let _ = db.drop_table(table_name, false).await;
         db.execute_sql(
             query_id,
             format!(
@@ -2371,10 +2372,10 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         values.insert("NCHAR_COL".to_string(), Some("测试nchar".to_string()));
         values.insert("RAW_COL".to_string(), Some("0A0B0C0D0E0F".to_string()));
 
-        db.table_insert(&table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)
+            .show_table(table_name, Some("1 = 1"), None, 1, 100, None)
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2428,7 +2429,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let db = db;
-        let _ = db.drop_table(&table_name, false).await;
+        let _ = db.drop_table(table_name, false).await;
 
         db.execute_sql(
             query_id,
@@ -2457,10 +2458,10 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         values.insert("NUM".to_string(), Some("100".to_string()));
         values.insert("FLOAT_COL".to_string(), Some("2.71".to_string()));
 
-        db.table_insert(&table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)
+            .show_table(table_name, Some("1 = 1"), None, 1, 100, None)
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2513,7 +2514,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         let db = make_test_object(Some("SYSTEM".to_string()));
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let _ = db.drop_table(&table_name, false).await;
+        let _ = db.drop_table(table_name, false).await;
         db.execute_sql(
             query_id,
             format!(
@@ -2542,10 +2543,10 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         );
         values.insert("BLOB_COL".to_string(), Some("010203".to_string()));
 
-        db.table_insert(&table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)
+            .show_table(table_name, Some("1 = 1"), None, 1, 100, None)
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2600,7 +2601,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         let db = make_test_object(Some("SYSTEM".to_string()));
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let _ = db.drop_table(&table_name, false).await;
+        let _ = db.drop_table(table_name, false).await;
         db.execute_sql(
             query_id,
             format!(
@@ -2623,10 +2624,10 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         values.insert("COL2".to_string(), Some("123".to_string()));
         values.insert("COL3".to_string(), Some("456".to_string()));
 
-        db.table_insert(&table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(&table_name, Some("1 = 1"), None, 1, 100, None)
+            .show_table(table_name, Some("1 = 1"), None, 1, 100, None)
             .await
             .unwrap();
         println!("resp:{:?}", resp);

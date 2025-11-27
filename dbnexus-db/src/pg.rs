@@ -2529,7 +2529,7 @@ mod tests {
         let db = make_test_object().await;
         let index_name = "index_test_index_xxx";
 
-        let _ = db.drop_index(table_name, &index_name).await;
+        let _ = db.drop_index(table_name, index_name).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
@@ -2824,7 +2824,7 @@ mod tests {
         {
             let e = schema_trait
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::CSV {
                         include_header: true,
                         delimiter: ',',
@@ -2837,7 +2837,7 @@ mod tests {
         {
             let e = schema_trait
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::Sql {
                         include_table_schema: false,
                     },
@@ -2848,7 +2848,7 @@ mod tests {
         }
         {
             let e = schema_trait
-                .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             let _: serde_json::value::Value = serde_json::from_str(e.as_str()).unwrap();
@@ -2857,7 +2857,7 @@ mod tests {
         }
         {
             let e = schema_trait
-                .export_table_to_string(&table_name, ExportKind::JsonLine)
+                .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
 
@@ -2911,7 +2911,7 @@ mod tests {
         // enable_test_log();
         let table_name = "test_types1";
         let pg = make_test_object().await;
-        let _ = pg.drop_table(&table_name, false).await;
+        let _ = pg.drop_table(table_name, false).await;
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
@@ -2952,7 +2952,7 @@ mod tests {
         println!("{:?}", x);
         {
             let json = pg
-                .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -2960,7 +2960,7 @@ mod tests {
             println!("export json:{}", json);
 
             let jsonline = pg
-                .export_table_to_string(&table_name, ExportKind::JsonLine)
+                .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -2969,7 +2969,7 @@ mod tests {
 
             let csv = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::CSV {
                         include_header: true,
                         delimiter: ',',
@@ -2983,7 +2983,7 @@ mod tests {
 
             let sql = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::Sql {
                         include_table_schema: false,
                     },
@@ -3001,7 +3001,7 @@ mod tests {
         // enable_test_log();
         let table_name = "test_types2";
         let pg = make_test_object().await;
-        let _ = pg.drop_table(&table_name, false).await;
+        let _ = pg.drop_table(table_name, false).await;
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
@@ -3065,7 +3065,7 @@ mod tests {
         println!("{:?}", x);
         {
             let json = pg
-                .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3073,7 +3073,7 @@ mod tests {
             println!("export json:{}", json);
 
             let jsonline = pg
-                .export_table_to_string(&table_name, ExportKind::JsonLine)
+                .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3082,7 +3082,7 @@ mod tests {
 
             let csv = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::CSV {
                         include_header: true,
                         delimiter: ',',
@@ -3096,7 +3096,7 @@ mod tests {
 
             let sql = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::Sql {
                         include_table_schema: false,
                     },
@@ -3172,7 +3172,7 @@ mod tests {
         enable_test_log();
         let pg = make_test_object().await;
         let table_name = "test_types3";
-        let _ = pg.drop_table(&table_name, false).await;
+        let _ = pg.drop_table(table_name, false).await;
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
@@ -3226,7 +3226,7 @@ mod tests {
         println!("{:?}", x);
         {
             let json = pg
-                .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3234,7 +3234,7 @@ mod tests {
             println!("export json:{}", json);
 
             let jsonline = pg
-                .export_table_to_string(&table_name, ExportKind::JsonLine)
+                .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3243,7 +3243,7 @@ mod tests {
 
             let csv = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::CSV {
                         include_header: true,
                         delimiter: ',',
@@ -3257,7 +3257,7 @@ mod tests {
 
             let sql = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::Sql {
                         include_table_schema: false,
                     },
@@ -3275,7 +3275,7 @@ mod tests {
         // enable_test_log();
         let table_name = "test_types4";
         let pg = make_test_object().await;
-        let _ = pg.drop_table(&table_name, false).await;
+        let _ = pg.drop_table(table_name, false).await;
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
@@ -3323,7 +3323,7 @@ mod tests {
         println!("{:?}", x);
         {
             let json = pg
-                .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3331,7 +3331,7 @@ mod tests {
             println!("export json:{}", json);
 
             let jsonline = pg
-                .export_table_to_string(&table_name, ExportKind::JsonLine)
+                .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3340,7 +3340,7 @@ mod tests {
 
             let csv = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::CSV {
                         include_header: true,
                         delimiter: ',',
@@ -3354,7 +3354,7 @@ mod tests {
 
             let sql = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::Sql {
                         include_table_schema: false,
                     },
@@ -3372,7 +3372,7 @@ mod tests {
         enable_test_log();
         let table_name = "test_types5";
         let pg = make_test_object().await;
-        let _ = pg.drop_table(&table_name, false).await;
+        let _ = pg.drop_table(table_name, false).await;
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
@@ -3442,7 +3442,7 @@ mod tests {
         println!("{:?}", x);
         {
             let json = pg
-                .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3450,7 +3450,7 @@ mod tests {
             println!("export json:{}", json);
 
             let jsonline = pg
-                .export_table_to_string(&table_name, ExportKind::JsonLine)
+                .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3459,7 +3459,7 @@ mod tests {
 
             let csv = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::CSV {
                         include_header: true,
                         delimiter: ',',
@@ -3473,7 +3473,7 @@ mod tests {
 
             let sql = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::Sql {
                         include_table_schema: false,
                     },
@@ -3492,7 +3492,7 @@ mod tests {
         let table_name = "test_types6";
         let pg = make_test_object().await;
 
-        let _ = pg.drop_table(&table_name, false).await;
+        let _ = pg.drop_table(table_name, false).await;
 
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
@@ -3556,7 +3556,7 @@ mod tests {
         println!("{:?}", x);
         {
             let json = pg
-                .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3564,7 +3564,7 @@ mod tests {
             println!("export json:{}", json);
 
             let jsonline = pg
-                .export_table_to_string(&table_name, ExportKind::JsonLine)
+                .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3573,7 +3573,7 @@ mod tests {
 
             let csv = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::CSV {
                         include_header: true,
                         delimiter: ',',
@@ -3587,7 +3587,7 @@ mod tests {
 
             let sql = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::Sql {
                         include_table_schema: false,
                     },
@@ -3605,7 +3605,7 @@ mod tests {
         // enable_test_log();
         let table_name = "test_types7";
         let pg = make_test_object().await;
-        let _ = pg.drop_table(&table_name, false).await;
+        let _ = pg.drop_table(table_name, false).await;
 
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
@@ -3653,7 +3653,7 @@ mod tests {
         println!("{:?}", x);
         {
             let json = pg
-                .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3661,7 +3661,7 @@ mod tests {
             println!("export json:{}", json);
 
             let jsonline = pg
-                .export_table_to_string(&table_name, ExportKind::JsonLine)
+                .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3670,7 +3670,7 @@ mod tests {
 
             let csv = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::CSV {
                         include_header: true,
                         delimiter: ',',
@@ -3684,7 +3684,7 @@ mod tests {
 
             let sql = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::Sql {
                         include_table_schema: false,
                     },
@@ -3703,7 +3703,7 @@ mod tests {
         let table_name = "test_types8";
         let pg = make_test_object().await;
 
-        let _ = pg.drop_table(&table_name, false).await;
+        let _ = pg.drop_table(table_name, false).await;
 
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
@@ -3743,7 +3743,7 @@ mod tests {
         println!("{:?}", x);
         {
             let json = pg
-                .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3751,7 +3751,7 @@ mod tests {
             println!("export json:{}", json);
 
             let jsonline = pg
-                .export_table_to_string(&table_name, ExportKind::JsonLine)
+                .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3760,7 +3760,7 @@ mod tests {
 
             let csv = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::CSV {
                         include_header: true,
                         delimiter: ',',
@@ -3774,7 +3774,7 @@ mod tests {
 
             let sql = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::Sql {
                         include_table_schema: false,
                     },
@@ -3792,7 +3792,7 @@ mod tests {
         enable_test_log();
         let table_name = "test_types9";
         let pg = make_test_object().await;
-        let _ = pg.drop_table(&table_name, false).await;
+        let _ = pg.drop_table(table_name, false).await;
 
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
@@ -3852,7 +3852,7 @@ mod tests {
         println!("{:?}", x);
         {
             let json = pg
-                .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3860,7 +3860,7 @@ mod tests {
             println!("export json:{}", json);
 
             let jsonline = pg
-                .export_table_to_string(&table_name, ExportKind::JsonLine)
+                .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3869,7 +3869,7 @@ mod tests {
 
             let csv = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::CSV {
                         include_header: true,
                         delimiter: ',',
@@ -3883,7 +3883,7 @@ mod tests {
 
             let sql = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::Sql {
                         include_table_schema: false,
                     },
@@ -3902,7 +3902,7 @@ mod tests {
         let table_name = "test_types10";
         let pg = make_test_object().await;
 
-        let _ = pg.drop_table(&table_name, false).await;
+        let _ = pg.drop_table(table_name, false).await;
 
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
@@ -3953,7 +3953,7 @@ mod tests {
         println!("{:?}", x);
         {
             let json = pg
-                .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3961,7 +3961,7 @@ mod tests {
             println!("export json:{}", json);
 
             let jsonline = pg
-                .export_table_to_string(&table_name, ExportKind::JsonLine)
+                .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -3970,7 +3970,7 @@ mod tests {
 
             let csv = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::CSV {
                         include_header: true,
                         delimiter: ',',
@@ -3984,7 +3984,7 @@ mod tests {
 
             let sql = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::Sql {
                         include_table_schema: false,
                     },
@@ -4002,7 +4002,7 @@ mod tests {
         // enable_test_log();
         let table_name = "test_types11";
         let pg = make_test_object().await;
-        let _ = pg.drop_table(&table_name, false).await;
+        let _ = pg.drop_table(table_name, false).await;
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
         pg.query_sql(
@@ -4063,7 +4063,7 @@ mod tests {
         println!("{:?}", x);
         {
             let json = pg
-                .export_table_to_string(&table_name, ExportKind::Json { pretty: true })
+                .export_table_to_string(table_name, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -4071,7 +4071,7 @@ mod tests {
             println!("export json:{}", json);
 
             let jsonline = pg
-                .export_table_to_string(&table_name, ExportKind::JsonLine)
+                .export_table_to_string(table_name, ExportKind::JsonLine)
                 .await
                 .unwrap();
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
@@ -4080,7 +4080,7 @@ mod tests {
 
             let csv = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::CSV {
                         include_header: true,
                         delimiter: ',',
@@ -4094,7 +4094,7 @@ mod tests {
 
             let sql = pg
                 .export_table_to_string(
-                    &table_name,
+                    table_name,
                     ExportKind::Sql {
                         include_table_schema: false,
                     },

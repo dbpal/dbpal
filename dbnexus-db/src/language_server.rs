@@ -5,7 +5,6 @@ use std::time::Duration;
 use sqlparser::ast::{SetExpr, Statement};
 use sqlparser::keywords::Keyword;
 use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
-use tokio::task::block_in_place;
 use typescript_type_def::TypeDef;
 
 use crate::db::{
@@ -1140,7 +1139,7 @@ pub(crate) async fn try_parser_completion(
         column: col as u64,
     };
     let d = helper.dialect();
-    let statements = block_in_place(|| -> anyhow::Result<Vec<Statement>> {
+    let statements = tokio::task::block_in_place(|| -> anyhow::Result<Vec<Statement>> {
         let parser = sqlparser::parser::Parser::new(d.as_ref());
         let mut parser = parser.try_with_sql(sql)?;
         let mut statements = Vec::new();
@@ -1296,7 +1295,7 @@ select xxxx
     pub(crate) async fn test_file_auto_completion(
         content: &str, db: &dyn LanguageServer, use_lexer: bool,
     ) {
-        let items = parse_auto_completion_test_file(&content);
+        let items = parse_auto_completion_test_file(content);
         for item in items.iter() {
             for i in item.tests.iter() {
                 log::trace!("on pos:{}:{}", item.line, i.0);
@@ -1305,7 +1304,7 @@ select xxxx
                     .await
                     .unwrap();
                 for should in i.1.iter() {
-                    test_completion_items_contains(&list.items[..], item.line, i.0, &should);
+                    test_completion_items_contains(&list.items[..], item.line, i.0, should);
                 }
             }
         }

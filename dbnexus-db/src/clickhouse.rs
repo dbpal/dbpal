@@ -1,13 +1,3 @@
-use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use std::time::Duration;
-
-use r2d2::PooledConnection;
-use sqlparser::ast::{ArrayElemTypeDef, DataType};
-use sqlparser::tokenizer::Token;
-use tokio::task::block_in_place;
-
 use crate::MemoryLimit;
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
@@ -19,6 +9,13 @@ use crate::db::{
 };
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
 use crate::language_server::LexerCompletionTrait;
+use r2d2::PooledConnection;
+use sqlparser::ast::{ArrayElemTypeDef, DataType};
+use sqlparser::tokenizer::Token;
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::time::Duration;
 
 impl GetBackendKind for ClickHouseDB {
     fn backend_name(&self) -> BackendKind {
@@ -1035,7 +1032,11 @@ impl ClickHouseDB {
     }
 
     pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<PoolManager>> {
-        let conn = block_in_place(|| self.pool.get())?;
+        let timeout: Option<Duration> = self.config.conn_timeout.map(Duration::from);
+        let conn = match timeout {
+            Some(timeout) => self.pool.get_timeout(timeout),
+            None => self.pool.get(),
+        }?;
         anyhow::Ok(conn)
     }
 }
@@ -1461,7 +1462,7 @@ from test
         let db = make_test_object();
         let name = "abc";
         let _ = db.drop_schema(name).await;
-        db.create_schema(&name, None).await.unwrap();
+        db.create_schema(name, None).await.unwrap();
 
         let schemas = db.list_schema().await.unwrap();
         println!("schemas :{:?}", schemas);
@@ -1755,7 +1756,7 @@ from test
             values.insert("value_uint32".to_string(), Some(3.to_string()));
             values.insert("value_uint64".to_string(), Some(4.to_string()));
             values.insert("value_uint128".to_string(), Some(5.to_string()));
-            db.table_insert(&table_name, values).await.unwrap();
+            db.table_insert(table_name, values).await.unwrap();
         }
         {
             let resp = db
@@ -1838,7 +1839,7 @@ from test
             values.insert("value_int32".to_string(), Some(3.to_string()));
             values.insert("value_int64".to_string(), Some(4.to_string()));
             values.insert("value_int128".to_string(), Some(5.to_string()));
-            db.table_insert(&table_name, values).await.unwrap();
+            db.table_insert(table_name, values).await.unwrap();
         }
         {
             let resp = db
@@ -1925,7 +1926,7 @@ from test
             values.insert("decimal64_field".to_string(), Some(4.to_string()));
             values.insert("decimal128_field".to_string(), Some(5.to_string()));
             values.insert("boolean_field".to_string(), Some(true.to_string()));
-            db.table_insert(&table_name, values).await.unwrap();
+            db.table_insert(table_name, values).await.unwrap();
         }
         {
             let resp = db
@@ -2023,7 +2024,7 @@ from test
             );
             values.insert("ipv4_field".to_string(), Some("192.168.1.1".to_string()));
             values.insert("date_field".to_string(), Some("2025-03-06".to_string()));
-            db.table_insert(&table_name, values).await.unwrap();
+            db.table_insert(table_name, values).await.unwrap();
         }
         {
             let resp = db
@@ -2124,7 +2125,7 @@ from test
                 "map_field".to_string(),
                 Some("map('key1', 10, 'key2', 20)".to_string()),
             );
-            db.table_insert(&table_name, values).await.unwrap();
+            db.table_insert(table_name, values).await.unwrap();
         }
         {
             let resp = db
@@ -2204,7 +2205,7 @@ from test
             values.insert("common_value".to_string(), Some("common_value".to_string()));
             values.insert("some_string".to_string(), Some("hello world".to_string()));
 
-            db.table_insert(&table_name, values).await.unwrap();
+            db.table_insert(table_name, values).await.unwrap();
         }
         {
             let resp = db

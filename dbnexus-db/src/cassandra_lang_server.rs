@@ -1439,173 +1439,6 @@ impl AstCompletion {
     }
 }
 
-#[cfg(test)]
-mod tests {
-
-    use std::path::Path;
-
-    use crate::cassandra::make_test_object;
-    use crate::db::QuerySql;
-    use crate::enable_test_log;
-    use crate::language_server::completion_test::test_file_auto_completion;
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_auto_completion() {
-        let db = make_test_object(Some("test".to_string())).await;
-        enable_test_log();
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
-                CREATE TABLE employees (
-                    id UUID PRIMARY KEY,
-                    first_name TEXT,
-                    last_name TEXT,
-                    email TEXT,
-                    hire_date TIMESTAMP,
-                    department TEXT
-                );
-            "#,
-            )
-            .await
-            .unwrap();
-
-        let _ = db
-            .query_sql(
-                query_id,
-                r#"
-                CREATE INDEX email_index ON employees (email);
-            "#,
-            )
-            .await
-            .unwrap();
-
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
-                
-                CREATE MATERIALIZED VIEW employees_by_department AS
-                    SELECT employee_id, first_name, last_name, email, hire_date
-                    FROM employees
-                    WHERE employee_id IS NOT NULL
-                    PRIMARY KEY (employee_id);
-
-            "#,
-            )
-            .await
-            .unwrap();
-
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
-                CREATE ROLE IF NOT EXISTS role_test WITH PASSWORD = 'password123' AND LOGIN = true;
-            "#,
-            )
-            .await
-            .unwrap();
-
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
-
-                CREATE OR REPLACE FUNCTION no_op_state_function(state int, input int)
-                RETURNS NULL ON NULL INPUT
-                RETURNS int
-                LANGUAGE java
-                AS '
-                    return state;  
-                ';
-
-            "#,
-            )
-            .await
-            .unwrap();
-
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
-                CREATE OR REPLACE FUNCTION no_op_final_function(state int)
-                RETURNS NULL ON NULL INPUT
-                RETURNS int
-                LANGUAGE java
-                AS '
-                    return 42;  
-                ';
-            "#,
-            )
-            .await
-            .unwrap();
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
-                CREATE OR REPLACE AGGREGATE no_op_aggregate(int)
-                SFUNC no_op_state_function
-                STYPE int
-                FINALFUNC no_op_final_function
-                INITCOND 0;  
-        "#,
-            )
-            .await
-            .unwrap();
-
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
-                CREATE TYPE IF NOT EXISTS completion_type (
-                    status TEXT,
-                    completion_date TIMESTAMP,
-                    remarks TEXT
-                );
-
-        "#,
-            )
-            .await
-            .unwrap();
-
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
-                CREATE TYPE address (
-                    zip_code text
-                );
-
-        "#,
-            )
-            .await
-            .unwrap();
-
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let mut file_path = Path::new(manifest_dir).to_path_buf();
-        file_path.push("tests");
-        file_path.push("cassandra_auto_completion_test.sql");
-        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, false).await;
-    }
-
-    #[ignore = "手动跑跑的测试"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_completion_xxx() {
-        enable_test_log();
-        let db = make_test_object(Some("test".to_string())).await;
-        test_file_auto_completion(
-            r#"SELECT * from sys
-18 system"#,
-            &db,
-            false,
-        )
-        .await;
-    }
-}
-
 const CASSANDRA_TYPES: &[&str] = &[
     "CUSTOM",
     "ASCII",
@@ -1842,3 +1675,170 @@ pub const CASSANDRA_FUNCTIONS: &[&str] = &[
     "uuid_as_blob",
     "varint_as_blob",
 ];
+
+#[cfg(test)]
+mod tests {
+
+    use std::path::Path;
+
+    use crate::cassandra::make_test_object;
+    use crate::db::QuerySql;
+    use crate::enable_test_log;
+    use crate::language_server::completion_test::test_file_auto_completion;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_auto_completion() {
+        let db = make_test_object(Some("test".to_string())).await;
+        enable_test_log();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+                CREATE TABLE employees (
+                    id UUID PRIMARY KEY,
+                    first_name TEXT,
+                    last_name TEXT,
+                    email TEXT,
+                    hire_date TIMESTAMP,
+                    department TEXT
+                );
+            "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+                CREATE INDEX email_index ON employees (email);
+            "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+                
+                CREATE MATERIALIZED VIEW employees_by_department AS
+                    SELECT employee_id, first_name, last_name, email, hire_date
+                    FROM employees
+                    WHERE employee_id IS NOT NULL
+                    PRIMARY KEY (employee_id);
+
+            "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+                CREATE ROLE IF NOT EXISTS role_test WITH PASSWORD = 'password123' AND LOGIN = true;
+            "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+
+                CREATE OR REPLACE FUNCTION no_op_state_function(state int, input int)
+                RETURNS NULL ON NULL INPUT
+                RETURNS int
+                LANGUAGE java
+                AS '
+                    return state;  
+                ';
+
+            "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+                CREATE OR REPLACE FUNCTION no_op_final_function(state int)
+                RETURNS NULL ON NULL INPUT
+                RETURNS int
+                LANGUAGE java
+                AS '
+                    return 42;  
+                ';
+            "#,
+            )
+            .await
+            .unwrap();
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+                CREATE OR REPLACE AGGREGATE no_op_aggregate(int)
+                SFUNC no_op_state_function
+                STYPE int
+                FINALFUNC no_op_final_function
+                INITCOND 0;  
+        "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+                CREATE TYPE IF NOT EXISTS completion_type (
+                    status TEXT,
+                    completion_date TIMESTAMP,
+                    remarks TEXT
+                );
+
+        "#,
+            )
+            .await
+            .unwrap();
+
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+                CREATE TYPE address (
+                    zip_code text
+                );
+
+        "#,
+            )
+            .await
+            .unwrap();
+
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir).to_path_buf();
+        file_path.push("tests");
+        file_path.push("cassandra_auto_completion_test.sql");
+        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
+        test_file_auto_completion(&content, &db, false).await;
+    }
+
+    #[ignore = "手动跑跑的测试"]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_completion_xxx() {
+        enable_test_log();
+        let db = make_test_object(Some("test".to_string())).await;
+        test_file_auto_completion(
+            r#"SELECT * from sys
+18 system"#,
+            &db,
+            false,
+        )
+        .await;
+    }
+}

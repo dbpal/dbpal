@@ -247,7 +247,7 @@ impl CheckConn for SubDB {
 
 impl std::fmt::Debug for SubDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {:?}", self.backend_name(), self)
+        write!(f, "{} {:?}", self.backend_name(), self.as_schema())
     }
 }
 

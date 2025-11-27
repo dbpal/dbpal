@@ -4,6 +4,7 @@ use dbnexus_db::datasource_config::{
     MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
     SqliteDBConfig,
 };
+
 use dbnexus_db::db::{
     CatalogTrait, CheckConn, DBTrait, ExportQueryResult, QuerySql, SchemaTrait, ServerMetas,
 };
@@ -268,7 +269,7 @@ impl DBConnectionConfig {
                 anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn SchemaTrait>))
             }
             DBConnectionConfig::FireBird { conn, .. } => {
-                let db = dbnexus_db::firebird::FireBirdDB::new(conn.clone())?;
+                let db = dbnexus_db::firebird::FireBirdDB::new(conn.clone()).await?;
                 anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn SchemaTrait>))
             }
         }

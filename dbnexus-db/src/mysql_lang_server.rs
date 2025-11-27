@@ -496,173 +496,6 @@ impl AstCompletionHelper for MysqlDB {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::path::Path;
-
-    use crate::datasource_config::MysqlDBConfig;
-    use crate::db::QuerySql;
-    use crate::language_server::completion_test::test_file_auto_completion;
-    use crate::language_server::{LangServerCommon, LanguageServer};
-    use crate::mysql::MysqlDB;
-    use crate::{TEST_HOST, enable_test_log};
-
-    async fn make_test_object(config: MysqlDBConfig) -> MysqlDB {
-        let db = MysqlDB::new(config).await.unwrap();
-        db
-    }
-    fn make_config() -> MysqlDBConfig {
-        MysqlDBConfig {
-            conn_timeout: Some(5000.into()),
-            host: TEST_HOST.to_string(),
-            username: "root".to_string(),
-            password: Some("root".to_string()),
-            port: 3306,
-            db: Some("test".to_string()),
-            read_only: false,
-            save_password: true,
-            ssl: Default::default(),
-        }
-    }
-
-    // partition test failed , sqlparser can't parse a valid partition statement.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_auto_completion() {
-        let db = make_test_object(make_config()).await;
-        enable_test_log();
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
-                CREATE TABLE departments (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    name VARCHAR(100) NOT NULL
-                );
-                CREATE TABLE employees (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    name VARCHAR(50) NOT NULL,
-                    department_id INT
-                )
-                PARTITION BY RANGE (id) (
-                    PARTITION p1 VALUES LESS THAN (10000),
-                    PARTITION p2 VALUES LESS THAN (MAXVALUE)
-                );    
-                create view employees_view as select * from employees;
-        "#,
-            )
-            .await
-            .unwrap();
-
-        db.execute_sql(query_id, "replace into departments values (1,'test')")
-            .await
-            .unwrap()
-            .unwrap();
-
-        let _ = db
-            .query_sql(
-                query_id,
-                r#"
-            DELIMITER //
-
-            CREATE TRIGGER do_nothing_trigger
-            BEFORE INSERT ON employees
-            FOR EACH ROW
-            BEGIN
-                -- 什么都不做
-            END;
-
-            //
-
-            DELIMITER ;
-            "#,
-            )
-            .await
-            .unwrap();
-        let _ = db
-            .query_sql(
-                query_id,
-                r#"
-            CREATE EVENT do_nothing_event_loop
-            ON SCHEDULE EVERY 10 SECOND
-            STARTS CURRENT_TIMESTAMP
-            DO
-            BEGIN
-            /* 空语句块，可永久存在 */
-            END;
-            "#,
-            )
-            .await
-            .unwrap();
-
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let mut file_path = Path::new(manifest_dir).to_path_buf();
-        file_path.push("tests");
-        file_path.push("mysql_auto_completion_test.sql");
-        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, false).await;
-    }
-    #[ignore = "手动跑跑的测试"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_completion_xxx() {
-        enable_test_log();
-        let mut config = make_config();
-        config.db = None;
-
-        let db = make_test_object(config).await;
-        test_file_auto_completion(include_str!("./xxx.sql"), &db, false).await;
-    }
-    #[tokio::test]
-    async fn test_prepare() {
-        let db = make_test_object(make_config()).await;
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-        db.execute_sql(
-            query_id,
-            r#"
-            PREPARE stmtxxx FROM 'SELECT 1';
-        "#,
-        )
-        .await
-        .unwrap()
-        .unwrap();
-        assert!(
-            db.list_execute(None)
-                .await
-                .unwrap()
-                .iter()
-                .any(|x| x.name.eq("stmtxxx"))
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-
-    async fn test_at_variable_lexer() {
-        let sql = include_str!("../tests/mysql_at_var_lexer.sql");
-        let db = make_test_object(make_config()).await;
-
-        let list = LanguageServer::auto_completion(&db, None, sql, 2, 11, true)
-            .await
-            .unwrap();
-        list.items.iter().for_each(|x| {
-            if x.item.contains("my_var") {
-                println!("!!!!!:{:?}", x.item);
-            }
-        });
-
-        assert!(list.items.iter().any(|x| x.item == "my_var"));
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-
-    async fn test_try_get_max_id() {
-        let db = make_test_object(make_config()).await;
-        let max_id = db.try_get_max_id("departments").await.unwrap();
-        println!("max id is:{}", max_id);
-    }
-}
-
 // src/mysql_types.rs
 pub const MYSQL_TYPES: &[&str] = &[
     /* ---------- 数值 ---------- */
@@ -1012,3 +845,170 @@ pub const MYSQL_FUNCTIONS: &[&str] = &[
     "USER",
     "VERSION",
 ];
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use crate::datasource_config::MysqlDBConfig;
+    use crate::db::QuerySql;
+    use crate::language_server::completion_test::test_file_auto_completion;
+    use crate::language_server::{LangServerCommon, LanguageServer};
+    use crate::mysql::MysqlDB;
+    use crate::{TEST_HOST, enable_test_log};
+
+    async fn make_test_object(config: MysqlDBConfig) -> MysqlDB {
+        let db = MysqlDB::new(config).await.unwrap();
+        db
+    }
+    fn make_config() -> MysqlDBConfig {
+        MysqlDBConfig {
+            conn_timeout: Some(5000.into()),
+            host: TEST_HOST.to_string(),
+            username: "root".to_string(),
+            password: Some("root".to_string()),
+            port: 3306,
+            db: Some("test".to_string()),
+            read_only: false,
+            save_password: true,
+            ssl: Default::default(),
+        }
+    }
+
+    // partition test failed , sqlparser can't parse a valid partition statement.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_auto_completion() {
+        let db = make_test_object(make_config()).await;
+        enable_test_log();
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+                CREATE TABLE departments (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(100) NOT NULL
+                );
+                CREATE TABLE employees (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(50) NOT NULL,
+                    department_id INT
+                )
+                PARTITION BY RANGE (id) (
+                    PARTITION p1 VALUES LESS THAN (10000),
+                    PARTITION p2 VALUES LESS THAN (MAXVALUE)
+                );    
+                create view employees_view as select * from employees;
+        "#,
+            )
+            .await
+            .unwrap();
+
+        db.execute_sql(query_id, "replace into departments values (1,'test')")
+            .await
+            .unwrap()
+            .unwrap();
+
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+            DELIMITER //
+
+            CREATE TRIGGER do_nothing_trigger
+            BEFORE INSERT ON employees
+            FOR EACH ROW
+            BEGIN
+                -- 什么都不做
+            END;
+
+            //
+
+            DELIMITER ;
+            "#,
+            )
+            .await
+            .unwrap();
+        let _ = db
+            .query_sql(
+                query_id,
+                r#"
+            CREATE EVENT do_nothing_event_loop
+            ON SCHEDULE EVERY 10 SECOND
+            STARTS CURRENT_TIMESTAMP
+            DO
+            BEGIN
+            /* 空语句块，可永久存在 */
+            END;
+            "#,
+            )
+            .await
+            .unwrap();
+
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let mut file_path = Path::new(manifest_dir).to_path_buf();
+        file_path.push("tests");
+        file_path.push("mysql_auto_completion_test.sql");
+        let content = std::fs::read_to_string(file_path.as_path()).unwrap();
+        test_file_auto_completion(&content, &db, false).await;
+    }
+    #[ignore = "手动跑跑的测试"]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_completion_xxx() {
+        enable_test_log();
+        let mut config = make_config();
+        config.db = None;
+
+        let db = make_test_object(config).await;
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, false).await;
+    }
+    #[tokio::test]
+    async fn test_prepare() {
+        let db = make_test_object(make_config()).await;
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+            PREPARE stmtxxx FROM 'SELECT 1';
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(
+            db.list_execute(None)
+                .await
+                .unwrap()
+                .iter()
+                .any(|x| x.name.eq("stmtxxx"))
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+
+    async fn test_at_variable_lexer() {
+        let sql = include_str!("../tests/mysql_at_var_lexer.sql");
+        let db = make_test_object(make_config()).await;
+
+        let list = LanguageServer::auto_completion(&db, None, sql, 2, 11, true)
+            .await
+            .unwrap();
+        list.items.iter().for_each(|x| {
+            if x.item.contains("my_var") {
+                println!("!!!!!:{:?}", x.item);
+            }
+        });
+
+        assert!(list.items.iter().any(|x| x.item == "my_var"));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+
+    async fn test_try_get_max_id() {
+        let db = make_test_object(make_config()).await;
+        let max_id = db.try_get_max_id("departments").await.unwrap();
+        println!("max id is:{}", max_id);
+    }
+}

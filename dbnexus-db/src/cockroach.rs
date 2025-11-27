@@ -279,7 +279,7 @@ mod tests {
         let db = make_test_object().await;
         let index_name = "index_test_index_xxx";
 
-        let _ = db.drop_index(table_name, &index_name).await;
+        let _ = db.drop_index(table_name, index_name).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
@@ -600,7 +600,7 @@ mod tests {
         enable_test_log();
         let table_name = "test_types1";
         let db = make_test_object().await;
-        let _ = db.drop_table(&table_name, false).await;
+        let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         db.query_sql(

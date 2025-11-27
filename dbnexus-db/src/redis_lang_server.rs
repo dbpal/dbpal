@@ -1171,6 +1171,78 @@ impl LanguageServer for RedisDB {
     }
 }
 
+pub static REDIS_COMMANDS_MD_FILES: include_dir::Dir =
+    include_dir::include_dir!("$CARGO_MANIFEST_DIR/../redis-doc/commands");
+
+fn get_commands_from_docs() -> Vec<String> {
+    let mut ret = vec![];
+    for en in REDIS_COMMANDS_MD_FILES.entries() {
+        match en {
+            include_dir::DirEntry::Dir(..) => {}
+            include_dir::DirEntry::File(file) => {
+                let name = file.path().file_name().and_then(|x| x.to_str());
+                if let Some(name) = name {
+                    if name.ends_with(".md") {
+                        if name.starts_with("_index") {
+                            continue;
+                        }
+                        if name.contains("-") {
+                            // this is sub command
+                            continue;
+                        }
+                        ret.push(name[..name.len() - 3].to_uppercase());
+                    }
+                }
+            }
+        }
+    }
+    ret
+}
+
+fn is_simple_command(command: &str) -> bool {
+    static SIMPLE: &[&str] = &[
+        "ACL", "CLIENT", "CLUSTER", "COMMAND", "CONFIG", "FUNCTION", "LATENCY", "MEMORY", "MODULE",
+        "PUBSUB", "SCRIPT", "XGROUP", "XINFO", "SLOWLOG",
+    ];
+    SIMPLE.iter().any(|x| x.eq_ignore_ascii_case(command))
+}
+
+fn get_simple_command_sub(command: &str) -> Vec<&'static str> {
+    let match_str = format!("{}-", command.to_lowercase());
+    let mut ret = vec![];
+    for en in REDIS_COMMANDS_MD_FILES.entries() {
+        match en {
+            include_dir::DirEntry::Dir(..) => {}
+            include_dir::DirEntry::File(file) => {
+                let name = file.path().file_name().and_then(|x| x.to_str());
+                if let Some(name) = name {
+                    if name.starts_with(&match_str) {
+                        ret.push(&name[match_str.len()..name.len() - 3]);
+                    }
+                }
+            }
+        }
+    }
+    ret
+}
+
+fn static_redis_command_completion_items() -> CompletionList {
+    static ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
+    ITEMS
+        .get_or_init(|| {
+            get_commands_from_docs()
+                .into_iter()
+                .map(|command| CompletionItem {
+                    item: command.into(),
+                    kind: CompletionKind::Command,
+                    desc: None,
+                })
+                .collect::<Vec<_>>()
+        })
+        .clone()
+        .into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1253,76 +1325,4 @@ mod tests {
             println!("!!!!!!!!!!!!!!!:{:?}", i);
         }
     }
-}
-
-pub static REDIS_COMMANDS_MD_FILES: include_dir::Dir =
-    include_dir::include_dir!("$CARGO_MANIFEST_DIR/../redis-doc/commands");
-
-fn get_commands_from_docs() -> Vec<String> {
-    let mut ret = vec![];
-    for en in REDIS_COMMANDS_MD_FILES.entries() {
-        match en {
-            include_dir::DirEntry::Dir(..) => {}
-            include_dir::DirEntry::File(file) => {
-                let name = file.path().file_name().and_then(|x| x.to_str());
-                if let Some(name) = name {
-                    if name.ends_with(".md") {
-                        if name.starts_with("_index") {
-                            continue;
-                        }
-                        if name.contains("-") {
-                            // this is sub command
-                            continue;
-                        }
-                        ret.push(name[..name.len() - 3].to_uppercase());
-                    }
-                }
-            }
-        }
-    }
-    ret
-}
-
-fn is_simple_command(command: &str) -> bool {
-    static SIMPLE: &[&str] = &[
-        "ACL", "CLIENT", "CLUSTER", "COMMAND", "CONFIG", "FUNCTION", "LATENCY", "MEMORY", "MODULE",
-        "PUBSUB", "SCRIPT", "XGROUP", "XINFO", "SLOWLOG",
-    ];
-    SIMPLE.iter().any(|x| x.eq_ignore_ascii_case(command))
-}
-
-fn get_simple_command_sub(command: &str) -> Vec<&'static str> {
-    let match_str = format!("{}-", command.to_lowercase());
-    let mut ret = vec![];
-    for en in REDIS_COMMANDS_MD_FILES.entries() {
-        match en {
-            include_dir::DirEntry::Dir(..) => {}
-            include_dir::DirEntry::File(file) => {
-                let name = file.path().file_name().and_then(|x| x.to_str());
-                if let Some(name) = name {
-                    if name.starts_with(&match_str) {
-                        ret.push(&name[match_str.len()..name.len() - 3]);
-                    }
-                }
-            }
-        }
-    }
-    ret
-}
-
-fn static_redis_command_completion_items() -> CompletionList {
-    static ITEMS: OnceLock<Vec<CompletionItem>> = OnceLock::new();
-    ITEMS
-        .get_or_init(|| {
-            get_commands_from_docs()
-                .into_iter()
-                .map(|command| CompletionItem {
-                    item: command.into(),
-                    kind: CompletionKind::Command,
-                    desc: None,
-                })
-                .collect::<Vec<_>>()
-        })
-        .clone()
-        .into()
 }

@@ -400,7 +400,8 @@ impl ExportQueryResult for DuckDB {
     }
 
     async fn export_query_result(
-        &self ,query_id:&str , sql: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: &str, sql: &str, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::CSV {

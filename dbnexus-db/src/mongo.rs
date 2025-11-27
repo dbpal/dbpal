@@ -152,9 +152,7 @@ fn bson_value_to_string(b: &bson::Bson) -> anyhow::Result<Option<String>> {
     anyhow::Ok(Some(x))
 }
 
-fn collect_table_resp(
-    fs: &Vec<Field>, docs: &[Document],
-) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+fn collect_table_resp(fs: &[Field], docs: &[Document]) -> anyhow::Result<Vec<Vec<Option<String>>>> {
     let mut ret = Vec::with_capacity(docs.len());
     for doc in docs.iter() {
         let mut values = vec![];
@@ -456,21 +454,6 @@ impl ServerMetas for MongoDB {
 
         anyhow::Ok(ret)
     }
-}
-
-#[allow(dead_code)]
-
-fn write_bson_as_json_to_file(doc: &Document, file: &str) {
-    let json_str = serde_json::to_string(&serde_json::json!(doc)).unwrap();
-
-    let mut op = std::fs::OpenOptions::new();
-    op.truncate(true);
-    op.write(true);
-    op.create(true);
-    use std::io::Write;
-    let mut f = op.open(Path::new(file)).unwrap();
-
-    f.write(json_str.as_bytes()).unwrap();
 }
 
 impl MongoDB {
@@ -885,19 +868,19 @@ mod tests {
     async fn test_mongo_id_types() {
         let db = make_test_object();
         let col = "test_id_types";
-        let _ = db.drop_table(&col, false).await;
+        let _ = db.drop_table(col, false).await;
 
         {
             let mut d = bson::Document::new();
             d.insert("_id", Bson::Double(rand::random::<f64>()));
             d.insert("value", Bson::Int32(1));
-            db.query_collection_insert_one(&col, d).await.unwrap();
+            db.query_collection_insert_one(col, d).await.unwrap();
         }
         {
             let mut d = bson::Document::new();
             d.insert("_id", Bson::String("aaaaaaaaaaa".to_string()));
             d.insert("value", Bson::Int32(2));
-            db.query_collection_insert_one(&col, d).await.unwrap();
+            db.query_collection_insert_one(col, d).await.unwrap();
         }
 
         {
@@ -907,19 +890,19 @@ mod tests {
                 Bson::Document(bson::doc! { "value" :  Bson::Int32(3)}),
             );
             d.insert("value", Bson::Int32(3));
-            db.query_collection_insert_one(&col, d).await.unwrap();
+            db.query_collection_insert_one(col, d).await.unwrap();
         }
         {
             let mut d = bson::Document::new();
             d.insert("_id", Bson::Boolean(true));
             d.insert("value", Bson::Int32(5));
-            db.query_collection_insert_one(&col, d).await.unwrap();
+            db.query_collection_insert_one(col, d).await.unwrap();
         }
         {
             let mut d = bson::Document::new();
             d.insert("_id", Bson::JavaScriptCode("xxx".to_string()));
             d.insert("value", Bson::Int32(6));
-            db.query_collection_insert_one(&col, d).await.unwrap();
+            db.query_collection_insert_one(col, d).await.unwrap();
         }
         {
             let mut d = bson::Document::new();
@@ -930,7 +913,7 @@ mod tests {
             d.insert("_id", _id);
 
             d.insert("value", Bson::Int32(8));
-            db.query_collection_insert_one(&col, d).await.unwrap();
+            db.query_collection_insert_one(col, d).await.unwrap();
         }
         {
             let mut d = bson::Document::new();
@@ -938,7 +921,7 @@ mod tests {
             d.insert("_id", _id);
 
             d.insert("value", Bson::Int32(10));
-            db.query_collection_insert_one(&col, d).await.unwrap();
+            db.query_collection_insert_one(col, d).await.unwrap();
         }
         {
             let mut d = bson::Document::new();
@@ -946,7 +929,7 @@ mod tests {
             d.insert("_id", _id);
 
             d.insert("value", Bson::Int32(11));
-            db.query_collection_insert_one(&col, d).await.unwrap();
+            db.query_collection_insert_one(col, d).await.unwrap();
         }
 
         {
@@ -958,7 +941,7 @@ mod tests {
             d.insert("_id", _id);
 
             d.insert("value", Bson::Int32(12));
-            db.query_collection_insert_one(&col, d).await.unwrap();
+            db.query_collection_insert_one(col, d).await.unwrap();
         }
         {
             let mut d = bson::Document::new();
@@ -968,7 +951,7 @@ mod tests {
             });
             d.insert("_id", _id);
             d.insert("value", Bson::Int32(13));
-            db.query_collection_insert_one(&col, d).await.unwrap();
+            db.query_collection_insert_one(col, d).await.unwrap();
         }
         {
             let mut d = bson::Document::new();
@@ -976,7 +959,7 @@ mod tests {
             d.insert("_id", _id);
 
             d.insert("value", Bson::Int32(14));
-            db.query_collection_insert_one(&col, d).await.unwrap();
+            db.query_collection_insert_one(col, d).await.unwrap();
         }
 
         {
@@ -985,7 +968,7 @@ mod tests {
             d.insert("_id", _id);
 
             d.insert("value", Bson::Int32(15));
-            db.query_collection_insert_one(&col, d).await.unwrap();
+            db.query_collection_insert_one(col, d).await.unwrap();
         }
         {
             let mut d = bson::Document::new();
@@ -993,15 +976,15 @@ mod tests {
             d.insert("_id", _id);
 
             d.insert("value", Bson::Int32(16));
-            db.query_collection_insert_one(&col, d).await.unwrap();
+            db.query_collection_insert_one(col, d).await.unwrap();
         }
         {
             let mut d = bson::Document::new();
-            let _id = Bson::Decimal128(bson::Decimal128::from("1234".parse().unwrap()));
+            let _id = Bson::Decimal128("1234".parse().unwrap());
             d.insert("_id", _id);
 
             d.insert("value", Bson::Int32(17));
-            db.query_collection_insert_one(&col, d).await.unwrap();
+            db.query_collection_insert_one(col, d).await.unwrap();
         }
     }
 
@@ -1015,12 +998,12 @@ mod tests {
     async fn test_index() {
         let db = make_test_object();
         let table = "test_index";
-        let _ = db.drop_table(&table, false).await;
+        let _ = db.drop_table(table, false).await;
 
-        db.insert(&table, doc! {"name" : "haha" , "age" : 2 })
+        db.insert(table, doc! {"name" : "haha" , "age" : 2 })
             .await
             .unwrap();
-        let indexes = db.show_indexes(&table).await.unwrap();
+        let indexes = db.show_indexes(table).await.unwrap();
         println!("indexes{:?}", indexes);
 
         let index_name = "test_index_aaa";
@@ -1030,48 +1013,48 @@ mod tests {
             .unwrap();
         let index_name2 = format!("{}_1", index_name);
 
-        db.rename_index(&table, &index_name, &index_name2)
+        db.rename_index(table, index_name, &index_name2)
             .await
             .unwrap();
-        db.rename_index(&table, &index_name2, &index_name)
+        db.rename_index(table, &index_name2, index_name)
             .await
             .unwrap();
-        db.drop_index(table, &index_name).await.unwrap();
+        db.drop_index(table, index_name).await.unwrap();
     }
     #[tokio::test]
     async fn test_truncate() {
         let db = make_test_object();
         let table = "test_truncate";
-        let _ = db.drop_table(&table, false).await;
+        let _ = db.drop_table(table, false).await;
 
-        db.insert(&table, doc! {"name" : "haha" , "age" : 2 })
+        db.insert(table, doc! {"name" : "haha" , "age" : 2 })
             .await
             .unwrap();
-        db.truncate_table(&table).await.unwrap();
+        db.truncate_table(table).await.unwrap();
     }
     #[tokio::test]
     async fn test_export() {
         let db = make_test_object();
         let table = "test_export";
-        let _ = db.drop_table(&table, false).await;
+        let _ = db.drop_table(table, false).await;
 
-        db.insert(&table, doc! {"name" : "haha" , "age" : 2 })
+        db.insert(table, doc! {"name" : "haha" , "age" : 2 })
             .await
             .unwrap();
-        db.insert(&table, doc! {"name" : "a name" , "age" : 10  })
+        db.insert(table, doc! {"name" : "a name" , "age" : 10  })
             .await
             .unwrap();
 
         let schema_trait = db;
         let json = schema_trait
-            .export_table_to_string(&table, crate::db::ExportKind::Json { pretty: true })
+            .export_table_to_string(table, crate::db::ExportKind::Json { pretty: true })
             .await
             .unwrap();
         let _: serde_json::Value = serde_json::from_str(&json).unwrap();
         println!("json:{}", json);
 
         let json_lines = schema_trait
-            .export_table_to_string(&table, crate::db::ExportKind::JsonLine)
+            .export_table_to_string(table, crate::db::ExportKind::JsonLine)
             .await
             .unwrap();
 
@@ -1086,10 +1069,10 @@ mod tests {
         let table_name = "test_rename";
         let table_name2 = "test_rename2";
 
-        let _ = db.drop_table(&table_name, false).await;
-        let _ = db.drop_table(&table_name2, false).await;
+        let _ = db.drop_table(table_name, false).await;
+        let _ = db.drop_table(table_name2, false).await;
         let database = db.get_db().await.unwrap();
-        let c = database.collection::<Document>(&table_name);
+        let c = database.collection::<Document>(table_name);
         let d = bson::doc! {"name" : 123};
         c.insert_one(d).await.unwrap();
 
@@ -1103,10 +1086,10 @@ mod tests {
         let table_name = "test_dup";
         let table_name2 = "test_dup2";
 
-        let _ = db.drop_table(&table_name, false).await;
-        let _ = db.drop_table(&table_name2, false).await;
+        let _ = db.drop_table(table_name, false).await;
+        let _ = db.drop_table(table_name2, false).await;
         let database = db.get_db().await.unwrap();
-        let c = database.collection::<Document>(&table_name);
+        let c = database.collection::<Document>(table_name);
         let d = bson::doc! {"name" : 123};
         c.insert_one(d).await.unwrap();
 
@@ -1129,11 +1112,11 @@ mod tests {
     async fn test_large_table() {
         let db = make_test_object();
         let col = "test_large_table";
-        let _ = db.drop_table(&col, false).await;
+        let _ = db.drop_table(col, false).await;
 
         for _ in 0..1590 {
             db.query_collection_insert_one(
-                &col,
+                col,
                 doc! {
                     "a" : rand::random::<i32 >(),
                     "b" : rand::random::<i32 >(),
@@ -1213,7 +1196,7 @@ mod tests {
     async fn test2() {
         let db = make_test_object();
         let table = "test_mongo";
-        let _ = db.drop_table(&table, false).await;
+        let _ = db.drop_table(table, false).await;
 
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -1255,7 +1238,7 @@ mod tests {
             "decimal_field": Decimal128::from_str("1").unwrap(),
             "timestamp_field": Timestamp {time: now as u32, increment: 1 },
         };
-        db.insert(&table, data).await.unwrap();
+        db.insert(table, data).await.unwrap();
         let resp = db
             .show_collection_table_list(table, doc! {}, doc! {}, 1, 100)
             .await
