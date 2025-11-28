@@ -442,7 +442,7 @@ pub trait SqlBuilder: GetBackendKind {
         for f in fs.iter() {
             field_by_name.insert(&f.field, f);
         }
-
+        #[allow(clippy::format_in_format_args)]
         let mut sql = format!(
             "DELETE FROM {}{} WHERE ",
             if let Some(schema) = schema {
@@ -468,7 +468,7 @@ pub trait SqlBuilder: GetBackendKind {
         for f in fs.iter() {
             field_by_name.insert(&f.field, f);
         }
-
+        #[allow(clippy::format_in_format_args)]
         let mut sql = format!(
             "UPDATE {}{} SET ",
             if let Some(schema) = schema {
@@ -513,10 +513,11 @@ pub trait SqlBuilder: GetBackendKind {
         &self, schema: Option<&str>, table_name: &str, fs: &[Field],
         values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
+        #[allow(clippy::format_in_format_args)]
         let mut sql = format!(
             "INSERT INTO {}{}(",
             if let Some(schema) = schema.as_ref() {
-                format!("{}.", self.quote(&schema))
+                format!("{}.", self.quote(schema))
             } else {
                 "".to_string()
             },
@@ -762,6 +763,7 @@ impl std::fmt::Display for XlsxEdit {
 impl From<Cow<'static, str>> for XlsxEdit {
     fn from(value: Cow<'static, str>) -> Self {
         let v: Vec<_> = value.splitn(3, ':').collect();
+        #[allow(clippy::unwrap_used)]
         XlsxEdit {
             row: v[0].parse().unwrap(),
             column: v[1].parse().unwrap(),
@@ -1528,6 +1530,19 @@ pub(crate) fn create_html_table_header(x: &[String]) -> String {
     )
 }
 
+pub trait OptionMustBeSomeErr<T> {
+    fn option_must_be_some(self) -> anyhow::Result<T>;
+}
+
+impl<T> OptionMustBeSomeErr<T> for Option<T> {
+    fn option_must_be_some(self) -> anyhow::Result<T> {
+        match self {
+            Some(x) => Ok(x),
+            None => Err(anyhow::Error::msg("must be some")),
+        }
+    }
+}
+
 pub(crate) fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
     let mut ret = "".to_owned();
     for d in data.iter() {
@@ -1564,9 +1579,7 @@ pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;
 
 #[cfg(test)]
 mod tests {
-
     use super::UdfOrProcedureExtraParameter;
-
     #[test]
     fn test_serde_udf_or_procedure_extra_parameter() {
         let x = Some(UdfOrProcedureExtraParameter::PostGres {
@@ -1574,5 +1587,12 @@ mod tests {
         });
         let s = serde_json::to_string_pretty(&x).unwrap();
         println!("{:?}", s);
+    }
+
+    #[test]
+    fn xxx() {
+        let d = anyhow::Error::msg("haha ");
+
+        println!("{}", d.backtrace());
     }
 }

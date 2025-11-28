@@ -1,3 +1,4 @@
 avoid-breaking-exported-api = false
 too-many-arguments-threshold = 12
 type-complexity-threshold = 800
+allow-unwrap-in-tests = true

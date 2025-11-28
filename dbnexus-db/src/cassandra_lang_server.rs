@@ -13,7 +13,7 @@ use cql3_parser::insert::InsertValues;
 use cql3_parser::select::SelectElement;
 
 use crate::cassandra::{AppSession, CassandraDB};
-use crate::db::{CreatedTypeDef, DBTrait};
+use crate::db::{CreatedTypeDef, DBTrait, OptionMustBeSomeErr};
 use crate::language_server::{
     CompletionItem, CompletionKind, CompletionList, GetKeyWords, LangServerCommon, LanguageServer,
     LexerCompletionTrait, remove_duplicate,
@@ -709,7 +709,7 @@ impl AstCompletion {
             anyhow::bail!("result should contains one result");
         }
         let def: Option<String> = rows[0].get_by_index(3)?;
-        let def = def.unwrap();
+        let def = def.option_must_be_some()?;
         for stmt in CassandraAST::new(&def).statements.iter() {
             match &stmt.statement {
                 CassandraStatement::CreateType(x) => {

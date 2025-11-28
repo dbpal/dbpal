@@ -3,9 +3,10 @@ use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue,
-    NamedStaff, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
-    create_html_table_data, create_html_table_header, escape_sql_str, ty_is_float, ty_is_int,
+    NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
+    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
+    escape_sql_str, ty_is_float, ty_is_int,
 };
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
 use crate::language_server::LexerCompletionTrait;
@@ -403,7 +404,7 @@ impl SchemaTrait for ClickHouseDB {
             #[allow(unused)]
             is_sorting_key: u8,
         }
-        let rows: Vec<Row> = conn.query(&sql).fetch_all().await.unwrap();
+        let rows: Vec<Row> = conn.query(&sql).fetch_all().await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.into_iter() {
             let Row {
@@ -731,8 +732,7 @@ impl ServerMetas for ClickHouseDB {
         let ops: Vec<(String, String)> = conn
             .query("SELECT * FROM system.build_options")
             .fetch_all()
-            .await
-            .unwrap();
+            .await?;
 
         ops.into_iter()
             .for_each(|(name, value)| ret.push(MetaValue::new(name, value)));
@@ -1265,7 +1265,7 @@ impl SqlBuilder for ClickHouseDB {
         for f in fs.iter() {
             field_by_name.insert(&f.field, f);
         }
-
+        #[allow(clippy::format_in_format_args)]
         let mut sql = format!(
             "ALTER TABLE {}{} UPDATE ",
             if let Some(schema) = schema {
@@ -1288,8 +1288,8 @@ impl SqlBuilder for ClickHouseDB {
                         "{} = {}",
                         self.quote(k),
                         self.put_value_in_sql(
-                            &f.unwrap().data_type,
-                            f.unwrap().firebird_binary_sub_type,
+                            &f.option_must_be_some()?.data_type,
+                            f.option_must_be_some()?.firebird_binary_sub_type,
                             v.as_ref().map(|x| x.as_str())
                         )?
                     )
@@ -1310,7 +1310,7 @@ impl SqlBuilder for ClickHouseDB {
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.unwrap().to_string());
+            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }
         anyhow::Ok(put_value_in_sql(&parse_type(typ)?, value))
     }

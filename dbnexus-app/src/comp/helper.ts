@@ -1231,7 +1231,7 @@ enum MongoLanguage {
   js = "javascript",
   ts = "typescript",
 }
-const resizeHandlerSize = 2;
+const resizeHandlerSize = 3;
 
 export {
   TabsSetContext,

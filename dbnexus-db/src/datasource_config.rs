@@ -1,5 +1,7 @@
 use typescript_type_def::TypeDef;
 
+use crate::db::OptionMustBeSomeErr;
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 pub struct MongoDBConfig {
     pub host: String,
@@ -291,11 +293,13 @@ pub struct SSLFiles {
 }
 
 impl PGDBConfig {
-    pub(crate) fn db_str(&self) -> &str {
-        self.db.as_ref().unwrap().as_str()
+    pub(crate) fn db_str(&self) -> anyhow::Result<&str> {
+        let r = self.db.as_ref().option_must_be_some()?.as_str();
+        anyhow::Ok(r)
     }
-    pub(crate) fn schema_str(&self) -> &String {
-        self.schema.as_ref().expect("must be some")
+    pub(crate) fn schema_str(&self) -> anyhow::Result<&str> {
+        let r = self.schema.as_ref().option_must_be_some()?.as_str();
+        anyhow::Ok(r)
     }
 }
 
@@ -316,12 +320,14 @@ pub struct SqlServerDBConfig {
 }
 
 impl SqlServerDBConfig {
-    pub(crate) fn db_str(&self) -> &String {
-        self.db.as_ref().unwrap()
+    pub(crate) fn db_str(&self) -> anyhow::Result<&String> {
+        let x = self.db.as_ref().option_must_be_some()?;
+        anyhow::Ok(x)
     }
 
-    pub(crate) fn schema_str(&self) -> &String {
-        self.schema.as_ref().unwrap()
+    pub(crate) fn schema_str(&self) -> anyhow::Result<&String> {
+        let x = self.schema.as_ref().option_must_be_some()?;
+        anyhow::Ok(x)
     }
 }
 

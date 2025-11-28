@@ -31,7 +31,7 @@ use crate::datasource_config::CassandraDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
     POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
     create_html_table_data, create_html_table_header, escape_sql_str,
@@ -142,8 +142,8 @@ async fn make_session(
         .with_contact_point(format!("{}:{}", config.host, config.port.unwrap_or(9042)).into());
     if config.username.is_some() && config.password.is_some() {
         let a = StaticPasswordAuthenticatorProvider::new(
-            config.username.as_deref().unwrap(),
-            config.password.as_deref().unwrap(),
+            config.username.as_deref().option_must_be_some()?,
+            config.password.as_deref().option_must_be_some()?,
         );
         node_builder = node_builder.with_authenticator_provider(Arc::new(a))
     }
@@ -263,9 +263,11 @@ fn encode_rows_as_json(
 
                 ColType::Decimal => {
                     let value: Option<Decimal> = row.get_by_index(index)?;
-                    value
-                        .map(|value| format_decimal(&value))
-                        .map(serde_json::Value::from)
+                    let value = match value {
+                        Some(x) => Some(format_decimal(&x)?),
+                        None => None,
+                    };
+                    value.map(serde_json::Value::from)
                 }
                 ColType::Double => {
                     let value: Option<f64> = row.get_by_index(index)?;
@@ -453,7 +455,7 @@ fn encode_rows_as_json(
             }
             CassandraType::Boolean(x) => serde_json::Value::from(*x),
             CassandraType::Counter(x) => serde_json::Value::from(*x),
-            CassandraType::Decimal(decimal) => serde_json::Value::from(format_decimal(decimal)),
+            CassandraType::Decimal(decimal) => serde_json::Value::from(format_decimal(decimal)?),
             CassandraType::Double(x) => serde_json::Value::from(*x),
             CassandraType::Float(x) => serde_json::Value::from(*x),
             CassandraType::Int(x) => serde_json::Value::from(*x),
@@ -525,7 +527,11 @@ fn encode_rows(meta: &RowsMetadata, rows: &[Row]) -> anyhow::Result<Vec<Vec<Opti
                 }
                 ColType::Decimal => {
                     let value: Option<Decimal> = row.get_by_index(index)?;
-                    value.map(|value| format_decimal(&value))
+                    let value = match value {
+                        Some(value) => Some(format_decimal(&value)?),
+                        None => None,
+                    };
+                    value
                 }
                 ColType::Double => {
                     let value: Option<f64> = row.get_by_index(index)?;
@@ -700,7 +706,7 @@ fn encode_rows(meta: &RowsMetadata, rows: &[Row]) -> anyhow::Result<Vec<Vec<Opti
             CassandraType::Blob(blob) => format!("0x{}", hex::encode(blob.as_mut_slice())),
             CassandraType::Boolean(x) => x.to_string(),
             CassandraType::Counter(x) => x.to_string(),
-            CassandraType::Decimal(decimal) => format_decimal(decimal),
+            CassandraType::Decimal(decimal) => format_decimal(decimal)?,
             CassandraType::Double(x) => x.to_string(),
             CassandraType::Float(x) => x.to_string(),
             CassandraType::Int(x) => x.to_string(),
@@ -728,10 +734,13 @@ fn encode_rows(meta: &RowsMetadata, rows: &[Row]) -> anyhow::Result<Vec<Vec<Opti
     }
 }
 
-fn format_decimal(x: &Decimal) -> String {
-    let r = x.unscaled.clone() % 10i32.pow(x.scale as u32).to_bigint().unwrap();
-
-    format!(
+fn format_decimal(x: &Decimal) -> anyhow::Result<String> {
+    let r = x.unscaled.clone()
+        % 10i32
+            .pow(x.scale as u32)
+            .to_bigint()
+            .option_must_be_some()?;
+    let r = format!(
         "{}{}",
         x.as_plain(),
         if r == BigInt::from(0) {
@@ -739,7 +748,8 @@ fn format_decimal(x: &Decimal) -> String {
         } else {
             format!(".{}", r)
         }
-    )
+    );
+    anyhow::Ok(r)
 }
 
 fn format_timestamp(x: i64) -> anyhow::Result<String> {
@@ -759,7 +769,7 @@ fn format_date(mut days_since_epoch: i32) -> anyhow::Result<String> {
     days_since_epoch &= !(1 << 31);
 
     let date = NaiveDate::from_ymd_opt(1970, 1, 1)
-        .unwrap()
+        .option_must_be_some()?
         .checked_add_days(chrono::Days::new(days_since_epoch as i64 as u64));
     match date {
         Some(x) => anyhow::Ok(x.to_string()),
@@ -1047,16 +1057,16 @@ impl CassandraDB {
 
         好像也不能使用limit了 那就使用
         */
-
+        #[allow(clippy::format_in_format_args)]
         let sql = format!(
             r#"SELECT * FROM "{name}"  {}  {} {} {}"#,
             if let Some(where_str) = where_str.as_ref() {
                 format!(" WHERE {} ", where_str)
             } else {
-                format!("")
+                "".to_string()
             },
             if order_by.is_some() {
-                format!(" ORDER BY {} ", order_by.unwrap())
+                format!(" ORDER BY {} ", order_by.option_must_be_some()?)
             } else {
                 "".to_string()
             },
@@ -1081,7 +1091,7 @@ impl CassandraDB {
                 has_more: false,
             });
         }
-        let meta = meta.unwrap();
+        let meta = meta.option_must_be_some()?;
         let rows = body.into_rows().unwrap_or_default();
         let fields = infer_fields(&meta);
 
@@ -1120,7 +1130,7 @@ impl CassandraDB {
         if meta.is_none() {
             anyhow::bail!("no matadata")
         }
-        let meta = meta.unwrap();
+        let meta = meta.option_must_be_some()?;
         let rows = resp.into_rows().unwrap_or_default();
         let array = encode_rows_as_json(&meta, &rows)?;
         let json = serde_json::Value::Array(array);
@@ -1146,7 +1156,7 @@ impl CassandraDB {
         if meta.is_none() {
             anyhow::bail!("no metadata")
         }
-        let meta = meta.unwrap();
+        let meta = meta.option_must_be_some()?;
         let rows = resp.into_rows().unwrap_or_default();
         let rows = encode_rows(&meta, &rows)?;
         if include_header {
@@ -1181,7 +1191,7 @@ impl CassandraDB {
         if meta.is_none() {
             anyhow::bail!("no metadata")
         }
-        let meta = meta.unwrap();
+        let meta = meta.option_must_be_some()?;
         let rows = resp.into_rows().unwrap_or_default();
         let rows = encode_rows(&meta, &rows)?;
         if include_header {
@@ -1210,7 +1220,7 @@ impl CassandraDB {
         if meta.is_none() {
             anyhow::bail!("no meta data found")
         }
-        let meta = meta.unwrap();
+        let meta = meta.option_must_be_some()?;
         let rows = resp.into_rows().unwrap_or_default();
         for value in encode_rows_as_json(&meta, &rows)? {
             sender
@@ -1350,7 +1360,7 @@ impl SqlBuilder for CassandraDB {
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.unwrap().to_string());
+            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }
         put_value_in_sql(typ, value)
     }
@@ -1377,7 +1387,7 @@ impl CassandraDB {
 
         for row in rows.iter() {
             let name: Option<String> = row.get_by_index(0)?;
-            let name = name.unwrap();
+            let name = name.option_must_be_some()?;
             let sql = format!("DESCRIBE TYPE {name}");
             log::info!("sql:{}", sql);
             let describe_rows = self
@@ -1500,7 +1510,7 @@ impl SchemaTrait for CassandraDB {
         if rows.is_empty() {
             anyhow::bail!("query create table expect return one result.");
         }
-        let row = rows.first().unwrap();
+        let row = rows.first().option_must_be_some()?;
 
         // { flags: RowsMetadataFlags(GLOBAL_TABLE_SPACE), columns_count: 4,
         // paging_state: None, new_metadata_id: None, global_table_spec: Some(TableSpec
@@ -1595,11 +1605,11 @@ impl SchemaTrait for CassandraDB {
         let mut ret = Vec::new();
         for row in rows.iter() {
             let name: Option<String> = row.get_by_index(0)?;
-            let name = name.unwrap();
+            let name = name.option_must_be_some()?;
             let data_type: Option<String> = row.get_by_index(1)?;
-            let data_type = data_type.unwrap();
+            let data_type = data_type.option_must_be_some()?;
             let kind: Option<String> = row.get_by_index(2)?;
-            let kind = kind.unwrap();
+            let kind = kind.option_must_be_some()?;
             let is_primary = kind == "partition_key" || kind == "clustering";
 
             ret.push(Field {
@@ -1825,7 +1835,7 @@ impl SchemaTrait for CassandraDB {
         for row in rows.iter() {
             let typ: Option<String> = row.get_by_index(1)?;
             let create_statement: Option<String> = row.get_by_index(3)?;
-            let create_statement = create_statement.unwrap();
+            let create_statement = create_statement.option_must_be_some()?;
             let parameters_try_match = extract_parameter_for_function(&create_statement)?;
             if parameters.len() != parameters_try_match.len() {
                 continue;
@@ -1948,7 +1958,7 @@ impl DBTrait for CassandraDB {
         let mut ret = Vec::new();
         for row in body.into_rows().unwrap_or_default() {
             let name: Option<String> = row.get_by_index(0)?;
-            ret.push(name.unwrap());
+            ret.push(name.option_must_be_some()?);
         }
         anyhow::Ok(ret)
     }
@@ -2027,7 +2037,7 @@ impl CassandraDB {
             } else {
                 vec![]
             };
-            let name = name.unwrap();
+            let name = name.option_must_be_some()?;
             ret.push(NamedStaff {
                 name,
                 parameters: None,
@@ -2133,7 +2143,7 @@ impl CassandraDB {
             };
             ret.push(NamedStaff {
                 parameters: None,
-                name: name.unwrap(),
+                name: name.option_must_be_some()?,
                 metas: vec![
                     MetaValue::new("return_type", return_type),
                     MetaValue::new("state_func", state_func),
@@ -2163,7 +2173,7 @@ impl CassandraDB {
         for row in rows.iter() {
             let typ: Option<String> = row.get_by_index(1)?;
             let create_statement: Option<String> = row.get_by_index(3)?;
-            let create_statement = create_statement.unwrap();
+            let create_statement = create_statement.option_must_be_some()?;
             let parameters_try_match = [extract_parameter_for_aggregate(&create_statement)?];
             if parameters.len() != parameters_try_match.len() {
                 continue;
@@ -2223,8 +2233,8 @@ mod tests {
 
     #[test]
     fn test_format_decimal() {
-        println!("{}", format_decimal(&Decimal::from(123)));
-        println!("{}", format_decimal(&Decimal::from(123.456)));
+        println!("{}", format_decimal(&Decimal::from(123)).unwrap());
+        println!("{}", format_decimal(&Decimal::from(123.456)).unwrap());
     }
     #[tokio::test]
     async fn test_aggregate() {

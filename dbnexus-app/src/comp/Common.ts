@@ -303,7 +303,7 @@ function makeFormatFn(kind: DataSourceKind) {
 }
 
 interface IQueryConn {
-  queryOP: (text: string, append: boolean) => Promise<any[]>;
+  queryOP: (text: string) => Promise<any[]>;
   executeOP: (text: string) => Promise<any>;
   exportQueryResult: (
     queryId: string,
@@ -401,12 +401,11 @@ class QueryConn implements IQueryConn {
       queryId: this.queryId,
     });
   }
-  queryOP(sql: string, append: boolean): Promise<any[]> {
+  queryOP(sql: string): Promise<any[]> {
     return invoke<any[]>("query_sql", {
       name: this.uuid,
       queryId: this.queryId,
       sql,
-      append,
     });
   }
   executeOP(sql: string): Promise<any> {

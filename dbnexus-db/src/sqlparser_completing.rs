@@ -669,7 +669,7 @@ impl<'a> CompletionStatement<'a> {
                     if self.finished() {
                         return;
                     }
-                    match name.0.last().unwrap() {
+                    match name.0.last().expect("we have checked the length") {
                         ObjectNamePart::Identifier(ident) => {
                             self.c_on_column(&table, ident, false).await
                         }

@@ -101,7 +101,7 @@ impl PostGresDB {
         let cols = fields.iter().map(|x| x.field.as_str()).collect::<Vec<_>>();
         let total = self.query_count(table_name, where_str).await?;
         let sql = gen_show_sql(
-            self.config.schema_str(),
+            self.config.schema_str()?,
             table_name,
             &cols[..],
             where_str,
@@ -131,8 +131,8 @@ impl PostGresDB {
             FROM 
                 pg_matviews where schemaname = '{}' ) 
         "#,
-            self.config.schema_str(),
-            self.config.schema_str(),
+            self.config.schema_str()?,
+            self.config.schema_str()?,
         );
         let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))

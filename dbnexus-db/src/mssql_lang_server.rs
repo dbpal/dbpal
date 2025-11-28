@@ -269,7 +269,7 @@ impl LangServerCommon for SqlServerDB {
     }
 
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let db = self.config.db_str();
+        let db = self.config.db_str()?;
         let schema = self.not_allow_empty_schema(schema)?;
         self.list_table_impl(db, &schema)
             .await
@@ -333,7 +333,7 @@ impl AstCompletionHelper for SqlServerDB {
     async fn list_constraint(
         &self, _schema: Option<&str>, table_name: &str,
     ) -> anyhow::Result<Vec<String>> {
-        let db: &String = self.config.db_str();
+        let db: &String = self.config.db_str()?;
         let sql = format!(
             r#"
             SELECT CONSTRAINT_NAME

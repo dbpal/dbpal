@@ -4,9 +4,9 @@ use crate::{
         BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
         CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind,
         ExportQueryResult, ExportedSizeEmitter, Field, GetBackendKind, Index, IndexKind, ListTable,
-        MetaValue, NamedStaff, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-        SequenceDetail, ServerMetas, ShowTableExtraArgs, SqlEvent, SqlExecuteRet, TriggerDetail,
-        UdfOrProcedureExtraParameter,
+        MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryResp, QuerySql,
+        ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowTableExtraArgs, SqlEvent,
+        SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
     },
     mariadb::MariaDB,
     mysql::MysqlDB,
@@ -55,17 +55,21 @@ impl DBTrait for SubDB {
         match self {
             SubDB::TiDB(db) => {
                 let r = db.open_schema(name).await?;
-                let r = Clone::clone(r.as_any().downcast_ref::<MysqlDB>().unwrap());
+                let r = Clone::clone(r.as_any().downcast_ref::<MysqlDB>().option_must_be_some()?);
                 anyhow::Ok(Arc::new(SubDB::TiDB(Arc::new(r))))
             }
             SubDB::MariaDb(db) => {
                 let r = db.open_schema(name).await?;
-                let r = Clone::clone(r.as_any().downcast_ref::<MysqlDB>().unwrap());
+                let r = Clone::clone(r.as_any().downcast_ref::<MysqlDB>().option_must_be_some()?);
                 anyhow::Ok(Arc::new(SubDB::MariaDb(Arc::new(r))))
             }
             SubDB::CocoRoach(db) => {
                 let r = db.open_schema(name).await?;
-                let r = Clone::clone(r.as_any().downcast_ref::<PostGresDB>().unwrap());
+                let r = Clone::clone(
+                    r.as_any()
+                        .downcast_ref::<PostGresDB>()
+                        .option_must_be_some()?,
+                );
                 anyhow::Ok(Arc::new(SubDB::CocoRoach(Arc::new(r))))
             }
         }

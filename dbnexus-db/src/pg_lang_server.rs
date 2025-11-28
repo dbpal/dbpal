@@ -210,7 +210,7 @@ impl AstCompletionHelper for PostGresDB {
         for schema in schemas.iter() {
             let mut sql =
                 "SELECT constraint_name FROM information_schema.table_constraints".to_string();
-            let db = self.config.db_str();
+            let db = self.config.db_str()?;
             sql.push_str(format!(" WHERE table_catalog='{}'", db).as_str());
             sql.push_str(" AND ");
             sql.push_str(format!("table_schema='{}'", schema).as_str());
@@ -512,7 +512,7 @@ impl LangServerCommon for PostGresDB {
     }
 
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let db = self.config.db_str();
+        let db = self.config.db_str()?;
         let schemas = self.get_search_path(schema, true).await;
         let mut conn = self.get_conn().await?;
         let mut ret = Vec::new();
@@ -535,7 +535,7 @@ impl LangServerCommon for PostGresDB {
     }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
-        let db = self.config.db_str();
+        let db = self.config.db_str()?;
         let sql = format!(
             r#"
         SELECT schema_name 

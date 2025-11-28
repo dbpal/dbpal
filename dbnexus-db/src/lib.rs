@@ -1,3 +1,5 @@
+#![warn(clippy::unwrap_used)]
+
 use std::sync::Once;
 use std::sync::atomic::{AtomicUsize, Ordering};
 

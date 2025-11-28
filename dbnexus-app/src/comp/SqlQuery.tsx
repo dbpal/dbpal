@@ -354,7 +354,7 @@ function SqlQuery(props: {
       }
       setLoading(true);
       conn
-        .queryOP(text, append)
+        .queryOP(text)
         .then(resp => {
           if (SaveQueryLogConfigure.get()) {
             queryLogHandler.current.save(text, rustResultOk(resp));

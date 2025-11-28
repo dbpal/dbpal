@@ -1,5 +1,7 @@
+#![warn(clippy::unwrap_used)]
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod app;
 mod handlers;
 use std::backtrace::Backtrace;
@@ -65,20 +67,6 @@ fn is_macos() -> bool {
 
 pub struct AppLogger {
     config: Arc<Store<Wry>>,
-}
-
-#[allow(dead_code)]
-fn logger_test() {
-    std::thread::spawn(|| {
-        loop {
-            log::trace!("this is trace log");
-            log::debug!("this is debug log");
-            log::info!("this is info log");
-            log::warn!("this is warn log");
-            log::error!("this is error log");
-            std::thread::sleep(std::time::Duration::from_secs(1));
-        }
-    });
 }
 
 impl AppLogger {
@@ -182,7 +170,6 @@ fn panic_test() {
 // https://api.moonshot.cn/v1
 
 fn main() {
-    // logger_test();
     // panic_test();
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()

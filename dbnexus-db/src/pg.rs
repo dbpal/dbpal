@@ -63,7 +63,7 @@ impl PostGresDB {
             WHERE 
             schemata.catalog_name ='{}' order by schema_name
     "#,
-            self.config.db_str()
+            self.config.db_str()?
         );
 
         log::info!("sql:{}", sql);
@@ -145,7 +145,7 @@ impl PostGresDB {
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let sql = format!(
             r#"SELECT * from "{}"."{}""#,
-            self.config.schema_str(),
+            self.config.schema_str()?,
             table_name
         );
         log::info!("sql:{}", sql);
@@ -211,7 +211,7 @@ impl PostGresDB {
     ) -> anyhow::Result<()> {
         let sql = format!(
             "SELECT * from \"{}\".\"{}\"",
-            self.config.schema_str(),
+            self.config.schema_str()?,
             table_name
         );
         log::info!("sql:{}", sql);
@@ -259,7 +259,7 @@ impl PostGresDB {
     ) -> anyhow::Result<()> {
         let sql = format!(
             "SELECT * from \"{}\".\"{}\"",
-            self.config.schema_str(),
+            self.config.schema_str()?,
             table_name
         );
         log::info!("sql:{}", sql);
@@ -273,7 +273,7 @@ impl PostGresDB {
     ) -> anyhow::Result<()> {
         let sql = format!(
             "SELECT * from \"{}\".\"{}\"",
-            self.config.schema_str(),
+            self.config.schema_str()?,
             table_name
         );
         log::info!("sql:{}", sql);
@@ -361,7 +361,7 @@ impl PostGresDB {
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from "{}"."{}""#,
-            self.config.schema_str(),
+            self.config.schema_str()?,
             table_name
         );
         log::info!("sql:{}", sql);
@@ -374,7 +374,7 @@ impl PostGresDB {
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from "{}"."{}""#,
-            self.config.schema_str(),
+            self.config.schema_str()?,
             table_name
         );
         log::info!("sql:{}", sql);
@@ -528,7 +528,7 @@ impl PostGresDB {
             sequence_name , data_type     FROM information_schema.sequences 
             where sequence_catalog = '{}' and sequence_schema ='{}' 
         "#,
-            self.config.db_str(),
+            self.config.db_str()?,
             schema
         );
         let mut conn = self.get_conn().await?;
@@ -613,7 +613,7 @@ impl SchemaTrait for PostGresDB {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
-        self.list_sequences_impl(self.config.schema_str()).await
+        self.list_sequences_impl(self.config.schema_str()?).await
     }
 
     async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<()> {
@@ -639,11 +639,11 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn list_created_types(&self) -> anyhow::Result<Vec<CreatedTypeDef>> {
-        self.list_created_types_impl(self.config.schema_str(), true)
+        self.list_created_types_impl(self.config.schema_str()?, true)
             .await
     }
     async fn drop_created_type(&self, name: &str) -> anyhow::Result<()> {
-        let sql = format!(r#"DROP TYPE  "{}"."{name}" "#, self.config.schema_str());
+        let sql = format!(r#"DROP TYPE  "{}"."{name}" "#, self.config.schema_str()?);
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -824,7 +824,7 @@ impl SchemaTrait for PostGresDB {
         WHERE n.nspname = '{}'  -- 替换为目标模式名称
         AND p.prokind = 'p'  -- 仅选择存储过程
         ORDER BY p.proname;"#,
-            self.config.schema_str()
+            self.config.schema_str()?
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -869,7 +869,7 @@ impl SchemaTrait for PostGresDB {
                 AND p.proname = '{}'  -- 指定存储过程名称
                 AND p.prokind = 'p'
                 AND pg_catalog.pg_get_function_arguments(p.oid) = '{}'  -- 指定参数类型"#,
-            self.config.schema_str(),
+            self.config.schema_str()?,
             name,
             parameters,
         );
@@ -924,7 +924,7 @@ impl SchemaTrait for PostGresDB {
             AND p.prokind = 'f'  -- 只选择普通函数
             ORDER BY p.proname;
         "#,
-            self.config.schema_str()
+            self.config.schema_str()?
         );
         log::info!("sql:{}", sql);
         log::info!("sql:{}", sql);
@@ -969,7 +969,7 @@ impl SchemaTrait for PostGresDB {
             WHERE p.proname = '{name}' and n.nspname ='{}'  -- 替换为您要查询的函数名称
                 AND pg_catalog.pg_get_function_arguments(p.oid) = '{}'
         "#,
-            self.config.schema_str(),
+            self.config.schema_str()?,
             arg
         );
         log::info!("sql:{}", sql);
@@ -1005,7 +1005,7 @@ impl SchemaTrait for PostGresDB {
 
         let sql = format!(
             "DROP FUNCTION IF EXISTS {}.{}({})",
-            self.config.schema_str(),
+            self.config.schema_str()?,
             name,
             parameters
         );
@@ -1041,7 +1041,7 @@ impl SchemaTrait for PostGresDB {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        let schema = self.config.schema_str();
+        let schema = self.config.schema_str()?;
 
         let sql = format!(r#"CREATE TABLE "{schema}"."{dup}" AS TABLE "{schema}"."{table}""#);
         log::info!("sql:{}", sql);
@@ -1053,7 +1053,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        let schema = self.config.schema_str();
+        let schema = self.config.schema_str()?;
         let sql = format!(r#"ALTER TABLE "{schema}"."{old}" RENAME TO "{new}""#);
         log::info!("sql:{}", sql);
 
@@ -1120,7 +1120,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
-        let schema = self.config.schema_str();
+        let schema = self.config.schema_str()?;
         let sql = format!(
             r#"
             DROP TRIGGER "{name}" ON "{schema}"."{table}" 
@@ -1238,7 +1238,7 @@ impl SchemaTrait for PostGresDB {
         let total = self.query_count(view_name, where_str).await?;
 
         let sql = gen_show_sql(
-            self.config.schema_str(),
+            self.config.schema_str()?,
             view_name,
             where_str,
             order_by,
@@ -1264,7 +1264,7 @@ impl SchemaTrait for PostGresDB {
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let mut conn = self.get_conn().await?;
-        let schema = self.config.schema_str();
+        let schema = self.config.schema_str()?;
 
         let sql = format!(r#"DROP VIEW "{schema}"."{view_name}""#);
         log::info!("sql:{}", sql);
@@ -1276,7 +1276,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
-        let schema = self.config.schema_str();
+        let schema = self.config.schema_str()?;
         let mut conn = self.get_conn().await?;
         let sql = format!(
             r#"DROP TABLE "{schema}"."{table}" {}"#,
@@ -1291,7 +1291,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         let mut conn = self.get_conn().await?;
-        let schema = self.config.schema_str();
+        let schema = self.config.schema_str()?;
         let rows = sqlx::raw_sql(AssertSqlSafe(
             format!(
                 r#"
@@ -1333,7 +1333,7 @@ impl SchemaTrait for PostGresDB {
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let schema = self.config.schema_str();
+        let schema = self.config.schema_str()?;
         let s = format!(
             r#"
             TRUNCATE TABLE "{schema}"."{table_name}";
@@ -1393,8 +1393,8 @@ impl SchemaTrait for PostGresDB {
                 FROM information_schema.tables
                 WHERE table_type = 'BASE TABLE' AND table_schema = '{}' and table_catalog='{}' ORDER BY table_name
             "#,
-            self.config.schema_str(),
-            &self.config.db_str()
+            self.config.schema_str()?,
+            &self.config.db_str()?
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -1425,7 +1425,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        let schema = self.config.schema_str();
+        let schema = self.config.schema_str()?;
 
         let sql = format!(
             r#"
@@ -1456,8 +1456,8 @@ impl SchemaTrait for PostGresDB {
             SELECT  column_name , data_type,is_nullable,column_default,udt_name
             FROM information_schema.columns where table_catalog='{}' and table_schema='{}' and table_name = '{}' ORDER BY ordinal_position
         "#,
-            &self.config.db_str(),
-            self.config.schema_str(),
+            &self.config.db_str()?,
+            self.config.schema_str()?,
             table_name
         );
 
@@ -1531,7 +1531,7 @@ impl SchemaTrait for PostGresDB {
     ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str).await?;
         let sql = gen_show_sql(
-            self.config.schema_str(),
+            self.config.schema_str()?,
             table_name,
             where_str,
             order_by,
@@ -1550,7 +1550,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
-        let schema = self.config.schema_str();
+        let schema = self.config.schema_str()?;
         let sql = format!(
             r#"DROP MATERIALIZED VIEW  "{}"."{}" RESTRICT"#,
             schema, name
@@ -1714,7 +1714,7 @@ impl PostGresDB {
         &self, name: &str, where_str: Option<&str>,
     ) -> anyhow::Result<usize> {
         let mut conn = self.get_conn().await?;
-        let schema = self.config.schema_str();
+        let schema = self.config.schema_str()?;
 
         let mut sql = format!(r#"SELECT count(1) from "{schema}"."{name}" "#);
         if let Some(where_str) = where_str {

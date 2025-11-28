@@ -639,7 +639,7 @@ impl SchemaTrait for SqlServerDB {
         if self.table_exists(dup).await? {
             anyhow::bail!(format!("table '{}' already exists", dup));
         }
-        let schema = self.config.schema_str().as_str();
+        let schema = self.config.schema_str()?.as_str();
         let sql = format!(
             r#"
             SELECT * INTO "{schema}"."{dup}" FROM "{schema}"."{table}" 
@@ -804,9 +804,9 @@ impl SchemaTrait for SqlServerDB {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let total =
-            SqlServerDB::query_count(conn, self.config.schema_str(), view_name, where_str).await?;
+            SqlServerDB::query_count(conn, self.config.schema_str()?, view_name, where_str).await?;
         let sql = gen_select_sql(
-            self.config.schema_str().as_str(),
+            self.config.schema_str()?.as_str(),
             view_name,
             where_str,
             order_by,
@@ -835,7 +835,7 @@ impl SchemaTrait for SqlServerDB {
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
-        let schema = self.config.schema_str().as_str();
+        let schema = self.config.schema_str()?.as_str();
 
         let s = format!(r#"DROP VIEW "{schema}"."{view_name}""#);
         self.execute_simple_execute(&s).await?;
@@ -853,13 +853,14 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.list_view_impl(self.config.schema_str().as_str()).await
+        self.list_view_impl(self.config.schema_str()?.as_str())
+            .await
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_table_impl(
-            self.config.db_str().as_str(),
-            self.config.schema_str().as_str(),
+            self.config.db_str()?.as_str(),
+            self.config.schema_str()?.as_str(),
         )
         .await
     }
@@ -924,9 +925,10 @@ impl SchemaTrait for SqlServerDB {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let total =
-            SqlServerDB::query_count(conn, self.config.schema_str(), table_name, where_str).await?;
+            SqlServerDB::query_count(conn, self.config.schema_str()?, table_name, where_str)
+                .await?;
         let sql = gen_select_sql(
-            self.config.schema_str().as_str(),
+            self.config.schema_str()?.as_str(),
             table_name,
             where_str,
             order_by,
@@ -1087,7 +1089,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.list_udf_impl(self.config.schema_str()).await
+        self.list_udf_impl(self.config.schema_str()?).await
     }
 
     async fn show_udf(
@@ -1169,7 +1171,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
-        self.list_procedure_impl(self.config.schema_str().as_str())
+        self.list_procedure_impl(self.config.schema_str()?.as_str())
             .await
     }
 
