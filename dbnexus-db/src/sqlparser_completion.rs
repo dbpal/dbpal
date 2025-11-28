@@ -2331,7 +2331,7 @@ pub fn sqlparser_err_extract_line_col(error: impl Into<String>) -> (Option<u32>,
     // 2. line 2, column 14
     let error = error.into();
     let re = Regex::new(r"(?i)line\s*[:]?\s*(\d+).*column\s*[:]?\s*(\d+)")
-        .expect("this reg must compile");
+        .expect("this regexp must compile");
     if let Some(caps) = re.captures(&error) {
         let line = caps.get(1).and_then(|s| s.as_str().parse().ok());
         let col = caps.get(2).and_then(|s| s.as_str().parse().ok());
