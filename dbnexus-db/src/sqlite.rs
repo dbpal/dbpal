@@ -18,9 +18,9 @@ use crate::datasource_config::SqliteDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
-    XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
+    OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent,
+    TriggerTiming, XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
     export_query_as_xlsx_send_data, not_support_feature,
 };
 use crate::helper::create_csv;
@@ -216,7 +216,7 @@ impl SqliteDB {
             if first && !rows.is_empty() && include_header {
                 let fs = rows
                     .first()
-                    .unwrap()
+                    .expect("rows is not empty")
                     .columns()
                     .iter()
                     .map(|x| x.name().to_string())
@@ -358,8 +358,8 @@ fn extract_trigger_detail_on_lexer(name: &str, sql: String) -> anyhow::Result<Tr
     if event.is_none() || timing.is_none() {
         anyhow::bail!("trigger statement is not valid");
     }
-    let event = event.unwrap();
-    let timing = timing.unwrap();
+    let event = event.option_must_be_some()?;
+    let timing = timing.option_must_be_some()?;
     anyhow::Ok(TriggerDetail::new(
         name,
         match timing.as_str() {
@@ -1007,7 +1007,7 @@ impl SqlBuilder for SqliteDB {
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.unwrap().to_string());
+            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }
         let typ = typ.to_uppercase();
         let v = match typ.as_str() {
@@ -1302,7 +1302,7 @@ pub(crate) fn extract_auto_increment_key(sql: &str) -> anyhow::Result<Option<Str
     if ss.len() != 1 {
         anyhow::bail!("should contains one statement");
     }
-    let s = ss.first().unwrap();
+    let s = ss.first().expect("statements is not empty");
     match s {
         Statement::CreateTable(create_table) => {
             for c in create_table.columns.iter() {

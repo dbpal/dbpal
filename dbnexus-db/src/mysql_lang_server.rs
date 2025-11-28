@@ -348,10 +348,10 @@ impl LangServerCommon for MysqlDB {
         */
 
         let conn = self.query_connection.get(&self.completion_id.get());
-        if conn.is_none() {
-            anyhow::bail!("should be able to get connection")
-        }
-        let conn = conn.unwrap();
+        let conn = match conn {
+            Some(x) => x,
+            None => anyhow::bail!("connection not found"),
+        };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let sql = r#"

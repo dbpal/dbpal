@@ -14,13 +14,13 @@ use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
-    MetaValue, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
-    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
-    XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
-    export_query_as_xlsx_send_blocking_data, not_support_feature,
+    MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp,
+    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder,
+    SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
+    escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
-use crate::helper::{create_csv, lock_err_2_anyhow, run_with_timeout};
+use crate::helper::{create_csv, run_with_timeout};
 
 use crate::language_server::LexerCompletionTrait;
 
@@ -83,7 +83,7 @@ impl OracleDB {
         let sql = sql.to_owned();
         spawn_blocking(move || {
             let conn = this.get_conn_by_query_id(query_id.as_deref())?;
-            let conn = conn.lock().unwrap();
+            let conn = conn.lock().expect("lock failed");
             let mut rows = conn.query(&sql, &[])?;
             let mut row_num = 0;
             let mut first = true;
@@ -171,7 +171,7 @@ impl QuerySql for OracleDB {
                 Some(x) => x,
                 None => anyhow::bail!("query_id not found"),
             };
-            let conn = conn.lock().map_err(lock_err_2_anyhow)?;
+            let conn = conn.lock().expect("lock failed");
             anyhow::Ok(conn.autocommit())
         })
         .await?
@@ -185,7 +185,7 @@ impl QuerySql for OracleDB {
                 Some(x) => x,
                 None => anyhow::bail!("query_id not found"),
             };
-            let mut conn = conn.lock().map_err(lock_err_2_anyhow)?;
+            let mut conn = conn.lock().expect("lock failed");
             conn.set_autocommit(commit);
             anyhow::Ok(())
         })
@@ -200,7 +200,7 @@ impl QuerySql for OracleDB {
                 Some(x) => x,
                 None => anyhow::bail!("query_id not found"),
             };
-            let conn = conn.lock().map_err(lock_err_2_anyhow)?;
+            let conn = conn.lock().expect("lock failed");
             conn.commit()?;
             anyhow::Ok(())
         })
@@ -215,7 +215,7 @@ impl QuerySql for OracleDB {
                 Some(x) => x,
                 None => anyhow::bail!("query_id not found"),
             };
-            let conn = conn.lock().map_err(lock_err_2_anyhow)?;
+            let conn = conn.lock().expect("lock failed");
             conn.rollback()?;
             anyhow::Ok(())
         })
@@ -236,7 +236,7 @@ impl QuerySql for OracleDB {
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
         if let Some((_, x)) = self.query_connection.remove(&id.to_owned()) {
-            tokio::spawn(async move { x.lock().unwrap().close() });
+            tokio::spawn(async move { x.lock().expect("lock failed").close() });
         }
         anyhow::Ok(())
     }
@@ -262,7 +262,7 @@ impl QuerySql for OracleDB {
                 Some(x) => x.clone(),
                 None => anyhow::bail!("connection closed???"),
             };
-            let mut lock = conn.lock().map_err(lock_err_2_anyhow)?;
+            let mut lock = conn.lock().expect("lock failed");
             let conn = lock.deref_mut();
             let ret = match conn.execute(&sql, &[]) {
                 Ok(_) => Ok(QueryResp::execute_ok(sql.to_owned())),
@@ -284,7 +284,7 @@ impl QuerySql for OracleDB {
                 Some(x) => x.clone(),
                 None => anyhow::bail!("connection closed???"),
             };
-            let mut lock = conn.lock().unwrap();
+            let mut lock = conn.lock().expect("lock failed");
             let conn = lock.deref_mut();
             let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
             match conn.query(&sql, &[]) {
@@ -805,7 +805,7 @@ impl OracleDB {
         let sql = sql.to_owned();
         spawn_blocking(move || {
             let conn = this.get_conn_by_query_id(query_id.as_deref())?;
-            let conn = conn.lock().unwrap();
+            let conn = conn.lock().expect("lock failed");
             let rows = conn.query(&sql, &[])?;
             for row in rows {
                 let row = row?;
@@ -837,7 +837,7 @@ impl OracleDB {
         let query_id = query_id.map(|x| x.to_string());
         spawn_blocking(move || {
             let conn = this.get_conn_by_query_id(query_id.as_deref())?;
-            let conn = conn.lock().unwrap();
+            let conn = conn.lock().expect("lock failed");
             sender.blocking_send("[".into())?;
             let mut first = true;
             let rows = conn.query(&sql, &[])?;
@@ -902,7 +902,7 @@ impl OracleDB {
         spawn_blocking(move || {
             let query_id = query_id.as_deref();
             let conn = s.get_conn_by_query_id(query_id)?;
-            let conn = conn.lock().unwrap();
+            let conn = conn.lock().expect("lock failed");
             let mut first = true;
             let rows = conn.query(&sql, &[])?;
             for row in rows {
@@ -936,7 +936,7 @@ impl OracleDB {
         let query_id = query_id.map(|x| x.to_string());
         spawn_blocking(move || {
             let conn = this.get_conn_by_query_id(query_id.as_deref())?;
-            let conn = conn.lock().unwrap();
+            let conn = conn.lock().expect("lock failed");
             let mut first = true;
             let rows = conn.query(&sql, &[])?;
             for row in rows {
@@ -1215,7 +1215,7 @@ impl SchemaTrait for OracleDB {
         let mut indexes_sql = Vec::new();
         for i in indexes.iter() {
             let s = self
-                .create_index_sql(i.name.as_ref().unwrap(), self.schema_str())
+                .create_index_sql(i.name.as_ref().option_must_be_some()?, self.schema_str())
                 .await?;
             indexes_sql.push(s);
         }
@@ -1754,7 +1754,7 @@ impl SqlBuilder for OracleDB {
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.unwrap().to_string());
+            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }
         put_value_in_sql(typ, value)
     }

@@ -404,10 +404,10 @@ pub trait SqlBuilder: GetBackendKind {
             let f = field_by_name.get(k);
             let f = f.copied();
 
-            if f.is_none() {
-                continue;
-            }
-            let f = f.unwrap();
+            let f = match f {
+                Some(x) => x,
+                None => continue,
+            };
             // some type can't compare
             // so they can't appear in where condition
             if !self.type_support_compare(f.data_type.as_str()) {
@@ -491,8 +491,8 @@ pub trait SqlBuilder: GetBackendKind {
                         "{} = {}",
                         self.quote(k),
                         self.put_value_in_sql(
-                            &f.unwrap().data_type,
-                            f.unwrap().firebird_binary_sub_type,
+                            &f.option_must_be_some()?.data_type,
+                            f.option_must_be_some()?.firebird_binary_sub_type,
                             v.as_ref().map(|x| x.as_str())
                         )?
                     )
@@ -763,10 +763,9 @@ impl std::fmt::Display for XlsxEdit {
 impl From<Cow<'static, str>> for XlsxEdit {
     fn from(value: Cow<'static, str>) -> Self {
         let v: Vec<_> = value.splitn(3, ':').collect();
-        #[allow(clippy::unwrap_used)]
         XlsxEdit {
-            row: v[0].parse().unwrap(),
-            column: v[1].parse().unwrap(),
+            row: v[0].parse().expect("must be parseable"),
+            column: v[1].parse().expect("must be parseable"),
             content: v[2].to_string(),
         }
     }
@@ -891,7 +890,7 @@ async fn write_export_file(
             let template = include_str!("./export_html_template.html");
             {
                 let t = "<table>";
-                let index = template.find(t).unwrap();
+                let index = template.find(t).option_must_be_some()?;
                 let x = &template[..index + t.len()];
                 let x = x.replacen("THIS_IS_TITLE", title, 1);
                 file.write_all(x.as_bytes()).await?;
@@ -904,7 +903,7 @@ async fn write_export_file(
             }
             {
                 let t = "</table>";
-                let index = template.find(t).unwrap();
+                let index = template.find(t).option_must_be_some()?;
                 file.write_all(&template.as_bytes()[index..]).await?;
             }
             emit(size.acc);
@@ -1478,11 +1477,11 @@ pub struct AutoCompletionQueryId {
 
 impl AutoCompletionQueryId {
     pub(crate) fn get(&self) -> String {
-        self.query_id.lock().unwrap().clone()
+        self.query_id.lock().expect("shoud lock ok").clone()
     }
 
     pub fn set(&self, x: String) {
-        *self.query_id.lock().unwrap() = x;
+        *self.query_id.lock().expect("should lock ok") = x;
     }
     pub fn set_optional(&self, x: Option<String>) {
         if let Some(x) = x {

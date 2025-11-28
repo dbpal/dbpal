@@ -60,8 +60,9 @@ pub struct MysqlSsl {
 }
 
 impl MysqlDBConfig {
-    pub(crate) fn schema_str(&self) -> &str {
-        self.db.as_deref().expect("must be some")
+    pub(crate) fn schema_str(&self) -> anyhow::Result<&str> {
+        let r = self.db.as_deref().option_must_be_some()?;
+        anyhow::Ok(r)
     }
 }
 
@@ -364,8 +365,9 @@ pub struct CassandraSsl {
 }
 
 impl CassandraDBConfig {
-    pub(crate) fn key_space_str(&self) -> &str {
-        self.db.as_deref().unwrap()
+    pub(crate) fn key_space_str(&self) -> anyhow::Result<&str> {
+        let r = self.db.as_deref().option_must_be_some()?;
+        anyhow::Ok(r)
     }
 }
 

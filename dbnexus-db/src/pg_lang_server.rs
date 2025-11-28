@@ -1,4 +1,4 @@
-use crate::db::{CatalogTrait, CreatedTypeDef, SequenceDetail};
+use crate::db::{CatalogTrait, CreatedTypeDef, OptionMustBeSomeErr, SequenceDetail};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, DBExecutable, ErrAndLoc,
     GetKeyWords, LangServerCommon, LanguageServer, LexerCompletionTrait, PostGresExtension,
@@ -561,7 +561,7 @@ impl LangServerCommon for PostGresDB {
         if conn.is_none() {
             anyhow::bail!("query_id should be able get connection")
         }
-        let conn = conn.unwrap();
+        let conn = conn.option_must_be_some()?;
         let mut conn = conn.lock().await;
 
         let sql = r#"

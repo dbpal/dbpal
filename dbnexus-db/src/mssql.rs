@@ -1,3 +1,19 @@
+use crate::MemoryLimit;
+#[cfg(test)]
+use crate::TEST_HOST;
+use crate::datasource_config::SqlServerDBConfig;
+use crate::db::OptionMustBeSomeErr;
+use crate::db::{
+    BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
+    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
+    ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
+    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
+    XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
+    export_query_as_xlsx_send_data, format_data_time_fix_offset, not_support_feature,
+};
+use crate::helper::create_csv;
+use crate::language_server::LexerCompletionTrait;
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use futures_core::future::BoxFuture;
@@ -12,22 +28,6 @@ use tiberius::{Client, ColumnData, ExecuteResult, FromSql, Row};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
-
-use crate::MemoryLimit;
-#[cfg(test)]
-use crate::TEST_HOST;
-use crate::datasource_config::SqlServerDBConfig;
-use crate::db::{
-    BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
-    ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
-    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
-    XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
-    export_query_as_xlsx_send_data, format_data_time_fix_offset, not_support_feature,
-};
-use crate::helper::create_csv;
-use crate::language_server::LexerCompletionTrait;
 
 #[derive(Clone)]
 pub struct SqlServerDB {
@@ -156,7 +156,11 @@ impl ServerMetas for SqlServerDB {
         let metas = encode_rows(&rows)?;
         for m in metas.iter() {
             ret.push(MetaValue::new(
-                m.first().unwrap().as_ref().unwrap().to_string(),
+                m.first()
+                    .expect("must have results")
+                    .as_ref()
+                    .option_must_be_some()?
+                    .to_string(),
                 m[1].clone(),
             ));
         }
@@ -339,7 +343,7 @@ fn extract_trigger_event_base_on_lexer(sql: &str) -> anyhow::Result<TriggerEvent
     if event.is_none() {
         anyhow::bail!("trigger statement is not valid");
     }
-    let event = event.unwrap();
+    let event = event.option_must_be_some()?;
 
     anyhow::Ok(TriggerEvent::try_from(event.as_str())?)
 }
@@ -683,7 +687,7 @@ impl SchemaTrait for SqlServerDB {
             match item {
                 tiberius::QueryItem::Row(x) => {
                     let name: Option<&str> = x.try_get(0)?;
-                    ret.push(name.unwrap().to_string());
+                    ret.push(name.option_must_be_some()?.to_string());
                 }
                 tiberius::QueryItem::Metadata(_) => {}
             }
@@ -720,7 +724,7 @@ impl SchemaTrait for SqlServerDB {
                     result = Some((
                         name.unwrap_or_default(),
                         is_instead_of_trigger.unwrap_or_default(),
-                        sql.unwrap().to_string(),
+                        sql.option_must_be_some()?.to_string(),
                     ));
                 }
                 tiberius::QueryItem::Metadata(_) => {}
@@ -887,9 +891,9 @@ impl SchemaTrait for SqlServerDB {
             match item {
                 tiberius::QueryItem::Row(row) => {
                     let name: Option<&str> = row.try_get(0)?;
-                    let name = name.unwrap().to_string();
+                    let name = name.option_must_be_some()?.to_string();
                     let data_type: Option<&str> = row.try_get(1)?;
-                    let data_type = data_type.unwrap().to_string();
+                    let data_type = data_type.option_must_be_some()?.to_string();
                     let default_value: Option<&str> = row.try_get(2)?;
                     let nullable: Option<&str> = row.try_get(3)?;
                     ret.push(Field::new(
@@ -985,10 +989,10 @@ impl SchemaTrait for SqlServerDB {
             match item {
                 tiberius::QueryItem::Row(r) => {
                     let name: Option<&str> = r.try_get(0)?;
-                    let name = name.unwrap().to_string();
+                    let name = name.option_must_be_some()?.to_string();
                     let is_unique: Option<bool> = r.try_get(1)?;
                     let col: Option<&str> = r.try_get(2)?;
-                    let col = col.unwrap().to_string();
+                    let col = col.option_must_be_some()?.to_string();
                     if let Some(x) = ret.get_mut(&name) {
                         x.columns.push(col);
                     } else {
@@ -1242,7 +1246,7 @@ impl SqlBuilder for SqlServerDB {
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.unwrap().to_string());
+            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }
         let default_value = value.map(|x| x.to_string()).unwrap_or("null".to_string());
         let single_quote = value
@@ -1939,7 +1943,7 @@ impl QuerySql for SqlServerDB {
                 tiberius::QueryItem::Metadata(meta) => {
                     if meta_prev.is_some() {
                         let table_list = make_table_list_from_meta_and_row(
-                            meta_prev.as_ref().unwrap(),
+                            meta_prev.as_ref().option_must_be_some()?,
                             &rows,
                             rows.len(),
                             "".to_string(),
@@ -1953,7 +1957,7 @@ impl QuerySql for SqlServerDB {
         }
         if meta_prev.is_some() {
             let table_list = make_table_list_from_meta_and_row(
-                meta_prev.as_ref().unwrap(),
+                meta_prev.as_ref().option_must_be_some()?,
                 &rows,
                 rows.len(),
                 "",
@@ -1975,7 +1979,7 @@ async fn set_current_schema(conn: &mut Connection, schema: &str) -> anyhow::Resu
     let sql = format!("SET CURRENT_SCHEMA = '{schema}'");
     log::info!("sql:{}", sql);
 
-    conn.simple_query(sql.as_str()).await.unwrap();
+    conn.simple_query(sql.as_str()).await?;
     anyhow::Ok(())
 }
 

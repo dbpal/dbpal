@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::sync::PoisonError;
 
 use sqlparser::dialect::Dialect;
 use sqlparser::tokenizer::Token;
@@ -165,10 +164,6 @@ pub(crate) fn try_remove_one_at(value: String) -> String {
     } else {
         value
     }
-}
-
-pub(crate) fn lock_err_2_anyhow<T>(x: PoisonError<T>) -> anyhow::Error {
-    anyhow::Error::msg(format!("lock failed,err:{}", x))
 }
 
 #[cfg(test)]

@@ -14,9 +14,10 @@ use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit, create_html_table_data,
-    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data,
+    OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit,
+    create_html_table_data, create_html_table_header, escape_sql_str,
+    export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
@@ -249,7 +250,7 @@ impl QuerySql for LibSqlDB {
                 rows.push(row);
             }
             if !rows.is_empty() {
-                let fields = get_row_types(rows.first().unwrap());
+                let fields = get_row_types(rows.first().expect("I have checked it is not empty"));
                 let data = encode_rows(&rows)?;
                 ret.push(Ok(QueryResp {
                     fields,
@@ -885,7 +886,7 @@ impl SqlBuilder for LibSqlDB {
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.unwrap().to_string());
+            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }
         let typ = typ.to_uppercase();
 

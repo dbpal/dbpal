@@ -65,7 +65,7 @@ pub struct MariaDB {
 
 impl MariaDB {
     pub(crate) async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
-        self.list_sequences_impl(self.db.config.schema_str()).await
+        self.list_sequences_impl(self.db.config.schema_str()?).await
     }
 
     pub(crate) async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<()> {

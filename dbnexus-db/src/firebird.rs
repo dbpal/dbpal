@@ -21,12 +21,12 @@ use crate::MemoryLimit;
 use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     BackendKind, CheckConn, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
-    ListTable, MetaValue, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, XlsxEdit, create_html_table_data,
-    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_blocking_data,
-    not_support_feature,
+    ListTable, MetaValue, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
+    XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
+    export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
-use crate::helper::{create_csv, lock_err_2_anyhow};
+use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
 use dashmap::{DashMap, DashSet};
 use r2d2::{Pool, PooledConnection};
@@ -410,7 +410,7 @@ impl QuerySql for FireBirdDB {
                 Some(x) => x.clone(),
                 None => anyhow::bail!("connection closed???"),
             };
-            let mut conn = conn.lock().map_err(lock_err_2_anyhow)?;
+            let mut conn = conn.lock().expect("lock failed");
             let conn = conn.deref_mut();
             conn.begin_transaction()?;
             this.query_connections_tx.insert(query_id.to_string());
@@ -427,7 +427,7 @@ impl QuerySql for FireBirdDB {
                 Some(x) => x.clone(),
                 None => anyhow::bail!("connection closed???"),
             };
-            let mut conn = conn.lock().map_err(lock_err_2_anyhow)?;
+            let mut conn = conn.lock().expect("lock failed");
             let conn = conn.deref_mut();
             conn.commit()?;
             this.query_connections_tx.remove(&query_id.to_string());
@@ -444,7 +444,7 @@ impl QuerySql for FireBirdDB {
                 Some(x) => x.clone(),
                 None => anyhow::bail!("connection closed???"),
             };
-            let mut conn = conn.lock().map_err(lock_err_2_anyhow)?;
+            let mut conn = conn.lock().expect("lock failed");
             let conn = conn.deref_mut();
             conn.rollback()?;
             this.query_connections_tx.remove(&query_id.to_string());
@@ -467,7 +467,7 @@ impl QuerySql for FireBirdDB {
                 Some(x) => x.clone(),
                 None => anyhow::bail!("connection closed???"),
             };
-            let mut conn = conn.lock().map_err(lock_err_2_anyhow)?;
+            let mut conn = conn.lock().expect("lock failed");
             let conn = conn.deref_mut();
             let mut ml = MemoryLimit::new();
             let rows: Result<Vec<Row>, _> = conn.query(&sql, ());
@@ -475,7 +475,10 @@ impl QuerySql for FireBirdDB {
                 Ok(rows) => {
                     ml.exceed_error()?;
                     if !rows.is_empty() {
-                        let fields = infer_fields(rows.first().unwrap());
+                        let fields = infer_fields(
+                            rows.first()
+                                .expect("I have checked that rows is not is_empty"),
+                        );
                         let data = encode_rows(&rows, true, None)?;
                         ret.push(Ok(QueryResp {
                             fields,
@@ -516,7 +519,7 @@ impl QuerySql for FireBirdDB {
                 Some(x) => x.clone(),
                 None => anyhow::bail!("connection closed???"),
             };
-            let mut conn = conn.lock().map_err(lock_err_2_anyhow)?;
+            let mut conn = conn.lock().expect("lock failed");
             let conn = conn.deref_mut();
             let resp = conn
                 .execute(&sql, ())
@@ -1089,7 +1092,7 @@ impl SqlBuilder for FireBirdDB {
         &self, typ: &str, firebird_blob_sub_type: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.unwrap().to_string());
+            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }
         put_value_in_sql(typ, firebird_blob_sub_type, value)
     }

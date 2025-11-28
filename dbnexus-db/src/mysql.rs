@@ -9,10 +9,10 @@ use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field,
-    GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS,
-    ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableExtraArgs, SqlBuilder, SqlEvent, SqlExecuteRet, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
+    POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlEvent, SqlExecuteRet, TriggerDetail,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
     create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
@@ -408,7 +408,7 @@ impl MysqlDB {
             if first && !rows.is_empty() && include_header {
                 let fs = rows
                     .first()
-                    .unwrap()
+                    .expect("row is not empty")
                     .columns()
                     .iter()
                     .map(|x| x.name().to_string())
@@ -445,7 +445,7 @@ impl MysqlDB {
             if first && !rows.is_empty() && include_header {
                 let fs = rows
                     .first()
-                    .unwrap()
+                    .expect("rows is not empty ")
                     .columns()
                     .iter()
                     .map(|x| x.name().to_string())
@@ -801,7 +801,7 @@ impl MysqlDB {
 
 impl SchemaTrait for MysqlDB {
     async fn list_event(&self) -> anyhow::Result<Vec<SqlEvent>> {
-        self.list_event_impl(self.config.schema_str()).await
+        self.list_event_impl(self.config.schema_str()?).await
     }
     async fn drop_event(&self, name: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP EVENT `{}`"#, name);
@@ -954,7 +954,7 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
 
         let ret = FunctionOrProcedure::Procedure
-            .query_list(conn.deref_mut(), self.config.schema_str())
+            .query_list(conn.deref_mut(), self.config.schema_str()?)
             .await?;
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
     }
@@ -1021,7 +1021,7 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
 
         let ret = FunctionOrProcedure::Function
-            .query_list(conn.deref_mut(), self.config.schema_str())
+            .query_list(conn.deref_mut(), self.config.schema_str()?)
             .await?;
 
         anyhow::Ok(ret.into_iter().map(NamedStaff::from).collect())
@@ -1102,7 +1102,7 @@ impl SchemaTrait for MysqlDB {
                 WHERE EVENT_OBJECT_TABLE = '{table_name}'
                 AND TRIGGER_SCHEMA = '{}';
         "#,
-            self.config.schema_str()
+            self.config.schema_str()?
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -1234,7 +1234,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.list_view_impl(self.config.schema_str()).await
+        self.list_view_impl(self.config.schema_str()?).await
     }
 
     async fn table_delete(
@@ -1303,8 +1303,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.list_table_impl(self.config.db.as_deref().unwrap())
-            .await
+        self.list_table_impl(self.config.schema_str()?).await
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -1931,7 +1930,7 @@ impl SqlBuilder for MysqlDB {
         &self, f: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.unwrap().to_string());
+            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }
         let default_str = value.map(|x| x.to_string()).unwrap_or("null".to_string());
         let single_quote_str = value

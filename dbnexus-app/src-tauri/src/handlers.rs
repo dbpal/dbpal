@@ -8,8 +8,8 @@ use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::db::{
     ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef,
     DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    ProcedureDetail, QueryResp, SequenceDetail, ShowTableExtraArgs, SqlEvent, SqlExecuteRet,
-    TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
+    OptionMustBeSomeErr, ProcedureDetail, QueryResp, SequenceDetail, ShowTableExtraArgs, SqlEvent,
+    SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
@@ -52,12 +52,16 @@ impl TaskManager {
         }
         impl Drop for XDrop {
             fn drop(&mut self) {
-                self.manager.tokens.lock().unwrap().remove(&self.task_id);
+                self.manager
+                    .tokens
+                    .lock()
+                    .expect("lock should be ok")
+                    .remove(&self.task_id);
             }
         }
         self.tokens
             .lock()
-            .unwrap()
+            .expect("must be lock ok")
             .insert(task_id.clone(), token.clone());
         (
             token,
@@ -74,8 +78,12 @@ pub async fn cancel_task(
     task_id: String, state: State<'_, TaskManager>,
 ) -> Result<(), ErrorFrontend> {
     // 通知取消
-
-    if let Some(token) = state.tokens.lock().unwrap().remove(&task_id) {
+    if let Some(token) = state
+        .tokens
+        .lock()
+        .expect("should lock ok")
+        .remove(&task_id)
+    {
         token.cancel(); // 触发取消
     } else {
         return Err(ErrorFrontend::from(format!(
@@ -105,12 +113,16 @@ pub fn monaco_editor_themes() -> Result<HashMap<&'static str, &'static str>, Err
         match en {
             include_dir::DirEntry::Dir(..) => {}
             include_dir::DirEntry::File(file) => {
-                let name = file.path().file_name().and_then(|x| x.to_str()).unwrap();
+                let name = file
+                    .path()
+                    .file_name()
+                    .and_then(|x| x.to_str())
+                    .expect("filename convert to str should be ok");
                 if name == "themelist.json" {
                     continue;
                 }
-                let name = &name[..name.len() - 5];
-                ret.insert(name, file.contents_utf8().unwrap());
+                let name = name.strip_suffix(".json").expect(" must end with .json");
+                ret.insert(name, file.contents_utf8().expect("must be utf8"));
             }
         }
     }
@@ -130,7 +142,7 @@ pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
             .get_file(format!("{}-{}.md", command, tokens[1].value().to_lowercase()).as_str());
         if let Some(file) = file {
             let mut ret = format!("## {} {}\n", tokens[0].value(), tokens[1].value());
-            ret.push_str(file.contents_utf8().unwrap());
+            ret.push_str(file.contents_utf8().option_must_be_some()?);
             return Ok(ret);
         }
     }
@@ -139,7 +151,7 @@ pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
         Some(file) => {
             let sub_match = format!("{}-", command);
             let mut ret = format!("## {}\n", tokens[0].value());
-            ret.push_str(file.contents_utf8().unwrap());
+            ret.push_str(file.contents_utf8().option_must_be_some()?);
             // try match sub markdown
             for en in REDIS_COMMANDS_MD_FILES.entries() {
                 match en {
@@ -174,7 +186,7 @@ pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
                                 })
                                 .as_str(),
                             );
-                            ret.push_str(file.contents_utf8().unwrap());
+                            ret.push_str(file.contents_utf8().option_must_be_some()?);
                         }
                     }
                 }
@@ -191,11 +203,11 @@ pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
 #[tauri::command]
 
 pub fn close_log_channel() {
-    *log_channel_store().lock().unwrap() = None;
+    *log_channel_store().lock().expect("lock poisoned") = None;
 }
 #[tauri::command]
 pub fn log_channel(on_event: Channel<String>) {
-    *log_channel_store().lock().unwrap() = Some(on_event);
+    *log_channel_store().lock().expect("lock poisoned") = Some(on_event);
 }
 
 #[tauri::command]

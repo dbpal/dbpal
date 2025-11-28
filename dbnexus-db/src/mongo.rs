@@ -12,12 +12,14 @@ use mongodb::options::{IndexOptions, ServerAddress, Tls, TlsOptions};
 use mongodb::results::{CollectionType, DeleteResult, InsertOneResult, UpdateResult};
 use mongodb::{IndexModel, bson};
 
+#[cfg(test)]
 use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
-    GetBackendKind, Index, IndexKind, ListTable, MetaValue, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlExecuteRet, not_support_feature,
+    GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr, QueryResp,
+    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlExecuteRet,
+    not_support_feature,
 };
 
 #[derive(Clone)]
@@ -435,7 +437,7 @@ impl ServerMetas for MongoDB {
         }
 
         {
-            let pid = server_status.get("pid").unwrap().to_string();
+            let pid = server_status.get("pid").option_must_be_some()?.to_string();
             ret.push(MetaValue::new("pid", pid));
         }
         {
@@ -564,7 +566,7 @@ impl MongoDB {
         if value.is_none() {
             return anyhow::Ok(vec![]);
         }
-        let value = value.unwrap();
+        let value = value.option_must_be_some()?;
         let mut cols = infer_multi_value_column_names(&vec![value][..])?;
         cols.iter_mut().for_each(|x| {
             if x.field.as_str() == "_id" {
@@ -597,8 +599,8 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
-        let old = format!("{}.{}", self.db_name.as_ref().unwrap(), old);
-        let new = format!("{}.{}", self.db_name.as_ref().unwrap(), new);
+        let old = format!("{}.{}", self.db_name.as_ref().option_must_be_some()?, old);
+        let new = format!("{}.{}", self.db_name.as_ref().option_must_be_some()?, new);
         let cmd = bson::doc! { "renameCollection":  old , "to": new};
         let client = self.get_conn().await?;
         let db = client.database("admin");
@@ -694,11 +696,11 @@ impl SchemaTrait for MongoDB {
                 db.collection::<Document>(table_name)
                     .drop_index(oldname)
                     .await?;
-
                 if index_model.options.is_none() {
                     index_model.options = Some(IndexOptions::default());
                 }
-                index_model.options.as_mut().unwrap().name = Some(newname.to_string());
+                index_model.options.as_mut().expect("must be some").name =
+                    Some(newname.to_string());
 
                 db.collection::<Document>(table_name)
                     .create_index(index_model)
@@ -811,7 +813,7 @@ impl QuerySql for MongoDB {
 impl MongoDB {
     pub(crate) async fn get_db(&self) -> anyhow::Result<mongodb::Database> {
         let client = self.get_conn().await?;
-        Ok(client.database(self.db_name.as_ref().unwrap()))
+        Ok(client.database(self.db_name.as_ref().option_must_be_some()?))
     }
 
     pub(crate) async fn get_conn(&self) -> anyhow::Result<mongodb::Client> {
@@ -821,6 +823,7 @@ impl MongoDB {
 
 // this used in test
 #[allow(unused)]
+#[cfg(test)]
 pub(crate) fn make_test_object() -> MongoDB {
     let x = MongoDB::new(MongoDBConfig {
         conn_timeout: Some(5000.into()),

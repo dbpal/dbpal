@@ -83,7 +83,7 @@ pub fn enable_test_log() {
     INIT.call_once(|| {
         log::set_logger(&LOGGER)
             .map(|()| log::set_max_level(LevelFilter::Trace))
-            .unwrap()
+            .expect("should set ok")
     })
 }
 

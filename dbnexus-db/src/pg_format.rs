@@ -611,7 +611,11 @@ pub(crate) fn encode_rows(rows: &[PgRow]) -> anyhow::Result<Vec<Vec<Option<Strin
                 Some(format!(
                     "pg object[ty:{} data:{}]",
                     ty,
-                    output_bytes(value.as_bytes().unwrap())
+                    output_bytes(
+                        value
+                            .as_bytes()
+                            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+                    )
                 ))
             };
 

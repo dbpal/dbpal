@@ -27,7 +27,7 @@ pub(crate) struct ScopesDropGuard {
 
 impl Drop for ScopesDropGuard {
     fn drop(&mut self) {
-        let mut m = self.scopes.lock().unwrap();
+        let mut m = self.scopes.lock().expect("lock failed");
         let m = m.deref_mut();
         m.pop();
     }
@@ -36,7 +36,14 @@ impl Drop for ScopesDropGuard {
 impl Scopes {
     #[allow(unused)]
     pub(crate) fn debug(&self) {
-        for (index, s) in self.scopes.lock().unwrap().iter().rev().enumerate() {
+        for (index, s) in self
+            .scopes
+            .lock()
+            .expect("lock failed")
+            .iter()
+            .rev()
+            .enumerate()
+        {
             println!("scope {:?}-----------------", index);
             for t in s.vars.iter() {
                 println!("var:{:?}", t);
@@ -53,12 +60,17 @@ impl Scopes {
     }
 
     pub(crate) fn current_scope<R>(&self, f: impl FnOnce(&mut Scope) -> R) -> R {
-        f(self.scopes.lock().unwrap().last_mut().unwrap())
+        f(self
+            .scopes
+            .lock()
+            .expect("lock failed")
+            .last_mut()
+            .expect("we have at least one scope"))
     }
 
     pub(crate) fn tables_cloned(&self) -> Vec<TableEntered> {
         let mut ret = vec![];
-        let lock = self.scopes.lock().unwrap();
+        let lock = self.scopes.lock().expect("lock failed");
         for s in lock.iter().rev() {
             ret.extend(s.tables.clone().into_iter());
         }
@@ -67,7 +79,7 @@ impl Scopes {
 
     pub(crate) fn vars_cloned(&self) -> Vec<Var> {
         let mut ret = vec![];
-        let lock = self.scopes.lock().unwrap();
+        let lock = self.scopes.lock().expect("lock failed");
         for s in lock.iter().rev() {
             ret.extend(s.vars.iter().cloned());
         }
@@ -75,7 +87,7 @@ impl Scopes {
     }
 
     pub(crate) fn enter(&self, scope: Scope) -> ScopesDropGuard {
-        self.scopes.lock().unwrap().push(scope);
+        self.scopes.lock().expect("lock failed").push(scope);
         ScopesDropGuard {
             scopes: self.scopes.clone(),
         }
@@ -87,7 +99,7 @@ impl Scopes {
     }
 
     pub(crate) fn inner_first<R>(&self, mut f: impl FnMut(&Scope) -> Option<R>) -> Option<R> {
-        for s in self.scopes.lock().unwrap().iter().rev() {
+        for s in self.scopes.lock().expect("lock failed").iter().rev() {
             let x = f(s);
             if x.is_some() {
                 return x;
@@ -185,7 +197,7 @@ impl TableEntered {
                 if let Some(alias) = alias {
                     Some(alias)
                 } else {
-                    match table.0.last().unwrap() {
+                    match table.0.last().expect("table have at least one part") {
                         ObjectNamePart::Identifier(ident) => Some(ident),
                         ObjectNamePart::Function(object_name_part_function) => {
                             // TODO
@@ -709,7 +721,7 @@ impl<'a> CompletionStatement<'a> {
                 }
                 if let Some(auth) = authorization_owner {
                     match auth.0.len() {
-                        1 => match auth.0.last().unwrap() {
+                        1 => match auth.0.last().expect("we have checked the length") {
                             ObjectNamePart::Identifier(ident) => self.c_on_role(ident).await,
                             ObjectNamePart::Function(..) => {
                                 // TODO
@@ -2318,7 +2330,8 @@ pub fn sqlparser_err_extract_line_col(error: impl Into<String>) -> (Option<u32>,
     // 1. Line: 2, Column: 14
     // 2. line 2, column 14
     let error = error.into();
-    let re = Regex::new(r"(?i)line\s*[:]?\s*(\d+).*column\s*[:]?\s*(\d+)").unwrap();
+    let re = Regex::new(r"(?i)line\s*[:]?\s*(\d+).*column\s*[:]?\s*(\d+)")
+        .expect("this reg must compile");
     if let Some(caps) = re.captures(&error) {
         let line = caps.get(1).and_then(|s| s.as_str().parse().ok());
         let col = caps.get(2).and_then(|s| s.as_str().parse().ok());

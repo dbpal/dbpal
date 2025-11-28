@@ -16,10 +16,10 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
     CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    SequenceDetail, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
-    create_html_table_header, export_query_as_xlsx_send_data,
+    OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, SequenceDetail, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
+    TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    create_html_table_data, create_html_table_header, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
 
@@ -298,7 +298,7 @@ impl PostGresDB {
             if first && !rows.is_empty() && include_header {
                 let fs = rows
                     .first()
-                    .unwrap()
+                    .expect("rows is not empty")
                     .columns()
                     .iter()
                     .map(|x| x.name().to_string())
@@ -336,7 +336,7 @@ impl PostGresDB {
             if first && !rows.is_empty() && include_header {
                 let fs = rows
                     .first()
-                    .unwrap()
+                    .expect("rows is not empty")
                     .columns()
                     .iter()
                     .map(|x| x.name().to_string())
@@ -1213,8 +1213,12 @@ impl SchemaTrait for PostGresDB {
 
         let mut sqls = Vec::with_capacity(indexes.len());
         for index in indexes.iter() {
-            let index_sql =
-                get_index_def(&mut conn, table_name, index.name.as_ref().unwrap()).await?;
+            let index_sql = get_index_def(
+                &mut conn,
+                table_name,
+                index.name.as_ref().option_must_be_some()?,
+            )
+            .await?;
             sqls.push(index_sql);
         }
         anyhow::Ok(CreateTableAndIndexSql {
@@ -1464,8 +1468,7 @@ impl SchemaTrait for PostGresDB {
         let mut conn = self.get_conn().await?;
         let rows = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
             .fetch_all(conn.deref_mut())
-            .await
-            .unwrap();
+            .await?;
         let mut ret = Vec::with_capacity(rows.len());
         let primary_keys = {
             let sql: String = format!(
@@ -1597,8 +1600,7 @@ impl SchemaTrait for PostGresDB {
             .as_str(),
         ))
         .fetch_all(conn.deref_mut())
-        .await
-        .unwrap();
+        .await?;
         let mut ret = Vec::with_capacity(rows.len());
         for r in rows.iter() {
             let index_name: String = r.get(1);
@@ -1701,7 +1703,9 @@ impl PostGresDB {
         for row in rows.iter() {
             let name: String = row.try_get(0)?;
             let def: Option<String> = row.try_get(1)?;
-            if skip_null_create_sql && (def.is_none() || def.as_ref().unwrap().trim().is_empty()) {
+            if skip_null_create_sql
+                && (def.is_none() || def.as_ref().option_must_be_some()?.trim().is_empty())
+            {
                 continue;
             }
             ret.push(CreatedTypeDef { name, sql: def });
@@ -2265,7 +2269,7 @@ impl SqlBuilder for PostGresDB {
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
     ) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
-            return anyhow::Result::Ok(value.unwrap().to_string());
+            return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }
         put_value_in_sql(typ, value)
     }

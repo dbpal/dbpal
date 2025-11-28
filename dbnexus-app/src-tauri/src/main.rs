@@ -115,9 +115,11 @@ impl log::Log for AppLogger {
         );
         #[cfg(debug_assertions)]
         println!("{}", log_str);
-        let mut sender = log_channel_store().lock().unwrap();
+        let mut sender = log_channel_store().lock().expect("lock failed");
         if let Some(x) = sender.deref_mut() {
-            x.send(log_str).unwrap();
+            if let Err(e) = x.send(log_str) {
+                println!("send log failed:{}", e);
+            }
         }
     }
 
@@ -174,7 +176,7 @@ fn main() {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
-        .unwrap();
+        .expect("should build runtime");
 
     tauri::async_runtime::set(runtime.handle().clone());
 
@@ -211,10 +213,14 @@ fn main() {
         }
         #[cfg(debug_assertions)] // only include this code on debug builds
         {
-            let window = app.get_webview_window("main").unwrap();
+            let window = app
+                .get_webview_window("main")
+                .expect("should be able to get main window");
             window.open_devtools();
         }
-        let _store = app.store(STORE_FILE).unwrap();
+        let _store = app
+            .store(STORE_FILE)
+            .expect("should be able to create store");
         #[cfg(not(debug_assertions))]
         {
             let logger = AppLogger {
@@ -379,7 +385,9 @@ fn main() {
         .on_menu_event(move |handle, event| {
             log::info!("on menu event:{:?}", event);
             if event.id.0 == "add_config" {
-                handle.emit("add_config", "").unwrap();
+                if let Err(err) = handle.emit("add_config", "") {
+                    log::error!("emit add_config failed:{}", err);
+                }
             }
             if event.id.0 == "show_setting" {
                 if let Some(window) = handle.get_webview_window(&setting_window_id) {

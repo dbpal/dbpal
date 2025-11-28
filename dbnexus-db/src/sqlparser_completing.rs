@@ -296,7 +296,11 @@ impl<'a> CompletionStatement<'a> {
                     .filter(|x| x.field_name.is_some())
                     .map(|x| TempTableColumn {
                         // we filtered before
-                        name: x.field_name.as_ref().map(|x| x.value.clone()).unwrap(),
+                        name: x
+                            .field_name
+                            .as_ref()
+                            .map(|x| x.value.clone())
+                            .unwrap_or_default(),
                         data_type: Some(x.field_type.to_string()),
                     })
                     .collect();
@@ -384,13 +388,15 @@ impl<'a> CompletionStatement<'a> {
     pub(crate) async fn c_on_role_objectname(&mut self, name: &ObjectName) {
         match name.0.len() {
             1 => {
-                self.c_on_role(match name.0.first().unwrap() {
-                    ObjectNamePart::Identifier(ident) => ident,
-                    ObjectNamePart::Function(object_name_part_function) => {
-                        // TODO
-                        &object_name_part_function.name
-                    }
-                })
+                self.c_on_role(
+                    match name.0.first().expect("we have checked the name length") {
+                        ObjectNamePart::Identifier(ident) => ident,
+                        ObjectNamePart::Function(object_name_part_function) => {
+                            // TODO
+                            &object_name_part_function.name
+                        }
+                    },
+                )
                 .await
             }
             _ => {
@@ -518,7 +524,7 @@ impl<'a> CompletionStatement<'a> {
         &mut self, table_name: &ObjectName, name: &ObjectName,
     ) {
         match name.0.len() {
-            1 => match name.0.last().unwrap() {
+            1 => match name.0.last().expect("we have checked above") {
                 ObjectNamePart::Identifier(ident) => {
                     self.c_on_table_policy(table_name, ident).await
                 }
@@ -678,7 +684,7 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             CommentObject::Extension => match name.0.len() {
-                1 => match name.0.last().unwrap() {
+                1 => match name.0.last().expect("we have checked the length") {
                     ObjectNamePart::Identifier(ident) => {
                         self.c_on_postgres_extension(ident, false).await
                     }
@@ -693,7 +699,7 @@ impl<'a> CompletionStatement<'a> {
             CommentObject::User => match name.0.len() {
                 // 在 PostgreSQL 里，“用户”本身就是 可登录的 role，所以给 user 加注释仍然用：
                 // TODO
-                1 => match name.0.last().unwrap() {
+                1 => match name.0.last().expect("we have checked the length") {
                     ObjectNamePart::Identifier(ident) => {
                         self.c_on_user(ident).await;
                     }
@@ -1382,7 +1388,7 @@ impl<'a> CompletionStatement<'a> {
                 let table = &idents[0];
                 // try match for schema
                 if self.helper.hit_schema(&table.value).await
-                    && self.in_pos(&idents.last().unwrap().span)
+                    && self.in_pos(&idents.last().expect("we have checked the length").span)
                 {
                     // matched schema
                     // this is very likely a `select * from sys.xxx` on mysql or other db
@@ -2675,47 +2681,50 @@ impl<'a> CompletionStatement<'a> {
                     match select {
                         SelectItemQualifiedWildcardKind::ObjectName(object_name) => {
                             match object_name.0.len() {
-                                1 => match object_name.0.first().unwrap() {
-                                    ObjectNamePart::Identifier(ident) => {
-                                        match self.scopes.nearest_table_named(ident) {
-                                            Some(x) => match x {
-                                                TableEntered::ObjectName { table, .. } => {
-                                                    let (schema, table) =
-                                                        self.extract_schema_and_item(&table);
+                                1 => {
+                                    match object_name.0.first().expect("we have checked the Length")
+                                    {
+                                        ObjectNamePart::Identifier(ident) => {
+                                            match self.scopes.nearest_table_named(ident) {
+                                                Some(x) => match x {
+                                                    TableEntered::ObjectName { table, .. } => {
+                                                        let (schema, table) =
+                                                            self.extract_schema_and_item(&table);
+                                                        let cols = self
+                                                            .helper
+                                                            .list_column_oked(
+                                                                schema.as_deref(),
+                                                                &table,
+                                                                None,
+                                                            )
+                                                            .await;
+                                                        for col in cols {
+                                                            self.select_item_columns.insert(col);
+                                                        }
+                                                    }
+                                                    TableEntered::Temp { table, .. } => {
+                                                        for col in table.columns.iter() {
+                                                            self.select_item_columns
+                                                                .insert(col.clone());
+                                                        }
+                                                    }
+                                                },
+                                                None => {
                                                     let cols = self
                                                         .helper
-                                                        .list_column_oked(
-                                                            schema.as_deref(),
-                                                            &table,
-                                                            None,
-                                                        )
+                                                        .list_column_oked(None, &ident.value, None)
                                                         .await;
                                                     for col in cols {
                                                         self.select_item_columns.insert(col);
                                                     }
                                                 }
-                                                TableEntered::Temp { table, .. } => {
-                                                    for col in table.columns.iter() {
-                                                        self.select_item_columns
-                                                            .insert(col.clone());
-                                                    }
-                                                }
-                                            },
-                                            None => {
-                                                let cols = self
-                                                    .helper
-                                                    .list_column_oked(None, &ident.value, None)
-                                                    .await;
-                                                for col in cols {
-                                                    self.select_item_columns.insert(col);
-                                                }
                                             }
                                         }
+                                        ObjectNamePart::Function(..) => {
+                                            // TODO
+                                        }
                                     }
-                                    ObjectNamePart::Function(..) => {
-                                        // TODO
-                                    }
-                                },
+                                }
                                 2 => {
                                     // schema.table
                                     let (schema, table) = self.extract_schema_and_item(object_name);
