@@ -3158,7 +3158,6 @@ fn block_random_sleep() {
             use rand::Rng;
             let mut rng = rand::rng();
             let millis = rng.random_range(500..1700);
-
             std::time::Duration::from_millis(millis)
         };
         block_in_place(|| std::thread::sleep(duration));

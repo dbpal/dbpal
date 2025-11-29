@@ -307,7 +307,7 @@ impl QuerySql for OracleDB {
                             );
                         }
                         rows_cache.push(row);
-                        if rows_cache.len() >= this.query_row_buffer_size() || timeemit.add(0) {
+                        if rows_cache.len() >= this.query_buffer_size() || timeemit.add(0) {
                             let r = encode_rows(std::mem::take(&mut rows_cache))?;
                             emit(r.into());
                         }

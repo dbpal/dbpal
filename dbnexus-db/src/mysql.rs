@@ -1889,7 +1889,7 @@ impl QuerySql for MysqlDB {
                         emit_fields = fields;
                     }
                     rows.push(row);
-                    if rows.len() >= self.query_row_buffer_size() || timeemit.add(0) {
+                    if rows.len() >= self.query_buffer_size() || timeemit.add(0) {
                         let data = encode_rows(&std::mem::take(&mut rows), true)?;
                         emit(data.into());
                     }

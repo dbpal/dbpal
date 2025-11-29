@@ -1935,7 +1935,7 @@ impl QuerySql for SqlServerDB {
             match item {
                 tiberius::QueryItem::Row(row) => {
                     rows.push(row);
-                    if rows.len() >= self.query_row_buffer_size() || timeemit.add(0) {
+                    if rows.len() >= self.query_buffer_size() || timeemit.add(0) {
                         emit(encode_rows(&std::mem::take(&mut rows))?.into());
                     }
                 }

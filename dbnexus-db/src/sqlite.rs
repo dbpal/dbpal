@@ -1519,7 +1519,7 @@ impl QuerySql for SqliteDB {
                         emit_fields = fields;
                     }
                     rows.push(row);
-                    if rows.len() > 100 && timeemit.add(0) {
+                    if rows.len() >= self.query_buffer_size() && timeemit.add(0) {
                         let data = encode_rows(&rows)?;
                         emit(data.into());
                         rows.clear();

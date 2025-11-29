@@ -264,7 +264,7 @@ impl QuerySql for LibSqlDB {
                     );
                 }
                 rows_cache.push(row);
-                if rows_cache.len() >= self.query_row_buffer_size() || timeemit.add(0) {
+                if rows_cache.len() >= self.query_buffer_size() || timeemit.add(0) {
                     let r = std::mem::take(&mut rows_cache);
                     let data = encode_rows(&r)?;
                     emit(data.into());

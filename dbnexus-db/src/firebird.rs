@@ -484,7 +484,7 @@ impl QuerySql for FireBirdDB {
                     );
                 }
                 rows.push(item);
-                if rows.len() >= this.query_row_buffer_size() || timeemit.add(0) {
+                if rows.len() >= this.query_buffer_size() || timeemit.add(0) {
                     let d = encode_rows(&std::mem::take(&mut rows), true, None)?;
                     emit(d.into());
                 }
