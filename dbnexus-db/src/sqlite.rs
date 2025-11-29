@@ -1500,20 +1500,20 @@ impl QuerySql for SqliteDB {
                 }
                 sqlx::Either::Right(row) => {
                     has_result = true;
-                    let fileds = get_row_types(&row);
-                    if emit_fields.is_empty() || !fileds.eq(&emit_fields) {
+                    let fields = get_row_types(&row);
+                    if emit_fields.is_empty() || !fields.eq(&emit_fields) {
                         if !rows.is_empty() {
                             let data = encode_rows(&std::mem::take(&mut rows))?;
                             emit(data.into());
                         }
                         emit(
                             QueryResp {
-                                fields: fileds.clone(),
+                                fields: fields.clone(),
                                 ..Default::default()
                             }
                             .into(),
                         );
-                        emit_fields = fileds;
+                        emit_fields = fields;
                     }
                     rows.push(row);
                     if rows.len() > 100 && timeemit.add(0) {

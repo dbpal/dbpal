@@ -1874,9 +1874,7 @@ impl QuerySql for MysqlDB {
                 sqlx::Either::Right(row) => {
                     has_result = true;
                     let fields = get_row_types(&row);
-                    if emit_fields.is_empty()
-                        || !fields.iter().zip(emit_fields.iter()).all(|(x, y)| x == y)
-                    {
+                    if emit_fields.is_empty() || !fields.eq(&emit_fields) {
                         if !rows.is_empty() {
                             let data = encode_rows(&std::mem::take(&mut rows), true)?;
                             emit(data.into());
