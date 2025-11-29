@@ -705,6 +705,7 @@ function appendQueryResult(
 ): QueryRespData[] {
   switch (event.kind) {
     case "structure":
+      queryRespFix(event.resp);
       return [...data, { ok: event.resp }];
     case "err":
       return [...data, { err: event.err }];
