@@ -3303,24 +3303,6 @@ mod tests {
     }
 
     #[test]
-    fn test_multi_query_resp_serde() {
-        let xs: Vec<Result<QueryResp, String>> = vec![
-            Err("this a error".to_string()),
-            Ok(QueryResp {
-                fields: vec![],
-                data: vec![],
-                sql: None,
-                total: 0,
-                cache_time: None,
-                has_more: false,
-            }),
-        ];
-
-        let ret = serde_json::to_string_pretty(&xs).unwrap();
-        println!("{}", ret);
-    }
-
-    #[test]
     fn test_bson_array() {
         let x = vec![
             bson::Bson::Int64(1),

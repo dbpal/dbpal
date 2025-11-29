@@ -56,6 +56,7 @@ import {
   SetCloseConfirmTextContext,
   SettingContext,
   shrinkAble,
+  TabActiveContext,
 } from "./helper.ts";
 import ArrowCircleDownRoundedIcon from "@mui/icons-material/ArrowCircleDownRounded";
 import { ExportView } from "./Export.tsx";
@@ -418,6 +419,19 @@ function SqlQuery(props: {
     DataSourceKind.FireBird,
   ].includes(kind);
 
+  const vis = useContext(TabActiveContext);
+  useEffect(() => {
+    const cancel = (e: KeyboardEvent) => {
+      if (e.key == "Escape" && loading && vis) {
+        e.preventDefault();
+        cancelTask(conn.queryId);
+      }
+    };
+    document.addEventListener("keydown", cancel);
+    return () => {
+      document.removeEventListener("keydown", cancel);
+    };
+  }, [conn.queryId, loading, vis]);
   return (
     <div
       style={{
@@ -495,13 +509,11 @@ function SqlQuery(props: {
                   </IconButton>
                 </Tooltip>
                 {loading && (
-                  <Tooltip title="cancel this operation">
-                    <CancelButton
-                      handleCancel={() => {
-                        cancelTask(conn.queryId);
-                      }}
-                    />
-                  </Tooltip>
+                  <CancelButton
+                    handleCancel={() => {
+                      cancelTask(conn.queryId);
+                    }}
+                  />
                 )}
                 {supportExplain && (
                   <Tooltip title="explain sql">

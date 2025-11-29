@@ -1125,7 +1125,7 @@ impl QueryResp {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, TypeDef, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct QueryResp {
     pub fields: Vec<Field>,
     // only pagination need this parameter.
