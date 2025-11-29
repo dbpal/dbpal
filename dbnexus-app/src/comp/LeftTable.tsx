@@ -304,10 +304,10 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
             return invoke<MuiDataGridData>("show_table", {
               name: uuid,
               tableName: table,
-              whereStr: null,
-              orderBy: null,
-              page: 0,
-              pageSize: 0,
+              para: {
+                page: 0,
+                page_size: 1,
+              } as types.ShowTableParameter,
             }).then(x => {
               return x.data[0]["result"];
             });
