@@ -757,10 +757,9 @@ function RedisSetTable(props: {
       } catch (e) {
         showNotification("error", "delete failure", e);
       }
-
       handleReload(false);
     },
-    [delOP, handleReload, resp.data, showNotification],
+    [delOP, handleReload, resp, showNotification],
   );
   const onRowDoubleClick = useCallback(e => {
     setSelectRow(e.row);
@@ -1063,7 +1062,7 @@ function RedisListTable(props: {
       }
       handleReload(false);
     },
-    [delOP, handleReload, resp.data, showNotification],
+    [delOP, handleReload, resp, showNotification],
   );
 
   const onRowDoubleClick = useCallback(e => {
@@ -1353,7 +1352,7 @@ function RedisZsetTable(props: {
       }
       handleReload(false);
     },
-    [delOP, handleReload, resp.data, showNotification],
+    [delOP, handleReload, resp, showNotification],
   );
   const onRowDoubleClick = useCallback(e => {
     setSelectRow(e.row);
@@ -1679,7 +1678,7 @@ function RedisHashTable(props: {
 
       handleReload(false);
     },
-    [delOP, handleReload, resp.data, showNotification],
+    [delOP, handleReload, resp, showNotification],
   );
   const onRowDoubleClick = useCallback(e => {
     setSelectRow(e.row);
