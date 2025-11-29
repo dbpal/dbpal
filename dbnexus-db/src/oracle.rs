@@ -318,9 +318,7 @@ impl QuerySql for OracleDB {
                     }
                 }
                 Err(err) => {
-                    emit(QueryEvent::Err {
-                        err: err.to_string(),
-                    });
+                    emit(QueryEvent::Err(err.to_string()));
                 }
             }
             anyhow::Ok(())

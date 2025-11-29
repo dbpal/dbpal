@@ -952,9 +952,7 @@ impl QuerySql for ClickHouseDB {
                     emit(r.into());
                 }
                 Err(err) => {
-                    emit(QueryEvent::Err {
-                        err: err.to_string(),
-                    });
+                    emit(QueryEvent::Err(err.to_string()));
                 }
             }
         }

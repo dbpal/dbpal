@@ -936,9 +936,7 @@ impl QuerySql for CassandraDB {
                         emit(r.into());
                     }
                 }
-                Err(err) => emit(QueryEvent::Err {
-                    err: err.to_string(),
-                }),
+                Err(err) => emit(QueryEvent::Err(err.to_string())),
             }
         }
         anyhow::Ok(())
