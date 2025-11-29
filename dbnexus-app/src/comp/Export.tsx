@@ -236,7 +236,7 @@ function ExportView(props: {
         {loading && (
           <CancelButton
             handleCancel={() => {
-              cancelTask(taskId.current);
+              cancelTask(taskId.current, showNotification);
               exportedSize.current.innerText = "";
             }}
           />

@@ -424,14 +424,14 @@ function SqlQuery(props: {
     const cancel = (e: KeyboardEvent) => {
       if (e.key == "Escape" && loading && vis) {
         e.preventDefault();
-        cancelTask(conn.queryId);
+        cancelTask(conn.queryId, showNotification);
       }
     };
     document.addEventListener("keydown", cancel);
     return () => {
       document.removeEventListener("keydown", cancel);
     };
-  }, [conn.queryId, loading, vis]);
+  }, [conn.queryId, loading, showNotification, vis]);
   return (
     <div
       style={{
@@ -511,7 +511,7 @@ function SqlQuery(props: {
                 {loading && (
                   <CancelButton
                     handleCancel={() => {
-                      cancelTask(conn.queryId);
+                      cancelTask(conn.queryId, showNotification);
                     }}
                   />
                 )}
