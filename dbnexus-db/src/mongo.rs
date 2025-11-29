@@ -18,7 +18,7 @@ use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
     GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr, QueryEventEmitter,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
     SqlExecuteRet, not_support_feature,
 };
 
@@ -624,8 +624,7 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn show_view(
-        &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, _view_name: &str, _para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
         anyhow::bail!("use mongo special method")
     }
@@ -712,8 +711,7 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn show_table(
-        &self, _table_name: &str, _filter: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, _table_name: &str, _para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
         anyhow::bail!("use mongo special method")
     }

@@ -17,7 +17,7 @@ use crate::datasource_config::RedisDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind,
     ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryEvent, QueryEventEmitter,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
     SqlExecuteRet, XlsxEdit, create_html_table_data,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
@@ -1246,11 +1246,9 @@ impl SchemaTrait for RedisDB {
         }
     }
 
-    async fn show_table(
-        &self, key: &str, where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize, _extra: Option<ShowTableExtraArgs>,
-    ) -> anyhow::Result<QueryResp> {
+    async fn show_table(&self, key: &str, para: ShowTableParameter) -> anyhow::Result<QueryResp> {
         let mut conn = self.get_conn().await?;
+        let ShowTableParameter { where_str, .. } = &para;
         let typ = Self::get_key_type(&mut conn, key).await?;
         use futures_util::StreamExt;
         match typ {
@@ -1282,8 +1280,9 @@ impl SchemaTrait for RedisDB {
 
             RedisType::Set => {
                 let total: usize = conn.scard(key).await?;
-                let mut ret: AsyncIter<Vec<u8>> =
-                    conn.sscan_match(key, where_str.unwrap_or("*")).await?;
+                let mut ret: AsyncIter<Vec<u8>> = conn
+                    .sscan_match(key, where_str.clone().unwrap_or("*".to_string()))
+                    .await?;
                 let mut set_values = Vec::new();
                 let mut has_more = false;
                 while let Some(value) = ret.next().await {
@@ -1308,8 +1307,9 @@ impl SchemaTrait for RedisDB {
             }
             RedisType::Hash => {
                 let total: usize = conn.hlen(key).await?;
-                let mut ret: AsyncIter<Vec<u8>> =
-                    conn.hscan_match(key, where_str.unwrap_or("*")).await?;
+                let mut ret: AsyncIter<Vec<u8>> = conn
+                    .hscan_match(key, where_str.clone().unwrap_or("*".to_string()))
+                    .await?;
                 let mut index = 0;
                 let mut key_values = Vec::new();
                 let mut value_values = Vec::new();
@@ -2113,6 +2113,7 @@ mod tests {
 
     use crate::db::{
         DBTrait, ExportKind, ExportQueryResult, GetBackendKind, QuerySql, SchemaTrait, ServerMetas,
+        ShowTableParameter,
     };
     use crate::enable_test_log;
 
@@ -2418,7 +2419,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2430,7 +2431,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(&table_name_dup, None, None, 1, 100, None)
+            .show_table(&table_name_dup, ShowTableParameter::new_test())
             .await
             .unwrap();
         assert_eq!(resp, resp2);
@@ -2582,7 +2583,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2593,7 +2594,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(&table_name_dup, None, None, 1, 100, None)
+            .show_table(&table_name_dup, ShowTableParameter::new_test())
             .await
             .unwrap();
         assert_eq!(resp, resp2);
@@ -2660,7 +2661,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2671,7 +2672,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(&table_name_dup, None, None, 1, 100, None)
+            .show_table(&table_name_dup, ShowTableParameter::new_test())
             .await
             .unwrap();
         assert_eq!(resp, resp2);
@@ -2741,7 +2742,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2753,7 +2754,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(&table_name_dup, None, None, 1, 100, None)
+            .show_table(&table_name_dup, ShowTableParameter::new_test())
             .await
             .unwrap();
         assert_eq!(resp, resp2);

@@ -8,14 +8,12 @@ mod tests {
     };
     use dbnexus_db::db::{
         ColumnType, CreateTableAndIndexSql, CreatedTypeDef, SequenceDetail, ShowTableExtraArgs,
-        SqlEvent, UdfOrProcedureExtraParameter,
+        ShowTableParameter, SqlEvent, UdfOrProcedureExtraParameter,
     };
     use dbnexus_db::language_server::CompletionList;
 
     #[test]
     fn generate_ts_def() {
-        use std::path::Path;
-
         use dbnexus_db::datasource_config::{
             MongoDBConfig, MysqlDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
         };
@@ -25,6 +23,7 @@ mod tests {
         };
         use dbnexus_db::language_server::{CompletionItem, CompletionKind};
         use dbnexus_db::redis::RedisListTable;
+        use std::path::Path;
         use typescript_type_def::{
             DefinitionFileOptions, TypeDef, write_definition_file_from_type_infos,
         };
@@ -79,6 +78,7 @@ mod tests {
             &MySqlSslMode::INFO,
             &SSLFiles::INFO,
             &UdfOrProcedureExtraParameter::INFO,
+            &ShowTableParameter::INFO,
         ];
 
         let options: DefinitionFileOptions = DefinitionFileOptions::default();

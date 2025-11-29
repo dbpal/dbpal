@@ -18,7 +18,7 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
     TimeEmit, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, create_html_table_data,
     create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
 };
@@ -879,13 +879,26 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, table_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
+        let ShowTableParameter {
+            where_str,
+            order_by,
+            page,
+            page_size,
+            ..
+        } = &para;
         log::trace!("begin to show table");
-        let total = self.query_count(table_name, where_str).await?;
+        let total = self.query_count(table_name, where_str.as_deref()).await?;
         log::trace!("query count ok");
-        let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
+        let sql = gen_show_sql(
+            table_name,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
+        );
+
         log::info!("show table sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -902,12 +915,24 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, view_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
+        let ShowTableParameter {
+            where_str,
+            order_by,
+            page,
+            page_size,
+            ..
+        } = &para;
         let mut conn = self.get_conn().await?;
-        let total = self.query_count(view_name, where_str).await?;
-        let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
+        let total = self.query_count(view_name, where_str.as_deref()).await?;
+        let sql = gen_show_sql(
+            view_name,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
+        );
         log::info!("show table sql:{}", sql);
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
@@ -1609,7 +1634,7 @@ impl ReadOnlyTrait for SqliteDB {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::enable_test_log;
+    use crate::{db::ShowTableParameter, enable_test_log};
 
     #[ignore = "this test run by hand"]
     #[tokio::test]
@@ -1630,7 +1655,7 @@ mod tests {
     async fn test_show_xxx() {
         let db = make_test_object().await;
         let r = db
-            .show_table("Persons", None, None, 1, 100, None)
+            .show_table("Persons", ShowTableParameter::new_test())
             .await
             .unwrap();
         for c in r.fields.iter() {
@@ -1814,7 +1839,7 @@ mod tests {
         db.rollback(query_id).await.unwrap();
 
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap()
                 .total
@@ -1836,7 +1861,7 @@ mod tests {
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap()
                 .total
@@ -1844,6 +1869,7 @@ mod tests {
         );
     }
 
+    #[ignore = "run be hand"]
     #[tokio::test]
     async fn test_do_has_data() {
         let db = make_test_object().await;
@@ -1927,7 +1953,7 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("test_rename2", None, None, 1, 100, None)
+        db.show_table("test_rename2", ShowTableParameter::new_test())
             .await
             .unwrap();
     }
@@ -1955,7 +1981,7 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("test_duplicate2", None, None, 1, 100, None)
+        db.show_table("test_duplicate2", ShowTableParameter::new_test())
             .await
             .unwrap();
     }
@@ -2185,7 +2211,7 @@ mod tests {
         let db = make_test_object().await;
 
         let r = db
-            .show_table("documents", None, None, 1, 100, None)
+            .show_table("documents", ShowTableParameter::new_test())
             .await
             .unwrap();
 
@@ -2248,7 +2274,7 @@ mod tests {
         println!("{:?}", r);
 
         let cols = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", cols);
@@ -2284,7 +2310,7 @@ mod tests {
         let views = db.list_view().await.unwrap();
         for v in views.iter() {
             let list = db
-                .show_view(v.name.as_str(), None, None, 1, 100, None)
+                .show_view(v.name.as_str(), ShowTableParameter::new_test())
                 .await
                 .unwrap();
             println!("view value:{:?}", list);

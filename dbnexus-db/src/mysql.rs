@@ -4,7 +4,7 @@ use crate::db::{
     CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field,
     GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
     POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlEvent,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlEvent,
     SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEvent, TriggerTiming,
     UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
     escape_sql_str, export_query_as_xlsx_send_data,
@@ -1182,13 +1182,25 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, view_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        let sql = gen_select_sql(view_name, where_str, order_by, page, page_size);
+        let ShowTableParameter {
+            where_str,
+            order_by,
+            page,
+            page_size,
+            ..
+        } = &para;
+        let sql = gen_select_sql(
+            view_name,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
+        );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
-        let total = self.query_count(view_name, where_str).await?;
+        let total = self.query_count(view_name, where_str.as_deref()).await?;
 
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
@@ -1362,11 +1374,23 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, table_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        let total = self.query_count(table_name, where_str).await?;
-        let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
+        let ShowTableParameter {
+            where_str,
+            order_by,
+            page,
+            page_size,
+            ..
+        } = &para;
+        let total = self.query_count(table_name, where_str.as_deref()).await?;
+        let sql = gen_select_sql(
+            table_name,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
+        );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -2032,7 +2056,7 @@ pub(crate) mod test_fns {
         db.rollback(query_id).await.unwrap();
 
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap()
                 .total
@@ -2052,7 +2076,7 @@ pub(crate) mod test_fns {
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap()
                 .total
@@ -2146,7 +2170,7 @@ pub(crate) mod test_fns {
             .await
             .unwrap();
 
-        db.show_table("test_rename2", None, None, 1, 100, None)
+        db.show_table("test_rename2", ShowTableParameter::new_test())
             .await
             .unwrap();
     }
@@ -2232,7 +2256,7 @@ pub(crate) mod test_fns {
             .unwrap();
 
         let resp = db
-            .show_table("test_duplicate2", None, None, 1, 100, None)
+            .show_table("test_duplicate2", ShowTableParameter::new_test())
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
@@ -2524,7 +2548,7 @@ pub(crate) mod test_fns {
         db.table_insert(table_name, values).await.unwrap();
 
         let cols = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", cols);
@@ -2606,7 +2630,7 @@ pub(crate) mod test_fns {
         db.table_insert(table_name, values).await.unwrap();
 
         let cols = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", cols);
@@ -2689,7 +2713,7 @@ pub(crate) mod test_fns {
         db.table_insert(table_name, values).await.unwrap();
 
         let cols = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", cols);
@@ -2780,7 +2804,7 @@ pub(crate) mod test_fns {
         db.table_insert(table_name, values).await.unwrap();
 
         let cols = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", cols);
@@ -2886,7 +2910,7 @@ pub(crate) mod test_fns {
         for view in views.iter() {
             println!("view:{:?}", view);
             let resp = db
-                .show_view(&view.name, None, None, 1, 100, None)
+                .show_view(&view.name, ShowTableParameter::new_test())
                 .await
                 .unwrap();
             println!("resp:{:?}", resp);
@@ -2926,7 +2950,7 @@ mod tests {
     use super::test_fns::{self, make_test_object};
     use crate::TEST_HOST;
     use crate::datasource_config::MysqlDBConfig;
-    use crate::db::SchemaTrait;
+    use crate::db::{SchemaTrait, ShowTableParameter};
 
     pub(crate) fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {
@@ -2950,7 +2974,7 @@ mod tests {
 
         // SELECT * FROM `innodb_index_stats` LIMIT 100 OFFSET 0
         let resp = db
-            .show_table("innodb_index_stats", None, None, 1, 1, None)
+            .show_table("innodb_index_stats", ShowTableParameter::new_test())
             .await
             .unwrap();
 

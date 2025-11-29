@@ -32,7 +32,7 @@ use crate::db::{
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
     Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
     POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
+    SchemaTrait, ServerMetas, ShowTableExtraArgs, ShowTableParameter, SqlBuilder, SqlExecuteRet,
     UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
     escape_sql_str, export_query_as_xlsx_send_data,
 };
@@ -1619,11 +1619,17 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, extra: Option<ShowTableExtraArgs>,
+        &self, table_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
         let mut ret = self
-            .page_caching_show(table_name, where_str, order_by, page, page_size, extra)
+            .page_caching_show(
+                table_name,
+                para.where_str.as_deref(),
+                para.order_by.as_deref(),
+                para.page,
+                para.page_size,
+                para.extra,
+            )
             .await?;
 
         let fields = self.show_table_columns(table_name).await?;
@@ -1785,11 +1791,9 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, extra: Option<ShowTableExtraArgs>,
+        &self, view_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        self.show_table(view_name, where_str, order_by, page, page_size, extra)
-            .await
+        self.show_table(view_name, para).await
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -2362,7 +2366,7 @@ mod tests {
         .unwrap();
 
         let resp = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2423,7 +2427,7 @@ mod tests {
         db.duplicate_table(table_name, table_dup).await.unwrap();
 
         let resp = db
-            .show_table(table_dup, None, None, 1, 100, None)
+            .show_table(table_dup, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2505,7 +2509,9 @@ mod tests {
         db.table_insert(table_name, values).await.unwrap();
 
         {
-            let resp = db.show_table(table_name, None, None, 1, 100, None).await;
+            let resp = db
+                .show_table(table_name, ShowTableParameter::new_test())
+                .await;
             println!("resp:{:?}", resp);
         }
         {
@@ -2597,7 +2603,9 @@ mod tests {
         db.table_insert(table_name, values).await.unwrap();
 
         {
-            let resp = db.show_table(table_name, None, None, 1, 100, None).await;
+            let resp = db
+                .show_table(table_name, ShowTableParameter::new_test())
+                .await;
 
             println!("resp:{:?}", resp);
         }
@@ -2691,7 +2699,9 @@ mod tests {
         db.table_insert(table_name, values).await.unwrap();
 
         {
-            let resp = db.show_table(table_name, None, None, 1, 100, None).await;
+            let resp = db
+                .show_table(table_name, ShowTableParameter::new_test())
+                .await;
 
             println!("resp:{:?}", resp);
         }
@@ -2788,7 +2798,9 @@ mod tests {
         db.table_insert(table_name, values).await.unwrap();
 
         {
-            let resp = db.show_table(table_name, None, None, 1, 100, None).await;
+            let resp = db
+                .show_table(table_name, ShowTableParameter::new_test())
+                .await;
 
             println!("resp:{:?}", resp);
         }
@@ -2885,7 +2897,9 @@ mod tests {
         db.table_insert(table_name, values).await.unwrap();
 
         {
-            let resp = db.show_table(table_name, None, None, 1, 100, None).await;
+            let resp = db
+                .show_table(table_name, ShowTableParameter::new_test())
+                .await;
 
             println!("resp:{:?}", resp);
         }
@@ -2985,7 +2999,9 @@ mod tests {
         db.table_insert(table_name, values).await.unwrap();
 
         {
-            let resp = db.show_table(table_name, None, None, 1, 100, None).await;
+            let resp = db
+                .show_table(table_name, ShowTableParameter::new_test())
+                .await;
 
             println!("resp:{:?}", resp);
         }
@@ -3068,7 +3084,9 @@ mod tests {
         db.table_insert(table_name, values).await.unwrap();
 
         {
-            let resp = db.show_table(table_name, None, None, 1, 100, None).await;
+            let resp = db
+                .show_table(table_name, ShowTableParameter::new_test())
+                .await;
 
             println!("resp:{:?}", resp);
         }
@@ -3200,13 +3218,13 @@ mod tests {
         let resp = db
             .show_table(
                 table_name,
-                None,
-                None,
-                1,
-                100,
-                Some(ShowTableExtraArgs::Cassandra {
-                    allow_filtering: true,
-                }),
+                ShowTableParameter {
+                    where_str: None,
+                    order_by: None,
+                    page: 1,
+                    page_size: 100,
+                    extra: None,
+                },
             )
             .await
             .unwrap();
@@ -3415,7 +3433,7 @@ mod tests {
         println!("view list:{:?}", list);
         {
             let resp = db
-                .show_view(view_name, None, None, 1, 100, None)
+                .show_view(view_name, ShowTableParameter::new_test())
                 .await
                 .unwrap();
             println!("resp:{:?}", resp);

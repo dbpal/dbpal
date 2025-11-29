@@ -5,7 +5,7 @@ use crate::db::{
     BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
     ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryResp,
-    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder,
+    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
     SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
     UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
     escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset,
@@ -802,25 +802,37 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, view_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        let total =
-            SqlServerDB::query_count(conn, self.config.schema_str()?, view_name, where_str).await?;
-        let sql = gen_select_sql(
-            self.config.schema_str()?.as_str(),
-            view_name,
+        let ShowTableParameter {
             where_str,
             order_by,
             page,
             page_size,
+            ..
+        } = &para;
+
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let total = SqlServerDB::query_count(
+            conn,
+            self.config.schema_str()?,
+            view_name,
+            where_str.as_deref(),
+        )
+        .await?;
+        let sql = gen_select_sql(
+            self.config.schema_str()?.as_str(),
+            view_name,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
         );
         log::info!("sql:{}", sql);
         let mut stream = conn.query(&sql, &[]).await?;
         let mut meta = None;
-        let mut rows = Vec::with_capacity(page_size);
+        let mut rows = Vec::with_capacity(*page_size);
         while let Some(item) = stream.next().await {
             let item = item?;
             match item {
@@ -923,21 +935,31 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, table_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        let total =
-            SqlServerDB::query_count(conn, self.config.schema_str()?, table_name, where_str)
-                .await?;
-        let sql = gen_select_sql(
-            self.config.schema_str()?.as_str(),
-            table_name,
+        let ShowTableParameter {
             where_str,
             order_by,
             page,
             page_size,
+            ..
+        } = &para;
+        let mut conn = self.get_conn().await?;
+        let conn = conn.deref_mut();
+        let total = SqlServerDB::query_count(
+            conn,
+            self.config.schema_str()?,
+            table_name,
+            where_str.as_deref(),
+        )
+        .await?;
+        let sql = gen_select_sql(
+            self.config.schema_str()?.as_str(),
+            table_name,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
         );
 
         let mut stream = conn
@@ -945,7 +967,7 @@ impl SchemaTrait for SqlServerDB {
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
         let mut meta = None;
-        let mut rows = Vec::with_capacity(page_size);
+        let mut rows = Vec::with_capacity(*page_size);
         while let Some(item) = stream.next().await {
             let item = item?;
             match item {
@@ -2419,7 +2441,7 @@ pub const INFORMATION_SCHEMA_VIEWS: &[&str] = &[
 mod tests {
 
     use super::*;
-    use crate::db::CatalogTrait;
+    use crate::db::{CatalogTrait, ShowTableParameter};
     use crate::enable_test_log;
 
     #[tokio::test]
@@ -2593,7 +2615,7 @@ mod tests {
         db.rollback(query_id).await.unwrap();
 
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap()
                 .total
@@ -2614,7 +2636,7 @@ mod tests {
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap()
                 .total
@@ -2648,7 +2670,7 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("test_rename2", None, None, 1, 100, None)
+        db.show_table("test_rename2", ShowTableParameter::new_test())
             .await
             .unwrap();
     }
@@ -2687,7 +2709,7 @@ mod tests {
             .unwrap();
 
         let resp = db
-            .show_table("test_duplicate2", None, None, 1, 100, None)
+            .show_table("test_duplicate2", ShowTableParameter::new_test())
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
@@ -2868,7 +2890,7 @@ mod tests {
         .unwrap();
 
         let resp = db
-            .show_view("test_view", None, None, 1, 100, None)
+            .show_view("test_view", ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -3143,7 +3165,7 @@ FROM sys.sequences;
         .await
         .unwrap();
         let list = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("ret:{:?}", list);
@@ -3199,7 +3221,7 @@ FROM sys.sequences;
         .await
         .unwrap();
         let list = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("ret:{:?}", list);
@@ -3257,7 +3279,7 @@ FROM sys.sequences;
         .await
         .unwrap();
         let list = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("ret:{:?}", list);
@@ -3327,7 +3349,7 @@ FROM sys.sequences;
         .await
         .unwrap();
         let list = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("ret:{:?}", list);

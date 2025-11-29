@@ -1,4 +1,4 @@
-use crate::db::{ListTable, QueryResp, SchemaTrait, ShowTableExtraArgs};
+use crate::db::{ListTable, QueryResp, SchemaTrait, ShowTableParameter};
 use crate::pg::PostGresDB;
 use crate::pg_format::encode_rows;
 #[cfg(test)]
@@ -94,20 +94,27 @@ pub(crate) const COCKROACH_TYPES: &[&str] = &[
 
 impl PostGresDB {
     pub(crate) async fn cock_roach_show_table(
-        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, table_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        let fields = self.show_table_columns(table_name).await?;
-        let cols = fields.iter().map(|x| x.field.as_str()).collect::<Vec<_>>();
-        let total = self.query_count(table_name, where_str).await?;
-        let sql = gen_show_sql(
-            self.config.schema_str()?,
-            table_name,
-            &cols[..],
+        let ShowTableParameter {
             where_str,
             order_by,
             page,
             page_size,
+            extra: _,
+        } = &para;
+
+        let fields = self.show_table_columns(table_name).await?;
+        let cols = fields.iter().map(|x| x.field.as_str()).collect::<Vec<_>>();
+        let total = self.query_count(table_name, where_str.as_deref()).await?;
+        let sql = gen_show_sql(
+            self.config.schema_str()?,
+            table_name,
+            &cols[..],
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -151,11 +158,11 @@ impl PostGresDB {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::ExportKind;
     use crate::db::{
         CatalogTrait, CheckConn, ColumnType, IndexKind, QuerySql, ServerMetas,
         UdfOrProcedureExtraParameter,
     };
+    use crate::db::{ExportKind, ShowTableParameter};
 
     use crate::enable_test_log;
     use std::collections::HashMap;
@@ -195,7 +202,7 @@ mod tests {
         db.rollback(query_id).await.unwrap();
 
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap()
                 .total
@@ -215,7 +222,7 @@ mod tests {
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap()
                 .total
@@ -369,7 +376,7 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("test_rename2", None, None, 1, 100, None)
+        db.show_table("test_rename2", ShowTableParameter::new_test())
             .await
             .unwrap();
     }
@@ -404,7 +411,7 @@ mod tests {
             .unwrap();
 
         let resp = db
-            .show_table("test_duplicate2", None, None, 1, 100, None)
+            .show_table("test_duplicate2", ShowTableParameter::new_test())
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
@@ -478,7 +485,7 @@ mod tests {
         let list = db.list_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
-                .show_view(&l.name, None, None, 1, 100, None)
+                .show_view(&l.name, ShowTableParameter::new_test())
                 .await
                 .unwrap();
             println!("resp:{:?}", table_resp);
@@ -517,7 +524,7 @@ mod tests {
         let list = db.list_materialized_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
-                .show_view(&l.name, None, None, 1, 100, None)
+                .show_view(&l.name, ShowTableParameter::new_test())
                 .await
                 .unwrap();
             println!("resp:{:?}", table_resp);

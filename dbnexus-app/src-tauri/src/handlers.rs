@@ -8,7 +8,7 @@ use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::db::{
     ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef,
     DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, ProcedureDetail, QueryResp, SequenceDetail, ShowTableExtraArgs, SqlEvent,
+    OptionMustBeSomeErr, ProcedureDetail, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent,
     SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use dbnexus_db::firebird::FireBirdDB;
@@ -446,14 +446,13 @@ pub async fn show_table_columns(
 
 #[tauri::command]
 pub async fn show_table(
-    name: String, table_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize, extra: Option<ShowTableExtraArgs>, app: tauri::State<'_, DBPal>,
+    name: String, table_name: String, para: ShowTableParameter, app: tauri::State<'_, DBPal>,
 ) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&name).await?;
     let x = db
-        .show_table(&table_name, where_str, order_by, page, page_size, extra)
+        .show_table(&table_name, para)
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -857,13 +856,12 @@ pub async fn drop_table(
 }
 #[tauri::command]
 pub async fn show_view(
-    name: String, view_name: String, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize, extra: Option<ShowTableExtraArgs>, app: tauri::State<'_, DBPal>,
+    name: String, view_name: String, para: ShowTableParameter, app: tauri::State<'_, DBPal>,
 ) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&name).await?;
-    db.show_view(&view_name, where_str, order_by, page, page_size, extra)
+    db.show_view(&view_name, para)
         .await
         .map_err(ErrorFrontend::from)
         .map(MuiDataGridData::from)

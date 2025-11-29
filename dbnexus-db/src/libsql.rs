@@ -14,7 +14,7 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEventEmitter, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
     TimeEmit, TriggerDetail, XlsxEdit, create_html_table_data, create_html_table_header,
     escape_sql_str, export_query_as_xlsx_send_data,
 };
@@ -816,15 +816,28 @@ impl SchemaTrait for LibSqlDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, table_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        let total = self.query_count(table_name, where_str).await?;
-        let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
+        let ShowTableParameter {
+            where_str,
+            order_by,
+            page,
+            page_size,
+            extra: _,
+        } = &para;
+
+        let total = self.query_count(table_name, where_str.as_deref()).await?;
+        let sql = gen_show_sql(
+            table_name,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
+        );
         log::info!("show table sql:{}", sql);
         let conn = self.get_conn().await?;
         let mut query_rows = conn.query(&sql, params!()).await?;
-        let mut rows = Vec::with_capacity(page_size);
+        let mut rows = Vec::with_capacity(*page_size);
         while let Some(r) = query_rows.next().await? {
             rows.push(r);
         }
@@ -834,12 +847,24 @@ impl SchemaTrait for LibSqlDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, view_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
+        let ShowTableParameter {
+            where_str,
+            order_by,
+            page,
+            page_size,
+            ..
+        } = &para;
         let conn = self.get_conn().await?;
-        let total = self.query_count(view_name, where_str).await?;
-        let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
+        let total = self.query_count(view_name, where_str.as_deref()).await?;
+        let sql = gen_show_sql(
+            view_name,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
+        );
         log::info!("show table sql:{}", sql);
         let mut raw_rows = conn.query(&sql, params!()).await?;
         let mut rows = Vec::new();
@@ -1370,7 +1395,7 @@ mod tests {
         db.rollback(query_id).await.unwrap();
 
         // assert_eq!(
-        //     db.show_table(table_name, None, None, 1, 100, None)
+        //     db.show_table(table_name, ShowTableParameter::new_test())
         //         .await
         //         .unwrap()
         //         .total,
@@ -1390,7 +1415,7 @@ mod tests {
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap()
                 .total
@@ -1445,7 +1470,7 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("test_rename2", None, None, 1, 100, None)
+        db.show_table("test_rename2", ShowTableParameter::new_test())
             .await
             .unwrap();
     }
@@ -1474,7 +1499,7 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("test_duplicate2", None, None, 1, 100, None)
+        db.show_table("test_duplicate2", ShowTableParameter::new_test())
             .await
             .unwrap();
     }
@@ -1766,7 +1791,7 @@ mod tests {
         println!("{:?}", r);
 
         let cols = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", cols);
@@ -1804,7 +1829,7 @@ mod tests {
         let views = db.list_view().await.unwrap();
         for v in views.iter() {
             let list = db
-                .show_view(v.name.as_str(), None, None, 1, 100, None)
+                .show_view(v.name.as_str(), ShowTableParameter::new_test())
                 .await
                 .unwrap();
             println!("view value:{:?}", list);

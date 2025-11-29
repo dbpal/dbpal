@@ -443,4 +443,12 @@ export namespace types {
     } & {
         "parameters": (string)[];
     }));
+    export type Usize = number;
+    export type ShowTableParameter = {
+        "where_str": (string | null);
+        "order_by": (string | null);
+        "page": types.Usize;
+        "page_size": types.Usize;
+        "extra": (types.ShowTableExtraArgs | null);
+    };
 }

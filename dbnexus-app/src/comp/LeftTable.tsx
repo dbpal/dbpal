@@ -322,10 +322,13 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
             return await invoke("show_table", {
               name: uuid,
               tableName: table,
-              page: 0,
-              pageSize: 0,
-              whereStr: null,
-              orderBy: null,
+              para: {
+                page: 0,
+                page_size: 0,
+                where_str: null,
+                order_by: null,
+                extra: null,
+              } as types.ShowTableParameter,
             });
           }}
           modifyOP={async (index, value) => {
@@ -355,10 +358,12 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
             return await invoke("show_table", {
               name: uuid,
               tableName: table,
-              page: 0,
-              pageSize: 0,
-              whereStr: keyMatch ? keyMatch : null,
-              orderBy: null,
+              para: {
+                page: 0,
+                page_size: 0,
+                where_str: keyMatch ? keyMatch : null,
+                order_by: null,
+              } as types.ShowTableParameter,
             });
           }}
           modifyOP={async (old, newValue) => {
@@ -417,10 +422,12 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
             return await invoke("show_table", {
               name: uuid,
               tableName: table,
-              page: 0,
-              pageSize: 0,
-              whereStr: keyMatch ? keyMatch : null,
-              orderBy: null,
+              para: {
+                page: 0,
+                page_size: 0,
+                where_str: keyMatch ? keyMatch : null,
+                order_by: null,
+              } as types.ShowTableParameter,
             });
           }}
           delOP={async member => {

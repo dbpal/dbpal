@@ -18,7 +18,7 @@ use crate::db::{
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas,
-    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEvent,
+    ShowTableParameter, SqlBuilder, SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEvent,
     TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
     create_html_table_header, export_query_as_xlsx_send_data,
 };
@@ -1237,18 +1237,25 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, view_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        let total = self.query_count(view_name, where_str).await?;
-
-        let sql = gen_show_sql(
-            self.config.schema_str()?,
-            view_name,
+        let ShowTableParameter {
             where_str,
             order_by,
             page,
             page_size,
+            ..
+        } = &para;
+
+        let total = self.query_count(view_name, where_str.as_deref()).await?;
+
+        let sql = gen_show_sql(
+            self.config.schema_str()?,
+            view_name,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -1530,17 +1537,23 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, table_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        let total = self.query_count(table_name, where_str).await?;
-        let sql = gen_show_sql(
-            self.config.schema_str()?,
-            table_name,
+        let ShowTableParameter {
             where_str,
             order_by,
             page,
             page_size,
+            ..
+        } = &para;
+        let total = self.query_count(table_name, where_str.as_deref()).await?;
+        let sql = gen_show_sql(
+            self.config.schema_str()?,
+            table_name,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
         );
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
@@ -2294,7 +2307,7 @@ mod tests {
     use super::make_test_object;
     use crate::db::{
         CheckConn, ColumnType, DBTrait, ExportKind, ExportQueryResult, IndexKind, QuerySql,
-        SchemaTrait, ServerMetas, UdfOrProcedureExtraParameter,
+        SchemaTrait, ServerMetas, ShowTableParameter, UdfOrProcedureExtraParameter,
     };
     use crate::enable_test_log;
     use std::collections::HashMap;
@@ -2402,7 +2415,7 @@ mod tests {
         let list = db.list_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
-                .show_view(&l.name, None, None, 1, 100, None)
+                .show_view(&l.name, ShowTableParameter::new_test())
                 .await
                 .unwrap();
             println!("resp:{:?}", table_resp);
@@ -2441,7 +2454,7 @@ mod tests {
         let list = db.list_materialized_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
-                .show_view(&l.name, None, None, 1, 100, None)
+                .show_view(&l.name, ShowTableParameter::new_test())
                 .await
                 .unwrap();
             println!("resp:{:?}", table_resp);
@@ -2485,7 +2498,7 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("test_rename2", None, None, 1, 100, None)
+        db.show_table("test_rename2", ShowTableParameter::new_test())
             .await
             .unwrap();
     }
@@ -2523,7 +2536,7 @@ mod tests {
             .unwrap();
 
         let resp = db
-            .show_table("test_duplicate2", None, None, 1, 100, None)
+            .show_table("test_duplicate2", ShowTableParameter::new_test())
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
@@ -2747,7 +2760,7 @@ mod tests {
         db.rollback(query_id).await.unwrap();
 
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap()
                 .total
@@ -2767,7 +2780,7 @@ mod tests {
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap()
                 .total
@@ -2959,7 +2972,7 @@ mod tests {
         values.insert("int4_column".to_string(), Some("100".to_string()));
         pg.table_insert(table_name, values.clone()).await.unwrap();
         let x = pg
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3073,7 +3086,7 @@ mod tests {
         pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3235,7 +3248,7 @@ mod tests {
         pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3333,7 +3346,7 @@ mod tests {
         pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3453,7 +3466,7 @@ mod tests {
         pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3568,7 +3581,7 @@ mod tests {
         pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3666,7 +3679,7 @@ mod tests {
         );
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3757,7 +3770,7 @@ mod tests {
         values.insert("numeric_column".to_string(), Some("123.45".to_string()));
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3867,7 +3880,7 @@ mod tests {
 
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3969,7 +3982,7 @@ mod tests {
 
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", x);
@@ -4080,7 +4093,7 @@ mod tests {
         );
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", x);

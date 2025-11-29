@@ -5,7 +5,7 @@ use crate::{
         CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind,
         ExportQueryResult, ExportedSizeEmitter, Field, GetBackendKind, Index, IndexKind, ListTable,
         MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmitter, QueryResp,
-        QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowTableExtraArgs,
+        QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter,
         SqlEvent, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
     },
     mariadb::MariaDB,
@@ -279,19 +279,11 @@ impl SchemaTrait for SubDB {
         self.as_schema().show_table_columns(table_name).await
     }
     async fn show_table(
-        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, extra: Option<ShowTableExtraArgs>,
+        &self, table_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
         match self {
-            SubDB::CocoRoach(x) => {
-                x.cock_roach_show_table(table_name, where_str, order_by, page, page_size, extra)
-                    .await
-            }
-            _ => {
-                self.as_schema()
-                    .show_table(table_name, where_str, order_by, page, page_size, extra)
-                    .await
-            }
+            SubDB::CocoRoach(x) => x.cock_roach_show_table(table_name, para).await,
+            _ => self.as_schema().show_table(table_name, para).await,
         }
     }
 
@@ -398,12 +390,9 @@ impl SchemaTrait for SubDB {
     }
 
     async fn show_view(
-        &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, _view_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        self.as_schema()
-            .show_view(_view_name, _where_str, _order_by, _page, _page_size, _extra)
-            .await
+        self.as_schema().show_view(_view_name, para).await
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {

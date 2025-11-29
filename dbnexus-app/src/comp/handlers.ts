@@ -40,11 +40,13 @@ function makeShowTableFn(uuid: string, table: string) {
     return await invoke<MuiDataGridData>("show_table", {
       name: uuid,
       tableName: table,
-      whereStr: where_null,
-      orderBy: orderBy_null,
-      page,
-      pageSize,
-      extra,
+      para: {
+        where_str: where_null,
+        order_by: orderBy_null,
+        page,
+        page_size: pageSize,
+        extra,
+      } as types.ShowTableParameter,
     });
   };
 }
@@ -74,11 +76,13 @@ function makeShowViewFn(uuid: string, view: string) {
     return await invoke<MuiDataGridData>("show_view", {
       name: uuid,
       viewName: view,
-      whereStr: where_null,
-      orderBy: orderBy_null,
-      page,
-      pageSize,
-      extra,
+      para: {
+        where_str: where_null,
+        order_by: orderBy_null,
+        page,
+        page_size: pageSize,
+        extra,
+      } as types.ShowTableParameter,
     });
   };
 }

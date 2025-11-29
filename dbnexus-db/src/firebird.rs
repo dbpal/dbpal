@@ -21,10 +21,11 @@ use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     BackendKind, CheckConn, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
     ListTable, MetaValue, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEventEmitter, QueryResp,
-    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder,
+    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
     SqlExecuteRet, TimeEmit, XlsxEdit, create_html_table_data, create_html_table_header,
     escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
+
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
 use dashmap::{DashMap, DashSet};
@@ -823,16 +824,27 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, table_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        let sql = gen_show_sql(table_name, where_str, order_by, page, page_size);
-        log::info!("sql:{}", sql);
         let fs = self.show_table_columns(table_name).await?;
         let table_name = table_name.to_owned();
         let this = Clone::clone(self);
-        let where_str = where_str.map(|x| x.to_owned());
         spawn_blocking(move || {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                extra: _,
+            } = &para;
+            let sql = gen_show_sql(
+                &table_name,
+                where_str.as_deref(),
+                order_by.as_deref(),
+                *page,
+                *page_size,
+            );
+            log::info!("sql:{}", sql);
             let mut fields_map = HashMap::new();
             fs.iter().for_each(|x| {
                 fields_map.insert(&x.field, x);
@@ -1036,15 +1048,27 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, view_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
         let this = Clone::clone(self);
         let fields = self.show_view_columns(view_name).await?;
-        let sql = gen_show_sql(view_name, where_str, order_by, page, page_size);
+
         let view_name = view_name.to_owned();
-        let where_str = where_str.map(|x| x.to_owned());
         spawn_blocking(move || {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = &para;
+            let sql = gen_show_sql(
+                &view_name,
+                where_str.as_deref(),
+                order_by.as_deref(),
+                *page,
+                *page_size,
+            );
             log::info!("sql:{}", sql);
             let mut conn = this.get_conn()?;
             let rows: Vec<rsfbclient::Row> = conn.query(&sql, ())?;
@@ -1303,7 +1327,7 @@ mod tests {
         db.rollback(query_id).await.unwrap();
 
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap()
                 .total
@@ -1321,7 +1345,7 @@ mod tests {
         .unwrap();
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap()
                 .total
@@ -1382,7 +1406,7 @@ mod tests {
         .unwrap();
 
         let resp = db
-            .show_view(view_name, None, None, 1, 100, None)
+            .show_view(view_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", resp);
@@ -1495,7 +1519,7 @@ mod tests {
 
         db.truncate_table(table_name).await.unwrap();
         assert!(
-            db.show_table(table_name, None, None, 1, 100, None)
+            db.show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap()
                 .total
@@ -1550,7 +1574,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table(table_name, Some("1 =1 "), Some("ID asc "), 1, 100, None)
+                .show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap();
             println!("resp:{:?}", resp);
@@ -1652,7 +1676,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table(table_name, Some("1 = 1"), Some("ID asc "), 1, 100, None)
+                .show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap();
             println!("resp:{:?}", resp);

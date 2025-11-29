@@ -1395,8 +1395,7 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, table_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str.clone())?;
         let sql = gen_show_sql(
@@ -1779,7 +1778,7 @@ mod tests {
             }
         }
         let resp = db
-            .show_view(view_name, None, None, 1, 100, None)
+            .show_view(view_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", resp);
@@ -1848,7 +1847,7 @@ mod tests {
             }
         }
         let resp = db
-            .show_view(view_name, None, None, 1, 100, None)
+            .show_view(view_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("{:?}", resp);
@@ -2267,7 +2266,7 @@ mod tests {
         );
         db.insert(table_name, values).await.unwrap();
         let resp = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2358,7 +2357,7 @@ mod tests {
         );
         db.insert(table_name, values).await.unwrap();
         let resp = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2448,7 +2447,7 @@ mod tests {
         );
         db.insert(table_name, values).await.unwrap();
         let resp = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2538,7 +2537,7 @@ mod tests {
         );
         db.insert(table_name, values).await.unwrap();
         let resp = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2621,7 +2620,7 @@ mod tests {
         values.insert("my_varchar".to_string(), Some("Example1".to_string()));
         db.insert(table_name, values).await.unwrap();
         let resp = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2710,7 +2709,7 @@ mod tests {
 
         db.insert(table_name, values).await.unwrap();
         let resp = db
-            .show_table(table_name, None, None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);

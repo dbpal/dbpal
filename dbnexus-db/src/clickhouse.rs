@@ -3,7 +3,7 @@ use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue,
     NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
     SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
     create_html_table_header, escape_sql_str, ty_is_float, ty_is_int,
 };
@@ -434,11 +434,18 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, table_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
+        let ShowTableParameter {
+            where_str,
+            order_by,
+            page,
+            page_size,
+            extra: _,
+        } = &para;
+
         let total = self
-            .query_count(self.config.db_str(), table_name, where_str)
+            .query_count(self.config.db_str(), table_name, where_str.as_deref())
             .await?;
         let fs = self.show_table_columns(table_name).await?;
         let fs = {
@@ -451,10 +458,10 @@ impl SchemaTrait for ClickHouseDB {
         let sql = gen_show_sql(
             self.config.db_str(),
             table_name,
-            where_str,
-            order_by,
-            page,
-            page_size,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
         );
 
         log::info!("sql:{}", sql);
@@ -472,20 +479,26 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, view_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
+        let ShowTableParameter {
+            where_str,
+            order_by,
+            page,
+            page_size,
+            ..
+        } = &para;
         let total = self
-            .query_count(self.config.db_str(), view_name, where_str)
+            .query_count(self.config.db_str(), view_name, where_str.as_deref())
             .await?;
 
         let sql = gen_show_sql(
             self.config.db_str(),
             view_name,
-            where_str,
-            order_by,
-            page,
-            page_size,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
         );
         log::info!("sql:{}", sql);
         let result = self.query_as_json(&sql).await?;
@@ -1527,7 +1540,7 @@ from test
         println!("materialized view lists:{:?}", list);
 
         let _resp = db
-            .show_view(view_name, Some("1  = 1 "), Some("id asc"), 1, 100, None)
+            .show_view(view_name, ShowTableParameter::new_test())
             .await
             .unwrap();
 
@@ -1593,7 +1606,7 @@ from test
         println!("view lists:{:?}", list);
 
         let _resp = db
-            .show_view(view_name, Some("1  = 1 "), Some("id asc"), 1, 100, None)
+            .show_view(view_name, ShowTableParameter::new_test())
             .await
             .unwrap();
 
@@ -1675,7 +1688,7 @@ from test
         db.duplicate_table(name, &name2).await.unwrap();
 
         let _resp = db
-            .show_table(&name2, None, None, 1, 100, None)
+            .show_table(&name2, ShowTableParameter::new_test())
             .await
             .unwrap();
         assert_eq!(_resp.data.len(), 6);
@@ -1705,7 +1718,7 @@ from test
     async fn test_show_table() {
         let db = make_test_object();
         let resp = db
-            .show_table("example_table", None, None, 1, 100, None)
+            .show_table("example_table", ShowTableParameter::new_test())
             .await
             .unwrap();
 
@@ -1752,7 +1765,7 @@ from test
         }
         {
             let resp = db
-                .show_table(table_name, Some("1 = 1"), Some("id asc"), 1, 100, None)
+                .show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap();
 
@@ -1835,7 +1848,7 @@ from test
         }
         {
             let resp = db
-                .show_table(table_name, Some("1 = 1"), Some("id asc"), 1, 100, None)
+                .show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap();
 
@@ -1922,7 +1935,7 @@ from test
         }
         {
             let resp = db
-                .show_table(table_name, Some("1 = 1"), None, 1, 100, None)
+                .show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap();
 
@@ -2020,7 +2033,7 @@ from test
         }
         {
             let resp = db
-                .show_table(table_name, Some("1 = 1"), None, 1, 100, None)
+                .show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap();
 
@@ -2121,7 +2134,7 @@ from test
         }
         {
             let resp = db
-                .show_table(table_name, Some("1 = 1"), None, 1, 100, None)
+                .show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap();
 
@@ -2201,7 +2214,7 @@ from test
         }
         {
             let resp = db
-                .show_table(table_name, Some("1 = 1"), None, 1, 100, None)
+                .show_table(table_name, ShowTableParameter::new_test())
                 .await
                 .unwrap();
 

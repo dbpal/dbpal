@@ -16,7 +16,7 @@ use crate::db::{
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
     MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEnable,
+    ShowTableParameter, SqlBuilder, SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEnable,
     TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
     create_html_table_header, escape_sql_str, export_query_as_xlsx_send_blocking_data,
     not_support_feature,
@@ -1436,12 +1436,24 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, table_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        let sql = gen_select_sql(table_name, where_str, order_by, page, page_size);
+        let ShowTableParameter {
+            where_str,
+            order_by,
+            page,
+            page_size,
+            ..
+        } = &para;
+        let sql = gen_select_sql(
+            table_name,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
+        );
         log::info!("query sql:{}", sql);
-        let total = self.query_count(table_name, where_str).await?;
+        let total = self.query_count(table_name, where_str.as_deref()).await?;
         let rows = self.query(&sql).await?;
         let data = encode_rows(rows.into_iter().collect::<Vec<_>>())?;
         let cols = self.show_table_columns(table_name).await?;
@@ -1572,12 +1584,24 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, view_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        let sql = gen_select_sql(view_name, where_str, order_by, page, page_size);
+        let ShowTableParameter {
+            where_str,
+            order_by,
+            page,
+            page_size,
+            ..
+        } = &para;
+        let sql = gen_select_sql(
+            view_name,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
+        );
         log::info!("sql:{}", sql);
-        let total = self.query_count(view_name, where_str).await?;
+        let total = self.query_count(view_name, where_str.as_deref()).await?;
         log::info!("query sql:{}", sql);
         let rows = self.query(&sql).await?;
         if rows.is_empty() {
@@ -2061,7 +2085,7 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("TEST_RENAME2", None, None, 1, 100, None)
+        db.show_table("TEST_RENAME2", ShowTableParameter::new_test())
             .await
             .unwrap();
     }
@@ -2110,7 +2134,7 @@ mod tests {
             .unwrap();
 
         let resp = db
-            .show_table("TEST_DUPLICATE2", None, None, 1, 100, None)
+            .show_table("TEST_DUPLICATE2", ShowTableParameter::new_test())
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 1);
@@ -2155,7 +2179,9 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
         let views = db.list_view().await.unwrap();
         println!("{:?}", views);
 
-        let resp = db.show_view("TEST_VIEW", None, None, 1, 100, None).await;
+        let resp = db
+            .show_view("TEST_VIEW", ShowTableParameter::new_test())
+            .await;
         println!("show view:{:?}", resp);
         let sql = db.create_view_sql("TEST_VIEW", false).await.unwrap();
         println!("create view sql:{}", sql);
@@ -2196,7 +2222,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         println!("list_materialized_view:{:?}", views);
 
         let resp = db
-            .show_view("TEST_MATERIALIZED_VIEW", None, None, 1, 100, None)
+            .show_view("TEST_MATERIALIZED_VIEW", ShowTableParameter::new_test())
             .await;
         println!("show view:{:?}", resp);
         let sql = db
@@ -2350,7 +2376,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         db.commit(query_uuid).await.unwrap();
 
         let resp = db
-            .show_table("TEST_QUERY", None, None, 1, 100, None)
+            .show_table("TEST_QUERY", ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2401,7 +2427,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         db.table_insert(table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(table_name, Some("1 = 1"), None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2487,7 +2513,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         db.table_insert(table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(table_name, Some("1 = 1"), None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2572,7 +2598,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         db.table_insert(table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(table_name, Some("1 = 1"), None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2653,7 +2679,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         db.table_insert(table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(table_name, Some("1 = 1"), None, 1, 100, None)
+            .show_table(table_name, ShowTableParameter::new_test())
             .await
             .unwrap();
         println!("resp:{:?}", resp);

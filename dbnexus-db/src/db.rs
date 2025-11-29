@@ -80,6 +80,27 @@ pub trait ReadOnlyTrait {
 
 pub type ExportedSizeEmitter = Arc<dyn Fn(usize) + Send + Sync>;
 
+#[derive(serde::Deserialize, Clone, Debug, Default, TypeDef)]
+pub struct ShowTableParameter {
+    pub where_str: Option<String>,
+    pub order_by: Option<String>,
+    pub page: usize,
+    pub page_size: usize,
+    pub extra: Option<ShowTableExtraArgs>,
+}
+
+impl ShowTableParameter {
+    pub fn new_test() -> Self {
+        Self {
+            where_str: Some("1 = 1".to_owned()),
+            order_by: None,
+            page: 1,
+            page_size: 100,
+            extra: None,
+        }
+    }
+}
+
 /// representation of schema
 #[async_trait::async_trait]
 pub trait SchemaTrait:
@@ -105,8 +126,7 @@ pub trait SchemaTrait:
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>>;
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;
     async fn show_table(
-        &self, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, extra: Option<ShowTableExtraArgs>,
+        &self, table_name: &str, _: ShowTableParameter,
     ) -> anyhow::Result<QueryResp>;
 
     async fn table_insert(
@@ -185,8 +205,7 @@ pub trait SchemaTrait:
     }
 
     async fn show_view(
-        &self, _view_name: &str, _where_str: Option<&str>, _order_by: Option<&str>, _page: usize,
-        _page_size: usize, _extra: Option<ShowTableExtraArgs>,
+        &self, _view_name: &str, _para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
         not_support_feature(self.backend_name())
     }
@@ -194,9 +213,18 @@ pub trait SchemaTrait:
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
         // 有些后端没有数据 也能得到完整的结果所以提供一个默认实现
         // 后端基于sqlx的需要使用prepare_with这种特殊的接口
-        self.show_view(view_name, None, None, 1, 1, None)
-            .await
-            .map(|x| x.fields)
+        self.show_view(
+            view_name,
+            ShowTableParameter {
+                where_str: None,
+                order_by: None,
+                page: 1,
+                page_size: 1,
+                extra: None,
+            },
+        )
+        .await
+        .map(|x| x.fields)
     }
     /// export as sql only support table so the frontend should only not pass this kind
     async fn export_table_or_view_to_file(
