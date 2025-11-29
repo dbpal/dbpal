@@ -25,6 +25,7 @@ use dbnexus_db::redis::{RedisDB, RedisListTable, RedisToken};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use dbnexus_db::sqlite::SqliteDB;
 use dbnexus_db::sub::SubDB;
+use tokio::task::block_in_place;
 
 use crate::app::{
     self, BackendCrashMsg, DBConnectionConfig, DBPal, DatabaseBackend, name_to_parts,
@@ -1012,17 +1013,17 @@ pub async fn query_sql(
     let (token, _guard) = task_manager.add(query_id.to_string());
 
     let fur = async move {
-        #[cfg(feature = "random-sleep")]
-        tokio::time::sleep(Duration::from_secs(10)).await;
+        random_sleep().await;
         db.as_query_sql()
             .query_sql(
                 query_id,
                 &sql,
                 Arc::new(move |event| {
+                    block_random_sleep();
                     let r = match event {
-                        dbnexus_db::db::QueryEvent::Resp(query_resp) => {
-                            QueryEvent::Structure { resp: query_resp }
-                        }
+                        dbnexus_db::db::QueryEvent::Resp(query_resp) => QueryEvent::Structure {
+                            resp: MuiDataGridData::from(query_resp),
+                        },
                         dbnexus_db::db::QueryEvent::Data(data) => QueryEvent::Data { data },
                         dbnexus_db::db::QueryEvent::Status(x) => QueryEvent::Status { status: x },
                         dbnexus_db::db::QueryEvent::Err(err) => QueryEvent::Err { err },
@@ -1047,7 +1048,7 @@ pub enum QueryEvent {
     Err { err: String },
     Status { status: String },
     Data { data: Vec<Vec<Option<String>>> },
-    Structure { resp: QueryResp },
+    Structure { resp: MuiDataGridData },
 }
 
 #[tauri::command]
@@ -3151,6 +3152,18 @@ impl From<serde_json::Error> for ErrorFrontend {
     }
 }
 
+fn block_random_sleep() {
+    if cfg!(feature = "random-sleep") {
+        let duration = {
+            use rand::Rng;
+            let mut rng = rand::rng();
+            let millis = rng.random_range(500..1700);
+
+            std::time::Duration::from_millis(millis)
+        };
+        block_in_place(|| std::thread::sleep(duration));
+    }
+}
 async fn random_sleep() {
     if cfg!(feature = "random-sleep") {
         let duration = {

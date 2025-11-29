@@ -1231,9 +1231,9 @@ enum MongoLanguage {
   ts = "typescript",
 }
 const resizeHandlerSize = 3;
-interface QueryData {
-  Ok?: MuiDataGridData;
-  Err?: string;
+interface QueryRespData {
+  ok?: MuiDataGridData;
+  err?: string;
 }
 
 export {
@@ -1319,7 +1319,7 @@ export {
   resizeHandlerSize,
 };
 
-export type { ErrAndLoc, NewWindowTableParameter, QueryData };
+export type { ErrAndLoc, NewWindowTableParameter, QueryRespData };
 
 async function webviewWIndowInit() {
   const currentWebview = await WebviewWindow.getCurrent();

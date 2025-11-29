@@ -19,7 +19,7 @@ use crate::db::{
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEnable,
     TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
     create_html_table_header, escape_sql_str, export_query_as_xlsx_send_blocking_data,
-    not_support_feature, query_row_buffer_size,
+    not_support_feature,
 };
 
 use crate::helper::{create_csv, run_with_timeout};
@@ -307,7 +307,7 @@ impl QuerySql for OracleDB {
                             );
                         }
                         rows_cache.push(row);
-                        if rows_cache.len() > query_row_buffer_size() || timeemit.add(0) {
+                        if rows_cache.len() >= this.query_row_buffer_size() || timeemit.add(0) {
                             let r = encode_rows(std::mem::take(&mut rows_cache))?;
                             emit(r.into());
                         }

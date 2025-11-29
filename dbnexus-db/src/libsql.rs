@@ -16,7 +16,7 @@ use crate::db::{
     OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEventEmitter, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
     TimeEmit, TriggerDetail, XlsxEdit, create_html_table_data, create_html_table_header,
-    escape_sql_str, export_query_as_xlsx_send_data, query_row_buffer_size,
+    escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
@@ -264,7 +264,7 @@ impl QuerySql for LibSqlDB {
                     );
                 }
                 rows_cache.push(row);
-                if rows_cache.len() > query_row_buffer_size() || timeemit.add(0) {
+                if rows_cache.len() >= self.query_row_buffer_size() || timeemit.add(0) {
                     let r = std::mem::take(&mut rows_cache);
                     let data = encode_rows(&r)?;
                     emit(data.into());

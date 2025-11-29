@@ -950,6 +950,10 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     async fn get_auto_commit(&self, _query_id: &str) -> anyhow::Result<bool> {
         not_support_feature(self.backend_name())
     }
+
+    fn query_row_buffer_size(&self) -> usize {
+        if cfg!(debug_assertions) { 7 } else { 100 }
+    }
     async fn set_auto_commit(&self, _query_id: &str, _commit: bool) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
@@ -1583,9 +1587,6 @@ impl From<Vec<Vec<Option<String>>>> for QueryEvent {
 
 pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;
 
-pub(crate) fn query_row_buffer_size() -> usize {
-    if cfg!(debug_assertions) { 7 } else { 100 }
-}
 #[cfg(test)]
 mod tests {
     use super::UdfOrProcedureExtraParameter;

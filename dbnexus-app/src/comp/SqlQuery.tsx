@@ -1,5 +1,5 @@
 import { Editor } from "@monaco-editor/react";
-import { MultiQueryResp, QueryData, queryRespFix } from "./QueryResp";
+import { MultiQueryResp, QueryRespData, queryRespFix } from "./QueryResp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   Box,
@@ -198,7 +198,7 @@ function SqlQuery(props: {
 }) {
   const { uuid, value, favoriteName, kind, extras, handleEditor } = props;
 
-  const [resp, setResp] = useState<QueryData[]>([]);
+  const [resp, setResp] = useState<QueryRespData[]>([]);
   const [sqlErr, setSqlErr] = useState<ErrAndLoc | null>(null);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position | null>(null);
@@ -326,8 +326,8 @@ function SqlQuery(props: {
         if (SaveQueryLogConfigure.get()) {
           queryLogHandler.current.save(text, rustResultOk(e));
         }
-        if (e.Ok) {
-          queryRespFix(e.Ok);
+        if (e.ok) {
+          queryRespFix(e.ok);
         }
         setResp([e]);
         showNotification("success", "execute ok");
@@ -687,18 +687,19 @@ function SqlQuery(props: {
 }
 
 function appendQueryResult(
-  data: QueryData[],
+  data: QueryRespData[],
   event: QueryEvent,
   showNotification,
-): QueryData[] {
+): QueryRespData[] {
   switch (event.kind) {
     case "structure":
-      return [...data, { Ok: event.resp } as QueryData];
+      return [...data, { ok: event.resp }];
     case "err":
-      return [...data, { Err: event.err }];
+      return [...data, { err: event.err }];
     case "data": {
       if (event.data.length == 0) {
         showNotification("warning", "backend send empty data");
+        return data;
       }
       let data0 = event.data[0];
       showNotification(
@@ -719,7 +720,7 @@ function appendQueryResult(
         );
         return data;
       }
-      let cop = { ...data[index].Ok } as MuiDataGridData;
+      let cop = { ...data[index].ok } as MuiDataGridData;
       cop.data = [
         ...cop.data,
         ...event.data.map(d => {
@@ -732,11 +733,18 @@ function appendQueryResult(
       ];
       let arr = [...data];
       queryRespFix(cop);
-      arr[index].Ok = cop;
+      arr[index].ok = cop;
       return arr;
     }
     case "status": {
-      console.log("status", event);
+      showNotification(
+        "info",
+        "server is dothing this.",
+        <Stack direction="row">
+          <CircularProgress />
+          <Typography> {event.status} </Typography>
+        </Stack>,
+      );
       return data;
     }
     default:

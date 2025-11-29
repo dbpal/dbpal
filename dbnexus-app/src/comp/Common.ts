@@ -14,7 +14,7 @@ import {
   DataSourceKind,
   extractConfigNameFromUuid,
   MuiDataGridData,
-  QueryData,
+  QueryRespData,
   secondConfirm,
 } from "./helper";
 import { GridColDef } from "@mui/x-data-grid";
@@ -395,8 +395,8 @@ class QueryConn {
       emit,
     });
   }
-  executeOP(sql: string): Promise<QueryData> {
-    return invoke<QueryData>("execute_sql", {
+  executeOP(sql: string): Promise<QueryRespData> {
+    return invoke<QueryRespData>("execute_sql", {
       name: this.uuid,
       queryId: this.queryId,
       sql,

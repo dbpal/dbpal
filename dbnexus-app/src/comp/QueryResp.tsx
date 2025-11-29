@@ -23,7 +23,7 @@ import {
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
-  QueryData,
+  QueryRespData,
 } from "./helper.ts";
 import {
   DataGrid,
@@ -320,17 +320,17 @@ const styleForTrans: CSSProperties = {
   overflow: "hidden",
 };
 
-function MultiQueryResp(props: { data: QueryData[] }) {
+function MultiQueryResp(props: { data: QueryRespData[] }) {
   const { data } = props;
   const [value, setValue] = React.useState(0);
   if (data.length == 0) {
     return <></>;
   }
   if (data.length == 1) {
-    return data[0].Err ? (
-      <Alert severity="error">{data[0].Err}</Alert>
+    return data[0].err ? (
+      <Alert severity="error">{data[0].err}</Alert>
     ) : (
-      <QueryResp data={data[0].Ok} />
+      <QueryResp data={data[0].ok} />
     );
   }
   const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -361,10 +361,10 @@ function MultiQueryResp(props: { data: QueryData[] }) {
         {data.map((e, index) => {
           return (
             <div hidden={value != index} key={index} style={{ height: "100%" }}>
-              {e.Err ? (
-                <Alert severity="error">{e.Err}</Alert>
+              {e.err ? (
+                <Alert severity="error">{e.err}</Alert>
               ) : (
-                <QueryResp data={e.Ok} />
+                <QueryResp data={e.ok} />
               )}
             </div>
           );
@@ -375,4 +375,4 @@ function MultiQueryResp(props: { data: QueryData[] }) {
 }
 
 export { MultiQueryResp, QueryResp, queryRespFix };
-export type { QueryData };
+export type { QueryRespData };

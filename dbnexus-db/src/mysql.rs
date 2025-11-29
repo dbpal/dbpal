@@ -7,7 +7,7 @@ use crate::db::{
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlEvent,
     SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEvent, TriggerTiming,
     UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
-    escape_sql_str, export_query_as_xlsx_send_data, query_row_buffer_size,
+    escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
@@ -1889,7 +1889,7 @@ impl QuerySql for MysqlDB {
                         emit_fields = fields;
                     }
                     rows.push(row);
-                    if rows.len() > query_row_buffer_size() || timeemit.add(0) {
+                    if rows.len() >= self.query_row_buffer_size() || timeemit.add(0) {
                         let data = encode_rows(&std::mem::take(&mut rows), true)?;
                         emit(data.into());
                     }

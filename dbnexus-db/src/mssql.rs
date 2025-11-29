@@ -9,7 +9,7 @@ use crate::db::{
     SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
     UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
     escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset,
-    not_support_feature, query_row_buffer_size,
+    not_support_feature,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::create_csv;
@@ -1935,7 +1935,7 @@ impl QuerySql for SqlServerDB {
             match item {
                 tiberius::QueryItem::Row(row) => {
                     rows.push(row);
-                    if rows.len() > query_row_buffer_size() || timeemit.add(0) {
+                    if rows.len() >= self.query_row_buffer_size() || timeemit.add(0) {
                         emit(encode_rows(&std::mem::take(&mut rows))?.into());
                     }
                 }

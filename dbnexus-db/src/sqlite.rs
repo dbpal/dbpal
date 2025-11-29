@@ -1473,6 +1473,7 @@ impl QuerySql for SqliteDB {
         &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
+        emit(QueryEvent::Status("trying to get connection".into()));
         let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
@@ -1480,7 +1481,9 @@ impl QuerySql for SqliteDB {
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
+        emit(QueryEvent::Status("trying to get response stream".into()));
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
+        emit(QueryEvent::Status("get response ok.".into()));
         let mut rows = Vec::new();
         let mut emit_fields = Vec::new();
         let mut timeemit = TimeEmit::new(Duration::from_millis(50));

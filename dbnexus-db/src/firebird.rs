@@ -24,7 +24,6 @@ use crate::db::{
     QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder,
     SqlExecuteRet, TimeEmit, XlsxEdit, create_html_table_data, create_html_table_header,
     escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
-    query_row_buffer_size,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
@@ -485,7 +484,7 @@ impl QuerySql for FireBirdDB {
                     );
                 }
                 rows.push(item);
-                if rows.len() > query_row_buffer_size() || timeemit.add(0) {
+                if rows.len() >= this.query_row_buffer_size() || timeemit.add(0) {
                     let d = encode_rows(&std::mem::take(&mut rows), true, None)?;
                     emit(d.into());
                 }

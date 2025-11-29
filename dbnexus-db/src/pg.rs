@@ -20,7 +20,7 @@ use crate::db::{
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas,
     ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEvent,
     TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
-    create_html_table_header, export_query_as_xlsx_send_data, query_row_buffer_size,
+    create_html_table_header, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
 
@@ -2113,7 +2113,7 @@ impl QuerySql for PostGresDB {
                         emit_fields = fields;
                     }
                     rows.push(row);
-                    if rows.len() >= query_row_buffer_size() || timeemit.add(0) {
+                    if rows.len() >= self.query_row_buffer_size() || timeemit.add(0) {
                         let data = encode_rows(&std::mem::take(&mut rows))?;
                         emit(data.into());
                     }
