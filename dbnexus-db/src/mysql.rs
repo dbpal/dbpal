@@ -1,19 +1,13 @@
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::ops::DerefMut;
-use std::sync::Arc;
-use std::time::Duration;
-
-use crate::MemoryLimit;
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field,
     GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
-    POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlEvent, SqlExecuteRet, TriggerDetail,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
-    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data,
+    POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlEvent,
+    SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
+    escape_sql_str, export_query_as_xlsx_send_data, query_row_buffer_size,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
@@ -24,6 +18,11 @@ use sqlx::mysql::MySqlRow;
 use sqlx::pool::{PoolConnection, PoolOptions};
 use sqlx::types::BigDecimal;
 use sqlx::{AssertSqlSafe, Column, Executor, MySqlConnection, Row, SqlSafeStr, TypeInfo};
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::ops::DerefMut;
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
 
 #[derive(Clone)]
@@ -35,12 +34,9 @@ pub struct MysqlDB {
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
-fn get_rows_types(rows: &[MySqlRow]) -> Vec<Field> {
-    if rows.is_empty() {
-        return vec![];
-    }
-    let mut ret = Vec::with_capacity(rows[0].columns().len());
-    for c in rows[0].columns().iter() {
+fn get_row_types(row: &MySqlRow) -> Vec<Field> {
+    let mut ret = Vec::with_capacity(row.columns().len());
+    for c in row.columns().iter() {
         let column = c;
         ret.push(Field {
             field: column.name().to_string(),
@@ -1198,12 +1194,16 @@ impl SchemaTrait for MysqlDB {
             .fetch_all(conn.deref_mut())
             .await?;
         if rows.is_empty() {
-            let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
+            let fields = self.show_view_columns(view_name).await?;
+            return anyhow::Ok(QueryResp {
+                fields,
+                total: 0,
+                sql: sql.into(),
+                ..Default::default()
+            });
         }
-
         let data = encode_rows(&rows, true)?;
-        let fields = get_rows_types(&rows);
+        let fields = get_row_types(&rows[0]);
         anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
@@ -1844,51 +1844,65 @@ impl QuerySql for MysqlDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
-
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-        let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
         let mut rows = Vec::new();
-        log::info!("execute sql:{}", sql);
-        let mut ml = MemoryLimit::new();
+        let mut emit_fields: Vec<Field> = vec![];
+        let mut has_result = false;
+        let mut timeemit = TimeEmit::new(Duration::from_millis(50));
         while let Some(item) = stream.next().await {
-            ml.exceed_error()?;
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {
-                    ret.push(Err(err.to_string()));
+                    emit(QueryEvent::Err(err.to_string()));
                     continue;
                 }
             };
-            log::trace!("item: {:?}", item);
             match item {
                 sqlx::Either::Left(row_aff) => {
-                    if !rows.is_empty() {
-                        let fields = get_rows_types(&rows);
-                        let data = encode_rows(&rows, true)?;
-                        ret.push(Ok(QueryResp::new(fields, 0, data, None)?));
-                        rows.clear();
-                    };
-                    if row_aff.rows_affected() > 0 {
-                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected(), None)));
-                    }
+                    log::info!("row aff:{:?}", row_aff);
                 }
                 sqlx::Either::Right(row) => {
+                    has_result = true;
+                    let fields = get_row_types(&row);
+                    if emit_fields.is_empty()
+                        || !fields.iter().zip(emit_fields.iter()).all(|(x, y)| x == y)
+                    {
+                        if !rows.is_empty() {
+                            let data = encode_rows(&std::mem::take(&mut rows), true)?;
+                            emit(data.into());
+                        }
+                        emit(
+                            QueryResp {
+                                fields: fields.clone(),
+                                ..Default::default()
+                            }
+                            .into(),
+                        );
+                        emit_fields = fields;
+                    }
                     rows.push(row);
+                    if rows.len() > query_row_buffer_size() || timeemit.add(0) {
+                        let data = encode_rows(&std::mem::take(&mut rows), true)?;
+                        emit(data.into());
+                    }
                 }
             }
         }
+        if !rows.is_empty() {
+            emit(encode_rows(&rows, true)?.into());
+        }
         drop(stream);
-        if ret.is_empty() {
+        if !has_result {
             use sqlx::Statement;
             let fields = conn
                 .deref_mut()
@@ -1901,17 +1915,15 @@ impl QuerySql for MysqlDB {
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
-            ret = vec![Ok(QueryResp {
-                fields,
-                total: 0,
-                data: vec![],
-                sql: Some(sql.to_string()),
-                cache_time: None,
-                has_more: false,
-            })];
+            emit(
+                QueryResp {
+                    fields,
+                    ..Default::default()
+                }
+                .into(),
+            )
         }
-
-        anyhow::Ok(ret)
+        anyhow::Ok(())
     }
 }
 
@@ -2118,7 +2130,7 @@ pub(crate) mod test_fns {
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
                     CREATE TABLE test_rename (
@@ -2129,7 +2141,9 @@ pub(crate) mod test_fns {
                 "#,
         )
         .await
+        .unwrap()
         .unwrap();
+
         db.rename_table("test_rename", "test_rename2")
             .await
             .unwrap();
@@ -2146,7 +2160,7 @@ pub(crate) mod test_fns {
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let _resp = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
                 CREATE TABLE test_column
@@ -2156,6 +2170,7 @@ pub(crate) mod test_fns {
                 "#,
             )
             .await
+            .unwrap()
             .unwrap();
 
         db.add_table_column(
@@ -2194,7 +2209,7 @@ pub(crate) mod test_fns {
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
                 CREATE TABLE test_duplicate (
@@ -2212,6 +2227,7 @@ pub(crate) mod test_fns {
                 "#,
         )
         .await
+        .unwrap()
         .unwrap();
         db.duplicate_table("test_duplicate", "test_duplicate2")
             .await
@@ -2727,7 +2743,7 @@ pub(crate) mod test_fns {
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
                 CREATE TABLE test_types4 (
@@ -2742,6 +2758,7 @@ pub(crate) mod test_fns {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
 
         let mut values: HashMap<String, Option<String>> = HashMap::new();
@@ -2878,47 +2895,6 @@ pub(crate) mod test_fns {
         }
     }
 
-    pub(crate) async fn test_query(db: MysqlDB) {
-        enable_test_log();
-        let id = "";
-        db.open_connection("").await.unwrap();
-
-        let ret = db.query_sql(id, "begin").await.unwrap();
-        db.query_sql(id, "drop table if exists test_query ")
-            .await
-            .unwrap();
-
-        db.query_sql(
-            id,
-            r#"
-        CREATE TABLE test_query (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(255),
-            age INT
-        )
-        "#,
-        )
-        .await
-        .unwrap();
-
-        db.query_sql(
-            id,
-            r#"
-            INSERT INTO test_query (name, age)
-            VALUES
-                ('John', 25),
-                ('Jane', 30),
-                ('Alice', 28)
-        "#,
-        )
-        .await
-        .unwrap();
-
-        db.query_sql(id, "commit").await.unwrap();
-
-        println!("begin ret:{:?}", ret);
-    }
-
     pub(crate) async fn test_event(db: MysqlDB) {
         enable_test_log();
         let id = "";
@@ -2952,7 +2928,7 @@ mod tests {
     use super::test_fns::{self, make_test_object};
     use crate::TEST_HOST;
     use crate::datasource_config::MysqlDBConfig;
-    use crate::db::{QuerySql, SchemaTrait};
+    use crate::db::SchemaTrait;
 
     pub(crate) fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {
@@ -2967,31 +2943,6 @@ mod tests {
             ssl: Default::default(),
         }
     }
-
-    #[tokio::test]
-    async fn test_xxx() {
-        let mut config = make_config();
-        config.db = Some("information_schema".to_string());
-        let db = make_test_object(config).await;
-
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-
-        let resp = db
-            .query_sql(
-                query_id,
-                r#"
-                show TABLES 
-        "#,
-            )
-            .await
-            .unwrap()[0]
-            .clone()
-            .unwrap();
-
-        println!("{:?}", resp);
-    }
-
     #[ignore = "xxxx"]
     #[tokio::test]
     async fn test_xxx_yyyy() {
@@ -3003,30 +2954,6 @@ mod tests {
         let resp = db
             .show_table("innodb_index_stats", None, None, 1, 1, None)
             .await
-            .unwrap();
-
-        println!("{:?}", resp);
-    }
-    #[ignore = "xxxx"]
-    #[tokio::test]
-    async fn test_xxx2() {
-        let mut config = make_config();
-        config.db = Some("test".to_string());
-        let db = make_test_object(config).await;
-
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-
-        let resp = db
-            .query_sql(
-                query_id,
-                r#"
-                select * from test_type3
-        "#,
-            )
-            .await
-            .unwrap()[0]
-            .clone()
             .unwrap();
 
         println!("{:?}", resp);
@@ -3103,12 +3030,6 @@ mod tests {
     #[tokio::test]
     async fn test_view() {
         test_fns::test_view(make_test_object(make_config()).await).await;
-    }
-
-    #[ignore = "some compitable problem I don't know how to fix now"]
-    #[tokio::test]
-    async fn test_query() {
-        test_fns::test_query(make_test_object(make_config()).await).await;
     }
     #[tokio::test]
     async fn test_event() {

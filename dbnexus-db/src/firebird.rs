@@ -17,14 +17,14 @@ RDB$RELATION_NAME 的数据类型是 CHAR(31)，定长字符，不足 31 字节�
 
 所以代码里面有很多的trim
 */
-use crate::MemoryLimit;
 use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     BackendKind, CheckConn, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
-    ListTable, MetaValue, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
-    XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
-    export_query_as_xlsx_send_blocking_data, not_support_feature,
+    ListTable, MetaValue, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEventEmitter, QueryResp,
+    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder,
+    SqlExecuteRet, TimeEmit, XlsxEdit, create_html_table_data, create_html_table_header,
+    escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
+    query_row_buffer_size,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
@@ -454,46 +454,47 @@ impl QuerySql for FireBirdDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
-
         let this = Clone::clone(self);
         let query_id = query_id.to_string();
         let sql = sql.to_owned();
         spawn_blocking(move || {
-            let mut ret = vec![];
             let conn = match this.query_connection.get(&query_id) {
                 Some(x) => x.clone(),
                 None => anyhow::bail!("connection closed???"),
             };
             let mut conn = conn.lock().expect("lock failed");
             let conn = conn.deref_mut();
-            let mut ml = MemoryLimit::new();
-            let rows: Result<Vec<Row>, _> = conn.query(&sql, ());
-            match rows {
-                Ok(rows) => {
-                    ml.exceed_error()?;
-                    if !rows.is_empty() {
-                        let fields = infer_fields(
-                            rows.first()
-                                .expect("I have checked that rows is not is_empty"),
-                        );
-                        let data = encode_rows(&rows, true, None)?;
-                        ret.push(Ok(QueryResp {
-                            fields,
-                            data,
-                            sql: Some(sql.to_owned()),
-                            total: 0,
-                            has_more: false,
-                            cache_time: None,
-                        }));
-                    }
+            let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
+                conn.query_iter(&sql, ())?;
+            let mut first = true;
+            let mut rows = vec![];
+            let mut timeemit = TimeEmit::new(Duration::from_millis(100));
+            for row in stream {
+                let item = row?;
+                if first {
+                    first = false;
+                    emit(
+                        QueryResp {
+                            fields: infer_fields(&item),
+                            ..Default::default()
+                        }
+                        .into(),
+                    );
                 }
-                Err(err) => ret.push(Err(err.to_string())),
+                rows.push(item);
+                if rows.len() > query_row_buffer_size() || timeemit.add(0) {
+                    let d = encode_rows(&std::mem::take(&mut rows), true, None)?;
+                    emit(d.into());
+                }
             }
-
-            anyhow::Ok(ret)
+            if !rows.is_empty() {
+                let d = encode_rows(&rows, true, None)?;
+                emit(d.into());
+            }
+            anyhow::Ok(())
         })
         .await?
     }
@@ -1250,6 +1251,17 @@ mod tests {
         let db = make_test_object().await;
         let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
         println!("ping time:{:?}", d);
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_query_multi_should_be_error() {
+        let db = make_test_object().await;
+        let mut conn = db.get_conn().unwrap();
+        let stream: Result<Box<dyn Iterator<Item = Result<Row, FbError>>>, FbError> = conn
+            .query_iter(
+                "SELECT 1 FROM RDB$DATABASE;SELECT 2 FROM RDB$DATABASE; ",
+                (),
+            );
+        assert!(stream.is_err());
     }
 
     fn test_lock() -> &'static Mutex<()> {

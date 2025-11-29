@@ -13,6 +13,8 @@ import {
   backendCompletionItemToEditor,
   DataSourceKind,
   extractConfigNameFromUuid,
+  MuiDataGridData,
+  QueryData,
   secondConfirm,
 } from "./helper";
 import { GridColDef } from "@mui/x-data-grid";
@@ -302,29 +304,13 @@ function makeFormatFn(kind: DataSourceKind) {
   };
 }
 
-interface IQueryConn {
-  queryOP: (text: string) => Promise<any[]>;
-  executeOP: (text: string) => Promise<any>;
-  exportQueryResult: (
-    queryId: string,
-    sql: string,
-    kind: types.ExportKind,
-    file: string,
-    taskId: string,
-    sizeEmitter: Channel<number>,
-  ) => Promise<void>;
-  isDangerSql: (sql: string) => Promise<boolean>;
-  destroy: () => void;
-  setAutoCommit: (boolean) => Promise<void>;
-  getAutoCommit: () => Promise<boolean>;
-  commit: () => Promise<void>;
-  rollback: () => Promise<void>;
-  supportTransaction: () => boolean;
-  queryId: string;
-  open(): Promise<void>;
-}
+type QueryEvent =
+  | ({ kind: "structure" } & { resp: MuiDataGridData })
+  | ({ kind: "err" } & { err: string })
+  | ({ kind: "data" } & { data: string[][] })
+  | ({ kind: "status" } & { status: string });
 
-class QueryConn implements IQueryConn {
+class QueryConn {
   queryId: string;
   uuid: string;
   kind: DataSourceKind;
@@ -401,15 +387,16 @@ class QueryConn implements IQueryConn {
       queryId: this.queryId,
     });
   }
-  queryOP(sql: string): Promise<any[]> {
-    return invoke<any[]>("query_sql", {
+  queryOP(sql: string, emit: Channel<QueryEvent>): Promise<void> {
+    return invoke<void>("query_sql", {
       name: this.uuid,
       queryId: this.queryId,
       sql,
+      emit,
     });
   }
-  executeOP(sql: string): Promise<any> {
-    return invoke<any[]>("execute_sql", {
+  executeOP(sql: string): Promise<QueryData> {
+    return invoke<QueryData>("execute_sql", {
       name: this.uuid,
       queryId: this.queryId,
       sql,
@@ -606,4 +593,4 @@ export {
   TableFilterHandler,
 };
 
-export type { DefAndMetas, IQueryConn, EscDownEvent, FieldAndGridField, TableFilter };
+export type { DefAndMetas, EscDownEvent, FieldAndGridField, TableFilter, QueryEvent };

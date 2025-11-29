@@ -1,17 +1,17 @@
-use crate::MemoryLimit;
 #[cfg(test)]
 use crate::TEST_HOST;
 use crate::datasource_config::SqlServerDBConfig;
-use crate::db::OptionMustBeSomeErr;
 use crate::db::{
     BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
-    ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
-    TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
-    XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
-    export_query_as_xlsx_send_data, format_data_time_fix_offset, not_support_feature,
+    ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryResp,
+    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder,
+    SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
+    escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset,
+    not_support_feature, query_row_buffer_size,
 };
+use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
 use chrono::FixedOffset;
@@ -1913,59 +1913,49 @@ impl QuerySql for SqlServerDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!(format!("id connection '{}' not found", query_id)),
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-
-        let mut ret = Vec::with_capacity(0);
-
         let mut stream = conn.simple_query(sql).await?;
-        let mut meta_prev = None;
         let mut rows = Vec::new();
-        let mut ml = MemoryLimit::new();
-
+        let mut timeemit = TimeEmit::new(Duration::from_millis(50));
         while let Some(item) = stream.next().await {
             let item = match item {
                 Ok(item) => item,
                 Err(err) => {
-                    ret.push(Err(err.to_string()));
+                    emit(QueryEvent::Err(err.to_string()));
                     continue;
                 }
             };
-            ml.exceed_error()?;
             match item {
-                tiberius::QueryItem::Row(row) => rows.push(row),
-                tiberius::QueryItem::Metadata(meta) => {
-                    if meta_prev.is_some() {
-                        let table_list = make_table_list_from_meta_and_row(
-                            meta_prev.as_ref().option_must_be_some()?,
-                            &rows,
-                            rows.len(),
-                            "".to_string(),
-                        )?;
-                        ret.push(Ok(table_list));
-                        rows = vec![];
+                tiberius::QueryItem::Row(row) => {
+                    rows.push(row);
+                    if rows.len() > query_row_buffer_size() || timeemit.add(0) {
+                        emit(encode_rows(&std::mem::take(&mut rows))?.into());
                     }
-                    meta_prev = Some(meta);
+                }
+                tiberius::QueryItem::Metadata(meta) => {
+                    let f = get_fields_from_meta(&meta);
+                    emit(
+                        QueryResp {
+                            fields: f,
+                            ..Default::default()
+                        }
+                        .into(),
+                    );
                 }
             }
         }
-        if meta_prev.is_some() {
-            let table_list = make_table_list_from_meta_and_row(
-                meta_prev.as_ref().option_must_be_some()?,
-                &rows,
-                rows.len(),
-                "",
-            )?;
-            ret.push(Ok(table_list));
+        if !rows.is_empty() {
+            let data = encode_rows(&rows)?;
+            emit(data.into());
         }
-
-        anyhow::Ok(ret)
+        anyhow::Ok(())
     }
 }
 
@@ -2439,7 +2429,7 @@ mod tests {
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_procedure("test_procedure", None).await;
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             CREATE PROCEDURE dbo.test_procedure
@@ -2451,6 +2441,7 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
         let list = db.list_procedure().await.unwrap();
         for l in list.iter() {
@@ -2466,7 +2457,7 @@ mod tests {
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_udf("test_udf", None).await;
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             CREATE FUNCTION dbo.test_udf
@@ -2481,6 +2472,7 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
         let list = db.list_udf().await.unwrap();
         for l in list.iter() {
@@ -2671,7 +2663,7 @@ mod tests {
         let _ = db.drop_table("test_duplicate", false).await;
         let _ = db.drop_table("test_duplicate2", false).await;
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
                 CREATE TABLE test_duplicate (
@@ -2688,6 +2680,7 @@ mod tests {
                 "#,
         )
         .await
+        .unwrap()
         .unwrap();
         db.duplicate_table("test_duplicate", "test_duplicate2")
             .await
@@ -2709,38 +2702,35 @@ mod tests {
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_create_trigger", false).await;
         let _ = db.drop_table("test_create_trigger_update", false).await;
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TABLE test_create_trigger (
                 id INT PRIMARY KEY,
                 name VARCHAR(50)
             );
         "#,
-            )
-            .await
-            .unwrap();
-        println!("!!!{:?}", x);
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
         
         CREATE TABLE test_create_trigger_update (
             id INT PRIMARY KEY,
             email VARCHAR(100)
         );
     "#,
-            )
-            .await
-            .unwrap();
-        println!("!!!{:?}", x);
-        let x = db
-            .query_sql(
-                query_id,
-                r#"CREATE TRIGGER tr_test_create_trigger_insert
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.execute_sql(
+            query_id,
+            r#"CREATE TRIGGER tr_test_create_trigger_insert
             ON test_create_trigger
             AFTER INSERT
             AS
@@ -2749,10 +2739,10 @@ mod tests {
                 SELECT id, 'test@example.com' FROM inserted
             END
         "#,
-            )
-            .await
-            .unwrap();
-        println!("!!!{:?}", x);
+        )
+        .await
+        .unwrap()
+        .unwrap();
         let tris = db.list_trigger("test_create_trigger").await.unwrap();
         for tri in tris.iter() {
             let detail = db
@@ -2778,10 +2768,9 @@ mod tests {
 
         let id = "";
         db.open_connection("").await.unwrap();
-        let ret = db
-            .query_sql(
-                id,
-                r#"BEGIN TRANSACTION;
+        db.execute_sql(
+            id,
+            r#"BEGIN TRANSACTION;
         
             drop table if exists test_query;
             CREATE TABLE test_query (
@@ -2795,11 +2784,10 @@ mod tests {
             INSERT INTO test_query (id, name, age) VALUES (3, 'Mike', 35);
             COMMIT;
         "#,
-            )
-            .await
-            .unwrap();
-
-        println!("begin ret:{:?}", ret);
+        )
+        .await
+        .unwrap()
+        .unwrap();
     }
 
     #[tokio::test]
@@ -2821,15 +2809,15 @@ mod tests {
         let db = make_test_object().await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-
-        let x = db
-            .query_sql(query_id, "SELECT  COUNT(*) from test_type1 ")
-            .await
-            .unwrap();
-
-        for x in x.iter() {
-            println!("query resp:{:?}", x);
-        }
+        db.query_sql(
+            query_id,
+            "SELECT  COUNT(*) from test_type1 ",
+            Arc::new(|e| {
+                println!("{:?}", e);
+            }),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -2863,10 +2851,9 @@ mod tests {
             )
             .await;
 
-        let _ = db
-            .query_sql(
-                conn_id,
-                r#"CREATE VIEW test_view AS
+        db.execute_sql(
+            conn_id,
+            r#"CREATE VIEW test_view AS
                 SELECT
                     id,
                     name,
@@ -2875,9 +2862,10 @@ mod tests {
                 FROM
                     test_view_table;
         "#,
-            )
-            .await
-            .unwrap();
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let resp = db
             .show_view("test_view", None, None, 1, 100, None)
@@ -2895,10 +2883,9 @@ mod tests {
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
 
-        let _ = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
                 CREATE TABLE test_index_table (
                         Column1 int,
                         Column2 int,
@@ -2907,9 +2894,10 @@ mod tests {
                 CREATE UNIQUE INDEX IX_YourTableName_Column1_Column2
                     ON test_index_table (Column1, Column2);
         "#,
-            )
-            .await
-            .unwrap();
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         std::thread::sleep(Duration::from_secs(1));
         let indexes = db.show_indexes("test_index_table").await.unwrap();
@@ -3034,21 +3022,20 @@ mod tests {
         let db = make_test_object().await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let r = db
-            .query_sql(
-                query_id,
-                r#"
+        db.query_sql(
+            query_id,
+            r#"
             SELECT   *
 FROM sys.sequences;
 
 
         "#,
-            )
-            .await
-            .unwrap();
-        for x in r.iter() {
-            println!("{:?}", x);
-        }
+            Arc::new(|e| {
+                println!("{:?}", e);
+            }),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -3063,7 +3050,7 @@ FROM sys.sequences;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let _resp = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
                 CREATE TABLE test_column
@@ -3073,6 +3060,7 @@ FROM sys.sequences;
                 "#,
             )
             .await
+            .unwrap()
             .unwrap();
 
         db.add_table_column(

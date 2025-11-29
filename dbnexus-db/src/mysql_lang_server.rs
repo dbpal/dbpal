@@ -905,13 +905,13 @@ mod tests {
             .await
             .unwrap();
 
-        db.execute_sql(query_id, "replace into departments values (1,'test')")
+        let _ = db
+            .execute_sql(query_id, "replace into departments values (1,'test')")
             .await
-            .unwrap()
             .unwrap();
 
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
             DELIMITER //
@@ -931,7 +931,7 @@ mod tests {
             .await
             .unwrap();
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
             CREATE EVENT do_nothing_event_loop
@@ -944,6 +944,7 @@ mod tests {
             "#,
             )
             .await
+            .unwrap()
             .unwrap();
 
         let manifest_dir = env!("CARGO_MANIFEST_DIR");

@@ -483,10 +483,9 @@ mod tests {
         let db = make_test_object().await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let _ = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             -- 测试用到的表格 和建表语句
             -- 创建 departments 表
             CREATE TABLE departments (
@@ -505,22 +504,25 @@ mod tests {
             -- create view for test
             create view employees_view as select * from employees;
         "#,
-            )
-            .await;
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         db.execute_sql(query_id, "replace into departments values (1,'test')")
             .await
             .unwrap()
             .unwrap();
 
-        let _ = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
                 create index employees_name on employees(name)
         "#,
-            )
-            .await;
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         enable_test_log();
         let manifest_dir = env!("CARGO_MANIFEST_DIR");

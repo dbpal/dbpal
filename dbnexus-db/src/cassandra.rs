@@ -26,16 +26,15 @@
 // user_defined_functions_enabled=true to enable"
 //
 
-use crate::MemoryLimit;
 use crate::datasource_config::CassandraDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
     Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
-    POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
-    create_html_table_data, create_html_table_header, escape_sql_str,
-    export_query_as_xlsx_send_data,
+    POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
+    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
+    escape_sql_str, export_query_as_xlsx_send_data,
 };
 
 use crate::helper::{create_csv, current_timestamp};
@@ -912,11 +911,9 @@ impl QuerySql for CassandraDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         self.invalid_table_or_view_caching(None);
-        let mut ret = vec![];
-        let mut ml = MemoryLimit::new();
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("query connection closed???"),
@@ -925,29 +922,24 @@ impl QuerySql for CassandraDB {
             match conn.query(&sql).await {
                 Ok(x) => {
                     let body = x.response_body()?;
-                    ml.exceed_error()?;
                     let meta = body.as_rows_metadata().cloned();
                     let rows = body.into_rows().unwrap_or_default();
                     if let Some(meta) = meta {
                         let fields = infer_fields(&meta);
                         let data = encode_rows(&meta, &rows)?;
-                        ret.push(Ok(QueryResp {
+                        let r = QueryResp {
                             fields,
                             data,
                             sql: Some(sql.to_owned()),
-                            total: 0,
-                            cache_time: None,
-                            has_more: false,
-                        }));
+                            ..Default::default()
+                        };
+                        emit(r.into());
                     }
                 }
-                Err(err) => {
-                    ret.push(Err(err.to_string()));
-                }
+                Err(err) => emit(QueryEvent::Err(err.to_string())),
             }
         }
-
-        anyhow::Ok(ret)
+        anyhow::Ok(())
     }
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
@@ -2266,7 +2258,7 @@ mod tests {
         db.open_connection(query_id).await.unwrap();
 
         let _resp = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
         CREATE OR REPLACE FUNCTION sum_state_function(state int, val int)
@@ -2279,11 +2271,11 @@ mod tests {
         "#,
             )
             .await
+            .unwrap()
             .unwrap();
-        assert!(_resp.iter().all(|x| x.is_ok()), "resp:{:?}", _resp);
 
         let _resp = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
                 CREATE OR REPLACE FUNCTION sum_final_function(state int)
@@ -2296,11 +2288,11 @@ mod tests {
     "#,
             )
             .await
+            .unwrap()
             .unwrap();
-        assert!(_resp.iter().all(|x| x.is_ok()), "resp:{:?}", _resp);
 
         let _resp = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
             CREATE AGGREGATE test_aggregate(int)
@@ -2312,7 +2304,6 @@ mod tests {
             )
             .await
             .unwrap();
-        assert!(_resp.iter().all(|x| x.is_ok()), "resp:{:?}", _resp);
 
         let list = db.list_aggregate().await.unwrap();
 
@@ -2340,10 +2331,9 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TABLE test_sort (
                 id UUID,
                 sort_key INT,
@@ -2353,12 +2343,12 @@ mod tests {
             ) ;
 
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
         INSERT INTO test_sort (sort_key, id, name, value) VALUES (1, uuid(), 'Alice', 30);
@@ -2368,6 +2358,7 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
 
         let resp = db
@@ -2404,10 +2395,9 @@ mod tests {
 
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TABLE test_duplicate_table (
                 id UUID PRIMARY KEY,
                 name TEXT,
@@ -2415,11 +2405,11 @@ mod tests {
             );
 
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
-        db.query_sql(
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.execute_sql(
             query_id,
             r#"
         INSERT INTO test_duplicate_table (id, name, value) VALUES (uuid(), 'Alice', 10);
@@ -2428,6 +2418,7 @@ mod tests {
     "#,
         )
         .await
+        .unwrap()
         .unwrap();
         db.duplicate_table(table_name, table_dup).await.unwrap();
 
@@ -2445,20 +2436,19 @@ mod tests {
 
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let _resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TYPE test_type (
                 id int,
                 name text,
                 created_at timestamp
             );
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(_resp.iter().all(|x| x.is_ok()), "resp:{:?}", _resp);
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let list = db.list_created_types().await.unwrap();
         for l in list.iter() {
@@ -2566,10 +2556,9 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
                 CREATE TABLE test_types_list1 (
                     id UUID PRIMARY KEY,
                     ascii_column list<ASCII>,
@@ -2580,10 +2569,10 @@ mod tests {
                     double_column list<DOUBLE>
                 );
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let mut values = HashMap::new();
 
@@ -2662,10 +2651,9 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
                 CREATE TABLE test_types2 (
                     id UUID PRIMARY KEY,
                     float_value FLOAT,
@@ -2675,10 +2663,10 @@ mod tests {
                     varint_value VARINT
                 );
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+        )
+        .await
+        .unwrap()
+        .unwrap();
         // INSERT INTO test_types2 (id, float_value, int_value, timestamp_value,
         // varchar_value, varint_value) VALUES (uuid(), 3.14, 42, '2023-01-01
         // 10:00:00', 'Sample Text', '123456789012345678901234567890');
@@ -2757,10 +2745,9 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
                 CREATE TABLE test_types_list2 (
                     id UUID PRIMARY KEY,
                     float_value list<FLOAT>,
@@ -2770,10 +2757,10 @@ mod tests {
                     varint_value list<VARINT>
                 );
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+        )
+        .await
+        .unwrap()
+        .unwrap();
         // INSERT INTO test_types2 (id, float_value, int_value, timestamp_value,
         // varchar_value, varint_value) VALUES (uuid(), 3.14, 42, '2023-01-01
         // 10:00:00', 'Sample Text', '123456789012345678901234567890');
@@ -2855,10 +2842,9 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
                 CREATE TABLE test_types3 (
                     id UUID PRIMARY KEY,
                     timeuuid_value TIMEUUID,
@@ -2870,10 +2856,10 @@ mod tests {
                 );
 
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+        )
+        .await
+        .unwrap()
+        .unwrap();
         // INSERT INTO test_types3 (id, timeuuid_value, inet_value, date_value,
         // time_value, smallint_value, tinyint_value) VALUES (
         // uuid(),
@@ -2953,10 +2939,9 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
                 CREATE TABLE test_types_list3 (
                     id UUID PRIMARY KEY,
                     timeuuid_value list<TIMEUUID>,
@@ -2968,10 +2953,10 @@ mod tests {
                 );
 
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+        )
+        .await
+        .unwrap()
+        .unwrap();
         // INSERT INTO test_types3 (id, timeuuid_value, inet_value, date_value,
         // time_value, smallint_value, tinyint_value) VALUES (
         // uuid(),
@@ -3054,10 +3039,9 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
                CREATE TABLE test_types4 (
                     id UUID PRIMARY KEY,
                     map_field map<int, int>,
@@ -3066,10 +3050,10 @@ mod tests {
                     tuple_field tuple<int, int>
                 );
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let mut values = HashMap::new();
 
@@ -3140,7 +3124,7 @@ mod tests {
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let _resp = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
                CREATE TABLE test_column (
@@ -3152,6 +3136,7 @@ mod tests {
                         "#,
             )
             .await
+            .unwrap()
             .unwrap();
 
         db.add_table_column(
@@ -3192,20 +3177,19 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TABLE test_counter (
                 page_id UUID PRIMARY KEY,
                 view_count COUNTER
             );
             
                 "#,
-            )
-            .await
-            .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let mut values = HashMap::new();
         let mut wheres = HashMap::new();
@@ -3326,19 +3310,18 @@ mod tests {
         let _ = db.drop_table(&table_name2, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TABLE test_rename (
                 page_id UUID PRIMARY KEY,
                 view_count COUNTER
             );
                 "#,
-            )
-            .await
-            .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         db.rename_table(table_name, &table_name2).await.unwrap();
         db.rename_table(&table_name2, table_name).await.unwrap();
@@ -3353,10 +3336,9 @@ mod tests {
 
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
                 CREATE TABLE test_index (
                     id UUID PRIMARY KEY,
                     name TEXT,
@@ -3364,10 +3346,10 @@ mod tests {
                     email TEXT
                 );
                 "#,
-            )
-            .await
-            .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+        )
+        .await
+        .unwrap()
+        .unwrap();
         db.create_index(
             table_name,
             "test_index_email_index",
@@ -3390,48 +3372,44 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
                 CREATE TABLE test_view_table (
                     id UUID PRIMARY KEY,
                     name TEXT,
                     age INT
                 );
                 "#,
-            )
-            .await
-            .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
             INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Alice', 30);
             INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Bob', 25);
             INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Charlie', 35);
             INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Diana', 28);
             INSERT INTO test_view_table (id, name, age) VALUES (uuid(), 'Eve', 22);
             "#,
-            )
-            .await
-            .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
-
-        let x = db
-            .query_sql(
-                query_id,
-                r#"
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
                 CREATE MATERIALIZED VIEW test_view AS
                 SELECT * FROM test_view_table
                 WHERE age IS NOT NULL AND id IS NOT NULL
                 PRIMARY KEY (age, id);
             "#,
-            )
-            .await
-            .unwrap();
-        assert!(x.iter().all(|x| x.is_ok()), "{:?}", x);
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let list = db.list_materialized_view().await.unwrap();
         println!("view list:{:?}", list);

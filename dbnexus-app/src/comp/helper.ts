@@ -1006,7 +1006,6 @@ export type MuiDataGridData = {
   total: number | null;
   cache_time: types.U64 | null;
   has_more: boolean;
-  inserted_seq?: boolean;
 };
 
 enum RedisTableType {
@@ -1232,6 +1231,10 @@ enum MongoLanguage {
   ts = "typescript",
 }
 const resizeHandlerSize = 3;
+interface QueryData {
+  Ok?: MuiDataGridData;
+  Err?: string;
+}
 
 export {
   TabsSetContext,
@@ -1316,7 +1319,7 @@ export {
   resizeHandlerSize,
 };
 
-export type { ErrAndLoc, NewWindowTableParameter };
+export type { ErrAndLoc, NewWindowTableParameter, QueryData };
 
 async function webviewWIndowInit() {
   const currentWebview = await WebviewWindow.getCurrent();

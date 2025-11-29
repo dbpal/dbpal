@@ -1,12 +1,11 @@
-use crate::MemoryLimit;
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue,
-    NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
-    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
-    escape_sql_str, ty_is_float, ty_is_int,
+    NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder,
+    SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    create_html_table_header, escape_sql_str, ty_is_float, ty_is_int,
 };
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
 use crate::language_server::LexerCompletionTrait;
@@ -933,36 +932,31 @@ impl QuerySql for ClickHouseDB {
     }
 
     async fn query_sql(
-        &self, _query_id: &str, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        &self, _query_id: &str, sql: &str, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         self.not_allow_switch_db(sql)?;
         let dialect = sqlparser::dialect::ClickHouseDialect {};
         let sqls = separate_sql_by_sqlparser_tokenizer(sql, &dialect)?;
-        let mut ret = Vec::new();
-        let mut ml = MemoryLimit::new();
         for sql in sqls.iter() {
-            ml.exceed_error()?;
             let x = self.query_as_json(sql).await;
             match x {
                 Ok(x) => {
                     let fields = x.infer_fields();
                     let data = x.encode_json_result()?;
-                    ret.push(Ok(QueryResp {
+                    let r = QueryResp {
                         fields,
                         data,
                         sql: Some(sql.to_string()),
-                        total: 0,
-                        cache_time: None,
-                        has_more: false,
-                    }));
+                        ..Default::default()
+                    };
+                    emit(r.into());
                 }
                 Err(err) => {
-                    ret.push(Err(err.to_string()));
+                    emit(QueryEvent::Err(err.to_string()));
                 }
             }
         }
-
-        anyhow::Ok(ret)
+        anyhow::Ok(())
     }
     async fn open_connection(&self, _id: &str) -> anyhow::Result<()> {
         anyhow::Ok(())
@@ -2259,11 +2253,15 @@ from test
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
 
-        let x = db
-            .query_sql(query_id, "SELECT * fro test_types4")
-            .await
-            .unwrap();
-        assert!(x.iter().any(|x| x.is_err()));
+        db.query_sql(
+            query_id,
+            "SELECT * fro test_types4",
+            Arc::new(|e| {
+                println!("{:?}", e);
+            }),
+        )
+        .await
+        .unwrap();
     }
 
     #[test]

@@ -1,5 +1,5 @@
 import { Editor } from "@monaco-editor/react";
-import { MultiQueryResp } from "./QueryResp";
+import { MultiQueryResp, QueryData, queryRespFix } from "./QueryResp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   Box,
@@ -28,11 +28,11 @@ import FastForwardIcon from "@mui/icons-material/FastForward";
 import { editor, Position } from "monaco-editor";
 import {
   EscDownEvent,
-  IQueryConn,
   modalHandleClose,
   modalStyle,
   NameAndQueryId,
   QueryConn,
+  QueryEvent,
   SetAutoCompletionName,
 } from "./Common.ts";
 import { BsFillLightbulbFill } from "react-icons/bs";
@@ -47,6 +47,7 @@ import {
   generateRandomString,
   getEditorText,
   getLanguageFromDataSourceKind,
+  MuiDataGridData,
   QueryLogHandler,
   resizeHandlerSize,
   rustResultOk,
@@ -67,7 +68,8 @@ import {
 } from "./CommonComp2.tsx";
 import { ModifyLLMConfigModal } from "./Settings.tsx";
 import { cancelTask, checkSql } from "./handlers.ts";
-function SqlTransaction(props: { conn: IQueryConn; executeTimes: number }) {
+import { Channel } from "@tauri-apps/api/core";
+function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
   const { showNotification } = useContext(NotificationContext);
@@ -196,21 +198,18 @@ function SqlQuery(props: {
 }) {
   const { uuid, value, favoriteName, kind, extras, handleEditor } = props;
 
-  const [resp, setResp] = useState([]);
+  const [resp, setResp] = useState<QueryData[]>([]);
   const [sqlErr, setSqlErr] = useState<ErrAndLoc | null>(null);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [pos, setPos] = useState<Position | null>(null);
   const [loading, setLoading] = useState(false);
   const [makeConnLoading, setMakeConnLoading] = useState(false);
-  useEffect(() => {
-    console.log("makeConnLoading", makeConnLoading);
-  }, [makeConnLoading]);
   const { showNotification } = useContext(NotificationContext);
   const [showQueryLog, setShowQueryLog] = useState(false);
   const setting = useContext(SettingContext);
   const queryLogHandler = useRef(new QueryLogHandler(uuid));
   const [executeTimes, setExecuteTimes] = useState(0);
-  const [conn] = useState<IQueryConn>(
+  const [conn] = useState<QueryConn>(
     new QueryConn(uuid, generateRandomString(8), kind),
   );
   const [showExport, setShowExport] = useState(false);
@@ -327,6 +326,9 @@ function SqlQuery(props: {
         if (SaveQueryLogConfigure.get()) {
           queryLogHandler.current.save(text, rustResultOk(e));
         }
+        if (e.Ok) {
+          queryRespFix(e.Ok);
+        }
         setResp([e]);
         showNotification("success", "execute ok");
       })
@@ -339,44 +341,49 @@ function SqlQuery(props: {
         setLoading(false);
       });
   };
-  const handleQuery = useCallback(
-    async (append: boolean, explain: boolean = false) => {
-      let text = getEditorText(editor, showNotification);
-      if (!text) {
-        return;
-      }
-      if (explain) {
-        text = `EXPLAIN ${text}`;
-      }
-      const confirm = await warnDangerousSql(text);
-      if (!confirm) {
-        return;
-      }
-      setLoading(true);
-      conn
-        .queryOP(text)
-        .then(resp => {
-          if (SaveQueryLogConfigure.get()) {
-            queryLogHandler.current.save(text, rustResultOk(resp));
-          }
-          if (append) {
-            setResp(p => [...p, ...resp]);
-          } else {
-            setResp(resp);
-          }
-          showNotification("success", "Execute OK");
-        })
-        .catch(e => {
-          setResp([]);
-          showNotification("error", "query failed", e);
-        })
-        .finally(() => {
-          setExecuteTimes(e => e + 1);
-          setLoading(false);
-        });
-    },
-    [conn, editor, showNotification, warnDangerousSql],
-  );
+  const handleQuery = async (append: boolean, explain: boolean = false) => {
+    let text = getEditorText(editor, showNotification);
+    if (!text) {
+      return;
+    }
+    if (explain) {
+      text = `EXPLAIN ${text}`;
+    }
+    console.log("handle query");
+    if (!append) {
+      setResp([]);
+    }
+    const confirm = await warnDangerousSql(text);
+    if (!confirm) {
+      return;
+    }
+    setLoading(true);
+    let emit = new Channel<QueryEvent>(e => {
+      // In Strict Mode, React will call your initializer function twice in order to help you find accidental impurities. This is development-only behavior and does not affect production. If your initializer function is pure (as it should be), this should not affect the behavior. The result from one of the calls will be ignored.
+      setResp(resp => {
+        return appendQueryResult(resp, e, showNotification);
+      });
+    });
+    conn
+      .queryOP(text, emit)
+      .then(() => {
+        if (SaveQueryLogConfigure.get()) {
+          queryLogHandler.current.save(text, true);
+        }
+        showNotification("success", "Execute OK");
+      })
+      .catch(e => {
+        if (SaveQueryLogConfigure.get()) {
+          queryLogHandler.current.save(text, false);
+        }
+        showNotification("error", "query failed", e);
+      })
+      .finally(() => {
+        setExecuteTimes(e => e + 1);
+        setLoading(false);
+      });
+  };
+
   const editorOptions = useMemo((): editor.IStandaloneEditorConstructionOptions => {
     return {
       fontSize: setting.appearance.fontSize,
@@ -677,6 +684,68 @@ function SqlQuery(props: {
       )}
     </div>
   );
+}
+
+function appendQueryResult(
+  data: QueryData[],
+  event: QueryEvent,
+  showNotification,
+): QueryData[] {
+  switch (event.kind) {
+    case "structure":
+      return [...data, { Ok: event.resp } as QueryData];
+    case "err":
+      return [...data, { Err: event.err }];
+    case "data": {
+      if (event.data.length == 0) {
+        showNotification("warning", "backend send empty data");
+      }
+      let data0 = event.data[0];
+      showNotification(
+        "info",
+        `backend send ${event.data.length} record,data:${data0.slice(0, 3).join("-")}`,
+      );
+      let index = null;
+      for (let i = data.length - 1; i >= 0; --i) {
+        if (typeof data[i] == "object") {
+          index = i;
+          break;
+        }
+      }
+      if (index === null) {
+        showNotification(
+          "error",
+          "should be able to find the index the place data ,this is internal error",
+        );
+        return data;
+      }
+      let cop = { ...data[index].Ok } as MuiDataGridData;
+      cop.data = [
+        ...cop.data,
+        ...event.data.map(d => {
+          let obj = {};
+          d.forEach((e, index) => {
+            obj[cop.fields[index].field] = e;
+          });
+          return obj;
+        }),
+      ];
+      let arr = [...data];
+      queryRespFix(cop);
+      arr[index].Ok = cop;
+      return arr;
+    }
+    case "status": {
+      console.log("status", event);
+      return data;
+    }
+    default:
+      showNotification(
+        "error",
+        "backend give some data which we can not handle",
+        event,
+      );
+  }
 }
 
 export { SqlQuery };

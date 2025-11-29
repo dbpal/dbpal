@@ -882,7 +882,7 @@ async fn write_export_file(
     kind: ExportKind, filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<Cow<'static, str>>,
     title: &str, emit: ExportedSizeEmitter,
 ) -> anyhow::Result<()> {
-    let mut size = TimeAcc::new(Duration::from_millis(200));
+    let mut size = TimeEmit::new(Duration::from_millis(200));
     let r = match kind {
         ExportKind::Html { .. } => {
             let mut file = tokio::fs::File::create(&filepath).await?;
@@ -961,8 +961,8 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     }
 
     async fn query_sql(
-        &self, query_id: &str, _sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>>;
+        &self, query_id: &str, _sql: &str, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()>;
 
     async fn execute_sql(
         &self, query_id: &str, _sql: &str,
@@ -1121,7 +1121,7 @@ impl QueryResp {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, TypeDef)]
+#[derive(Clone, Debug, serde::Serialize, TypeDef, Default)]
 pub struct QueryResp {
     pub fields: Vec<Field>,
     // only pagination need this parameter.
@@ -1167,8 +1167,7 @@ impl QueryResp {
             total,
             sql,
             data,
-            has_more: false,
-            cache_time: None,
+            ..Default::default()
         };
         ret.check()?;
         anyhow::Ok(ret)
@@ -1183,20 +1182,14 @@ impl QueryResp {
             data: vec![result],
             fields: vec![Field {
                 field: "result".to_string(),
-                data_type: "".to_string(),
-                nullable: false,
-                default_value: None,
-                is_primary: false,
-                is_auto_increment: false,
-                sortable: true,
-                firebird_binary_sub_type: None,
+                ..Default::default()
             }],
             has_more: false,
         }
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, TypeDef, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Serialize, TypeDef, PartialEq, Eq, Default)]
 pub struct Field {
     pub field: String,
     pub data_type: String,
@@ -1477,7 +1470,7 @@ pub struct AutoCompletionQueryId {
 
 impl AutoCompletionQueryId {
     pub(crate) fn get(&self) -> String {
-        self.query_id.lock().expect("shoud lock ok").clone()
+        self.query_id.lock().expect("should lock ok").clone()
     }
 
     pub fn set(&self, x: String) {
@@ -1490,14 +1483,14 @@ impl AutoCompletionQueryId {
     }
 }
 
-pub struct TimeAcc {
+pub struct TimeEmit {
     d: Duration,
     acc: usize,
     ins: std::time::Instant,
 }
 
-impl TimeAcc {
-    fn new(d: Duration) -> Self {
+impl TimeEmit {
+    pub(crate) fn new(d: Duration) -> Self {
         Self {
             d,
             acc: Default::default(),
@@ -1505,7 +1498,7 @@ impl TimeAcc {
         }
     }
 
-    fn add(&mut self, a: usize) -> bool {
+    pub(crate) fn add(&mut self, a: usize) -> bool {
         let e = self.ins.elapsed() > self.d;
         if e {
             self.ins = std::time::Instant::now();
@@ -1568,14 +1561,31 @@ pub(crate) fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
 
 pub type QueryEventEmitter = Arc<dyn Fn(QueryEvent) + Send + Sync>;
 
+#[derive(Debug)]
 pub enum QueryEvent {
-    Struct { s: QueryResp },
-    Data { data: Vec<Vec<Option<String>>> },
-    Status { status: String },
+    Resp(QueryResp),
+    Data(Vec<Vec<Option<String>>>),
+    Status(String),
+    Err(String),
+}
+
+impl From<QueryResp> for QueryEvent {
+    fn from(value: QueryResp) -> Self {
+        Self::Resp(value)
+    }
+}
+
+impl From<Vec<Vec<Option<String>>>> for QueryEvent {
+    fn from(value: Vec<Vec<Option<String>>>) -> Self {
+        Self::Data(value)
+    }
 }
 
 pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;
 
+pub(crate) fn query_row_buffer_size() -> usize {
+    if cfg!(debug_assertions) { 7 } else { 100 }
+}
 #[cfg(test)]
 mod tests {
     use super::UdfOrProcedureExtraParameter;

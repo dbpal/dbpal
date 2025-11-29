@@ -16,10 +16,11 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
     CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, SequenceDetail, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
-    TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
-    create_html_table_data, create_html_table_header, export_query_as_xlsx_send_data,
+    OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryEventEmitter,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas,
+    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEvent,
+    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    create_html_table_header, export_query_as_xlsx_send_data, query_row_buffer_size,
 };
 use crate::helper::create_csv;
 
@@ -1261,7 +1262,7 @@ impl SchemaTrait for PostGresDB {
         }
 
         let data = encode_rows(&rows)?;
-        let fields = get_rows_types(&rows);
+        let fields = get_rows_types(&rows[0]);
         anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
@@ -1787,14 +1788,10 @@ impl PostGresDB {
     }
 }
 
-fn get_rows_types(rows: &[PgRow]) -> Vec<Field> {
-    if rows.is_empty() {
-        log::warn!("info type on empty rows");
-        return vec![];
-    }
-    log::trace!("infer type by:{:?}", rows[0].columns());
-    let mut ret = Vec::with_capacity(rows[0].columns().len());
-    for c in rows[0].columns().iter() {
+fn get_rows_types(row: &PgRow) -> Vec<Field> {
+    log::trace!("infer type by:{:?}", row.columns());
+    let mut ret = Vec::with_capacity(row.columns().len());
+    for c in row.columns().iter() {
         ret.push(Field {
             field: c.name().to_string(),
             data_type: c.type_info().to_string(),
@@ -2071,8 +2068,8 @@ impl QuerySql for PostGresDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
@@ -2081,39 +2078,54 @@ impl QuerySql for PostGresDB {
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-
-        let mut ret = Vec::new();
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
-
+        let mut has_result = false;
         let mut rows = Vec::new();
+        let mut emit_fields = vec![];
+        let mut timeemit = TimeEmit::new(Duration::from_millis(50));
         while let Some(item) = stream.next().await {
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {
-                    ret.push(Err(err.to_string()));
+                    emit(QueryEvent::Err(err.to_string()));
                     continue;
                 }
             };
             match item {
                 sqlx::Either::Left(row_aff) => {
-                    if !rows.is_empty() {
-                        let fields = get_rows_types(&rows);
-                        let data = encode_rows(&rows)?;
-                        ret.push(Ok(QueryResp::new(fields, 0, data, None)?));
-                        rows.clear();
-                    };
-                    if row_aff.rows_affected() > 0 {
-                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected(), None)));
-                    }
+                    println!("row aff:{:?}", row_aff);
                 }
                 sqlx::Either::Right(row) => {
+                    has_result = true;
+                    let fields = get_rows_types(&row);
+                    if emit_fields.is_empty() || !emit_fields.eq(&fields) {
+                        if !rows.is_empty() {
+                            let data = encode_rows(&std::mem::take(&mut rows))?;
+                            emit(data.into());
+                        }
+                        emit(
+                            QueryResp {
+                                fields: fields.clone(),
+                                ..Default::default()
+                            }
+                            .into(),
+                        );
+                        emit_fields = fields;
+                    }
                     rows.push(row);
+                    if rows.len() >= query_row_buffer_size() || timeemit.add(0) {
+                        let data = encode_rows(&std::mem::take(&mut rows))?;
+                        emit(data.into());
+                    }
                 }
             }
         }
+        if !rows.is_empty() {
+            let data = encode_rows(&std::mem::take(&mut rows))?;
+            emit(data.into());
+        }
         drop(stream);
-
-        if ret.is_empty() {
+        if !has_result {
             use sqlx::Statement;
             let fields = conn
                 .deref_mut()
@@ -2126,10 +2138,9 @@ impl QuerySql for PostGresDB {
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
-
-            ret = vec![Ok(QueryResp::new(fields, 0, vec![], sql.to_owned())?)];
+            emit(QueryResp::new(fields, 0, vec![], sql.to_owned())?.into());
         }
-        anyhow::Ok(ret)
+        anyhow::Ok(())
     }
 }
 
@@ -2295,15 +2306,14 @@ mod tests {
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
 
-        let _resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TYPE test_type AS ENUM ('value1', 'value2', 'value3');"#,
-            )
-            .await
-            .unwrap();
-        assert!(_resp.iter().all(|x| x.is_ok()), "resp:{:?}", _resp);
+        )
+        .await
+        .unwrap()
+        .unwrap();
         let list = db.list_created_types().await.unwrap();
         for l in list.iter() {
             println!("create type:{:?}", l);
@@ -2368,10 +2378,9 @@ mod tests {
 
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let query_resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TABLE test_view_table (
                 
                 name TEXT,
@@ -2385,14 +2394,11 @@ mod tests {
             CREATE VIEW test_view AS
                 SELECT * FROM test_view_table;
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(
-            query_resp.iter().all(|x| x.is_ok()),
-            "result:{:?}",
-            query_resp
-        );
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
         let list = db.list_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
@@ -2412,10 +2418,9 @@ mod tests {
 
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let query_resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TABLE test_material_view_table (
                 
                 name TEXT,
@@ -2429,14 +2434,10 @@ mod tests {
             CREATE MATERIALIZED VIEW test_material_view AS
                 SELECT * FROM test_material_view_table;
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(
-            query_resp.iter().all(|x| x.is_ok()),
-            "result:{:?}",
-            query_resp
-        );
+        )
+        .await
+        .unwrap()
+        .unwrap();
         let list = db.list_materialized_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
@@ -2468,7 +2469,7 @@ mod tests {
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
                 CREATE TABLE test_rename (
@@ -2478,6 +2479,7 @@ mod tests {
                 );"#,
         )
         .await
+        .unwrap()
         .unwrap();
         db.rename_table("test_rename", "test_rename2")
             .await
@@ -2497,7 +2499,7 @@ mod tests {
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
                 CREATE TABLE test_duplicate (
@@ -2514,6 +2516,7 @@ mod tests {
                 "#,
         )
         .await
+        .unwrap()
         .unwrap();
         db.duplicate_table("test_duplicate", "test_duplicate2")
             .await
@@ -2537,10 +2540,10 @@ mod tests {
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
 
-        db.query_sql(query_id, format!(
+        db.execute_sql (query_id,
+             format!(
             r#" create table {table_name} (a int, b int, c int, constraint pk_test primary key(a, b)); "#,
-        ).as_str()).await .unwrap()
-        ;
+        ).as_str()).await .unwrap() .unwrap();
 
         let index_name2 = format!("{}2", index_name);
         db.create_index(
@@ -2588,7 +2591,7 @@ mod tests {
             .await;
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
-        pg.query_sql(
+        pg.execute_sql(
             query_id,
             r#"
             CREATE OR REPLACE FUNCTION test_udf(a INT, b INT)
@@ -2600,6 +2603,7 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
         let list = pg.list_udf().await.unwrap();
         for l in list.iter() {
@@ -2630,7 +2634,7 @@ mod tests {
         let _ = db.drop_table("test_create_trigger", false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
           CREATE TABLE test_create_trigger (
@@ -2640,11 +2644,12 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
 
         let _ = db.drop_table("test_create_trigger_update", false).await;
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             CREATE TABLE test_create_trigger_update (
@@ -2655,9 +2660,10 @@ mod tests {
     "#,
         )
         .await
+        .unwrap()
         .unwrap();
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             CREATE FUNCTION trigger_insert_test_create_trigger()
@@ -2671,9 +2677,10 @@ mod tests {
     "#,
         )
         .await
+        .unwrap()
         .unwrap();
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             CREATE TRIGGER trigger_insert_test_create_trigger
@@ -2683,6 +2690,7 @@ mod tests {
     "#,
         )
         .await
+        .unwrap()
         .unwrap();
 
         let triggers = db.list_trigger("test_create_trigger").await.unwrap();
@@ -2805,7 +2813,7 @@ mod tests {
 
         let _ = db.drop_table(table_name, false).await;
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             CREATE TABLE test_export_table (
@@ -2822,6 +2830,7 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
         let schema_trait = db;
         {
@@ -2917,7 +2926,7 @@ mod tests {
         let _ = pg.drop_table(table_name, false).await;
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
-        pg.query_sql(
+        pg.execute_sql(
             query_id,
             format!(
                 r#"
@@ -2934,6 +2943,7 @@ mod tests {
             .as_str(),
         )
         .await
+        .unwrap()
         .unwrap();
 
         let mut values = HashMap::new();
@@ -3007,7 +3017,7 @@ mod tests {
         let _ = pg.drop_table(table_name, false).await;
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
-        pg.query_sql(
+        pg.execute_sql(
             query_id,
             format!(
                 r#"
@@ -3026,6 +3036,7 @@ mod tests {
             .as_str(),
         )
         .await
+        .unwrap()
         .unwrap();
 
         // sqlx::raw_sql(
@@ -3119,18 +3130,18 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let _resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
                 CREATE TABLE test_column
                 (
                     id INT PRIMARY KEY                     -- 主键，无符号32位整数
                 )
                 "#,
-            )
-            .await
-            .unwrap();
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         db.add_table_column(
             table_name,
@@ -3178,7 +3189,7 @@ mod tests {
         let _ = pg.drop_table(table_name, false).await;
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
-        pg.query_sql(
+        pg.execute_sql(
             query_id,
             format!(
                 r#"
@@ -3195,6 +3206,7 @@ mod tests {
             .as_str(),
         )
         .await
+        .unwrap()
         .unwrap();
 
         let mut values = HashMap::new();
@@ -3281,7 +3293,7 @@ mod tests {
         let _ = pg.drop_table(table_name, false).await;
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
-        pg.query_sql(
+        pg.execute_sql(
             query_id,
             format!(
                 r#"
@@ -3297,6 +3309,7 @@ mod tests {
             .as_str(),
         )
         .await
+        .unwrap()
         .unwrap();
 
         //         sqlx::raw_sql(
@@ -3378,7 +3391,7 @@ mod tests {
         let _ = pg.drop_table(table_name, false).await;
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
-        pg.query_sql(
+        pg.execute_sql(
             query_id,
             // TODO Support path
             format!(
@@ -3398,6 +3411,7 @@ mod tests {
             .as_str(),
         )
         .await
+        .unwrap()
         .unwrap();
 
         //         sqlx::raw_sql(
@@ -3499,7 +3513,7 @@ mod tests {
 
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
-        pg.query_sql(
+        pg.execute_sql(
             query_id,
             format!(
                 r#"
@@ -3517,6 +3531,7 @@ mod tests {
             .as_str(),
         )
         .await
+        .unwrap()
         .unwrap();
 
         let mut values = HashMap::new();
@@ -3612,7 +3627,7 @@ mod tests {
 
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
-        pg.query_sql(
+        pg.execute_sql(
             query_id,
             format!(
                 r#"
@@ -3628,6 +3643,7 @@ mod tests {
             .as_str(),
         )
         .await
+        .unwrap()
         .unwrap();
 
         let mut values = HashMap::new();
@@ -3710,7 +3726,7 @@ mod tests {
 
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
-        pg.query_sql(
+        pg.execute_sql(
             query_id,
             format!(
                 r#"
@@ -3726,6 +3742,7 @@ mod tests {
             .as_str(),
         )
         .await
+        .unwrap()
         .unwrap();
 
         let mut values = HashMap::new();
@@ -3799,7 +3816,7 @@ mod tests {
 
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
-        pg.query_sql(
+        pg.execute_sql(
             query_id,
             format!(
                 r#"
@@ -3816,6 +3833,7 @@ mod tests {
             .as_str(),
         )
         .await
+        .unwrap()
         .unwrap();
 
         let mut values = HashMap::new();
@@ -3909,7 +3927,7 @@ mod tests {
 
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
-        pg.query_sql(
+        pg.execute_sql(
             query_id,
             format!(
                 r#"
@@ -3926,6 +3944,7 @@ mod tests {
             .as_str(),
         )
         .await
+        .unwrap()
         .unwrap();
 
         let mut values = HashMap::new();
@@ -4008,7 +4027,7 @@ mod tests {
         let _ = pg.drop_table(table_name, false).await;
         let query_id = "";
         pg.open_connection(query_id).await.unwrap();
-        pg.query_sql(
+        pg.execute_sql(
             query_id,
             format!(
                 r#"
@@ -4029,6 +4048,7 @@ mod tests {
             .as_str(),
         )
         .await
+        .unwrap()
         .unwrap();
 
         let mut values = HashMap::new();

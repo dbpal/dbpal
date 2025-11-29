@@ -9,15 +9,14 @@ use dashmap::DashMap;
 use libsql::{Connection, Row, ValueType, params};
 use tokio::sync::Mutex;
 
-use crate::MemoryLimit;
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit,
-    create_html_table_data, create_html_table_header, escape_sql_str,
-    export_query_as_xlsx_send_data,
+    OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEventEmitter, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
+    TimeEmit, TriggerDetail, XlsxEdit, create_html_table_data, create_html_table_header,
+    escape_sql_str, export_query_as_xlsx_send_data, query_row_buffer_size,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
@@ -226,8 +225,8 @@ impl QuerySql for LibSqlDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         let tr = self.query_connections_transaction.get(&query_id.to_owned());
         let conn = self.query_connection.get(&query_id.to_string());
         let conn = conn.as_deref();
@@ -238,32 +237,46 @@ impl QuerySql for LibSqlDB {
                 None => anyhow::bail!("collection closed????"),
             },
         };
-
+        let mut timeemit = TimeEmit::new(Duration::from_millis(20));
         let mut batch_rows = conn.execute_batch(sql).await?;
-        let mut ret = Vec::new();
-        let mut ml = MemoryLimit::new();
-        while let Some(mut rows_) = batch_rows.next_stmt_row().flatten() {
-            ml.exceed_error()?;
-            let mut rows = Vec::new();
-            while let Some(row) = rows_.next().await? {
-                ml.exceed_error()?;
-                rows.push(row);
+        while let Some(mut rows) = batch_rows.next_stmt_row().flatten() {
+            let mut first = true;
+            let mut rows_cache = Vec::new();
+            while let Some(row) = rows.next().await? {
+                if first {
+                    first = false;
+                    emit(
+                        QueryResp {
+                            fields: (0..row.column_count())
+                                .map(|index| {
+                                    Field::from_name_type(
+                                        row.column_name(index).unwrap_or_default().to_owned(),
+                                        format!(
+                                            "{:?}",
+                                            row.column_type(index).unwrap_or(ValueType::Null)
+                                        ),
+                                    )
+                                })
+                                .collect(),
+                            ..Default::default()
+                        }
+                        .into(),
+                    );
+                }
+                rows_cache.push(row);
+                if rows_cache.len() > query_row_buffer_size() || timeemit.add(0) {
+                    let r = std::mem::take(&mut rows_cache);
+                    let data = encode_rows(&r)?;
+                    emit(data.into());
+                }
             }
-            if !rows.is_empty() {
-                let fields = get_row_types(rows.first().expect("I have checked it is not empty"));
-                let data = encode_rows(&rows)?;
-                ret.push(Ok(QueryResp {
-                    fields,
-                    data,
-                    sql: None,
-                    cache_time: None,
-                    total: 0,
-                    has_more: false,
-                }));
+            if !rows_cache.is_empty() {
+                let r = std::mem::take(&mut rows_cache);
+                let data = encode_rows(&r)?;
+                emit(data.into());
             }
         }
-
-        anyhow::Ok(ret)
+        anyhow::Ok(())
     }
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
@@ -1294,8 +1307,7 @@ mod tests {
 
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let _resp = db
-            .query_sql(
+        db.execute_sql(
                 query_id,
                 r#"
                 CREATE TABLE test_column
@@ -1305,7 +1317,7 @@ mod tests {
                 "#,
             )
             .await
-            .unwrap();
+            .unwrap() .unwrap() ;
 
         db.add_table_column(
             table_name,
@@ -1418,7 +1430,7 @@ mod tests {
         let _ = db.drop_table("test_rename2", false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
                 CREATE TABLE IF NOT EXISTS test_rename (
@@ -1427,6 +1439,7 @@ mod tests {
                 );"#,
         )
         .await
+        .unwrap()
         .unwrap();
         db.rename_table("test_rename", "test_rename2")
             .await
@@ -1475,7 +1488,7 @@ mod tests {
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             CREATE TABLE test_create_trigger (
@@ -1485,8 +1498,9 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
         CREATE TABLE test_create_trigger_update (
@@ -1496,9 +1510,10 @@ mod tests {
     "#,
         )
         .await
+        .unwrap()
         .unwrap();
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
         CREATE TRIGGER after_insert_test_create_trigger
@@ -1511,6 +1526,7 @@ mod tests {
     "#,
         )
         .await
+        .unwrap()
         .unwrap();
         let table = "test_create_trigger";
 
@@ -1571,7 +1587,7 @@ mod tests {
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             -- 创建表
@@ -1588,6 +1604,7 @@ mod tests {
             "#,
         )
         .await
+        .unwrap()
         .unwrap();
         let db = db;
         {
@@ -1697,7 +1714,7 @@ mod tests {
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             CREATE table test_table (
@@ -1716,6 +1733,7 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
 
         let mut values: HashMap<String, Option<String>> = HashMap::new();
@@ -1759,28 +1777,28 @@ mod tests {
         db.open_connection(id).await.unwrap();
         let _ = db.drop_view("test_view").await;
         {
-            let r = db
-                .query_sql(
-                    id,
-                    r#"
+            db.query_sql(
+                id,
+                r#"
             SELECT * from test_table;
             PRAGMA table_info('test_table')
 
         "#,
-                )
-                .await
-                .unwrap();
-
-            for (index, x) in r.iter().enumerate() {
-                println!("result {} r:{:?}", index, x);
-            }
+                Arc::new(|e| {
+                    println!("{:?}", e);
+                }),
+            )
+            .await
+            .unwrap();
         }
-        db.query_sql(
+        db.execute_sql(
             query_id,
             format!("create view test_view as SELECT * from {table_name}").as_str(),
         )
         .await
+        .unwrap()
         .unwrap();
+
         println!("\n after here are view test.\n");
 
         let views = db.list_view().await.unwrap();

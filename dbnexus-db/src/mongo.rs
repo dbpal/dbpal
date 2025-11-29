@@ -17,9 +17,9 @@ use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
-    GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr, QueryResp,
-    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlExecuteRet,
-    not_support_feature,
+    GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr, QueryEventEmitter,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs,
+    SqlExecuteRet, not_support_feature,
 };
 
 #[derive(Clone)]
@@ -785,8 +785,8 @@ impl SchemaTrait for MongoDB {
 #[async_trait::async_trait]
 impl QuerySql for MongoDB {
     async fn query_sql(
-        &self, _id: &str, _sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        &self, _id: &str, _sql: &str, _emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
 

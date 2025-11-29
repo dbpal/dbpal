@@ -1,10 +1,7 @@
 #![warn(clippy::unwrap_used)]
-
-use std::sync::Once;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
 use lazy_static::lazy_static;
 use log::{Level, LevelFilter, Metadata, Record};
+use std::sync::Once;
 
 pub mod datasource_config;
 pub mod db;
@@ -85,64 +82,4 @@ pub fn enable_test_log() {
             .map(|()| log::set_max_level(LevelFilter::Trace))
             .expect("should set ok")
     })
-}
-
-/// limit memory when doing some operation
-/// like select a lot of data from database.
-pub struct MemoryLimit {
-    count: usize,
-    m: usize,
-}
-
-impl Default for MemoryLimit {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl MemoryLimit {
-    pub fn new() -> Self {
-        Self { count: 0, m: 10000 }
-    }
-}
-
-impl MemoryLimit {
-    pub fn instance() -> &'static AtomicUsize {
-        // default to 200M
-        static SIZE: AtomicUsize = AtomicUsize::new(1200 * 1024 * 1024);
-        &SIZE
-    }
-
-    pub fn get_limit() -> usize {
-        Self::instance().load(Ordering::Relaxed)
-    }
-
-    pub fn set_limit(x: usize) {
-        Self::instance().store(x, Ordering::Relaxed)
-    }
-
-    pub fn exceed() -> bool {
-        memory_stats::memory_stats()
-            .map(|usage| usage.physical_mem > Self::get_limit())
-            .unwrap_or(false)
-    }
-
-    pub fn exceed_error(&mut self) -> anyhow::Result<()> {
-        self.count += 1;
-        if self.count.is_multiple_of(self.m) && Self::exceed() {
-            Err(anyhow::Error::msg(format!(
-                "exceed max memory of {}m",
-                Self::get_limit() >> 20
-            )))
-        } else {
-            Ok(())
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn xxx() {}
 }

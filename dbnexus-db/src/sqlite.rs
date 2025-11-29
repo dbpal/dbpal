@@ -13,15 +13,14 @@ use sqlx::pool::{PoolConnection, PoolOptions};
 use sqlx::sqlite::SqliteRow;
 use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, SqliteConnection, TypeInfo};
 
-use crate::MemoryLimit;
 use crate::datasource_config::SqliteDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent,
-    TriggerTiming, XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
-    export_query_as_xlsx_send_data, not_support_feature,
+    OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
+    TimeEmit, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, create_html_table_data,
+    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
@@ -918,7 +917,7 @@ impl SchemaTrait for SqliteDB {
             return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
         }
         let data = encode_rows(&rows)?;
-        let fields = get_rows_types(&rows);
+        let fields = get_row_types(&rows[0]);
         anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
@@ -979,12 +978,9 @@ impl SqliteDB {
     }
 }
 
-fn get_rows_types(rows: &[SqliteRow]) -> Vec<Field> {
-    if rows.is_empty() {
-        return vec![];
-    }
-    let mut ret = Vec::with_capacity(rows[0].columns().len());
-    for c in rows[0].columns().iter() {
+fn get_row_types(row: &SqliteRow) -> Vec<Field> {
+    let mut ret = Vec::with_capacity(row.columns().len());
+    for c in row.columns().iter() {
         ret.push(Field::from_name_type(
             c.name().to_string(),
             c.type_info().to_string(),
@@ -1474,54 +1470,66 @@ impl QuerySql for SqliteDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
-
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-
-        let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
-
         let mut rows = Vec::new();
-        let mut ml = MemoryLimit::new();
+        let mut emit_fields = Vec::new();
+        let mut timeemit = TimeEmit::new(Duration::from_millis(50));
+        let mut has_result = false;
         while let Some(item) = stream.next().await {
-            ml.exceed_error()?;
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {
-                    ret.push(Err(err.to_string()));
-
+                    emit(QueryEvent::Err(err.to_string()));
                     break;
                 }
             };
+            has_result = true;
             match item {
                 sqlx::Either::Left(row_aff) => {
-                    if !rows.is_empty() {
-                        let fields = get_rows_types(&rows);
-                        let data = encode_rows(&rows)?;
-                        ret.push(Ok(QueryResp::new(fields, 0, data, None)?));
-                        rows.clear();
-                    };
-
-                    if row_aff.rows_affected() > 0 {
-                        ret.push(Ok(QueryResp::row_affected(row_aff.rows_affected(), None)));
-                    }
+                    println!("row affected: {:?}", row_aff);
                 }
                 sqlx::Either::Right(row) => {
+                    has_result = true;
+                    let fileds = get_row_types(&row);
+                    if emit_fields.is_empty() || !fileds.eq(&emit_fields) {
+                        if !rows.is_empty() {
+                            let data = encode_rows(&std::mem::take(&mut rows))?;
+                            emit(data.into());
+                        }
+                        emit(
+                            QueryResp {
+                                fields: fileds.clone(),
+                                ..Default::default()
+                            }
+                            .into(),
+                        );
+                        emit_fields = fileds;
+                    }
                     rows.push(row);
+                    if rows.len() > 100 && timeemit.add(0) {
+                        let data = encode_rows(&rows)?;
+                        emit(data.into());
+                        rows.clear();
+                    }
                 }
             }
         }
+        if !rows.is_empty() {
+            emit(encode_rows(&rows)?.into());
+        }
         drop(stream);
 
-        if ret.is_empty() {
+        if !has_result {
             use sqlx::Statement;
             let fields = conn
                 .deref_mut()
@@ -1534,9 +1542,13 @@ impl QuerySql for SqliteDB {
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
-            ret = vec![Ok(QueryResp::new(fields, 0, vec![], sql.to_owned())?)];
+            let r = QueryResp {
+                fields,
+                ..Default::default()
+            };
+            emit(r.into());
         }
-        anyhow::Ok(ret)
+        anyhow::Ok(())
     }
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
@@ -1603,9 +1615,9 @@ mod tests {
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let now = std::time::Instant::now();
-        let _x = db
-            .query_sql(query_id, "SELECT * from has_data_0")
+        db.execute_sql(query_id, "SELECT * from has_data_0")
             .await
+            .unwrap()
             .unwrap();
 
         // println!("{:?}", x);
@@ -1634,8 +1646,8 @@ mod tests {
 
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let _resp = db
-            .query_sql(
+        db
+            .execute_sql (
                 query_id,
                 r#"
                 CREATE TABLE test_column
@@ -1645,7 +1657,7 @@ mod tests {
                 "#,
             )
             .await
-            .unwrap();
+            .unwrap() .unwrap();
 
         db.add_table_column(
             table_name,
@@ -1855,7 +1867,7 @@ mod tests {
             "#
             );
 
-            let result = db.query_sql(query_id, &create_table).await;
+            let result = db.execute_sql(query_id, &create_table).await;
             println!("create table result:{:?}", result);
             for _ in 0..1550 {
                 let sql = format!(
@@ -1925,16 +1937,17 @@ mod tests {
         let _ = db.drop_table("test_duplicate2", false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        db.query_sql(
-            query_id,
-            r#"
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
                 CREATE TABLE IF NOT EXISTS test_duplicate (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,  
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );"#,
-        )
-        .await
-        .unwrap();
+            )
+            .await
+            .unwrap();
         db.duplicate_table("test_duplicate", "test_duplicate2")
             .await
             .unwrap();
@@ -2243,21 +2256,19 @@ mod tests {
         db.open_connection(id).await.unwrap();
         let _ = db.drop_view("test_view").await;
         {
-            let r = db
-                .query_sql(
-                    id,
-                    r#"
+            db.query_sql(
+                id,
+                r#"
             SELECT * from test_table;
             PRAGMA table_info('test_table')
 
         "#,
-                )
-                .await
-                .unwrap();
-
-            for (index, x) in r.iter().enumerate() {
-                println!("result {} r:{:?}", index, x);
-            }
+                Arc::new(|e| {
+                    println!("{:?}", e);
+                }),
+            )
+            .await
+            .unwrap();
         }
         sqlx::raw_sql(AssertSqlSafe(
             format!("create view test_view as SELECT * from {table_name}").as_str(),

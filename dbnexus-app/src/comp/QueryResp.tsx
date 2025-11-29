@@ -17,13 +17,13 @@ import {
 import {
   handleCopyToClipboard,
   ContextMenuContext,
-  resetMuiDataRespWidth,
   SettingContext,
   saveAndSetSize,
   ColumnWidth,
   MuiDataGridData,
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
+  QueryData,
 } from "./helper.ts";
 import {
   DataGrid,
@@ -33,7 +33,6 @@ import {
 } from "@mui/x-data-grid";
 import React, {
   CSSProperties,
-  memo,
   useCallback,
   useContext,
   useEffect,
@@ -50,7 +49,6 @@ import {
   AppColumnMenu,
   ExportMarkDownTable,
   MenuExportMarkDownTable,
-  MenuResetColumnWidths,
   ModalHeader,
   ViewRowInModal,
 } from "./CommonComp.tsx";
@@ -60,18 +58,10 @@ function RespContextMenu(props: {
   content;
   field;
   setSort;
-  resetColumnWidthCallBack;
   viewInModal;
   showExportMarkDown;
 }) {
-  const {
-    content,
-    field,
-    setSort,
-    resetColumnWidthCallBack,
-    viewInModal,
-    showExportMarkDown,
-  } = props;
+  const { content, field, setSort, viewInModal, showExportMarkDown } = props;
   const { showNotification } = useContext(NotificationContext);
   return (
     <MenuList>
@@ -116,7 +106,6 @@ function RespContextMenu(props: {
         <ListItemText> {field} DESC </ListItemText>
       </MenuItem>
       <MenuExportMarkDownTable showExportMarkDown={showExportMarkDown} />
-      <MenuResetColumnWidths reset={resetColumnWidthCallBack} />
     </MenuList>
   );
 }
@@ -125,67 +114,35 @@ function smallDataSet(fields: types.Field[]) {
   return fields.length <= 4;
 }
 
-const seqField = "seq";
+function queryRespFix(data: MuiDataGridData) {
+  data.data.forEach((e, index) => {
+    e[keyNotInTable] = index;
+  });
+  const considerSmallDataSet = smallDataSet(data.fields);
+  data.fields.forEach(field => {
+    if (considerSmallDataSet) {
+      field["flex"] = 1;
+    } else {
+      const width = ColumnWidth.instance.get(field.field);
+      if (width) {
+        field["width"] = width;
+      }
+    }
+    field["renderHeader"] = e => {
+      const def = e.colDef as types.Field;
+      return (
+        <Tooltip title={`${def.field} ${def.data_type}`}>
+          <span> {def.field}</span>
+        </Tooltip>
+      );
+    };
+  });
+}
 
-function QueryResp_(props: { data: MuiDataGridData }) {
-  const { data: oldData } = props;
-  const [data, setData] = useState<MuiDataGridData>(null);
+function QueryResp(props: { data: MuiDataGridData }) {
+  const { data } = props;
   const setting = useContext(SettingContext);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
-  useEffect(() => {
-    let data = { ...oldData };
-    const insert_seq =
-      !data.fields.find(e => e.field == seqField) && data.data.length > 10;
-    if (insert_seq) {
-      data.fields = [
-        {
-          field: seqField,
-          data_type: "number",
-          width: 85,
-          renderHeader: () => {
-            return (
-              <Tooltip title="auto generate sequence">
-                <span> seq </span>
-              </Tooltip>
-            );
-          },
-        } as any as types.Field,
-        ...data.fields,
-      ];
-      data.data.forEach((e, index) => {
-        e["seq"] = index;
-      });
-    } else {
-      data.data.forEach((e, index) => {
-        e[keyNotInTable] = index;
-      });
-    }
-
-    const considerSmallDataSet = smallDataSet(data.fields);
-    data.fields.forEach(field => {
-      if (field.field == seqField && insert_seq) {
-        return;
-      }
-      if (considerSmallDataSet) {
-        field["flex"] = 1;
-      } else {
-        const width = ColumnWidth.instance.get(field.field);
-        if (width) {
-          field["width"] = width;
-        }
-      }
-      field["renderHeader"] = e => {
-        const def = e.colDef as types.Field;
-        return (
-          <Tooltip title={`${def.field} ${def.data_type}`}>
-            <span> {def.field}</span>
-          </Tooltip>
-        );
-      };
-    });
-    setData(data);
-    data.inserted_seq = insert_seq;
-  }, [oldData]);
 
   const [viewInModal, setViewInModal] = useState<object>(null);
   const onColumnResize = useCallback(
@@ -215,9 +172,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
             return;
           }
           const row = {
-            ...data.data.find(e =>
-              data.inserted_seq ? e[seqField] == id : e[keyNotInTable] == id,
-            ),
+            ...data.data.find(e => e[keyNotInTable] == id),
           };
           delete row[keyNotInTable];
           const content = row[field];
@@ -230,11 +185,6 @@ function QueryResp_(props: { data: MuiDataGridData }) {
                 content={content}
                 field={field}
                 setSort={setSortModel}
-                resetColumnWidthCallBack={() => {
-                  setData(e => {
-                    return resetMuiDataRespWidth(e);
-                  });
-                }}
                 showExportMarkDown={() => {
                   setShowExportMarkDown(true);
                 }}
@@ -295,7 +245,7 @@ function QueryResp_(props: { data: MuiDataGridData }) {
 
           <DataGrid
             showToolbar
-            getRowId={data.inserted_seq ? getRowIdSeq : getRowId}
+            getRowId={getRowId}
             slots={slots}
             sortModel={sortModel}
             onSortModelChange={onSortModelChange}
@@ -364,61 +314,25 @@ function getRowId(row) {
   return row[keyNotInTable];
 }
 
-function getRowIdSeq(row) {
-  return row[seqField];
-}
-
 const styleForTrans: CSSProperties = {
   transition: "all 0.5s ease",
   position: "relative",
   overflow: "hidden",
 };
 
-function MultiQueryResp_(props: { data: any[] }) {
-  const { data: oldData } = props;
-  const [data, setData] = useState([]);
-  const [top, setTop] = useState(0);
+function MultiQueryResp(props: { data: QueryData[] }) {
+  const { data } = props;
   const [value, setValue] = React.useState(0);
-  const [opacity, setOpacity] = useState(1);
-  useEffect(() => {
-    if (value >= data.length) {
-      setValue(0);
-    }
-    setTop(50);
-    setOpacity(0);
-    setTimeout(() => {
-      setTop(0);
-      setOpacity(1);
-    }, 600);
-  }, [data.length, oldData, value]);
-  useEffect(() => {
-    setTimeout(() => {
-      setData(oldData);
-    }, 500);
-  }, [oldData]);
   if (data.length == 0) {
     return <></>;
   }
   if (data.length == 1) {
     return data[0].Err ? (
-      <Alert style={{ top, opacity, left: top, ...styleForTrans }} severity="error">
-        {data[0].Err}
-      </Alert>
+      <Alert severity="error">{data[0].Err}</Alert>
     ) : (
-      <div
-        style={{
-          top,
-          opacity,
-          left: top,
-          ...styleForTrans,
-          height: "100%",
-        }}
-      >
-        <QueryResp data={data[0].Ok} />
-      </div>
+      <QueryResp data={data[0].Ok} />
     );
   }
-
   const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
     setValue(newValue);
   };
@@ -426,9 +340,6 @@ function MultiQueryResp_(props: { data: any[] }) {
   return (
     <div
       style={{
-        top,
-        opacity,
-        left: top,
         height: "100%",
         display: "flex",
         flexDirection: "column",
@@ -462,7 +373,6 @@ function MultiQueryResp_(props: { data: any[] }) {
     </div>
   );
 }
-const MultiQueryResp = memo(MultiQueryResp_);
-const QueryResp = memo(QueryResp_);
 
-export { MultiQueryResp, QueryResp };
+export { MultiQueryResp, QueryResp, queryRespFix };
+export type { QueryData };

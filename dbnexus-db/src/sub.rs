@@ -4,9 +4,9 @@ use crate::{
         BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
         CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind,
         ExportQueryResult, ExportedSizeEmitter, Field, GetBackendKind, Index, IndexKind, ListTable,
-        MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryResp, QuerySql,
-        ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowTableExtraArgs, SqlEvent,
-        SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
+        MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmitter, QueryResp,
+        QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowTableExtraArgs,
+        SqlEvent, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
     },
     mariadb::MariaDB,
     mysql::MysqlDB,
@@ -204,9 +204,9 @@ impl QuerySql for SubDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        self.as_query_sql().query_sql(query_id, sql).await
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
+        self.as_query_sql().query_sql(query_id, sql, emit).await
     }
 
     async fn execute_sql(

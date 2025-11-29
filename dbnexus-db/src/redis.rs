@@ -16,9 +16,9 @@ use typescript_type_def::TypeDef;
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind,
-    ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlExecuteRet, XlsxEdit,
-    create_html_table_data,
+    ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryEvent, QueryEventEmitter,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs,
+    SqlExecuteRet, XlsxEdit, create_html_table_data,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 
@@ -1568,8 +1568,8 @@ impl QuerySql for RedisDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => {
@@ -1578,52 +1578,52 @@ impl QuerySql for RedisDB {
         };
         let mut conn = conn.lock().await;
         let commands = get_command_from_sql(sql)?;
-        let mut ret = Vec::new();
-
         for c in commands.iter() {
             let args = &c[1..];
-            let make_result = |data: Vec<String>| -> QueryResp {
-                QueryResp {
-                    fields: vec![Field::from_name_type(format!("result of '{}'", c[0]), "")],
-                    total: 0,
-                    data: data.into_iter().map(|x| vec![Some(x)]).collect(),
-                    sql: None,
-                    cache_time: None,
-                    has_more: false,
-                }
-            };
             let mut redis_cmd = redis::cmd(c[0].as_str());
             redis_cmd.arg(args);
+            emit(
+                QueryResp {
+                    fields: vec![Field::from_name_type(
+                        format!("query reslt of '{}'", c.join(" ")),
+                        "",
+                    )],
+                    ..Default::default()
+                }
+                .into(),
+            );
             if command_return_multi_value(c[0].as_str()) {
                 let stream = redis_cmd.iter_async::<Value>(conn.deref_mut()).await;
                 match stream {
                     Ok(mut stream) => {
-                        let mut values = vec![];
                         while let Some(value) = stream.next_item().await {
                             let value = value?;
                             let r = encode_response_value(&value)?;
-                            values.extend(r.into_iter());
+                            let r = r.into_iter().map(|x| vec![Some(x)]).collect::<Vec<_>>();
+                            emit(QueryEvent::from(r));
                         }
-                        ret.push(Ok(make_result(values)));
                     }
                     Err(err) => {
                         log::error!("query failed:{}", err);
-                        ret.push(Err(err.to_string()))
+                        emit(QueryEvent::Err(err.to_string()))
                     }
                 }
             } else {
                 let value = redis_cmd.query_async::<Value>(conn.deref_mut()).await;
                 match value {
                     Ok(value) => {
-                        let values = encode_response_value(&value)?;
-                        ret.push(Ok(make_result(values)));
+                        let values = encode_response_value(&value)?
+                            .into_iter()
+                            .map(|x| vec![Some(x)])
+                            .collect::<Vec<_>>();
+
+                        emit(values.into());
                     }
-                    Err(err) => ret.push(Err(err.to_string())),
+                    Err(err) => emit(QueryEvent::Err(err.to_string())),
                 }
             }
         }
-
-        anyhow::Ok(ret)
+        anyhow::Ok(())
     }
 }
 
@@ -2232,13 +2232,14 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             SET test_rename_key  your_value 
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
 
         db.rename_table("test_rename_key", "test_rename_key2")
@@ -2276,11 +2277,12 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         for i in 0..100000 {
-            db.query_sql(
+            db.execute_sql(
                 query_id,
                 format!("set test_a_lot_of_key{} {}", i, i).as_str(),
             )
             .await
+            .unwrap()
             .unwrap();
 
             println!("{}", i);
@@ -2299,11 +2301,12 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let query_id = "";
             db.open_connection(query_id).await.unwrap();
             for i in 0..3000 {
-                db.query_sql(
+                db.execute_sql(
                     query_id,
                     format!(r#"RPUSH {} data{}"#, key_name, i).as_str(),
                 )
                 .await
+                .unwrap()
                 .unwrap();
             }
         }
@@ -2315,8 +2318,9 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let query_id = "";
             db.open_connection(query_id).await.unwrap();
             for i in 0..3000 {
-                db.query_sql(query_id, format!(r#"sadd {} data{}"#, key_name, i).as_str())
+                db.execute_sql(query_id, format!(r#"sadd {} data{}"#, key_name, i).as_str())
                     .await
+                    .unwrap()
                     .unwrap();
             }
         }
@@ -2328,11 +2332,12 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let query_id = "";
             db.open_connection(query_id).await.unwrap();
             for i in 0..3000 {
-                db.query_sql(
+                db.execute_sql(
                     query_id,
                     format!(r#"ZADD {} {} data{}"#, key_name, i, i).as_str(),
                 )
                 .await
+                .unwrap()
                 .unwrap();
             }
         }
@@ -2344,11 +2349,12 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             let query_id = "";
             db.open_connection(query_id).await.unwrap();
             for i in 0..3000 {
-                db.query_sql(
+                db.execute_sql(
                     query_id,
                     format!(r#"HMSET {} key{} value{}"#, key_name, i, i).as_str(),
                 )
                 .await
+                .unwrap()
                 .unwrap();
             }
         }
@@ -2363,17 +2369,15 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
         let _ = db.drop_table(table_name, false).await;
 
-        let ret = db
-            .query_sql(query_id, "hset hash_value key11111 value2222")
+        db.execute_sql(query_id, "hset hash_value key11111 value2222")
             .await
+            .unwrap()
             .unwrap();
-        println!("query ret :{:?}", ret);
 
-        let ret = db
-            .query_sql(query_id, "hset hash_value key2222 value33333")
+        db.execute_sql(query_id, "hset hash_value key2222 value33333")
             .await
+            .unwrap()
             .unwrap();
-        println!("query ret :{:?}", ret);
         // export
         {
             let s = db
@@ -2433,31 +2437,6 @@ db1:keys=1,expires=0,avg_ttl=0"#,
     }
 
     #[tokio::test]
-    async fn test_query_sql() {
-        let db = make_test_object().await;
-
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-        let resp = db.query_sql(query_id, "keys *").await.unwrap();
-        println!("key*:{:?}", resp);
-        let resp = db
-            .query_sql(query_id, "LRANGE list_value 0 -1")
-            .await
-            .unwrap();
-        println!("all list:{:?}", resp);
-        let resp = db.query_sql(query_id, "HGETALL hash_value").await.unwrap();
-        println!("all hash:{:?}", resp);
-        let resp = db.query_sql(query_id, "SMEMBERS set_value").await.unwrap();
-        println!("all set:{:?}", resp);
-
-        let resp = db
-            .query_sql(query_id, "ZRANGE zset_value 0 -1 WITHSCORES")
-            .await
-            .unwrap();
-        println!("all zset:{:?}", resp);
-    }
-
-    #[tokio::test]
     async fn test_zset_key() {
         let db = make_test_object().await;
         enable_test_log();
@@ -2468,13 +2447,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let _ = db.drop_table(table_name, false).await;
 
         let ret = db
-            .query_sql(query_id, "zadd zset_value 1 haha")
+            .execute_sql(query_id, "zadd zset_value 1 haha")
             .await
             .unwrap();
         println!("query ret :{:?}", ret);
 
         let ret = db
-            .query_sql(query_id, "zadd zset_value 2 xxx")
+            .execute_sql(query_id, "zadd zset_value 2 xxx")
             .await
             .unwrap();
         println!("query ret :{:?}", ret);
@@ -2551,10 +2530,17 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
         let _ = db.drop_table(table_name, false).await;
 
-        let ret = db.query_sql(query_id, "sadd set_value a").await.unwrap();
+        let ret = db
+            .execute_sql(query_id, "sadd set_value a")
+            .await
+            .unwrap()
+            .unwrap();
         println!("query ret :{:?}", ret);
-
-        let ret = db.query_sql(query_id, "sadd set_value b").await.unwrap();
+        let ret = db
+            .execute_sql(query_id, "sadd set_value b")
+            .await
+            .unwrap()
+            .unwrap();
         println!("query ret :{:?}", ret);
         // export
         {
@@ -2623,10 +2609,16 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
         let _ = db.drop_table(table_name, false).await;
 
-        let ret = db.query_sql(query_id, "lpush list_value a").await.unwrap();
+        let ret = db
+            .execute_sql(query_id, "lpush list_value a")
+            .await
+            .unwrap();
         println!("query ret :{:?}", ret);
 
-        let ret = db.query_sql(query_id, "lpush list_value b").await.unwrap();
+        let ret = db
+            .execute_sql(query_id, "lpush list_value b")
+            .await
+            .unwrap();
         println!("query ret :{:?}", ret);
         // export
         {
@@ -2704,7 +2696,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let _ = db.drop_table(table_name, false).await;
 
         let ret = db
-            .query_sql(query_id, "set string_value string_value")
+            .execute_sql(query_id, "set string_value string_value")
             .await
             .unwrap();
         println!("query_ret:{:?}", ret);

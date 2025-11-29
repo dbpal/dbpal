@@ -1710,7 +1710,7 @@ mod tests {
             .unwrap();
 
         let _ = db
-            .query_sql(
+            .execute_sql(
                 query_id,
                 r#"
                 CREATE INDEX email_index ON employees (email);

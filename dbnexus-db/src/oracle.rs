@@ -14,14 +14,15 @@ use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
-    MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryResp,
-    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder,
-    SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
-    escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
+    MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent,
+    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEnable,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_blocking_data,
+    not_support_feature, query_row_buffer_size,
 };
-use crate::helper::{create_csv, run_with_timeout};
 
+use crate::helper::{create_csv, run_with_timeout};
 use crate::language_server::LexerCompletionTrait;
 
 #[derive(Clone)]
@@ -274,11 +275,12 @@ impl QuerySql for OracleDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let query_id = query_id.to_owned();
         let sql = sql.to_owned();
+
         spawn_blocking(move || {
             let conn = match this.query_connection.get(&query_id.to_string()) {
                 Some(x) => x.clone(),
@@ -286,26 +288,40 @@ impl QuerySql for OracleDB {
             };
             let mut lock = conn.lock().expect("lock failed");
             let conn = lock.deref_mut();
-            let mut ret: Vec<Result<QueryResp, String>> = Vec::new();
+            let mut timeemit = TimeEmit::new(Duration::from_millis(100));
             match conn.query(&sql, &[]) {
                 Ok(rows) => {
-                    let rows = {
-                        let mut r = vec![];
-                        for row in rows {
-                            r.push(row?);
+                    let mut first = true;
+                    let mut rows_cache = vec![];
+                    for row in rows {
+                        let row = row?;
+                        if first {
+                            first = false;
+                            let fields = infer_schema_by_row(&row)?;
+                            emit(
+                                QueryResp {
+                                    fields,
+                                    ..Default::default()
+                                }
+                                .into(),
+                            );
                         }
-                        r
-                    };
-
-                    let cols = infer_schema_by_result(&rows)?;
-                    let data = encode_rows(rows)?;
-                    ret.push(Ok(QueryResp::new(cols, 0, data, sql.to_owned())?));
+                        rows_cache.push(row);
+                        if rows_cache.len() > query_row_buffer_size() || timeemit.add(0) {
+                            let r = encode_rows(std::mem::take(&mut rows_cache))?;
+                            emit(r.into());
+                        }
+                    }
+                    if !rows_cache.is_empty() {
+                        let r = encode_rows(std::mem::take(&mut rows_cache))?;
+                        emit(r.into());
+                    }
                 }
                 Err(err) => {
-                    ret.push(Err(err.to_string()));
+                    emit(QueryEvent::Err(err.to_string()));
                 }
             }
-            anyhow::Ok(ret)
+            anyhow::Ok(())
         })
         .await?
     }
@@ -1901,7 +1917,7 @@ mod tests {
         let udf_name = "DO_NOTHING_P";
         let _ = db.drop_procedure(udf_name, None).await;
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             CREATE OR REPLACE PROCEDURE DO_NOTHING_P AS
@@ -1912,6 +1928,7 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
 
         let udfs = db.list_procedure().await.unwrap();
@@ -1932,7 +1949,7 @@ mod tests {
         db.open_connection(query_id).await.unwrap();
         let udf_name = "DO_NOTHING";
         let _ = db.drop_udf(udf_name, None).await;
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             CREATE OR REPLACE FUNCTION DO_NOTHING(input_string VARCHAR2) RETURN VARCHAR2 IS
@@ -1944,9 +1961,10 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             CREATE OR REPLACE FUNCTION DO_NOTHING RETURN VARCHAR2 IS
@@ -1958,6 +1976,7 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
         let udfs = db.list_udf().await.unwrap();
         for udf in udfs.iter() {
@@ -1979,7 +1998,7 @@ mod tests {
         let table_name = "TEST_TRIGGER";
         let _ = db.drop_table(table_name, false).await;
 
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
                 CREATE TABLE TEST_TRIGGER (
@@ -1989,8 +2008,9 @@ mod tests {
                 )"#,
         )
         .await
+        .unwrap()
         .unwrap();
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             CREATE OR REPLACE TRIGGER  TRG_NO_ACTION
@@ -2003,6 +2023,7 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
 
         let triggers = db.list_trigger(table_name).await.unwrap();

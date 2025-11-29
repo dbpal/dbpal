@@ -230,18 +230,18 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let _resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
                 CREATE TABLE test_column
                 (
                     id INT PRIMARY KEY                     -- 主键，无符号32位整数
                 )
                 "#,
-            )
-            .await
-            .unwrap();
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         db.add_table_column(
             table_name,
@@ -284,10 +284,9 @@ mod tests {
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
 
-        db.query_sql(query_id, format!(
+        db.execute_sql(query_id, format!(
             r#" create table {table_name} (a int, b int, c int, constraint pk_test primary key(a, b)); "#,
-        ).as_str()).await .unwrap()
-        ;
+        ).as_str()).await .unwrap() .unwrap();
 
         let index_name2 = format!("{}2", index_name);
         db.create_index(
@@ -354,7 +353,7 @@ mod tests {
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_table("test_rename", false).await;
         let _ = db.drop_table("test_rename2", false).await;
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
                 CREATE TABLE test_rename (
@@ -364,6 +363,7 @@ mod tests {
                 );"#,
         )
         .await
+        .unwrap()
         .unwrap();
         db.rename_table("test_rename", "test_rename2")
             .await
@@ -380,7 +380,7 @@ mod tests {
         let _ = db.drop_table("test_duplicate2", false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
                 CREATE TABLE test_duplicate (
@@ -397,6 +397,7 @@ mod tests {
                 "#,
         )
         .await
+        .unwrap()
         .unwrap();
         db.duplicate_table("test_duplicate", "test_duplicate2")
             .await
@@ -415,7 +416,7 @@ mod tests {
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let _ = db.drop_procedure("test_procedure", None).await;
-        db.query_sql(
+        db.execute_sql(
             query_id,
             r#"
             CREATE PROCEDURE test_procedure()
@@ -428,6 +429,7 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
         let list = db.list_procedure().await.unwrap();
         for l in list.iter() {
@@ -452,10 +454,9 @@ mod tests {
 
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let query_resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TABLE test_view_table (
                 
                 name TEXT,
@@ -469,14 +470,11 @@ mod tests {
             CREATE VIEW test_view AS
                 SELECT * FROM test_view_table;
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(
-            query_resp.iter().all(|x| x.is_ok()),
-            "result:{:?}",
-            query_resp
-        );
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
         let list = db.list_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
@@ -496,10 +494,9 @@ mod tests {
 
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let query_resp = db
-            .query_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             CREATE TABLE test_material_view_table (
                 
                 name TEXT,
@@ -513,14 +510,10 @@ mod tests {
             CREATE MATERIALIZED VIEW test_material_view AS
                 SELECT * FROM test_material_view_table;
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(
-            query_resp.iter().all(|x| x.is_ok()),
-            "result:{:?}",
-            query_resp
-        );
+        )
+        .await
+        .unwrap()
+        .unwrap();
         let list = db.list_materialized_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
@@ -561,7 +554,7 @@ mod tests {
             )
             .await;
 
-        pg.query_sql(
+        pg.execute_sql(
             query_id,
             r#"
             CREATE OR REPLACE FUNCTION test_udf(a INT, b INT)
@@ -573,6 +566,7 @@ mod tests {
         "#,
         )
         .await
+        .unwrap()
         .unwrap();
         let list = pg.list_udf().await.unwrap();
         for l in list.iter() {
@@ -603,7 +597,7 @@ mod tests {
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        db.query_sql(
+        db.execute_sql(
             query_id,
             format!(
                 r#"
@@ -620,6 +614,7 @@ mod tests {
             .as_str(),
         )
         .await
+        .unwrap()
         .unwrap();
         let mut values = HashMap::new();
         values.insert("bool_column".to_string(), Some("true".to_string()));

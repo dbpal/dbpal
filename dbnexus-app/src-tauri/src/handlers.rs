@@ -1001,8 +1001,8 @@ pub async fn get_backend_crash(
 #[tauri::command]
 pub async fn query_sql(
     name: String, query_id: &str, sql: String, app: tauri::State<'_, DBPal>,
-    task_manager: tauri::State<'_, TaskManager>,
-) -> Result<Arc<Vec<Result<MuiDataGridData, String>>>, ErrorFrontend> {
+    emit: Channel<QueryEvent>, task_manager: tauri::State<'_, TaskManager>,
+) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
@@ -1011,30 +1011,43 @@ pub async fn query_sql(
         .map_err(ErrorFrontend::from)?;
     let (token, _guard) = task_manager.add(query_id.to_string());
 
-    let fur = async {
+    let fur = async move {
         #[cfg(feature = "random-sleep")]
         tokio::time::sleep(Duration::from_secs(10)).await;
         db.as_query_sql()
-            .query_sql(query_id, &sql)
+            .query_sql(
+                query_id,
+                &sql,
+                Arc::new(move |event| {
+                    let r = match event {
+                        dbnexus_db::db::QueryEvent::Resp(query_resp) => {
+                            QueryEvent::Structure { resp: query_resp }
+                        }
+                        dbnexus_db::db::QueryEvent::Data(data) => QueryEvent::Data { data },
+                        dbnexus_db::db::QueryEvent::Status(x) => QueryEvent::Status { status: x },
+                        dbnexus_db::db::QueryEvent::Err(err) => QueryEvent::Err { err },
+                    };
+                    if let Err(err) = emit.send(r) {
+                        log::error!("send data to frontend failed:{}", err);
+                    }
+                }),
+            )
             .await
             .map_err(ErrorFrontend::from)
     };
-    let result = tokio::select! {
+    tokio::select! {
         res = fur => res,
-        _ = token.cancelled() => {
-            return Err(ErrorFrontend::cancelled());
-        }
-    };
-    let r = result.map(|x| {
-        x.into_iter()
-            .map(|x| match x {
-                Err(e) => Err(e),
-                Ok(x) => Ok(MuiDataGridData::from(x)),
-            })
-            .collect::<Vec<_>>()
-    })?;
-    let r = Arc::new(r);
-    Ok(r)
+        _ = token.cancelled() => Err(ErrorFrontend::cancelled()),
+    }
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum QueryEvent {
+    Err { err: String },
+    Status { status: String },
+    Data { data: Vec<Vec<Option<String>>> },
+    Structure { resp: QueryResp },
 }
 
 #[tauri::command]
