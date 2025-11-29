@@ -21,6 +21,7 @@ use crate::db::{
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet,
     TimeEmit, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, create_html_table_data,
     create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
+    query_row_buffer_size,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
@@ -1489,7 +1490,9 @@ impl QuerySql for SqliteDB {
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {
-                    emit(QueryEvent::Err(err.to_string()));
+                    emit(QueryEvent::Err {
+                        err: err.to_string(),
+                    });
                     break;
                 }
             };
@@ -1516,7 +1519,7 @@ impl QuerySql for SqliteDB {
                         emit_fields = fields;
                     }
                     rows.push(row);
-                    if rows.len() > 100 && timeemit.add(0) {
+                    if rows.len() > query_row_buffer_size() && timeemit.add(0) {
                         let data = encode_rows(&rows)?;
                         emit(data.into());
                         rows.clear();

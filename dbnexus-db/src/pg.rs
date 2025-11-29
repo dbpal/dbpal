@@ -2087,7 +2087,7 @@ impl QuerySql for PostGresDB {
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {
-                    emit(QueryEvent::Err(err.to_string()));
+                    emit(QueryEvent::Err{err: err.to_string()} );
                     continue;
                 }
             };

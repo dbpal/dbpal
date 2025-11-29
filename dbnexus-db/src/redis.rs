@@ -1605,7 +1605,9 @@ impl QuerySql for RedisDB {
                     }
                     Err(err) => {
                         log::error!("query failed:{}", err);
-                        emit(QueryEvent::Err(err.to_string()))
+                        emit(QueryEvent::Err {
+                            err: err.to_string(),
+                        })
                     }
                 }
             } else {
@@ -1619,7 +1621,9 @@ impl QuerySql for RedisDB {
 
                         emit(values.into());
                     }
-                    Err(err) => emit(QueryEvent::Err(err.to_string())),
+                    Err(err) => emit(QueryEvent::Err {
+                        err: err.to_string(),
+                    }),
                 }
             }
         }

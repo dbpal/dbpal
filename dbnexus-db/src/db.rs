@@ -1561,23 +1561,24 @@ pub(crate) fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
 
 pub type QueryEventEmitter = Arc<dyn Fn(QueryEvent) + Send + Sync>;
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
 pub enum QueryEvent {
-    Resp(QueryResp),
-    Data(Vec<Vec<Option<String>>>),
-    Status(String),
-    Err(String),
+    Err { err: String },
+    Status { status: String },
+    Data { data: Vec<Vec<Option<String>>> },
+    Structure { resp: QueryResp },
 }
 
 impl From<QueryResp> for QueryEvent {
     fn from(value: QueryResp) -> Self {
-        Self::Resp(value)
+        Self::Structure { resp: value }
     }
 }
 
 impl From<Vec<Vec<Option<String>>>> for QueryEvent {
     fn from(value: Vec<Vec<Option<String>>>) -> Self {
-        Self::Data(value)
+        Self::Data { data: value }
     }
 }
 

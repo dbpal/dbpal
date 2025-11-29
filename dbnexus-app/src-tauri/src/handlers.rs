@@ -8,8 +8,9 @@ use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::db::{
     ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef,
     DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, ProcedureDetail, QueryResp, SequenceDetail, ShowTableExtraArgs, SqlEvent,
-    SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
+    OptionMustBeSomeErr, ProcedureDetail, QueryEvent, QueryResp, SequenceDetail,
+    ShowTableExtraArgs, SqlEvent, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
+    escape_sql_str,
 };
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
@@ -1019,15 +1020,7 @@ pub async fn query_sql(
                 query_id,
                 &sql,
                 Arc::new(move |event| {
-                    let r = match event {
-                        dbnexus_db::db::QueryEvent::Resp(query_resp) => {
-                            QueryEvent::Structure { resp: query_resp }
-                        }
-                        dbnexus_db::db::QueryEvent::Data(data) => QueryEvent::Data { data },
-                        dbnexus_db::db::QueryEvent::Status(x) => QueryEvent::Status { status: x },
-                        dbnexus_db::db::QueryEvent::Err(err) => QueryEvent::Err { err },
-                    };
-                    if let Err(err) = emit.send(r) {
+                    if let Err(err) = emit.send(event) {
                         log::error!("send data to frontend failed:{}", err);
                     }
                 }),
@@ -1039,15 +1032,6 @@ pub async fn query_sql(
         res = fur => res,
         _ = token.cancelled() => Err(ErrorFrontend::cancelled()),
     }
-}
-
-#[derive(Debug, serde::Serialize)]
-#[serde(tag = "kind", rename_all = "lowercase")]
-pub enum QueryEvent {
-    Err { err: String },
-    Status { status: String },
-    Data { data: Vec<Vec<Option<String>>> },
-    Structure { resp: QueryResp },
 }
 
 #[tauri::command]

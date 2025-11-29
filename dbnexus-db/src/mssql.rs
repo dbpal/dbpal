@@ -1928,7 +1928,7 @@ impl QuerySql for SqlServerDB {
             let item = match item {
                 Ok(item) => item,
                 Err(err) => {
-                    emit(QueryEvent::Err(err.to_string()));
+                    emit(QueryEvent::Err{err: err.to_string()} );
                     continue;
                 }
             };
