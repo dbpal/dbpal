@@ -1138,35 +1138,8 @@ pub(crate) async fn try_parser_completion(
         line: line as u64,
         column: col as u64,
     };
-    let d = helper.dialect();
-    let statements = tokio::task::block_in_place(|| -> anyhow::Result<Vec<Statement>> {
-        let parser = sqlparser::parser::Parser::new(d.as_ref());
-        let mut parser = parser.try_with_sql(sql)?;
-        let mut statements = Vec::new();
-        while parser.peek_token().token != Token::EOF {
-            while parser.peek_token().token == Token::SemiColon {
-                parser.next_token();
-            }
-            if parser.peek_token().token == Token::EOF {
-                break;
-            }
-            match parser.parse_statement() {
-                Ok(s) => {
-                    statements.push(s);
-                }
-                Err(err) => {
-                    // here is very fine.no need to break
-                    log::error!("parse sql error:{}", err);
-                    // we better skip to next to avoid infinite loop
-                    parser.next_token();
-                }
-            }
-        }
-        anyhow::Ok(statements)
-    })?;
-
+    let statements = helper.parse_statements(sql)?;
     let scopes = Scopes::new();
-
     for statement in statements {
         log::trace!("completion on ast:{:?}", statement);
         let mut c = CompletionStatement::new(loc, helper, &scopes);
@@ -1179,7 +1152,6 @@ pub(crate) async fn try_parser_completion(
             return anyhow::Ok(m);
         }
     }
-
     anyhow::bail!("can't find completion.")
 }
 
