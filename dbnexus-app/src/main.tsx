@@ -3,7 +3,6 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 import { App } from "./comp/MainPage";
 import { invoke } from "@tauri-apps/api/core";
-import React from "react";
 import { secondConfirm } from "./comp/helper.ts";
 
 const currentWebview = WebviewWindow.getCurrent();
@@ -35,8 +34,4 @@ if (import.meta.env.DEV) {
   });
 }
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  // <React.StrictMode>
-  <App />,
-  // </React.StrictMode>,
-);
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);

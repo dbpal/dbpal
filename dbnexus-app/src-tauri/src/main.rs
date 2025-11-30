@@ -235,6 +235,7 @@ fn main() {
     let setting_window_id = generate_random_string(10);
     #[cfg(debug_assertions)] // only enable instrumentation in development builds
     let devtools = tauri_plugin_devtools::init();
+    #[allow(unused_mut)]
     let mut builder = tauri::Builder::default();
     #[cfg(debug_assertions)]
     {

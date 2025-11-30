@@ -1,5 +1,5 @@
 import ReactDOM from "react-dom/client";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DataSourceKind,
   FavoriteSql,
@@ -96,15 +96,13 @@ currentWebview.onCloseRequested(async event => {
 });
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <SeparateWindow>
-      <Query
-        uuid={sqlData.uuid}
-        kind={sqlData.kind}
-        sql={sqlData.sql}
-        favoriteName={sqlData.name}
-        language={sqlData.language}
-      />
-    </SeparateWindow>
-  </React.StrictMode>,
+  <SeparateWindow>
+    <Query
+      uuid={sqlData.uuid}
+      kind={sqlData.kind}
+      sql={sqlData.sql}
+      favoriteName={sqlData.name}
+      language={sqlData.language}
+    />
+  </SeparateWindow>,
 );
