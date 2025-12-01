@@ -1543,6 +1543,7 @@ impl QuerySql for SqliteDB {
                         if !rows.is_empty() {
                             let data = encode_rows(&std::mem::take(&mut rows))?;
                             emit(data.into());
+                            tokio::task::yield_now().await;
                         }
                         emit(
                             QueryResp {

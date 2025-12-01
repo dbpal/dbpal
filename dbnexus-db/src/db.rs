@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::Deref;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -1603,6 +1604,25 @@ impl From<QueryResp> for QueryEvent {
 impl From<Vec<Vec<Option<String>>>> for QueryEvent {
     fn from(value: Vec<Vec<Option<String>>>) -> Self {
         Self::Data(value)
+    }
+}
+
+pub struct MaxRowLimit;
+
+impl MaxRowLimit {
+    fn loc() -> &'static AtomicUsize {
+        static X: AtomicUsize = AtomicUsize::new(2000);
+        &X
+    }
+    pub fn get() -> usize {
+        Self::loc().load(Ordering::Relaxed)
+    }
+    pub fn set(x: usize) {
+        Self::loc().store(x, Ordering::Relaxed);
+    }
+
+    pub fn build_sql(sql: &str) -> String {
+        format!("select * from ({})  limit {} ", sql, Self::get())
     }
 }
 
