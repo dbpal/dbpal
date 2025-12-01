@@ -382,7 +382,9 @@ function SqlQuery(props: {
         if (SaveQueryLogConfigure.get()) {
           queryLogHandler.current.save(text, false);
         }
-        showNotification("error", "query failed", e);
+        setTimeout(() => {
+          showNotification("error", "query failed", e);
+        }, 100);
       })
       .finally(() => {
         setExecuteTimes(e => e + 1);

@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, LazyLock};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
 use dashmap::DashMap;
@@ -978,7 +979,7 @@ pub async fn export_query_result_to_file(
         res =  fur  => res,
         _ = token.cancelled() => {
             remove_file.await;
-            Err(ErrorFrontend::cancelled())
+            Err(ErrorFrontend::cancelled(None))
         }
     };
 
@@ -1012,9 +1013,46 @@ pub async fn get_backend_crash(
     Ok(app.get(id))
 }
 
+// cancel token and msg
+#[derive(Clone)]
+struct CanTokenMsg {
+    token: CancellationToken,
+    msg: Arc<Mutex<Option<String>>>,
+}
+impl CanTokenMsg {
+    fn cancel(&self) {
+        self.token.cancel();
+    }
+    fn set_msg(&self, msg: impl Into<String>) {
+        let msg = msg.into();
+        *self.msg.lock().expect("lock failed") = Some(msg);
+    }
+
+    fn get_msg(&self) -> Option<String> {
+        self.msg.lock().expect("lock failed").clone()
+    }
+
+    fn new(token: CancellationToken) -> Self {
+        Self {
+            token,
+            msg: Arc::new(Mutex::new(None)),
+        }
+    }
+}
+impl QueryEvent {
+    fn rows(&self) -> usize {
+        match self {
+            QueryEvent::Err { .. } => 0,
+            QueryEvent::Status { .. } => 0,
+            QueryEvent::Data { data } => data.len(),
+            QueryEvent::Structure { resp } => resp.data.len(),
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn query_sql(
-    name: String, query_id: &str, sql: String, app: tauri::State<'_, DBPal>,
+    name: String, query_id: &str, max_row: usize, sql: String, app: tauri::State<'_, DBPal>,
     emit: Channel<QueryEvent>, task_manager: tauri::State<'_, TaskManager>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
@@ -1024,6 +1062,9 @@ pub async fn query_sql(
         .await
         .map_err(ErrorFrontend::from)?;
     let (token, _guard) = task_manager.add(query_id.to_string());
+    let cancel_msg: CanTokenMsg = CanTokenMsg::new(token.clone());
+    let cancel_msg_clone = cancel_msg.clone();
+    let total = AtomicUsize::new(0);
     let fur = async move {
         random_sleep().await;
         db.as_query_sql()
@@ -1032,7 +1073,16 @@ pub async fn query_sql(
                 &sql,
                 Arc::new(move |event| {
                     block_random_sleep();
-                    if let Err(err) = emit.send(QueryEvent::from(event)) {
+                    let r = QueryEvent::from(event);
+                    {
+                        total.fetch_add(r.rows(), Ordering::SeqCst);
+                        let total = total.load(Ordering::SeqCst);
+                        if total >= max_row {
+                            cancel_msg_clone.set_msg(format!("{} exceeds {} rows", total, max_row));
+                            cancel_msg_clone.cancel();
+                        }
+                    }
+                    if let Err(err) = emit.send(r) {
                         log::error!("send data to frontend failed:{}", err);
                     }
                 }),
@@ -1042,7 +1092,7 @@ pub async fn query_sql(
     };
     tokio::select! {
         res = fur => res,
-        _ = token.cancelled() => Err(ErrorFrontend::cancelled()),
+        _ = token.cancelled() => Err(ErrorFrontend::cancelled(cancel_msg.get_msg())),
     }
 }
 
@@ -1108,7 +1158,7 @@ pub async fn execute_sql(
     let result = tokio::select! {
         res = fur => res,
         _ = token.cancelled() => {
-            return Err(ErrorFrontend::cancelled());
+            return Err(ErrorFrontend::cancelled(None));
         }
     };
     let result = result?;
@@ -1188,7 +1238,7 @@ pub async fn export_table_or_view(
         res = fur => res,
         _ = token.cancelled() => {
             remove_file.await;
-            Err(ErrorFrontend::cancelled())
+            Err(ErrorFrontend::cancelled(None))
         }
     };
 
@@ -1663,7 +1713,7 @@ pub async fn duplicate_table(
     let result = tokio::select! {
         r = fur => r,
         _ = token.cancelled() => {
-            Err(ErrorFrontend::cancelled())
+            Err(ErrorFrontend::cancelled(None))
         }
     };
     result
@@ -3194,9 +3244,9 @@ async fn random_sleep() {
 }
 
 impl ErrorFrontend {
-    fn cancelled() -> Self {
+    fn cancelled(msg: Option<String>) -> Self {
         Self {
-            reason: "this task is cancelled".to_string(),
+            reason: msg.unwrap_or("this task is cancelled".to_string()),
             detail: "".to_string(),
             cancelled: true,
         }

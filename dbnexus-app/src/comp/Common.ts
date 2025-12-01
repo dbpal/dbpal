@@ -387,12 +387,17 @@ class QueryConn {
       queryId: this.queryId,
     });
   }
-  queryOP(sql: string, emit: Channel<QueryEvent>): Promise<void> {
+  queryOP(
+    sql: string,
+    emit: Channel<QueryEvent>,
+    maxRow: number = 2000,
+  ): Promise<void> {
     return invoke<void>("query_sql", {
       name: this.uuid,
       queryId: this.queryId,
       sql,
       emit,
+      maxRow,
     });
   }
   executeOP(sql: string): Promise<QueryRespData> {

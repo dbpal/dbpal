@@ -1554,10 +1554,10 @@ impl QuerySql for SqliteDB {
                         emit_fields = fields;
                     }
                     rows.push(row);
-                    if rows.len() >= self.query_buffer_size() && timeelapsed.elapsed() {
-                        let data = encode_rows(&rows)?;
+                    if rows.len() >= self.query_buffer_size() || timeelapsed.elapsed() {
+                        let data = encode_rows(&std::mem::take(&mut rows))?;
                         emit(data.into());
-                        rows.clear();
+                        tokio::task::yield_now().await;
                     }
                 }
             }

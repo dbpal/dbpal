@@ -989,7 +989,7 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     }
 
     fn query_buffer_size(&self) -> usize {
-        if cfg!(debug_assertions) { 7 } else { 100 }
+        if cfg!(debug_assertions) { 7 } else { 1000 }
     }
     async fn set_auto_commit(&self, _query_id: &str, _commit: bool) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
