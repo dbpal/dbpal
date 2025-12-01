@@ -66,6 +66,7 @@ import {
   EditorBar,
   LoadStoreFile,
   SaveFavoriteSqlView,
+  showProgressingStatus,
 } from "./CommonComp2.tsx";
 import { ModifyLLMConfigModal } from "./Settings.tsx";
 import { cancelTask, checkSql } from "./handlers.ts";
@@ -320,6 +321,7 @@ function SqlQuery(props: {
     if (!confirm) {
       return;
     }
+    setResp([]);
     setLoading(true);
     conn
       .executeOP(text)
@@ -327,14 +329,15 @@ function SqlQuery(props: {
         if (SaveQueryLogConfigure.get()) {
           queryLogHandler.current.save(text, rustResultOk(e));
         }
-        if (e.ok) {
-          queryRespFix(e.ok);
+        if (e.Ok) {
+          queryRespFix(e.Ok);
         }
-        setResp([e]);
+        setTimeout(() => {
+          setResp([e]);
+        }, 50);
         showNotification("success", "execute ok");
       })
       .catch(e => {
-        setResp([]);
         showNotification("error", "query failed", e);
       })
       .finally(() => {
@@ -371,7 +374,9 @@ function SqlQuery(props: {
         if (SaveQueryLogConfigure.get()) {
           queryLogHandler.current.save(text, true);
         }
-        showNotification("success", "Execute OK");
+        setTimeout(() => {
+          showNotification("success", "query OK");
+        }, 100);
       })
       .catch(e => {
         if (SaveQueryLogConfigure.get()) {
@@ -554,7 +559,7 @@ function SqlQuery(props: {
             )}
 
             {openOk && (
-              <Tooltip title="export query result to a file,implemented it not using query connection,uncommit row may not be found">
+              <Tooltip title="export query result to a file">
                 <IconButton
                   loading={loading}
                   disabled={loading}
@@ -706,17 +711,17 @@ function appendQueryResult(
   switch (event.kind) {
     case "structure":
       queryRespFix(event.resp);
-      return [...data, { ok: event.resp }];
+      return [...data, { Ok: event.resp }];
     case "err":
-      return [...data, { err: event.err }];
+      return [...data, { Err: event.err }];
     case "data": {
       if (event.data.length == 0) {
         showNotification("warning", "backend send empty data");
         return data;
       }
       let data0 = event.data[0];
-      showNotification(
-        "info",
+      showProgressingStatus(
+        showNotification,
         `backend send ${event.data.length} record,data:${data0.slice(0, 3).join("-")}`,
       );
       let index = null;
@@ -733,7 +738,7 @@ function appendQueryResult(
         );
         return data;
       }
-      let cop = { ...data[index].ok } as MuiDataGridData;
+      let cop = { ...data[index].Ok } as MuiDataGridData;
       cop.data = [
         ...cop.data,
         ...event.data.map(d => {
@@ -746,18 +751,11 @@ function appendQueryResult(
       ];
       let arr = [...data];
       queryRespFix(cop);
-      arr[index].ok = cop;
+      arr[index].Ok = cop;
       return arr;
     }
     case "status": {
-      showNotification(
-        "info",
-        "server is dothing this.",
-        <Stack direction="row">
-          <CircularProgress />
-          <Typography> {event.status} </Typography>
-        </Stack>,
-      );
+      showProgressingStatus(showNotification, event.status);
       return data;
     }
     default:

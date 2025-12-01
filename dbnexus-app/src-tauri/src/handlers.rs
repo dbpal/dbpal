@@ -446,13 +446,23 @@ pub async fn show_table_columns(
 
 #[tauri::command]
 pub async fn show_table(
-    name: String, table_name: String, para: ShowTableParameter, app: tauri::State<'_, DBPal>,
+    name: String, table_name: String, para: ShowTableParameter, status_channel: Channel<String>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&name).await?;
     let x = db
-        .show_table(&table_name, para)
+        .show_table(
+            &table_name,
+            para,
+            Arc::new(move |s| {
+                block_random_sleep();
+                if let Err(err) = status_channel.send(s) {
+                    log::error!("send status error,,err:{}", err);
+                }
+            }),
+        )
         .await
         .map_err(ErrorFrontend::from)?;
 
@@ -856,15 +866,25 @@ pub async fn drop_table(
 }
 #[tauri::command]
 pub async fn show_view(
-    name: String, view_name: String, para: ShowTableParameter, app: tauri::State<'_, DBPal>,
+    name: String, view_name: String, para: ShowTableParameter, status_channel: Channel<String>,
+    app: tauri::State<'_, DBPal>,
 ) -> Result<MuiDataGridData, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&name).await?;
-    db.show_view(&view_name, para)
-        .await
-        .map_err(ErrorFrontend::from)
-        .map(MuiDataGridData::from)
+    db.show_view(
+        &view_name,
+        para,
+        Arc::new(move |s| {
+            block_random_sleep();
+            if let Err(err) = status_channel.send(s) {
+                log::error!("send status error,,err:{}", err);
+            }
+        }),
+    )
+    .await
+    .map_err(ErrorFrontend::from)
+    .map(MuiDataGridData::from)
 }
 #[tauri::command]
 pub async fn show_view_columns(
@@ -1004,7 +1024,6 @@ pub async fn query_sql(
         .await
         .map_err(ErrorFrontend::from)?;
     let (token, _guard) = task_manager.add(query_id.to_string());
-
     let fur = async move {
         random_sleep().await;
         db.as_query_sql()
@@ -1013,15 +1032,7 @@ pub async fn query_sql(
                 &sql,
                 Arc::new(move |event| {
                     block_random_sleep();
-                    let r = match event {
-                        dbnexus_db::db::QueryEvent::Resp(query_resp) => QueryEvent::Structure {
-                            resp: MuiDataGridData::from(query_resp),
-                        },
-                        dbnexus_db::db::QueryEvent::Data(data) => QueryEvent::Data { data },
-                        dbnexus_db::db::QueryEvent::Status(x) => QueryEvent::Status { status: x },
-                        dbnexus_db::db::QueryEvent::Err(err) => QueryEvent::Err { err },
-                    };
-                    if let Err(err) = emit.send(r) {
+                    if let Err(err) = emit.send(QueryEvent::from(event)) {
                         log::error!("send data to frontend failed:{}", err);
                     }
                 }),
@@ -1032,6 +1043,19 @@ pub async fn query_sql(
     tokio::select! {
         res = fur => res,
         _ = token.cancelled() => Err(ErrorFrontend::cancelled()),
+    }
+}
+
+impl From<dbnexus_db::db::QueryEvent> for QueryEvent {
+    fn from(x: dbnexus_db::db::QueryEvent) -> Self {
+        match x {
+            dbnexus_db::db::QueryEvent::Err(err) => QueryEvent::Err { err },
+            dbnexus_db::db::QueryEvent::Status(x) => QueryEvent::Status { status: x },
+            dbnexus_db::db::QueryEvent::Data(data) => QueryEvent::Data { data },
+            dbnexus_db::db::QueryEvent::Resp(x) => QueryEvent::Structure {
+                resp: MuiDataGridData::from(x),
+            },
+        }
     }
 }
 

@@ -6,10 +6,10 @@ use crate::db::{
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
     ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryResp,
     QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
-    escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset,
-    not_support_feature,
+    SqlExecuteRet, StatusEmiter, TimeElapsed, TriggerDetail, TriggerEnable, TriggerEvent,
+    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data,
+    format_data_time_fix_offset, not_support_feature,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::create_csv;
@@ -802,7 +802,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter,
+        &self, view_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         let ShowTableParameter {
             where_str,
@@ -811,9 +811,10 @@ impl SchemaTrait for SqlServerDB {
             page_size,
             ..
         } = &para;
-
+        status_emit("trying to get connection.".into());
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
+        status_emit("trying to get total amount.".into());
         let total = SqlServerDB::query_count(
             conn,
             self.config.schema_str()?,
@@ -830,6 +831,7 @@ impl SchemaTrait for SqlServerDB {
             *page_size,
         );
         log::info!("sql:{}", sql);
+        status_emit("trying to get data.".into());
         let mut stream = conn.query(&sql, &[]).await?;
         let mut meta = None;
         let mut rows = Vec::with_capacity(*page_size);
@@ -842,6 +844,7 @@ impl SchemaTrait for SqlServerDB {
                 tiberius::QueryItem::Metadata(m) => meta = Some(m),
             }
         }
+        status_emit("encode data , about to return result".into());
         let ret = match meta {
             Some(meta) => make_table_list_from_meta_and_row(&meta, &rows, total as usize, sql)?,
             None => anyhow::bail!("SELECT should return at lease one meta"),
@@ -935,7 +938,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter,
+        &self, table_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         let ShowTableParameter {
             where_str,
@@ -944,8 +947,10 @@ impl SchemaTrait for SqlServerDB {
             page_size,
             ..
         } = &para;
+        status_emit("trying to get connection.".into());
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
+        status_emit("trying to get total amount.".into());
         let total = SqlServerDB::query_count(
             conn,
             self.config.schema_str()?,
@@ -962,6 +967,7 @@ impl SchemaTrait for SqlServerDB {
             *page_size,
         );
 
+        status_emit("trying to get data.".into());
         let mut stream = conn
             .query(&sql, &[])
             .await
@@ -973,11 +979,16 @@ impl SchemaTrait for SqlServerDB {
             match item {
                 tiberius::QueryItem::Row(row) => {
                     rows.push(row);
+                    if rows.len() % 50 == 0 {
+                        status_emit(format!("get {} rows", rows.len()));
+                    }
                 }
                 tiberius::QueryItem::Metadata(m) => meta = Some(m),
             }
         }
+        status_emit("trying to get columns.".into());
         let cols = self.show_table_columns(table_name).await?;
+        status_emit("encode data , about to return result.".into());
         let mut ret = match meta {
             Some(x) => make_table_list_from_meta_and_row(&x, &rows, total as usize, sql)?,
             None => anyhow::bail!("SELECT should yield at lease one meta"),
@@ -1718,12 +1729,7 @@ impl SqlServerDB {
         let config = make_config(&self.config)?;
         let tcp = TcpStream::connect(config.get_addr()).await?;
         tcp.set_nodelay(true)?;
-
         let client = tiberius::Client::connect(config, tcp.compat_write()).await?;
-        // if let Some(s) = self.config.schema.as_ref() {
-        //     set_current_schema(&mut client, s).await?;
-        // }
-
         anyhow::Ok(client)
     }
 }
@@ -1910,7 +1916,7 @@ impl QuerySql for SqlServerDB {
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let mut conn = self.get_conn().await?;
-        let ret = match conn.execute(sql, &[]).await {
+        let ret = match conn.execute(sql.trim(), &[]).await {
             Ok(x) => Ok(QueryResp::row_affected(x.total(), sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
@@ -1927,7 +1933,7 @@ impl QuerySql for SqlServerDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
 
-        let ret = match conn.execute(sql, &[]).await {
+        let ret = match conn.execute(sql.trim(), &[]).await {
             Ok(x) => Ok(QueryResp::row_affected(x.total(), sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
@@ -1945,7 +1951,7 @@ impl QuerySql for SqlServerDB {
         let conn = conn.deref_mut();
         let mut stream = conn.simple_query(sql).await?;
         let mut rows = Vec::new();
-        let mut timeemit = TimeEmit::new(Duration::from_millis(50));
+        let mut timeelapsed = TimeElapsed::new();
         while let Some(item) = stream.next().await {
             let item = match item {
                 Ok(item) => item,
@@ -1957,7 +1963,7 @@ impl QuerySql for SqlServerDB {
             match item {
                 tiberius::QueryItem::Row(row) => {
                     rows.push(row);
-                    if rows.len() >= self.query_buffer_size() || timeemit.add(0) {
+                    if rows.len() >= self.query_buffer_size() || timeelapsed.elapsed() {
                         emit(encode_rows(&std::mem::take(&mut rows))?.into());
                     }
                 }
@@ -2453,13 +2459,13 @@ mod tests {
         let _ = db.drop_procedure("test_procedure", None).await;
         db.execute_sql(
             query_id,
-            r#"
-            CREATE PROCEDURE dbo.test_procedure
-                
-            AS
-            BEGIN
-                SELECT 1
-            END;
+            r#"GO
+CREATE PROCEDURE dbo.test_procedure
+AS
+BEGIN
+    SELECT 1;
+END;
+GO
         "#,
         )
         .await
@@ -2559,6 +2565,13 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_check_conn() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        let metas = CheckConn::check_conn(&db).await.unwrap();
+        println!("{:?}", metas);
+    }
+    #[tokio::test]
     async fn test_server_metas() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
@@ -2615,10 +2628,16 @@ mod tests {
         db.rollback(query_id).await.unwrap();
 
         assert!(
-            db.show_table(table_name, ShowTableParameter::new_test())
-                .await
-                .unwrap()
-                .total
+            db.show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                })
+            )
+            .await
+            .unwrap()
+            .total
                 == 0
         );
 
@@ -2636,10 +2655,16 @@ mod tests {
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(table_name, ShowTableParameter::new_test())
-                .await
-                .unwrap()
-                .total
+            db.show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                })
+            )
+            .await
+            .unwrap()
+            .total
                 == 1
         );
     }
@@ -2670,9 +2695,15 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("test_rename2", ShowTableParameter::new_test())
-            .await
-            .unwrap();
+        db.show_table(
+            "test_rename2",
+            ShowTableParameter::new_stupid_test("id asc"),
+            Arc::new(|s| {
+                println!("{}", s);
+            }),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -2709,7 +2740,13 @@ mod tests {
             .unwrap();
 
         let resp = db
-            .show_table("test_duplicate2", ShowTableParameter::new_test())
+            .show_table(
+                "test_duplicate2",
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
@@ -2842,39 +2879,31 @@ mod tests {
         .unwrap();
     }
 
+    // #[tokio::test]
+    // async fn xxx() {
+    //     let mut config = tiberius::Config::new();
+    //     config.host("127.0.0.1");
+    //     config.port(1433);
+    //     config.username("sa");
+    //     config.pas("sfdewRE123");
+    //     config.database("test");
+    //     config.trust_cert();
+
+    //     let tcp = TcpStream::connect(config.get_addr()).await?;
+    //     tcp.set_nodelay(true)?;
+    //     let c = Client::connect(config, tcp.compat_write()).await.unwrap();
+    // }
+
     #[tokio::test]
-    async fn test_view() {
+    #[ignore = "reason"]
+
+    async fn test_xxx() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-
-        let _ = db.drop_table("test_view_table", false).await;
-        let _ = db.drop_view("test_view").await;
-        let conn_id = "";
+        let query_id = "";
         db.open_connection("").await.unwrap();
-        let _ = db
-            .execute_sql(
-                conn_id,
-                r#"
-            CREATE TABLE test_view_table (
-                id INT PRIMARY KEY,
-                name VARCHAR(50),
-                age INT,
-                email VARCHAR(100)
-            );
-            INSERT INTO test_view_table (id, name, age, email)
-                VALUES
-                    (1, 'John Doe', 35, 'john.doe@example.com'),
-                    (2, 'Jane Smith', 28, 'jane.smith@example.com'),
-                    (3, 'Bob Johnson', 42, 'bob.johnson@example.com'),
-                    (4, 'Sarah Lee', 31, 'sarah.lee@example.com'),
-                    (5, 'Tom Wilson', 25, 'tom.wilson@example.com');
-            
-        "#,
-            )
-            .await;
-
         db.execute_sql(
-            conn_id,
+            query_id,
             r#"CREATE VIEW test_view AS
                 SELECT
                     id,
@@ -2882,15 +2911,70 @@ mod tests {
                     age,
                     email
                 FROM
-                    test_view_table;
-        "#,
+                    test_view_table"#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_view() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object().await;
+        let _ = db.drop_view("test_view").await;
+        let _ = db.drop_table("test_view_table", false).await;
+        let query_id = "";
+        db.open_connection("").await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"CREATE TABLE test_view_table (
+                id INT PRIMARY KEY,
+                name VARCHAR(50),
+                age INT,
+                email VARCHAR(100)
+            )"#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        db.execute_sql(
+            query_id,
+            r#" INSERT INTO test_view_table (id, name, age, email)
+                VALUES
+                    (1, 'John Doe', 35, 'john.doe@example.com'),
+                    (2, 'Jane Smith', 28, 'jane.smith@example.com'),
+                    (3, 'Bob Johnson', 42, 'bob.johnson@example.com'),
+                    (4, 'Sarah Lee', 31, 'sarah.lee@example.com'),
+                    (5, 'Tom Wilson', 25, 'tom.wilson@example.com')"#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"CREATE VIEW test_view AS
+                SELECT
+                    id,
+                    name,
+                    age,
+                    email
+                FROM
+                    test_view_table"#,
         )
         .await
         .unwrap()
         .unwrap();
 
         let resp = db
-            .show_view("test_view", ShowTableParameter::new_test())
+            .show_view(
+                "test_view",
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -3165,7 +3249,13 @@ FROM sys.sequences;
         .await
         .unwrap();
         let list = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("ret:{:?}", list);
@@ -3221,7 +3311,13 @@ FROM sys.sequences;
         .await
         .unwrap();
         let list = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("ret:{:?}", list);
@@ -3279,7 +3375,13 @@ FROM sys.sequences;
         .await
         .unwrap();
         let list = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("ret:{:?}", list);
@@ -3349,7 +3451,13 @@ FROM sys.sequences;
         .await
         .unwrap();
         let list = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("ret:{:?}", list);

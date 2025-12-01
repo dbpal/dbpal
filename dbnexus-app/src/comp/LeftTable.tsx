@@ -2,7 +2,7 @@ import { ReactNode, useCallback, useContext, useEffect, useRef, useState } from 
 import { modalStyle, tabsHasId, EscDownEvent, modalHandleClose } from "./Common";
 import types from "./ApiStruct";
 import { NotificationContext } from "./Notification";
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
 import ListIcon from "@mui/icons-material/List";
 import EditIcon from "@mui/icons-material/Edit";
@@ -65,7 +65,6 @@ import {
   handleCopyToClipboard,
   MongoTableHandler,
   getSupportExportKind,
-  MuiDataGridData,
   SettingContext,
   RedisTableType,
   SomeTempStore,
@@ -87,6 +86,7 @@ import {
   makeTableDelete,
   makeTableInsertFn,
   makeTableUpdate,
+  showTable,
   showTableColumn,
 } from "./handlers";
 import { filesize } from "filesize";
@@ -300,15 +300,16 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
               value,
             });
           }}
-          loadContent={async () => {
-            return invoke<MuiDataGridData>("show_table", {
-              name: uuid,
-              tableName: table,
-              para: {
+          loadContent={async (statusChannel: Channel<string>) => {
+            return showTable(
+              uuid,
+              table,
+              {
                 page: 0,
                 page_size: 1,
               } as types.ShowTableParameter,
-            }).then(x => {
+              statusChannel,
+            ).then(x => {
               return x.data[0]["result"];
             });
           }}
@@ -318,18 +319,19 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
     case RedisTableType.List:
       tableList = (
         <RedisListTable
-          reloadOP={async () => {
-            return await invoke("show_table", {
-              name: uuid,
-              tableName: table,
-              para: {
+          reloadOP={async (statusChannel: Channel<string>) => {
+            return showTable(
+              uuid,
+              table,
+              {
                 page: 0,
                 page_size: 0,
                 where_str: null,
                 order_by: null,
                 extra: null,
-              } as types.ShowTableParameter,
-            });
+              },
+              statusChannel,
+            );
           }}
           modifyOP={async (index, value) => {
             return await invoke("redis_list_set", {
@@ -354,17 +356,18 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
     case RedisTableType.Set:
       tableList = (
         <RedisSetTable
-          reloadOP={async keyMatch => {
-            return await invoke("show_table", {
-              name: uuid,
-              tableName: table,
-              para: {
+          reloadOP={async (keyMatch, statuschannel: Channel<string>) => {
+            return showTable(
+              uuid,
+              table,
+              {
                 page: 0,
                 page_size: 0,
                 where_str: keyMatch ? keyMatch : null,
                 order_by: null,
               } as types.ShowTableParameter,
-            });
+              statuschannel,
+            );
           }}
           modifyOP={async (old, newValue) => {
             return await invoke("redis_set_replace", {
@@ -418,17 +421,18 @@ function makeRedisViewTable(uuid, table, redisType: RedisTableType) {
     case RedisTableType.Hash:
       tableList = (
         <RedisHashTable
-          reloadOP={async keyMatch => {
-            return await invoke("show_table", {
-              name: uuid,
-              tableName: table,
-              para: {
+          reloadOP={async (keyMatch, statusChannel: Channel<string>) => {
+            return showTable(
+              uuid,
+              table,
+              {
                 page: 0,
                 page_size: 0,
                 where_str: keyMatch ? keyMatch : null,
                 order_by: null,
               } as types.ShowTableParameter,
-            });
+              statusChannel,
+            );
           }}
           delOP={async member => {
             return await invoke("redis_hash_del", {

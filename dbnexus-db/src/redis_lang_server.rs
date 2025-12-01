@@ -1322,7 +1322,7 @@ mod tests {
         let db = make_test_object().await;
         let x = db.ai_text_completion("str", 1, 2).await.unwrap();
         for i in x.items.iter() {
-            println!("!!!!!!!!!!!!!!!:{:?}", i);
+            println!("{:?}", i);
         }
     }
 }

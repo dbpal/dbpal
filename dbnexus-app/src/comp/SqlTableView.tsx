@@ -99,7 +99,8 @@ import {
 import { editor, Position } from "monaco-editor";
 import wcmatch from "wildcard-match";
 import { MdEditNote } from "react-icons/md";
-import { SimpleFlexEditor } from "./CommonComp2";
+import { showProgressingStatus, SimpleFlexEditor } from "./CommonComp2";
+import { Channel } from "@tauri-apps/api/core";
 
 const confirmAboutPrimary = async (
   notWarnPri: boolean,
@@ -162,6 +163,11 @@ function SetFilterSort(props: {
     loadFilter();
   }, [isFilter, loadFilter]);
 
+  const formatarg = {
+    tabSize: setting.editor.tabSize,
+    insertSpaces: true,
+  };
+
   const handleSet = async () => {
     try {
       let value = await extractFn(editor.getValue());
@@ -196,7 +202,7 @@ function SetFilterSort(props: {
               isFilter
                 ? `SELECT * FROM ${tableName} WHERE ${value}`
                 : `SELECT * FROM ${tableName} ORDER BY ${value}`,
-              { tabSize: setting.editor.tabSize, insertSpaces: true },
+              formatarg,
             ) + " "
           }
           handleEditor={e => {
@@ -248,7 +254,10 @@ function SetFilterSort(props: {
               freeSolo={false}
               onChange={async (_, value) => {
                 editor.setValue(
-                  makeFormatFn(kind)(`SELECT * FROM ${tableName} WHERE ${value}`),
+                  makeFormatFn(kind)(
+                    `SELECT * FROM ${tableName} WHERE ${value}`,
+                    formatarg,
+                  ),
                 );
                 setSelectFilter(value);
               }}
@@ -352,6 +361,7 @@ function SqlTableView_(props: {
     page: number,
     pageSize: number,
     extra: types.ShowTableExtraArgs,
+    status: Channel<string>,
   ) => Promise<MuiDataGridData>;
   updateOP?: (wheres: object, values: object) => Promise<types.SqlExecuteRet>;
   deleteOP?: (wheres: object) => Promise<types.SqlExecuteRet>;
@@ -456,12 +466,16 @@ function SqlTableView_(props: {
             extra = { extra: "cassandra", allow_filtering: allowFiltering };
             break;
         }
+        const c = new Channel<string>(e => {
+          showProgressingStatus(showNotification, e);
+        });
         const resp = await reloadOP(
           where.trim(),
           sort.trim(),
           page + 1,
           pageSize,
           extra,
+          c,
         );
         await handleResp(resp);
         resp.fields.forEach(field => {

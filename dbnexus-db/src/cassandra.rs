@@ -33,8 +33,8 @@ use crate::db::{
     Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
     POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
     SchemaTrait, ServerMetas, ShowTableExtraArgs, ShowTableParameter, SqlBuilder, SqlExecuteRet,
-    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
-    escape_sql_str, export_query_as_xlsx_send_data,
+    StatusEmiter, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data,
 };
 
 use crate::helper::{create_csv, current_timestamp};
@@ -914,11 +914,17 @@ impl QuerySql for CassandraDB {
         &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         self.invalid_table_or_view_caching(None);
+        emit(QueryEvent::new_status("trying lock connection."));
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("query connection closed???"),
         };
+        emit(QueryEvent::new_status("locked connection."));
         for sql in sql_to_each(sql) {
+            emit(QueryEvent::new_status(format!(
+                "try to execute sql: {}",
+                sql
+            )));
             match conn.query(&sql).await {
                 Ok(x) => {
                     let body = x.response_body()?;
@@ -1619,7 +1625,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter,
+        &self, table_name: &str, para: ShowTableParameter, _status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         let mut ret = self
             .page_caching_show(
@@ -1644,11 +1650,9 @@ impl SchemaTrait for CassandraDB {
             });
         }
         let mut m = HashMap::new();
-
         fields.iter().for_each(|x| {
             m.insert(x.field.clone(), x);
         });
-
         ret.fields.iter_mut().for_each(|field| {
             let f = m.get(&field.field);
             if let Some(f) = f {
@@ -1791,9 +1795,9 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter,
+        &self, view_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
-        self.show_table(view_name, para).await
+        self.show_table(view_name, para, status_emit).await
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -2366,7 +2370,13 @@ mod tests {
         .unwrap();
 
         let resp = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2427,7 +2437,13 @@ mod tests {
         db.duplicate_table(table_name, table_dup).await.unwrap();
 
         let resp = db
-            .show_table(table_dup, ShowTableParameter::new_test())
+            .show_table(
+                table_dup,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2510,7 +2526,13 @@ mod tests {
 
         {
             let resp = db
-                .show_table(table_name, ShowTableParameter::new_test())
+                .show_table(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await;
             println!("resp:{:?}", resp);
         }
@@ -2604,7 +2626,13 @@ mod tests {
 
         {
             let resp = db
-                .show_table(table_name, ShowTableParameter::new_test())
+                .show_table(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await;
 
             println!("resp:{:?}", resp);
@@ -2700,7 +2728,13 @@ mod tests {
 
         {
             let resp = db
-                .show_table(table_name, ShowTableParameter::new_test())
+                .show_table(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await;
 
             println!("resp:{:?}", resp);
@@ -2799,7 +2833,13 @@ mod tests {
 
         {
             let resp = db
-                .show_table(table_name, ShowTableParameter::new_test())
+                .show_table(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await;
 
             println!("resp:{:?}", resp);
@@ -2898,7 +2938,13 @@ mod tests {
 
         {
             let resp = db
-                .show_table(table_name, ShowTableParameter::new_test())
+                .show_table(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await;
 
             println!("resp:{:?}", resp);
@@ -3000,7 +3046,13 @@ mod tests {
 
         {
             let resp = db
-                .show_table(table_name, ShowTableParameter::new_test())
+                .show_table(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await;
 
             println!("resp:{:?}", resp);
@@ -3085,7 +3137,13 @@ mod tests {
 
         {
             let resp = db
-                .show_table(table_name, ShowTableParameter::new_test())
+                .show_table(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await;
 
             println!("resp:{:?}", resp);
@@ -3225,6 +3283,9 @@ mod tests {
                     page_size: 100,
                     extra: None,
                 },
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
             )
             .await
             .unwrap();
@@ -3433,7 +3494,13 @@ mod tests {
         println!("view list:{:?}", list);
         {
             let resp = db
-                .show_view(view_name, ShowTableParameter::new_test())
+                .show_view(
+                    view_name,
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await
                 .unwrap();
             println!("resp:{:?}", resp);

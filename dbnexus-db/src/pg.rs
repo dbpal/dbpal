@@ -18,8 +18,8 @@ use crate::db::{
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlExecuteRet, TimeEmit, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    ShowTableParameter, SqlBuilder, SqlExecuteRet, StatusEmiter, TimeElapsed, TriggerDetail,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
     create_html_table_header, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
@@ -1237,7 +1237,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter,
+        &self, view_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         let ShowTableParameter {
             where_str,
@@ -1246,9 +1246,8 @@ impl SchemaTrait for PostGresDB {
             page_size,
             ..
         } = &para;
-
+        status_emit("trying to query total amount.".into());
         let total = self.query_count(view_name, where_str.as_deref()).await?;
-
         let sql = gen_show_sql(
             self.config.schema_str()?,
             view_name,
@@ -1258,16 +1257,21 @@ impl SchemaTrait for PostGresDB {
             *page_size,
         );
         log::info!("sql:{}", sql);
+        status_emit("trying to get connection.".into());
         let mut conn = self.get_conn().await?;
+        status_emit("trying to query data.".to_owned());
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
 
         if rows.is_empty() {
             let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
+            return anyhow::Ok(QueryResp {
+                fields: f,
+                total: 0,
+                ..Default::default()
+            });
         }
-
         let data = encode_rows(&rows)?;
         let fields = get_rows_types(&rows[0]);
         anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
@@ -1537,7 +1541,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter,
+        &self, table_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         let ShowTableParameter {
             where_str,
@@ -1546,6 +1550,7 @@ impl SchemaTrait for PostGresDB {
             page_size,
             ..
         } = &para;
+        status_emit("trying to query total amount.".into());
         let total = self.query_count(table_name, where_str.as_deref()).await?;
         let sql = gen_show_sql(
             self.config.schema_str()?,
@@ -1556,11 +1561,14 @@ impl SchemaTrait for PostGresDB {
             *page_size,
         );
         log::info!("sql:{}", sql);
+        status_emit("trying to get connection.".into());
         let mut conn = self.get_conn().await?;
+        status_emit("trying to query data.".into());
         let row = sqlx::query(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
+        status_emit("trying to encode data.".into());
         let data = encode_rows(&row)?;
         let fields = self.show_table_columns(table_name).await?;
         anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
@@ -1808,12 +1816,7 @@ fn get_rows_types(row: &PgRow) -> Vec<Field> {
         ret.push(Field {
             field: c.name().to_string(),
             data_type: c.type_info().to_string(),
-            nullable: true,
-            default_value: None,
-            is_primary: false,
-            is_auto_increment: false,
-            sortable: true,
-            firebird_binary_sub_type: None,
+            ..Default::default()
         });
     }
     ret
@@ -2084,6 +2087,7 @@ impl QuerySql for PostGresDB {
         &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
+        emit(QueryEvent::new_status("trying to lock connection."));
         let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
@@ -2091,11 +2095,13 @@ impl QuerySql for PostGresDB {
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
+        emit(QueryEvent::new_status("locked connection."));
+        emit(QueryEvent::new_status("trying to query."));
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
         let mut has_result = false;
         let mut rows = Vec::new();
         let mut emit_fields = vec![];
-        let mut timeemit = TimeEmit::new(Duration::from_millis(50));
+        let mut timeelapsed = TimeElapsed::new();
         while let Some(item) = stream.next().await {
             let item = match item {
                 Ok(x) => x,
@@ -2126,7 +2132,7 @@ impl QuerySql for PostGresDB {
                         emit_fields = fields;
                     }
                     rows.push(row);
-                    if rows.len() >= self.query_buffer_size() || timeemit.add(0) {
+                    if rows.len() >= self.query_buffer_size() || timeelapsed.elapsed() {
                         let data = encode_rows(&std::mem::take(&mut rows))?;
                         emit(data.into());
                     }
@@ -2309,8 +2315,9 @@ mod tests {
         CheckConn, ColumnType, DBTrait, ExportKind, ExportQueryResult, IndexKind, QuerySql,
         SchemaTrait, ServerMetas, ShowTableParameter, UdfOrProcedureExtraParameter,
     };
+    #[allow(unused_imports)]
     use crate::enable_test_log;
-    use std::collections::HashMap;
+    use std::{collections::HashMap, sync::Arc};
 
     #[tokio::test]
     async fn test_list_created_types() {
@@ -2335,7 +2342,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_procedure() {
-        enable_test_log();
         let db = make_test_object().await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
@@ -2384,7 +2390,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_view() {
-        enable_test_log();
         let db = make_test_object().await;
         let _ = db.drop_view("test_view").await;
         let _ = db.drop_table("test_view_table", true).await;
@@ -2415,7 +2420,13 @@ mod tests {
         let list = db.list_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
-                .show_view(&l.name, ShowTableParameter::new_test())
+                .show_view(
+                    &l.name,
+                    ShowTableParameter::new_stupid_test("name asc"),
+                    Arc::new(|x| {
+                        println!("{:?}", x);
+                    }),
+                )
                 .await
                 .unwrap();
             println!("resp:{:?}", table_resp);
@@ -2424,7 +2435,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_materialized_view() {
-        enable_test_log();
         let db = make_test_object().await;
         let _ = db.drop_materialized_view("test_material_view").await;
         let _ = db.drop_table("test_material_view_table", true).await;
@@ -2454,7 +2464,13 @@ mod tests {
         let list = db.list_materialized_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
-                .show_view(&l.name, ShowTableParameter::new_test())
+                .show_view(
+                    &l.name,
+                    ShowTableParameter::new_stupid_test("name asc"),
+                    Arc::new(|x| {
+                        println!("{:?}", x);
+                    }),
+                )
                 .await
                 .unwrap();
             println!("resp:{:?}", table_resp);
@@ -2498,9 +2514,15 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("test_rename2", ShowTableParameter::new_test())
-            .await
-            .unwrap();
+        db.show_table(
+            "test_rename2",
+            ShowTableParameter::new_stupid_test("name asc"),
+            Arc::new(|x| {
+                println!("{:?}", x);
+            }),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -2536,7 +2558,13 @@ mod tests {
             .unwrap();
 
         let resp = db
-            .show_table("test_duplicate2", ShowTableParameter::new_test())
+            .show_table(
+                "test_duplicate2",
+                ShowTableParameter::new_stupid_test("data asc"),
+                Arc::new(|x| {
+                    println!("{:?}", x);
+                }),
+            )
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
@@ -2644,7 +2672,7 @@ mod tests {
         let db = make_test_object().await;
 
         //
-        let _ = db.drop_table("test_create_trigger", false).await;
+        let _ = db.drop_table("test_create_trigger", true).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
@@ -2660,7 +2688,7 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        let _ = db.drop_table("test_create_trigger_update", false).await;
+        let _ = db.drop_table("test_create_trigger_update", true).await;
 
         db.execute_sql(
             query_id,
@@ -2675,6 +2703,14 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
+        let _ = db
+            .drop_udf(
+                "trigger_insert_test_create_trigger",
+                Some(UdfOrProcedureExtraParameter::PostGres {
+                    parameters: "".into(),
+                }),
+            )
+            .await;
 
         db.execute_sql(
             query_id,
@@ -2760,10 +2796,16 @@ mod tests {
         db.rollback(query_id).await.unwrap();
 
         assert!(
-            db.show_table(table_name, ShowTableParameter::new_test())
-                .await
-                .unwrap()
-                .total
+            db.show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                })
+            )
+            .await
+            .unwrap()
+            .total
                 == 0
         );
         db.set_auto_commit(query_id, false).await.unwrap();
@@ -2780,17 +2822,22 @@ mod tests {
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(table_name, ShowTableParameter::new_test())
-                .await
-                .unwrap()
-                .total
+            db.show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                })
+            )
+            .await
+            .unwrap()
+            .total
                 == 1
         );
     }
 
     #[tokio::test]
     async fn test_sequence() {
-        enable_test_log();
         let db = make_test_object().await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
@@ -2933,7 +2980,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types1() {
-        // enable_test_log();
+        //
         let table_name = "test_types1";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
@@ -2972,7 +3019,13 @@ mod tests {
         values.insert("int4_column".to_string(), Some("100".to_string()));
         pg.table_insert(table_name, values.clone()).await.unwrap();
         let x = pg
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("bool_column asc"),
+                Arc::new(|x| {
+                    println!("{:?}", x);
+                }),
+            )
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3024,7 +3077,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types2() {
-        // enable_test_log();
+        //
         let table_name = "test_types2";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
@@ -3086,7 +3139,13 @@ mod tests {
         pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3196,7 +3255,6 @@ mod tests {
     }
     #[tokio::test]
     async fn test_types3() {
-        enable_test_log();
         let pg = make_test_object().await;
         let table_name = "test_types3";
         let _ = pg.drop_table(table_name, false).await;
@@ -3248,7 +3306,13 @@ mod tests {
         pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("macaddr_column asc"),
+                Arc::new(|s| {
+                    println!("{:?}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3300,7 +3364,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types4() {
-        // enable_test_log();
+        //
         let table_name = "test_types4";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
@@ -3346,7 +3410,13 @@ mod tests {
         pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("int2_array_column asc"),
+                Arc::new(|x| {
+                    println!("{:?}", x);
+                }),
+            )
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3398,7 +3468,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_types5() {
-        enable_test_log();
         let table_name = "test_types5";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
@@ -3466,7 +3535,13 @@ mod tests {
         pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3518,7 +3593,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_types6() {
-        enable_test_log();
         let table_name = "test_types6";
         let pg = make_test_object().await;
 
@@ -3581,7 +3655,13 @@ mod tests {
         pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("col_time asc"),
+                Arc::new(|x| {
+                    println!("{:?}", x);
+                }),
+            )
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3633,7 +3713,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types7() {
-        // enable_test_log();
+        //
         let table_name = "test_types7";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
@@ -3679,7 +3759,13 @@ mod tests {
         );
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("interval_col asc"),
+                Arc::new(|x| {
+                    println!("{:?}", x);
+                }),
+            )
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3731,7 +3817,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_types8() {
-        enable_test_log();
         let table_name = "test_types8";
         let pg = make_test_object().await;
 
@@ -3770,7 +3855,13 @@ mod tests {
         values.insert("numeric_column".to_string(), Some("123.45".to_string()));
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test(None),
+                Arc::new(|x| {
+                    println!("{:?}", x);
+                }),
+            )
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3822,7 +3913,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_types9() {
-        enable_test_log();
         let table_name = "test_types9";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
@@ -3880,7 +3970,13 @@ mod tests {
 
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("uuid_column asc"),
+                Arc::new(|x| {
+                    println!("{:?}", x);
+                }),
+            )
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3932,7 +4028,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_types10() {
-        enable_test_log();
         let table_name = "test_types10";
         let pg = make_test_object().await;
 
@@ -3982,7 +4077,13 @@ mod tests {
 
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("num_range asc"),
+                Arc::new(|x| {
+                    println!("{:?}", x);
+                }),
+            )
             .await
             .unwrap();
         println!("{:?}", x);
@@ -4034,7 +4135,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_types11() {
-        // enable_test_log();
+        //
         let table_name = "test_types11";
         let pg = make_test_object().await;
         let _ = pg.drop_table(table_name, false).await;
@@ -4093,7 +4194,13 @@ mod tests {
         );
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("{:?}", x);

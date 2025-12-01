@@ -1,4 +1,4 @@
-use crate::db::{ListTable, QueryResp, SchemaTrait, ShowTableParameter};
+use crate::db::{ListTable, QueryResp, SchemaTrait, ShowTableParameter, StatusEmiter};
 use crate::pg::PostGresDB;
 use crate::pg_format::encode_rows;
 #[cfg(test)]
@@ -94,7 +94,7 @@ pub(crate) const COCKROACH_TYPES: &[&str] = &[
 
 impl PostGresDB {
     pub(crate) async fn cock_roach_show_table(
-        &self, table_name: &str, para: ShowTableParameter,
+        &self, table_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         let ShowTableParameter {
             where_str,
@@ -104,8 +104,10 @@ impl PostGresDB {
             extra: _,
         } = &para;
 
+        status_emit("trying to query columns".into());
         let fields = self.show_table_columns(table_name).await?;
         let cols = fields.iter().map(|x| x.field.as_str()).collect::<Vec<_>>();
+        status_emit("trying to query total".into());
         let total = self.query_count(table_name, where_str.as_deref()).await?;
         let sql = gen_show_sql(
             self.config.schema_str()?,
@@ -117,13 +119,14 @@ impl PostGresDB {
             *page_size,
         );
         log::info!("sql:{}", sql);
+        status_emit("trying to query data".into());
         let mut conn = self.get_conn().await?;
         let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
+        status_emit("encodeing data,about to retrun.".to_owned());
         let data = encode_rows(&row)?;
-
         anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
@@ -166,6 +169,7 @@ mod tests {
 
     use crate::enable_test_log;
     use std::collections::HashMap;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_transaction() {
@@ -202,10 +206,16 @@ mod tests {
         db.rollback(query_id).await.unwrap();
 
         assert!(
-            db.show_table(table_name, ShowTableParameter::new_test())
-                .await
-                .unwrap()
-                .total
+            db.show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                })
+            )
+            .await
+            .unwrap()
+            .total
                 == 0
         );
         db.set_auto_commit(query_id, false).await.unwrap();
@@ -222,10 +232,16 @@ mod tests {
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(table_name, ShowTableParameter::new_test())
-                .await
-                .unwrap()
-                .total
+            db.show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                })
+            )
+            .await
+            .unwrap()
+            .total
                 == 1
         );
     }
@@ -376,9 +392,15 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("test_rename2", ShowTableParameter::new_test())
-            .await
-            .unwrap();
+        db.show_table(
+            "test_rename2",
+            ShowTableParameter::new_stupid_test("id asc"),
+            Arc::new(|s| {
+                println!("{}", s);
+            }),
+        )
+        .await
+        .unwrap();
     }
     #[tokio::test]
     async fn test_duplicate() {
@@ -411,7 +433,13 @@ mod tests {
             .unwrap();
 
         let resp = db
-            .show_table("test_duplicate2", ShowTableParameter::new_test())
+            .show_table(
+                "test_duplicate2",
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         assert_eq!(resp.data.len(), 5);
@@ -485,7 +513,13 @@ mod tests {
         let list = db.list_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
-                .show_view(&l.name, ShowTableParameter::new_test())
+                .show_view(
+                    &l.name,
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await
                 .unwrap();
             println!("resp:{:?}", table_resp);
@@ -524,7 +558,13 @@ mod tests {
         let list = db.list_materialized_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
-                .show_view(&l.name, ShowTableParameter::new_test())
+                .show_view(
+                    &l.name,
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await
                 .unwrap();
             println!("resp:{:?}", table_resp);

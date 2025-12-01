@@ -331,7 +331,7 @@ mod tests {
     use std::path::Path;
 
     use crate::clickhouse::make_test_object;
-    use crate::db::QuerySql;
+    use crate::db::{QuerySql, SchemaTrait};
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
 
@@ -342,12 +342,13 @@ mod tests {
         // enable_test_log();
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
+        let _ = db.drop_table("employees", false).await;
+        db.execute_sql(
+            query_id,
+            r#"
                 CREATE TABLE employees (
                     id UInt32,
+                    employee_id UInt32,
                     first_name String,
                     last_name String,
                     position String,
@@ -357,9 +358,10 @@ mod tests {
                 ) ENGINE = MergeTree()
                 ORDER BY employee_id;
             "#,
-            )
-            .await
-            .unwrap();
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let _ = db
             .execute_sql(

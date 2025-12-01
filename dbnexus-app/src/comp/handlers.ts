@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import types from "./ApiStruct";
 import {
   DataSourceKind,
@@ -34,12 +34,14 @@ function makeShowTableFn(uuid: string, table: string) {
     page: number,
     pageSize: number,
     extra,
+    statusChannel: Channel<string>,
   ) => {
     const where_null = where ? where : null;
     const orderBy_null = orderBy ? orderBy : null;
     return await invoke<MuiDataGridData>("show_table", {
       name: uuid,
       tableName: table,
+      statusChannel,
       para: {
         where_str: where_null,
         order_by: orderBy_null,
@@ -70,6 +72,7 @@ function makeShowViewFn(uuid: string, view: string) {
     page: number,
     pageSize: number,
     extra,
+    statusChannel: Channel<string>,
   ) => {
     const where_null = where ? where : null;
     const orderBy_null = orderBy ? orderBy : null;
@@ -83,6 +86,7 @@ function makeShowViewFn(uuid: string, view: string) {
         page_size: pageSize,
         extra,
       } as types.ShowTableParameter,
+      statusChannel,
     });
   };
 }
@@ -348,6 +352,20 @@ async function checkSql(uuid: string, sql: string) {
   }
 }
 
+function showTable(
+  uuid: string,
+  table: string,
+  para: types.ShowTableParameter,
+  statusChannel: Channel<string>,
+) {
+  return invoke<MuiDataGridData>("show_table", {
+    name: uuid,
+    tableName: table,
+    para,
+    statusChannel,
+  });
+}
+
 export {
   makeExtractTableSelectWhere,
   makeExtractTableSelectSort,
@@ -385,4 +403,5 @@ export {
   tryGetMaxID,
   cancelTask,
   checkSql,
+  showTable,
 };

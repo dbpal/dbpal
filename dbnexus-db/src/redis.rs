@@ -18,7 +18,7 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind,
     ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlExecuteRet, XlsxEdit, create_html_table_data,
+    SqlExecuteRet, StatusEmiter, XlsxEdit, create_html_table_data,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 
@@ -284,7 +284,7 @@ fn to_json_value(x: Vec<u8>) -> serde_json::Value {
     }
 }
 
-fn escape_string(s: &str) -> String {
+fn escape_string_in_single_quote(s: &str) -> String {
     s.replace("'", "\\'").replace("\n", "\\n")
 }
 
@@ -638,7 +638,7 @@ impl RedisDB {
                     .send(Cow::Owned(format!(
                         "SET {} '{}'\n",
                         key,
-                        escape_string(x.as_str())
+                        escape_string_in_single_quote(x.as_str())
                     )))
                     .await?;
             }
@@ -654,7 +654,7 @@ impl RedisDB {
                             .send(Cow::Owned(format!(
                                 "RPUSH {} '{}'\n",
                                 key,
-                                escape_string(l)
+                                escape_string_in_single_quote(l)
                             )))
                             .await?;
                     }
@@ -668,7 +668,7 @@ impl RedisDB {
                         .send(Cow::Owned(format!(
                             "SADD {} '{}'\n",
                             key,
-                            escape_string(value.as_str())
+                            escape_string_in_single_quote(value.as_str())
                         )))
                         .await?;
                 }
@@ -687,7 +687,7 @@ impl RedisDB {
                             "HMSET {} {} '{}'\n",
                             key,
                             kv[0],
-                            escape_string(kv[1].as_str())
+                            escape_string_in_single_quote(kv[1].as_str())
                         )))
                         .await?;
                 }
@@ -701,12 +701,13 @@ impl RedisDB {
                         let v = v?;
                         kv.push(v);
                     }
+                    // ZADD myzset 1 "uno"
                     sender
                         .send(Cow::Owned(format!(
                             "ZADD {} {} '{}'\n",
                             key,
                             kv[1],
-                            escape_string(kv[0].as_str())
+                            escape_string_in_single_quote(kv[0].as_str())
                         )))
                         .await?;
                 }
@@ -1246,7 +1247,10 @@ impl SchemaTrait for RedisDB {
         }
     }
 
-    async fn show_table(&self, key: &str, para: ShowTableParameter) -> anyhow::Result<QueryResp> {
+    async fn show_table(
+        &self, key: &str, para: ShowTableParameter, status_emit: StatusEmiter,
+    ) -> anyhow::Result<QueryResp> {
+        status_emit("trying to get connetion.".to_owned());
         let mut conn = self.get_conn().await?;
         let ShowTableParameter { where_str, .. } = &para;
         let typ = Self::get_key_type(&mut conn, key).await?;
@@ -1259,26 +1263,28 @@ impl SchemaTrait for RedisDB {
                     vec![ret.map(|x| hex::encode(x.as_slice()))],
                 ))
             }
-
             RedisType::List => {
+                status_emit("trying to get list.".to_owned());
                 let r: Vec<Vec<u8>> = conn.lrange(key, 0, -1).await?;
-                anyhow::Ok(QueryResp::new(
-                    vec![
+                anyhow::Ok(QueryResp {
+                    fields: vec![
                         Field::from_name_type("seq", "int"),
                         Field::from_name_type("value", "string"),
                     ],
-                    r.len(),
-                    r.into_iter()
+                    total: r.len(),
+                    data: r
+                        .into_iter()
                         .enumerate()
                         .map(|(seq, r)| {
                             vec![Some(seq.to_string()), Some(hex::encode(r.as_slice()))]
                         })
                         .collect(),
-                    None,
-                )?)
+                    ..Default::default()
+                })
             }
 
             RedisType::Set => {
+                status_emit("tring to query amount".into());
                 let total: usize = conn.scard(key).await?;
                 let mut ret: AsyncIter<Vec<u8>> = conn
                     .sscan_match(key, where_str.clone().unwrap_or("*".to_string()))
@@ -1300,9 +1306,8 @@ impl SchemaTrait for RedisDB {
                         .into_iter()
                         .map(|x| vec![Some(hex::encode(x.as_slice()))])
                         .collect(),
-                    sql: None,
-                    cache_time: None,
                     has_more,
+                    ..Default::default()
                 })
             }
             RedisType::Hash => {
@@ -1585,7 +1590,7 @@ impl QuerySql for RedisDB {
             emit(
                 QueryResp {
                     fields: vec![Field::from_name_type(
-                        format!("query reslt of '{}'", c.join(" ")),
+                        format!("query result of '{}'", c.join(" ")),
                         "",
                     )],
                     ..Default::default()
@@ -2174,13 +2179,13 @@ mod tests {
 
     #[test]
     fn test_escape_string() {
-        assert_eq!(escape_string("aaa'",), "aaa\'");
+        assert_eq!(escape_string_in_single_quote("aaa'",), "aaa\\'");
         assert_eq!(
-            escape_string(
+            escape_string_in_single_quote(
                 r#"aaa'
 "#
             ),
-            "aaa\'\\n"
+            "aaa\\'\\n"
         );
     }
 
@@ -2419,7 +2424,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2431,7 +2442,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(&table_name_dup, ShowTableParameter::new_test())
+            .show_table(
+                &table_name_dup,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         assert_eq!(resp, resp2);
@@ -2583,7 +2600,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2594,7 +2617,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(&table_name_dup, ShowTableParameter::new_test())
+            .show_table(
+                &table_name_dup,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         assert_eq!(resp, resp2);
@@ -2661,7 +2690,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2672,7 +2707,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(&table_name_dup, ShowTableParameter::new_test())
+            .show_table(
+                &table_name_dup,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         assert_eq!(resp, resp2);
@@ -2742,7 +2783,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2754,7 +2801,13 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(&table_name_dup, ShowTableParameter::new_test())
+            .show_table(
+                &table_name_dup,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         assert_eq!(resp, resp2);

@@ -18,6 +18,7 @@ import {
   Autocomplete,
   Box,
   Button,
+  CircularProgress,
   FormControlLabel,
   IconButton,
   ListItemIcon,
@@ -846,6 +847,16 @@ function CancelButton({ handleCancel }) {
     </IconButton>
   );
 }
+function showProgressingStatus(showNotification, status: string) {
+  showNotification(
+    "info",
+    "server is doing this.",
+    <Stack direction="row">
+      <CircularProgress />
+      <Typography color="info"> {status} </Typography>
+    </Stack>,
+  );
+}
 
 export {
   CreateDatabase,
@@ -860,4 +871,5 @@ export {
   syntaxHightLightTheme,
   SaveFavoriteSqlView,
   CancelButton,
+  showProgressingStatus,
 };

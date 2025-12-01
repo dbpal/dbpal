@@ -216,7 +216,7 @@ pub trait LexerCompletionTrait: LangServerCommon {
         ret.extend(
             self.get_types()
                 .await
-                .map_err(|e| log::error!("get types faied,err:{}", e))
+                .map_err(|e| log::error!("get types failed,err:{}", e))
                 .unwrap_or_default()
                 .into_iter()
                 .map(|x| CompletionItem {

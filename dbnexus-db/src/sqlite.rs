@@ -19,8 +19,9 @@ use crate::db::{
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
-    TimeEmit, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, create_html_table_data,
-    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
+    StatusEmiter, TimeElapsed, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
+    create_html_table_data, create_html_table_header, escape_sql_str,
+    export_query_as_xlsx_send_data, not_support_feature,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
@@ -879,7 +880,7 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter,
+        &self, table_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         let ShowTableParameter {
             where_str,
@@ -889,6 +890,7 @@ impl SchemaTrait for SqliteDB {
             ..
         } = &para;
         log::trace!("begin to show table");
+        status_emit("trying to get total amount.".into());
         let total = self.query_count(table_name, where_str.as_deref()).await?;
         log::trace!("query count ok");
         let sql = gen_show_sql(
@@ -900,22 +902,23 @@ impl SchemaTrait for SqliteDB {
         );
 
         log::info!("show table sql:{}", sql);
+        status_emit("trying to get connection.".into());
         let mut conn = self.get_conn().await?;
         let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
-
+        status_emit("query dont trying to make result.".into());
         let data = encode_rows(&row)?;
-
         log::trace!("encode rows ok");
+        status_emit("trying to query columns.".into());
         let fields = self.show_table_columns(table_name).await?;
         log::trace!("list columns ok");
         anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter,
+        &self, view_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         let ShowTableParameter {
             where_str,
@@ -924,7 +927,9 @@ impl SchemaTrait for SqliteDB {
             page_size,
             ..
         } = &para;
+        status_emit("trying to get connection.".into());
         let mut conn = self.get_conn().await?;
+        status_emit("trying to query total amount.".into());
         let total = self.query_count(view_name, where_str.as_deref()).await?;
         let sql = gen_show_sql(
             view_name,
@@ -934,13 +939,19 @@ impl SchemaTrait for SqliteDB {
             *page_size,
         );
         log::info!("show table sql:{}", sql);
+        status_emit("trying to query data.".into());
         let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
             .fetch_all(conn.deref_mut())
             .await?;
         if rows.is_empty() {
             let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
+            return anyhow::Ok(QueryResp {
+                fields: f,
+                total,
+                ..Default::default()
+            });
         }
+        status_emit("make result,about to return.".into());
         let data = encode_rows(&rows)?;
         let fields = get_row_types(&rows[0]);
         anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
@@ -1511,7 +1522,7 @@ impl QuerySql for SqliteDB {
         emit(QueryEvent::Status("get response ok.".into()));
         let mut rows = Vec::new();
         let mut emit_fields = Vec::new();
-        let mut timeemit = TimeEmit::new(Duration::from_millis(50));
+        let mut timeelapsed = TimeElapsed::new();
         let mut has_result = false;
         while let Some(item) = stream.next().await {
             let item = match item {
@@ -1521,7 +1532,6 @@ impl QuerySql for SqliteDB {
                     break;
                 }
             };
-            has_result = true;
             match item {
                 sqlx::Either::Left(row_aff) => {
                     println!("row affected: {:?}", row_aff);
@@ -1544,7 +1554,7 @@ impl QuerySql for SqliteDB {
                         emit_fields = fields;
                     }
                     rows.push(row);
-                    if rows.len() >= self.query_buffer_size() && timeemit.add(0) {
+                    if rows.len() >= self.query_buffer_size() && timeelapsed.elapsed() {
                         let data = encode_rows(&rows)?;
                         emit(data.into());
                         rows.clear();
@@ -1650,20 +1660,6 @@ mod tests {
 
         // println!("{:?}", x);
         println!("time used:{:?}", std::time::Instant::now() - now);
-    }
-    #[tokio::test]
-    async fn test_show_xxx() {
-        let db = make_test_object().await;
-        let r = db
-            .show_table("Persons", ShowTableParameter::new_test())
-            .await
-            .unwrap();
-        for c in r.fields.iter() {
-            println!("{:?}", c);
-        }
-        for d in r.data.iter() {
-            println!("{:?}", d);
-        }
     }
 
     #[tokio::test]
@@ -1839,10 +1835,16 @@ mod tests {
         db.rollback(query_id).await.unwrap();
 
         assert!(
-            db.show_table(table_name, ShowTableParameter::new_test())
-                .await
-                .unwrap()
-                .total
+            db.show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                })
+            )
+            .await
+            .unwrap()
+            .total
                 == 0
         );
         db.set_auto_commit(query_id, false).await.unwrap();
@@ -1861,10 +1863,16 @@ mod tests {
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(table_name, ShowTableParameter::new_test())
-                .await
-                .unwrap()
-                .total
+            db.show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                })
+            )
+            .await
+            .unwrap()
+            .total
                 == 1
         );
     }
@@ -1953,9 +1961,15 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("test_rename2", ShowTableParameter::new_test())
-            .await
-            .unwrap();
+        db.show_table(
+            "test_rename2",
+            ShowTableParameter::new_stupid_test("id asc"),
+            Arc::new(|s| {
+                println!("{}", s);
+            }),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -1981,9 +1995,15 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("test_duplicate2", ShowTableParameter::new_test())
-            .await
-            .unwrap();
+        db.show_table(
+            "test_duplicate2",
+            ShowTableParameter::new_stupid_test("id asc"),
+            Arc::new(|s| {
+                println!("{}", s);
+            }),
+        )
+        .await
+        .unwrap();
     }
     #[tokio::test]
     async fn test_triggers() {
@@ -2211,7 +2231,13 @@ mod tests {
         let db = make_test_object().await;
 
         let r = db
-            .show_table("documents", ShowTableParameter::new_test())
+            .show_table(
+                "documents",
+                ShowTableParameter::new_stupid_test("title asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
 
@@ -2274,7 +2300,13 @@ mod tests {
         println!("{:?}", r);
 
         let cols = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("{:?}", cols);
@@ -2310,7 +2342,13 @@ mod tests {
         let views = db.list_view().await.unwrap();
         for v in views.iter() {
             let list = db
-                .show_view(v.name.as_str(), ShowTableParameter::new_test())
+                .show_view(
+                    v.name.as_str(),
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await
                 .unwrap();
             println!("view value:{:?}", list);

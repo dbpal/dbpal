@@ -1395,7 +1395,7 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter,
+        &self, table_name: &str, para: ShowTableParameter, status_emit: ShowTableStatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         let total = self.query_count(table_name, where_str.clone())?;
         let sql = gen_show_sql(

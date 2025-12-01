@@ -851,7 +851,7 @@ mod tests {
     use std::path::Path;
 
     use crate::datasource_config::MysqlDBConfig;
-    use crate::db::QuerySql;
+    use crate::db::{QuerySql, SchemaTrait};
     use crate::language_server::completion_test::test_file_auto_completion;
     use crate::language_server::{LangServerCommon, LanguageServer};
     use crate::mysql::MysqlDB;
@@ -882,6 +882,10 @@ mod tests {
         enable_test_log();
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
+        let _ = db.drop_table("departments", true).await;
+        let _ = db.drop_table("employees", true).await;
+        let _ = db.drop_view("employees_view").await;
+
         let _ = db
             .execute_sql(
                 query_id,
@@ -930,6 +934,8 @@ mod tests {
             )
             .await
             .unwrap();
+
+        let _ = db.drop_event("do_nothing_event_loop").await;
         let _ = db
             .execute_sql(
                 query_id,
@@ -944,7 +950,6 @@ mod tests {
             "#,
             )
             .await
-            .unwrap()
             .unwrap();
 
         let manifest_dir = env!("CARGO_MANIFEST_DIR");

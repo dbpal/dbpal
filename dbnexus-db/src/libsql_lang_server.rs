@@ -288,10 +288,10 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_auto_completion() {
         enable_test_log();
-
         let db = make_test_object().await;
         let _ = db.drop_table("departments", false).await;
         let _ = db.drop_table("employees", false).await;
+        let _ = db.drop_view("employees_view").await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
@@ -303,7 +303,15 @@ mod tests {
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL
             );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
+        db.execute_sql(
+            query_id,
+            r#"
             -- 创建 employees 表
             CREATE TABLE employees (
                 id INTEGER PRIMARY KEY,
@@ -311,8 +319,17 @@ mod tests {
                 department_id INTEGER
             );
 
-            -- create view for test
-            create view employees_view as select * from employees;
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        db.execute_sql(
+            query_id,
+            r#"
+             create view employees_view as select * from employees;
+
         "#,
         )
         .await
@@ -337,9 +354,7 @@ mod tests {
         db.execute_sql(
             query_id,
             r#"
-        
-            insert into departments values (1 , 'DOD');
-            insert into employees values(1 , 'yuyang' , 1) ;
+            insert into departments values (2 , 'DOD');
         "#,
         )
         .await

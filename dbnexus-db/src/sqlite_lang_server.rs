@@ -470,7 +470,7 @@ pub(crate) const SQLITE_KEY_WORDS: &[&str] = &[
 
 #[cfg(test)]
 mod tests {
-    use crate::db::QuerySql;
+    use crate::db::{QuerySql, SchemaTrait};
     use crate::enable_test_log;
     use crate::language_server::LanguageServer;
     use crate::language_server::completion_test::test_file_auto_completion;
@@ -483,6 +483,10 @@ mod tests {
         let db = make_test_object().await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
+        let _ = db.drop_table("departments", false).await;
+        let _ = db.drop_table("employees", false).await;
+        let _ = db.drop_view("employees_view").await;
+
         db.execute_sql(
             query_id,
             r#"

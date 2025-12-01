@@ -327,10 +327,10 @@ function MultiQueryResp(props: { data: QueryRespData[] }) {
     return <></>;
   }
   if (data.length == 1) {
-    return data[0].err ? (
-      <Alert severity="error">{data[0].err}</Alert>
+    return data[0].Err ? (
+      <Alert severity="error">{data[0].Err}</Alert>
     ) : (
-      <QueryResp data={data[0].ok} />
+      <QueryResp data={data[0].Ok} />
     );
   }
   const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -361,10 +361,10 @@ function MultiQueryResp(props: { data: QueryRespData[] }) {
         {data.map((e, index) => {
           return (
             <div hidden={value != index} key={index} style={{ height: "100%" }}>
-              {e.err ? (
-                <Alert severity="error">{e.err}</Alert>
+              {e.Err ? (
+                <Alert severity="error">{e.Err}</Alert>
               ) : (
-                <QueryResp data={e.ok} />
+                <QueryResp data={e.Ok} />
               )}
             </div>
           );

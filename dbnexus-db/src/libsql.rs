@@ -13,10 +13,10 @@ use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEventEmitter, QueryResp, QuerySql,
+    OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
-    TimeEmit, TriggerDetail, XlsxEdit, create_html_table_data, create_html_table_header,
-    escape_sql_str, export_query_as_xlsx_send_data,
+    StatusEmiter, TimeElapsed, TriggerDetail, XlsxEdit, create_html_table_data,
+    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
@@ -237,9 +237,10 @@ impl QuerySql for LibSqlDB {
                 None => anyhow::bail!("collection closed????"),
             },
         };
-        let mut timeemit = TimeEmit::new(Duration::from_millis(20));
+        let mut timeelapsed = TimeElapsed::new();
         let mut batch_rows = conn.execute_batch(sql).await?;
         while let Some(mut rows) = batch_rows.next_stmt_row().flatten() {
+            emit(QueryEvent::new_status("getting next result set"));
             let mut first = true;
             let mut rows_cache = Vec::new();
             while let Some(row) = rows.next().await? {
@@ -264,7 +265,7 @@ impl QuerySql for LibSqlDB {
                     );
                 }
                 rows_cache.push(row);
-                if rows_cache.len() >= self.query_buffer_size() || timeemit.add(0) {
+                if rows_cache.len() >= self.query_buffer_size() || timeelapsed.elapsed() {
                     let r = std::mem::take(&mut rows_cache);
                     let data = encode_rows(&r)?;
                     emit(data.into());
@@ -816,7 +817,7 @@ impl SchemaTrait for LibSqlDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter,
+        &self, table_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         let ShowTableParameter {
             where_str,
@@ -825,7 +826,7 @@ impl SchemaTrait for LibSqlDB {
             page_size,
             extra: _,
         } = &para;
-
+        status_emit("trying to query total count of this table.".to_owned());
         let total = self.query_count(table_name, where_str.as_deref()).await?;
         let sql = gen_show_sql(
             table_name,
@@ -835,19 +836,26 @@ impl SchemaTrait for LibSqlDB {
             *page_size,
         );
         log::info!("show table sql:{}", sql);
-        let conn = self.get_conn().await?;
+
+        status_emit("trying to get connection.".into());
+        let conn: bb8::PooledConnection<'_, PoolManager> = self.get_conn().await?;
+        status_emit("trying to query data".into());
         let mut query_rows = conn.query(&sql, params!()).await?;
         let mut rows = Vec::with_capacity(*page_size);
         while let Some(r) = query_rows.next().await? {
             rows.push(r);
+            if rows.len() % 50 == 0 {
+                status_emit(format!("{} rows data fetched", rows.len()));
+            }
         }
+        status_emit("encode data , about to return result".into());
         let data = encode_rows(&rows)?;
         let fields = self.show_table_columns(table_name).await?;
         anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter,
+        &self, view_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         let ShowTableParameter {
             where_str,
@@ -856,7 +864,9 @@ impl SchemaTrait for LibSqlDB {
             page_size,
             ..
         } = &para;
+        status_emit("trying to get connection.".into());
         let conn = self.get_conn().await?;
+        status_emit("trying to query total count of this view.".to_owned());
         let total = self.query_count(view_name, where_str.as_deref()).await?;
         let sql = gen_show_sql(
             view_name,
@@ -866,6 +876,7 @@ impl SchemaTrait for LibSqlDB {
             *page_size,
         );
         log::info!("show table sql:{}", sql);
+        status_emit("trying to query data".into());
         let mut raw_rows = conn.query(&sql, params!()).await?;
         let mut rows = Vec::new();
         while let Some(x) = raw_rows.next().await? {
@@ -873,8 +884,14 @@ impl SchemaTrait for LibSqlDB {
         }
         if rows.is_empty() {
             let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(QueryResp::new(f, 0, vec![], sql)?);
+            return anyhow::Ok(QueryResp {
+                fields: f,
+                total,
+                sql: Some(sql),
+                ..Default::default()
+            });
         }
+        status_emit("encode rows, about to return result".to_owned());
         let data = encode_rows(&rows)?;
         let fields = match rows.first() {
             Some(x) => get_row_types(x),
@@ -1415,10 +1432,16 @@ mod tests {
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(table_name, ShowTableParameter::new_test())
-                .await
-                .unwrap()
-                .total
+            db.show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                })
+            )
+            .await
+            .unwrap()
+            .total
                 == 1
         );
     }
@@ -1470,9 +1493,15 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("test_rename2", ShowTableParameter::new_test())
-            .await
-            .unwrap();
+        db.show_table(
+            "test_rename2",
+            ShowTableParameter::new_stupid_test("id asc"),
+            Arc::new(|s| {
+                println!("{}", s);
+            }),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -1499,9 +1528,15 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table("test_duplicate2", ShowTableParameter::new_test())
-            .await
-            .unwrap();
+        db.show_table(
+            "test_duplicate2",
+            ShowTableParameter::new_stupid_test("id asc"),
+            Arc::new(|s| {
+                println!("{}", s);
+            }),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -1791,7 +1826,13 @@ mod tests {
         println!("{:?}", r);
 
         let cols = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("{:?}", cols);
@@ -1829,7 +1870,13 @@ mod tests {
         let views = db.list_view().await.unwrap();
         for v in views.iter() {
             let list = db
-                .show_view(v.name.as_str(), ShowTableParameter::new_test())
+                .show_view(
+                    v.name.as_str(),
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await
                 .unwrap();
             println!("view value:{:?}", list);

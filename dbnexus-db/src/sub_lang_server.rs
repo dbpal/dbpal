@@ -151,6 +151,12 @@ impl LangServerCommon for SubDB {
     async fn list_sequence(&self, _schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
         self.as_lang_server_common().list_sequence(_schema).await
     }
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        self.as_lang_server_common().list_schema().await
+    }
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        self.as_ast_completion_helper().list_database().await
+    }
     async fn list_execute(&self, _schema: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
         self.as_lang_server_common().list_execute(_schema).await
     }
@@ -166,7 +172,6 @@ impl LangServerCommon for SubDB {
             _ => self.as_lang_server_common().list_table(schema).await,
         }
     }
-    // list view or materialized view
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         self.as_lang_server_common().list_view(schema).await
     }

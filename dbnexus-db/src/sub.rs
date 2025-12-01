@@ -6,7 +6,7 @@ use crate::{
         ExportQueryResult, ExportedSizeEmitter, Field, GetBackendKind, Index, IndexKind, ListTable,
         MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmitter, QueryResp,
         QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter,
-        SqlEvent, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
+        SqlEvent, SqlExecuteRet, StatusEmiter, TriggerDetail, UdfOrProcedureExtraParameter,
     },
     mariadb::MariaDB,
     mysql::MysqlDB,
@@ -279,11 +279,15 @@ impl SchemaTrait for SubDB {
         self.as_schema().show_table_columns(table_name).await
     }
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter,
+        &self, table_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         match self {
-            SubDB::CocoRoach(x) => x.cock_roach_show_table(table_name, para).await,
-            _ => self.as_schema().show_table(table_name, para).await,
+            SubDB::CocoRoach(x) => x.cock_roach_show_table(table_name, para, status_emit).await,
+            _ => {
+                self.as_schema()
+                    .show_table(table_name, para, status_emit)
+                    .await
+            }
         }
     }
 
@@ -390,9 +394,11 @@ impl SchemaTrait for SubDB {
     }
 
     async fn show_view(
-        &self, _view_name: &str, para: ShowTableParameter,
+        &self, _view_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
-        self.as_schema().show_view(_view_name, para).await
+        self.as_schema()
+            .show_view(_view_name, para, status_emit)
+            .await
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {

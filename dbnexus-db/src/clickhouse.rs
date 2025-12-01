@@ -4,7 +4,7 @@ use crate::db::{
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue,
     NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    SqlExecuteRet, StatusEmiter, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
     create_html_table_header, escape_sql_str, ty_is_float, ty_is_int,
 };
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
@@ -434,7 +434,7 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter,
+        &self, table_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         let ShowTableParameter {
             where_str,
@@ -443,10 +443,11 @@ impl SchemaTrait for ClickHouseDB {
             page_size,
             extra: _,
         } = &para;
-
+        status_emit("trying to query total count.".into());
         let total = self
             .query_count(self.config.db_str(), table_name, where_str.as_deref())
             .await?;
+        status_emit("trying to query columns.".into());
         let fs = self.show_table_columns(table_name).await?;
         let fs = {
             let mut m = HashMap::new();
@@ -463,9 +464,8 @@ impl SchemaTrait for ClickHouseDB {
             *page,
             *page_size,
         );
-
         log::info!("sql:{}", sql);
-
+        status_emit("trying to query data.".into());
         let result = self.query_as_json(&sql).await?;
 
         let mut inferred_fs = result.infer_fields();
@@ -479,7 +479,7 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter,
+        &self, view_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         let ShowTableParameter {
             where_str,
@@ -488,6 +488,7 @@ impl SchemaTrait for ClickHouseDB {
             page_size,
             ..
         } = &para;
+        status_emit("trying to query total count.".into());
         let total = self
             .query_count(self.config.db_str(), view_name, where_str.as_deref())
             .await?;
@@ -501,6 +502,7 @@ impl SchemaTrait for ClickHouseDB {
             *page_size,
         );
         log::info!("sql:{}", sql);
+        status_emit("trying to query data.".into());
         let result = self.query_as_json(&sql).await?;
         let fields = result.infer_fields();
         let data = result.encode_json_result()?;
@@ -951,6 +953,10 @@ impl QuerySql for ClickHouseDB {
         let dialect = sqlparser::dialect::ClickHouseDialect {};
         let sqls = separate_sql_by_sqlparser_tokenizer(sql, &dialect)?;
         for sql in sqls.iter() {
+            emit(QueryEvent::new_status(format!(
+                "try to execute sql: {}",
+                sql
+            )));
             let x = self.query_as_json(sql).await;
             match x {
                 Ok(x) => {
@@ -1402,6 +1408,13 @@ from test
             println!("detail:{:?}", detail);
         }
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_check_conn() {
+        let db = make_test_object();
+        let ping_time = db.check_conn().await.unwrap();
+        println!("{:?}", ping_time);
+    }
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_show_metas() {
         let db = make_test_object();
@@ -1540,7 +1553,13 @@ from test
         println!("materialized view lists:{:?}", list);
 
         let _resp = db
-            .show_view(view_name, ShowTableParameter::new_test())
+            .show_view(
+                view_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
 
@@ -1606,7 +1625,13 @@ from test
         println!("view lists:{:?}", list);
 
         let _resp = db
-            .show_view(view_name, ShowTableParameter::new_test())
+            .show_view(
+                view_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
 
@@ -1688,7 +1713,13 @@ from test
         db.duplicate_table(name, &name2).await.unwrap();
 
         let _resp = db
-            .show_table(&name2, ShowTableParameter::new_test())
+            .show_table(
+                &name2,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         assert_eq!(_resp.data.len(), 6);
@@ -1718,7 +1749,13 @@ from test
     async fn test_show_table() {
         let db = make_test_object();
         let resp = db
-            .show_table("example_table", ShowTableParameter::new_test())
+            .show_table(
+                "example_table",
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
 
@@ -1765,7 +1802,13 @@ from test
         }
         {
             let resp = db
-                .show_table(table_name, ShowTableParameter::new_test())
+                .show_table(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await
                 .unwrap();
 
@@ -1848,7 +1891,13 @@ from test
         }
         {
             let resp = db
-                .show_table(table_name, ShowTableParameter::new_test())
+                .show_table(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await
                 .unwrap();
 
@@ -1935,7 +1984,13 @@ from test
         }
         {
             let resp = db
-                .show_table(table_name, ShowTableParameter::new_test())
+                .show_table(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await
                 .unwrap();
 
@@ -2033,7 +2088,13 @@ from test
         }
         {
             let resp = db
-                .show_table(table_name, ShowTableParameter::new_test())
+                .show_table(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("string_field asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await
                 .unwrap();
 
@@ -2134,7 +2195,13 @@ from test
         }
         {
             let resp = db
-                .show_table(table_name, ShowTableParameter::new_test())
+                .show_table(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("date32_field asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await
                 .unwrap();
 
@@ -2214,7 +2281,13 @@ from test
         }
         {
             let resp = db
-                .show_table(table_name, ShowTableParameter::new_test())
+                .show_table(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("nullable_field asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await
                 .unwrap();
 

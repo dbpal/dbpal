@@ -90,10 +90,12 @@ pub struct ShowTableParameter {
 }
 
 impl ShowTableParameter {
-    pub fn new_test() -> Self {
+    #[cfg(test)]
+    pub fn new_stupid_test<'a>(order: impl Into<Option<&'a str>>) -> Self {
+        let order = order.into();
         Self {
             where_str: Some("1 = 1".to_owned()),
-            order_by: None,
+            order_by: order.map(|x| x.to_string()),
             page: 1,
             page_size: 100,
             extra: None,
@@ -126,7 +128,7 @@ pub trait SchemaTrait:
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>>;
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;
     async fn show_table(
-        &self, table_name: &str, _: ShowTableParameter,
+        &self, table_name: &str, _: ShowTableParameter, _: StatusEmiter,
     ) -> anyhow::Result<QueryResp>;
 
     async fn table_insert(
@@ -205,7 +207,7 @@ pub trait SchemaTrait:
     }
 
     async fn show_view(
-        &self, _view_name: &str, _para: ShowTableParameter,
+        &self, _view_name: &str, _para: ShowTableParameter, _: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         not_support_feature(self.backend_name())
     }
@@ -222,6 +224,7 @@ pub trait SchemaTrait:
                 page_size: 1,
                 extra: None,
             },
+            Arc::new(|_| {}),
         )
         .await
         .map(|x| x.fields)
@@ -910,7 +913,7 @@ async fn write_export_file(
     kind: ExportKind, filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<Cow<'static, str>>,
     title: &str, emit: ExportedSizeEmitter,
 ) -> anyhow::Result<()> {
-    let mut size = TimeEmit::new(Duration::from_millis(200));
+    let mut size = TimeElapsed::new();
     let r = match kind {
         ExportKind::Html { .. } => {
             let mut file = tokio::fs::File::create(&filepath).await?;
@@ -923,10 +926,13 @@ async fn write_export_file(
                 let x = x.replacen("THIS_IS_TITLE", title, 1);
                 file.write_all(x.as_bytes()).await?;
             }
+            let mut total = 0;
+
             while let Some(data) = receiver.recv().await {
                 file.write_all(data.as_bytes()).await?;
-                if size.add(data.len()) {
-                    emit(size.acc)
+                total += data.len();
+                if size.elapsed() {
+                    emit(total)
                 }
             }
             {
@@ -934,10 +940,11 @@ async fn write_export_file(
                 let index = template.find(t).option_must_be_some()?;
                 file.write_all(&template.as_bytes()[index..]).await?;
             }
-            emit(size.acc);
+            emit(total);
             anyhow::Ok(())
         }
         ExportKind::Xlsx { .. } => {
+            let mut total = 0;
             let filepath = filepath.to_string();
             let emit = emit.clone();
             spawn_blocking(move || {
@@ -946,30 +953,32 @@ async fn write_export_file(
                 let worksheet = workbook.add_worksheet_with_constant_memory();
                 while let Some(edit) = receiver.blocking_recv() {
                     let edit = XlsxEdit::from(edit);
-                    if size.add(edit.content.len()) {
-                        emit(size.acc)
+                    total += edit.content.len();
+                    if size.elapsed() {
+                        emit(total)
                     }
                     worksheet.write_string(edit.row, edit.column, edit.content)?;
                 }
                 workbook.save(filepath)?;
-                emit(size.acc);
+                emit(total);
                 anyhow::Ok(())
             })
             .await?
         }
         _ => {
+            let mut total = 0;
             let mut file = tokio::fs::File::create(&filepath).await?;
             while let Some(data) = receiver.recv().await {
                 file.write_all(data.as_bytes()).await?;
-                if size.add(data.len()) {
-                    emit(size.acc)
+                total += data.len();
+                if size.elapsed() {
+                    emit(total)
                 }
             }
-            emit(size.acc);
+            emit(0);
             anyhow::Ok(())
         }
     };
-
     r
 }
 
@@ -1114,21 +1123,15 @@ impl TryFrom<&str> for IndexKind {
 impl QueryResp {
     pub fn row_affected(affected: u64, sql: impl Into<Option<String>>) -> Self {
         Self {
-            cache_time: None,
             data: vec![vec![Some(affected.to_string())]],
             fields: vec![Field {
                 field: "row affected".to_string(),
                 data_type: "int".to_string(),
-                nullable: false,
-                default_value: None,
-                is_primary: false,
-                is_auto_increment: false,
-                sortable: true,
-                firebird_binary_sub_type: None,
+                ..Default::default()
             }],
             sql: sql.into(),
             total: 0,
-            has_more: false,
+            ..Default::default()
         }
     }
 
@@ -1138,17 +1141,10 @@ impl QueryResp {
             fields: vec![Field {
                 field: "execute".to_string(),
                 data_type: "".to_string(),
-                nullable: false,
-                default_value: None,
-                is_primary: false,
-                is_auto_increment: false,
-                sortable: true,
-                firebird_binary_sub_type: None,
+                ..Default::default()
             }],
             sql: sql.into(),
-            total: 0,
-            cache_time: None,
-            has_more: false,
+            ..Default::default()
         }
     }
 }
@@ -1245,12 +1241,7 @@ impl Field {
         Self {
             field: name,
             data_type: typ,
-            nullable: true,
-            default_value: None,
-            is_auto_increment: false,
-            is_primary: false,
-            sortable: true,
-            firebird_binary_sub_type: None,
+            ..Default::default()
         }
     }
 
@@ -1515,27 +1506,23 @@ impl AutoCompletionQueryId {
     }
 }
 
-pub struct TimeEmit {
+pub struct TimeElapsed {
     d: Duration,
-    acc: usize,
     ins: std::time::Instant,
 }
 
-impl TimeEmit {
-    pub(crate) fn new(d: Duration) -> Self {
+impl TimeElapsed {
+    pub(crate) fn new() -> Self {
         Self {
-            d,
-            acc: Default::default(),
+            d: Duration::from_millis(100),
             ins: std::time::Instant::now(),
         }
     }
-
-    pub(crate) fn add(&mut self, a: usize) -> bool {
+    pub(crate) fn elapsed(&mut self) -> bool {
         let e = self.ins.elapsed() > self.d;
         if e {
             self.ins = std::time::Instant::now();
         }
-        self.acc += a;
         e
     }
 }
@@ -1590,8 +1577,8 @@ pub(crate) fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
     }
     ret
 }
-
 pub type QueryEventEmitter = Arc<dyn Fn(QueryEvent) + Send + Sync>;
+pub type StatusEmiter = Arc<dyn Fn(String) + Send + Sync>;
 
 #[derive(Debug)]
 pub enum QueryEvent {
@@ -1599,6 +1586,12 @@ pub enum QueryEvent {
     Data(Vec<Vec<Option<String>>>),
     Status(String),
     Err(String),
+}
+
+impl QueryEvent {
+    pub(crate) fn new_status(s: impl Into<String>) -> Self {
+        Self::Status(s.into())
+    }
 }
 
 impl From<QueryResp> for QueryEvent {

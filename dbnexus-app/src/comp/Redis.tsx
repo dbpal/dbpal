@@ -61,7 +61,8 @@ import {
 
 import { ExecutingTime, ModalHeader } from "./CommonComp.tsx";
 import { editor, Position } from "monaco-editor";
-import { SimpleFlexEditor } from "./CommonComp2.tsx";
+import { showProgressingStatus, SimpleFlexEditor } from "./CommonComp2.tsx";
+import { Channel } from "@tauri-apps/api/core";
 
 class RedisZsetHashModifyReq {
   constructor(public oldKey: string, public newKey: string, public value: string) {}
@@ -130,7 +131,7 @@ function RedisAddList(props: {
 
 function RedisStringTable(props: {
   modifyOP: (content: string) => Promise<void>;
-  loadContent: () => Promise<string>;
+  loadContent: (statuschannel: Channel<string>) => Promise<string>;
 }) {
   const { modifyOP, loadContent } = props;
   const [content, setContent] = useState<string | null>(null);
@@ -139,7 +140,10 @@ function RedisStringTable(props: {
   const valueRef = useRef(new EditorAndMode());
   useEffect(() => {
     setLoading(true);
-    loadContent()
+    let c = new Channel<string>(e => {
+      showProgressingStatus(showNotification, e);
+    });
+    loadContent(c)
       .then(e => {
         setContent(e);
       })
@@ -708,7 +712,7 @@ function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
 }
 
 function RedisSetTable(props: {
-  reloadOP: (keyMatch: string) => Promise<MuiDataGridData>;
+  reloadOP: (keyMatch: string, status: Channel<string>) => Promise<MuiDataGridData>;
   modifyOP: (oldValue: string, newValue: string) => Promise<void>;
 
   delOP: (value: string) => Promise<void>;
@@ -722,7 +726,10 @@ function RedisSetTable(props: {
   const handleReload = useCallback(
     showOK => {
       setLoading(true);
-      reloadOP(keyMatch)
+      const c = new Channel<string>(e => {
+        showProgressingStatus(showNotification, e);
+      });
+      reloadOP(keyMatch, c)
         .then(resp => {
           resp.data.forEach((e, index) => {
             e["id"] = index;
@@ -1003,7 +1010,7 @@ function RedisListTableContextMenu(props: {
 }
 
 function RedisListTable(props: {
-  reloadOP: () => Promise<MuiDataGridData>;
+  reloadOP: (statusChannel: Channel<string>) => Promise<MuiDataGridData>;
   modifyOP: (index: number, newValue: string) => Promise<void>;
   delOP: (count: number, value: string) => Promise<void>;
 }) {
@@ -1019,7 +1026,10 @@ function RedisListTable(props: {
   const handleReload = useCallback(
     (showReloadOK: boolean) => {
       setLoading(true);
-      reloadOP()
+      const c = new Channel<string>(e => {
+        showProgressingStatus(showNotification, e);
+      });
+      reloadOP(c)
         .then(resp => {
           resp.data.forEach((e, index) => {
             e["id"] = index;
@@ -1621,7 +1631,7 @@ const valueGetter = value => {
   }
 };
 function RedisHashTable(props: {
-  reloadOP: (keyMatch: string) => Promise<MuiDataGridData>;
+  reloadOP: (keyMatch: string, status: Channel<string>) => Promise<MuiDataGridData>;
   modifyOP: (oldMember: string, newMember: string, newValue: string) => Promise<void>;
 
   delOP: (key: string) => Promise<void>;
@@ -1636,7 +1646,10 @@ function RedisHashTable(props: {
   const handleReload = useCallback(
     showOK => {
       setLoading(true);
-      reloadOP(keyMatch)
+      const c = new Channel<string>(e => {
+        showProgressingStatus(showNotification, e);
+      });
+      reloadOP(keyMatch, c)
         .then(resp => {
           resp.data.forEach((e, index) => {
             e["id"] = index;

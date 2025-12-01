@@ -8,6 +8,7 @@ pub struct TiDB {
     pub(crate) db: Arc<MysqlDB>,
 }
 #[cfg(test)]
+// docker run -d --name some-tidb    -p 4000:4000   pingcap/tidb
 pub(crate) fn make_config() -> MysqlDBConfig {
     MysqlDBConfig {
         conn_timeout: Some(5000.into()),

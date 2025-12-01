@@ -1231,9 +1231,11 @@ enum MongoLanguage {
   ts = "typescript",
 }
 const resizeHandlerSize = 3;
+
+// this must be the same as the rust Result
 interface QueryRespData {
-  ok?: MuiDataGridData;
-  err?: string;
+  Ok?: MuiDataGridData;
+  Err?: string;
 }
 
 export {

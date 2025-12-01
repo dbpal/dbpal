@@ -20,10 +20,11 @@ RDB$RELATION_NAME 的数据类型是 CHAR(31)，定长字符，不足 31 字节�
 use crate::datasource_config::FireBirdConfig;
 use crate::db::{
     BackendKind, CheckConn, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
-    ListTable, MetaValue, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEventEmitter, QueryResp,
-    QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlExecuteRet, TimeEmit, XlsxEdit, create_html_table_data, create_html_table_header,
-    escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
+    ListTable, MetaValue, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter,
+    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
+    SqlExecuteRet, StatusEmiter, TimeElapsed, XlsxEdit, create_html_table_data,
+    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_blocking_data,
+    not_support_feature,
 };
 
 use crate::helper::create_csv;
@@ -461,17 +462,19 @@ impl QuerySql for FireBirdDB {
         let query_id = query_id.to_string();
         let sql = sql.to_owned();
         spawn_blocking(move || {
+            emit(QueryEvent::new_status("trying to lock connection"));
             let conn = match this.query_connection.get(&query_id) {
                 Some(x) => x.clone(),
                 None => anyhow::bail!("connection closed???"),
             };
             let mut conn = conn.lock().expect("lock failed");
             let conn = conn.deref_mut();
+            emit(QueryEvent::new_status("lock connection ok."));
             let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
             let mut first = true;
             let mut rows = vec![];
-            let mut timeemit = TimeEmit::new(Duration::from_millis(100));
+            let mut timeelapsed = TimeElapsed::new();
             for row in stream {
                 let item = row?;
                 if first {
@@ -485,7 +488,7 @@ impl QuerySql for FireBirdDB {
                     );
                 }
                 rows.push(item);
-                if rows.len() >= this.query_buffer_size() || timeemit.add(0) {
+                if rows.len() >= this.query_buffer_size() || timeelapsed.elapsed() {
                     let d = encode_rows(&std::mem::take(&mut rows), true, None)?;
                     emit(d.into());
                 }
@@ -641,7 +644,7 @@ impl FireBirdDB {
         }
         let table_name = table_name.to_owned();
         let firebird = Clone::clone(self);
-        let cols = SchemaTrait::show_table_columns(self, &table_name).await?;
+        let cols = self.show_table_columns(&table_name).await?;
         spawn_blocking(move || {
             let mut types = HashMap::new();
             cols.iter().for_each(|x| {
@@ -824,7 +827,7 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter,
+        &self, table_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         let fs = self.show_table_columns(table_name).await?;
         let table_name = table_name.to_owned();
@@ -849,16 +852,14 @@ impl SchemaTrait for FireBirdDB {
             fs.iter().for_each(|x| {
                 fields_map.insert(&x.field, x);
             });
+            status_emit("trying to get connection".into());
             let mut conn = this.get_conn()?;
+            status_emit("trying to query data".into());
             let rows: Vec<rsfbclient::Row> = conn.query(&sql, ())?;
             if rows.is_empty() {
                 return anyhow::Ok(QueryResp {
                     fields: fs,
-                    total: 0,
-                    data: vec![],
-                    sql: Some(sql),
-                    cache_time: None,
-                    has_more: false,
+                    ..Default::default()
                 });
             }
             let mut fields = infer_fields(&rows[0]);
@@ -867,15 +868,15 @@ impl SchemaTrait for FireBirdDB {
                     *x = (*f).clone();
                 }
             });
+            status_emit("encode data , about to return".into());
             let data = encode_rows(&rows, false, Some(fields_map))?;
             let total = Self::query_count(&mut conn, &table_name, where_str.as_deref())?;
             anyhow::Ok(QueryResp {
                 fields,
-                cache_time: None,
                 total,
                 data,
                 sql: Some(sql),
-                has_more: false,
+                ..Default::default()
             })
         })
         .await?
@@ -1048,11 +1049,9 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter,
+        &self, view_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         let this = Clone::clone(self);
-        let fields = self.show_view_columns(view_name).await?;
-
         let view_name = view_name.to_owned();
         spawn_blocking(move || {
             let ShowTableParameter {
@@ -1062,6 +1061,8 @@ impl SchemaTrait for FireBirdDB {
                 page_size,
                 ..
             } = &para;
+            status_emit("trying to get view columns".into());
+            let fields = this.show_table_columns_impl(&view_name)?;
             let sql = gen_show_sql(
                 &view_name,
                 where_str.as_deref(),
@@ -1070,20 +1071,21 @@ impl SchemaTrait for FireBirdDB {
                 *page_size,
             );
             log::info!("sql:{}", sql);
+            status_emit("trying to get connection.".to_owned());
             let mut conn = this.get_conn()?;
+            status_emit("trying to query total count.".into());
+            let total = Self::query_count(&mut conn, &view_name, where_str.as_deref())?;
+            status_emit("trying to query.".into());
             let rows: Vec<rsfbclient::Row> = conn.query(&sql, ())?;
             if rows.is_empty() {
                 return anyhow::Ok(QueryResp {
                     fields,
-                    total: 0,
-                    data: vec![],
                     sql: Some(sql),
-                    cache_time: None,
-                    has_more: false,
+                    ..Default::default()
                 });
             }
             let data = encode_rows(&rows, true, None)?;
-            let total = Self::query_count(&mut conn, &view_name, where_str.as_deref())?;
+
             let fields = match rows.first() {
                 Some(x) => infer_fields(x),
                 None => {
@@ -1095,8 +1097,7 @@ impl SchemaTrait for FireBirdDB {
                 total,
                 data,
                 sql: Some(sql),
-                cache_time: None,
-                has_more: false,
+                ..Default::default()
             })
         })
         .await?
@@ -1327,10 +1328,16 @@ mod tests {
         db.rollback(query_id).await.unwrap();
 
         assert!(
-            db.show_table(table_name, ShowTableParameter::new_test())
-                .await
-                .unwrap()
-                .total
+            db.show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                })
+            )
+            .await
+            .unwrap()
+            .total
                 == 0
         );
 
@@ -1345,10 +1352,16 @@ mod tests {
         .unwrap();
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(table_name, ShowTableParameter::new_test())
-                .await
-                .unwrap()
-                .total
+            db.show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                })
+            )
+            .await
+            .unwrap()
+            .total
                 == 1
         );
     }
@@ -1406,7 +1419,13 @@ mod tests {
         .unwrap();
 
         let resp = db
-            .show_view(view_name, ShowTableParameter::new_test())
+            .show_view(
+                view_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                }),
+            )
             .await
             .unwrap();
         println!("{:?}", resp);
@@ -1519,10 +1538,16 @@ mod tests {
 
         db.truncate_table(table_name).await.unwrap();
         assert!(
-            db.show_table(table_name, ShowTableParameter::new_test())
-                .await
-                .unwrap()
-                .total
+            db.show_table(
+                table_name,
+                ShowTableParameter::new_stupid_test("id asc"),
+                Arc::new(|s| {
+                    println!("{}", s);
+                })
+            )
+            .await
+            .unwrap()
+            .total
                 == 0
         );
     }
@@ -1574,7 +1599,13 @@ mod tests {
 
         {
             let resp = db
-                .show_table(table_name, ShowTableParameter::new_test())
+                .show_table(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await
                 .unwrap();
             println!("resp:{:?}", resp);
@@ -1676,7 +1707,13 @@ mod tests {
 
         {
             let resp = db
-                .show_table(table_name, ShowTableParameter::new_test())
+                .show_table(
+                    table_name,
+                    ShowTableParameter::new_stupid_test("id asc"),
+                    Arc::new(|s| {
+                        println!("{}", s);
+                    }),
+                )
                 .await
                 .unwrap();
             println!("resp:{:?}", resp);

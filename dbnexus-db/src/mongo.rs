@@ -19,7 +19,7 @@ use crate::db::{
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
     GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr, QueryEventEmitter,
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlExecuteRet, not_support_feature,
+    SqlExecuteRet, StatusEmiter, not_support_feature,
 };
 
 #[derive(Clone)]
@@ -624,7 +624,7 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn show_view(
-        &self, _view_name: &str, _para: ShowTableParameter,
+        &self, _view_name: &str, _para: ShowTableParameter, _: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         anyhow::bail!("use mongo special method")
     }
@@ -711,7 +711,7 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn show_table(
-        &self, _table_name: &str, _para: ShowTableParameter,
+        &self, _table_name: &str, _para: ShowTableParameter, _: StatusEmiter,
     ) -> anyhow::Result<QueryResp> {
         anyhow::bail!("use mongo special method")
     }
