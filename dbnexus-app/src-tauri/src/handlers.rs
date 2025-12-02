@@ -937,6 +937,7 @@ pub async fn export_query_result_to_file(
     };
 
     let r = tokio::select! {
+        biased;
         res =  fur  => res,
         _ = token.cancelled() => {
             remove_file.await;
@@ -1121,10 +1122,11 @@ pub async fn execute_sql(
             .map_err(ErrorFrontend::from)
     };
     let result = tokio::select! {
-        res = fur => res,
+        biased;
         _ = token.cancelled() => {
             return Err(ErrorFrontend::cancelled(None));
         }
+        res = fur => res,
     };
     let result = result?;
     let result = result.map(MuiDataGridData::from);
@@ -1200,11 +1202,12 @@ pub async fn export_table_or_view(
         }
     };
     let r = tokio::select! {
-        res = fur => res,
+        biased;
         _ = token.cancelled() => {
             remove_file.await;
             Err(ErrorFrontend::cancelled(None))
         }
+        res = fur => res,
     };
 
     r
