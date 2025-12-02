@@ -27,7 +27,6 @@ import {
   ListItemText,
   MenuItem,
   Modal,
-  Paper,
   Radio,
   RadioGroup,
   Slider,
@@ -865,24 +864,15 @@ function showProgressingStatus(showNotification, status: string) {
 function SelectMaxRowLimit(props: { kind: string; maxRowRef: RefObject<number> }) {
   const { kind, maxRowRef } = props;
   const width = "45vw";
-  const [maxRow, setMaxRow] = useState(0);
   const storekey = "dbpal-max-row-" + kind;
-  const handleSave = useCallback(() => {
+  const [maxRow, setMaxRow] = useState(
+    parseInt(localStorage.getItem(storekey)) || 2000,
+  );
+  useEffect(() => {
     localStorage.setItem(storekey, maxRow + "");
-  }, [maxRow, storekey]);
-  useEffect(() => {
-    handleSave();
     maxRowRef.current = maxRow;
-  }, [handleSave, maxRow, maxRowRef]);
+  }, [maxRow, maxRowRef, storekey]);
 
-  useEffect(() => {
-    let x = parseInt(localStorage.getItem(storekey));
-    if (!isNaN(x) && x) {
-      setMaxRow(x);
-    } else {
-      setMaxRow(2000);
-    }
-  }, [storekey]);
   return (
     <Tooltip
       slotProps={{
@@ -890,7 +880,13 @@ function SelectMaxRowLimit(props: { kind: string; maxRowRef: RefObject<number> }
           style: { maxWidth: width },
         },
       }}
-      title=<Paper style={{ width, padding: "0.5rem" }}>
+      title=<Box
+        style={{
+          width,
+          padding: "0.5rem",
+          overflow: "hidden",
+        }}
+      >
         <Stack>
           <Typography color="info">
             limit max rows can be query.we don&apos;t want OOM!!!😀
@@ -905,7 +901,7 @@ function SelectMaxRowLimit(props: { kind: string; maxRowRef: RefObject<number> }
             step={1000}
           />
         </Stack>
-      </Paper>
+      </Box>
     >
       <Chip label={maxRow} color="info" />
     </Tooltip>

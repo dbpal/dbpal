@@ -929,7 +929,6 @@ fn get_select_sql(
     name: &str, cols: String, where_str: Option<&str>, order_by: Option<&str>, limit: usize,
     allow_filtering: bool,
 ) -> String {
-    #[allow(clippy::format_in_format_args)]
     format!(
         r#"SELECT {cols} FROM "{name}"  {}  {} {} {}"#,
         if let Some(where_str) = where_str.as_ref() {

@@ -101,6 +101,7 @@ pub struct ShowTableParameter {
     pub extra: Option<ShowTableExtraArgs>,
     // for backend don't support page like cassandra
     pub limit: Option<usize>,
+    // right now only used for redis zset
     pub min: Option<f64>,
     pub max: Option<f64>,
 }
