@@ -6,7 +6,7 @@ use crate::{
         ExportQueryResult, ExportedSizeEmitter, Field, GetBackendKind, Index, IndexKind, ListTable,
         MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmitter, QueryResp,
         QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter,
-        SqlEvent, SqlExecuteRet, StatusEmiter, TriggerDetail, UdfOrProcedureExtraParameter,
+        SqlEvent, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
     },
     mariadb::MariaDB,
     mysql::MysqlDB,
@@ -204,9 +204,11 @@ impl QuerySql for SubDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self, query_id: &str, sql: &str, max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        self.as_query_sql().query_sql(query_id, sql, emit).await
+        self.as_query_sql()
+            .query_sql(query_id, sql, max_row, emit)
+            .await
     }
 
     async fn execute_sql(
@@ -279,8 +281,8 @@ impl SchemaTrait for SubDB {
         self.as_schema().show_table_columns(table_name).await
     }
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
+        &self, table_name: &str, para: ShowTableParameter, status_emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         match self {
             SubDB::CocoRoach(x) => x.cock_roach_show_table(table_name, para, status_emit).await,
             _ => {
@@ -394,8 +396,8 @@ impl SchemaTrait for SubDB {
     }
 
     async fn show_view(
-        &self, _view_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
+        &self, _view_name: &str, para: ShowTableParameter, status_emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         self.as_schema()
             .show_view(_view_name, para, status_emit)
             .await

@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::Deref;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -58,6 +57,18 @@ impl BackendKind {
         let filepath = filepath.as_path().to_str().unwrap();
         filepath.to_string()
     }
+
+    pub fn format_fields(&self, fields: Option<&[Field]>) -> String {
+        if let Some(fields) = fields {
+            fields
+                .iter()
+                .map(|x| format!("{}{}{}", self.quote_style(), x.field, self.quote_style()))
+                .collect::<Vec<_>>()
+                .join(",")
+        } else {
+            "*".to_owned()
+        }
+    }
 }
 
 impl std::fmt::Display for BackendKind {
@@ -88,6 +99,10 @@ pub struct ShowTableParameter {
     pub page: usize,
     pub page_size: usize,
     pub extra: Option<ShowTableExtraArgs>,
+    // for backend don't support page like cassandra
+    pub limit: Option<usize>,
+    pub min: Option<f64>,
+    pub max: Option<f64>,
 }
 
 impl ShowTableParameter {
@@ -99,7 +114,7 @@ impl ShowTableParameter {
             order_by: order.map(|x| x.to_string()),
             page: 1,
             page_size: 100,
-            extra: None,
+            ..Default::default()
         }
     }
 }
@@ -129,8 +144,36 @@ pub trait SchemaTrait:
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>>;
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>>;
     async fn show_table(
-        &self, table_name: &str, _: ShowTableParameter, _: StatusEmiter,
-    ) -> anyhow::Result<QueryResp>;
+        &self, table_name: &str, _: ShowTableParameter, _: QueryEventEmitter,
+    ) -> anyhow::Result<()>;
+
+    #[cfg(test)]
+    async fn show_table_collect(
+        &self, table_name: &str, para: ShowTableParameter,
+    ) -> anyhow::Result<QueryResp> {
+        let result = Arc::new(std::sync::Mutex::new(None));
+        let result_clone = result.clone();
+        self.show_table(
+            table_name,
+            para,
+            Arc::new(move |event| {
+                let mut lock = result_clone.lock().expect("lock failed");
+                match event {
+                    QueryEvent::Resp(resp) => *lock = Some(resp),
+                    QueryEvent::Data(data) => {
+                        use std::ops::DerefMut;
+                        let x = lock.deref_mut();
+                        let x = x.as_mut().unwrap();
+                        x.data.extend(data.into_iter());
+                    }
+                    _ => {}
+                }
+            }),
+        )
+        .await?;
+        let mut r = result.lock().expect("lock failed");
+        anyhow::Ok(r.take().unwrap())
+    }
 
     async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
@@ -208,28 +251,35 @@ pub trait SchemaTrait:
     }
 
     async fn show_view(
-        &self, _view_name: &str, _para: ShowTableParameter, _: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
+        &self, _view_name: &str, _para: ShowTableParameter, _: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
         // 有些后端没有数据 也能得到完整的结果所以提供一个默认实现
         // 后端基于sqlx的需要使用prepare_with这种特殊的接口
+        let result = Arc::new(std::sync::Mutex::new(vec![]));
+        let result_clone = result.clone();
         self.show_view(
             view_name,
             ShowTableParameter {
-                where_str: None,
-                order_by: None,
                 page: 1,
                 page_size: 1,
-                extra: None,
+                ..Default::default()
             },
-            Arc::new(|_| {}),
+            Arc::new(move |x| match x {
+                QueryEvent::Resp(x) => {
+                    *result_clone.lock().expect("should lock ok") = x.fields;
+                }
+                _ => {}
+            }),
         )
-        .await
-        .map(|x| x.fields)
+        .await?;
+        let r = result.lock().expect("should lock ok");
+        anyhow::Ok(r.clone())
     }
+
     /// export as sql only support table so the frontend should only not pass this kind
     async fn export_table_or_view_to_file(
         &self, table_name: &str, filepath: &str, kind: ExportKind, emit: ExportedSizeEmitter,
@@ -992,6 +1042,7 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     fn query_buffer_size(&self) -> usize {
         if cfg!(debug_assertions) { 7 } else { 1000 }
     }
+
     async fn set_auto_commit(&self, _query_id: &str, _commit: bool) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
@@ -1002,8 +1053,13 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
         not_support_feature(self.backend_name())
     }
 
+    // `max_row` max returning row size.
+    // this is tricky when this implementation is total async rust
+    // u need this this var `emit` will try limit the returning results and cancel the task
+    // when using `spawn_blocking` this means this backend is implemented in blocking api.
+    // u must use this var to limit return result or the blcking thread will run in background forever.
     async fn query_sql(
-        &self, query_id: &str, _sql: &str, emit: QueryEventEmitter,
+        &self, query_id: &str, _sql: &str, max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()>;
 
     async fn execute_sql(
@@ -1157,10 +1213,6 @@ pub struct QueryResp {
     pub total: usize,
     pub data: Vec<Vec<Option<String>>>,
     pub sql: Option<String>,
-    // some backend like `cassandra` use cache on the for pagination
-    pub cache_time: Option<u64>,
-    // some backend like redis not return all results
-    pub has_more: bool,
 }
 
 /// we don't want to check `sql` somehow can be different
@@ -1205,7 +1257,6 @@ impl QueryResp {
     pub fn result(sql: impl Into<Option<String>>, result: Vec<Option<String>>) -> Self {
         let sql = sql.into();
         Self {
-            cache_time: None,
             total: result.len(),
             sql,
             data: vec![result],
@@ -1213,7 +1264,6 @@ impl QueryResp {
                 field: "result".to_string(),
                 ..Default::default()
             }],
-            has_more: false,
         }
     }
 }
@@ -1579,7 +1629,6 @@ pub(crate) fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
     ret
 }
 pub type QueryEventEmitter = Arc<dyn Fn(QueryEvent) + Send + Sync>;
-pub type StatusEmiter = Arc<dyn Fn(String) + Send + Sync>;
 
 #[derive(Debug)]
 pub enum QueryEvent {
@@ -1595,6 +1644,12 @@ impl QueryEvent {
     }
 }
 
+impl From<&str> for QueryEvent {
+    fn from(value: &str) -> Self {
+        Self::Status(value.to_owned())
+    }
+}
+
 impl From<QueryResp> for QueryEvent {
     fn from(value: QueryResp) -> Self {
         Self::Resp(value)
@@ -1607,23 +1662,8 @@ impl From<Vec<Vec<Option<String>>>> for QueryEvent {
     }
 }
 
-pub struct MaxRowLimit;
-
-impl MaxRowLimit {
-    fn loc() -> &'static AtomicUsize {
-        static X: AtomicUsize = AtomicUsize::new(2000);
-        &X
-    }
-    pub fn get() -> usize {
-        Self::loc().load(Ordering::Relaxed)
-    }
-    pub fn set(x: usize) {
-        Self::loc().store(x, Ordering::Relaxed);
-    }
-
-    pub fn build_sql(sql: &str) -> String {
-        format!("select * from ({})  limit {} ", sql, Self::get())
-    }
+pub fn build_limit_sql(sql: &str, max: usize) -> String {
+    format!("select * from ({})  limit {} ", sql, max)
 }
 
 pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;

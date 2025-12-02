@@ -205,7 +205,7 @@ mod tests {
             .unwrap();
             assert_eq!(x.len(), 2);
             for s in x.iter() {
-                println!("{}", s);
+                println!("{:?}", s);
             }
         }
 
@@ -223,7 +223,7 @@ mod tests {
             .unwrap();
             assert_eq!(x.len(), 2);
             for s in x.iter() {
-                println!("{}", s);
+                println!("{:?}", s);
             }
         }
     }

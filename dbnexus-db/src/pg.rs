@@ -18,8 +18,8 @@ use crate::db::{
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlExecuteRet, StatusEmiter, TimeElapsed, TriggerDetail,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    ShowTableParameter, SqlBuilder, SqlExecuteRet, TimeElapsed, TriggerDetail, TriggerEvent,
+    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
     create_html_table_header, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
@@ -384,11 +384,19 @@ impl PostGresDB {
     }
 }
 
-fn gen_show_sql(
-    schema: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize,
+pub(crate) fn gen_show_sql(
+    schema: &str, table_name: &str, fields: Option<String>, where_str: Option<&str>,
+    order_by: Option<&str>, page: usize, page_size: usize,
 ) -> String {
-    let mut sql = format!(r#"SELECT * from "{schema}"."{table_name}""#);
+    #[allow(clippy::format_in_format_args)]
+    let mut sql = format!(
+        r#"SELECT {} from "{schema}"."{table_name}""#,
+        if let Some(fields) = fields {
+            fields
+        } else {
+            "*".to_owned()
+        }
+    );
     if let Some(where_str) = where_str {
         sql.push_str(format!(" WHERE {where_str} ").as_str());
     }
@@ -1237,8 +1245,8 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
+        &self, view_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
             order_by,
@@ -1246,35 +1254,47 @@ impl SchemaTrait for PostGresDB {
             page_size,
             ..
         } = &para;
-        status_emit("trying to query total amount.".into());
+        emit("trying to query total amount.".into());
         let total = self.query_count(view_name, where_str.as_deref()).await?;
         let sql = gen_show_sql(
             self.config.schema_str()?,
             view_name,
+            None,
             where_str.as_deref(),
             order_by.as_deref(),
             *page,
             *page_size,
         );
         log::info!("sql:{}", sql);
-        status_emit("trying to get connection.".into());
+        emit("trying to get connection.".into());
         let mut conn = self.get_conn().await?;
-        status_emit("trying to query data.".to_owned());
-        let rows = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await?;
-
-        if rows.is_empty() {
-            let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(QueryResp {
-                fields: f,
-                total: 0,
-                ..Default::default()
-            });
+        emit("trying to query data.".into());
+        let mut rows = vec![];
+        let mut time_elapsed = TimeElapsed::new();
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
+        let mut first = true;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            if first {
+                first = false;
+                emit(
+                    QueryResp {
+                        fields: get_rows_types(&row),
+                        total,
+                        ..Default::default()
+                    }
+                    .into(),
+                );
+            }
+            rows.push(row);
+            if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
+                emit(encode_rows(&std::mem::take(&mut rows))?.into());
+            }
         }
-        let data = encode_rows(&rows)?;
-        let fields = get_rows_types(&rows[0]);
-        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
+        if !rows.is_empty() {
+            emit(encode_rows(&std::mem::take(&mut rows))?.into());
+        }
+        anyhow::Ok(())
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
@@ -1541,8 +1561,8 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
+        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
             order_by,
@@ -1550,28 +1570,45 @@ impl SchemaTrait for PostGresDB {
             page_size,
             ..
         } = &para;
-        status_emit("trying to query total amount.".into());
+        emit("trying to query total amount.".into());
         let total = self.query_count(table_name, where_str.as_deref()).await?;
+        let fields = self.show_table_columns(table_name).await?;
         let sql = gen_show_sql(
             self.config.schema_str()?,
             table_name,
+            Some(self.backend_name().format_fields(Some(&fields))),
             where_str.as_deref(),
             order_by.as_deref(),
             *page,
             *page_size,
         );
         log::info!("sql:{}", sql);
-        status_emit("trying to get connection.".into());
+        emit(
+            QueryResp {
+                fields,
+                total,
+                sql: sql.clone().into(),
+                ..Default::default()
+            }
+            .into(),
+        );
+        emit("trying to get connection.".into());
         let mut conn = self.get_conn().await?;
-        status_emit("trying to query data.".into());
-        let row = sqlx::query(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await
-            .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
-        status_emit("trying to encode data.".into());
-        let data = encode_rows(&row)?;
-        let fields = self.show_table_columns(table_name).await?;
-        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
+        emit("trying to query data.".into());
+        let mut stream = sqlx::query(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
+        let mut rows = vec![];
+        let mut time_elapsed = TimeElapsed::new();
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            rows.push(row);
+            if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
+                let d = encode_rows(&std::mem::take(&mut rows))?;
+                emit(d.into());
+            }
+        }
+        let d = encode_rows(&std::mem::take(&mut rows))?;
+        emit(d.into());
+        anyhow::Ok(())
     }
 
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
@@ -2084,7 +2121,7 @@ impl QuerySql for PostGresDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self, query_id: &str, sql: &str, _max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         emit(QueryEvent::new_status("trying to lock connection."));
@@ -2558,12 +2595,9 @@ mod tests {
             .unwrap();
 
         let resp = db
-            .show_table(
+            .show_table_collect(
                 "test_duplicate2",
                 ShowTableParameter::new_stupid_test("data asc"),
-                Arc::new(|x| {
-                    println!("{:?}", x);
-                }),
             )
             .await
             .unwrap();
@@ -2796,16 +2830,10 @@ mod tests {
         db.rollback(query_id).await.unwrap();
 
         assert!(
-            db.show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{}", s);
-                })
-            )
-            .await
-            .unwrap()
-            .total
+            db.show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"),)
+                .await
+                .unwrap()
+                .total
                 == 0
         );
         db.set_auto_commit(query_id, false).await.unwrap();
@@ -2822,16 +2850,10 @@ mod tests {
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{}", s);
-                })
-            )
-            .await
-            .unwrap()
-            .total
+            db.show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"),)
+                .await
+                .unwrap()
+                .total
                 == 1
         );
     }
@@ -3143,7 +3165,7 @@ mod tests {
                 table_name,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -3539,7 +3561,7 @@ mod tests {
                 table_name,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -4198,7 +4220,7 @@ mod tests {
                 table_name,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await

@@ -2406,7 +2406,7 @@ mod tests {
 
         let s = serde_json::to_string(&statement).unwrap();
 
-        println!("{}", s);
+        println!("{:?}", s);
     }
 
     #[ignore = "this is just a test for me"]
@@ -2439,7 +2439,7 @@ FROM XMLTABLE(
 
         let s = serde_json::to_string(&statement).unwrap();
 
-        println!("{}", s);
+        println!("{:?}", s);
     }
 
     #[ignore = "this is just a test for me"]

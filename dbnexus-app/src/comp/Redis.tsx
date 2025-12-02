@@ -29,7 +29,13 @@ import {
 } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from "./Common";
+import {
+  modalStyle,
+  reloadOK,
+  EscDownEvent,
+  modalHandleClose,
+  defaultShowTableParams,
+} from "./Common";
 import ClearIcon from "@mui/icons-material/Clear";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { NotificationContext } from "./Notification";
@@ -61,8 +67,9 @@ import {
 
 import { ExecutingTime, ModalHeader } from "./CommonComp.tsx";
 import { editor, Position } from "monaco-editor";
-import { showProgressingStatus, SimpleFlexEditor } from "./CommonComp2.tsx";
-import { Channel } from "@tauri-apps/api/core";
+import { SimpleFlexEditor } from "./CommonComp2.tsx";
+import { invoke } from "@tauri-apps/api/core";
+import { showTable } from "./handlers.ts";
 
 class RedisZsetHashModifyReq {
   constructor(public oldKey: string, public newKey: string, public value: string) {}
@@ -75,11 +82,23 @@ enum RedisEditorMode {
 }
 
 type ListPushDirection = "left" | "right";
-function RedisAddList(props: {
-  lpushOP: (value: string) => Promise<void>;
-  rpushOP: (value: string) => Promise<void>;
-}) {
-  const { lpushOP, rpushOP } = props;
+function RedisAddList(props: { uuid: string; listKey: string }) {
+  const { uuid, listKey } = props;
+
+  const lpushOP = async value => {
+    return await invoke("redis_list_lpush", {
+      name: uuid,
+      key: listKey,
+      value,
+    });
+  };
+  const rpushOP = async value => {
+    return await invoke("redis_list_rpush", {
+      name: uuid,
+      key: listKey,
+      value,
+    });
+  };
   const [loading, setLoading] = useState(false);
   const [direction, setDirection] = useState<ListPushDirection>("left");
   const { showNotification } = useContext(NotificationContext);
@@ -129,31 +148,31 @@ function RedisAddList(props: {
   );
 }
 
-function RedisStringTable(props: {
-  modifyOP: (content: string) => Promise<void>;
-  loadContent: (statuschannel: Channel<string>) => Promise<string>;
-}) {
-  const { modifyOP, loadContent } = props;
+function RedisStringTable(props: { uuid: string; stringKey: string }) {
+  const { uuid, stringKey } = props;
+  const modifyOP = async value => {
+    return await invoke("redis_string_set", {
+      name: uuid,
+      key: stringKey,
+      value,
+    });
+  };
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const valueRef = useRef(new EditorAndMode());
   useEffect(() => {
-    setLoading(true);
-    let c = new Channel<string>(e => {
-      showProgressingStatus(showNotification, e);
+    showTable({
+      uuid,
+      name: stringKey,
+      isView: false,
+      showNotification,
+      handleResult: resp => {
+        setContent(resp.data[0]["result"]);
+      },
+      setLoading,
     });
-    loadContent(c)
-      .then(e => {
-        setContent(e);
-      })
-      .catch(e => {
-        showNotification("error", "load redis string data failed", e);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [loadContent, showNotification]);
+  }, [showNotification, stringKey, uuid]);
 
   const handleModify = () => {
     setLoading(true);
@@ -193,8 +212,16 @@ function RedisStringTable(props: {
   );
 }
 
-function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
-  const { addOP } = props;
+function RedisAddSet(props: { uuid: string; setKey: string }) {
+  const { uuid, setKey } = props;
+
+  const addOP = async member => {
+    return await invoke("redis_set_add", {
+      name: uuid,
+      key: setKey,
+      member,
+    });
+  };
   const [loading, setLoading] = useState(false);
   const valueRef = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
@@ -229,8 +256,17 @@ function RedisAddSet(props: { addOP: (key: string) => Promise<void> }) {
   );
 }
 
-function RedisAddHash(props: { addOP: (key: string, value: string) => Promise<void> }) {
-  const { addOP } = props;
+function RedisAddHash(props: { uuid: string; hashKey: string }) {
+  const { uuid, hashKey } = props;
+
+  const addOP = async (member, value) => {
+    return await invoke("redis_hash_add", {
+      name: uuid,
+      key: hashKey,
+      member,
+      value,
+    });
+  };
   const [loading, setLoading] = useState(false);
   const key = useRef(new EditorAndMode());
   const value = useRef(new EditorAndMode());
@@ -266,8 +302,18 @@ function RedisAddHash(props: { addOP: (key: string, value: string) => Promise<vo
     </Stack>
   );
 }
-function RedisAddZset(props: { addOP: (key: string, value: number) => Promise<void> }) {
-  const { addOP } = props;
+function RedisAddZset(props: { uuid: string; zsetKey: string }) {
+  const { uuid, zsetKey } = props;
+
+  const addOP = async (member, value) => {
+    return await invoke("redis_zset_add", {
+      name: uuid,
+      key: zsetKey,
+      member,
+      value,
+    });
+  };
+
   const [loading, setLoading] = useState(false);
   const [score, setScore] = useState("");
   const valueRef = useRef(new EditorAndMode());
@@ -711,13 +757,28 @@ function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
   );
 }
 
-function RedisSetTable(props: {
-  reloadOP: (keyMatch: string, status: Channel<string>) => Promise<MuiDataGridData>;
-  modifyOP: (oldValue: string, newValue: string) => Promise<void>;
+function RedisSetTable(props: { setKey: string; uuid: string }) {
+  const { setKey, uuid } = props;
 
-  delOP: (value: string) => Promise<void>;
-}) {
-  const { reloadOP, modifyOP, delOP } = props;
+  const modifyOP = async (old, newValue) => {
+    return await invoke("redis_set_replace", {
+      name: uuid,
+      key: setKey,
+      old,
+      new: newValue,
+    });
+  };
+  const delOP = useCallback(
+    async (member: string) => {
+      return await invoke("redis_set_del", {
+        name: uuid,
+        key: setKey,
+        member,
+      });
+    },
+    [setKey, uuid],
+  );
+
   const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const { showNotification } = useContext(NotificationContext);
@@ -726,11 +787,13 @@ function RedisSetTable(props: {
   const handleReload = useCallback(
     showOK => {
       setLoading(true);
-      const c = new Channel<string>(e => {
-        showProgressingStatus(showNotification, e);
-      });
-      reloadOP(keyMatch, c)
-        .then(resp => {
+      showTable({
+        uuid,
+        name: setKey,
+        isView: false,
+        setLoading,
+        showNotification,
+        handleResult: resp => {
           resp.data.forEach((e, index) => {
             e["id"] = index;
           });
@@ -740,15 +803,10 @@ function RedisSetTable(props: {
           if (showOK) {
             reloadOK(showNotification);
           }
-        })
-        .catch(e => {
-          showNotification("error", "load data error", e);
-        })
-        .finally(() => {
-          setLoading(false);
-        });
+        },
+      });
     },
-    [keyMatch, reloadOP, showNotification],
+    [setKey, showNotification, uuid],
   );
 
   useEffect(() => {
@@ -1009,12 +1067,28 @@ function RedisListTableContextMenu(props: {
   );
 }
 
-function RedisListTable(props: {
-  reloadOP: (statusChannel: Channel<string>) => Promise<MuiDataGridData>;
-  modifyOP: (index: number, newValue: string) => Promise<void>;
-  delOP: (count: number, value: string) => Promise<void>;
-}) {
-  const { reloadOP, modifyOP, delOP } = props;
+function RedisListTable(props: { listKey: string; uuid: string }) {
+  const { listKey, uuid } = props;
+  const modifyOP = async (index, value) => {
+    return await invoke("redis_list_set", {
+      name: uuid,
+      key: listKey,
+      value,
+      index,
+    });
+  };
+  const delOP = useCallback(
+    async (count, value) => {
+      return await invoke("redis_list_remove", {
+        name: uuid,
+        key: listKey,
+        value,
+        count,
+      });
+    },
+    [listKey, uuid],
+  );
+
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const [respOrigin, setRespOrigin] = useState<MuiDataGridData | null>(null);
   const [selectRow, setSelectRow] = useState<any>(null);
@@ -1025,12 +1099,13 @@ function RedisListTable(props: {
   const setting = useContext(SettingContext);
   const handleReload = useCallback(
     (showReloadOK: boolean) => {
-      setLoading(true);
-      const c = new Channel<string>(e => {
-        showProgressingStatus(showNotification, e);
-      });
-      reloadOP(c)
-        .then(resp => {
+      showTable({
+        uuid,
+        name: listKey,
+        isView: false,
+        setLoading,
+        showNotification,
+        handleResult: resp => {
           resp.data.forEach((e, index) => {
             e["id"] = index;
           });
@@ -1046,15 +1121,10 @@ function RedisListTable(props: {
           if (showReloadOK) {
             reloadOK(showNotification);
           }
-        })
-        .catch(e => {
-          showNotification("error", "load data error", e);
-        })
-        .finally(() => {
-          setLoading(false);
-        });
+        },
+      });
     },
-    [reloadOP, showNotification],
+    [listKey, showNotification, uuid],
   );
 
   useEffect(() => {
@@ -1286,18 +1356,27 @@ function RedisZSetTableContextMenu(props: { delOP: () => void; content }) {
   );
 }
 
-function RedisZsetTable(props: {
-  reloadOP: (
-    keyMatch: string,
-    min: number | null,
-    max: number | null,
-  ) => Promise<MuiDataGridData>;
-
-  modifyOP: (oldMember: string, newKey: string, newValue: number) => Promise<void>;
-
-  delOP: (key: string) => Promise<void>;
-}) {
-  const { reloadOP, modifyOP, delOP } = props;
+function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
+  const { uuid, zsetKey } = props;
+  const modifyOP = async (oldMember: string, newKey: string, newValue: number) => {
+    return await invoke("redis_zset_replace", {
+      name: uuid,
+      key: zsetKey,
+      oldMember: oldMember,
+      newMember: newKey,
+      newValue,
+    });
+  };
+  const delOP = useCallback(
+    async member => {
+      return await invoke("redis_zset_del", {
+        name: uuid,
+        key: zsetKey,
+        member,
+      });
+    },
+    [uuid, zsetKey],
+  );
   const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const [selectRow, setSelectRow] = useState<any>();
@@ -1317,14 +1396,24 @@ function RedisZsetTable(props: {
       const minValue = parseFloat(min);
       const maxValue = parseFloat(max);
       setLoading(true);
-      reloadOP(keyMatch, minValue, maxValue)
-        .then(resp => {
+      showTable({
+        uuid,
+        name: zsetKey,
+        isView: false,
+        setLoading,
+        para: {
+          min: minValue,
+          max: maxValue,
+          where_str: keyMatch ? keyMatch : null,
+          ...defaultShowTableParams(),
+        },
+        showNotification,
+        handleResult: resp => {
           resp.data.forEach((e, index) => {
             e["id"] = index;
           });
           resp.fields[1]["flex"] = 1;
           const scoreWidth = ColumnWidth.instance.get("score");
-
           if (scoreWidth) {
             resp.fields[0]["width"] = scoreWidth;
           }
@@ -1336,15 +1425,10 @@ function RedisZsetTable(props: {
           if (showOK) {
             reloadOK(showNotification);
           }
-        })
-        .catch(e => {
-          showNotification("error", "load data error", e);
-        })
-        .finally(() => {
-          setLoading(false);
-        });
+        },
+      });
     },
-    [keyMatch, max, maxErr, min, minErr, reloadOP, showNotification],
+    [keyMatch, max, maxErr, min, minErr, showNotification, uuid, zsetKey],
   );
 
   useEffect(() => {
@@ -1630,13 +1714,29 @@ const valueGetter = value => {
     return "binary value of " + value;
   }
 };
-function RedisHashTable(props: {
-  reloadOP: (keyMatch: string, status: Channel<string>) => Promise<MuiDataGridData>;
-  modifyOP: (oldMember: string, newMember: string, newValue: string) => Promise<void>;
+function RedisHashTable(props: { hashKey: string; uuid: string }) {
+  const { uuid, hashKey } = props;
+  const delOP = useCallback(
+    async member => {
+      return await invoke("redis_hash_del", {
+        name: uuid,
+        key: hashKey,
+        member,
+      });
+    },
+    [hashKey, uuid],
+  );
 
-  delOP: (key: string) => Promise<void>;
-}) {
-  const { reloadOP, modifyOP, delOP } = props;
+  const modifyOP = async (oldMember, newMember, newValue) => {
+    return await invoke("redis_hash_replace", {
+      name: uuid,
+      key: hashKey,
+      oldMember,
+      newMember,
+      newValue,
+    });
+  };
+
   const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const { showNotification } = useContext(NotificationContext);
@@ -1645,12 +1745,13 @@ function RedisHashTable(props: {
   const setting = useContext(SettingContext);
   const handleReload = useCallback(
     showOK => {
-      setLoading(true);
-      const c = new Channel<string>(e => {
-        showProgressingStatus(showNotification, e);
-      });
-      reloadOP(keyMatch, c)
-        .then(resp => {
+      showTable({
+        uuid,
+        name: hashKey,
+        isView: false,
+        setLoading,
+        showNotification,
+        handleResult: resp => {
           resp.data.forEach((e, index) => {
             e["id"] = index;
           });
@@ -1659,20 +1760,14 @@ function RedisHashTable(props: {
           resp.fields[1]["flex"] = 1;
           resp.fields[0]["valueGetter"] = valueGetter;
           resp.fields[1]["valueGetter"] = valueGetter;
-
           setResp(resp);
           if (showOK) {
             reloadOK(showNotification);
           }
-        })
-        .catch(e => {
-          showNotification("error", "load data error", e);
-        })
-        .finally(() => {
-          setLoading(false);
-        });
+        },
+      });
     },
-    [keyMatch, reloadOP, showNotification],
+    [hashKey, showNotification, uuid],
   );
 
   useEffect(() => {

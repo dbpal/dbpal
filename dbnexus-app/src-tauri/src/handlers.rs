@@ -412,26 +412,6 @@ pub async fn redis_list_table(
     }
     .map_err(ErrorFrontend::from)
 }
-#[tauri::command]
-pub async fn redis_zset_show_table(
-    name: String, key: String, min: Option<f64>, max: Option<f64>, where_str: Option<&str>,
-    app: tauri::State<'_, DBPal>,
-) -> Result<MuiDataGridData, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let schema = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
-
-    let r = match schema.as_any().downcast_ref::<RedisDB>() {
-        Some(r) => r,
-        None => return Err(ErrorFrontend::from(format!("'{}' not redis", name))),
-    };
-    let x = r
-        .zset_show_table(&key, where_str, min, max)
-        .await
-        .map_err(ErrorFrontend::from)?;
-
-    Ok(MuiDataGridData::from(x))
-}
 
 #[tauri::command]
 pub async fn show_table_columns(
@@ -447,27 +427,29 @@ pub async fn show_table_columns(
 
 #[tauri::command]
 pub async fn show_table(
-    name: String, table_name: String, para: ShowTableParameter, status_channel: Channel<String>,
-    app: tauri::State<'_, DBPal>,
-) -> Result<MuiDataGridData, ErrorFrontend> {
+    name: String, is_view: bool, table_name: String, para: ShowTableParameter,
+    emit: Channel<QueryEvent>, app: tauri::State<'_, DBPal>,
+) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
+    let emit = Arc::new(move |s| {
+        block_random_sleep();
+        let r = QueryEvent::from(s);
+        if let Err(err) = emit.send(r) {
+            log::error!("send status error,,err:{}", err);
+        }
+    });
     let db = app.get_schema(&name).await?;
-    let x = db
-        .show_table(
-            &table_name,
-            para,
-            Arc::new(move |s| {
-                block_random_sleep();
-                if let Err(err) = status_channel.send(s) {
-                    log::error!("send status error,,err:{}", err);
-                }
-            }),
-        )
-        .await
-        .map_err(ErrorFrontend::from)?;
-
-    Ok(MuiDataGridData::from(x))
+    if is_view {
+        db.show_view(&table_name, para, emit)
+            .await
+            .map_err(ErrorFrontend::from)?
+    } else {
+        db.show_table(&table_name, para, emit)
+            .await
+            .map_err(ErrorFrontend::from)?
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -865,28 +847,7 @@ pub async fn drop_table(
         .await
         .map_err(ErrorFrontend::from)
 }
-#[tauri::command]
-pub async fn show_view(
-    name: String, view_name: String, para: ShowTableParameter, status_channel: Channel<String>,
-    app: tauri::State<'_, DBPal>,
-) -> Result<MuiDataGridData, ErrorFrontend> {
-    random_sleep().await;
-    random_error()?;
-    let db = app.get_schema(&name).await?;
-    db.show_view(
-        &view_name,
-        para,
-        Arc::new(move |s| {
-            block_random_sleep();
-            if let Err(err) = status_channel.send(s) {
-                log::error!("send status error,,err:{}", err);
-            }
-        }),
-    )
-    .await
-    .map_err(ErrorFrontend::from)
-    .map(MuiDataGridData::from)
-}
+
 #[tauri::command]
 pub async fn show_view_columns(
     name: String, view_name: String, app: tauri::State<'_, DBPal>,
@@ -1071,6 +1032,7 @@ pub async fn query_sql(
             .query_sql(
                 query_id,
                 &sql,
+                max_row,
                 Arc::new(move |event| {
                     block_random_sleep();
                     let r = QueryEvent::from(event);
@@ -1084,6 +1046,7 @@ pub async fn query_sql(
                     }
                     if let Err(err) = emit.send(r) {
                         log::error!("send data to frontend failed:{}", err);
+                        cancel_msg_clone.cancel();
                     }
                 }),
             )
@@ -1091,8 +1054,10 @@ pub async fn query_sql(
             .map_err(ErrorFrontend::from)
     };
     tokio::select! {
-        res = fur => res,
+        biased;
         _ = token.cancelled() => Err(ErrorFrontend::cancelled(cancel_msg.get_msg())),
+        res = fur => res,
+
     }
 }
 
@@ -2967,20 +2932,6 @@ pub async fn put_value_in_sql(
 }
 
 #[tauri::command]
-pub async fn cassandra_invalid_table_or_view_caching(
-    name: String, table_name: Option<String>, app: tauri::State<'_, DBPal>,
-) -> Result<(), ErrorFrontend> {
-    let open = app.get_schema(&name).await.map_err(ErrorFrontend::from)?;
-    match open.as_any().downcast_ref::<CassandraDB>() {
-        Some(x) => {
-            x.invalid_table_or_view_caching(table_name.as_deref());
-            Ok(())
-        }
-        None => Err(ErrorFrontend::from("this is not cassandra")),
-    }
-}
-
-#[tauri::command]
 pub async fn cassandra_list_aggregate(
     name: String, app: tauri::State<'_, DBPal>,
 ) -> Result<Vec<NamedStaff>, ErrorFrontend> {
@@ -3280,8 +3231,6 @@ pub struct MuiDataGridData {
     data: Vec<HashMap<String, String>>,
     sql: Option<String>,
     total: usize,
-    cache_time: Option<u64>,
-    has_more: bool,
 }
 
 impl From<QueryResp> for MuiDataGridData {
@@ -3291,8 +3240,6 @@ impl From<QueryResp> for MuiDataGridData {
             data,
             total,
             sql,
-            cache_time,
-            has_more,
         } = value;
         #[derive(Default)]
         struct NameIndex {
@@ -3345,8 +3292,6 @@ impl From<QueryResp> for MuiDataGridData {
             data,
             sql,
             total,
-            cache_time,
-            has_more,
         }
     }
 }

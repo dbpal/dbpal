@@ -1,12 +1,4 @@
-import {
-  memo,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import CancelIcon from "@mui/icons-material/Cancel";
 import types from "./ApiStruct";
 import {
@@ -43,6 +35,7 @@ import {
 } from "@mui/x-data-grid";
 import ClearIcon from "@mui/icons-material/Clear";
 import {
+  defaultShowTableParams,
   EscDownEvent,
   FieldAndGridField,
   keyNotInTable,
@@ -99,8 +92,15 @@ import {
 import { editor, Position } from "monaco-editor";
 import wcmatch from "wildcard-match";
 import { MdEditNote } from "react-icons/md";
-import { showProgressingStatus, SimpleFlexEditor } from "./CommonComp2";
-import { Channel } from "@tauri-apps/api/core";
+import { SimpleFlexEditor } from "./CommonComp2";
+import {
+  makePutValueInSql,
+  makeTableDelete,
+  makeTableInsertFn,
+  makeTableUpdate,
+  showTable,
+} from "./handlers";
+import { invoke } from "@tauri-apps/api/core";
 
 const confirmAboutPrimary = async (
   notWarnPri: boolean,
@@ -354,43 +354,38 @@ class EditInModalCellData {
   constructor(public row: object, public field: string, public content: string) {}
 }
 
-function SqlTableView_(props: {
-  reloadOP: (
-    where: string,
-    orderBy: string,
-    page: number,
-    pageSize: number,
-    extra: types.ShowTableExtraArgs,
-    status: Channel<string>,
-  ) => Promise<MuiDataGridData>;
-  updateOP?: (wheres: object, values: object) => Promise<types.SqlExecuteRet>;
-  deleteOP?: (wheres: object) => Promise<types.SqlExecuteRet>;
-  put_value_in_sql: (typ: string, value?: string) => Promise<string>;
-  addOP?: (x: object) => Promise<void>;
+function makeExtractTableSelectWhere(uuid: string) {
+  return (sql: string) => {
+    return invoke<string | null>("extract_table_select_selection", {
+      name: uuid,
+      sql,
+    });
+  };
+}
+
+function makeExtractTableSelectSort(uuid: string) {
+  return (sql: string) => {
+    return invoke<string | null>("extract_table_select_sort", {
+      name: uuid,
+      sql,
+    });
+  };
+}
+function SqlTableView(props: {
   notWarnPri?: boolean;
   kind: DataSourceKind;
   tableName: string;
   uuid;
-  invalidCassandraTableViewCache?: () => Promise<void>;
-  extractTableSelectWhere: (sql: string) => Promise<string | null>;
-  extractTableSelectSort: (sql: string) => Promise<string | null>;
   isTable: boolean;
 }) {
-  const {
-    reloadOP,
-    updateOP,
-    deleteOP,
-    notWarnPri,
-    put_value_in_sql,
-    kind,
-    tableName,
-    addOP,
-    uuid,
-    invalidCassandraTableViewCache,
-    extractTableSelectSort,
-    extractTableSelectWhere,
-    isTable,
-  } = props;
+  const { notWarnPri, kind, tableName, uuid, isTable } = props;
+  const updateOP = makeTableUpdate(uuid, tableName);
+  const deleteOP = makeTableDelete(uuid, tableName);
+  const put_value_in_sql = makePutValueInSql(uuid);
+  const addOP = makeTableInsertFn(uuid, tableName);
+  const extractTableSelectSort = makeExtractTableSelectSort(uuid);
+  const extractTableSelectWhere = makeExtractTableSelectWhere(uuid);
+
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState("");
   const [showSetWhere, setShowSetWhere] = useState(false);
@@ -418,6 +413,12 @@ function SqlTableView_(props: {
   const handleResp = (resp: MuiDataGridData) => {
     resp.data.forEach((data, index) => {
       data[keyNotInTable] = index;
+    });
+    resp.fields.forEach(field => {
+      const width = ColumnWidth.instance.get(field.field);
+      if (width) {
+        field["width"] = width;
+      }
     });
     for (let i = 0; i < resp.fields.length; i++) {
       const field = resp.fields[i] as FieldAndGridField;
@@ -449,53 +450,59 @@ function SqlTableView_(props: {
           </Stack>
         );
       };
-
       if (!field.is_auto_increment) {
         field.editable = true;
       }
+      setResp(resp);
     }
   };
 
   const handleReload = useCallback(
-    async (showOK: boolean) => {
-      setLoading(true);
-      try {
-        let extra = null as types.ShowTableExtraArgs;
-        switch (kind) {
-          case DataSourceKind.Cassandra:
-            extra = { extra: "cassandra", allow_filtering: allowFiltering };
-            break;
-        }
-        const c = new Channel<string>(e => {
-          showProgressingStatus(showNotification, e);
-        });
-        const resp = await reloadOP(
-          where.trim(),
-          sort.trim(),
-          page + 1,
-          pageSize,
-          extra,
-          c,
-        );
-        await handleResp(resp);
-        resp.fields.forEach(field => {
-          const width = ColumnWidth.instance.get(field.field);
-          if (width) {
-            field["width"] = width;
-          }
-        });
-        setResp(resp);
-        if (showOK) {
-          reloadOK(showNotification);
-        }
-      } catch (e) {
-        showNotification("error", "query data failed", e);
-        return;
-      } finally {
-        setLoading(false);
+    (showOK: boolean) => {
+      let extra = null as types.ShowTableExtraArgs;
+      switch (kind) {
+        case DataSourceKind.Cassandra:
+          extra = { extra: "cassandra", allow_filtering: allowFiltering };
+          break;
       }
+      showTable({
+        para: {
+          where_str: where.trim(),
+          order_by: sort.trim(),
+          page: page + 1,
+          page_size: pageSize,
+          extra,
+          ...defaultShowTableParams(),
+        },
+        name: tableName,
+        isView: !isTable,
+        uuid,
+        setLoading,
+        okCallBack: showOK
+          ? () => {
+              if (showOK) {
+                reloadOK(showNotification);
+              }
+            }
+          : undefined,
+        showNotification,
+        handleResult: resp => {
+          handleResp(resp);
+        },
+      });
     },
-    [allowFiltering, kind, page, pageSize, reloadOP, showNotification, sort, where],
+    [
+      allowFiltering,
+      isTable,
+      kind,
+      page,
+      pageSize,
+      showNotification,
+      sort,
+      tableName,
+      uuid,
+      where,
+    ],
   );
 
   const handleProcessRowUpdate = useCallback(
@@ -816,42 +823,6 @@ function SqlTableView_(props: {
               }
               label="allow filtering"
             />
-            {resp.cache_time && (
-              <>
-                <Tooltip title="last cache time">
-                  <Typography color="info" style={shrinkAble}>
-                    {new Date(resp.cache_time * 1000).toLocaleString()}
-                  </Typography>
-                </Tooltip>
-                <Tooltip
-                  title="Cassandra does not support pagination with offset and limit, so the data is cached in the background,
-                then returns data based on pagination."
-                >
-                  <Button
-                    variant="outlined"
-                    onClick={() => {
-                      invalidCassandraTableViewCache()
-                        .then(() => {
-                          showNotification(
-                            "success",
-                            "invalid cassandra table or view cache OK",
-                          );
-                          handleReload(false);
-                        })
-                        .catch(e => {
-                          showNotification(
-                            "error",
-                            "invalid cassandra cache failed",
-                            e,
-                          );
-                        });
-                    }}
-                  >
-                    clear cache
-                  </Button>
-                </Tooltip>
-              </>
-            )}
           </>
         )}
       </Stack>
@@ -1555,7 +1526,5 @@ function FilterOnValue(props: {
     </Stack>
   );
 }
-
-const SqlTableView = memo(SqlTableView_);
 
 export { SqlTableView, SqlTableViewData };

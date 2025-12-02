@@ -4,7 +4,7 @@ use crate::db::{
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue,
     NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlExecuteRet, StatusEmiter, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit, build_limit_sql, create_html_table_data,
     create_html_table_header, escape_sql_str, ty_is_float, ty_is_int,
 };
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
@@ -127,10 +127,17 @@ impl ClickHouseDB {
 }
 
 fn gen_show_sql(
-    schema: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize,
+    schema: &str, table_name: &str, fields: Option<String>, where_str: Option<&str>,
+    order_by: Option<&str>, page: usize, page_size: usize,
 ) -> String {
-    let mut sql = format!("SELECT * from `{schema}`.`{table_name}`");
+    let mut sql = format!(
+        "SELECT {} from `{schema}`.`{table_name}`",
+        if let Some(x) = fields {
+            x
+        } else {
+            "*".to_owned()
+        }
+    );
     if let Some(where_str) = where_str {
         sql.push_str(format!(" where {where_str} ").as_str());
     }
@@ -434,53 +441,8 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            extra: _,
-        } = &para;
-        status_emit("trying to query total count.".into());
-        let total = self
-            .query_count(self.config.db_str(), table_name, where_str.as_deref())
-            .await?;
-        status_emit("trying to query columns.".into());
-        let fs = self.show_table_columns(table_name).await?;
-        let fs = {
-            let mut m = HashMap::new();
-            fs.into_iter().for_each(|x| {
-                m.insert(x.field.clone(), x);
-            });
-            m
-        };
-        let sql = gen_show_sql(
-            self.config.db_str(),
-            table_name,
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
-        log::info!("sql:{}", sql);
-        status_emit("trying to query data.".into());
-        let result = self.query_as_json(&sql).await?;
-
-        let mut inferred_fs = result.infer_fields();
-        inferred_fs.iter_mut().for_each(|f| {
-            if let Some(x) = fs.get(&f.field) {
-                *f = x.clone();
-            }
-        });
-        let data = result.encode_json_result()?;
-        anyhow::Ok(QueryResp::new(inferred_fs, total, data, sql)?)
-    }
-
-    async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
+        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
             order_by,
@@ -488,32 +450,67 @@ impl SchemaTrait for ClickHouseDB {
             page_size,
             ..
         } = &para;
-        status_emit("trying to query total count.".into());
+        emit("trying to query total count.".into());
         let total = self
-            .query_count(self.config.db_str(), view_name, where_str.as_deref())
+            .query_count(self.config.db_str(), table_name, where_str.as_deref())
             .await?;
-
+        emit("trying to query columns.".into());
+        let fs = self.show_table_columns(table_name).await?;
         let sql = gen_show_sql(
             self.config.db_str(),
-            view_name,
+            table_name,
+            Some(self.backend_name().format_fields(Some(&fs))),
             where_str.as_deref(),
             order_by.as_deref(),
             *page,
             *page_size,
         );
         log::info!("sql:{}", sql);
-        status_emit("trying to query data.".into());
+        emit("trying to query data.".into());
+        let result = self.query_as_json(&sql).await?;
+        let data = result.encode_json_result()?;
+        emit(QueryResp::new(fs, total, data, sql)?.into());
+        anyhow::Ok(())
+    }
+
+    async fn show_view(
+        &self, view_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
+        let ShowTableParameter {
+            where_str,
+            order_by,
+            page,
+            page_size,
+            ..
+        } = &para;
+        emit("trying to query total count.".into());
+        let total = self
+            .query_count(self.config.db_str(), view_name, where_str.as_deref())
+            .await?;
+        let sql = gen_show_sql(
+            self.config.db_str(),
+            view_name,
+            None,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
+        );
+        log::info!("sql:{}", sql);
+        emit("trying to query data.".into());
         let result = self.query_as_json(&sql).await?;
         let fields = result.infer_fields();
         let data = result.encode_json_result()?;
-        anyhow::Ok(QueryResp {
-            fields,
-            total,
-            data,
-            sql: Some(sql),
-            has_more: false,
-            cache_time: None,
-        })
+        emit(
+            QueryResp {
+                fields,
+                total,
+                data,
+                sql: Some(sql),
+            }
+            .into(),
+        );
+        anyhow::Ok(())
     }
 
     async fn table_insert(
@@ -947,17 +944,18 @@ impl QuerySql for ClickHouseDB {
     }
 
     async fn query_sql(
-        &self, _query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self, _query_id: &str, sql: &str, max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         self.not_allow_switch_db(sql)?;
         let dialect = sqlparser::dialect::ClickHouseDialect {};
         let sqls = separate_sql_by_sqlparser_tokenizer(sql, &dialect)?;
         for sql in sqls.iter() {
+            let sql = build_limit_sql(sql, max_row);
             emit(QueryEvent::new_status(format!(
                 "try to execute sql: {}",
                 sql
             )));
-            let x = self.query_as_json(sql).await;
+            let x = self.query_as_json(&sql).await;
             match x {
                 Ok(x) => {
                     let fields = x.infer_fields();
@@ -1362,6 +1360,7 @@ fn replace_new_line_to_whitespace(sql: &str) -> anyhow::Result<String> {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::usize;
 
     use super::*;
     use super::{make_test_object, parse_type};
@@ -1557,7 +1556,7 @@ from test
                 view_name,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -1629,7 +1628,7 @@ from test
                 view_name,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -1713,13 +1712,7 @@ from test
         db.duplicate_table(name, &name2).await.unwrap();
 
         let _resp = db
-            .show_table(
-                &name2,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{}", s);
-                }),
-            )
+            .show_table_collect(&name2, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         assert_eq!(_resp.data.len(), 6);
@@ -1749,12 +1742,9 @@ from test
     async fn test_show_table() {
         let db = make_test_object();
         let resp = db
-            .show_table(
+            .show_table_collect(
                 "example_table",
                 ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{}", s);
-                }),
             )
             .await
             .unwrap();
@@ -1806,7 +1796,7 @@ from test
                     table_name,
                     ShowTableParameter::new_stupid_test("id asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await
@@ -1895,7 +1885,7 @@ from test
                     table_name,
                     ShowTableParameter::new_stupid_test("id asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await
@@ -1988,7 +1978,7 @@ from test
                     table_name,
                     ShowTableParameter::new_stupid_test("id asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await
@@ -2092,7 +2082,7 @@ from test
                     table_name,
                     ShowTableParameter::new_stupid_test("string_field asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await
@@ -2199,7 +2189,7 @@ from test
                     table_name,
                     ShowTableParameter::new_stupid_test("date32_field asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await
@@ -2285,7 +2275,7 @@ from test
                     table_name,
                     ShowTableParameter::new_stupid_test("nullable_field asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await
@@ -2342,6 +2332,7 @@ from test
         db.query_sql(
             query_id,
             "SELECT * fro test_types4",
+            usize::MAX,
             Arc::new(|e| {
                 println!("{:?}", e);
             }),

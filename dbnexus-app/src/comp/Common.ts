@@ -387,11 +387,7 @@ class QueryConn {
       queryId: this.queryId,
     });
   }
-  queryOP(
-    sql: string,
-    emit: Channel<QueryEvent>,
-    maxRow: number = 2000,
-  ): Promise<void> {
+  queryOP(sql: string, emit: Channel<QueryEvent>, maxRow: number): Promise<void> {
     return invoke<void>("query_sql", {
       name: this.uuid,
       queryId: this.queryId,
@@ -575,6 +571,17 @@ class TableFilterHandler {
   }
 }
 
+const defaultShowTableParams = (): types.ShowTableParameter => ({
+  where_str: null,
+  order_by: null,
+  page: 1, // 假设 Usize 是 number
+  page_size: 10, // 假设 Usize 是 number
+  extra: null,
+  limit: null,
+  min: null,
+  max: null,
+});
+
 export {
   modalStyle,
   tabsHasId,
@@ -596,6 +603,7 @@ export {
   makeFormatFn,
   QueryConn,
   TableFilterHandler,
+  defaultShowTableParams,
 };
 
 export type { DefAndMetas, EscDownEvent, FieldAndGridField, TableFilter, QueryEvent };

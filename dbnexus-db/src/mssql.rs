@@ -6,10 +6,10 @@ use crate::db::{
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
     ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryResp,
     QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlExecuteRet, StatusEmiter, TimeElapsed, TriggerDetail, TriggerEnable, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
-    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data,
-    format_data_time_fix_offset, not_support_feature,
+    SqlExecuteRet, TimeElapsed, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
+    escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset,
+    not_support_feature,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::create_csv;
@@ -278,15 +278,6 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
     }
 }
 
-fn make_table_list_from_meta_and_row(
-    meta: &tiberius::ResultMetadata, rows: &[tiberius::Row], total: usize, sql: impl Into<String>,
-) -> anyhow::Result<QueryResp> {
-    let fields = get_fields_from_meta(meta);
-    let data = encode_rows(rows)?;
-
-    anyhow::Ok(QueryResp::new(fields, total, data, Some(sql.into()))?)
-}
-
 fn encode_rows(rows: &[tiberius::Row]) -> anyhow::Result<Vec<Vec<Option<String>>>> {
     let mut data = vec![];
     for r in rows.iter() {
@@ -301,10 +292,17 @@ fn encode_rows(rows: &[tiberius::Row]) -> anyhow::Result<Vec<Vec<Option<String>>
 }
 
 fn gen_select_sql(
-    schema: &str, table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize,
+    schema: &str, table_name: &str, fields: Option<String>, where_str: Option<&str>,
+    order_by: Option<&str>, page: usize, page_size: usize,
 ) -> String {
-    let mut sql = format!(r#"SELECT * FROM "{schema}"."{table_name}""#);
+    let mut sql = format!(
+        r#"SELECT {} FROM "{schema}"."{table_name}""#,
+        if let Some(fields) = fields {
+            fields
+        } else {
+            "*".to_string()
+        }
+    );
     if let Some(where_str) = where_str {
         sql.push_str(format!(" WHERE {where_str} ").as_str());
     }
@@ -802,8 +800,8 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
+        &self, view_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
             order_by,
@@ -811,10 +809,11 @@ impl SchemaTrait for SqlServerDB {
             page_size,
             ..
         } = &para;
-        status_emit("trying to get connection.".into());
+
+        emit("trying to get connection.".into());
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        status_emit("trying to get total amount.".into());
+        emit("trying to get total amount.".into());
         let total = SqlServerDB::query_count(
             conn,
             self.config.schema_str()?,
@@ -825,31 +824,45 @@ impl SchemaTrait for SqlServerDB {
         let sql = gen_select_sql(
             self.config.schema_str()?.as_str(),
             view_name,
+            None,
             where_str.as_deref(),
             order_by.as_deref(),
             *page,
             *page_size,
         );
         log::info!("sql:{}", sql);
-        status_emit("trying to get data.".into());
+        emit("trying to get data.".into());
         let mut stream = conn.query(&sql, &[]).await?;
-        let mut meta = None;
-        let mut rows = Vec::with_capacity(*page_size);
+        let mut rows = Vec::new();
+        let mut time_elapsed = TimeElapsed::new();
         while let Some(item) = stream.next().await {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(row) => {
                     rows.push(row);
+                    if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
+                        let data = encode_rows(&std::mem::take(&mut rows))?;
+                        emit(data.into());
+                    }
                 }
-                tiberius::QueryItem::Metadata(m) => meta = Some(m),
+                tiberius::QueryItem::Metadata(m) => {
+                    emit(
+                        QueryResp {
+                            fields: get_fields_from_meta(&m),
+                            sql: sql.clone().into(),
+                            total: total as usize,
+                            ..Default::default()
+                        }
+                        .into(),
+                    );
+                }
             }
         }
-        status_emit("encode data , about to return result".into());
-        let ret = match meta {
-            Some(meta) => make_table_list_from_meta_and_row(&meta, &rows, total as usize, sql)?,
-            None => anyhow::bail!("SELECT should return at lease one meta"),
-        };
-        anyhow::Ok(ret)
+        if !rows.is_empty() {
+            let data = encode_rows(&rows)?;
+            emit(data.into());
+        }
+        anyhow::Ok(())
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
@@ -938,8 +951,8 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
+        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
             order_by,
@@ -947,10 +960,10 @@ impl SchemaTrait for SqlServerDB {
             page_size,
             ..
         } = &para;
-        status_emit("trying to get connection.".into());
+        emit("trying to get connection.".into());
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        status_emit("trying to get total amount.".into());
+        emit("trying to get total amount.".into());
         let total = SqlServerDB::query_count(
             conn,
             self.config.schema_str()?,
@@ -958,44 +971,50 @@ impl SchemaTrait for SqlServerDB {
             where_str.as_deref(),
         )
         .await?;
+        let fields = self.show_table_columns(table_name).await?;
         let sql = gen_select_sql(
             self.config.schema_str()?.as_str(),
             table_name,
+            Some(self.backend_name().format_fields(Some(&fields))),
             where_str.as_deref(),
             order_by.as_deref(),
             *page,
             *page_size,
         );
-
-        status_emit("trying to get data.".into());
+        emit(
+            QueryResp {
+                fields,
+                total: total as usize,
+                sql: sql.clone().into(),
+                ..Default::default()
+            }
+            .into(),
+        );
+        emit("trying to query data.".into());
         let mut stream = conn
             .query(&sql, &[])
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
-        let mut meta = None;
-        let mut rows = Vec::with_capacity(*page_size);
+        let mut rows = Vec::new();
+        let mut time_elapsed = TimeElapsed::new();
         while let Some(item) = stream.next().await {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(row) => {
                     rows.push(row);
-                    if rows.len() % 50 == 0 {
-                        status_emit(format!("get {} rows", rows.len()));
+                    if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
+                        let d = encode_rows(&std::mem::take(&mut rows))?;
+                        emit(d.into());
                     }
                 }
-                tiberius::QueryItem::Metadata(m) => meta = Some(m),
+                tiberius::QueryItem::Metadata(..) => {
+                    // we have send the fields.
+                }
             }
         }
-        status_emit("trying to get columns.".into());
-        let cols = self.show_table_columns(table_name).await?;
-        status_emit("encode data , about to return result.".into());
-        let mut ret = match meta {
-            Some(x) => make_table_list_from_meta_and_row(&x, &rows, total as usize, sql)?,
-            None => anyhow::bail!("SELECT should yield at lease one meta"),
-        };
-        // inferred schema is accurate as show_table_columns
-        ret.fields = cols;
-        anyhow::Ok(ret)
+        let d = encode_rows(&std::mem::take(&mut rows))?;
+        emit(d.into());
+        anyhow::Ok(())
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -1941,7 +1960,7 @@ impl QuerySql for SqlServerDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self, query_id: &str, sql: &str, _max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
@@ -2628,16 +2647,10 @@ GO
         db.rollback(query_id).await.unwrap();
 
         assert!(
-            db.show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{}", s);
-                })
-            )
-            .await
-            .unwrap()
-            .total
+            db.show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"),)
+                .await
+                .unwrap()
+                .total
                 == 0
         );
 
@@ -2655,16 +2668,10 @@ GO
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{}", s);
-                })
-            )
-            .await
-            .unwrap()
-            .total
+            db.show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"),)
+                .await
+                .unwrap()
+                .total
                 == 1
         );
     }
@@ -2699,7 +2706,7 @@ GO
             "test_rename2",
             ShowTableParameter::new_stupid_test("id asc"),
             Arc::new(|s| {
-                println!("{}", s);
+                println!("{:?}", s);
             }),
         )
         .await
@@ -2740,12 +2747,9 @@ GO
             .unwrap();
 
         let resp = db
-            .show_table(
+            .show_table_collect(
                 "test_duplicate2",
                 ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{}", s);
-                }),
             )
             .await
             .unwrap();
@@ -2871,6 +2875,7 @@ GO
         db.query_sql(
             query_id,
             "SELECT  COUNT(*) from test_type1 ",
+            usize::MAX,
             Arc::new(|e| {
                 println!("{:?}", e);
             }),
@@ -2972,7 +2977,7 @@ GO
                 "test_view",
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -3136,6 +3141,7 @@ FROM sys.sequences;
 
 
         "#,
+            usize::MAX,
             Arc::new(|e| {
                 println!("{:?}", e);
             }),
@@ -3253,7 +3259,7 @@ FROM sys.sequences;
                 table_name,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -3315,7 +3321,7 @@ FROM sys.sequences;
                 table_name,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -3379,7 +3385,7 @@ FROM sys.sequences;
                 table_name,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -3455,7 +3461,7 @@ FROM sys.sequences;
                 table_name,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await

@@ -32,14 +32,12 @@ use crate::db::{
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
     Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
     POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableExtraArgs, ShowTableParameter, SqlBuilder, SqlExecuteRet,
-    StatusEmiter, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
-    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
+    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
+    escape_sql_str, export_query_as_xlsx_send_data,
 };
-
-use crate::helper::{create_csv, current_timestamp};
+use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
-
 use cdrs_tokio::authenticators::StaticPasswordAuthenticatorProvider;
 use cdrs_tokio::cluster::NodeTcpConfigBuilder;
 use cdrs_tokio::cluster::connection_pool::ConnectionPoolConfigBuilder;
@@ -71,57 +69,7 @@ pub struct CassandraDB {
     pub(crate) session: Arc<AppSession>,
     pub(crate) query_connection: Arc<DashMap<String, Arc<AppSession>>>,
     pub(crate) config: CassandraDBConfig,
-    paging_cache: Arc<DashMap<String, Arc<PageCache>>>,
     pub(crate) completion_id: AutoCompletionQueryId,
-}
-
-#[derive(Clone, Debug)]
-struct PageCache {
-    result: QueryResp,
-    condition: PageCacheCondition,
-    sql: String,
-    cache_time: u64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct PageCacheCondition {
-    where_str: Option<String>,
-    order_by: Option<String>,
-    extra: Option<ShowTableExtraArgs>,
-}
-
-impl PageCache {
-    fn page(&self, page: usize, page_size: usize, hit_cache: bool) -> QueryResp {
-        let length = self.result.data.len();
-        let cache_time = if hit_cache {
-            Some(self.cache_time)
-        } else {
-            None
-        };
-        let start = (page - 1) * page_size;
-        if start >= length {
-            return QueryResp {
-                fields: self.result.fields.clone(),
-                data: vec![],
-                sql: Some(self.sql.clone()),
-                total: 0,
-                cache_time,
-                has_more: false,
-            };
-        }
-        let end = page * page_size;
-        let end = std::cmp::min(end, length);
-        let data = self.result.data[start..end].to_vec();
-
-        QueryResp {
-            fields: self.result.fields.clone(),
-            data,
-            sql: Some(self.sql.clone()),
-            total: 0,
-            cache_time,
-            has_more: false,
-        }
-    }
 }
 
 pub type AppSession = cdrs_tokio::cluster::session::Session<
@@ -176,7 +124,6 @@ impl CassandraDB {
         anyhow::Ok(Self {
             session: Arc::new(session),
             config,
-            paging_cache: Default::default(),
             query_connection: Default::default(),
             completion_id: Default::default(),
         })
@@ -898,7 +845,6 @@ impl QuerySql for CassandraDB {
     async fn execute_sql(
         &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        self.invalid_table_or_view_caching(None);
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("query connection closed???"),
@@ -911,9 +857,8 @@ impl QuerySql for CassandraDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self, query_id: &str, sql: &str, max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        self.invalid_table_or_view_caching(None);
         emit(QueryEvent::new_status("trying lock connection."));
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
@@ -921,6 +866,7 @@ impl QuerySql for CassandraDB {
         };
         emit(QueryEvent::new_status("locked connection."));
         for sql in sql_to_each(sql) {
+            let sql = fix_limit(sql, max_row)?;
             emit(QueryEvent::new_status(format!(
                 "try to execute sql: {}",
                 sql
@@ -979,137 +925,73 @@ impl CassandraDB {
     }
 }
 
-impl CassandraDB {
-    // page caching size
-    const PAGE_CACHE_LIMIT_SIZE: usize = 2000;
-
-    // table is none means remove all cached.
-    pub fn invalid_table_or_view_caching(&self, table: Option<&str>) {
-        if let Some(table) = table {
-            self.paging_cache.remove(&table.to_string());
+fn get_select_sql(
+    name: &str, where_str: Option<&str>, order_by: Option<&str>, allow_filtering: bool,
+    limit: usize,
+) -> String {
+    #[allow(clippy::format_in_format_args)]
+    format!(
+        r#"SELECT * FROM "{name}"  {}  {} {} {}"#,
+        if let Some(where_str) = where_str.as_ref() {
+            format!(" WHERE {} ", where_str)
         } else {
-            self.paging_cache.clear();
+            "".to_string()
+        },
+        if let Some(order) = order_by {
+            format!(" ORDER BY {} ", order)
+        } else {
+            "".to_string()
+        },
+        format!("LIMIT {}", limit),
+        if allow_filtering {
+            "ALLOW FILTERING"
+        } else {
+            ""
         }
+    )
+}
+
+// https://github.com/krojew/cdrs-tokio/issues/215
+// because of this we can't limit total return amount
+fn fix_limit(cql: &str, max_row: usize) -> anyhow::Result<String> {
+    let ss = CassandraAST::new(cql).statements;
+    let mut cql = cql.to_owned();
+    if ss.len() != 1 {
+        anyhow::bail!("should contains one statement.")
     }
+    let s = &ss[0];
+    match &s.statement {
+        CassandraStatement::Select(select) => match &select.limit {
+            Some(_) => {
+                // very good have limit no touch user cql
+                anyhow::Ok(cql)
+            }
+            None => {
+                if select.filtering {
+                    // find last allow in cql
+                    let index = cql.to_lowercase().rfind("allow").option_must_be_some()?;
+                    let start = &cql[..index];
+                    let end = &cql[index..];
 
-    fn page_caching_total(&self, name: &str) -> usize {
-        self.paging_cache
-            .get(&name.to_string())
-            .map(|x| x.result.data.len())
-            .unwrap_or(usize::MAX)
-    }
-
-    fn page_caching_sql(&self, name: &str) -> Option<String> {
-        self.paging_cache
-            .get(&name.to_string())
-            .map(|x| x.sql.clone())
-    }
-
-    async fn page_caching_show(
-        &self, name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, extra: Option<ShowTableExtraArgs>,
-    ) -> anyhow::Result<QueryResp> {
-        // try get value from cache
-        let condition: PageCacheCondition = PageCacheCondition {
-            where_str: where_str.map(|x| x.to_owned()),
-            order_by: order_by.map(|x| x.to_owned()),
-            extra: extra.clone(),
-        };
-
-        {
-            let cache = self.paging_cache.get(&name.to_string()).map(|x| x.clone());
-            if let Some(cache) = cache {
-                if cache.condition.eq(&condition) {
-                    // hit cache
-                    log::info!(
-                        "hit cache for table:{} page:{} page_size:{}",
-                        name,
-                        page,
-                        page_size
-                    );
-                    return anyhow::Ok(cache.page(page, page_size, true));
+                    anyhow::Ok(format!(
+                        "{} {} {}",
+                        start,
+                        format_args!(" limit {max_row}"),
+                        end
+                    ))
+                } else {
+                    // no filtering push into the end
+                    cql.push_str(format!(" limit {max_row}").as_str());
+                    anyhow::Ok(cql)
                 }
             }
+        },
+        _ => {
+            anyhow::bail!(format!(
+                "we should be dealing with a select statement,but:{:?}",
+                s
+            ))
         }
-        //
-        log::info!(
-            "cache not hit table:{} page:{} page_size:{},trying load data from server",
-            name,
-            page,
-            page_size
-        );
-        let allow_filtering = match &extra {
-            Some(x) => match x {
-                ShowTableExtraArgs::Cassandra { allow_filtering } => *allow_filtering,
-            },
-            None => false,
-        };
-
-        /*
-        在 Cassandra 中，使用 ALLOW FILTERING 时确实会有一些限制。特别是，当你在查询中使用 ALLOW FILTERING 时，不能同时使用 ORDER BY。
-
-        这是因为 ORDER BY 需要在分区键（partition key）上进行排序，而 ALLOW FILTERING 通常意味着查询的条件不符合最优的索引使用，这会导致 Cassandra 无法保证结果的顺序。因此，Cassandra 不允许在这种情况下同时使用这两个选项。
-
-        如果你需要排序结果，建议在设计数据模型时考虑索引和查询需求，以避免使用 ALLOW FILTERING。
-
-        好像也不能使用limit了 那就使用
-        */
-        #[allow(clippy::format_in_format_args)]
-        let sql = format!(
-            r#"SELECT * FROM "{name}"  {}  {} {} {}"#,
-            if let Some(where_str) = where_str.as_ref() {
-                format!(" WHERE {} ", where_str)
-            } else {
-                "".to_string()
-            },
-            if order_by.is_some() {
-                format!(" ORDER BY {} ", order_by.option_must_be_some()?)
-            } else {
-                "".to_string()
-            },
-            format!("LIMIT {}", Self::PAGE_CACHE_LIMIT_SIZE),
-            if allow_filtering {
-                "ALLOW FILTERING"
-            } else {
-                ""
-            }
-        );
-        log::info!("sql:{:?}", sql);
-
-        let body = self.session.query(&sql).await?.response_body()?;
-        let meta = body.as_rows_metadata().cloned();
-        if meta.is_none() {
-            return anyhow::Ok(QueryResp {
-                fields: vec![],
-                data: vec![],
-                sql: Some(sql.clone()),
-                total: 0,
-                cache_time: None,
-                has_more: false,
-            });
-        }
-        let meta = meta.option_must_be_some()?;
-        let rows = body.into_rows().unwrap_or_default();
-        let fields = infer_fields(&meta);
-
-        let data = encode_rows(&meta, &rows)?;
-        // put in cache
-        let cache = PageCache {
-            result: QueryResp {
-                fields,
-                data,
-                sql: Some(sql.clone()),
-                total: 0,
-                cache_time: None,
-                has_more: false,
-            },
-            condition,
-            sql,
-            cache_time: current_timestamp(),
-        };
-        let ret = cache.page(page, page_size, false);
-        self.paging_cache.insert(name.to_owned(), Arc::new(cache));
-        anyhow::Ok(ret)
     }
 }
 
@@ -1429,7 +1311,6 @@ impl SchemaTrait for CassandraDB {
         let sql = format!(r#"DROP MATERIALIZED VIEW "{name}";"#);
         log::info!("sql:{}", sql);
         self.session.query(sql).await?;
-        self.invalid_table_or_view_caching(Some(name));
         anyhow::Ok(())
     }
 
@@ -1481,7 +1362,6 @@ impl SchemaTrait for CassandraDB {
         );
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
-        self.invalid_table_or_view_caching(Some(table));
         anyhow::Ok(())
     }
 
@@ -1624,56 +1504,11 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(ret)
     }
 
+    #[allow(unused)]
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, _status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
-        let mut ret = self
-            .page_caching_show(
-                table_name,
-                para.where_str.as_deref(),
-                para.order_by.as_deref(),
-                para.page,
-                para.page_size,
-                para.extra,
-            )
-            .await?;
-
-        let fields = self.show_table_columns(table_name).await?;
-        if ret.fields.is_empty() {
-            return anyhow::Ok(QueryResp {
-                fields,
-                data: vec![],
-                total: 0,
-                sql: None,
-                cache_time: ret.cache_time,
-                has_more: ret.has_more,
-            });
-        }
-        let mut m = HashMap::new();
-        fields.iter().for_each(|x| {
-            m.insert(x.field.clone(), x);
-        });
-        ret.fields.iter_mut().for_each(|field| {
-            let f = m.get(&field.field);
-            if let Some(f) = f {
-                *field = (*f).clone();
-            }
-        });
-        let QueryResp {
-            fields,
-            data,
-            cache_time,
-            ..
-        } = ret;
-
-        anyhow::Ok(QueryResp {
-            fields,
-            total: self.page_caching_total(table_name),
-            data,
-            sql: self.page_caching_sql(table_name),
-            cache_time,
-            has_more: false,
-        })
+        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
+        unimplemented!()
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -1710,7 +1545,6 @@ impl SchemaTrait for CassandraDB {
         let sql = self.insert_sql(None, table_name, &fs, &values)?;
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
-        self.invalid_table_or_view_caching(Some(table_name));
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(1),
@@ -1728,7 +1562,6 @@ impl SchemaTrait for CassandraDB {
 
         log::info!("update sql:{}", sql);
         self.session.query(&sql).await?;
-        self.invalid_table_or_view_caching(Some(table_name));
         anyhow::Ok(SqlExecuteRet::from((sql, 1)))
     }
 
@@ -1736,7 +1569,6 @@ impl SchemaTrait for CassandraDB {
         self.can_write()?;
         let sql = format!(r#"TRUNCATE "{table_name}""#);
         log::info!("sql:{}", sql);
-        self.invalid_table_or_view_caching(Some(table_name));
         self.session.query(&sql).await?;
         anyhow::Ok(())
     }
@@ -1750,7 +1582,6 @@ impl SchemaTrait for CassandraDB {
         let sql = self.delete_sql(self.config.db.as_deref(), table_name, &fs, &wheres)?;
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
-        self.invalid_table_or_view_caching(Some(table_name));
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(1),
@@ -1762,7 +1593,6 @@ impl SchemaTrait for CassandraDB {
         let sql = format!(r#"DROP TABLE "{}";"#, table);
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
-        self.invalid_table_or_view_caching(Some(table));
         anyhow::Ok(())
     }
 
@@ -1772,7 +1602,6 @@ impl SchemaTrait for CassandraDB {
         let sql = format!("ALTER TABLE {table} ADD {name} {}", col.typ);
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
-        self.invalid_table_or_view_caching(Some(table));
         anyhow::Ok(())
     }
 
@@ -1781,7 +1610,6 @@ impl SchemaTrait for CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!("ALTER TABLE {table} RENAME {old_name} TO {new_name}");
         log::info!("sql:{}", sql);
-        self.invalid_table_or_view_caching(Some(table));
         self.session.query(&sql).await?;
         anyhow::Ok(())
     }
@@ -1790,13 +1618,12 @@ impl SchemaTrait for CassandraDB {
         let sql = format!("ALTER TABLE {table} DROP {col};");
         log::info!("sql:{}", sql);
         self.session.query(&sql).await?;
-        self.invalid_table_or_view_caching(Some(table));
         anyhow::Ok(())
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
+        &self, view_name: &str, para: ShowTableParameter, status_emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         self.show_table(view_name, para, status_emit).await
     }
 
@@ -2215,7 +2042,6 @@ mod tests {
     #[tokio::test]
     async fn test_list_schema() {
         let db = make_test_object(None).await;
-
         let _ = db
             .create_schema(
                 "test",
@@ -2374,7 +2200,7 @@ mod tests {
                 table_name,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -2441,7 +2267,7 @@ mod tests {
                 table_dup,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -2530,7 +2356,7 @@ mod tests {
                     table_name,
                     ShowTableParameter::new_stupid_test("id asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await;
@@ -2630,7 +2456,7 @@ mod tests {
                     table_name,
                     ShowTableParameter::new_stupid_test("id asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await;
@@ -2732,7 +2558,7 @@ mod tests {
                     table_name,
                     ShowTableParameter::new_stupid_test("id asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await;
@@ -2837,7 +2663,7 @@ mod tests {
                     table_name,
                     ShowTableParameter::new_stupid_test("id asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await;
@@ -2942,7 +2768,7 @@ mod tests {
                     table_name,
                     ShowTableParameter::new_stupid_test("id asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await;
@@ -3050,7 +2876,7 @@ mod tests {
                     table_name,
                     ShowTableParameter::new_stupid_test("id asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await;
@@ -3141,7 +2967,7 @@ mod tests {
                     table_name,
                     ShowTableParameter::new_stupid_test("id asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await;
@@ -3276,15 +3102,9 @@ mod tests {
         let resp = db
             .show_table(
                 table_name,
-                ShowTableParameter {
-                    where_str: None,
-                    order_by: None,
-                    page: 1,
-                    page_size: 100,
-                    extra: None,
-                },
+                ShowTableParameter::new_stupid_test(None),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -3498,7 +3318,7 @@ mod tests {
                     view_name,
                     ShowTableParameter::new_stupid_test("id asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await
@@ -3526,5 +3346,24 @@ mod tests {
             .statements
             .iter()
             .for_each(|x| println!("{:?}", x.statement));
+    }
+
+    #[test]
+    fn tet_fix_limit() {
+        let limit = 100;
+        assert_eq!(
+            fix_limit("select * from test", limit).unwrap(),
+            "select * from test limit 100"
+        );
+
+        assert_eq!(
+            fix_limit("select * from test limit 100", limit).unwrap(),
+            "select * from test limit 100"
+        );
+
+        assert_eq!(
+            fix_limit("select * from test where a = 1 allow filtering", limit).unwrap(),
+            "select * from test where a = 1   limit 100 allow filtering"
+        );
     }
 }

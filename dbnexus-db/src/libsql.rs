@@ -15,8 +15,8 @@ use crate::db::{
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
-    StatusEmiter, TimeElapsed, TriggerDetail, XlsxEdit, create_html_table_data,
-    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data,
+    TimeElapsed, TriggerDetail, XlsxEdit, create_html_table_data, create_html_table_header,
+    escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
@@ -225,7 +225,7 @@ impl QuerySql for LibSqlDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self, query_id: &str, sql: &str, _max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let tr = self.query_connections_transaction.get(&query_id.to_owned());
         let conn = self.query_connection.get(&query_id.to_string());
@@ -817,46 +817,8 @@ impl SchemaTrait for LibSqlDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            extra: _,
-        } = &para;
-        status_emit("trying to query total count of this table.".to_owned());
-        let total = self.query_count(table_name, where_str.as_deref()).await?;
-        let sql = gen_show_sql(
-            table_name,
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
-        log::info!("show table sql:{}", sql);
-
-        status_emit("trying to get connection.".into());
-        let conn: bb8::PooledConnection<'_, PoolManager> = self.get_conn().await?;
-        status_emit("trying to query data".into());
-        let mut query_rows = conn.query(&sql, params!()).await?;
-        let mut rows = Vec::with_capacity(*page_size);
-        while let Some(r) = query_rows.next().await? {
-            rows.push(r);
-            if rows.len() % 50 == 0 {
-                status_emit(format!("{} rows data fetched", rows.len()));
-            }
-        }
-        status_emit("encode data , about to return result".into());
-        let data = encode_rows(&rows)?;
-        let fields = self.show_table_columns(table_name).await?;
-        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
-    }
-
-    async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
+        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
             order_by,
@@ -864,40 +826,99 @@ impl SchemaTrait for LibSqlDB {
             page_size,
             ..
         } = &para;
-        status_emit("trying to get connection.".into());
-        let conn = self.get_conn().await?;
-        status_emit("trying to query total count of this view.".to_owned());
-        let total = self.query_count(view_name, where_str.as_deref()).await?;
+
+        emit("trying to query table columns".into());
+        let fields = self.show_table_columns(table_name).await?;
+        emit("trying to query total count of this table.".into());
+        let total = self.query_count(table_name, where_str.as_deref()).await?;
         let sql = gen_show_sql(
-            view_name,
+            table_name,
+            self.backend_name().format_fields(Some(&fields)).into(),
             where_str.as_deref(),
             order_by.as_deref(),
             *page,
             *page_size,
         );
         log::info!("show table sql:{}", sql);
-        status_emit("trying to query data".into());
-        let mut raw_rows = conn.query(&sql, params!()).await?;
-        let mut rows = Vec::new();
-        while let Some(x) = raw_rows.next().await? {
-            rows.push(x);
-        }
-        if rows.is_empty() {
-            let f = self.show_view_columns(view_name).await?;
-            return anyhow::Ok(QueryResp {
-                fields: f,
+        emit(
+            QueryResp {
+                fields,
                 total,
-                sql: Some(sql),
+                sql: sql.clone().into(),
                 ..Default::default()
-            });
+            }
+            .into(),
+        );
+        emit("trying to get connection.".into());
+        let conn: bb8::PooledConnection<'_, PoolManager> = self.get_conn().await?;
+        emit("trying to query data".into());
+        let mut query_rows = conn.query(&sql, params!()).await?;
+        let mut rows = Vec::new();
+        let mut time_elapsed = TimeElapsed::new();
+        while let Some(r) = query_rows.next().await? {
+            rows.push(r);
+            if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
+                let data = encode_rows(&std::mem::take(&mut rows))?;
+                emit(data.into());
+            }
         }
-        status_emit("encode rows, about to return result".to_owned());
         let data = encode_rows(&rows)?;
-        let fields = match rows.first() {
-            Some(x) => get_row_types(x),
-            None => vec![],
-        };
-        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
+        emit(data.into());
+        anyhow::Ok(())
+    }
+
+    async fn show_view(
+        &self, view_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
+        let ShowTableParameter {
+            where_str,
+            order_by,
+            page,
+            page_size,
+            ..
+        } = &para;
+        emit("trying to get connection.".into());
+        let conn = self.get_conn().await?;
+        emit("trying to query total count of this view.".into());
+        let total = self.query_count(view_name, where_str.as_deref()).await?;
+        let sql = gen_show_sql(
+            view_name,
+            None,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
+        );
+        log::info!("show table sql:{}", sql);
+        emit("trying to query data".into());
+        let mut stream = conn.query(&sql, params!()).await?;
+        let mut rows = Vec::new();
+        let mut first = true;
+        let mut time_elapsed = TimeElapsed::new();
+        while let Some(row) = stream.next().await? {
+            if first {
+                first = false;
+                emit(
+                    QueryResp {
+                        fields: get_row_types(&row),
+                        total,
+                        sql: sql.clone().into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                )
+            }
+            rows.push(row);
+            if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
+                let d = encode_rows(&std::mem::take(&mut rows))?;
+                emit(d.into());
+            }
+        }
+        if !rows.is_empty() {
+            let d = encode_rows(&rows)?;
+            emit(d.into());
+        }
+        anyhow::Ok(())
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -1432,16 +1453,10 @@ mod tests {
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{}", s);
-                })
-            )
-            .await
-            .unwrap()
-            .total
+            db.show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"),)
+                .await
+                .unwrap()
+                .total
                 == 1
         );
     }
@@ -1497,7 +1512,7 @@ mod tests {
             "test_rename2",
             ShowTableParameter::new_stupid_test("id asc"),
             Arc::new(|s| {
-                println!("{}", s);
+                println!("{:?}", s);
             }),
         )
         .await
@@ -1532,7 +1547,7 @@ mod tests {
             "test_duplicate2",
             ShowTableParameter::new_stupid_test("id asc"),
             Arc::new(|s| {
-                println!("{}", s);
+                println!("{:?}", s);
             }),
         )
         .await
@@ -1830,7 +1845,7 @@ mod tests {
                 table_name,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -1850,6 +1865,7 @@ mod tests {
             PRAGMA table_info('test_table')
 
         "#,
+                usize::MAX,
                 Arc::new(|e| {
                     println!("{:?}", e);
                 }),
@@ -1874,7 +1890,7 @@ mod tests {
                     v.name.as_str(),
                     ShowTableParameter::new_stupid_test("id asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await

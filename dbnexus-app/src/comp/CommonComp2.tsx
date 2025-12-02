@@ -1,5 +1,6 @@
 import {
   ReactNode,
+  RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -18,6 +19,7 @@ import {
   Autocomplete,
   Box,
   Button,
+  Chip,
   CircularProgress,
   FormControlLabel,
   IconButton,
@@ -25,8 +27,10 @@ import {
   ListItemText,
   MenuItem,
   Modal,
+  Paper,
   Radio,
   RadioGroup,
+  Slider,
   TextField,
   Tooltip,
   Typography,
@@ -858,6 +862,56 @@ function showProgressingStatus(showNotification, status: string) {
   );
 }
 
+function SelectMaxRowLimit(props: { kind: string; maxRowRef: RefObject<number> }) {
+  const { kind, maxRowRef } = props;
+  const width = "45vw";
+  const [maxRow, setMaxRow] = useState(0);
+  const storekey = "dbpal-max-row-" + kind;
+  const handleSave = useCallback(() => {
+    localStorage.setItem(storekey, maxRow + "");
+  }, [maxRow, storekey]);
+  useEffect(() => {
+    handleSave();
+    maxRowRef.current = maxRow;
+  }, [handleSave, maxRow, maxRowRef]);
+
+  useEffect(() => {
+    let x = parseInt(localStorage.getItem(storekey));
+    if (!isNaN(x) && x) {
+      setMaxRow(x);
+    } else {
+      setMaxRow(2000);
+    }
+  }, [storekey]);
+  return (
+    <Tooltip
+      slotProps={{
+        tooltip: {
+          style: { maxWidth: width },
+        },
+      }}
+      title=<Paper style={{ width, padding: "0.5rem" }}>
+        <Stack>
+          <Typography color="info">
+            limit max rows can be query.we don&apos;t want OOM!!!😀
+          </Typography>
+          <Slider
+            value={maxRow}
+            min={2000}
+            max={10_0000}
+            onChange={(_, v) => {
+              setMaxRow(v);
+            }}
+            step={1000}
+          />
+        </Stack>
+      </Paper>
+    >
+      <Chip label={maxRow} color="info" />
+    </Tooltip>
+  );
+}
+
 export {
   CreateDatabase,
   CreateSchema,
@@ -872,4 +926,5 @@ export {
   SaveFavoriteSqlView,
   CancelButton,
   showProgressingStatus,
+  SelectMaxRowLimit,
 };

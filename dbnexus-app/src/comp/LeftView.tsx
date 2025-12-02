@@ -69,16 +69,7 @@ import { MongoTable } from "./MongoDB";
 import { DataGrid, GridColDef, GridSlotsComponentsProps } from "@mui/x-data-grid";
 import { SimpleFlexEditor } from "./CommonComp2";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import {
-  createViewSql,
-  listView,
-  makeExtractTableSelectSort,
-  makeExtractTableSelectWhere,
-  makeInvalidCassandraTableCache,
-  makePutValueInSql,
-  makeShowViewFn,
-  showViewColumns,
-} from "./handlers";
+import { createViewSql, listView, showViewColumns } from "./handlers";
 import { filesize } from "filesize";
 function ViewsTree(props: { viewKind: ViewKind }) {
   const { viewKind } = props;
@@ -509,16 +500,11 @@ function ViewMenu(props: {
       case DataSourceKind.Cockroach:
         list = (
           <SqlTableView
-            invalidCassandraTableViewCache={makeInvalidCassandraTableCache(uuid, view)}
             isTable={false}
-            extractTableSelectSort={makeExtractTableSelectSort(uuid)}
-            extractTableSelectWhere={makeExtractTableSelectWhere(uuid)}
             tableName={view}
             kind={kind}
             uuid={uuid}
             notWarnPri={true}
-            reloadOP={makeShowViewFn(uuid, view)}
-            put_value_in_sql={makePutValueInSql(uuid)}
           />
         );
         break;

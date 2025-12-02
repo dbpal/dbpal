@@ -66,6 +66,7 @@ import {
   EditorBar,
   LoadStoreFile,
   SaveFavoriteSqlView,
+  SelectMaxRowLimit,
   showProgressingStatus,
 } from "./CommonComp2.tsx";
 import { ModifyLLMConfigModal } from "./Settings.tsx";
@@ -199,7 +200,6 @@ function SqlQuery(props: {
   handleEditor: (ed: editor.IStandaloneCodeEditor) => void;
 }) {
   const { uuid, value, favoriteName, kind, extras, handleEditor } = props;
-
   const [resp, setResp] = useState<QueryRespData[]>([]);
   const [sqlErr, setSqlErr] = useState<ErrAndLoc | null>(null);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
@@ -214,6 +214,7 @@ function SqlQuery(props: {
   const [conn] = useState<QueryConn>(
     new QueryConn(uuid, generateRandomString(8), kind),
   );
+  const maxRow = useRef(2000);
   const [showExport, setShowExport] = useState(false);
   const [openOk, setOpenOk] = useState(false);
   const [tryCheckSql, setTryCheckSql] = useState(SaveCheckSql.get());
@@ -231,7 +232,6 @@ function SqlQuery(props: {
       d1.dispose();
     };
   }, []);
-
   useEffect(() => {
     if (!editor) {
       return;
@@ -369,7 +369,7 @@ function SqlQuery(props: {
       });
     });
     conn
-      .queryOP(text, emit)
+      .queryOP(text, emit, maxRow.current)
       .then(() => {
         if (SaveQueryLogConfigure.get()) {
           queryLogHandler.current.save(text, true);
@@ -616,6 +616,7 @@ function SqlQuery(props: {
             {makeConnLoading && <CircularProgress />}
             <ModifyLLMConfigModal />
             <ExecutingTime loading={loading} disableTime />
+            <SelectMaxRowLimit kind="sql-query" maxRowRef={maxRow} />
           </Stack>
           <div
             style={{

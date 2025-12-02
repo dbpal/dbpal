@@ -18,7 +18,7 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind,
     ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlExecuteRet, StatusEmiter, XlsxEdit, create_html_table_data,
+    SqlExecuteRet, TimeElapsed, XlsxEdit, create_html_table_data,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 
@@ -76,55 +76,6 @@ impl RedisDB {
             query_connection: Default::default(),
             created_database: Default::default(),
             completion_id: Default::default(),
-        })
-    }
-}
-
-impl RedisDB {
-    pub async fn zset_show_table(
-        &self, key: &str, where_str: Option<&str>, min: Option<f64>, max: Option<f64>,
-    ) -> anyhow::Result<QueryResp> {
-        let mut conn = self.get_conn().await?;
-
-        let total: usize = conn.zcard(key).await?;
-        let mut ret: AsyncIter<(Vec<u8>, f64)> =
-            conn.zscan_match(key, where_str.unwrap_or("*")).await?;
-        let mut key_values = Vec::new();
-        let mut has_more = false;
-        while let Some(item) = ret.next_item().await {
-            let value = item?;
-            // try match
-            if let Some(min) = min {
-                if value.1 < min {
-                    continue;
-                }
-            }
-            if let Some(max) = max {
-                if value.1 > max {
-                    continue;
-                }
-            }
-            if key_values.len() >= Self::MAX_RETURNING {
-                has_more = true;
-                break;
-            }
-            key_values.push((value.1, value.0));
-        }
-        anyhow::Ok(QueryResp {
-            fields: vec![
-                Field::from_name_type("score", "f64"),
-                Field::from_name_type("key", "string"),
-            ],
-            total,
-            data: key_values
-                .into_iter()
-                .map(|(score, key)| {
-                    vec![Some(score.to_string()), Some(hex::encode(key.as_slice()))]
-                })
-                .collect(),
-            sql: None,
-            cache_time: None,
-            has_more,
         })
     }
 }
@@ -1001,10 +952,6 @@ impl RedisDB {
 }
 
 impl RedisDB {
-    pub const MAX_RETURNING: usize = 2000;
-}
-
-impl RedisDB {
     async fn export_table_as_xlsx(
         &self, key: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -1248,114 +1195,174 @@ impl SchemaTrait for RedisDB {
     }
 
     async fn show_table(
-        &self, key: &str, para: ShowTableParameter, status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
-        status_emit("trying to get connetion.".to_owned());
+        &self, key: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
+        emit("trying to get connetion.".into());
         let mut conn = self.get_conn().await?;
-        let ShowTableParameter { where_str, .. } = &para;
+        let ShowTableParameter {
+            where_str,
+            min,
+            max,
+            ..
+        } = &para;
         let typ = Self::get_key_type(&mut conn, key).await?;
         use futures_util::StreamExt;
+        let mut time_elapsed = TimeElapsed::new();
         match typ {
             RedisType::String => {
                 let ret: Option<Vec<u8>> = conn.get(key).await?;
-                anyhow::Ok(QueryResp::result(
-                    format!("GET {}", key),
-                    vec![ret.map(|x| hex::encode(x.as_slice()))],
-                ))
+                emit(
+                    QueryResp::result(
+                        format!("GET {}", key),
+                        vec![ret.map(|x| hex::encode(x.as_slice()))],
+                    )
+                    .into(),
+                );
+                anyhow::Ok(())
             }
             RedisType::List => {
-                status_emit("trying to get list.".to_owned());
+                emit("trying to get list.".into());
                 let r: Vec<Vec<u8>> = conn.lrange(key, 0, -1).await?;
-                anyhow::Ok(QueryResp {
-                    fields: vec![
-                        Field::from_name_type("seq", "int"),
-                        Field::from_name_type("value", "string"),
-                    ],
-                    total: r.len(),
-                    data: r
-                        .into_iter()
-                        .enumerate()
-                        .map(|(seq, r)| {
-                            vec![Some(seq.to_string()), Some(hex::encode(r.as_slice()))]
-                        })
-                        .collect(),
-                    ..Default::default()
-                })
+                emit(
+                    QueryResp {
+                        fields: vec![
+                            Field::from_name_type("seq", "int"),
+                            Field::from_name_type("value", "string"),
+                        ],
+                        total: r.len(),
+                        data: r
+                            .into_iter()
+                            .enumerate()
+                            .map(|(seq, r)| {
+                                vec![Some(seq.to_string()), Some(hex::encode(r.as_slice()))]
+                            })
+                            .collect(),
+                        ..Default::default()
+                    }
+                    .into(),
+                );
+                anyhow::Ok(())
             }
-
             RedisType::Set => {
-                status_emit("tring to query amount".into());
-                let total: usize = conn.scard(key).await?;
+                emit("trying to query amount".into());
+                emit(
+                    QueryResp {
+                        fields: vec![Field::from_name_type("value", "string")],
+                        ..Default::default()
+                    }
+                    .into(),
+                );
                 let mut ret: AsyncIter<Vec<u8>> = conn
                     .sscan_match(key, where_str.clone().unwrap_or("*".to_string()))
                     .await?;
                 let mut set_values = Vec::new();
-                let mut has_more = false;
                 while let Some(value) = ret.next().await {
                     let value = value?;
-                    if set_values.len() >= Self::MAX_RETURNING {
-                        has_more = true;
-                        break;
-                    }
                     set_values.push(value);
+                    if set_values.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
+                        let d = set_values
+                            .iter()
+                            .map(|x| vec![Some(hex::encode(x))])
+                            .collect::<Vec<_>>();
+                        emit(d.into());
+                    }
                 }
-                anyhow::Ok(QueryResp {
-                    fields: vec![Field::from_name_type("value", "string")],
-                    total,
-                    data: set_values
-                        .into_iter()
-                        .map(|x| vec![Some(hex::encode(x.as_slice()))])
-                        .collect(),
-                    has_more,
-                    ..Default::default()
-                })
+                if !set_values.is_empty() {
+                    let d = set_values
+                        .iter()
+                        .map(|x| vec![Some(hex::encode(x))])
+                        .collect::<Vec<_>>();
+                    emit(d.into());
+                }
+                anyhow::Ok(())
             }
             RedisType::Hash => {
-                let total: usize = conn.hlen(key).await?;
+                emit(
+                    QueryResp {
+                        fields: vec![
+                            Field::from_name_type("key", "string"),
+                            Field::from_name_type("value", "string"),
+                        ],
+                        ..Default::default()
+                    }
+                    .into(),
+                );
                 let mut ret: AsyncIter<Vec<u8>> = conn
                     .hscan_match(key, where_str.clone().unwrap_or("*".to_string()))
                     .await?;
-                let mut index = 0;
-                let mut key_values = Vec::new();
-                let mut value_values = Vec::new();
-                let mut has_more = false;
+                let mut values = Vec::new();
                 while let Some(value) = ret.next().await {
                     let value = value?;
-                    if index >= Self::MAX_RETURNING << 1 {
-                        has_more = true;
-                        break;
+                    values.push(value);
+                    if values.len() % 2 == 0 {
+                        if values.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
+                            let values = values.chunks(2);
+                            let values = values
+                                .map(|x| vec![Some(hex::encode(&x[0])), Some(hex::encode(&x[1]))])
+                                .collect::<Vec<_>>();
+                            emit(values.into())
+                        }
                     }
-                    if index % 2 == 0 {
-                        key_values.push(value.clone());
-                    } else {
-                        value_values.push(value.clone());
-                    }
-                    index += 1;
                 }
-                anyhow::Ok(QueryResp {
-                    fields: vec![
-                        Field::from_name_type("key", "string"),
-                        Field::from_name_type("value", "string"),
-                    ],
-                    total,
-                    data: key_values
-                        .into_iter()
-                        .zip(value_values)
-                        .map(|(k, v)| {
-                            vec![
-                                Some(hex::encode(k.as_slice())),
-                                Some(hex::encode(v.as_slice())),
-                            ]
-                        })
-                        .collect(),
-                    sql: None,
-                    cache_time: None,
-                    has_more,
-                })
+                if !values.is_empty() {
+                    let values = values.chunks(2);
+                    let values = values
+                        .map(|x| vec![Some(hex::encode(&x[0])), Some(hex::encode(&x[1]))])
+                        .collect::<Vec<_>>();
+                    emit(values.into())
+                }
+                anyhow::Ok(())
             }
-
             RedisType::Zset => {
-                anyhow::bail!("use redis show table zset implementation");
+                let mut conn = self.get_conn().await?;
+                let total: usize = conn.zcard(key).await?;
+                let mut ret: AsyncIter<(Vec<u8>, f64)> = conn
+                    .zscan_match(key, where_str.as_deref().unwrap_or("*"))
+                    .await?;
+                emit(
+                    QueryResp {
+                        fields: vec![
+                            Field::from_name_type("score", "f64"),
+                            Field::from_name_type("key", "string"),
+                        ],
+                        total,
+                        ..Default::default()
+                    }
+                    .into(),
+                );
+                let mut key_values = Vec::new();
+                while let Some(item) = ret.next_item().await {
+                    let value = item?;
+                    // try match
+                    if let Some(min) = min {
+                        if value.1 < *min {
+                            continue;
+                        }
+                    }
+                    if let Some(max) = max {
+                        if value.1 > *max {
+                            continue;
+                        }
+                    }
+                    key_values.push(value);
+                    if key_values.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
+                        let d = std::mem::take(&mut key_values);
+                        let d = d
+                            .iter()
+                            .map(|(key, score)| {
+                                vec![Some(hex::encode(key)), Some(score.to_string())]
+                            })
+                            .collect::<Vec<_>>();
+                        emit(d.into());
+                    }
+                }
+                let d = std::mem::take(&mut key_values);
+                let d = d
+                    .iter()
+                    .map(|(key, score)| vec![Some(hex::encode(key)), Some(score.to_string())])
+                    .collect::<Vec<_>>();
+                emit(d.into());
+                anyhow::Ok(())
             }
         }
     }
@@ -1573,7 +1580,7 @@ impl QuerySql for RedisDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self, query_id: &str, sql: &str, _max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
@@ -2112,15 +2119,14 @@ mod tests {
     use super::make_test_object;
     use super::*;
     use super::{RedisDB, extract_db_from_info_key_space, split_info_colon};
-    use futures_util::StreamExt;
-    use redis::AsyncCommands;
-    use std::time::Duration;
-
     use crate::db::{
         DBTrait, ExportKind, ExportQueryResult, GetBackendKind, QuerySql, SchemaTrait, ServerMetas,
         ShowTableParameter,
     };
     use crate::enable_test_log;
+    use futures_util::StreamExt;
+    use redis::AsyncCommands;
+    use std::time::Duration;
 
     #[cfg(test)]
     #[test]
@@ -2428,7 +2434,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 table_name,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -2446,7 +2452,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 &table_name_dup,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -2516,7 +2522,12 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         println!("{:?}", cols);
         let resp = (SchemaTrait::as_any(&db).downcast_ref::<RedisDB>())
             .unwrap()
-            .zset_show_table(table_name, None, None, None)
+            .show_table_collect(
+                table_name,
+                ShowTableParameter {
+                    ..Default::default()
+                },
+            )
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2604,7 +2615,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 table_name,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -2621,7 +2632,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 &table_name_dup,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -2694,7 +2705,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 table_name,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -2711,7 +2722,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 &table_name_dup,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -2787,7 +2798,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 table_name,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -2805,7 +2816,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 &table_name_dup,
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await

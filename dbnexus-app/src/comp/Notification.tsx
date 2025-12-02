@@ -34,6 +34,10 @@ function NotificationProvider(props: { children: ReactNode }) {
   });
 
   const showNotification = (severity: AlertColor, title: string, err) => {
+    if (!severity) {
+      setOpen(false);
+      return;
+    }
     const iscancelled = isCancelledError(err);
     if (typeof err == "object" && "reason" in err) {
       console.error("detail:", err);

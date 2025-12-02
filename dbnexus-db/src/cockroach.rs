@@ -1,8 +1,12 @@
-use crate::db::{ListTable, QueryResp, SchemaTrait, ShowTableParameter, StatusEmiter};
-use crate::pg::PostGresDB;
+use crate::db::{
+    GetBackendKind, ListTable, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
+    ShowTableParameter, TimeElapsed,
+};
+use crate::pg::{PostGresDB, gen_show_sql};
 use crate::pg_format::encode_rows;
 #[cfg(test)]
 use crate::sub::SubDB;
+use futures_util::StreamExt;
 use sqlx::{AssertSqlSafe, Row};
 use std::ops::DerefMut;
 
@@ -29,25 +33,6 @@ pub(crate) async fn make_test_object() -> SubDB {
     pg
 }
 
-fn gen_show_sql(
-    schema: &str, table_name: &str, fields: &[&str], where_str: Option<&str>,
-    order_by: Option<&str>, page: usize, page_size: usize,
-) -> String {
-    let mut sql = format!(
-        r#"SELECT "{}" from "{schema}"."{table_name}""#,
-        fields.join(r#"",""#)
-    );
-    if let Some(where_str) = where_str {
-        sql.push_str(format!(" where {where_str} ").as_str());
-    }
-    if let Some(order_by) = order_by {
-        sql.push_str(format!(" ORDER BY {order_by} ").as_str());
-    }
-    let offset = (page - 1) * page_size;
-    sql.push_str(format!(" OFFSET {} LIMIT {}", offset, page_size).as_str());
-
-    sql
-}
 pub(crate) const COCKROACH_TYPES: &[&str] = &[
     "BIT",
     "BIT[]",
@@ -94,40 +79,54 @@ pub(crate) const COCKROACH_TYPES: &[&str] = &[
 
 impl PostGresDB {
     pub(crate) async fn cock_roach_show_table(
-        &self, table_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
+        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
             order_by,
             page,
             page_size,
-            extra: _,
+            ..
         } = &para;
 
-        status_emit("trying to query columns".into());
+        emit("trying to query columns".into());
         let fields = self.show_table_columns(table_name).await?;
-        let cols = fields.iter().map(|x| x.field.as_str()).collect::<Vec<_>>();
-        status_emit("trying to query total".into());
         let total = self.query_count(table_name, where_str.as_deref()).await?;
+        emit("trying to query total".into());
+        emit(
+            QueryResp {
+                fields: fields.clone(),
+                total,
+                ..Default::default()
+            }
+            .into(),
+        );
         let sql = gen_show_sql(
             self.config.schema_str()?,
             table_name,
-            &cols[..],
+            Some(self.backend_name().format_fields(Some(&fields))),
             where_str.as_deref(),
             order_by.as_deref(),
             *page,
             *page_size,
         );
         log::info!("sql:{}", sql);
-        status_emit("trying to query data".into());
+        emit("trying to query data".into());
         let mut conn = self.get_conn().await?;
-        let row = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch_all(conn.deref_mut())
-            .await
-            .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
-        status_emit("encodeing data,about to retrun.".to_owned());
-        let data = encode_rows(&row)?;
-        anyhow::Ok(QueryResp::new(fields, total, data, sql)?)
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
+        let mut rows = vec![];
+        let mut time_elapsed = TimeElapsed::new();
+        while let Some(x) = stream.next().await {
+            let row = x?;
+            rows.push(row);
+            if time_elapsed.elapsed() || rows.len() >= self.query_buffer_size() {
+                emit(encode_rows(&std::mem::take(&mut rows))?.into());
+            }
+        }
+        if !rows.is_empty() {
+            emit(encode_rows(&rows)?.into());
+        }
+        anyhow::Ok(())
     }
 
     pub(crate) async fn cock_roach_list_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -206,16 +205,10 @@ mod tests {
         db.rollback(query_id).await.unwrap();
 
         assert!(
-            db.show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{}", s);
-                })
-            )
-            .await
-            .unwrap()
-            .total
+            db.show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"),)
+                .await
+                .unwrap()
+                .total
                 == 0
         );
         db.set_auto_commit(query_id, false).await.unwrap();
@@ -232,16 +225,10 @@ mod tests {
 
         db.commit(query_id).await.unwrap();
         assert!(
-            db.show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{}", s);
-                })
-            )
-            .await
-            .unwrap()
-            .total
+            db.show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"),)
+                .await
+                .unwrap()
+                .total
                 == 1
         );
     }
@@ -396,7 +383,7 @@ mod tests {
             "test_rename2",
             ShowTableParameter::new_stupid_test("id asc"),
             Arc::new(|s| {
-                println!("{}", s);
+                println!("{:?}", s);
             }),
         )
         .await
@@ -433,12 +420,9 @@ mod tests {
             .unwrap();
 
         let resp = db
-            .show_table(
+            .show_table_collect(
                 "test_duplicate2",
                 ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{}", s);
-                }),
             )
             .await
             .unwrap();
@@ -517,7 +501,7 @@ mod tests {
                     &l.name,
                     ShowTableParameter::new_stupid_test("id asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await
@@ -562,7 +546,7 @@ mod tests {
                     &l.name,
                     ShowTableParameter::new_stupid_test("id asc"),
                     Arc::new(|s| {
-                        println!("{}", s);
+                        println!("{:?}", s);
                     }),
                 )
                 .await

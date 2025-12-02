@@ -8,50 +8,8 @@ import {
   ViewKind,
 } from "./helper";
 import { message } from "@tauri-apps/plugin-dialog";
-
-function makeExtractTableSelectWhere(uuid: string) {
-  return (sql: string) => {
-    return invoke<string | null>("extract_table_select_selection", {
-      name: uuid,
-      sql,
-    });
-  };
-}
-
-function makeExtractTableSelectSort(uuid: string) {
-  return (sql: string) => {
-    return invoke<string | null>("extract_table_select_sort", {
-      name: uuid,
-      sql,
-    });
-  };
-}
-
-function makeShowTableFn(uuid: string, table: string) {
-  return async (
-    where: string,
-    orderBy: string,
-    page: number,
-    pageSize: number,
-    extra,
-    statusChannel: Channel<string>,
-  ) => {
-    const where_null = where ? where : null;
-    const orderBy_null = orderBy ? orderBy : null;
-    return await invoke<MuiDataGridData>("show_table", {
-      name: uuid,
-      tableName: table,
-      statusChannel,
-      para: {
-        where_str: where_null,
-        order_by: orderBy_null,
-        page,
-        page_size: pageSize,
-        extra,
-      } as types.ShowTableParameter,
-    });
-  };
-}
+import { defaultShowTableParams, QueryEvent } from "./Common";
+import { showProgressingStatus } from "./CommonComp2";
 
 async function tryGetMaxID(uuid: string, tableOrView: string) {
   try {
@@ -64,31 +22,6 @@ async function tryGetMaxID(uuid: string, tableOrView: string) {
     console.error("get max id failed", e);
     return null;
   }
-}
-function makeShowViewFn(uuid: string, view: string) {
-  return async (
-    where: string,
-    orderBy: string,
-    page: number,
-    pageSize: number,
-    extra,
-    statusChannel: Channel<string>,
-  ) => {
-    const where_null = where ? where : null;
-    const orderBy_null = orderBy ? orderBy : null;
-    return await invoke<MuiDataGridData>("show_view", {
-      name: uuid,
-      viewName: view,
-      para: {
-        where_str: where_null,
-        order_by: orderBy_null,
-        page,
-        page_size: pageSize,
-        extra,
-      } as types.ShowTableParameter,
-      statusChannel,
-    });
-  };
 }
 
 function makeTableUpdate(uuid: string, table: string) {
@@ -108,15 +41,6 @@ function makeTableDelete(uuid: string, table: string) {
       name: uuid,
       tableName: table,
       wheres,
-    });
-  };
-}
-
-function makeInvalidCassandraTableCache(uuid: string, table: string) {
-  return async () => {
-    return invoke<void>("cassandra_invalid_table_or_view_caching", {
-      name: uuid,
-      tableName: table,
     });
   };
 }
@@ -352,28 +276,91 @@ async function checkSql(uuid: string, sql: string) {
   }
 }
 
-function showTable(
-  uuid: string,
-  table: string,
-  para: types.ShowTableParameter,
-  statusChannel: Channel<string>,
+interface ShowTableCallBack {
+  handleResult: (_: MuiDataGridData) => void;
+  okCallBack?: () => void;
+  setLoading;
+}
+async function showTable(
+  props: {
+    uuid: string;
+    para?: types.ShowTableParameter;
+    name: string;
+    isView: boolean;
+    showNotification;
+  } & ShowTableCallBack,
 ) {
-  return invoke<MuiDataGridData>("show_table", {
-    name: uuid,
-    tableName: table,
+  let {
+    uuid,
     para,
-    statusChannel,
-  });
+    name,
+    isView,
+    okCallBack,
+    showNotification,
+    handleResult,
+    setLoading,
+  } = props;
+  if (!para) {
+    para = defaultShowTableParams();
+  }
+  try {
+    setLoading(true);
+    let resp: MuiDataGridData = null;
+    if (!para.where_str) {
+      para.where_str = null;
+    }
+    if (!para.order_by) {
+      para.order_by = null;
+    }
+    const emit = new Channel<QueryEvent>(event => {
+      switch (event.kind) {
+        case "structure":
+          resp = event.resp;
+          handleResult(resp);
+          break;
+        case "data": {
+          let cop = { ...resp };
+          cop.data = [
+            ...cop.data,
+            ...event.data.map(d => {
+              let obj = {};
+              d.forEach((e, index) => {
+                obj[cop.fields[index].field] = e;
+              });
+              return obj;
+            }),
+          ];
+          handleResult(cop);
+          break;
+        }
+        case "err":
+          showNotification("error", "server return error", event.err);
+          break;
+        case "status":
+          showProgressingStatus(showNotification, event.status);
+          break;
+        default:
+          console.error("server send wrong kind of data:", event);
+      }
+    });
+    await invoke("show_table", { name: uuid, tableName: name, para, isView, emit });
+    if (okCallBack) {
+      okCallBack();
+    } else {
+      showNotification("success", "fetch query data finished.");
+    }
+  } catch (e) {
+    setTimeout(() => {
+      showNotification("error", "fetch data failed", e);
+    }, 50);
+  } finally {
+    setLoading(false);
+  }
 }
 
 export {
-  makeExtractTableSelectWhere,
-  makeExtractTableSelectSort,
-  makeShowTableFn,
-  makeShowViewFn,
   makeTableUpdate,
   makeTableDelete,
-  makeInvalidCassandraTableCache,
   makePutValueInSql,
   showTableColumn,
   makeTableInsertFn,
@@ -405,3 +392,5 @@ export {
   checkSql,
   showTable,
 };
+
+export type { ShowTableCallBack };

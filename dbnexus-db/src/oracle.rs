@@ -16,10 +16,10 @@ use crate::db::{
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
     MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlExecuteRet, StatusEmiter, TimeElapsed, TriggerDetail,
-    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
-    create_html_table_data, create_html_table_header, escape_sql_str,
-    export_query_as_xlsx_send_blocking_data, not_support_feature,
+    ShowTableParameter, SqlBuilder, SqlExecuteRet, TimeElapsed, TriggerDetail, TriggerEnable,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_blocking_data,
+    not_support_feature,
 };
 
 use crate::helper::{create_csv, run_with_timeout};
@@ -275,11 +275,12 @@ impl QuerySql for OracleDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
+        &self, query_id: &str, sql: &str, max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let query_id = query_id.to_owned();
         let sql = sql.to_owned();
+        let mut total = 0;
         spawn_blocking(move || {
             emit(QueryEvent::new_status("trying to lock connection."));
             let conn = match this.query_connection.get(&query_id.to_string()) {
@@ -298,7 +299,7 @@ impl QuerySql for OracleDB {
                         let row = row?;
                         if first {
                             first = false;
-                            let fields = infer_schema_by_row(&row)?;
+                            let fields = infer_schema_by_row(&row);
                             emit(
                                 QueryResp {
                                     fields,
@@ -310,8 +311,12 @@ impl QuerySql for OracleDB {
                         rows_cache.push(row);
                         if rows_cache.len() >= this.query_buffer_size() || timeelapsed.elapsed() {
                             let r = encode_rows(std::mem::take(&mut rows_cache))?;
+                            total += r.len();
                             emit(r.into());
                         }
+                    }
+                    if total > max_row {
+                        anyhow::bail!(format!("{} exceed {} results", total, max_row));
                     }
                     if !rows_cache.is_empty() {
                         let r = encode_rows(std::mem::take(&mut rows_cache))?;
@@ -329,10 +334,17 @@ impl QuerySql for OracleDB {
 }
 
 fn gen_select_sql(
-    table_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-    page_size: usize,
+    table_name: &str, fields: Option<String>, where_str: Option<&str>, order_by: Option<&str>,
+    page: usize, page_size: usize,
 ) -> String {
-    let mut sql = format!(r#"SELECT * FROM "{table_name}""#);
+    let mut sql = format!(
+        r#"SELECT {} FROM "{table_name}""#,
+        if let Some(fields) = fields {
+            fields
+        } else {
+            "*".to_owned()
+        }
+    );
     if let Some(where_str) = where_str {
         sql.push_str(format!(" WHERE {}", where_str).as_str());
     }
@@ -363,14 +375,7 @@ impl OracleDB {
     }
 }
 
-fn infer_schema_by_result(rows: &[Row]) -> anyhow::Result<Vec<Field>> {
-    if rows.is_empty() {
-        return anyhow::Ok(vec![]);
-    }
-    infer_schema_by_row(&rows[0])
-}
-
-fn infer_schema_by_row(x: &oracle::Row) -> anyhow::Result<Vec<Field>> {
+fn infer_schema_by_row(x: &oracle::Row) -> Vec<Field> {
     let mut ret = Vec::with_capacity(x.column_info().len());
     for c in x.column_info().iter() {
         ret.push(Field::from_name_type(
@@ -378,7 +383,7 @@ fn infer_schema_by_row(x: &oracle::Row) -> anyhow::Result<Vec<Field>> {
             c.oracle_type().to_string(),
         ))
     }
-    anyhow::Ok(ret)
+    ret
 }
 
 fn encode_rows(rows: Vec<Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
@@ -1437,8 +1442,8 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
+        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
             order_by,
@@ -1446,23 +1451,46 @@ impl SchemaTrait for OracleDB {
             page_size,
             ..
         } = &para;
+        let cols = self.show_table_columns(table_name).await?;
         let sql = gen_select_sql(
             table_name,
+            Some(self.backend_name().format_fields(Some(&cols))),
             where_str.as_deref(),
             order_by.as_deref(),
             *page,
             *page_size,
         );
         log::info!("query sql:{}", sql);
-        status_emit("trying to query total amount.".into());
+        emit("trying to query total amount.".into());
         let total = self.query_count(table_name, where_str.as_deref()).await?;
-        status_emit("trying to query data.".into());
-        let rows = self.query(&sql).await?;
-        status_emit("query done.".into());
-        let data = encode_rows(rows.into_iter().collect::<Vec<_>>())?;
-        status_emit("trying to query columns.".to_owned());
-        let cols = self.show_table_columns(table_name).await?;
-        anyhow::Ok(QueryResp::new(cols, total as usize, data, sql)?)
+        emit(
+            QueryResp {
+                total: total as usize,
+                sql: sql.clone().into(),
+                fields: cols,
+                ..Default::default()
+            }
+            .into(),
+        );
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let mut stream = conn.query(&sql, &[])?;
+            let mut rows = vec![];
+            let mut time_elapsed = TimeElapsed::new();
+            while let Some(row) = stream.next() {
+                let row = row?;
+                rows.push(row);
+                if rows.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
+                    let d = encode_rows(std::mem::take(&mut rows))?;
+                    emit(d.into());
+                }
+            }
+            let d = encode_rows(rows)?;
+            emit(d.into());
+            anyhow::Ok(())
+        })
+        .await?
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
@@ -1589,8 +1617,8 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, para: ShowTableParameter, status_emit: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
+        &self, view_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         let ShowTableParameter {
             where_str,
             order_by,
@@ -1600,28 +1628,49 @@ impl SchemaTrait for OracleDB {
         } = &para;
         let sql = gen_select_sql(
             view_name,
+            None,
             where_str.as_deref(),
             order_by.as_deref(),
             *page,
             *page_size,
         );
         log::info!("sql:{}", sql);
-        status_emit("trying to query total amount.".into());
+        emit("trying to query total amount.".into());
         let total = self.query_count(view_name, where_str.as_deref()).await?;
         log::info!("query sql:{}", sql);
-        status_emit("trying to query data.".into());
-        let rows = self.query(&sql).await?;
-        if rows.is_empty() {
-            return anyhow::Ok(QueryResp::new(
-                self.show_view_columns(view_name).await?,
-                total as usize,
-                vec![],
-                sql,
-            )?);
-        }
-        let cols = infer_schema_by_result(&rows)?;
-        let data = encode_rows(rows)?;
-        anyhow::Ok(QueryResp::new(cols, total as usize, data, sql)?)
+        emit("trying to query data.".into());
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let mut stream = conn.query(&sql, &[])?;
+            let mut first = true;
+            let mut rows = vec![];
+            let mut time_elapsed = TimeElapsed::new();
+            while let Some(row) = stream.next() {
+                let row = row?;
+                if first {
+                    first = false;
+                    emit(
+                        QueryResp {
+                            fields: infer_schema_by_row(&row),
+                            total: total as usize,
+                            sql: sql.clone().into(),
+                            ..Default::default()
+                        }
+                        .into(),
+                    );
+                }
+                rows.push(row);
+                if rows.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
+                    let d = encode_rows(std::mem::take(&mut rows))?;
+                    emit(d.into());
+                }
+            }
+            let d = encode_rows(std::mem::take(&mut rows))?;
+            emit(d.into());
+            Ok(())
+        })
+        .await?
     }
 
     async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
@@ -2096,7 +2145,7 @@ mod tests {
             "TEST_RENAME2",
             ShowTableParameter::new_stupid_test("id asc"),
             Arc::new(|s| {
-                println!("{}", s);
+                println!("{:?}", s);
             }),
         )
         .await
@@ -2147,12 +2196,9 @@ mod tests {
             .unwrap();
 
         let resp = db
-            .show_table(
+            .show_table_collect(
                 "TEST_DUPLICATE2",
                 ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{}", s);
-                }),
             )
             .await
             .unwrap();
@@ -2203,7 +2249,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
                 "TEST_VIEW",
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await;
@@ -2251,7 +2297,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
                 "TEST_MATERIALIZED_VIEW",
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await;
@@ -2411,7 +2457,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
                 "TEST_QUERY",
                 ShowTableParameter::new_stupid_test("id asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -2468,7 +2514,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
                 table_name,
                 ShowTableParameter::new_stupid_test("VARCHAR2_COL asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -2560,7 +2606,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
                 table_name,
                 ShowTableParameter::new_stupid_test("NUM asc"),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -2651,7 +2697,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
                 table_name,
                 ShowTableParameter::new_stupid_test(None),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await
@@ -2738,7 +2784,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
                 table_name,
                 ShowTableParameter::new_stupid_test(None),
                 Arc::new(|s| {
-                    println!("{}", s);
+                    println!("{:?}", s);
                 }),
             )
             .await

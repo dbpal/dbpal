@@ -19,7 +19,7 @@ use crate::db::{
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
     GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr, QueryEventEmitter,
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlExecuteRet, StatusEmiter, not_support_feature,
+    SqlExecuteRet, not_support_feature,
 };
 
 #[derive(Clone)]
@@ -624,8 +624,8 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn show_view(
-        &self, _view_name: &str, _para: ShowTableParameter, _: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
+        &self, _view_name: &str, _para: ShowTableParameter, _: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         anyhow::bail!("use mongo special method")
     }
 
@@ -711,8 +711,8 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn show_table(
-        &self, _table_name: &str, _para: ShowTableParameter, _: StatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
+        &self, _table_name: &str, _para: ShowTableParameter, _: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
         anyhow::bail!("use mongo special method")
     }
 
@@ -783,7 +783,7 @@ impl SchemaTrait for MongoDB {
 #[async_trait::async_trait]
 impl QuerySql for MongoDB {
     async fn query_sql(
-        &self, _id: &str, _sql: &str, _emit: QueryEventEmitter,
+        &self, _id: &str, _sql: &str, _max_row: usize, _emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
