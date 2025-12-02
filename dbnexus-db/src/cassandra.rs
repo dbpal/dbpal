@@ -926,12 +926,12 @@ impl CassandraDB {
 }
 
 fn get_select_sql(
-    name: &str, where_str: Option<&str>, order_by: Option<&str>, allow_filtering: bool,
-    limit: usize,
+    name: &str, cols: String, where_str: Option<&str>, order_by: Option<&str>, limit: usize,
+    allow_filtering: bool,
 ) -> String {
     #[allow(clippy::format_in_format_args)]
     format!(
-        r#"SELECT * FROM "{name}"  {}  {} {} {}"#,
+        r#"SELECT {cols} FROM "{name}"  {}  {} {} {}"#,
         if let Some(where_str) = where_str.as_ref() {
             format!(" WHERE {} ", where_str)
         } else {
@@ -1504,11 +1504,53 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(ret)
     }
 
-    #[allow(unused)]
     async fn show_table(
         &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        unimplemented!()
+        let ShowTableParameter {
+            where_str,
+            order_by,
+            extra,
+            limit,
+            ..
+        } = &para;
+        let limit = match limit {
+            Some(x) => *x,
+            None => anyhow::bail!("cassandra show table must need limit parameter"),
+        };
+        let allow_filtering = match extra {
+            Some(x) => match x {
+                crate::db::ShowTableExtraArgs::Cassandra { allow_filtering } => *allow_filtering,
+            },
+            None => anyhow::bail!("cassandra need extra parameter."),
+        };
+        let cols = self.show_table_columns(table_name).await?;
+        let cols_string = self.backend_name().format_fields(Some(&cols));
+        let cql = get_select_sql(
+            table_name,
+            cols_string,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            limit,
+            allow_filtering,
+        );
+        let body = self.session.query(&cql).await?.response_body()?;
+        let meta = match body.as_rows_metadata() {
+            Some(x) => x.clone(),
+            None => anyhow::bail!("should be able get meta."),
+        };
+        let rows = body.into_rows().unwrap_or_default();
+        let data = encode_rows(&meta, &rows)?;
+        emit(
+            QueryResp {
+                fields: cols,
+                sql: Some(cql),
+                data,
+                ..Default::default()
+            }
+            .into(),
+        );
+        anyhow::Ok(())
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
