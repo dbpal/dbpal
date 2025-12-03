@@ -876,7 +876,7 @@ function SelectMaxRowLimit(props: {
   if (!max) {
     max = 10_0000;
   }
-  const width = "45vw";
+  const width = "350px";
   const storekey = "dbpal-max-row-" + kind;
   const [maxRow, setMaxRow] = useState(
     parseInt(localStorage.getItem(storekey)) || 2000,
@@ -889,14 +889,13 @@ function SelectMaxRowLimit(props: {
     <Tooltip
       slotProps={{
         tooltip: {
-          style: { maxWidth: width },
+          style: { maxWidth: width, padding: 0, margin: 0 },
         },
       }}
-      title=<Box
+      title=<div
         style={{
           width,
-          padding: "0.5rem",
-          overflow: "hidden",
+          padding: "8px",
         }}
       >
         <Stack>
@@ -911,7 +910,7 @@ function SelectMaxRowLimit(props: {
           />
           {notice}
         </Stack>
-      </Box>
+      </div>
     >
       <Chip label={maxRow} color="info" />
     </Tooltip>

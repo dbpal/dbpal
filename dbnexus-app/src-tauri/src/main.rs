@@ -78,9 +78,11 @@ fn setup_panic_hook(dir: PathBuf) {
                 .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
                 .unwrap_or_else(|| "Unknown location".to_string());
             let current_thread = std::thread::current();
-            let _ = std::fs::create_dir_all(&dir);
+            let err = std::fs::create_dir_all(&dir);
+            if let Err(err) = err {
+                eprintln!("create dir failed,err:{:?}", err);
+            }
             let thread = current_thread.name().unwrap_or("unnamed");
-
             let mut filepath = dir.clone();
             filepath = filepath.join("dbpal.panic");
             match OpenOptions::new()
@@ -91,7 +93,7 @@ fn setup_panic_hook(dir: PathBuf) {
             {
                 Ok(mut file) => {
                     //   忽略所有错误，避免二次 panic
-                    let _ = writeln!(
+                    let err = writeln!(
                         file,
                         "[{}] Thread '{}' panicked at '{}': {}",
                         chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
@@ -99,6 +101,9 @@ fn setup_panic_hook(dir: PathBuf) {
                         location,
                         payload
                     );
+                    if let Err(err) = err {
+                        eprintln!("write backtrace failed,err:{:?}", err);
+                    }
                     let err = writeln!(file, "{}", std::backtrace::Backtrace::capture());
                     if let Err(err) = err {
                         eprintln!("write backtrace failed,err:{:?}", err);

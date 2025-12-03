@@ -187,7 +187,6 @@ function App() {
   const changeTab = useCallback(index => {
     setTab(index as number);
   }, []);
-
   return (
     <SettingComp>
       <TabsSetContext.Provider value={{ setTabs, tabs, setSelectTab: setTab }}>
