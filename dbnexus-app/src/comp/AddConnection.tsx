@@ -836,7 +836,7 @@ function TestConnAndSave(props: { connectionNameDom }) {
 }
 
 function getHost(config?: { host: string }) {
-  return config?.host ? config.host : "";
+  return config?.host ? config.host : "localhost";
 }
 
 function getUser(config?: { username: string }) {
@@ -1049,11 +1049,10 @@ function Cassandra(props: { config?: types.CassandraDBConfig }) {
       read_only: readOnly,
       conn_timeout: connTimeOut,
       port: parseInt(port),
-    } as unknown as types.DBConnectionConfig;
+      ssl: { ssl_ca: null, ssl_cert: null, ssl_key: null },
+    };
   }
-
   globalMakeConfig = makeConfig;
-
   return (
     <Stack>
       <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />

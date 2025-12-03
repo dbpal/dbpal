@@ -477,7 +477,7 @@ mod tests {
     use crate::sqlite::make_test_object;
     use std::path::Path;
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_auto_completion() {
         enable_test_log();
         let db = make_test_object().await;
@@ -539,14 +539,14 @@ mod tests {
     }
 
     #[ignore = "手动跑跑的测试"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_completion_xxx() {
         enable_test_log();
         let db = make_test_object().await;
         test_file_auto_completion(include_str!("./xxx.sql"), &db, true).await;
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
 
     async fn test_try_get_max_id() {
         let db = make_test_object().await;

@@ -35,7 +35,6 @@ import {
 } from "@mui/x-data-grid";
 import ClearIcon from "@mui/icons-material/Clear";
 import {
-  defaultShowTableParams,
   EscDownEvent,
   FieldAndGridField,
   keyNotInTable,
@@ -469,7 +468,6 @@ function SqlTableView(props: {
           page: page + 1,
           page_size: pageSize,
           allow_filtering: allowFiltering,
-          ...defaultShowTableParams(),
         },
         name: tableName,
         isView: !isTable,

@@ -454,13 +454,12 @@ impl QuerySql for FireBirdDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, max_row: usize, emit: QueryEventEmitter,
+        &self, query_id: &str, sql: &str, _max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         let this = Clone::clone(self);
         let query_id = query_id.to_string();
         let sql = sql.to_owned();
-        let mut total = 0;
         spawn_blocking(move || {
             emit.send(QueryEvent::new_status("trying to lock connection"))?;
             let conn = match this.query_connection.get(&query_id) {
@@ -490,11 +489,7 @@ impl QuerySql for FireBirdDB {
                 rows.push(item);
                 if rows.len() >= this.query_buffer_size() || timeelapsed.elapsed() {
                     let d = encode_rows(&std::mem::take(&mut rows), true, None)?;
-                    total += d.len();
                     emit.send(d.into())?;
-                }
-                if total > max_row {
-                    anyhow::bail!(format!("{} exceed {} results", total, max_row));
                 }
             }
             if !rows.is_empty() {

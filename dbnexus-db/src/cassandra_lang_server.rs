@@ -1679,15 +1679,15 @@ pub const CASSANDRA_FUNCTIONS: &[&str] = &[
 #[cfg(test)]
 mod tests {
 
-    use std::path::Path;
-
-    use crate::cassandra::make_test_object;
+    use crate::cassandra::{make_test_object, test_lock};
     use crate::db::QuerySql;
     use crate::enable_test_log;
     use crate::language_server::completion_test::test_file_auto_completion;
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    use std::path::Path;
+    #[tokio::test]
     async fn test_auto_completion() {
+        let _guard = test_lock().lock().await;
+
         let db = make_test_object(Some("test".to_string())).await;
         enable_test_log();
         let query_id = "";
@@ -1829,7 +1829,7 @@ mod tests {
     }
 
     #[ignore = "手动跑跑的测试"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_completion_xxx() {
         enable_test_log();
         let db = make_test_object(Some("test".to_string())).await;

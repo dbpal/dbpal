@@ -11,7 +11,6 @@ mod tests {
         SqlEvent, UdfOrProcedureExtraParameter,
     };
     use dbnexus_db::language_server::CompletionList;
-
     #[test]
     fn generate_ts_def() {
         use dbnexus_db::datasource_config::{

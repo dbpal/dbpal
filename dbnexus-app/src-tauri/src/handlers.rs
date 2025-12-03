@@ -1074,10 +1074,9 @@ pub async fn query_sql(
         .map_err(ErrorFrontend::from)?;
     let (token, _guard) = task_manager.add(query_id.to_string());
     let cancel_msg: CanTokenMsg = CanTokenMsg::new(token.clone());
-    let cancel_msg_clone = cancel_msg.clone();
     let sender = Arc::new(QueryEventChannelEmit::new(
         emit,
-        cancel_msg_clone,
+        cancel_msg.clone(),
         Some(max_row),
     ));
     let fur = async move {

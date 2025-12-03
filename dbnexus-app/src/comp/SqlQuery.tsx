@@ -5,7 +5,6 @@ import {
   Box,
   Checkbox,
   Chip,
-  CircularProgress,
   IconButton,
   Modal,
   Stack,
@@ -551,14 +550,15 @@ function SqlQuery(props: {
             {openOk && conn.supportTransaction() && (
               <SqlTransaction executeTimes={executeTimes} conn={conn} />
             )}
-
-            {openOk && (
-              <Tooltip title={"reconnect"}>
-                <IconButton onClick={handleReconnect} color="primary">
-                  <RefreshIcon />
-                </IconButton>
-              </Tooltip>
-            )}
+            <Tooltip title={"reconnect"}>
+              <IconButton
+                loading={makeConnLoading}
+                onClick={handleReconnect}
+                color="primary"
+              >
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
 
             {openOk && (
               <Tooltip title="export query result to a file">
@@ -613,7 +613,6 @@ function SqlQuery(props: {
                 <Typography style={shrinkAble}> #{conn.queryId} </Typography>
               </Tooltip>
             )}
-            {makeConnLoading && <CircularProgress />}
             <ModifyLLMConfigModal />
             <ExecutingTime loading={loading} disableTime />
             <SelectMaxRowLimit

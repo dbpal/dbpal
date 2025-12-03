@@ -29,13 +29,7 @@ import {
 } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
-import {
-  modalStyle,
-  reloadOK,
-  EscDownEvent,
-  modalHandleClose,
-  defaultShowTableParams,
-} from "./Common";
+import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from "./Common";
 import ClearIcon from "@mui/icons-material/Clear";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { NotificationContext } from "./Notification";
@@ -67,7 +61,7 @@ import {
 
 import { ExecutingTime, ModalHeader } from "./CommonComp.tsx";
 import { editor, Position } from "monaco-editor";
-import { SimpleFlexEditor } from "./CommonComp2.tsx";
+import { SelectMaxRowLimit, SimpleFlexEditor } from "./CommonComp2.tsx";
 import { invoke } from "@tauri-apps/api/core";
 import { showTable } from "./handlers.ts";
 
@@ -757,6 +751,10 @@ function RedisSetTableContextMenu(props: { delOP: () => void; content }) {
   );
 }
 
+function LimitMaxRowNotice() {
+  return <Stack> limit the max row retrun. </Stack>;
+}
+
 function RedisSetTable(props: { setKey: string; uuid: string }) {
   const { setKey, uuid } = props;
 
@@ -784,6 +782,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState<{ id; value }>(null);
   const [loading, setLoading] = useState(false);
+  const maxRowRef = useRef<number>(2000);
   const handleReload = useCallback(
     showOK => {
       setLoading(true);
@@ -792,6 +791,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         name: setKey,
         isView: false,
         setLoading,
+        para: { limit: maxRowRef.current },
         showNotification,
         handleResult: resp => {
           resp.data.forEach((e, index) => {
@@ -881,6 +881,11 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         style={{ alignItems: "center", justifyContent: "space-between" }}
       >
         <Stack direction="row" style={{ alignItems: "center", width: "50%" }}>
+          <SelectMaxRowLimit
+            kind="redis-set-table"
+            maxRowRef={maxRowRef}
+            notice=<LimitMaxRowNotice />
+          />
           <TextField
             label="key match could be *key,key*,*key*"
             value={keyMatch}
@@ -920,7 +925,6 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         <Stack direction="row" style={{ alignItems: "center" }}>
           <ExecutingTime loading={loading} title="loading time" />
         </Stack>
-        {resp && <NotReturnAllErr has_more={resp.has_more} />}
       </Stack>
 
       {resp && (
@@ -1388,6 +1392,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
+  const maxRowRef = useRef(2000);
   const handleReload = useCallback(
     (showOK: boolean) => {
       if (minErr || maxErr) {
@@ -1405,7 +1410,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           min: minValue,
           max: maxValue,
           where_str: keyMatch ? keyMatch : null,
-          ...defaultShowTableParams(),
+          limit: maxRowRef.current,
         },
         showNotification,
         handleResult: resp => {
@@ -1501,6 +1506,11 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" style={{ alignItems: "center" }}>
+        <SelectMaxRowLimit
+          kind="redis-zset-table"
+          notice=<LimitMaxRowNotice />
+          maxRowRef={maxRowRef}
+        />
         <TextField
           label="key match could be *key,key*,*key*"
           value={keyMatch}
@@ -1595,7 +1605,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           reload
         </Button>
         <DoubleClickToModify />
-        {resp && <NotReturnAllErr has_more={resp.has_more} />}
 
         <ExecutingTime loading={loading} title="loading time" />
       </Stack>
@@ -1695,17 +1704,6 @@ function RedisHashTableContextMenu(props: { delOP: () => void; content }) {
   );
 }
 
-function NotReturnAllErr(props: { has_more: boolean }) {
-  const { has_more } = props;
-  return (
-    has_more && (
-      <Tooltip title="exceed max return value size,some result not returned">
-        <Typography color="error"> some key not found? </Typography>
-      </Tooltip>
-    )
-  );
-}
-
 const valueGetter = value => {
   const x = hexTryToString(value);
   if (typeof x === "string") {
@@ -1726,7 +1724,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
     },
     [hashKey, uuid],
   );
-
+  const maxRowRef = useRef<number>(2000);
   const modifyOP = async (oldMember, newMember, newValue) => {
     return await invoke("redis_hash_replace", {
       name: uuid,
@@ -1736,7 +1734,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
       newValue,
     });
   };
-
   const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const { showNotification } = useContext(NotificationContext);
@@ -1749,6 +1746,8 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         uuid,
         name: hashKey,
         isView: false,
+
+        para: { limit: maxRowRef.current },
         setLoading,
         showNotification,
         handleResult: resp => {
@@ -1846,6 +1845,11 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         style={{ justifyContent: "space-between" }}
       >
         <Stack direction="row" style={{ width: "55%", alignItems: "center" }}>
+          <SelectMaxRowLimit
+            kind="redis-hash-table"
+            maxRowRef={maxRowRef}
+            notice=<LimitMaxRowNotice />
+          />
           <TextField
             label="key match could be *key,key*,*key*"
             variant="outlined"
@@ -1881,7 +1885,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
             reload
           </Button>
           <DoubleClickToModify />
-          {resp && <NotReturnAllErr has_more={resp.has_more} />}
         </Stack>
 
         <Stack direction="row" style={{ alignItems: "center" }}>

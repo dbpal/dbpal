@@ -65,6 +65,8 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+#[cfg(test)]
+use tokio::sync::Mutex;
 
 #[derive(Clone)]
 pub struct CassandraDB {
@@ -104,8 +106,8 @@ async fn make_session(
     let mut b = ConnectionPoolConfigBuilder::new();
     if let Some(conn_timeout) = config.conn_timeout {
         b = b.with_connect_timeout(Some(conn_timeout.into()));
-        b = b.with_local_size(max_pool_size);
     }
+    b = b.with_local_size(max_pool_size);
     session_builder = session_builder.with_connection_pool_config(b.build());
     if let Some(keyspace) = config.db.as_deref() {
         session_builder = session_builder.with_keyspace(keyspace.to_owned());
@@ -1987,6 +1989,12 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
     ss
 }
 
+#[cfg(test)]
+pub(crate) fn test_lock() -> &'static Mutex<()> {
+    static LOCK: Mutex<()> = Mutex::const_new(());
+    &LOCK
+}
+
 impl CassandraDB {
     pub async fn list_aggregate_impl(&self, key_space: &str) -> anyhow::Result<Vec<NamedStaff>> {
         let sql = format!(
@@ -2093,6 +2101,8 @@ mod tests {
     use crate::enable_test_log;
     #[tokio::test]
     async fn test_list_schema() {
+        let _guard = test_lock().lock().await;
+
         let db = make_test_object(None).await;
         let _ = db
             .create_schema(
@@ -2115,8 +2125,8 @@ mod tests {
     }
     #[tokio::test]
     async fn test_aggregate() {
+        let _guard = test_lock().lock().await;
         let db = make_test_object(Some("test".to_string())).await;
-
         {
             // drop some function.
             let _ = db
@@ -2205,25 +2215,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_conn() {
+        let _guard = test_lock().lock().await;
+
         let db = make_test_object(None).await;
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
-
-    fn new_show_table_parameter<'a>(order: impl Into<Option<&'a str>>) -> ShowTableParameter {
-        let order = order.into();
+    fn new_test_show_parameter() -> ShowTableParameter {
         ShowTableParameter {
-            where_str: Some("1 = 1 ".to_string()),
-            order_by: order.map(|x| x.to_string()),
-            page: 1,
-            page_size: 100,
             limit: Some(100),
-            min: None,
-            max: None,
-            allow_filtering: true,
+            ..Default::default()
         }
     }
     #[tokio::test]
     async fn test_sort() {
+        let _guard = test_lock().lock().await;
+
         let table_name = "test_sort";
 
         let db = make_test_object(Some("test".to_string())).await;
@@ -2261,7 +2267,7 @@ mod tests {
         .unwrap();
 
         let resp = db
-            .show_table_collect(table_name, new_show_table_parameter("id asc"))
+            .show_table_collect(table_name, new_test_show_parameter())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2269,6 +2275,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_show_table_column() {
+        let _guard = test_lock().lock().await;
+
         let db = make_test_object(Some("test".to_string())).await;
         let fields = db.show_table_columns("example_table").await.unwrap();
         for field in fields {
@@ -2278,6 +2286,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_error_position() {
+        let _guard = test_lock().lock().await;
+
         let db = make_test_object(None).await;
         let x = db.session.query("xxxxxxxxx").await;
         // should have error on `x` no need check on response.
@@ -2286,6 +2296,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_duplicate() {
+        let _guard = test_lock().lock().await;
+
         let table_name = "test_duplicate_table";
         let table_dup = "test_duplicate";
         let db = make_test_object(Some("test".to_string())).await;
@@ -2322,7 +2334,7 @@ mod tests {
         db.duplicate_table(table_name, table_dup).await.unwrap();
 
         let resp = db
-            .show_table_collect(table_dup, new_show_table_parameter("id asc"))
+            .show_table_collect(table_dup, new_test_show_parameter())
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2330,6 +2342,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_created_types() {
+        let _guard = test_lock().lock().await;
+
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_created_type("test_type").await;
 
@@ -2356,15 +2370,15 @@ mod tests {
     }
     #[tokio::test]
     async fn test_types1() {
+        let _guard = test_lock().lock().await;
         let table_name = "test_types1";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let x = db
-            .execute_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
                 CREATE TABLE test_types1 (
                     id UUID PRIMARY KEY,
                     ascii_column ASCII,
@@ -2375,17 +2389,11 @@ mod tests {
                     double_column DOUBLE
                 );
         "#,
-            )
-            .await
-            .unwrap();
-        assert!(x.is_ok());
-        // INSERT INTO test_types1 (id, ascii_column, bigint_column, blob_column,
-        // boolean_column, decimal_column, double_column)
-        // VALUES (e6361ec1-b0a6-4eb6-b7bd-2db2d13329ab, 'example_ascii',
-        // 1234567890123456789, 0x48656c6c6f, true, 123.45, 3.14159);
-
+        )
+        .await
+        .unwrap()
+        .unwrap();
         let mut values = HashMap::new();
-
         values.insert("id".to_string(), Some("uuid()".to_string()));
         values.insert(
             "ascii_column".to_string(),
@@ -2400,12 +2408,11 @@ mod tests {
 
         values.insert("decimal_column".to_string(), Some("123.45".to_string()));
         values.insert("double_column".to_string(), Some("3.14159".to_string()));
-
         db.table_insert(table_name, values).await.unwrap();
 
         {
             let resp = db
-                .show_table_collect(table_name, new_show_table_parameter("id asc"))
+                .show_table_collect(table_name, new_test_show_parameter())
                 .await;
             println!("resp:{:?}", resp);
         }
@@ -2452,6 +2459,8 @@ mod tests {
     }
     #[tokio::test]
     async fn test_types1_list() {
+        let _guard = test_lock().lock().await;
+
         let table_name = "test_types_list1";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
@@ -2499,7 +2508,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table_collect(table_name, new_show_table_parameter("id asc"))
+                .show_table_collect(table_name, new_test_show_parameter())
                 .await;
 
             println!("resp:{:?}", resp);
@@ -2548,6 +2557,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_types2() {
+        let _guard = test_lock().lock().await;
+
         enable_test_log();
         let table_name = "test_types2";
         let db = make_test_object(Some("test".to_string())).await;
@@ -2595,7 +2606,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table_collect(table_name, new_show_table_parameter("id asc"))
+                .show_table_collect(table_name, new_test_show_parameter())
                 .await;
 
             println!("resp:{:?}", resp);
@@ -2644,6 +2655,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_types2_list() {
+        let _guard = test_lock().lock().await;
+
         enable_test_log();
         let table_name = "test_types_list2";
         let db = make_test_object(Some("test".to_string())).await;
@@ -2694,7 +2707,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table_collect(table_name, new_show_table_parameter("id asc"))
+                .show_table_collect(table_name, new_test_show_parameter())
                 .await;
 
             println!("resp:{:?}", resp);
@@ -2743,6 +2756,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_types3() {
+        let _guard = test_lock().lock().await;
+
         enable_test_log();
         let table_name = "test_types3";
         let db = make_test_object(Some("test".to_string())).await;
@@ -2793,7 +2808,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table_collect(table_name, new_show_table_parameter("id asc"))
+                .show_table_collect(table_name, new_test_show_parameter())
                 .await;
 
             println!("resp:{:?}", resp);
@@ -2842,6 +2857,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_types_list3() {
+        let _guard = test_lock().lock().await;
+
         enable_test_log();
         let table_name = "test_types_list3";
         let db = make_test_object(Some("test".to_string())).await;
@@ -2895,7 +2912,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table_collect(table_name, new_show_table_parameter("id asc"))
+                .show_table_collect(table_name, new_test_show_parameter())
                 .await;
 
             println!("resp:{:?}", resp);
@@ -2944,6 +2961,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_types4() {
+        let _guard = test_lock().lock().await;
+
         enable_test_log();
         let table_name = "test_types4";
         let db = make_test_object(Some("test".to_string())).await;
@@ -2980,7 +2999,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table_collect(table_name, new_show_table_parameter("id asc"))
+                .show_table_collect(table_name, new_test_show_parameter())
                 .await;
 
             println!("resp:{:?}", resp);
@@ -3029,6 +3048,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_table_column() {
+        let _guard = test_lock().lock().await;
+
         enable_test_log();
         let db = make_test_object(Some("test".to_string())).await;
         let table_name = "test_column";
@@ -3083,6 +3104,8 @@ mod tests {
     }
     #[tokio::test]
     async fn test_counter() {
+        let _guard = test_lock().lock().await;
+
         enable_test_log();
 
         let table_name = "test_counter";
@@ -3119,6 +3142,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_udf() {
+        let _guard = test_lock().lock().await;
+
         enable_test_log();
         let db = make_test_object(Some("test".to_string())).await;
         let name = "test_udf";
@@ -3189,6 +3214,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_type() {
+        let _guard = test_lock().lock().await;
+
         let db = make_test_object(Some("test".to_string())).await;
         db.session
             .query(
@@ -3207,6 +3234,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_rename() {
+        let _guard = test_lock().lock().await;
+
         let db = make_test_object(Some("test".to_string())).await;
         let table_name = "test_rename";
         let table_name2 = format!("{}2", table_name);
@@ -3233,6 +3262,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_index() {
+        let _guard = test_lock().lock().await;
+
         let db = make_test_object(Some("test".to_string())).await;
         let table_name = "test_index";
         let _ = db.drop_index(table_name, "test_index_email_index").await;
@@ -3269,6 +3300,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_view() {
+        let _guard = test_lock().lock().await;
+
         let db = make_test_object(Some("test".to_string())).await;
         let table_name = "test_view_table";
         let view_name = "test_view";
@@ -3319,7 +3352,7 @@ mod tests {
         println!("view list:{:?}", list);
         {
             let resp = db
-                .show_view_collect(view_name, new_show_table_parameter("id asc"))
+                .show_view_collect(view_name, new_test_show_parameter())
                 .await
                 .unwrap();
             println!("resp:{:?}", resp);

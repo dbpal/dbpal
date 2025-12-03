@@ -94,15 +94,23 @@ pub type ExportedSizeEmitter = Arc<dyn Fn(usize) + Send + Sync>;
 
 #[derive(serde::Deserialize, Clone, Debug, Default, TypeDef)]
 pub struct ShowTableParameter {
+    #[serde(default)]
     pub where_str: Option<String>,
+    #[serde(default)]
     pub order_by: Option<String>,
+    #[serde(default)]
     pub page: usize,
+    #[serde(default)]
     pub page_size: usize,
     // for backend don't support page like cassandra
+    #[serde(default)]
     pub limit: Option<usize>,
     // right now only used for redis zset
+    #[serde(default)]
     pub min: Option<f64>,
+    #[serde(default)]
     pub max: Option<f64>,
+    #[serde(default)]
     pub allow_filtering: bool,
 }
 
@@ -1080,9 +1088,8 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     }
     // `max_row` max returning row size.
     // this is tricky when this implementation is total async rust
-    // u need this this var `emit` will try limit the returning results and cancel the task
-    // when using `spawn_blocking` this means this backend is implemented in blocking api.
-    // u must use this var to limit return result or the blocking thread will run in background forever.
+    // u don't this this var `emit` will try limit the returning results and cancel the task
+    // and return a error
     async fn query_sql(
         &self, query_id: &str, _sql: &str, max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()>;

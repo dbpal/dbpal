@@ -571,17 +571,6 @@ class TableFilterHandler {
   }
 }
 
-const defaultShowTableParams = (): types.ShowTableParameter => ({
-  where_str: null,
-  order_by: null,
-  page: 1, // 假设 Usize 是 number
-  page_size: 10, // 假设 Usize 是 number
-  allow_filtering: false,
-  limit: null,
-  min: null,
-  max: null,
-});
-
 export {
   modalStyle,
   tabsHasId,
@@ -603,7 +592,6 @@ export {
   makeFormatFn,
   QueryConn,
   TableFilterHandler,
-  defaultShowTableParams,
 };
 
 export type { DefAndMetas, EscDownEvent, FieldAndGridField, TableFilter, QueryEvent };

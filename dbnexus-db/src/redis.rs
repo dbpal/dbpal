@@ -1359,7 +1359,7 @@ impl SchemaTrait for RedisDB {
                 let d = std::mem::take(&mut key_values);
                 let d = d
                     .iter()
-                    .map(|(key, score)| vec![Some(hex::encode(key)), Some(score.to_string())])
+                    .map(|(key, score)| vec![Some(score.to_string()), Some(hex::encode(key))])
                     .collect::<Vec<_>>();
                 emit.send(d.into())?;
                 anyhow::Ok(())

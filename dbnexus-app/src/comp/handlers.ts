@@ -8,7 +8,7 @@ import {
   ViewKind,
 } from "./helper";
 import { message } from "@tauri-apps/plugin-dialog";
-import { defaultShowTableParams, QueryEvent } from "./Common";
+import { QueryEvent } from "./Common";
 import { showProgressingStatus } from "./CommonComp2";
 
 async function tryGetMaxID(uuid: string, tableOrView: string) {
@@ -301,8 +301,9 @@ async function showTable(
     setLoading,
   } = props;
   if (!para) {
-    para = defaultShowTableParams();
+    para = {};
   }
+
   try {
     setLoading(true);
     let resp: MuiDataGridData = null;

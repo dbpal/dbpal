@@ -865,8 +865,17 @@ function SelectMaxRowLimit(props: {
   kind: string;
   maxRowRef: RefObject<number>;
   notice: ReactNode;
+  min?: number;
+  max?: number;
 }) {
   const { kind, maxRowRef, notice } = props;
+  let { min, max } = props;
+  if (!min) {
+    min = 1000;
+  }
+  if (!max) {
+    max = 10_0000;
+  }
   const width = "45vw";
   const storekey = "dbpal-max-row-" + kind;
   const [maxRow, setMaxRow] = useState(
@@ -891,16 +900,16 @@ function SelectMaxRowLimit(props: {
         }}
       >
         <Stack>
-          {notice}
           <Slider
             value={maxRow}
-            min={2000}
-            max={10_0000}
+            min={min}
+            max={max}
             onChange={(_, v) => {
               setMaxRow(v);
             }}
             step={1000}
           />
+          {notice}
         </Stack>
       </Box>
     >

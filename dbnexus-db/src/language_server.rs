@@ -1139,7 +1139,7 @@ pub(crate) async fn try_parser_completion(
         column: col as u64,
     };
     let d = helper.dialect();
-    let statements = tokio::task::block_in_place(|| -> anyhow::Result<Vec<Statement>> {
+    let statements = {
         let parser = sqlparser::parser::Parser::new(d.as_ref());
         let mut parser = parser.try_with_sql(sql)?;
         let mut statements = Vec::new();
@@ -1162,8 +1162,8 @@ pub(crate) async fn try_parser_completion(
                 }
             }
         }
-        anyhow::Ok(statements)
-    })?;
+        statements
+    };
 
     let scopes = Scopes::new();
 
