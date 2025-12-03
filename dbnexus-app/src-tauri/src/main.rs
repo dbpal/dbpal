@@ -4,12 +4,14 @@
 
 mod app;
 mod handlers;
-use std::backtrace::Backtrace;
 use std::ops::DerefMut;
 use std::panic;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use crate::app::generate_random_string;
+use crate::handlers::{TaskManager, log_channel_store};
 use app::DBPal;
 use handlers::{
     add_table_column, ai_get_search_path, ai_text_completion, all_font_family, auto_completion,
@@ -20,13 +22,12 @@ use handlers::{
     drop_materialized_view, drop_procedure, drop_schema, drop_sequence, drop_table,
     drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
     establish_conn, execute_sql, execute_sql_no_open_conn, export_query_result_to_file,
-    export_table_or_view, extract_table_select_selection, extract_table_select_sort,
-    get_backend_crash, get_locale, get_redis_doc, get_redis_type_hint, is_dangerous_sql,
-    list_created_types, list_data_types, list_database, list_event, list_materialized_view,
-    list_procedure, list_schema, list_sequence, list_sql_current_values, list_table, list_udf,
-    list_view, log_channel, modify_table_column, monaco_editor_themes, mongo_create_index,
-    mongo_delete_ids, mongo_get_one_document_by_id, mongo_insert,
-    mongo_list_time_serial_collection, mongo_query_collection_count_docs,
+    export_table_or_view, extract_table_select_selection, extract_table_select_sort, get_locale,
+    get_redis_doc, get_redis_type_hint, is_dangerous_sql, list_created_types, list_data_types,
+    list_database, list_event, list_materialized_view, list_procedure, list_schema, list_sequence,
+    list_sql_current_values, list_table, list_udf, list_view, log_channel, modify_table_column,
+    monaco_editor_themes, mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id,
+    mongo_insert, mongo_list_time_serial_collection, mongo_query_collection_count_docs,
     mongo_query_collection_create_index, mongo_query_collection_create_search_index,
     mongo_query_collection_delete_many, mongo_query_collection_delete_one,
     mongo_query_collection_distinct, mongo_query_collection_drop,
@@ -49,14 +50,69 @@ use handlers::{
     show_view_columns, table_delete, table_insert, table_update, test_connection, truncate_table,
     try_get_max_id, try_list_database_schema_candidates, valid_json,
 };
+use std::io::Write;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Wry};
 use tauri_plugin_store::{Store, StoreExt};
-
-use crate::app::{BackendCrashMsg, generate_random_string};
-use crate::handlers::{TaskManager, log_channel_store};
 mod migration;
 use rustls::crypto::{CryptoProvider, aws_lc_rs};
+use std::fs::OpenOptions;
+use std::sync::Once;
+
+static HOOK_SET: Once = Once::new();
+
+fn setup_panic_hook(dir: PathBuf) {
+    HOOK_SET.call_once(|| {
+        panic::set_hook(Box::new(move |panic_info| {
+            eprintln!("{}", std::backtrace::Backtrace::capture());
+            // 1. 提取信息（防御式，每一步都可能失败）
+            let payload = panic_info
+                .payload()
+                .downcast_ref::<String>()
+                .map(|s| s.as_str())
+                .or_else(|| panic_info.payload().downcast_ref::<&str>().copied())
+                .unwrap_or("Unknown panic");
+
+            let location = panic_info
+                .location()
+                .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
+                .unwrap_or_else(|| "Unknown location".to_string());
+            let current_thread = std::thread::current();
+            let _ = std::fs::create_dir_all(&dir);
+            let thread = current_thread.name().unwrap_or("unnamed");
+
+            let mut filepath = dir.clone();
+            filepath = filepath.join("dbpal.panic");
+            match OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(&filepath)
+            {
+                Ok(mut file) => {
+                    //   忽略所有错误，避免二次 panic
+                    let _ = writeln!(
+                        file,
+                        "[{}] Thread '{}' panicked at '{}': {}",
+                        chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+                        thread,
+                        location,
+                        payload
+                    );
+                    let err = writeln!(file, "{}", std::backtrace::Backtrace::capture());
+                    if let Err(err) = err {
+                        eprintln!("write backtrace failed,err:{:?}", err);
+                    }
+                }
+                Err(err) => {
+                    eprintln!("create file failed,err:{:?}", err);
+                }
+            }
+            // 4. 立即退出（不尝试任何 UI 操作）
+            std::process::exit(101); // 101 是 panic 退出码惯例
+        }));
+    });
+}
 
 // is this macbook computer
 #[inline(always)]
@@ -158,20 +214,10 @@ mod zoom {
     }
 }
 
-#[allow(dead_code)]
-fn panic_test() {
-    #[cfg(debug_assertions)]
-    std::thread::spawn(|| {
-        std::thread::sleep(std::time::Duration::from_secs(5));
-        panic!("this is a log from backend");
-    });
-}
-
 // api key sk-2zegNGK2WhxZ9jToc17JBp260Z5vD5Cdd4zXG4s4WISRyczO
 // https://api.moonshot.cn/v1
 
 fn main() {
-    // panic_test();
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -185,31 +231,12 @@ fn main() {
         .expect("Failed to install default crypto provider");
     let dbpal = DBPal::new();
     let task_manager = TaskManager::default();
-    let backend_crash_msg = BackendCrashMsg::default();
-    let backend_crash_msg2 = backend_crash_msg.clone();
     let setup = move |app: &mut tauri::App| {
-        {
-            let handler = app.handle().clone();
-            let old = panic::take_hook();
-            panic::set_hook(Box::new(move |info| {
-                let backtrace = Backtrace::capture();
-                println!("panic here:{}", backtrace);
-                let id = backend_crash_msg2.set(format!("{}\n{}", info, backtrace));
-                if let Err(err) = WebviewWindowBuilder::new(
-                    &handler,
-                    generate_random_string(10),
-                    WebviewUrl::App(format!("backend_crash.html?id={id}").into()),
-                )
-                .title("Backend Crash")
-                .inner_size(800f64, 600f64)
-                .maximized(true)
-                .build()
-                {
-                    log::error!("create backend crash window failed:{}", err);
-                }
-                old(info);
-            }));
-        }
+        setup_panic_hook(
+            app.path()
+                .app_log_dir()
+                .expect("should be able to get app data dir"),
+        );
         #[cfg(debug_assertions)] // only include this code on debug builds
         {
             let window = app
@@ -271,7 +298,6 @@ fn main() {
         .plugin(tauri_plugin_http::init())
         .manage(dbpal)
         .manage(task_manager)
-        .manage(backend_crash_msg)
         .setup(setup)
         .menu(|handle| {
             Menu::with_items(
@@ -602,7 +628,6 @@ fn main() {
             drop_event,
             extract_table_select_selection,
             extract_table_select_sort,
-            get_backend_crash,
             log_channel,
             close_log_channel,
             get_redis_doc,

@@ -1,6 +1,13 @@
-import { NotificationProvider } from "./Notification";
+import { NotificationContext, NotificationProvider } from "./Notification";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { CSSProperties, ReactNode, useCallback, useEffect, useState } from "react";
+import {
+  CSSProperties,
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { TabContent, TabsWithContent } from "./Tabs";
 import { Left } from "./Left";
 import { SettingComp } from "./Settings.tsx";
@@ -12,10 +19,102 @@ import {
   getViewportSize,
   KeyPressed,
   resizeHandlerSize,
+  handleCopyToClipboard,
 } from "./helper.ts";
 import "../app.css";
-import { Paper, useTheme } from "@mui/material";
+import { Box, Button, IconButton, Modal, Paper, Stack, useTheme } from "@mui/material";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { EscDownEvent, modalHandleClose, modalStyle } from "./Common.ts";
+import { ModalHeader } from "./CommonComp.tsx";
+import { appLogDir, join } from "@tauri-apps/api/path";
+import { readTextFile, remove } from "@tauri-apps/plugin-fs";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+function ShowPanic() {
+  const [panicInfo, setPanicInfo] = useState("");
+  const { showNotification } = useContext(NotificationContext);
+  const theme = useTheme();
+  const getFilePath = async () => {
+    return await join(await appLogDir(), "dbpal.panic");
+  };
+  useEffect(() => {
+    (async () => {
+      try {
+        const filepath = await getFilePath();
+        const x = await readTextFile(filepath);
+        setPanicInfo(x);
+      } catch (e) {
+        console.error("trying to get panic info failed", e);
+      }
+    })();
+  }, []);
+  return (
+    <>
+      {panicInfo && (
+        <Modal
+          open={!!panicInfo}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setPanicInfo("");
+          })}
+        >
+          <Box sx={modalStyle} width="75%" height="65vh">
+            <ModalHeader
+              title="panic info"
+              handleClose={() => {
+                setPanicInfo("");
+              }}
+            />
+            <Paper
+              elevation={8}
+              style={{
+                overflow: "auto",
+                width: "100%",
+                flex: 1,
+                padding: "4px",
+              }}
+            >
+              <pre style={{ color: theme.palette.error.main }}>{panicInfo}</pre>
+            </Paper>
+
+            <Stack direction="row">
+              <Button
+                onClick={() => {
+                  openUrl("https://github.com/dbpal/docs/issues");
+                }}
+                color="info"
+              >
+                report
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  handleCopyToClipboard(panicInfo, showNotification);
+                }}
+              >
+                copy error msg
+              </Button>
+              <IconButton
+                color="warning"
+                onClick={async () => {
+                  try {
+                    await remove(await getFilePath());
+                    setPanicInfo("");
+                    showNotification("success", "remove panic file success.");
+                  } catch (e) {
+                    showNotification("error", "remove panic file failed", e);
+                  }
+                }}
+              >
+                <DeleteForeverIcon />
+              </IconButton>
+            </Stack>
+          </Box>
+        </Modal>
+      )}
+    </>
+  );
+}
 
 function App() {
   const [tabs, setTabs] = useState<TabContent[]>([]);
@@ -96,6 +195,7 @@ function App() {
           <Menu>
             <WindowFocus>
               <div>
+                <ShowPanic />
                 <PanelGroup
                   direction="horizontal"
                   style={{

@@ -35,3 +35,9 @@ if (import.meta.env.DEV) {
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);
+
+// if (import.meta.env.DEV) {
+//   setTimeout(() => {
+//     invoke("command_panic");
+//   }, 4000);
+// }

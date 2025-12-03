@@ -39,9 +39,10 @@
     "fs:allow-exists",
     "fs:allow-watch",
     "fs:read-dirs",
+    "fs:allow-read-text-file",
     {
       "identifier": "fs:scope",
-      "allow": ["**/*", "$APPDATA/*"]
+      "allow": ["**/*", "$APPDATA/*", "$LOG/**"]
     },
     {
       "identifier": "http:default",

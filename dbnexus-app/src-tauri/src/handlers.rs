@@ -30,9 +30,7 @@ use dbnexus_db::sqlite::SqliteDB;
 use dbnexus_db::sub::SubDB;
 use tokio::task::block_in_place;
 
-use crate::app::{
-    self, BackendCrashMsg, DBConnectionConfig, DBPal, DatabaseBackend, name_to_parts,
-};
+use crate::app::{self, DBConnectionConfig, DBPal, DatabaseBackend, name_to_parts};
 use font_kit::error::SelectionError;
 use include_dir::{Dir, include_dir};
 use mongodb::bson::{self, Document, doc};
@@ -442,6 +440,7 @@ pub async fn show_table(
         token_msg_clone,
         para.limit,
     ));
+
     let db = app.get_schema(&name).await?;
     let fur = async {
         if is_view {
@@ -976,13 +975,6 @@ pub async fn is_dangerous_sql(
         .map_err(ErrorFrontend::from)?;
 
     Ok(result)
-}
-
-#[tauri::command]
-pub async fn get_backend_crash(
-    id: u32, app: tauri::State<'_, BackendCrashMsg>,
-) -> Result<String, ErrorFrontend> {
-    Ok(app.get(id))
 }
 
 // cancel token and msg
