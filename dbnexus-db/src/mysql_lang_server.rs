@@ -876,7 +876,7 @@ mod tests {
     }
 
     // partition test failed , sqlparser can't parse a valid partition statement.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_auto_completion() {
         let db = make_test_object(make_config()).await;
         enable_test_log();
@@ -960,7 +960,7 @@ mod tests {
         test_file_auto_completion(&content, &db, false).await;
     }
     #[ignore = "手动跑跑的测试"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_completion_xxx() {
         enable_test_log();
         let mut config = make_config();
@@ -992,7 +992,7 @@ mod tests {
         );
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
 
     async fn test_at_variable_lexer() {
         let sql = include_str!("../tests/mysql_at_var_lexer.sql");
@@ -1010,7 +1010,7 @@ mod tests {
         assert!(list.items.iter().any(|x| x.item == "my_var"));
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
 
     async fn test_try_get_max_id() {
         let db = make_test_object(make_config()).await;

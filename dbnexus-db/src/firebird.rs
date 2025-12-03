@@ -1283,13 +1283,13 @@ mod tests {
     use crate::db::IndexKind;
     use crate::enable_test_log;
     use tokio::sync::Mutex;
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_check_conn() {
         let db = make_test_object().await;
         let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
         println!("ping time:{:?}", d);
     }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_query_multi_should_be_error() {
         let db = make_test_object().await;
         let mut conn = db.get_conn().unwrap();
@@ -1305,7 +1305,7 @@ mod tests {
         static MUTEX: Mutex<()> = Mutex::const_new(());
         &MUTEX
     }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_transaction() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
@@ -1367,7 +1367,7 @@ mod tests {
         );
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_view() {
         let _guard = test_lock().lock().await;
 
@@ -1436,7 +1436,7 @@ mod tests {
             println!("view:{:?}", view);
         }
     }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_index() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -1483,7 +1483,7 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_list_table() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
@@ -1492,7 +1492,7 @@ mod tests {
             println!("table:{:?}", table);
         }
     }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_truncate() {
         let _guard = test_lock().lock().await;
         let table_name = "TEST_TRUNCATE";
@@ -1541,7 +1541,7 @@ mod tests {
         );
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_table() {
         let _guard = test_lock().lock().await;
         // enable_test_log();
@@ -1632,7 +1632,7 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_table2() {
         let _guard = test_lock().lock().await;
 

@@ -1387,7 +1387,7 @@ from test
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_udf() {
         let db = make_test_object();
         let query_id = "";
@@ -1410,13 +1410,13 @@ from test
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_check_conn() {
         let db = make_test_object();
         let ping_time = db.check_conn().await.unwrap();
         println!("{:?}", ping_time);
     }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_show_metas() {
         let db = make_test_object();
         let metas = db.show_metas().await.unwrap();
@@ -1424,7 +1424,7 @@ from test
             println!("meta:{:?}", meta);
         }
     }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_table_column() {
         let db = make_test_object();
         let table_name = "test_column";
@@ -1476,7 +1476,7 @@ from test
 
         db.drop_table_column(table_name, "name2").await.unwrap();
     }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_list_databases() {
         let db = make_test_object();
         let name = "abc";
@@ -1486,7 +1486,7 @@ from test
         let schemas = db.list_schema().await.unwrap();
         println!("schemas :{:?}", schemas);
     }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_materialized_view() {
         let table_name = "test_materialized_view_table";
         let view_name = "test_materialized_view";
@@ -1560,7 +1560,7 @@ from test
 
         println!("view data:{:?}", _resp);
     }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_view() {
         let table_name = "test_view_table";
         let view_name = "test_view";
@@ -1627,7 +1627,7 @@ from test
         println!("view data:{:?}", _resp);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_rename_truncate() {
         let db = make_test_object();
         let name = "test_rename";
@@ -1657,7 +1657,7 @@ from test
         db.rename_table(&name2, name).await.unwrap();
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_dup() {
         // enable_test_log();
         let db = make_test_object();
@@ -1708,7 +1708,7 @@ from test
         assert_eq!(_resp.data.len(), 6);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_list_tables() {
         let db = make_test_object();
 
@@ -1720,7 +1720,7 @@ from test
         println!("columns:{:?}", cols);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_query() {
         let db = make_test_object();
         let ret = db.query_as_json("select 1").await.unwrap();
@@ -1728,7 +1728,7 @@ from test
     }
 
     #[ignore = "example_table may not exists"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_show_table() {
         let db = make_test_object();
         let resp = db
@@ -1743,7 +1743,7 @@ from test
             println!("{:?}", d);
         }
     }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_types1() {
         enable_test_log();
         let db = make_test_object();
@@ -1827,7 +1827,7 @@ from test
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_types2() {
         enable_test_log();
         let db = make_test_object();
@@ -1910,7 +1910,7 @@ from test
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_types3() {
         enable_test_log();
         let db = make_test_object();
@@ -1997,7 +1997,7 @@ from test
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_types4() {
         enable_test_log();
         let db = make_test_object();
@@ -2098,7 +2098,7 @@ from test
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_types5() {
         enable_test_log();
         let db = make_test_object();
@@ -2202,7 +2202,7 @@ from test
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_types6() {
         // enable_test_log();
         let db = make_test_object();
@@ -2285,7 +2285,7 @@ from test
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_error_query() {
         // enable_test_log();
         let db = make_test_object();

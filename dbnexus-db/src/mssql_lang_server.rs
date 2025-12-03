@@ -866,7 +866,7 @@ mod tests {
     use crate::language_server::{LangServerCommon, LanguageServer};
     use crate::mssql::{make_test_object, test_lock};
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_auto_completion() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
@@ -908,7 +908,7 @@ mod tests {
     }
 
     #[ignore = "手动跑跑的测试"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_completion_xxx() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -922,7 +922,7 @@ mod tests {
         .await;
     }
     #[ignore = "手动跑跑的测试"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_completion_execute() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
@@ -930,7 +930,7 @@ mod tests {
         println!("###########:{:?}", x);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
 
     async fn test_try_get_max_id() {
         let db = make_test_object().await;

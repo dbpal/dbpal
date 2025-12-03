@@ -336,7 +336,7 @@ mod tests {
     use crate::language_server::completion_test::test_file_auto_completion;
 
     // partition test failed , sqlparser can't parse a valid partition statement.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_auto_completion() {
         let db = make_test_object();
         // enable_test_log();
@@ -390,7 +390,7 @@ mod tests {
         test_file_auto_completion(&content, &db, false).await;
     }
     #[ignore = "手动跑跑的测试"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_completion_xxx() {
         enable_test_log();
         let db = make_test_object();

@@ -1713,7 +1713,7 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_view() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -1784,7 +1784,7 @@ mod tests {
         println!("{:?}", resp);
     }
     #[ignore = "materizlized view not implemented https://github.com/duckdb/duckdb/discussions/3638"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_materializd_view() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -1853,7 +1853,7 @@ mod tests {
         println!("{:?}", resp);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_database() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -1862,7 +1862,7 @@ mod tests {
         println!("database:{:?}", x);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_server_metas() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(None);
@@ -1870,7 +1870,7 @@ mod tests {
         println!("{:?}", metas);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_schema() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(None);
@@ -1886,7 +1886,7 @@ mod tests {
         println!("schemas:{:?}", x);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_list_table() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string()));
@@ -1894,7 +1894,7 @@ mod tests {
         println!("tables:{:?}", x);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_show_table_columns() {
         let _guard = test_lock().lock().await;
 
@@ -1905,7 +1905,7 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_check_conn() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(None);
@@ -1913,7 +1913,7 @@ mod tests {
         println!("ping time is:{:?}", d);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_show_table_columns1111() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("main".to_string()));
@@ -1924,7 +1924,7 @@ mod tests {
         println!("{:?}", stmt.column_names());
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_index() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -1963,7 +1963,7 @@ mod tests {
             println!("index:{:?}", index);
         }
     }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_column() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -2031,7 +2031,7 @@ mod tests {
         db.drop_table_column(table_name, "email2").await.unwrap();
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_types1() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -2119,7 +2119,7 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_types1_array() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -2222,7 +2222,7 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_types2() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -2313,7 +2313,7 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_types2_array() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -2404,7 +2404,7 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_types3() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -2494,7 +2494,7 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_types3_array() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -2585,7 +2585,7 @@ mod tests {
     }
 
     #[ignore = "https://github.com/duckdb/duckdb-rs/issues/478"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_types4() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -2667,7 +2667,7 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_types5() {
         let _guard = test_lock().lock().await;
         enable_test_log();

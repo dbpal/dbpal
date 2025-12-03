@@ -1981,14 +1981,14 @@ mod tests {
         &MUTEX
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_server_metas() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(None);
         let metas = ServerMetas::show_metas(&db).await.unwrap();
         println!("{:?}", metas);
     }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_procedure() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
@@ -2021,7 +2021,7 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_udf() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
@@ -2069,7 +2069,7 @@ mod tests {
     }
     // cargo test --package dbnexus-db --lib -- oracle::tests::test_trigger --exact
     // --show-output --nocapture
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_trigger() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
@@ -2115,7 +2115,7 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_rename() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
@@ -2149,7 +2149,7 @@ mod tests {
         .unwrap();
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
 
     async fn test_duplicate() {
         let _guard = test_lock().lock().await;
@@ -2201,13 +2201,13 @@ mod tests {
             .unwrap();
         assert_eq!(resp.data.len(), 1);
     }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_check_conn() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(None);
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_view() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
@@ -2249,7 +2249,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
         println!("create view sql:{}", sql);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_materialized_view() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
@@ -2297,7 +2297,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         println!("create view sql:{}", sql);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_show_indexes() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
@@ -2326,7 +2326,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         println!("{:?}", indexes);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_table_column() {
         enable_test_log();
         let _guard = test_lock().lock().await;
@@ -2381,7 +2381,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         db.drop_table_column(table_name, "NAME2").await.unwrap();
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_multi_db_trait() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(None);
@@ -2391,7 +2391,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         db.open_schema("SYSTEM").await.unwrap();
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_show_tables() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("APPQOSSYS".to_string()));
@@ -2404,7 +2404,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_query_sql() {
         let _guard = test_lock().lock().await;
         let db: OracleDB = make_test_object(Some("SYSTEM".to_string()));
@@ -2447,7 +2447,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         println!("resp:{:?}", resp);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_type1() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -2540,7 +2540,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_type2() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -2626,7 +2626,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_type3() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -2713,7 +2713,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
 
     // TODO create table sql not passed
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_type4() {
         let _guard = test_lock().lock().await;
         enable_test_log();

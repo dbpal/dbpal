@@ -1295,7 +1295,7 @@ mod tests {
         test_file_auto_completion(&content, &db, false).await;
     }
     #[ignore = "手动跑跑的测试"]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
     async fn test_completion_xxx() {
         enable_test_log();
         let db = make_test_object().await;

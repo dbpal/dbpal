@@ -2121,7 +2121,7 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[tokio::test]
 
     async fn test_export_table() {
         let db = make_test_object().await;
