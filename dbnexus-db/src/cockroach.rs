@@ -89,18 +89,18 @@ impl PostGresDB {
             ..
         } = &para;
 
-        emit("trying to query columns".into());
+        emit.send("trying to query columns".into())?;
         let fields = self.show_table_columns(table_name).await?;
         let total = self.query_count(table_name, where_str.as_deref()).await?;
-        emit("trying to query total".into());
-        emit(
+        emit.send("trying to query total".into())?;
+        emit.send(
             QueryResp {
                 fields: fields.clone(),
                 total,
                 ..Default::default()
             }
             .into(),
-        );
+        )?;
         let sql = gen_show_sql(
             self.config.schema_str()?,
             table_name,
@@ -111,7 +111,7 @@ impl PostGresDB {
             *page_size,
         );
         log::info!("sql:{}", sql);
-        emit("trying to query data".into());
+        emit.send("trying to query data".into())?;
         let mut conn = self.get_conn().await?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
         let mut rows = vec![];
@@ -120,11 +120,11 @@ impl PostGresDB {
             let row = x?;
             rows.push(row);
             if time_elapsed.elapsed() || rows.len() >= self.query_buffer_size() {
-                emit(encode_rows(&std::mem::take(&mut rows))?.into());
+                emit.send(encode_rows(&std::mem::take(&mut rows))?.into())?;
             }
         }
         if !rows.is_empty() {
-            emit(encode_rows(&rows)?.into());
+            emit.send(encode_rows(&rows)?.into())?;
         }
         anyhow::Ok(())
     }
@@ -165,11 +165,8 @@ mod tests {
         UdfOrProcedureExtraParameter,
     };
     use crate::db::{ExportKind, ShowTableParameter};
-
     use crate::enable_test_log;
     use std::collections::HashMap;
-    use std::sync::Arc;
-
     #[tokio::test]
     async fn test_transaction() {
         let db = make_test_object().await;
@@ -379,12 +376,9 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table(
+        db.show_table_collect(
             "test_rename2",
             ShowTableParameter::new_stupid_test("id asc"),
-            Arc::new(|s| {
-                println!("{:?}", s);
-            }),
         )
         .await
         .unwrap();
@@ -497,13 +491,7 @@ mod tests {
         let list = db.list_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
-                .show_view(
-                    &l.name,
-                    ShowTableParameter::new_stupid_test("id asc"),
-                    Arc::new(|s| {
-                        println!("{:?}", s);
-                    }),
-                )
+                .show_view_collect(&l.name, ShowTableParameter::new_stupid_test("id asc"))
                 .await
                 .unwrap();
             println!("resp:{:?}", table_resp);
@@ -542,13 +530,7 @@ mod tests {
         let list = db.list_materialized_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
-                .show_view(
-                    &l.name,
-                    ShowTableParameter::new_stupid_test("id asc"),
-                    Arc::new(|s| {
-                        println!("{:?}", s);
-                    }),
-                )
+                .show_view_collect(&l.name, ShowTableParameter::new_stupid_test("id asc"))
                 .await
                 .unwrap();
             println!("resp:{:?}", table_resp);

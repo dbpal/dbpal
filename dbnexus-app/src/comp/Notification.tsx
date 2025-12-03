@@ -1,11 +1,8 @@
 import React, { useState, ReactNode, createContext, ReactElement } from "react";
 import { Snackbar, Alert, AlertTitle, Slide, Stack, Typography } from "@mui/material";
 import { AlertColor } from "@mui/material/Alert";
-import { handleCopyToClipboard } from "./helper";
-import { message, MessageDialogResult } from "@tauri-apps/plugin-dialog";
-
+import { message } from "@tauri-apps/plugin-dialog";
 const msgTimeout = 10000;
-
 interface NotificationContextProps {
   showNotification: (
     severity: AlertColor,
@@ -38,29 +35,29 @@ function NotificationProvider(props: { children: ReactNode }) {
       setOpen(false);
       return;
     }
-    const iscancelled = isCancelledError(err);
+    // const iscancelled = isCancelledError(err);
     if (typeof err == "object" && "reason" in err) {
       console.error("detail:", err);
       // this a error from the backend
       // we only show `reason` the short message
       err = err["reason"];
     }
-    if (severity == "error" && !React.isValidElement(err) && !iscancelled) {
-      err = err ? String(err) : "";
-      message(err, {
-        kind: severity,
-        title,
-        buttons: {
-          ok: err ? "copy error" : "ok",
-          cancel: "dismiss",
-        },
-      }).then((e: MessageDialogResult) => {
-        if (e == "copy error") {
-          handleCopyToClipboard(err);
-        }
-      });
-      return;
-    }
+    // if (severity == "error" && !React.isValidElement(err) && !iscancelled) {
+    //   err = err ? String(err) : "";
+    //   message(err, {
+    //     kind: severity,
+    //     title,
+    //     buttons: {
+    //       ok: err ? "copy error" : "ok",
+    //       cancel: "dismiss",
+    //     },
+    //   }).then((e: MessageDialogResult) => {
+    //     if (e == "copy error") {
+    //       handleCopyToClipboard(err);
+    //     }
+    //   });
+    //   return;
+    // }
     if (!React.isValidElement(err) && err) {
       err = String(err);
     }
@@ -120,6 +117,8 @@ function NotificationProvider(props: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+//@ts-ignore
 function isCancelledError(e: { cancelled?: boolean }) {
   return typeof e == "object" && e.cancelled;
 }

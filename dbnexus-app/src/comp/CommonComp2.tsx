@@ -861,8 +861,12 @@ function showProgressingStatus(showNotification, status: string) {
   );
 }
 
-function SelectMaxRowLimit(props: { kind: string; maxRowRef: RefObject<number> }) {
-  const { kind, maxRowRef } = props;
+function SelectMaxRowLimit(props: {
+  kind: string;
+  maxRowRef: RefObject<number>;
+  notice: ReactNode;
+}) {
+  const { kind, maxRowRef, notice } = props;
   const width = "45vw";
   const storekey = "dbpal-max-row-" + kind;
   const [maxRow, setMaxRow] = useState(
@@ -872,7 +876,6 @@ function SelectMaxRowLimit(props: { kind: string; maxRowRef: RefObject<number> }
     localStorage.setItem(storekey, maxRow + "");
     maxRowRef.current = maxRow;
   }, [maxRow, maxRowRef, storekey]);
-
   return (
     <Tooltip
       slotProps={{
@@ -888,9 +891,7 @@ function SelectMaxRowLimit(props: { kind: string; maxRowRef: RefObject<number> }
         }}
       >
         <Stack>
-          <Typography color="info">
-            limit max rows can be query.we don&apos;t want OOM!!!😀
-          </Typography>
+          {notice}
           <Slider
             value={maxRow}
             min={2000}

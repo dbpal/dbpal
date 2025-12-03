@@ -282,7 +282,7 @@ impl QuerySql for OracleDB {
         let sql = sql.to_owned();
         let mut total = 0;
         spawn_blocking(move || {
-            emit(QueryEvent::new_status("trying to lock connection."));
+            emit.send(QueryEvent::new_status("trying to lock connection."))?;
             let conn = match this.query_connection.get(&query_id.to_string()) {
                 Some(x) => x.clone(),
                 None => anyhow::bail!("connection closed???"),
@@ -290,7 +290,7 @@ impl QuerySql for OracleDB {
             let mut lock = conn.lock().expect("lock failed");
             let conn = lock.deref_mut();
             let mut timeelapsed = TimeElapsed::new();
-            emit(QueryEvent::new_status("locked connection."));
+            emit.send(QueryEvent::new_status("locked connection."))?;
             match conn.query(&sql, &[]) {
                 Ok(rows) => {
                     let mut first = true;
@@ -300,19 +300,19 @@ impl QuerySql for OracleDB {
                         if first {
                             first = false;
                             let fields = infer_schema_by_row(&row);
-                            emit(
+                            emit.send(
                                 QueryResp {
                                     fields,
                                     ..Default::default()
                                 }
                                 .into(),
-                            );
+                            )?;
                         }
                         rows_cache.push(row);
                         if rows_cache.len() >= this.query_buffer_size() || timeelapsed.elapsed() {
                             let r = encode_rows(std::mem::take(&mut rows_cache))?;
                             total += r.len();
-                            emit(r.into());
+                            emit.send(r.into())?;
                         }
                     }
                     if total > max_row {
@@ -320,11 +320,11 @@ impl QuerySql for OracleDB {
                     }
                     if !rows_cache.is_empty() {
                         let r = encode_rows(std::mem::take(&mut rows_cache))?;
-                        emit(r.into());
+                        emit.send(r.into())?;
                     }
                 }
                 Err(err) => {
-                    emit(QueryEvent::Err(err.to_string()));
+                    emit.send(QueryEvent::Err(err.to_string()))?;
                 }
             }
             anyhow::Ok(())
@@ -1461,9 +1461,9 @@ impl SchemaTrait for OracleDB {
             *page_size,
         );
         log::info!("query sql:{}", sql);
-        emit("trying to query total amount.".into());
+        emit.send("trying to query total amount.".into())?;
         let total = self.query_count(table_name, where_str.as_deref()).await?;
-        emit(
+        emit.send(
             QueryResp {
                 total: total as usize,
                 sql: sql.clone().into(),
@@ -1471,7 +1471,7 @@ impl SchemaTrait for OracleDB {
                 ..Default::default()
             }
             .into(),
-        );
+        )?;
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.get_conn()?;
@@ -1483,11 +1483,11 @@ impl SchemaTrait for OracleDB {
                 rows.push(row);
                 if rows.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
                     let d = encode_rows(std::mem::take(&mut rows))?;
-                    emit(d.into());
+                    emit.send(d.into())?;
                 }
             }
             let d = encode_rows(rows)?;
-            emit(d.into());
+            emit.send(d.into())?;
             anyhow::Ok(())
         })
         .await?
@@ -1635,10 +1635,10 @@ impl SchemaTrait for OracleDB {
             *page_size,
         );
         log::info!("sql:{}", sql);
-        emit("trying to query total amount.".into());
+        emit.send("trying to query total amount.".into())?;
         let total = self.query_count(view_name, where_str.as_deref()).await?;
         log::info!("query sql:{}", sql);
-        emit("trying to query data.".into());
+        emit.send("trying to query data.".into())?;
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.get_conn()?;
@@ -1650,7 +1650,7 @@ impl SchemaTrait for OracleDB {
                 let row = row?;
                 if first {
                     first = false;
-                    emit(
+                    emit.send(
                         QueryResp {
                             fields: infer_schema_by_row(&row),
                             total: total as usize,
@@ -1658,16 +1658,16 @@ impl SchemaTrait for OracleDB {
                             ..Default::default()
                         }
                         .into(),
-                    );
+                    )?;
                 }
                 rows.push(row);
                 if rows.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
                     let d = encode_rows(std::mem::take(&mut rows))?;
-                    emit(d.into());
+                    emit.send(d.into())?;
                 }
             }
             let d = encode_rows(std::mem::take(&mut rows))?;
-            emit(d.into());
+            emit.send(d.into())?;
             Ok(())
         })
         .await?
@@ -2141,12 +2141,9 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table(
+        db.show_table_collect(
             "TEST_RENAME2",
             ShowTableParameter::new_stupid_test("id asc"),
-            Arc::new(|s| {
-                println!("{:?}", s);
-            }),
         )
         .await
         .unwrap();
@@ -2245,13 +2242,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
         println!("{:?}", views);
 
         let resp = db
-            .show_view(
-                "TEST_VIEW",
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_view_collect("TEST_VIEW", ShowTableParameter::new_stupid_test("id asc"))
             .await;
         println!("show view:{:?}", resp);
         let sql = db.create_view_sql("TEST_VIEW", false).await.unwrap();
@@ -2293,12 +2284,9 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         println!("list_materialized_view:{:?}", views);
 
         let resp = db
-            .show_view(
+            .show_view_collect(
                 "TEST_MATERIALIZED_VIEW",
                 ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
             )
             .await;
         println!("show view:{:?}", resp);
@@ -2453,13 +2441,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         db.commit(query_uuid).await.unwrap();
 
         let resp = db
-            .show_table(
-                "TEST_QUERY",
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect("TEST_QUERY", ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2510,12 +2492,9 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         db.table_insert(table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(
+            .show_table_collect(
                 table_name,
                 ShowTableParameter::new_stupid_test("VARCHAR2_COL asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
             )
             .await
             .unwrap();
@@ -2602,13 +2581,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         db.table_insert(table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("NUM asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("NUM asc"))
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2693,13 +2666,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         db.table_insert(table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test(None),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2780,13 +2747,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
         db.table_insert(table_name, values).await.unwrap();
 
         let resp = db
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test(None),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
             .await
             .unwrap();
         println!("resp:{:?}", resp);

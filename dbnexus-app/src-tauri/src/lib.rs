@@ -7,8 +7,8 @@ mod tests {
         CassandraDBConfig, LibSqlDBConfigSource, MySqlSslMode, MysqlSsl, PgSsl, PgSslMode, SSLFiles,
     };
     use dbnexus_db::db::{
-        ColumnType, CreateTableAndIndexSql, CreatedTypeDef, SequenceDetail, ShowTableExtraArgs,
-        ShowTableParameter, SqlEvent, UdfOrProcedureExtraParameter,
+        ColumnType, CreateTableAndIndexSql, CreatedTypeDef, SequenceDetail, ShowTableParameter,
+        SqlEvent, UdfOrProcedureExtraParameter,
     };
     use dbnexus_db::language_server::CompletionList;
 
@@ -71,7 +71,6 @@ mod tests {
             &ColumnType::INFO,
             &SequenceDetail::INFO,
             &CreatedTypeDef::INFO,
-            &ShowTableExtraArgs::INFO,
             &SqlEvent::INFO,
             &CompletionList::INFO,
             &PgSslMode::INFO,

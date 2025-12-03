@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
+use std::usize;
 
 use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
@@ -9,8 +10,9 @@ use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::db::{
     ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef,
     DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, ProcedureDetail, QueryResp, SequenceDetail, ShowTableParameter, SqlEvent,
-    SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter, escape_sql_str,
+    OptionMustBeSomeErr, ProcedureDetail, QueryEventEmit, QueryResp, SequenceDetail,
+    ShowTableParameter, SqlEvent, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
+    escape_sql_str,
 };
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
@@ -432,24 +434,32 @@ pub async fn show_table(
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
-    let emit = Arc::new(move |s| {
-        block_random_sleep();
-        let r = QueryEvent::from(s);
-        if let Err(err) = emit.send(r) {
-            log::error!("send status error,,err:{}", err);
-        }
-    });
+    let token = CancellationToken::new();
+    let token_msg = CanTokenMsg::new(token.clone());
+    let token_msg_clone = token_msg.clone();
+    let sender = Arc::new(QueryEventChannelEmit::new(
+        emit,
+        token_msg_clone,
+        para.limit,
+    ));
     let db = app.get_schema(&name).await?;
-    if is_view {
-        db.show_view(&table_name, para, emit)
-            .await
-            .map_err(ErrorFrontend::from)?
-    } else {
-        db.show_table(&table_name, para, emit)
-            .await
-            .map_err(ErrorFrontend::from)?
+    let fur = async {
+        if is_view {
+            db.show_view(&table_name, para, sender)
+                .await
+                .map_err(ErrorFrontend::from)
+        } else {
+            db.show_table(&table_name, para, sender)
+                .await
+                .map_err(ErrorFrontend::from)
+        }
+    };
+    tokio::select! {
+        biased;
+        _ = token.cancelled() => Err(ErrorFrontend::cancelled(token_msg.get_msg())),
+        res = fur => res,
+
     }
-    Ok(())
 }
 
 #[tauri::command]
@@ -982,12 +992,10 @@ struct CanTokenMsg {
     msg: Arc<Mutex<Option<String>>>,
 }
 impl CanTokenMsg {
-    fn cancel(&self) {
-        self.token.cancel();
-    }
-    fn set_msg(&self, msg: impl Into<String>) {
+    fn cancel(&self, msg: impl Into<String>) {
         let msg = msg.into();
         *self.msg.lock().expect("lock failed") = Some(msg);
+        self.token.cancel();
     }
 
     fn get_msg(&self) -> Option<String> {
@@ -1001,6 +1009,47 @@ impl CanTokenMsg {
         }
     }
 }
+
+struct QueryEventChannelEmit {
+    channel: Channel<QueryEvent>,
+    cancel_msg: CanTokenMsg,
+    limit: Option<usize>,
+    emitted_size: AtomicUsize,
+}
+
+impl QueryEventChannelEmit {
+    fn new(channel: Channel<QueryEvent>, cancel_msg: CanTokenMsg, limit: Option<usize>) -> Self {
+        Self {
+            channel,
+            cancel_msg,
+            limit,
+            emitted_size: AtomicUsize::new(0),
+        }
+    }
+    fn get_limit(&self) -> usize {
+        self.limit.unwrap_or(usize::MAX)
+    }
+}
+
+impl QueryEventEmit for QueryEventChannelEmit {
+    fn send(&self, event: dbnexus_db::db::QueryEvent) -> anyhow::Result<()> {
+        block_random_sleep();
+        let r = QueryEvent::from(event);
+        let total = self.emitted_size.fetch_add(r.rows(), Ordering::Relaxed);
+        let err = self.channel.send(r).map_err(anyhow::Error::from);
+        if total > self.get_limit() {
+            let err_msg = format!(
+                "Query result is too large({}), limit:{}",
+                total,
+                self.get_limit(),
+            );
+            self.cancel_msg.cancel(err_msg.clone());
+            return Err(anyhow::anyhow!(err_msg));
+        }
+        err
+    }
+}
+
 impl QueryEvent {
     fn rows(&self) -> usize {
         match self {
@@ -1026,31 +1075,15 @@ pub async fn query_sql(
     let (token, _guard) = task_manager.add(query_id.to_string());
     let cancel_msg: CanTokenMsg = CanTokenMsg::new(token.clone());
     let cancel_msg_clone = cancel_msg.clone();
-    let total = AtomicUsize::new(0);
+    let sender = Arc::new(QueryEventChannelEmit::new(
+        emit,
+        cancel_msg_clone,
+        Some(max_row),
+    ));
     let fur = async move {
         random_sleep().await;
         db.as_query_sql()
-            .query_sql(
-                query_id,
-                &sql,
-                max_row,
-                Arc::new(move |event| {
-                    block_random_sleep();
-                    let r = QueryEvent::from(event);
-                    {
-                        total.fetch_add(r.rows(), Ordering::SeqCst);
-                        let total = total.load(Ordering::SeqCst);
-                        if total >= max_row {
-                            cancel_msg_clone.set_msg(format!("{} exceeds {} rows", total, max_row));
-                            cancel_msg_clone.cancel();
-                        }
-                    }
-                    if let Err(err) = emit.send(r) {
-                        log::error!("send data to frontend failed:{}", err);
-                        cancel_msg_clone.cancel();
-                    }
-                }),
-            )
+            .query_sql(query_id, &sql, max_row, sender)
             .await
             .map_err(ErrorFrontend::from)
     };
@@ -1058,7 +1091,6 @@ pub async fn query_sql(
         biased;
         _ = token.cancelled() => Err(ErrorFrontend::cancelled(cancel_msg.get_msg())),
         res = fur => res,
-
     }
 }
 

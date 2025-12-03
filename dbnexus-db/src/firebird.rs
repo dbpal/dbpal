@@ -462,14 +462,14 @@ impl QuerySql for FireBirdDB {
         let sql = sql.to_owned();
         let mut total = 0;
         spawn_blocking(move || {
-            emit(QueryEvent::new_status("trying to lock connection"));
+            emit.send(QueryEvent::new_status("trying to lock connection"))?;
             let conn = match this.query_connection.get(&query_id) {
                 Some(x) => x.clone(),
                 None => anyhow::bail!("connection closed???"),
             };
             let mut conn = conn.lock().expect("lock failed");
             let conn = conn.deref_mut();
-            emit(QueryEvent::new_status("lock connection ok."));
+            emit.send(QueryEvent::new_status("lock connection ok."))?;
             let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
             let mut first = true;
@@ -479,19 +479,19 @@ impl QuerySql for FireBirdDB {
                 let item = row?;
                 if first {
                     first = false;
-                    emit(
+                    emit.send(
                         QueryResp {
                             fields: infer_fields(&item),
                             ..Default::default()
                         }
                         .into(),
-                    );
+                    )?;
                 }
                 rows.push(item);
                 if rows.len() >= this.query_buffer_size() || timeelapsed.elapsed() {
                     let d = encode_rows(&std::mem::take(&mut rows), true, None)?;
                     total += d.len();
-                    emit(d.into());
+                    emit.send(d.into())?;
                 }
                 if total > max_row {
                     anyhow::bail!(format!("{} exceed {} results", total, max_row));
@@ -499,7 +499,7 @@ impl QuerySql for FireBirdDB {
             }
             if !rows.is_empty() {
                 let d = encode_rows(&rows, true, None)?;
-                emit(d.into());
+                emit.send(d.into())?;
             }
             anyhow::Ok(())
         })
@@ -844,17 +844,17 @@ impl SchemaTrait for FireBirdDB {
                 page_size,
                 ..
             } = &para;
-            emit("trying to get connection".into());
+            emit.send("trying to get connection".into())?;
             let mut conn = this.get_conn()?;
             let total = Self::query_count(&mut conn, &table_name, where_str.as_deref())?;
-            emit(
+            emit.send(
                 QueryResp {
                     fields: fs.clone(),
                     total,
                     ..Default::default()
                 }
                 .into(),
-            );
+            )?;
             let sql = gen_show_sql(
                 &table_name,
                 Some(this.backend_name().format_fields(Some(&fs))),
@@ -868,7 +868,7 @@ impl SchemaTrait for FireBirdDB {
                 fs_map.insert(&f.field, f);
             }
             log::info!("sql:{}", sql);
-            emit("trying to query data".into());
+            emit.send("trying to query data".into())?;
             let mut rows = vec![];
             let mut stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
@@ -877,13 +877,13 @@ impl SchemaTrait for FireBirdDB {
                 let row = row?;
                 rows.push(row);
                 if rows.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
-                    emit(
+                    emit.send(
                         encode_rows(&std::mem::take(&mut rows), true, Some(fs_map.clone()))?.into(),
-                    )
+                    )?;
                 }
             }
             let data = encode_rows(&rows, false, Some(fs_map.clone()))?;
-            emit(data.into());
+            emit.send(data.into())?;
             anyhow::Ok(())
         })
         .await?
@@ -1068,7 +1068,7 @@ impl SchemaTrait for FireBirdDB {
                 page_size,
                 ..
             } = &para;
-            emit("trying to get view columns".into());
+            emit.send("trying to get view columns".into())?;
             let fields = this.show_table_columns_impl(&view_name)?;
             let sql = gen_show_sql(
                 &view_name,
@@ -1078,12 +1078,12 @@ impl SchemaTrait for FireBirdDB {
                 *page,
                 *page_size,
             );
-            emit("trying to get connection.".into());
+            emit.send("trying to get connection.".into())?;
             let mut conn = this.get_conn()?;
             log::info!("sql:{}", sql);
-            emit("trying to query total count.".into());
+            emit.send("trying to query total count.".into())?;
             let total = Self::query_count(&mut conn, &view_name, where_str.as_deref())?;
-            emit(
+            emit.send(
                 QueryResp {
                     fields,
                     total,
@@ -1091,8 +1091,8 @@ impl SchemaTrait for FireBirdDB {
                     ..Default::default()
                 }
                 .into(),
-            );
-            emit("trying to query.".into());
+            )?;
+            emit.send("trying to query.".into())?;
             let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
             let mut rows = vec![];
@@ -1102,12 +1102,12 @@ impl SchemaTrait for FireBirdDB {
                 rows.push(row);
                 if rows.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
                     let d = encode_rows(&std::mem::take(&mut rows), true, None)?;
-                    emit(d.into());
+                    emit.send(d.into())?;
                 }
             }
             if !rows.is_empty() {
                 let d = encode_rows(&rows, true, None)?;
-                emit(d.into());
+                emit.send(d.into())?;
             }
             anyhow::Ok(())
         })
@@ -1425,13 +1425,7 @@ mod tests {
         .unwrap();
 
         let resp = db
-            .show_view(
-                view_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_view_collect(view_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("{:?}", resp);
@@ -1599,13 +1593,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table(
-                    table_name,
-                    ShowTableParameter::new_stupid_test("id asc"),
-                    Arc::new(|s| {
-                        println!("{:?}", s);
-                    }),
-                )
+                .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
                 .await
                 .unwrap();
             println!("resp:{:?}", resp);
@@ -1707,13 +1695,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table(
-                    table_name,
-                    ShowTableParameter::new_stupid_test("id asc"),
-                    Arc::new(|s| {
-                        println!("{:?}", s);
-                    }),
-                )
+                .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
                 .await
                 .unwrap();
             println!("resp:{:?}", resp);

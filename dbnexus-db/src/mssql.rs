@@ -810,10 +810,10 @@ impl SchemaTrait for SqlServerDB {
             ..
         } = &para;
 
-        emit("trying to get connection.".into());
+        emit.send("trying to get connection.".into())?;
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        emit("trying to get total amount.".into());
+        emit.send("trying to get total amount.".into())?;
         let total = SqlServerDB::query_count(
             conn,
             self.config.schema_str()?,
@@ -831,7 +831,7 @@ impl SchemaTrait for SqlServerDB {
             *page_size,
         );
         log::info!("sql:{}", sql);
-        emit("trying to get data.".into());
+        emit.send("trying to get data.".into())?;
         let mut stream = conn.query(&sql, &[]).await?;
         let mut rows = Vec::new();
         let mut time_elapsed = TimeElapsed::new();
@@ -842,11 +842,11 @@ impl SchemaTrait for SqlServerDB {
                     rows.push(row);
                     if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
                         let data = encode_rows(&std::mem::take(&mut rows))?;
-                        emit(data.into());
+                        emit.send(data.into())?;
                     }
                 }
                 tiberius::QueryItem::Metadata(m) => {
-                    emit(
+                    emit.send(
                         QueryResp {
                             fields: get_fields_from_meta(&m),
                             sql: sql.clone().into(),
@@ -854,13 +854,13 @@ impl SchemaTrait for SqlServerDB {
                             ..Default::default()
                         }
                         .into(),
-                    );
+                    )?;
                 }
             }
         }
         if !rows.is_empty() {
             let data = encode_rows(&rows)?;
-            emit(data.into());
+            emit.send(data.into())?;
         }
         anyhow::Ok(())
     }
@@ -960,10 +960,10 @@ impl SchemaTrait for SqlServerDB {
             page_size,
             ..
         } = &para;
-        emit("trying to get connection.".into());
+        emit.send("trying to get connection.".into())?;
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
-        emit("trying to get total amount.".into());
+        emit.send("trying to get total amount.".into())?;
         let total = SqlServerDB::query_count(
             conn,
             self.config.schema_str()?,
@@ -981,7 +981,7 @@ impl SchemaTrait for SqlServerDB {
             *page,
             *page_size,
         );
-        emit(
+        emit.send(
             QueryResp {
                 fields,
                 total: total as usize,
@@ -989,8 +989,8 @@ impl SchemaTrait for SqlServerDB {
                 ..Default::default()
             }
             .into(),
-        );
-        emit("trying to query data.".into());
+        )?;
+        emit.send("trying to query data.".into())?;
         let mut stream = conn
             .query(&sql, &[])
             .await
@@ -1004,7 +1004,7 @@ impl SchemaTrait for SqlServerDB {
                     rows.push(row);
                     if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
                         let d = encode_rows(&std::mem::take(&mut rows))?;
-                        emit(d.into());
+                        emit.send(d.into())?;
                     }
                 }
                 tiberius::QueryItem::Metadata(..) => {
@@ -1013,7 +1013,7 @@ impl SchemaTrait for SqlServerDB {
             }
         }
         let d = encode_rows(&std::mem::take(&mut rows))?;
-        emit(d.into());
+        emit.send(d.into())?;
         anyhow::Ok(())
     }
 
@@ -1975,7 +1975,7 @@ impl QuerySql for SqlServerDB {
             let item = match item {
                 Ok(item) => item,
                 Err(err) => {
-                    emit(QueryEvent::Err(err.to_string()));
+                    emit.send(QueryEvent::Err(err.to_string()))?;
                     continue;
                 }
             };
@@ -1983,24 +1983,24 @@ impl QuerySql for SqlServerDB {
                 tiberius::QueryItem::Row(row) => {
                     rows.push(row);
                     if rows.len() >= self.query_buffer_size() || timeelapsed.elapsed() {
-                        emit(encode_rows(&std::mem::take(&mut rows))?.into());
+                        emit.send(encode_rows(&std::mem::take(&mut rows))?.into())?;
                     }
                 }
                 tiberius::QueryItem::Metadata(meta) => {
                     let f = get_fields_from_meta(&meta);
-                    emit(
+                    emit.send(
                         QueryResp {
                             fields: f,
                             ..Default::default()
                         }
                         .into(),
-                    );
+                    )?;
                 }
             }
         }
         if !rows.is_empty() {
             let data = encode_rows(&rows)?;
-            emit(data.into());
+            emit.send(data.into())?;
         }
         anyhow::Ok(())
     }
@@ -2466,7 +2466,7 @@ pub const INFORMATION_SCHEMA_VIEWS: &[&str] = &[
 mod tests {
 
     use super::*;
-    use crate::db::{CatalogTrait, ShowTableParameter};
+    use crate::db::{CatalogTrait, ShowTableParameter, TestQueryEventEmit};
     use crate::enable_test_log;
 
     #[tokio::test]
@@ -2702,12 +2702,9 @@ GO
             .await
             .unwrap();
 
-        db.show_table(
+        db.show_table_collect(
             "test_rename2",
             ShowTableParameter::new_stupid_test("id asc"),
-            Arc::new(|s| {
-                println!("{:?}", s);
-            }),
         )
         .await
         .unwrap();
@@ -2876,9 +2873,7 @@ GO
             query_id,
             "SELECT  COUNT(*) from test_type1 ",
             usize::MAX,
-            Arc::new(|e| {
-                println!("{:?}", e);
-            }),
+            Arc::new(TestQueryEventEmit::default()),
         )
         .await
         .unwrap();
@@ -2973,13 +2968,7 @@ GO
         .unwrap();
 
         let resp = db
-            .show_view(
-                "test_view",
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_view_collect("test_view", ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -3142,9 +3131,7 @@ FROM sys.sequences;
 
         "#,
             usize::MAX,
-            Arc::new(|e| {
-                println!("{:?}", e);
-            }),
+            Arc::new(TestQueryEventEmit::default()),
         )
         .await
         .unwrap();
@@ -3255,13 +3242,7 @@ FROM sys.sequences;
         .await
         .unwrap();
         let list = db
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("ret:{:?}", list);
@@ -3317,13 +3298,7 @@ FROM sys.sequences;
         .await
         .unwrap();
         let list = db
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("ret:{:?}", list);
@@ -3381,13 +3356,7 @@ FROM sys.sequences;
         .await
         .unwrap();
         let list = db
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("ret:{:?}", list);
@@ -3457,13 +3426,7 @@ FROM sys.sequences;
         .await
         .unwrap();
         let list = db
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("ret:{:?}", list);

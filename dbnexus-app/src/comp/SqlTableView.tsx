@@ -124,17 +124,19 @@ const getRowId = e => e[keyNotInTable];
 
 function SetFilterSort(props: {
   open: boolean;
-  handleClose;
+  handleClose: () => void;
   value: string;
   setValue;
   label: "filter" | "sort";
-  tableName;
+  tableName: string;
   kind: DataSourceKind;
   uuid: string;
-  extractFn: (sql: string) => Promise<string | null>;
 }) {
-  let { open, handleClose, value, setValue, label, tableName, kind, extractFn, uuid } =
-    props;
+  let { open, handleClose, value, setValue, label, tableName, kind, uuid } = props;
+  const isFilter = label == "filter";
+  const extractFn = isFilter
+    ? makeExtractTableSelectWhere(uuid)
+    : makeExtractTableSelectSort(uuid);
   tableName = quoteDatabaseIdentifier(kind)(tableName);
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const [modalBox, setModalBox] = useState(null);
@@ -146,10 +148,9 @@ function SetFilterSort(props: {
       return clean;
     }
   }, [modalBox]);
-  const isFilter = label == "filter";
+
   const [selectFilter, setSelectFilter] = useState("");
   const [filters, setFileters] = useState<TableFilter[]>([]);
-
   const loadFilter = useCallback(async () => {
     const x = await TableFilterHandler.get(uuid, tableName);
     if (x) {
@@ -383,8 +384,6 @@ function SqlTableView(props: {
   const deleteOP = makeTableDelete(uuid, tableName);
   const put_value_in_sql = makePutValueInSql(uuid);
   const addOP = makeTableInsertFn(uuid, tableName);
-  const extractTableSelectSort = makeExtractTableSelectSort(uuid);
-  const extractTableSelectWhere = makeExtractTableSelectWhere(uuid);
 
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState("");
@@ -459,10 +458,8 @@ function SqlTableView(props: {
 
   const handleReload = useCallback(
     (showOK: boolean) => {
-      let extra = null as types.ShowTableExtraArgs;
       switch (kind) {
         case DataSourceKind.Cassandra:
-          extra = { extra: "cassandra", allow_filtering: allowFiltering };
           break;
       }
       showTable({
@@ -471,7 +468,7 @@ function SqlTableView(props: {
           order_by: sort.trim(),
           page: page + 1,
           page_size: pageSize,
-          extra,
+          allow_filtering: allowFiltering,
           ...defaultShowTableParams(),
         },
         name: tableName,
@@ -632,7 +629,6 @@ function SqlTableView(props: {
   const onColumnResize = useCallback(({ colDef, width }) => {
     ColumnWidth.instance.save(colDef.field, width);
   }, []);
-
   const slotProps = useMemo(() => {
     return {
       row: {
@@ -1002,7 +998,6 @@ function SqlTableView(props: {
           handleClose={() => {
             setShowSetWhere(false);
           }}
-          extractFn={extractTableSelectWhere}
           label="filter"
           kind={kind}
           uuid={uuid}
@@ -1023,7 +1018,6 @@ function SqlTableView(props: {
           }}
           label="sort"
           uuid={uuid}
-          extractFn={extractTableSelectSort}
         />
       )}
     </Stack>

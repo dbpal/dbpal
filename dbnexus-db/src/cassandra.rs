@@ -36,13 +36,15 @@ use crate::db::{
     UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
     escape_sql_str, export_query_as_xlsx_send_data,
 };
+
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
 use cdrs_tokio::authenticators::StaticPasswordAuthenticatorProvider;
 use cdrs_tokio::cluster::NodeTcpConfigBuilder;
 use cdrs_tokio::cluster::connection_pool::ConnectionPoolConfigBuilder;
 use cdrs_tokio::cluster::session::{SessionBuilder, TcpSessionBuilder};
-use cdrs_tokio::frame::message_result::{ColType, RowsMetadata};
+use cdrs_tokio::frame::message_response::ResponseBody;
+use cdrs_tokio::frame::message_result::{ColType, ResResultBody, RowsMetadata};
 use cdrs_tokio::load_balancing::RoundRobinLoadBalancingStrategy;
 use cdrs_tokio::types::blob::Blob;
 use cdrs_tokio::types::cassandra_type::CassandraType;
@@ -831,17 +833,32 @@ impl ExportQueryResult for CassandraDB {
         }
     }
 }
+
+fn response_body_2_query_resp(x: &ResponseBody) -> String {
+    match x {
+        ResponseBody::Error(error_body) => format!("err:{:?}", error_body),
+        ResponseBody::Result(res_result_body) => match res_result_body {
+            ResResultBody::Void => "void".to_string(),
+            ResResultBody::Rows(..) => "try not use execute to query.".to_string(),
+            _ => format!("body:{:?}", res_result_body),
+        },
+        _ => format!("should not have this result data:{:?}", x),
+    }
+}
+
 #[async_trait::async_trait]
 impl QuerySql for CassandraDB {
     async fn execute_sql_no_open_conn(
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let ret = match self.session.query(sql).await {
-            Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
-            Err(err) => Err(err.to_string()),
-        };
-        anyhow::Ok(ret)
+        let mut ret = vec![];
+        for sql in sql_to_each(sql) {
+            let resp = self.session.query(sql).await?.response_body()?;
+            ret.push(Some(response_body_2_query_resp(&resp)));
+        }
+        anyhow::Ok(Ok(QueryResp::result(None, ret)))
     }
+
     async fn execute_sql(
         &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
@@ -849,28 +866,29 @@ impl QuerySql for CassandraDB {
             Some(x) => x.clone(),
             None => anyhow::bail!("query connection closed???"),
         };
-        let ret = match conn.query(sql).await {
-            Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
-            Err(err) => Err(err.to_string()),
-        };
-        anyhow::Ok(ret)
+        let mut ret = vec![];
+        for sql in sql_to_each(sql) {
+            let resp = conn.query(sql).await?.response_body()?;
+            ret.push(Some(response_body_2_query_resp(&resp)));
+        }
+        anyhow::Ok(Ok(QueryResp::result(None, ret)))
     }
 
     async fn query_sql(
         &self, query_id: &str, sql: &str, max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        emit(QueryEvent::new_status("trying lock connection."));
+        emit.send(QueryEvent::new_status("trying lock connection."))?;
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("query connection closed???"),
         };
-        emit(QueryEvent::new_status("locked connection."));
+        emit.send(QueryEvent::new_status("locked connection."))?;
         for sql in sql_to_each(sql) {
             let sql = fix_limit(sql, max_row)?;
-            emit(QueryEvent::new_status(format!(
+            emit.send(QueryEvent::new_status(format!(
                 "try to execute sql: {}",
                 sql
-            )));
+            )))?;
             match conn.query(&sql).await {
                 Ok(x) => {
                     let body = x.response_body()?;
@@ -885,10 +903,10 @@ impl QuerySql for CassandraDB {
                             sql: Some(sql.to_owned()),
                             ..Default::default()
                         };
-                        emit(r.into());
+                        emit.send(r.into())?;
                     }
                 }
-                Err(err) => emit(QueryEvent::Err(err.to_string())),
+                Err(err) => emit.send(QueryEvent::Err(err.to_string()))?,
             }
         }
         anyhow::Ok(())
@@ -974,9 +992,9 @@ fn fix_limit(cql: &str, max_row: usize) -> anyhow::Result<String> {
 
                     anyhow::Ok(format!(
                         "{} {} {}",
-                        start,
+                        start.trim(),
                         format_args!(" limit {max_row}"),
-                        end
+                        end.trim()
                     ))
                 } else {
                     // no filtering push into the end
@@ -1509,19 +1527,13 @@ impl SchemaTrait for CassandraDB {
         let ShowTableParameter {
             where_str,
             order_by,
-            extra,
             limit,
+            allow_filtering,
             ..
         } = &para;
         let limit = match limit {
             Some(x) => *x,
-            None => anyhow::bail!("cassandra show table must need limit parameter"),
-        };
-        let allow_filtering = match extra {
-            Some(x) => match x {
-                crate::db::ShowTableExtraArgs::Cassandra { allow_filtering } => *allow_filtering,
-            },
-            None => anyhow::bail!("cassandra need extra parameter."),
+            None => anyhow::bail!("cassandra show table pass 'limit' parameter"),
         };
         let cols = self.show_table_columns(table_name).await?;
         let cols_string = self.backend_name().format_fields(Some(&cols));
@@ -1531,7 +1543,7 @@ impl SchemaTrait for CassandraDB {
             where_str.as_deref(),
             order_by.as_deref(),
             limit,
-            allow_filtering,
+            *allow_filtering,
         );
         let body = self.session.query(&cql).await?.response_body()?;
         let meta = match body.as_rows_metadata() {
@@ -1540,7 +1552,7 @@ impl SchemaTrait for CassandraDB {
         };
         let rows = body.into_rows().unwrap_or_default();
         let data = encode_rows(&meta, &rows)?;
-        emit(
+        emit.send(
             QueryResp {
                 fields: cols,
                 sql: Some(cql),
@@ -1548,7 +1560,7 @@ impl SchemaTrait for CassandraDB {
                 ..Default::default()
             }
             .into(),
-        );
+        )?;
         anyhow::Ok(())
     }
 
@@ -1953,7 +1965,6 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         TEST_HOST,
         datasource_config::{CassandraSsl, SSLFiles},
     };
-
     let ss = CassandraDB::new(CassandraDBConfig {
         host: TEST_HOST.to_string(),
         port: Some(9042),
@@ -1961,7 +1972,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         password: Some("cassandra".to_string()),
         read_only: false,
         db,
-        conn_timeout: Some(5000.into()),
+        conn_timeout: Some(500000.into()),
         save_password: true,
         ssl: CassandraSsl {
             ssl_files: SSLFiles {
@@ -2198,6 +2209,19 @@ mod tests {
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
 
+    fn new_show_table_parameter<'a>(order: impl Into<Option<&'a str>>) -> ShowTableParameter {
+        let order = order.into();
+        ShowTableParameter {
+            where_str: Some("1 = 1 ".to_string()),
+            order_by: order.map(|x| x.to_string()),
+            page: 1,
+            page_size: 100,
+            limit: Some(100),
+            min: None,
+            max: None,
+            allow_filtering: true,
+        }
+    }
     #[tokio::test]
     async fn test_sort() {
         let table_name = "test_sort";
@@ -2237,13 +2261,7 @@ mod tests {
         .unwrap();
 
         let resp = db
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, new_show_table_parameter("id asc"))
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2304,13 +2322,7 @@ mod tests {
         db.duplicate_table(table_name, table_dup).await.unwrap();
 
         let resp = db
-            .show_table(
-                table_dup,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_dup, new_show_table_parameter("id asc"))
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2393,13 +2405,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table(
-                    table_name,
-                    ShowTableParameter::new_stupid_test("id asc"),
-                    Arc::new(|s| {
-                        println!("{:?}", s);
-                    }),
-                )
+                .show_table_collect(table_name, new_show_table_parameter("id asc"))
                 .await;
             println!("resp:{:?}", resp);
         }
@@ -2493,13 +2499,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table(
-                    table_name,
-                    ShowTableParameter::new_stupid_test("id asc"),
-                    Arc::new(|s| {
-                        println!("{:?}", s);
-                    }),
-                )
+                .show_table_collect(table_name, new_show_table_parameter("id asc"))
                 .await;
 
             println!("resp:{:?}", resp);
@@ -2595,13 +2595,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table(
-                    table_name,
-                    ShowTableParameter::new_stupid_test("id asc"),
-                    Arc::new(|s| {
-                        println!("{:?}", s);
-                    }),
-                )
+                .show_table_collect(table_name, new_show_table_parameter("id asc"))
                 .await;
 
             println!("resp:{:?}", resp);
@@ -2700,13 +2694,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table(
-                    table_name,
-                    ShowTableParameter::new_stupid_test("id asc"),
-                    Arc::new(|s| {
-                        println!("{:?}", s);
-                    }),
-                )
+                .show_table_collect(table_name, new_show_table_parameter("id asc"))
                 .await;
 
             println!("resp:{:?}", resp);
@@ -2805,13 +2793,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table(
-                    table_name,
-                    ShowTableParameter::new_stupid_test("id asc"),
-                    Arc::new(|s| {
-                        println!("{:?}", s);
-                    }),
-                )
+                .show_table_collect(table_name, new_show_table_parameter("id asc"))
                 .await;
 
             println!("resp:{:?}", resp);
@@ -2913,13 +2895,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table(
-                    table_name,
-                    ShowTableParameter::new_stupid_test("id asc"),
-                    Arc::new(|s| {
-                        println!("{:?}", s);
-                    }),
-                )
+                .show_table_collect(table_name, new_show_table_parameter("id asc"))
                 .await;
 
             println!("resp:{:?}", resp);
@@ -3004,13 +2980,7 @@ mod tests {
 
         {
             let resp = db
-                .show_table(
-                    table_name,
-                    ShowTableParameter::new_stupid_test("id asc"),
-                    Arc::new(|s| {
-                        println!("{:?}", s);
-                    }),
-                )
+                .show_table_collect(table_name, new_show_table_parameter("id asc"))
                 .await;
 
             println!("resp:{:?}", resp);
@@ -3141,13 +3111,7 @@ mod tests {
         db.table_update(table_name, values, wheres).await.unwrap();
 
         let resp = db
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test(None),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
             .await
             .unwrap();
         println!("xxxx:{:?}", resp);
@@ -3355,13 +3319,7 @@ mod tests {
         println!("view list:{:?}", list);
         {
             let resp = db
-                .show_view(
-                    view_name,
-                    ShowTableParameter::new_stupid_test("id asc"),
-                    Arc::new(|s| {
-                        println!("{:?}", s);
-                    }),
-                )
+                .show_view_collect(view_name, new_show_table_parameter("id asc"))
                 .await
                 .unwrap();
             println!("resp:{:?}", resp);
@@ -3396,7 +3354,6 @@ mod tests {
             fix_limit("select * from test", limit).unwrap(),
             "select * from test limit 100"
         );
-
         assert_eq!(
             fix_limit("select * from test limit 100", limit).unwrap(),
             "select * from test limit 100"
@@ -3404,7 +3361,16 @@ mod tests {
 
         assert_eq!(
             fix_limit("select * from test where a = 1 allow filtering", limit).unwrap(),
-            "select * from test where a = 1   limit 100 allow filtering"
+            "select * from test where a = 1  limit 100 allow filtering"
+        );
+
+        assert_eq!(
+            fix_limit(
+                "select * from test where a = 'allow filtering' allow filtering",
+                limit
+            )
+            .unwrap(),
+            "select * from test where a = 'allow filtering'  limit 100 allow filtering"
         );
     }
 }

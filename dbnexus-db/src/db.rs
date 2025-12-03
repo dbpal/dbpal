@@ -98,12 +98,12 @@ pub struct ShowTableParameter {
     pub order_by: Option<String>,
     pub page: usize,
     pub page_size: usize,
-    pub extra: Option<ShowTableExtraArgs>,
     // for backend don't support page like cassandra
     pub limit: Option<usize>,
     // right now only used for redis zset
     pub min: Option<f64>,
     pub max: Option<f64>,
+    pub allow_filtering: bool,
 }
 
 impl ShowTableParameter {
@@ -117,6 +117,44 @@ impl ShowTableParameter {
             page_size: 100,
             ..Default::default()
         }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+struct QueryRespMemoryCollector {
+    ret: Arc<Mutex<Option<QueryResp>>>,
+}
+
+impl QueryRespMemoryCollector {
+    fn result(&self) -> QueryResp {
+        self.ret
+            .lock()
+            .expect("lock failed")
+            .clone()
+            .expect("should have result")
+    }
+
+    fn option_result(&self) -> Option<QueryResp> {
+        self.ret.lock().expect("lock failed").clone()
+    }
+}
+
+impl QueryEventEmit for QueryRespMemoryCollector {
+    fn send(&self, event: QueryEvent) -> anyhow::Result<()> {
+        let mut lock = self.ret.lock().expect("lock failed");
+        match event {
+            QueryEvent::Resp(resp) => *lock = Some(resp),
+            QueryEvent::Data(data) => {
+                use std::ops::DerefMut;
+                let x = lock.deref_mut();
+                let x = x.as_mut().unwrap();
+                x.data.extend(data.into_iter());
+            }
+            _ => {
+                println!("event:{:?}", event);
+            }
+        };
+        anyhow::Ok(())
     }
 }
 
@@ -148,32 +186,23 @@ pub trait SchemaTrait:
         &self, table_name: &str, _: ShowTableParameter, _: QueryEventEmitter,
     ) -> anyhow::Result<()>;
 
-    #[cfg(test)]
     async fn show_table_collect(
         &self, table_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
-        let result = Arc::new(std::sync::Mutex::new(None));
+        let result = QueryRespMemoryCollector::default();
         let result_clone = result.clone();
-        self.show_table(
-            table_name,
-            para,
-            Arc::new(move |event| {
-                let mut lock = result_clone.lock().expect("lock failed");
-                match event {
-                    QueryEvent::Resp(resp) => *lock = Some(resp),
-                    QueryEvent::Data(data) => {
-                        use std::ops::DerefMut;
-                        let x = lock.deref_mut();
-                        let x = x.as_mut().unwrap();
-                        x.data.extend(data.into_iter());
-                    }
-                    _ => {}
-                }
-            }),
-        )
-        .await?;
-        let mut r = result.lock().expect("lock failed");
-        anyhow::Ok(r.take().unwrap())
+        self.show_table(table_name, para, Arc::new(result_clone))
+            .await?;
+        anyhow::Ok(result.result())
+    }
+    async fn show_view_collect(
+        &self, table_name: &str, para: ShowTableParameter,
+    ) -> anyhow::Result<QueryResp> {
+        let result = QueryRespMemoryCollector::default();
+        let result_clone = result.clone();
+        self.show_view(table_name, para, Arc::new(result_clone))
+            .await?;
+        anyhow::Ok(result.result())
     }
 
     async fn table_insert(
@@ -260,8 +289,9 @@ pub trait SchemaTrait:
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
         // 有些后端没有数据 也能得到完整的结果所以提供一个默认实现
         // 后端基于sqlx的需要使用prepare_with这种特殊的接口
-        let result = Arc::new(std::sync::Mutex::new(vec![]));
+        let result = QueryRespMemoryCollector::default();
         let result_clone = result.clone();
+
         self.show_view(
             view_name,
             ShowTableParameter {
@@ -269,16 +299,11 @@ pub trait SchemaTrait:
                 page_size: 1,
                 ..Default::default()
             },
-            Arc::new(move |x| match x {
-                QueryEvent::Resp(x) => {
-                    *result_clone.lock().expect("should lock ok") = x.fields;
-                }
-                _ => {}
-            }),
+            Arc::new(result_clone),
         )
         .await?;
-        let r = result.lock().expect("should lock ok");
-        anyhow::Ok(r.clone())
+        let r = result.option_result();
+        anyhow::Ok(r.unwrap_or_default().fields)
     }
 
     /// export as sql only support table so the frontend should only not pass this kind
@@ -1053,12 +1078,11 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     async fn rollback(&self, _query_id: &str) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
-
     // `max_row` max returning row size.
     // this is tricky when this implementation is total async rust
     // u need this this var `emit` will try limit the returning results and cancel the task
     // when using `spawn_blocking` this means this backend is implemented in blocking api.
-    // u must use this var to limit return result or the blcking thread will run in background forever.
+    // u must use this var to limit return result or the blocking thread will run in background forever.
     async fn query_sql(
         &self, query_id: &str, _sql: &str, max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()>;
@@ -1184,7 +1208,6 @@ impl QueryResp {
             data: vec![vec![Some(affected.to_string())]],
             fields: vec![Field {
                 field: "row affected".to_string(),
-                data_type: "int".to_string(),
                 ..Default::default()
             }],
             sql: sql.into(),
@@ -1198,7 +1221,6 @@ impl QueryResp {
             data: vec![vec![Some("OK".to_string())]],
             fields: vec![Field {
                 field: "execute".to_string(),
-                data_type: "".to_string(),
                 ..Default::default()
             }],
             sql: sql.into(),
@@ -1371,14 +1393,6 @@ impl PartialEq for TriggerDetail {
             && self.sql == other.sql
             && self.enable == other.enable
     }
-}
-
-#[derive(
-    Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq, typescript_type_def::TypeDef,
-)]
-#[serde(tag = "extra", rename_all = "lowercase")]
-pub enum ShowTableExtraArgs {
-    Cassandra { allow_filtering: bool },
 }
 
 impl Eq for TriggerDetail {}
@@ -1629,7 +1643,22 @@ pub(crate) fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
     }
     ret
 }
-pub type QueryEventEmitter = Arc<dyn Fn(QueryEvent) + Send + Sync>;
+
+pub type QueryEventEmitter = Arc<dyn QueryEventEmit>;
+
+pub trait QueryEventEmit: Sync + Send + 'static {
+    fn send(&self, event: QueryEvent) -> anyhow::Result<()>;
+}
+
+#[derive(Debug, Default)]
+pub struct TestQueryEventEmit {}
+
+impl QueryEventEmit for TestQueryEventEmit {
+    fn send(&self, _event: QueryEvent) -> anyhow::Result<()> {
+        println!("query event:{:?}", _event);
+        anyhow::Ok(())
+    }
+}
 
 #[derive(Debug)]
 pub enum QueryEvent {

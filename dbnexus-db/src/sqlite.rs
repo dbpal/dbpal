@@ -888,9 +888,9 @@ impl SchemaTrait for SqliteDB {
             page_size,
             ..
         } = &para;
-        emit("trying to query table columns.".into());
+        emit.send("trying to query table columns.".into())?;
         let fields = self.show_table_columns(table_name).await?;
-        emit("trying to get total amount.".into());
+        emit.send("trying to get total amount.".into())?;
         let total = self.query_count(table_name, where_str.as_deref()).await?;
         log::trace!("query count ok");
         let sql = gen_show_sql(
@@ -901,7 +901,7 @@ impl SchemaTrait for SqliteDB {
             *page,
             *page_size,
         );
-        emit(
+        emit.send(
             QueryResp {
                 fields,
                 total,
@@ -909,9 +909,9 @@ impl SchemaTrait for SqliteDB {
                 ..Default::default()
             }
             .into(),
-        );
+        )?;
         log::info!("show table sql:{}", sql);
-        emit("trying to get connection.".into());
+        emit.send("trying to get connection.".into())?;
         let mut conn = self.get_conn().await?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
         let mut rows = vec![];
@@ -921,11 +921,11 @@ impl SchemaTrait for SqliteDB {
             rows.push(row);
             if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
                 let d = encode_rows(&std::mem::take(&mut rows))?;
-                emit(d.into());
+                emit.send(d.into())?;
             }
         }
         let d = encode_rows(&std::mem::take(&mut rows))?;
-        emit(d.into());
+        emit.send(d.into())?;
         anyhow::Ok(())
     }
 
@@ -939,9 +939,9 @@ impl SchemaTrait for SqliteDB {
             page_size,
             ..
         } = &para;
-        emit("trying to get connection.".into());
+        emit.send("trying to get connection.".into())?;
         let mut conn = self.get_conn().await?;
-        emit("trying to query total amount.".into());
+        emit.send("trying to query total amount.".into())?;
         let total = self.query_count(view_name, where_str.as_deref()).await?;
         let sql = gen_show_sql(
             view_name,
@@ -952,7 +952,7 @@ impl SchemaTrait for SqliteDB {
             *page_size,
         );
         log::info!("show table sql:{}", sql);
-        emit("trying to query data.".into());
+        emit.send("trying to query data.".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
         let mut rows = vec![];
         let mut time_elapsed = TimeElapsed::new();
@@ -961,7 +961,7 @@ impl SchemaTrait for SqliteDB {
             let row = row?;
             if first {
                 first = false;
-                emit(
+                emit.send(
                     QueryResp {
                         fields: get_row_types(&row),
                         total,
@@ -969,16 +969,16 @@ impl SchemaTrait for SqliteDB {
                         ..Default::default()
                     }
                     .into(),
-                );
+                )?;
             }
             rows.push(row);
             if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
                 let d = encode_rows(&std::mem::take(&mut rows))?;
-                emit(d.into());
+                emit.send(d.into())?;
             }
         }
         let d = encode_rows(&rows)?;
-        emit(d.into());
+        emit.send(d.into())?;
         anyhow::Ok(())
     }
 
@@ -1534,7 +1534,7 @@ impl QuerySql for SqliteDB {
         &self, query_id: &str, sql: &str, _max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
-        emit(QueryEvent::Status("trying to get connection".into()));
+        emit.send(QueryEvent::Status("trying to get connection".into()))?;
         let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
@@ -1542,9 +1542,9 @@ impl QuerySql for SqliteDB {
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-        emit(QueryEvent::Status("trying to get response stream".into()));
+        emit.send(QueryEvent::Status("trying to get response stream".into()))?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
-        emit(QueryEvent::Status("get response ok.".into()));
+        emit.send(QueryEvent::Status("get response ok.".into()))?;
         let mut rows = Vec::new();
         let mut emit_fields = Vec::new();
         let mut timeelapsed = TimeElapsed::new();
@@ -1553,7 +1553,7 @@ impl QuerySql for SqliteDB {
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {
-                    emit(QueryEvent::Err(err.to_string()));
+                    emit.send(QueryEvent::Err(err.to_string()))?;
                     break;
                 }
             };
@@ -1567,29 +1567,29 @@ impl QuerySql for SqliteDB {
                     if emit_fields.is_empty() || !fields.eq(&emit_fields) {
                         if !rows.is_empty() {
                             let data = encode_rows(&std::mem::take(&mut rows))?;
-                            emit(data.into());
+                            emit.send(data.into())?;
                             tokio::task::yield_now().await;
                         }
-                        emit(
+                        emit.send(
                             QueryResp {
                                 fields: fields.clone(),
                                 ..Default::default()
                             }
                             .into(),
-                        );
+                        )?;
                         emit_fields = fields;
                     }
                     rows.push(row);
                     if rows.len() >= self.query_buffer_size() || timeelapsed.elapsed() {
                         let data = encode_rows(&std::mem::take(&mut rows))?;
-                        emit(data.into());
+                        emit.send(data.into())?;
                         tokio::task::yield_now().await;
                     }
                 }
             }
         }
         if !rows.is_empty() {
-            emit(encode_rows(&rows)?.into());
+            emit.send(encode_rows(&rows)?.into())?;
         }
         drop(stream);
 
@@ -1610,7 +1610,7 @@ impl QuerySql for SqliteDB {
                 fields,
                 ..Default::default()
             };
-            emit(r.into());
+            emit.send(r.into())?;
         }
         anyhow::Ok(())
     }
@@ -1679,7 +1679,10 @@ mod tests {
     use std::usize;
 
     use super::*;
-    use crate::{db::ShowTableParameter, enable_test_log};
+    use crate::{
+        db::{ShowTableParameter, TestQueryEventEmit},
+        enable_test_log,
+    };
 
     #[ignore = "this test run by hand"]
     #[tokio::test]
@@ -1984,12 +1987,9 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table(
+        db.show_table_collect(
             "test_rename2",
             ShowTableParameter::new_stupid_test("id asc"),
-            Arc::new(|s| {
-                println!("{:?}", s);
-            }),
         )
         .await
         .unwrap();
@@ -2018,12 +2018,9 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table(
+        db.show_table_collect(
             "test_duplicate2",
             ShowTableParameter::new_stupid_test("id asc"),
-            Arc::new(|s| {
-                println!("{:?}", s);
-            }),
         )
         .await
         .unwrap();
@@ -2254,12 +2251,9 @@ mod tests {
         let db = make_test_object().await;
 
         let r = db
-            .show_table(
+            .show_table_collect(
                 "documents",
                 ShowTableParameter::new_stupid_test("title asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
             )
             .await
             .unwrap();
@@ -2323,13 +2317,7 @@ mod tests {
         println!("{:?}", r);
 
         let cols = db
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("{:?}", cols);
@@ -2348,9 +2336,7 @@ mod tests {
 
         "#,
                 usize::MAX,
-                Arc::new(|e| {
-                    println!("{:?}", e);
-                }),
+                Arc::new(TestQueryEventEmit::default()),
             )
             .await
             .unwrap();
@@ -2366,12 +2352,9 @@ mod tests {
         let views = db.list_view().await.unwrap();
         for v in views.iter() {
             let list = db
-                .show_view(
+                .show_view_collect(
                     v.name.as_str(),
                     ShowTableParameter::new_stupid_test("id asc"),
-                    Arc::new(|s| {
-                        println!("{:?}", s);
-                    }),
                 )
                 .await
                 .unwrap();

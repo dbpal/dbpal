@@ -576,7 +576,7 @@ const defaultShowTableParams = (): types.ShowTableParameter => ({
   order_by: null,
   page: 1, // 假设 Usize 是 number
   page_size: 10, // 假设 Usize 是 number
-  extra: null,
+  allow_filtering: false,
   limit: null,
   min: null,
   max: null,

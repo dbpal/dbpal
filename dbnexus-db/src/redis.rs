@@ -1197,7 +1197,7 @@ impl SchemaTrait for RedisDB {
     async fn show_table(
         &self, key: &str, para: ShowTableParameter, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        emit("trying to get connetion.".into());
+        emit.send("trying to get connetion.".into())?;
         let mut conn = self.get_conn().await?;
         let ShowTableParameter {
             where_str,
@@ -1211,19 +1211,19 @@ impl SchemaTrait for RedisDB {
         match typ {
             RedisType::String => {
                 let ret: Option<Vec<u8>> = conn.get(key).await?;
-                emit(
+                emit.send(
                     QueryResp::result(
                         format!("GET {}", key),
                         vec![ret.map(|x| hex::encode(x.as_slice()))],
                     )
                     .into(),
-                );
+                )?;
                 anyhow::Ok(())
             }
             RedisType::List => {
-                emit("trying to get list.".into());
+                emit.send("trying to get list.".into())?;
                 let r: Vec<Vec<u8>> = conn.lrange(key, 0, -1).await?;
-                emit(
+                emit.send(
                     QueryResp {
                         fields: vec![
                             Field::from_name_type("seq", "int"),
@@ -1240,18 +1240,18 @@ impl SchemaTrait for RedisDB {
                         ..Default::default()
                     }
                     .into(),
-                );
+                )?;
                 anyhow::Ok(())
             }
             RedisType::Set => {
-                emit("trying to query amount".into());
-                emit(
+                emit.send("trying to query amount".into())?;
+                emit.send(
                     QueryResp {
                         fields: vec![Field::from_name_type("value", "string")],
                         ..Default::default()
                     }
                     .into(),
-                );
+                )?;
                 let mut ret: AsyncIter<Vec<u8>> = conn
                     .sscan_match(key, where_str.clone().unwrap_or("*".to_string()))
                     .await?;
@@ -1264,7 +1264,7 @@ impl SchemaTrait for RedisDB {
                             .iter()
                             .map(|x| vec![Some(hex::encode(x))])
                             .collect::<Vec<_>>();
-                        emit(d.into());
+                        emit.send(d.into())?;
                     }
                 }
                 if !set_values.is_empty() {
@@ -1272,12 +1272,12 @@ impl SchemaTrait for RedisDB {
                         .iter()
                         .map(|x| vec![Some(hex::encode(x))])
                         .collect::<Vec<_>>();
-                    emit(d.into());
+                    emit.send(d.into())?;
                 }
                 anyhow::Ok(())
             }
             RedisType::Hash => {
-                emit(
+                emit.send(
                     QueryResp {
                         fields: vec![
                             Field::from_name_type("key", "string"),
@@ -1286,7 +1286,7 @@ impl SchemaTrait for RedisDB {
                         ..Default::default()
                     }
                     .into(),
-                );
+                )?;
                 let mut ret: AsyncIter<Vec<u8>> = conn
                     .hscan_match(key, where_str.clone().unwrap_or("*".to_string()))
                     .await?;
@@ -1300,7 +1300,7 @@ impl SchemaTrait for RedisDB {
                             let values = values
                                 .map(|x| vec![Some(hex::encode(&x[0])), Some(hex::encode(&x[1]))])
                                 .collect::<Vec<_>>();
-                            emit(values.into())
+                            emit.send(values.into())?;
                         }
                     }
                 }
@@ -1309,7 +1309,7 @@ impl SchemaTrait for RedisDB {
                     let values = values
                         .map(|x| vec![Some(hex::encode(&x[0])), Some(hex::encode(&x[1]))])
                         .collect::<Vec<_>>();
-                    emit(values.into())
+                    emit.send(values.into())?;
                 }
                 anyhow::Ok(())
             }
@@ -1319,7 +1319,7 @@ impl SchemaTrait for RedisDB {
                 let mut ret: AsyncIter<(Vec<u8>, f64)> = conn
                     .zscan_match(key, where_str.as_deref().unwrap_or("*"))
                     .await?;
-                emit(
+                emit.send(
                     QueryResp {
                         fields: vec![
                             Field::from_name_type("score", "f64"),
@@ -1329,7 +1329,7 @@ impl SchemaTrait for RedisDB {
                         ..Default::default()
                     }
                     .into(),
-                );
+                )?;
                 let mut key_values = Vec::new();
                 while let Some(item) = ret.next_item().await {
                     let value = item?;
@@ -1353,7 +1353,7 @@ impl SchemaTrait for RedisDB {
                                 vec![Some(hex::encode(key)), Some(score.to_string())]
                             })
                             .collect::<Vec<_>>();
-                        emit(d.into());
+                        emit.send(d.into())?;
                     }
                 }
                 let d = std::mem::take(&mut key_values);
@@ -1361,7 +1361,7 @@ impl SchemaTrait for RedisDB {
                     .iter()
                     .map(|(key, score)| vec![Some(hex::encode(key)), Some(score.to_string())])
                     .collect::<Vec<_>>();
-                emit(d.into());
+                emit.send(d.into())?;
                 anyhow::Ok(())
             }
         }
@@ -1594,7 +1594,7 @@ impl QuerySql for RedisDB {
             let args = &c[1..];
             let mut redis_cmd = redis::cmd(c[0].as_str());
             redis_cmd.arg(args);
-            emit(
+            emit.send(
                 QueryResp {
                     fields: vec![Field::from_name_type(
                         format!("query result of '{}'", c.join(" ")),
@@ -1603,7 +1603,7 @@ impl QuerySql for RedisDB {
                     ..Default::default()
                 }
                 .into(),
-            );
+            )?;
             if command_return_multi_value(c[0].as_str()) {
                 let stream = redis_cmd.iter_async::<Value>(conn.deref_mut()).await;
                 match stream {
@@ -1612,12 +1612,12 @@ impl QuerySql for RedisDB {
                             let value = value?;
                             let r = encode_response_value(&value)?;
                             let r = r.into_iter().map(|x| vec![Some(x)]).collect::<Vec<_>>();
-                            emit(QueryEvent::from(r));
+                            emit.send(QueryEvent::from(r))?;
                         }
                     }
                     Err(err) => {
                         log::error!("query failed:{}", err);
-                        emit(QueryEvent::Err(err.to_string()))
+                        emit.send(QueryEvent::Err(err.to_string()))?;
                     }
                 }
             } else {
@@ -1629,9 +1629,9 @@ impl QuerySql for RedisDB {
                             .map(|x| vec![Some(x)])
                             .collect::<Vec<_>>();
 
-                        emit(values.into());
+                        emit.send(values.into())?;
                     }
-                    Err(err) => emit(QueryEvent::Err(err.to_string())),
+                    Err(err) => emit.send(QueryEvent::Err(err.to_string()))?,
                 }
             }
         }
@@ -2430,13 +2430,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2448,12 +2442,9 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(
+            .show_table_collect(
                 &table_name_dup,
                 ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
             )
             .await
             .unwrap();
@@ -2611,13 +2602,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2628,12 +2613,9 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(
+            .show_table_collect(
                 &table_name_dup,
                 ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
             )
             .await
             .unwrap();
@@ -2701,13 +2683,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2718,12 +2694,9 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(
+            .show_table_collect(
                 &table_name_dup,
                 ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
             )
             .await
             .unwrap();
@@ -2794,13 +2767,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
         let resp = db
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2812,12 +2779,9 @@ db1:keys=1,expires=0,avg_ttl=0"#,
             .await
             .unwrap();
         let resp2 = db
-            .show_table(
+            .show_table_collect(
                 &table_name_dup,
                 ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
             )
             .await
             .unwrap();

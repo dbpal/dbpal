@@ -1254,7 +1254,7 @@ impl SchemaTrait for PostGresDB {
             page_size,
             ..
         } = &para;
-        emit("trying to query total amount.".into());
+        emit.send("trying to query total amount.".into())?;
         let total = self.query_count(view_name, where_str.as_deref()).await?;
         let sql = gen_show_sql(
             self.config.schema_str()?,
@@ -1266,9 +1266,9 @@ impl SchemaTrait for PostGresDB {
             *page_size,
         );
         log::info!("sql:{}", sql);
-        emit("trying to get connection.".into());
+        emit.send("trying to get connection.".into())?;
         let mut conn = self.get_conn().await?;
-        emit("trying to query data.".into());
+        emit.send("trying to query data.".into())?;
         let mut rows = vec![];
         let mut time_elapsed = TimeElapsed::new();
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
@@ -1277,22 +1277,22 @@ impl SchemaTrait for PostGresDB {
             let row = row?;
             if first {
                 first = false;
-                emit(
+                emit.send(
                     QueryResp {
                         fields: get_rows_types(&row),
                         total,
                         ..Default::default()
                     }
                     .into(),
-                );
+                )?;
             }
             rows.push(row);
             if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                emit(encode_rows(&std::mem::take(&mut rows))?.into());
+                emit.send(encode_rows(&std::mem::take(&mut rows))?.into())?;
             }
         }
         if !rows.is_empty() {
-            emit(encode_rows(&std::mem::take(&mut rows))?.into());
+            emit.send(encode_rows(&std::mem::take(&mut rows))?.into())?;
         }
         anyhow::Ok(())
     }
@@ -1570,7 +1570,7 @@ impl SchemaTrait for PostGresDB {
             page_size,
             ..
         } = &para;
-        emit("trying to query total amount.".into());
+        emit.send("trying to query total amount.".into())?;
         let total = self.query_count(table_name, where_str.as_deref()).await?;
         let fields = self.show_table_columns(table_name).await?;
         let sql = gen_show_sql(
@@ -1583,7 +1583,7 @@ impl SchemaTrait for PostGresDB {
             *page_size,
         );
         log::info!("sql:{}", sql);
-        emit(
+        emit.send(
             QueryResp {
                 fields,
                 total,
@@ -1591,10 +1591,10 @@ impl SchemaTrait for PostGresDB {
                 ..Default::default()
             }
             .into(),
-        );
-        emit("trying to get connection.".into());
+        )?;
+        emit.send("trying to get connection.".into())?;
         let mut conn = self.get_conn().await?;
-        emit("trying to query data.".into());
+        emit.send("trying to query data.".into())?;
         let mut stream = sqlx::query(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
         let mut rows = vec![];
         let mut time_elapsed = TimeElapsed::new();
@@ -1603,11 +1603,11 @@ impl SchemaTrait for PostGresDB {
             rows.push(row);
             if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
                 let d = encode_rows(&std::mem::take(&mut rows))?;
-                emit(d.into());
+                emit.send(d.into())?;
             }
         }
         let d = encode_rows(&std::mem::take(&mut rows))?;
-        emit(d.into());
+        emit.send(d.into())?;
         anyhow::Ok(())
     }
 
@@ -2124,7 +2124,7 @@ impl QuerySql for PostGresDB {
         &self, query_id: &str, sql: &str, _max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
-        emit(QueryEvent::new_status("trying to lock connection."));
+        emit.send(QueryEvent::new_status("trying to lock connection."))?;
         let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
@@ -2132,8 +2132,8 @@ impl QuerySql for PostGresDB {
         };
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-        emit(QueryEvent::new_status("locked connection."));
-        emit(QueryEvent::new_status("trying to query."));
+        emit.send(QueryEvent::new_status("locked connection."))?;
+        emit.send(QueryEvent::new_status("trying to query."))?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
         let mut has_result = false;
         let mut rows = Vec::new();
@@ -2143,7 +2143,7 @@ impl QuerySql for PostGresDB {
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {
-                    emit(QueryEvent::Err(err.to_string()));
+                    emit.send(QueryEvent::Err(err.to_string()))?;
                     continue;
                 }
             };
@@ -2157,28 +2157,28 @@ impl QuerySql for PostGresDB {
                     if emit_fields.is_empty() || !emit_fields.eq(&fields) {
                         if !rows.is_empty() {
                             let data = encode_rows(&std::mem::take(&mut rows))?;
-                            emit(data.into());
+                            emit.send(data.into())?;
                         }
-                        emit(
+                        emit.send(
                             QueryResp {
                                 fields: fields.clone(),
                                 ..Default::default()
                             }
                             .into(),
-                        );
+                        )?;
                         emit_fields = fields;
                     }
                     rows.push(row);
                     if rows.len() >= self.query_buffer_size() || timeelapsed.elapsed() {
                         let data = encode_rows(&std::mem::take(&mut rows))?;
-                        emit(data.into());
+                        emit.send(data.into())?;
                     }
                 }
             }
         }
         if !rows.is_empty() {
             let data = encode_rows(&std::mem::take(&mut rows))?;
-            emit(data.into());
+            emit.send(data.into())?;
         }
         drop(stream);
         if !has_result {
@@ -2194,7 +2194,7 @@ impl QuerySql for PostGresDB {
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
-            emit(QueryResp::new(fields, 0, vec![], sql.to_owned())?.into());
+            emit.send(QueryResp::new(fields, 0, vec![], sql.to_owned())?.into())?;
         }
         anyhow::Ok(())
     }
@@ -2354,7 +2354,7 @@ mod tests {
     };
     #[allow(unused_imports)]
     use crate::enable_test_log;
-    use std::{collections::HashMap, sync::Arc};
+    use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_list_created_types() {
@@ -2457,13 +2457,7 @@ mod tests {
         let list = db.list_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
-                .show_view(
-                    &l.name,
-                    ShowTableParameter::new_stupid_test("name asc"),
-                    Arc::new(|x| {
-                        println!("{:?}", x);
-                    }),
-                )
+                .show_view_collect(&l.name, ShowTableParameter::new_stupid_test("name asc"))
                 .await
                 .unwrap();
             println!("resp:{:?}", table_resp);
@@ -2501,13 +2495,7 @@ mod tests {
         let list = db.list_materialized_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
-                .show_view(
-                    &l.name,
-                    ShowTableParameter::new_stupid_test("name asc"),
-                    Arc::new(|x| {
-                        println!("{:?}", x);
-                    }),
-                )
+                .show_view_collect(&l.name, ShowTableParameter::new_stupid_test("name asc"))
                 .await
                 .unwrap();
             println!("resp:{:?}", table_resp);
@@ -2551,12 +2539,9 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table(
+        db.show_table_collect(
             "test_rename2",
             ShowTableParameter::new_stupid_test("name asc"),
-            Arc::new(|x| {
-                println!("{:?}", x);
-            }),
         )
         .await
         .unwrap();
@@ -3041,12 +3026,9 @@ mod tests {
         values.insert("int4_column".to_string(), Some("100".to_string()));
         pg.table_insert(table_name, values.clone()).await.unwrap();
         let x = pg
-            .show_table(
+            .show_table_collect(
                 table_name,
                 ShowTableParameter::new_stupid_test("bool_column asc"),
-                Arc::new(|x| {
-                    println!("{:?}", x);
-                }),
             )
             .await
             .unwrap();
@@ -3161,13 +3143,7 @@ mod tests {
         pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3328,12 +3304,9 @@ mod tests {
         pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
-            .show_table(
+            .show_table_collect(
                 table_name,
                 ShowTableParameter::new_stupid_test("macaddr_column asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
             )
             .await
             .unwrap();
@@ -3432,12 +3405,9 @@ mod tests {
         pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
-            .show_table(
+            .show_table_collect(
                 table_name,
                 ShowTableParameter::new_stupid_test("int2_array_column asc"),
-                Arc::new(|x| {
-                    println!("{:?}", x);
-                }),
             )
             .await
             .unwrap();
@@ -3557,13 +3527,7 @@ mod tests {
         pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3677,12 +3641,9 @@ mod tests {
         pg.table_insert(table_name, values).await.unwrap();
 
         let x = pg
-            .show_table(
+            .show_table_collect(
                 table_name,
                 ShowTableParameter::new_stupid_test("col_time asc"),
-                Arc::new(|x| {
-                    println!("{:?}", x);
-                }),
             )
             .await
             .unwrap();
@@ -3781,12 +3742,9 @@ mod tests {
         );
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg
-            .show_table(
+            .show_table_collect(
                 table_name,
                 ShowTableParameter::new_stupid_test("interval_col asc"),
-                Arc::new(|x| {
-                    println!("{:?}", x);
-                }),
             )
             .await
             .unwrap();
@@ -3877,13 +3835,7 @@ mod tests {
         values.insert("numeric_column".to_string(), Some("123.45".to_string()));
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test(None),
-                Arc::new(|x| {
-                    println!("{:?}", x);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
             .await
             .unwrap();
         println!("{:?}", x);
@@ -3992,12 +3944,9 @@ mod tests {
 
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg
-            .show_table(
+            .show_table_collect(
                 table_name,
                 ShowTableParameter::new_stupid_test("uuid_column asc"),
-                Arc::new(|x| {
-                    println!("{:?}", x);
-                }),
             )
             .await
             .unwrap();
@@ -4099,12 +4048,9 @@ mod tests {
 
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg
-            .show_table(
+            .show_table_collect(
                 table_name,
                 ShowTableParameter::new_stupid_test("num_range asc"),
-                Arc::new(|x| {
-                    println!("{:?}", x);
-                }),
             )
             .await
             .unwrap();
@@ -4216,13 +4162,7 @@ mod tests {
         );
         pg.table_insert(table_name, values).await.unwrap();
         let x = pg
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("{:?}", x);

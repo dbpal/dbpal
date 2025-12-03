@@ -1202,11 +1202,11 @@ impl SchemaTrait for MysqlDB {
             *page_size,
         );
         log::info!("sql:{}", sql);
-        emit("trying to get connection...".into());
+        emit.send("trying to get connection...".into())?;
         let mut conn = self.get_conn().await?;
-        emit("trying to query total amount.".into());
+        emit.send("trying to query total amount.".into())?;
         let total = self.query_count(view_name, where_str.as_deref()).await?;
-        emit("trying to query data.".into());
+        emit.send("trying to query data.".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
         let mut rows = vec![];
         let mut time_elapsed = TimeElapsed::new();
@@ -1215,7 +1215,7 @@ impl SchemaTrait for MysqlDB {
             let row = row?;
             if first {
                 first = false;
-                emit(
+                emit.send(
                     QueryResp {
                         total,
                         fields: get_row_types(&row),
@@ -1223,15 +1223,15 @@ impl SchemaTrait for MysqlDB {
                         ..Default::default()
                     }
                     .into(),
-                );
+                )?;
             }
             rows.push(row);
             if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                emit(encode_rows(&std::mem::take(&mut rows), true)?.into());
+                emit.send(encode_rows(&std::mem::take(&mut rows), true)?.into())?;
             }
         }
         if !rows.is_empty() {
-            emit(encode_rows(&std::mem::take(&mut rows), true)?.into());
+            emit.send(encode_rows(&std::mem::take(&mut rows), true)?.into())?;
         }
         anyhow::Ok(())
     }
@@ -1400,9 +1400,9 @@ impl SchemaTrait for MysqlDB {
             page_size,
             ..
         } = &para;
-        emit("trying to query table columns.".into());
+        emit.send("trying to query table columns.".into())?;
         let fields = self.show_table_columns(table_name).await?;
-        emit("trying to query total amount".into());
+        emit.send("trying to query total amount".into())?;
         let total = self.query_count(table_name, where_str.as_deref()).await?;
         let sql = gen_select_sql(
             table_name,
@@ -1413,7 +1413,7 @@ impl SchemaTrait for MysqlDB {
             *page_size,
         );
         log::info!("sql:{}", sql);
-        emit(
+        emit.send(
             QueryResp {
                 fields,
                 total,
@@ -1421,10 +1421,10 @@ impl SchemaTrait for MysqlDB {
                 ..Default::default()
             }
             .into(),
-        );
-        emit("trying get connection.".into());
+        )?;
+        emit.send("trying get connection.".into())?;
         let mut conn = self.get_conn().await?;
-        emit("trying to query data".into());
+        emit.send("trying to query data".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
         let mut rows = vec![];
         let mut time_elapsed = TimeElapsed::new();
@@ -1433,11 +1433,11 @@ impl SchemaTrait for MysqlDB {
             rows.push(row);
             if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
                 let d = encode_rows(&std::mem::take(&mut rows), true)?;
-                emit(d.into());
+                emit.send(d.into())?;
             }
         }
         let d = encode_rows(&std::mem::take(&mut rows), true)?;
-        emit(d.into());
+        emit.send(d.into())?;
         anyhow::Ok(())
     }
 
@@ -1926,7 +1926,7 @@ impl QuerySql for MysqlDB {
             let item = match item {
                 Ok(x) => x,
                 Err(err) => {
-                    emit(QueryEvent::Err(err.to_string()));
+                    emit.send(QueryEvent::Err(err.to_string()))?;
                     continue;
                 }
             };
@@ -1940,27 +1940,27 @@ impl QuerySql for MysqlDB {
                     if emit_fields.is_empty() || !fields.eq(&emit_fields) {
                         if !rows.is_empty() {
                             let data = encode_rows(&std::mem::take(&mut rows), true)?;
-                            emit(data.into());
+                            emit.send(data.into())?;
                         }
-                        emit(
+                        emit.send(
                             QueryResp {
                                 fields: fields.clone(),
                                 ..Default::default()
                             }
                             .into(),
-                        );
+                        )?;
                         emit_fields = fields;
                     }
                     rows.push(row);
                     if rows.len() >= self.query_buffer_size() || timeelapsed.elapsed() {
                         let data = encode_rows(&std::mem::take(&mut rows), true)?;
-                        emit(data.into());
+                        emit.send(data.into())?;
                     }
                 }
             }
         }
         if !rows.is_empty() {
-            emit(encode_rows(&rows, true)?.into());
+            emit.send(encode_rows(&rows, true)?.into())?;
         }
         drop(stream);
         if !has_result {
@@ -1976,13 +1976,13 @@ impl QuerySql for MysqlDB {
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
-            emit(
+            emit.send(
                 QueryResp {
                     fields,
                     ..Default::default()
                 }
                 .into(),
-            )
+            )?;
         }
         anyhow::Ok(())
     }
@@ -2208,12 +2208,9 @@ pub(crate) mod test_fns {
             .await
             .unwrap();
 
-        db.show_table(
+        db.show_table_collect(
             "test_rename2",
             ShowTableParameter::new_stupid_test("id asc"),
-            Arc::new(|s| {
-                println!("{:?}", s);
-            }),
         )
         .await
         .unwrap();
@@ -2595,12 +2592,9 @@ pub(crate) mod test_fns {
         db.table_insert(table_name, values).await.unwrap();
 
         let cols = db
-            .show_table(
+            .show_table_collect(
                 table_name,
                 ShowTableParameter::new_stupid_test("tinyint_col asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
             )
             .await
             .unwrap();
@@ -2683,12 +2677,9 @@ pub(crate) mod test_fns {
         db.table_insert(table_name, values).await.unwrap();
 
         let cols = db
-            .show_table(
+            .show_table_collect(
                 table_name,
                 ShowTableParameter::new_stupid_test("u8_col asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
             )
             .await
             .unwrap();
@@ -2772,12 +2763,9 @@ pub(crate) mod test_fns {
         db.table_insert(table_name, values).await.unwrap();
 
         let cols = db
-            .show_table(
+            .show_table_collect(
                 table_name,
                 ShowTableParameter::new_stupid_test("varchar_col asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
             )
             .await
             .unwrap();
@@ -2869,12 +2857,9 @@ pub(crate) mod test_fns {
         db.table_insert(table_name, values).await.unwrap();
 
         let cols = db
-            .show_table(
+            .show_table_collect(
                 table_name,
                 ShowTableParameter::new_stupid_test("timestamp_column asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
             )
             .await
             .unwrap();
@@ -2981,13 +2966,7 @@ pub(crate) mod test_fns {
         for view in views.iter() {
             println!("view:{:?}", view);
             let resp = db
-                .show_view(
-                    &view.name,
-                    ShowTableParameter::new_stupid_test("id asc"),
-                    Arc::new(|s| {
-                        println!("{:?}", s);
-                    }),
-                )
+                .show_view_collect(&view.name, ShowTableParameter::new_stupid_test("id asc"))
                 .await
                 .unwrap();
             println!("resp:{:?}", resp);
@@ -3024,8 +3003,6 @@ pub(crate) mod test_fns {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use super::test_fns::{self, make_test_object};
     use crate::TEST_HOST;
     use crate::datasource_config::MysqlDBConfig;
@@ -3053,12 +3030,9 @@ mod tests {
 
         // SELECT * FROM `innodb_index_stats` LIMIT 100 OFFSET 0
         let resp = db
-            .show_table(
+            .show_table_collect(
                 "innodb_index_stats",
                 ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
             )
             .await
             .unwrap();

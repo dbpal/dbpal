@@ -240,13 +240,13 @@ impl QuerySql for LibSqlDB {
         let mut timeelapsed = TimeElapsed::new();
         let mut batch_rows = conn.execute_batch(sql).await?;
         while let Some(mut rows) = batch_rows.next_stmt_row().flatten() {
-            emit(QueryEvent::new_status("getting next result set"));
+            emit.send(QueryEvent::new_status("getting next result set"))?;
             let mut first = true;
             let mut rows_cache = Vec::new();
             while let Some(row) = rows.next().await? {
                 if first {
                     first = false;
-                    emit(
+                    emit.send(
                         QueryResp {
                             fields: (0..row.column_count())
                                 .map(|index| {
@@ -262,19 +262,19 @@ impl QuerySql for LibSqlDB {
                             ..Default::default()
                         }
                         .into(),
-                    );
+                    )?;
                 }
                 rows_cache.push(row);
                 if rows_cache.len() >= self.query_buffer_size() || timeelapsed.elapsed() {
                     let r = std::mem::take(&mut rows_cache);
                     let data = encode_rows(&r)?;
-                    emit(data.into());
+                    emit.send(data.into())?;
                 }
             }
             if !rows_cache.is_empty() {
                 let r = std::mem::take(&mut rows_cache);
                 let data = encode_rows(&r)?;
-                emit(data.into());
+                emit.send(data.into())?;
             }
         }
         anyhow::Ok(())
@@ -827,9 +827,9 @@ impl SchemaTrait for LibSqlDB {
             ..
         } = &para;
 
-        emit("trying to query table columns".into());
+        emit.send("trying to query table columns".into())?;
         let fields = self.show_table_columns(table_name).await?;
-        emit("trying to query total count of this table.".into());
+        emit.send("trying to query total count of this table.".into())?;
         let total = self.query_count(table_name, where_str.as_deref()).await?;
         let sql = gen_show_sql(
             table_name,
@@ -840,7 +840,7 @@ impl SchemaTrait for LibSqlDB {
             *page_size,
         );
         log::info!("show table sql:{}", sql);
-        emit(
+        emit.send(
             QueryResp {
                 fields,
                 total,
@@ -848,10 +848,10 @@ impl SchemaTrait for LibSqlDB {
                 ..Default::default()
             }
             .into(),
-        );
-        emit("trying to get connection.".into());
+        )?;
+        emit.send("trying to get connection.".into())?;
         let conn: bb8::PooledConnection<'_, PoolManager> = self.get_conn().await?;
-        emit("trying to query data".into());
+        emit.send("trying to query data".into())?;
         let mut query_rows = conn.query(&sql, params!()).await?;
         let mut rows = Vec::new();
         let mut time_elapsed = TimeElapsed::new();
@@ -859,11 +859,11 @@ impl SchemaTrait for LibSqlDB {
             rows.push(r);
             if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
                 let data = encode_rows(&std::mem::take(&mut rows))?;
-                emit(data.into());
+                emit.send(data.into())?;
             }
         }
         let data = encode_rows(&rows)?;
-        emit(data.into());
+        emit.send(data.into())?;
         anyhow::Ok(())
     }
 
@@ -877,9 +877,9 @@ impl SchemaTrait for LibSqlDB {
             page_size,
             ..
         } = &para;
-        emit("trying to get connection.".into());
+        emit.send("trying to get connection.".into())?;
         let conn = self.get_conn().await?;
-        emit("trying to query total count of this view.".into());
+        emit.send("trying to query total count of this view.".into())?;
         let total = self.query_count(view_name, where_str.as_deref()).await?;
         let sql = gen_show_sql(
             view_name,
@@ -890,7 +890,7 @@ impl SchemaTrait for LibSqlDB {
             *page_size,
         );
         log::info!("show table sql:{}", sql);
-        emit("trying to query data".into());
+        emit.send("trying to query data".into())?;
         let mut stream = conn.query(&sql, params!()).await?;
         let mut rows = Vec::new();
         let mut first = true;
@@ -898,7 +898,7 @@ impl SchemaTrait for LibSqlDB {
         while let Some(row) = stream.next().await? {
             if first {
                 first = false;
-                emit(
+                emit.send(
                     QueryResp {
                         fields: get_row_types(&row),
                         total,
@@ -906,17 +906,17 @@ impl SchemaTrait for LibSqlDB {
                         ..Default::default()
                     }
                     .into(),
-                )
+                )?;
             }
             rows.push(row);
             if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
                 let d = encode_rows(&std::mem::take(&mut rows))?;
-                emit(d.into());
+                emit.send(d.into())?;
             }
         }
         if !rows.is_empty() {
             let d = encode_rows(&rows)?;
-            emit(d.into());
+            emit.send(d.into())?;
         }
         anyhow::Ok(())
     }
@@ -1344,7 +1344,7 @@ pub(crate) async fn make_test_object() -> LibSqlDB {
 
 #[cfg(test)]
 mod tests {
-    use crate::enable_test_log;
+    use crate::{db::TestQueryEventEmit, enable_test_log};
 
     use super::*;
     #[tokio::test]
@@ -1433,7 +1433,7 @@ mod tests {
         db.rollback(query_id).await.unwrap();
 
         // assert_eq!(
-        //     db.show_table(table_name, ShowTableParameter::new_test())
+        //     db.show_table_collect(table_name, ShowTableParameter::new_test())
         //         .await
         //         .unwrap()
         //         .total,
@@ -1508,12 +1508,9 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table(
+        db.show_table_collect(
             "test_rename2",
             ShowTableParameter::new_stupid_test("id asc"),
-            Arc::new(|s| {
-                println!("{:?}", s);
-            }),
         )
         .await
         .unwrap();
@@ -1543,12 +1540,9 @@ mod tests {
             .await
             .unwrap();
 
-        db.show_table(
+        db.show_table_collect(
             "test_duplicate2",
             ShowTableParameter::new_stupid_test("id asc"),
-            Arc::new(|s| {
-                println!("{:?}", s);
-            }),
         )
         .await
         .unwrap();
@@ -1841,13 +1835,7 @@ mod tests {
         println!("{:?}", r);
 
         let cols = db
-            .show_table(
-                table_name,
-                ShowTableParameter::new_stupid_test("id asc"),
-                Arc::new(|s| {
-                    println!("{:?}", s);
-                }),
-            )
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("{:?}", cols);
@@ -1866,9 +1854,7 @@ mod tests {
 
         "#,
                 usize::MAX,
-                Arc::new(|e| {
-                    println!("{:?}", e);
-                }),
+                Arc::new(TestQueryEventEmit::default()),
             )
             .await
             .unwrap();
@@ -1886,12 +1872,9 @@ mod tests {
         let views = db.list_view().await.unwrap();
         for v in views.iter() {
             let list = db
-                .show_view(
+                .show_view_collect(
                     v.name.as_str(),
                     ShowTableParameter::new_stupid_test("id asc"),
-                    Arc::new(|s| {
-                        println!("{:?}", s);
-                    }),
                 )
                 .await
                 .unwrap();

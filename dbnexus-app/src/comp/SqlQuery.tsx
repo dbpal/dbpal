@@ -616,7 +616,13 @@ function SqlQuery(props: {
             {makeConnLoading && <CircularProgress />}
             <ModifyLLMConfigModal />
             <ExecutingTime loading={loading} disableTime />
-            <SelectMaxRowLimit kind="sql-query" maxRowRef={maxRow} />
+            <SelectMaxRowLimit
+              kind="sql-query"
+              maxRowRef={maxRow}
+              notice=<Typography color="info">
+                limit max rows can be query.we don&apos;t want OOM!!!😀
+              </Typography>
+            />
           </Stack>
           <div
             style={{

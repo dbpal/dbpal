@@ -480,11 +480,6 @@ export namespace types {
     name: string;
     sql: string | null;
   };
-  export type ShowTableExtraArgs = {
-    extra: "cassandra";
-  } & {
-    allow_filtering: boolean;
-  };
   export type SqlEvent = {
     name: string;
     sql: string;
@@ -513,9 +508,9 @@ export namespace types {
     order_by: string | null;
     page: types.Usize;
     page_size: types.Usize;
-    extra: types.ShowTableExtraArgs | null;
     limit: types.Usize | null;
     min: types.F64 | null;
     max: types.F64 | null;
+    allow_filtering: boolean;
   };
 }
