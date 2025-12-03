@@ -45,11 +45,7 @@
     },
     {
       "identifier": "http:default",
-      "allow": [
-        {
-          "url": "https://**"
-        }
-      ]
+      "allow": [{ "url": "https://**" }]
     },
     "opener:default",
     "os:default",
@@ -82,7 +78,6 @@
         }
       ]
     },
-    "http:default",
-    "log:allow-log"
+    "http:default"
   ]
 }

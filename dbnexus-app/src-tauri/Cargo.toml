@@ -50,7 +50,6 @@ sys-locale = "0.3.2"
 tauri-plugin-http = "2"
 tokio-util.workspace = true
 tauri-plugin-devtools = "2.0.1"
-tauri-plugin-log = "2"
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
