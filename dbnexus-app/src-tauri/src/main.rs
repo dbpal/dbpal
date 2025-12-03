@@ -9,6 +9,7 @@ use std::ops::DerefMut;
 use std::panic;
 use std::str::FromStr;
 use std::sync::Arc;
+use tauri_plugin_log::{Target, TargetKind};
 
 use app::DBPal;
 use handlers::{
@@ -232,13 +233,18 @@ fn main() {
     };
     let log_window_id = generate_random_string(10);
     let setting_window_id = generate_random_string(10);
-    #[cfg(debug_assertions)] // only enable instrumentation in development builds
-    let devtools = tauri_plugin_devtools::init();
+    #[cfg(debug_assertions)]
+    // only enable instrumentation in development builds
+    // let devtools = tauri_plugin_devtools::init();
     #[allow(unused_mut)]
-    let mut builder = tauri::Builder::default();
+    let mut builder = tauri::Builder::default().plugin(
+        tauri_plugin_log::Builder::new()
+            .level(tauri_plugin_log::log::LevelFilter::Info)
+            .build(),
+    );
     #[cfg(debug_assertions)]
     {
-        builder = builder.plugin(devtools);
+        // builder = builder.plugin(devtools);
     }
     let about_meta = AboutMetadata {
         website: Some("https://dbpal.site".to_string()),
@@ -250,6 +256,9 @@ fn main() {
         copyright: Some("Copyright © yuyang 2025 All rights reserved.".to_string()),
         ..AboutMetadata::default()
     };
+    let tauri_log = tauri_plugin_log::Builder::new()
+        .targets(vec![Target::new(TargetKind::Webview)])
+        .build();
     builder
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
@@ -269,6 +278,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_keyring::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_log)
         .manage(dbpal)
         .manage(task_manager)
         .manage(backend_crash_msg)
