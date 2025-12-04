@@ -1,6 +1,10 @@
-use std::sync::Arc;
-
-use cdrs_tokio::types::IntoRustByIndex;
+use crate::cassandra::CassandraDB;
+use crate::db::{CreatedTypeDef, DBTrait};
+use crate::language_server::{
+    CompletionItem, CompletionKind, CompletionList, GetKeyWords, LangServerCommon, LanguageServer,
+    LexerCompletionTrait, remove_duplicate,
+};
+use crate::sqlparser_completion::TempTableColumn;
 use cql3_parser::alter_table::AlterTableOperation;
 use cql3_parser::alter_type::AlterTypeOperation;
 use cql3_parser::cassandra_ast::{CassandraAST, ParsedStatement};
@@ -11,15 +15,9 @@ use cql3_parser::common::{
 use cql3_parser::create_index::IndexColumnType;
 use cql3_parser::insert::InsertValues;
 use cql3_parser::select::SelectElement;
-
-use crate::cassandra::{AppSession, CassandraDB};
-use crate::db::{CreatedTypeDef, DBTrait, OptionMustBeSomeErr};
-use crate::language_server::{
-    CompletionItem, CompletionKind, CompletionList, GetKeyWords, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, remove_duplicate,
-};
-
-use crate::sqlparser_completion::TempTableColumn;
+use futures_util::StreamExt;
+use scylla::client::session::Session;
+use std::sync::Arc;
 
 #[async_trait::async_trait]
 impl GetKeyWords for CassandraDB {
@@ -135,7 +133,7 @@ impl LexerCompletionTrait for CassandraDB {
 }
 
 impl CassandraDB {
-    fn get_query_session(&self) -> anyhow::Result<Arc<AppSession>> {
+    fn get_query_session(&self) -> anyhow::Result<Arc<Session>> {
         match self.query_connection.get(&self.completion_id.get()) {
             Some(x) => anyhow::Ok(x.clone()),
             None => anyhow::bail!("connection closed???"),
@@ -177,22 +175,16 @@ impl LangServerCommon for CassandraDB {
         );
         log::info!("sql:{}", sql);
         let session = self.get_query_session()?;
-        let rows = session
-            .query(sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
-        let mut result: Vec<TempTableColumn> = Vec::with_capacity(rows.len());
-        for r in rows.iter() {
-            let name: Option<String> = r.get_by_index(0)?;
-            let data_type: Option<String> = r.get_by_index(1)?;
-            if let Some(name) = name {
-                result.push(TempTableColumn {
-                    name,
-                    data_type, // Cassandra does not provide data type in this query
-                });
-            }
+        let pager = session.query_iter(sql, &[]).await?;
+        let mut stram = pager.rows_stream::<(String, String)>()?;
+        let mut result = Vec::new();
+        while let Some(x) = stram.next().await {
+            let (name, data_type) = x?;
+
+            result.push(TempTableColumn {
+                name,
+                data_type: Some(data_type), // Cassandra does not provide data type in this query
+            });
         }
         anyhow::Ok(result)
     }
@@ -279,20 +271,15 @@ impl CassandraDB {
         );
         log::info!("sql:{}", sql);
         let session = self.get_query_session()?;
-        let rows = session
-            .query(sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
-        let mut result = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let name: Option<String> = row.get_by_index(0)?;
-            if let Some(name) = name {
-                result.push(name);
-            }
+        let rows = session.query_iter(sql, &[]).await?;
+        let mut stream = rows.rows_stream::<(String,)>()?;
+        let mut ret = Vec::new();
+        while let Some(row) = stream.next().await {
+            let (name,) = row?;
+
+            ret.push(name);
         }
-        anyhow::Ok(result)
+        anyhow::Ok(ret)
     }
 }
 
@@ -302,7 +289,7 @@ impl CassandraDB {
             return anyhow::Ok(key_space.to_string());
         }
         let session = self.get_query_session()?;
-        if let Some(x) = session.current_keyspace() {
+        if let Some(x) = session.get_keyspace() {
             return anyhow::Ok(x.as_str().to_string());
         }
         match &self.config.db {
@@ -533,26 +520,18 @@ impl AstCompletion {
         let sql = " SELECT role FROM system_auth.roles;".to_string();
         log::info!("sql:{}", sql);
         let session = self.db.get_query_session()?;
-        let rows = session
-            .query(sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
-        let mut result = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let name: Option<String> = row.get_by_index(0)?;
-            if let Some(name) = name {
-                result.push(CompletionItem {
-                    item: name.into(),
-                    desc: None,
-                    kind: CompletionKind::Role,
-                });
-            } else {
-                log::error!("empty role name should not happen")
-            }
-        }
+        let rows = session.query_iter(sql, &[]).await?;
+        let mut stream = rows.rows_stream::<(String,)>()?;
 
+        let mut result = Vec::new();
+        while let Some(row) = stream.next().await {
+            let (name,) = row?;
+            result.push(CompletionItem {
+                item: name.into(),
+                desc: None,
+                kind: CompletionKind::Role,
+            });
+        }
         self.result = Some(result);
         anyhow::Ok(())
     }
@@ -566,26 +545,17 @@ impl AstCompletion {
 
         log::info!("sql:{}", sql);
         let session = self.db.get_query_session()?;
-        let rows = session
-            .query(sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
-        let mut result = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let name: Option<String> = row.get_by_index(0)?;
-            if let Some(name) = name {
-                result.push(CompletionItem {
-                    item: name.into(),
-                    desc: None,
-                    kind: CompletionKind::User,
-                });
-            } else {
-                log::error!("empty role name should not happen")
-            }
+        let pager = session.query_iter(sql, &[]).await?;
+        let mut stream = pager.rows_stream::<(String,)>()?;
+        let mut result = Vec::new();
+        while let Some(row) = stream.next().await {
+            let (name,) = row?;
+            result.push(CompletionItem {
+                item: name.into(),
+                desc: None,
+                kind: CompletionKind::User,
+            });
         }
-
         self.result = Some(result);
         anyhow::Ok(())
     }
@@ -612,22 +582,16 @@ impl AstCompletion {
         );
         log::info!("sql:{}", sql);
         let session = self.db.get_query_session()?;
-        let rows = session
-            .query(sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
-        let mut result = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let name: Option<String> = row.get_by_index(0)?;
-            if let Some(name) = name {
-                result.push(CompletionItem {
-                    item: name.into(),
-                    desc: None,
-                    kind: CompletionKind::Column,
-                });
-            }
+        let pager = session.query_iter(sql, &[]).await?;
+        let mut stream = pager.rows_stream::<(String,)>()?;
+        let mut result = Vec::new();
+        while let Some(row) = stream.next().await {
+            let (name,) = row?;
+            result.push(CompletionItem {
+                item: name.into(),
+                desc: None,
+                kind: CompletionKind::Column,
+            });
         }
         if is_expr {
             self.on_udf(&key_space, col).await?;
@@ -667,22 +631,16 @@ impl AstCompletion {
         );
         log::info!("sql:{}", sql);
         let session = self.db.get_query_session()?;
-        let rows = session
-            .query(sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
-        let mut result = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let name: Option<String> = row.get_by_index(0)?;
-            if let Some(name) = name {
-                result.push(CompletionItem {
-                    item: name.into(),
-                    desc: None,
-                    kind: CompletionKind::Type,
-                });
-            }
+        let pager = session.query_iter(sql, &[]).await?;
+        let mut stream = pager.rows_stream::<(String,)>()?;
+        let mut result = Vec::new();
+        while let Some(row) = stream.next().await {
+            let (name,) = row?;
+            result.push(CompletionItem {
+                item: name.into(),
+                desc: None,
+                kind: CompletionKind::Type,
+            });
         }
         self.result = Some(result);
         anyhow::Ok(())
@@ -697,42 +655,37 @@ impl AstCompletion {
         if !self.in_pos(field.span()) {
             return anyhow::Ok(());
         }
-        let session = self.db.get_query_session()?;
-        let body = session
-            .query(format!("DESCRIBE TYPE {};", typ.name))
-            .await?
-            .response_body()?;
-
-        let rows = body.into_rows().unwrap_or_default();
-
-        if rows.len() != 1 {
-            anyhow::bail!("result should contains one result");
-        }
-        let def: Option<String> = rows[0].get_by_index(3)?;
-        let def = def.option_must_be_some()?;
-        for stmt in CassandraAST::new(&def).statements.iter() {
-            match &stmt.statement {
-                CassandraStatement::CreateType(x) => {
-                    self.result = Some(
-                        x.columns
-                            .iter()
-                            .map(|x| CompletionItem {
-                                kind: CompletionKind::Column,
-                                item: x.name.to_string().into(),
-                                desc: Some(x.data_type.to_string().into()),
-                            })
-                            .collect(),
-                    );
-                }
-                _ => {
-                    log::error!(
-                        "should contains only one create type statement. but:{:?}",
-                        &stmt
-                    )
+        let pager = self
+            .db
+            .session
+            .query_iter(format!("DESCRIBE TYPE {};", typ.name).as_str(), &[])
+            .await?;
+        let mut stream = pager.rows_stream::<(String, String, String, String)>()?;
+        while let Some(row) = stream.next().await {
+            let (_, _, _, def) = row?;
+            for stmt in CassandraAST::new(&def).statements.iter() {
+                match &stmt.statement {
+                    CassandraStatement::CreateType(x) => {
+                        self.result = Some(
+                            x.columns
+                                .iter()
+                                .map(|x| CompletionItem {
+                                    kind: CompletionKind::Column,
+                                    item: x.name.to_string().into(),
+                                    desc: Some(x.data_type.to_string().into()),
+                                })
+                                .collect(),
+                        );
+                    }
+                    _ => {
+                        log::error!(
+                            "should contains only one create type statement. but:{:?}",
+                            &stmt
+                        )
+                    }
                 }
             }
         }
-
         anyhow::Ok(())
     }
 
@@ -765,22 +718,16 @@ impl AstCompletion {
         );
         log::info!("sql:{}", sql);
         let session = self.db.get_query_session()?;
-        let rows = session
-            .query(sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
-        let mut result = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let name: Option<String> = row.get_by_index(0)?;
-            if let Some(name) = name {
-                result.push(CompletionItem {
-                    item: name.into(),
-                    desc: None,
-                    kind: CompletionKind::Function,
-                });
-            }
+        let pager = session.query_iter(sql, &[]).await?;
+        let mut stream = pager.rows_stream::<(String,)>()?;
+        let mut result = Vec::new();
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            result.push(CompletionItem {
+                item: row.0.into(),
+                desc: None,
+                kind: CompletionKind::Function,
+            });
         }
         self.result = Some(result);
         anyhow::Ok(())
@@ -808,23 +755,16 @@ impl AstCompletion {
         );
         log::info!("sql:{}", sql);
         let session = self.db.get_query_session()?;
-
-        let rows = session
-            .query(sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
-        let mut result = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let name: Option<String> = row.get_by_index(0)?;
-            if let Some(name) = name {
-                result.push(CompletionItem {
-                    item: name.into(),
-                    desc: None,
-                    kind: CompletionKind::Function,
-                });
-            }
+        let rows = session.query_iter(sql, &[]).await?;
+        let mut stream = rows.rows_stream::<(String,)>()?;
+        let mut result = Vec::new();
+        while let Some(row) = stream.next().await {
+            let name = row?;
+            result.push(CompletionItem {
+                item: name.0.into(),
+                desc: None,
+                kind: CompletionKind::Function,
+            });
         }
         self.result = Some(result);
         anyhow::Ok(())
@@ -879,22 +819,16 @@ impl AstCompletion {
         );
         log::info!("sql:{}", sql);
         let session = self.db.get_query_session()?;
-        let rows = session
-            .query(sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
-        let mut result = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let name: Option<String> = row.get_by_index(0)?;
-            if let Some(name) = name {
-                result.push(CompletionItem {
-                    item: name.into(),
-                    desc: None,
-                    kind: CompletionKind::Function,
-                });
-            }
+        let pager = session.query_iter(sql, &[]).await?;
+        let mut stream = pager.rows_stream::<(String,)>()?;
+        let mut result = Vec::new();
+        while let Some(row) = stream.next().await {
+            let (name,) = row?;
+            result.push(CompletionItem {
+                item: name.into(),
+                desc: None,
+                kind: CompletionKind::Function,
+            });
         }
         self.result = Some(result);
         anyhow::Ok(())

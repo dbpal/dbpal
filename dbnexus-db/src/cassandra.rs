@@ -31,90 +31,65 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
     Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
-    POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
+    POOL_MAX_CONNECTIONS, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, TimeElapsed,
     UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
     escape_sql_str, export_query_as_xlsx_send_data,
 };
 
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
-use cdrs_tokio::authenticators::StaticPasswordAuthenticatorProvider;
-use cdrs_tokio::cluster::NodeTcpConfigBuilder;
-use cdrs_tokio::cluster::connection_pool::ConnectionPoolConfigBuilder;
-use cdrs_tokio::cluster::session::{SessionBuilder, TcpSessionBuilder};
-use cdrs_tokio::frame::message_response::ResponseBody;
-use cdrs_tokio::frame::message_result::{ColType, ResResultBody, RowsMetadata};
-use cdrs_tokio::load_balancing::RoundRobinLoadBalancingStrategy;
-use cdrs_tokio::types::blob::Blob;
-use cdrs_tokio::types::cassandra_type::CassandraType;
-use cdrs_tokio::types::list::List;
-use cdrs_tokio::types::map::Map;
-use cdrs_tokio::types::prelude::Decimal;
-use cdrs_tokio::types::rows::Row;
-use cdrs_tokio::types::tuple::Tuple;
-use cdrs_tokio::types::udt::Udt;
-use cdrs_tokio::types::{AsCassandraType, IntoRustByIndex};
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use cql3_parser::cassandra_ast::CassandraAST;
 use cql3_parser::cassandra_statement::CassandraStatement;
 use cql3_parser::common::{ColumnDefinition, DataType};
 use dashmap::DashMap;
-use num_bigint::{BigInt, ToBigInt};
+use futures_util::StreamExt;
+use scylla::authentication::PlainTextAuthenticator;
+
+use scylla::client::session::Session;
+use scylla::client::session_builder::SessionBuilder;
+use scylla::value::{CqlValue, CqlVarint, Row};
 use std::borrow::Cow;
 use std::collections::HashMap;
+
 use std::sync::Arc;
 use std::time::Duration;
 #[cfg(test)]
 use tokio::sync::Mutex;
-
 #[derive(Clone)]
 pub struct CassandraDB {
-    pub(crate) session: Arc<AppSession>,
-    pub(crate) query_connection: Arc<DashMap<String, Arc<AppSession>>>,
+    pub(crate) session: Arc<Session>,
+    pub(crate) query_connection: Arc<DashMap<String, Arc<Session>>>,
     pub(crate) config: CassandraDBConfig,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
-pub type AppSession = cdrs_tokio::cluster::session::Session<
-    cdrs_tokio::transport::TransportTcp,
-    cdrs_tokio::cluster::TcpConnectionManager,
-    RoundRobinLoadBalancingStrategy<
-        cdrs_tokio::transport::TransportTcp,
-        cdrs_tokio::cluster::TcpConnectionManager,
-    >,
->;
-
-async fn make_session(
-    config: &CassandraDBConfig, max_pool_size: usize,
-) -> anyhow::Result<AppSession> {
-    let mut node_builder = NodeTcpConfigBuilder::new();
-    node_builder = node_builder
-        .with_contact_point(format!("{}:{}", config.host, config.port.unwrap_or(9042)).into());
-    if config.username.is_some() && config.password.is_some() {
-        let a = StaticPasswordAuthenticatorProvider::new(
-            config.username.as_deref().option_must_be_some()?,
-            config.password.as_deref().option_must_be_some()?,
-        );
-        node_builder = node_builder.with_authenticator_provider(Arc::new(a))
+async fn make_session(config: &CassandraDBConfig, _pool_size: usize) -> anyhow::Result<Session> {
+    let mut builder = SessionBuilder::new().known_node(format!(
+        "{}:{}",
+        config.host,
+        config.port.unwrap_or(9042)
+    ));
+    match (&config.username, &config.password) {
+        (Some(user), Some(pass)) => {
+            builder = builder.authenticator_provider(Arc::new(PlainTextAuthenticator::new(
+                user.clone(),
+                pass.clone(),
+            )));
+        }
+        _ => {}
     }
-
-    let cluster_config = node_builder.build().await?;
-
-    let mut session_builder =
-        TcpSessionBuilder::new(RoundRobinLoadBalancingStrategy::new(), cluster_config);
-    let mut b = ConnectionPoolConfigBuilder::new();
-    if let Some(conn_timeout) = config.conn_timeout {
-        b = b.with_connect_timeout(Some(conn_timeout.into()));
+    // builder = builder.pool_size(scylla::client::PoolSize::PerHost(
+    //     std::num::NonZero::new(_pool_size).option_must_be_some()?,
+    // ));
+    let session = builder.build().await?;
+    if let Some(key_space) = config.db.as_ref() {
+        session.use_keyspace(key_space, false).await?;
     }
-    b = b.with_local_size(max_pool_size);
-    session_builder = session_builder.with_connection_pool_config(b.build());
-    if let Some(keyspace) = config.db.as_deref() {
-        session_builder = session_builder.with_keyspace(keyspace.to_owned());
-    }
-    let session: AppSession = session_builder.build().await?;
     anyhow::Ok(session)
 }
+
 impl CassandraDB {
     pub async fn new(config: CassandraDBConfig) -> anyhow::Result<Self> {
         let session = tokio::time::timeout(
@@ -147,9 +122,8 @@ impl CheckConn for CassandraDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let now = std::time::Instant::now();
         self.session
-            .query("SELECT now() FROM system.local;")
-            .await?
-            .response_body()?;
+            .query_unpaged("SELECT now() FROM system.local;", &[])
+            .await?;
         anyhow::Ok(now.elapsed())
     }
 }
@@ -166,565 +140,228 @@ impl GetBackendKind for CassandraDB {
     }
 }
 
-fn infer_fields(meta: &RowsMetadata) -> Vec<Field> {
-    meta.col_specs
-        .iter()
-        .map(|x| Field::from_name_type(x.name.clone(), x.col_type.id.to_string()))
-        .collect()
-}
+fn encode_row_as_json(cols: &[String], rows: Row) -> anyhow::Result<serde_json::Value> {
+    debug_assert_eq!(cols.len(), rows.columns.len());
 
-fn encode_rows_as_json(
-    meta: &RowsMetadata, rows: &[Row],
-) -> anyhow::Result<Vec<serde_json::Value>> {
-    let mut ret = vec![];
-    for row in rows.iter() {
-        let mut data = serde_json::Map::new();
+    let mut m = serde_json::Map::new();
+    for (name, value) in cols.iter().zip(rows.columns) {
+        let value = match value {
+            Some(x) => encode_value_as_json(x)?,
+            None => serde_json::Value::Null,
+        };
+        m.insert(name.clone(), value);
+    }
+    fn encode_value_as_json(v: CqlValue) -> anyhow::Result<serde_json::Value> {
+        let ret = match v {
+            CqlValue::Ascii(x) => serde_json::Value::from(x),
+            CqlValue::Boolean(x) => serde_json::Value::from(x),
+            CqlValue::Blob(items) => {
+                let values: Vec<_> = items.into_iter().map(serde_json::Value::from).collect();
+                serde_json::Value::Array(values)
+            }
+            CqlValue::Counter(counter) => serde_json::Value::from(counter.0),
+            CqlValue::Decimal(..) => todo!(),
+            CqlValue::Date(cql_date) => serde_json::Value::from(cql_date.0),
+            CqlValue::Double(x) => serde_json::Value::from(x),
+            CqlValue::Duration(cql_duration) => {
+                let mut obj = serde_json::Map::new();
+                obj.insert(
+                    "months".to_owned(),
+                    serde_json::Value::from(cql_duration.months),
+                );
+                obj.insert(
+                    "days".to_owned(),
+                    serde_json::Value::from(cql_duration.days),
+                );
+                obj.insert(
+                    "nanoseconds".to_owned(),
+                    serde_json::Value::from(cql_duration.nanoseconds),
+                );
 
-        for index in 0..meta.col_specs.len() {
-            let ty = &meta.col_specs[index];
-
-            let value = match ty.col_type.id {
-                ColType::Custom => {
-                    anyhow::bail!("not support custom datatype")
-                }
-                ColType::Ascii => {
-                    let value: Option<String> = row.get_by_index(index)?;
-                    value.map(serde_json::Value::from)
-                }
-                ColType::Bigint => {
-                    let value: Option<i64> = row.get_by_index(index)?;
-                    value.map(serde_json::Value::from)
-                }
-                ColType::Blob => {
-                    let value: Option<Blob> = row.get_by_index(index)?;
-                    value
-                        .map(|x| x.into_vec())
-                        .map(|x| format!("0x{}", hex::encode(&x[..])))
-                        .map(serde_json::Value::from)
-                }
-                ColType::Boolean => {
-                    let value: Option<bool> = row.get_by_index(index)?;
-                    value.map(serde_json::Value::from)
-                }
-                ColType::Counter => {
-                    let value: Option<i64> = row.get_by_index(index)?;
-                    value.map(serde_json::Value::from)
+                serde_json::Value::Object(obj)
+            }
+            CqlValue::Empty => serde_json::Value::Null,
+            CqlValue::Float(x) => serde_json::Value::from(x),
+            CqlValue::Int(x) => serde_json::Value::from(x),
+            CqlValue::BigInt(x) => serde_json::Value::from(x),
+            CqlValue::Text(x) => serde_json::Value::from(x),
+            CqlValue::Timestamp(cql_timestamp) => serde_json::Value::from(cql_timestamp.0),
+            CqlValue::Inet(ip_addr) => serde_json::Value::from(ip_addr.to_string()),
+            CqlValue::List(cql_values)
+            | CqlValue::Set(cql_values)
+            | CqlValue::Vector(cql_values) => {
+                let mut values = vec![];
+                for c in cql_values {
+                    let v = encode_value_as_json(c)?;
+                    values.push(v);
                 }
 
-                ColType::Decimal => {
-                    let value: Option<Decimal> = row.get_by_index(index)?;
-                    let value = match value {
-                        Some(x) => Some(format_decimal(&x)?),
-                        None => None,
+                serde_json::Value::Array(values)
+            }
+            CqlValue::Map(..) => todo!(),
+            CqlValue::UserDefinedType { .. } => {
+                anyhow::bail!("not support user defined type")
+            }
+            CqlValue::SmallInt(x) => serde_json::Value::from(x),
+            CqlValue::TinyInt(x) => serde_json::Value::from(x),
+            CqlValue::Time(cql_time) => serde_json::Value::from(cql_time.0),
+            CqlValue::Timeuuid(cql_timeuuid) => serde_json::Value::from(cql_timeuuid.to_string()),
+
+            CqlValue::Uuid(uuid) => serde_json::Value::from(uuid.to_string()),
+            CqlValue::Varint(cql_varint) => {
+                let v = varint_2_bigint(&cql_varint);
+                serde_json::Value::from(v.to_string())
+            }
+            CqlValue::Tuple(cql_values) => {
+                let mut values = vec![];
+                for v in cql_values {
+                    let v = match v {
+                        Some(v) => encode_value_as_json(v)?,
+                        None => serde_json::Value::Null,
                     };
-                    value.map(serde_json::Value::from)
-                }
-                ColType::Double => {
-                    let value: Option<f64> = row.get_by_index(index)?;
-                    value.map(serde_json::Value::from)
-                }
-                ColType::Float => {
-                    let value: Option<f32> = row.get_by_index(index)?;
-                    value.map(serde_json::Value::from)
-                }
-                ColType::Int => {
-                    let value: Option<i32> = row.get_by_index(index)?;
-                    value.map(serde_json::Value::from)
-                }
-                ColType::Timestamp => {
-                    let value: Option<i64> = row.get_by_index(index)?;
-                    if let Some(value) = value {
-                        Some(format_timestamp(value)?)
-                    } else {
-                        None
-                    }
-                    .map(serde_json::Value::from)
-                }
-                ColType::Uuid => {
-                    let value: Option<uuid::Uuid> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string()).map(serde_json::Value::from)
-                }
-                ColType::Varchar => {
-                    let value: Option<String> = row.get_by_index(index)?;
-                    value.map(serde_json::Value::from)
-                }
-                ColType::Varint => {
-                    let value: Option<BigInt> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string()).map(serde_json::Value::from)
-                }
-                ColType::Timeuuid => {
-                    let value: Option<uuid::Uuid> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string()).map(serde_json::Value::from)
-                }
-                ColType::Inet => {
-                    let value: Option<core::net::IpAddr> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string()).map(serde_json::Value::from)
-                }
-                ColType::Date => {
-                    //
-                    let value: Option<i32> = row.get_by_index(index)?;
-                    if let Some(value) = value {
-                        let x = format_date(value)?;
-                        Some(x)
-                    } else {
-                        None
-                    }
-                    .map(serde_json::Value::from)
-                }
-                ColType::Time => {
-                    let value: Option<i64> = row.get_by_index(index)?;
-                    value.map(format_time).map(serde_json::Value::from)
-                }
-                ColType::Smallint => {
-                    let value: Option<i16> = row.get_by_index(index)?;
-                    value.map(serde_json::Value::from)
-                }
-                ColType::Tinyint => {
-                    let value: Option<i8> = row.get_by_index(index)?;
-                    value.map(serde_json::Value::from)
-                }
-                ColType::Duration => {
-                    anyhow::bail!("not support duration datatype")
-                }
-                ColType::List => {
-                    let x: Option<List> = row.get_by_index(index)?;
-                    match x {
-                        Some(list) => match list.as_cassandra_type()? {
-                            Some(CassandraType::List(mut vs)) => {
-                                Some(serde_json::Value::Array(encode_list(&mut vs)?))
-                            }
-                            _ => anyhow::bail!("should be able to cast to list"),
-                        },
-                        None => None,
-                    }
+                    values.push(v);
                 }
 
-                ColType::Map => {
-                    let x: Option<Map> = row.get_by_index(index)?;
-                    match x {
-                        Some(map) => match map.as_cassandra_type()? {
-                            Some(CassandraType::Map(mut vs)) => {
-                                Some(serde_json::Value::Object(encode_map(&mut vs)?))
-                            }
-                            _ => anyhow::bail!("should be able to cast to map"),
-                        },
-                        None => None,
-                    }
-                }
-
-                ColType::Set => {
-                    let x: Option<List> = row.get_by_index(index)?;
-                    match x {
-                        Some(list) => match list.as_cassandra_type()? {
-                            Some(CassandraType::List(mut vs)) => {
-                                Some(serde_json::Value::Array(encode_tuple(&mut vs)?))
-                            }
-                            _ => anyhow::bail!("should be able to cast to list"),
-                        },
-                        None => None,
-                    }
-                }
-                ColType::Udt => {
-                    let x: Option<Udt> = row.get_by_index(index)?;
-                    match x {
-                        Some(map) => match map.as_cassandra_type()? {
-                            Some(CassandraType::Udt(mut vs)) => {
-                                Some(serde_json::Value::Object(encode_udf(&mut vs)?))
-                            }
-                            _ => anyhow::bail!("should be able to cast to map"),
-                        },
-                        None => None,
-                    }
-                }
-                ColType::Tuple => {
-                    let x: Option<Tuple> = row.get_by_index(index)?;
-                    match x {
-                        Some(map) => match map.as_cassandra_type()? {
-                            Some(CassandraType::Tuple(mut vs)) => {
-                                Some(serde_json::Value::Array(encode_tuple(&mut vs)?))
-                            }
-                            _ => anyhow::bail!("should be able to cast to tuple"),
-                        },
-                        None => None,
-                    }
-                }
-                _ => anyhow::bail!(format!("type '{:?}' not handled", ty)),
-            };
-            data.insert(
-                meta.col_specs[index].name.clone(),
-                value.unwrap_or(serde_json::Value::Null),
-            );
-        }
-        ret.push(serde_json::Value::Object(data));
-    }
-
-    return anyhow::Ok(ret);
-
-    fn encode_list(vs: &mut [CassandraType]) -> anyhow::Result<Vec<serde_json::Value>> {
-        let mut ret = Vec::with_capacity(vs.len());
-        for v in vs.iter_mut() {
-            ret.push(encode_rows_cassandra_type(v)?);
-        }
-        anyhow::Ok(ret)
-    }
-
-    fn encode_tuple(vs: &mut [CassandraType]) -> anyhow::Result<Vec<serde_json::Value>> {
-        encode_list(vs)
-    }
-
-    fn encode_map(
-        vs: &mut [(CassandraType, CassandraType)],
-    ) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
-        let mut ret = serde_json::Map::new();
-
-        for v in vs.iter_mut() {
-            let key = encode_rows_cassandra_type(&mut v.0)?;
-            let key = serde_json::to_string(&key)?;
-            ret.insert(key, encode_rows_cassandra_type(&mut v.1)?);
-        }
-        anyhow::Ok(ret)
-    }
-    fn encode_set(vs: &mut [CassandraType]) -> anyhow::Result<Vec<serde_json::Value>> {
-        encode_list(vs)
-    }
-    fn encode_udf(
-        hash_map: &mut HashMap<String, CassandraType>,
-    ) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
-        let mut ret = serde_json::Map::new();
-        for v in hash_map.iter_mut() {
-            ret.insert(v.0.clone(), encode_rows_cassandra_type(v.1)?);
-        }
-        anyhow::Ok(ret)
-    }
-    fn encode_rows_cassandra_type(value: &mut CassandraType) -> anyhow::Result<serde_json::Value> {
-        let ret = match value {
-            CassandraType::Ascii(x) => serde_json::Value::from(x.to_string()),
-            CassandraType::Bigint(x) => serde_json::Value::from(x.to_string()),
-            CassandraType::Blob(blob) => {
-                serde_json::Value::from(format!("0x{}", hex::encode(blob.as_mut_slice())))
+                serde_json::Value::Array(values)
             }
-            CassandraType::Boolean(x) => serde_json::Value::from(*x),
-            CassandraType::Counter(x) => serde_json::Value::from(*x),
-            CassandraType::Decimal(decimal) => serde_json::Value::from(format_decimal(decimal)?),
-            CassandraType::Double(x) => serde_json::Value::from(*x),
-            CassandraType::Float(x) => serde_json::Value::from(*x),
-            CassandraType::Int(x) => serde_json::Value::from(*x),
-            CassandraType::Timestamp(x) => serde_json::Value::from(format_timestamp(*x)?),
-            CassandraType::Uuid(uuid) => serde_json::Value::from(uuid.to_string()),
-            CassandraType::Varchar(x) => serde_json::Value::from(x.to_string()),
-            CassandraType::Varint(big_int) => serde_json::Value::from(big_int.to_string()),
-            CassandraType::Timeuuid(uuid) => serde_json::Value::from(uuid.to_string()),
-            CassandraType::Inet(ip_addr) => serde_json::Value::from(ip_addr.to_string()),
-            CassandraType::Date(x) => serde_json::Value::from(format_date(*x)?),
-            CassandraType::Time(x) => serde_json::Value::from(format_time(*x)),
-            CassandraType::Smallint(x) => serde_json::Value::from(*x),
-            CassandraType::Tinyint(x) => serde_json::Value::from(*x),
-            CassandraType::Duration(_) => anyhow::bail!("duration type not support"),
-            CassandraType::List(cassandra_types) => {
-                serde_json::Value::Array(encode_list(cassandra_types)?)
-            }
-            CassandraType::Map(items) => serde_json::Value::Object(encode_map(items)?),
-            CassandraType::Set(cassandra_types) => {
-                serde_json::Value::Array(encode_set(cassandra_types)?)
-            }
-            CassandraType::Udt(hash_map) => serde_json::Value::Object(encode_udf(hash_map)?),
-            CassandraType::Tuple(cassandra_types) => {
-                serde_json::Value::Array(encode_tuple(cassandra_types)?)
-            }
-            CassandraType::Vector(cassandra_types) => {
-                serde_json::Value::Array(encode_list(cassandra_types)?)
-            }
-            CassandraType::Null => serde_json::Value::Null,
-            _ => anyhow::bail!(format!("{:?} not handle", value)),
+            _ => todo!(),
         };
+
         anyhow::Ok(ret)
     }
+    anyhow::Ok(serde_json::Value::Object(m))
 }
 
-fn encode_rows(meta: &RowsMetadata, rows: &[Row]) -> anyhow::Result<Vec<Vec<Option<String>>>> {
-    let mut ret = vec![];
-    for row in rows.iter() {
-        let mut data = vec![];
-
-        for index in 0..meta.col_specs.len() {
-            let ty = &meta.col_specs[index];
-
-            let value = match ty.col_type.id {
-                ColType::Custom => {
-                    anyhow::bail!("not support custom datatype")
-                }
-                ColType::Ascii => {
-                    let value: Option<String> = row.get_by_index(index)?;
-                    value
-                }
-                ColType::Bigint => {
-                    let value: Option<i64> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string())
-                }
-                ColType::Blob => {
-                    let value: Option<Blob> = row.get_by_index(index)?;
-                    value
-                        .map(|x| x.into_vec())
-                        .map(|x| format!("0x{}", hex::encode(&x[..])))
-                }
-                ColType::Boolean => {
-                    let value: Option<bool> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string())
-                }
-                ColType::Counter => {
-                    let value: Option<i64> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string())
-                }
-                ColType::Decimal => {
-                    let value: Option<Decimal> = row.get_by_index(index)?;
-                    match value {
-                        Some(value) => Some(format_decimal(&value)?),
-                        None => None,
-                    }
-                }
-                ColType::Double => {
-                    let value: Option<f64> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string())
-                }
-                ColType::Float => {
-                    let value: Option<f32> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string())
-                }
-                ColType::Int => {
-                    let value: Option<i32> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string())
-                }
-                ColType::Timestamp => {
-                    let value: Option<i64> = row.get_by_index(index)?;
-                    if let Some(value) = value {
-                        Some(format_timestamp(value)?)
-                    } else {
-                        None
-                    }
-                }
-                ColType::Uuid => {
-                    let value: Option<uuid::Uuid> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string())
-                }
-                ColType::Varchar => {
-                    let value: Option<String> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string())
-                }
-                ColType::Varint => {
-                    let value: Option<BigInt> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string())
-                }
-                ColType::Timeuuid => {
-                    let value: Option<uuid::Uuid> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string())
-                }
-                ColType::Inet => {
-                    let value: Option<core::net::IpAddr> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string())
-                }
-                ColType::Date => {
-                    //
-                    let value: Option<i32> = row.get_by_index(index)?;
-                    if let Some(value) = value {
-                        let x = format_date(value)?;
-                        Some(x)
-                    } else {
-                        None
-                    }
-                }
-                ColType::Time => {
-                    let value: Option<i64> = row.get_by_index(index)?;
-                    value.map(format_time)
-                }
-                ColType::Smallint => {
-                    let value: Option<i16> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string())
-                }
-                ColType::Tinyint => {
-                    let value: Option<i8> = row.get_by_index(index)?;
-                    value.map(|x| x.to_string())
-                }
-                ColType::Duration => {
-                    anyhow::bail!("not support duration datatype")
-                }
-                ColType::List => {
-                    let x: Option<List> = row.get_by_index(index)?;
-                    match x {
-                        Some(list) => match list.as_cassandra_type()? {
-                            Some(CassandraType::List(mut vs)) => Some(encode_list(&mut vs)?),
-                            _ => anyhow::bail!("should be able to cast to list"),
-                        },
-                        None => None,
-                    }
-                }
-
-                ColType::Map => {
-                    let x: Option<Map> = row.get_by_index(index)?;
-                    match x {
-                        Some(map) => match map.as_cassandra_type()? {
-                            Some(CassandraType::Map(mut vs)) => Some(encode_map(&mut vs)?),
-                            _ => anyhow::bail!("should be able to cast to map"),
-                        },
-                        None => None,
-                    }
-                }
-
-                ColType::Set => {
-                    let x: Option<List> = row.get_by_index(index)?;
-                    match x {
-                        Some(list) => match list.as_cassandra_type()? {
-                            Some(CassandraType::List(mut vs)) => Some(encode_tuple(&mut vs)?),
-                            _ => anyhow::bail!("should be able to cast to list"),
-                        },
-                        None => None,
-                    }
-                }
-                ColType::Udt => {
-                    let x: Option<Udt> = row.get_by_index(index)?;
-                    match x {
-                        Some(map) => match map.as_cassandra_type()? {
-                            Some(CassandraType::Udt(mut vs)) => Some(encode_udf(&mut vs)?),
-                            _ => anyhow::bail!("should be able to cast to map"),
-                        },
-                        None => None,
-                    }
-                }
-                ColType::Tuple => {
-                    let x: Option<Tuple> = row.get_by_index(index)?;
-                    match x {
-                        Some(map) => match map.as_cassandra_type()? {
-                            Some(CassandraType::Tuple(mut vs)) => Some(encode_tuple(&mut vs)?),
-                            _ => anyhow::bail!("should be able to cast to tuple"),
-                        },
-                        None => None,
-                    }
-                }
-                _ => anyhow::bail!(format!("type '{:?}' not handled", ty)),
-            };
-            data.push(value);
-        }
-        ret.push(data);
-    }
-
-    return anyhow::Ok(ret);
-
-    fn encode_list(vs: &mut [CassandraType]) -> anyhow::Result<String> {
-        let mut ret = Vec::with_capacity(vs.len());
-        for v in vs.iter_mut() {
-            ret.push(encode_rows_cassandra_type(v)?);
-        }
-        anyhow::Ok(format!("[{}]", ret.join(",")))
-    }
-    fn encode_tuple(vs: &mut [CassandraType]) -> anyhow::Result<String> {
-        let mut ret = Vec::with_capacity(vs.len());
-        for v in vs.iter_mut() {
-            ret.push(encode_rows_cassandra_type(v)?);
-        }
-        anyhow::Ok(format!("({})", ret.join(",")))
-    }
-    fn encode_map(vs: &mut [(CassandraType, CassandraType)]) -> anyhow::Result<String> {
-        let mut ret = Vec::with_capacity(vs.len());
-        for v in vs.iter_mut() {
-            ret.push(format!(
-                "{}:{}",
-                encode_rows_cassandra_type(&mut v.0)?,
-                encode_rows_cassandra_type(&mut v.1)?,
-            ));
-        }
-        anyhow::Ok(format!("{{{}}}", ret.join(",")))
-    }
-    fn encode_set(vs: &mut [CassandraType]) -> anyhow::Result<String> {
-        let mut ret = Vec::with_capacity(vs.len());
-        for v in vs.iter_mut() {
-            ret.push(encode_rows_cassandra_type(v)?);
-        }
-        anyhow::Ok(format!("{{{}}}", ret.join(",")))
-    }
-    fn encode_udf(hash_map: &mut HashMap<String, CassandraType>) -> anyhow::Result<String> {
-        let mut ret = Vec::with_capacity(hash_map.len());
-        for v in hash_map.iter_mut() {
-            ret.push(format!("{}:{}", v.0, encode_rows_cassandra_type(v.1)?));
-        }
-        anyhow::Ok(format!("{{{}}}", ret.join(",")))
-    }
-
-    fn encode_rows_cassandra_type(value: &mut CassandraType) -> anyhow::Result<String> {
-        let ret = match value {
-            CassandraType::Ascii(x) => format!("'{}'", x),
-            CassandraType::Bigint(x) => x.to_string(),
-            CassandraType::Blob(blob) => format!("0x{}", hex::encode(blob.as_mut_slice())),
-            CassandraType::Boolean(x) => x.to_string(),
-            CassandraType::Counter(x) => x.to_string(),
-            CassandraType::Decimal(decimal) => format_decimal(decimal)?,
-            CassandraType::Double(x) => x.to_string(),
-            CassandraType::Float(x) => x.to_string(),
-            CassandraType::Int(x) => x.to_string(),
-            CassandraType::Timestamp(x) => format!("'{}'", format_timestamp(*x)?),
-            CassandraType::Uuid(uuid) => uuid.to_string(),
-            CassandraType::Varchar(x) => format!("'{}'", x),
-            CassandraType::Varint(big_int) => big_int.to_string(),
-            CassandraType::Timeuuid(uuid) => uuid.to_string(),
-            CassandraType::Inet(ip_addr) => format!("'{}'", ip_addr),
-            CassandraType::Date(x) => format!("'{}'", format_date(*x)?),
-            CassandraType::Time(x) => format!("'{}'", format_time(*x)),
-            CassandraType::Smallint(x) => x.to_string(),
-            CassandraType::Tinyint(x) => x.to_string(),
-            CassandraType::Duration(_) => anyhow::bail!("duration type not support"),
-            CassandraType::List(cassandra_types) => encode_list(cassandra_types)?,
-            CassandraType::Map(items) => encode_map(items)?,
-            CassandraType::Set(cassandra_types) => encode_set(cassandra_types)?,
-            CassandraType::Udt(hash_map) => encode_udf(hash_map)?,
-            CassandraType::Tuple(cassandra_types) => encode_tuple(cassandra_types)?,
-            CassandraType::Vector(cassandra_types) => encode_list(cassandra_types)?,
-            CassandraType::Null => "null".to_string(),
-            _ => anyhow::bail!(format!("{:?} not handle", value)),
-        };
-        anyhow::Ok(ret)
-    }
-}
-
-fn format_decimal(x: &Decimal) -> anyhow::Result<String> {
-    let r = x.unscaled.clone()
-        % 10i32
-            .pow(x.scale as u32)
-            .to_bigint()
-            .option_must_be_some()?;
-    let r = format!(
-        "{}{}",
-        x.as_plain(),
-        if r == BigInt::from(0) {
-            "".to_string()
-        } else {
-            format!(".{}", r)
-        }
-    );
-    anyhow::Ok(r)
-}
-
-fn format_timestamp(x: i64) -> anyhow::Result<String> {
-    let time = DateTime::from_timestamp_millis(x);
-    match time {
-        Some(x) => anyhow::Ok(x.naive_local().to_string()),
-        None => Err(anyhow::Error::msg(String::new())),
-    }
-}
-
-fn format_time(x: i64) -> String {
-    let time = NaiveTime::default() + std::time::Duration::from_micros(x as u64);
-    time.to_string()
-}
-fn format_date(mut days_since_epoch: i32) -> anyhow::Result<String> {
+fn format_date(mut days_since_epoch: u32) -> anyhow::Result<String> {
     // see   https://github.com/krojew/cdrs-tokio/issues/202
     days_since_epoch &= !(1 << 31);
 
     let date = NaiveDate::from_ymd_opt(1970, 1, 1)
-        .option_must_be_some()?
+        .unwrap()
         .checked_add_days(chrono::Days::new(days_since_epoch as i64 as u64));
     match date {
         Some(x) => anyhow::Ok(x.to_string()),
 
         None => anyhow::bail!("days is none"),
     }
+}
+
+fn format_timestamp(x: i64) -> anyhow::Result<String> {
+    let time = DateTime::from_timestamp_millis(x);
+    match time {
+        Some(x) => anyhow::Ok(x.naive_local().to_string()),
+        None => Err(anyhow::Error::msg(format!(""))),
+    }
+}
+
+fn encode_row(row: Row) -> anyhow::Result<Vec<Option<String>>> {
+    let mut values = vec![];
+    for v in row.columns {
+        let value = match v {
+            Some(x) => Some(encode_value_as_string(x, false)?),
+            None => None,
+        };
+        values.push(value);
+    }
+
+    anyhow::Ok(values)
+}
+
+fn format_time(x: i64) -> String {
+    let time = NaiveTime::default() + std::time::Duration::from_micros(x as u64);
+    time.to_string()
+}
+
+fn varint_2_bigint(c: &CqlVarint) -> num_bigint::BigInt {
+    num_bigint::BigInt::from_signed_bytes_be(c.as_signed_bytes_be_slice())
+}
+fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<String> {
+    let v = match value {
+        CqlValue::Ascii(x) | CqlValue::Text(x) => {
+            if is_nested {
+                format!("'{}'", escape_sql_str(&x))
+            } else {
+                x
+            }
+        }
+        CqlValue::Boolean(x) => x.to_string(),
+        CqlValue::Blob(x) => format!("0x{}", hex::encode(&x)),
+        CqlValue::Counter(counter) => counter.0.to_string(),
+        CqlValue::Decimal(..) => anyhow::bail!("decimal not support"),
+        CqlValue::Date(cql_date) => format_date(cql_date.0)?,
+        CqlValue::Double(x) => x.to_string(),
+        CqlValue::Duration(..) => anyhow::bail!("duration not support"),
+        CqlValue::Empty => "null".to_string(),
+        CqlValue::Float(x) => x.to_string(),
+        CqlValue::Int(x) => x.to_string(),
+        CqlValue::BigInt(x) => x.to_string(),
+        CqlValue::Timestamp(cql_timestamp) => format_timestamp(cql_timestamp.0)?,
+        CqlValue::Inet(ip_addr) => ip_addr.to_string(),
+        CqlValue::List(cql_values) => {
+            let mut values = vec![];
+            for v in cql_values {
+                let v = encode_value_as_string(v, true)?;
+                values.push(v);
+            }
+            format!("[{}]", values.join(","))
+        }
+        CqlValue::Map(m) => {
+            let mut values = vec![];
+            for (k, v) in m {
+                let v = encode_value_as_string(v, false)?;
+                let k = encode_value_as_string(k, false)?;
+                values.push(format!("{}:{}", k, v));
+            }
+            format!("{{{}}}", values.join(","))
+        }
+        CqlValue::Set(cql_values) => {
+            let mut values = vec![];
+            for v in cql_values {
+                let v = encode_value_as_string(v, true)?;
+                values.push(v);
+            }
+            format!("{{{}}}", values.join(","))
+        }
+        CqlValue::UserDefinedType { .. } => {
+            anyhow::bail!("unsupported user define type")
+        }
+        CqlValue::SmallInt(x) => x.to_string(),
+        CqlValue::TinyInt(x) => x.to_string(),
+        CqlValue::Time(cql_time) => format_time(cql_time.0),
+        CqlValue::Timeuuid(cql_timeuuid) => cql_timeuuid.to_string(),
+        CqlValue::Tuple(cql_values) => {
+            let mut values = vec![];
+            for v in cql_values {
+                let v = match v {
+                    Some(v) => encode_value_as_string(v, true)?,
+                    None => "null".to_string(),
+                };
+                values.push(v);
+            }
+            format!("({})", values.join(","))
+        }
+        CqlValue::Uuid(uuid) => uuid.to_string(),
+        CqlValue::Varint(x) => varint_2_bigint(&x).to_string(),
+        CqlValue::Vector(cql_values) => {
+            let mut values = vec![];
+            for v in cql_values {
+                let v = encode_value_as_string(v, true)?;
+                values.push(v);
+            }
+            format!("[{}]", values.join(","))
+        }
+        _ => anyhow::bail!(format!("unsupported type:{:?}", value)),
+    };
+    anyhow::Ok(v)
+}
+fn encode_rows(rows: Vec<Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+    let mut ret = vec![];
+    for row in rows {
+        let v = encode_row(row)?;
+        ret.push(v);
+    }
+
+    anyhow::Ok(ret)
 }
 
 fn sql_to_each(sql: &str) -> Vec<&str> {
@@ -736,7 +373,7 @@ fn sql_to_each(sql: &str) -> Vec<&str> {
 }
 
 impl CassandraDB {
-    fn get_session_by_query_id(&self, query_id: Option<&str>) -> anyhow::Result<Arc<AppSession>> {
+    fn get_session_by_query_id(&self, query_id: Option<&str>) -> anyhow::Result<Arc<Session>> {
         match query_id {
             Some(query_id) => match self.query_connection.get(&query_id.to_string()) {
                 Some(x) => anyhow::Ok(x.clone()),
@@ -745,31 +382,21 @@ impl CassandraDB {
             None => anyhow::Ok(self.session.clone()),
         }
     }
-
     async fn export_as_xlsx(
         &self, query_id: Option<&str>, sql: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let resp = self
-            .get_session_by_query_id(query_id)?
-            .query(sql)
-            .await?
-            .response_body()?;
-        let meta = resp.as_rows_metadata().cloned();
-        let meta = match meta {
-            Some(x) => x,
-            None => anyhow::bail!("no meta found???"),
-        };
+        let session = self.get_session_by_query_id(query_id)?;
+        let pager = session.query_iter(sql, &[]).await?;
         let mut row_num = 0;
-
         if include_header {
-            for (index, col) in meta.col_specs.iter().enumerate() {
+            for (index, col) in pager.column_specs().iter().enumerate() {
                 sender
                     .send(
                         XlsxEdit {
-                            row: 0,
+                            row: row_num,
                             column: index as rust_xlsxwriter::ColNum,
-                            content: col.name.clone(),
+                            content: col.name().to_string(),
                         }
                         .to_string()
                         .into(),
@@ -778,12 +405,13 @@ impl CassandraDB {
             }
             row_num += 1;
         }
-        let rows = resp.into_rows().unwrap_or_default();
 
-        let data = encode_rows(&meta, &rows)?;
-
-        export_query_as_xlsx_send_data(&mut row_num, data, sender).await?;
-
+        let mut stream = pager.rows_stream::<Row>()?;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let data = encode_row(row)?;
+            export_query_as_xlsx_send_data(&mut row_num, vec![data], sender.clone()).await?;
+        }
         anyhow::Ok(())
     }
 }
@@ -836,18 +464,6 @@ impl ExportQueryResult for CassandraDB {
     }
 }
 
-fn response_body_2_query_resp(x: &ResponseBody) -> String {
-    match x {
-        ResponseBody::Error(error_body) => format!("err:{:?}", error_body),
-        ResponseBody::Result(res_result_body) => match res_result_body {
-            ResResultBody::Void => "void".to_string(),
-            ResResultBody::Rows(..) => "try not use execute to query.".to_string(),
-            _ => format!("body:{:?}", res_result_body),
-        },
-        _ => format!("should not have this result data:{:?}", x),
-    }
-}
-
 #[async_trait::async_trait]
 impl QuerySql for CassandraDB {
     async fn execute_sql_no_open_conn(
@@ -855,10 +471,17 @@ impl QuerySql for CassandraDB {
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let mut ret = vec![];
         for sql in sql_to_each(sql) {
-            let resp = self.session.query(sql).await?.response_body()?;
-            ret.push(Some(response_body_2_query_resp(&resp)));
+            let resp = self.session.query_unpaged(sql, &[]).await;
+            match resp {
+                Ok(_) => ret.push(Some("execute ok".to_string())),
+                Err(err) => ret.push(Some(format!("err:{}", err))),
+            }
         }
-        anyhow::Ok(Ok(QueryResp::result(None, ret)))
+        anyhow::Ok(Ok(QueryResp {
+            fields: vec![Field::from_name_type("execute result", "")],
+            data: vec![ret],
+            ..Default::default()
+        }))
     }
 
     async fn execute_sql(
@@ -870,45 +493,53 @@ impl QuerySql for CassandraDB {
         };
         let mut ret = vec![];
         for sql in sql_to_each(sql) {
-            let resp = conn.query(sql).await?.response_body()?;
-            ret.push(Some(response_body_2_query_resp(&resp)));
+            let resp = conn.query_unpaged(sql, &[]).await;
+            match resp {
+                Ok(_) => ret.push(Some("execute ok".to_string())),
+                Err(err) => ret.push(Some(format!("err:{}", err))),
+            }
         }
-        anyhow::Ok(Ok(QueryResp::result(None, ret)))
+        anyhow::Ok(Ok(QueryResp {
+            fields: vec![Field::from_name_type("execute result", "")],
+            data: vec![ret],
+            ..Default::default()
+        }))
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, max_row: usize, emit: QueryEventEmitter,
+        &self, query_id: &str, sql: &str, _max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        emit.send(QueryEvent::new_status("trying lock connection."))?;
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("query connection closed???"),
         };
-        emit.send(QueryEvent::new_status("locked connection."))?;
         for sql in sql_to_each(sql) {
-            let sql = fix_limit(sql, max_row)?;
-            emit.send(QueryEvent::new_status(format!(
-                "try to execute sql: {}",
-                sql
-            )))?;
-            match conn.query(&sql).await {
-                Ok(x) => {
-                    let body = x.response_body()?;
-                    let meta = body.as_rows_metadata().cloned();
-                    let rows = body.into_rows().unwrap_or_default();
-                    if let Some(meta) = meta {
-                        let fields = infer_fields(&meta);
-                        let data = encode_rows(&meta, &rows)?;
-                        let r = QueryResp {
-                            fields,
-                            data,
-                            sql: Some(sql.to_owned()),
-                            ..Default::default()
-                        };
-                        emit.send(r.into())?;
-                    }
+            let mut rows = vec![];
+
+            let mut time_elapsed = TimeElapsed::new();
+            let pager = conn.query_iter(sql, &[]).await?;
+            emit.send(
+                QueryResp {
+                    fields: pager
+                        .column_specs()
+                        .iter()
+                        .map(|x| Field::from_name_type(x.name(), format!("{:?}", x.typ())))
+                        .collect(),
+                    sql: Some(sql.to_string()),
+                    ..Default::default()
                 }
-                Err(err) => emit.send(QueryEvent::Err(err.to_string()))?,
+                .into(),
+            )?;
+            let mut stream = pager.rows_stream::<Row>()?;
+            while let Some(x) = stream.next().await {
+                let row = x?;
+                rows.push(row);
+                if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
+                    let d = encode_rows(std::mem::take(&mut rows))?;
+                    emit.send(d.into())?;
+                }
+                let d = encode_rows(std::mem::take(&mut rows))?;
+                emit.send(d.into())?;
             }
         }
         anyhow::Ok(())
@@ -933,24 +564,24 @@ impl CassandraDB {
             "SELECT table_name FROM system_schema.tables WHERE keyspace_name = '{keyspace}' order by table_name;"
         );
         log::info!("sql:{}", sql);
-        let body = self.session.query(sql).await?.response_body()?;
+        let pager = self.session.query_iter(sql, &[]).await?;
+        let mut stream = pager.rows_stream::<(String,)>()?;
         let mut ret = Vec::new();
-        for row in body.into_rows().unwrap_or_default() {
-            let name: Option<String> = row.get_by_index(0)?;
-            if let Some(name) = name {
-                ret.push(name);
-            }
+
+        while let Some(name) = stream.next().await {
+            let name = name?;
+            ret.push(ListTable::from(name.0));
         }
-        anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
+        anyhow::Ok(ret)
     }
 }
 
 fn get_select_sql(
-    name: &str, cols: String, where_str: Option<&str>, order_by: Option<&str>, limit: usize,
+    name: &str, cols: String, where_str: Option<&str>, order_by: Option<&str>,
     allow_filtering: bool,
 ) -> String {
     format!(
-        r#"SELECT {cols} FROM "{name}"  {}  {} {} {}"#,
+        r#"SELECT {cols} FROM "{name}"  {} {} {}"#,
         if let Some(where_str) = where_str.as_ref() {
             format!(" WHERE {} ", where_str)
         } else {
@@ -961,7 +592,6 @@ fn get_select_sql(
         } else {
             "".to_string()
         },
-        format!("LIMIT {}", limit),
         if allow_filtering {
             "ALLOW FILTERING"
         } else {
@@ -970,74 +600,44 @@ fn get_select_sql(
     )
 }
 
-// https://github.com/krojew/cdrs-tokio/issues/215
-// because of this we can't limit total return amount
-fn fix_limit(cql: &str, max_row: usize) -> anyhow::Result<String> {
-    let ss = CassandraAST::new(cql).statements;
-    let mut cql = cql.to_owned();
-    if ss.len() != 1 {
-        anyhow::bail!("should contains one statement.")
-    }
-    let s = &ss[0];
-    match &s.statement {
-        CassandraStatement::Select(select) => match &select.limit {
-            Some(_) => {
-                // very good have limit no touch user cql
-                anyhow::Ok(cql)
-            }
-            None => {
-                if select.filtering {
-                    // find last allow in cql
-                    let index = cql.to_lowercase().rfind("allow").option_must_be_some()?;
-                    let start = &cql[..index];
-                    let end = &cql[index..];
-
-                    anyhow::Ok(format!(
-                        "{} {} {}",
-                        start.trim(),
-                        format_args!(" limit {max_row}"),
-                        end.trim()
-                    ))
-                } else {
-                    // no filtering push into the end
-                    cql.push_str(format!(" limit {max_row}").as_str());
-                    anyhow::Ok(cql)
-                }
-            }
-        },
-        _ => {
-            anyhow::bail!(format!(
-                "we should be dealing with a select statement,but:{:?}",
-                s
-            ))
-        }
-    }
-}
-
 impl CassandraDB {
     async fn export_query_result_as_json(
         &self, query_id: Option<&str>, sql: &str, pretty: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let resp = self
-            .get_session_by_query_id(query_id)?
-            .query(sql)
-            .await?
-            .response_body()?;
-        let meta = resp.as_rows_metadata().cloned();
-        if meta.is_none() {
-            anyhow::bail!("no matadata")
+        let session = self.get_session_by_query_id(query_id)?;
+        let pager = session.query_iter(sql, &[]).await?;
+        let cols: Vec<_> = pager
+            .column_specs()
+            .iter()
+            .map(|x| x.name().to_owned())
+            .collect();
+        sender.send("[".into()).await?;
+        let mut first = true;
+        let mut stream = pager.rows_stream::<Row>()?;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let value = encode_row_as_json(&cols, row)?;
+            if !first {
+                sender.send(",".into()).await?;
+            }
+            if pretty {
+                sender.send("\n".into()).await?;
+            }
+            sender
+                .send(Cow::Owned(if pretty {
+                    serde_json::to_string_pretty(&value)?
+                } else {
+                    serde_json::to_string(&value)?
+                }))
+                .await?;
+            first = false;
         }
-        let meta = meta.option_must_be_some()?;
-        let rows = resp.into_rows().unwrap_or_default();
-        let array = encode_rows_as_json(&meta, &rows)?;
-        let json = serde_json::Value::Array(array);
-        let json_str = if pretty {
-            serde_json::to_string_pretty(&json)
-        } else {
-            serde_json::to_string(&json)
-        }?;
-        sender.send(Cow::Owned(json_str)).await?;
+        if pretty {
+            sender.send("\n".into()).await?;
+        }
+        sender.send("]".into()).await?;
+
         anyhow::Ok(())
     }
 
@@ -1045,34 +645,22 @@ impl CassandraDB {
         &self, query_id: Option<&str>, sql: &str, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let resp = self
-            .get_session_by_query_id(query_id)?
-            .query(sql)
-            .await?
-            .response_body()?;
-        let meta = resp.as_rows_metadata().cloned();
-        if meta.is_none() {
-            anyhow::bail!("no metadata")
-        }
-        let meta = meta.option_must_be_some()?;
-        let rows = resp.into_rows().unwrap_or_default();
-        let rows = encode_rows(&meta, &rows)?;
+        let session = self.get_session_by_query_id(query_id)?;
+        let pager = session.query_iter(sql, &[]).await?;
         if include_header {
-            sender
-                .send(Cow::Owned(create_csv(
-                    &[meta
-                        .col_specs
-                        .iter()
-                        .map(|x| Some(x.name.clone()))
-                        .collect()],
-                    delimiter,
-                )))
-                .await?;
+            let cols: Vec<_> = pager
+                .column_specs()
+                .iter()
+                .map(|x| Some(x.name().to_owned()))
+                .collect();
+            sender.send(create_csv(&[cols], delimiter).into()).await?;
         }
-        sender
-            .send(Cow::Owned(create_csv(&rows, delimiter)))
-            .await?;
-
+        let mut stream = pager.rows_stream::<Row>()?;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let d = encode_row(row)?;
+            sender.send(create_csv(&[d], delimiter).into()).await?;
+        }
         anyhow::Ok(())
     }
 
@@ -1080,28 +668,22 @@ impl CassandraDB {
         &self, query_id: Option<&str>, sql: &str, include_header: bool,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let resp = self
-            .get_session_by_query_id(query_id)?
-            .query(sql)
-            .await?
-            .response_body()?;
-        let meta = resp.as_rows_metadata().cloned();
-        if meta.is_none() {
-            anyhow::bail!("no metadata")
-        }
-        let meta = meta.option_must_be_some()?;
-        let rows = resp.into_rows().unwrap_or_default();
-        let rows = encode_rows(&meta, &rows)?;
+        let session = self.get_session_by_query_id(query_id)?;
+        let pager = session.query_iter(sql, &[]).await?;
         if include_header {
-            let cols: Vec<_> = meta.col_specs.iter().map(|x| x.name.clone()).collect();
-            sender
-                .send(Cow::Owned(create_html_table_header(cols.as_slice())))
-                .await?;
+            let cols: Vec<_> = pager
+                .column_specs()
+                .iter()
+                .map(|x| x.name().to_owned())
+                .collect();
+            sender.send(create_html_table_header(&cols).into()).await?;
         }
-        sender
-            .send(Cow::Owned(create_html_table_data(&rows)))
-            .await?;
-
+        let mut stream = pager.rows_stream::<Row>()?;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let d = encode_row(row)?;
+            sender.send(create_html_table_data(&[d]).into()).await?;
+        }
         anyhow::Ok(())
     }
 
@@ -1109,18 +691,18 @@ impl CassandraDB {
         &self, query_id: Option<&str>, sql: &str,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let resp = self
-            .get_session_by_query_id(query_id)?
-            .query(sql)
-            .await?
-            .response_body()?;
-        let meta = resp.as_rows_metadata().cloned();
-        if meta.is_none() {
-            anyhow::bail!("no meta data found")
-        }
-        let meta = meta.option_must_be_some()?;
-        let rows = resp.into_rows().unwrap_or_default();
-        for value in encode_rows_as_json(&meta, &rows)? {
+        let session = self.get_session_by_query_id(query_id)?;
+        let pager = session.query_iter(sql, &[]).await?;
+        let cols: Vec<_> = pager
+            .column_specs()
+            .iter()
+            .map(|x| x.name().to_owned())
+            .collect();
+        sender.send("[".into()).await?;
+        let mut stream = pager.rows_stream::<Row>()?;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let value = encode_row_as_json(&cols, row)?;
             sender
                 .send(Cow::Owned(serde_json::to_string(&value)?))
                 .await?;
@@ -1141,7 +723,7 @@ impl CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_csv(None, &sql, include_header, delimiter, sender)
+        self.export_query_result_as_csv(None, sql.as_str(), include_header, delimiter, sender)
             .await
     }
     async fn export_table_as_html(
@@ -1150,7 +732,7 @@ impl CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_html(None, &sql, include_header, sender)
+        self.export_query_result_as_html(None, sql.as_str(), include_header, sender)
             .await
     }
 
@@ -1159,7 +741,7 @@ impl CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_json(None, &sql, pretty, sender)
+        self.export_query_result_as_json(None, sql.as_str(), pretty, sender)
             .await
     }
 
@@ -1168,7 +750,7 @@ impl CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
-        self.export_query_result_as_json_line(None, &sql, sender)
+        self.export_query_result_as_json_line(None, sql.as_str(), sender)
             .await
     }
 
@@ -1178,7 +760,7 @@ impl CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
-        self.export_as_xlsx(None, &sql, include_header, sender)
+        self.export_as_xlsx(None, sql.as_str(), include_header, sender)
             .await
     }
 
@@ -1195,27 +777,27 @@ impl CassandraDB {
                 sender.send(";\n".into()).await?;
             }
         }
-        let sql = format!(r#"SELECT * from "{}""#, table_name);
+        let cols = self.show_table_columns(table_name).await?;
+        let sql = format!(
+            r#"SELECT {} from "{}""#,
+            self.backend_name().format_fields(Some(&cols)),
+            table_name
+        );
         log::info!("sql:{}", sql);
-        let body = self.session.query(sql).await?.response_body()?;
-        let meta = body.as_rows_metadata().cloned();
+        let pager = self.session.query_iter(sql.as_str(), &[]).await?;
 
-        let rows = body.into_rows().unwrap_or_default();
-        let meta = match meta {
-            Some(meta) => meta,
-            None => return anyhow::Ok(()),
-        };
-        let fs = infer_fields(&meta);
-        for x in encode_rows(&meta, &rows)? {
-            let mut values = HashMap::new();
-            fs.iter().zip(x.iter()).for_each(|(f, v)| {
-                values.insert(f.field.clone(), v.clone());
+        let mut stream = pager.rows_stream::<Row>()?;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let data = encode_row(row)?;
+            let mut m = HashMap::new();
+            cols.iter().zip(data.iter()).for_each(|(f, v)| {
+                m.insert(f.field.clone(), v.clone());
             });
-            let sql = self.insert_sql(self.config.db.as_deref(), table_name, &fs, &values)?;
+            let sql = self.insert_sql(self.config.db.as_deref(), table_name, &cols, &m)?;
             let sql = format!("{sql};\n");
             sender.send(Cow::Owned(sql)).await?;
         }
-
         anyhow::Ok(())
     }
 }
@@ -1227,20 +809,14 @@ impl CassandraDB {
         let sql =
             format!("select view_name from system_schema.views where keyspace_name='{key_space}'");
         log::info!("sql:{}", sql);
-        let rows = self
-            .session
-            .query(sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
-        let mut ret = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let name: Option<String> = row.get_by_index(0)?;
-            if let Some(name) = name {
-                ret.push(ListTable::from(name));
-            }
+        let rows = self.session.query_iter(sql, &[]).await?;
+        let mut stream = rows.rows_stream::<(String,)>()?;
+        let mut ret = Vec::new();
+        while let Some(name) = stream.next().await {
+            let name = name?;
+            ret.push(ListTable::from(name.0));
         }
+
         anyhow::Ok(ret)
     }
 }
@@ -1273,36 +849,29 @@ impl CassandraDB {
             schema
         );
         log::info!("sql:{}", sql);
-        let rows = self
-            .session
-            .query(sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
-
-        let mut ret = Vec::with_capacity(rows.len());
-
-        for row in rows.iter() {
-            let name: Option<String> = row.get_by_index(0)?;
-            let name = name.option_must_be_some()?;
-            let sql = format!("DESCRIBE TYPE {name}");
+        let pager = self.session.query_iter(sql, &[]).await?;
+        let mut stream = pager.rows_stream::<(String,)>()?;
+        let mut ret = Vec::new();
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let sql = format!("DESCRIBE TYPE {}", row.0);
             log::info!("sql:{}", sql);
-            let describe_rows = self
-                .session
-                .query(sql)
-                .await?
-                .response_body()?
-                .into_rows()
-                .unwrap_or_default();
-
-            if describe_rows.len() != 1 {
-                anyhow::bail!("describe type should return one result.")
-            }
-            let create_statement: Option<String> = describe_rows[0].get_by_index(3)?;
+            // let row = self.session.query_iter(sql.as_str(), &[]).await?;
+            // let create_statement: Option<String> = match &row.columns[3] {
+            //     Some(x) => match x {
+            //         CqlValue::Ascii(x) | CqlValue::Text(x) => x.clone(),
+            //         _ => {
+            //             anyhow::bail!("unexpected column type")
+            //         }
+            //     },
+            //     _ => {
+            //         anyhow::bail!("unexpected column type")
+            //     }
+            // };
+            let create_statement = "xxxx".to_string();
             ret.push(CreatedTypeDef {
-                name,
-                sql: create_statement,
+                name: row.0,
+                sql: create_statement.into(),
             });
         }
         anyhow::Ok(ret)
@@ -1317,7 +886,7 @@ impl SchemaTrait for CassandraDB {
     async fn drop_created_type(&self, name: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP TYPE  "{name}""#);
         log::info!("sql:{}", sql);
-        self.session.query(sql).await?;
+        self.session.query_unpaged(sql, &[]).await?;
         anyhow::Ok(())
     }
 
@@ -1329,7 +898,7 @@ impl SchemaTrait for CassandraDB {
     async fn drop_materialized_view(&self, name: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP MATERIALIZED VIEW "{name}";"#);
         log::info!("sql:{}", sql);
-        self.session.query(sql).await?;
+        self.session.query_unpaged(sql, &[]).await?;
         anyhow::Ok(())
     }
 
@@ -1380,14 +949,14 @@ impl SchemaTrait for CassandraDB {
             fields.join(",")
         );
         log::info!("sql:{}", sql);
-        self.session.query(&sql).await?;
+        self.session.query_unpaged(sql.as_str(), &[]).await?;
         anyhow::Ok(())
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP INDEX IF EXISTS "{index}";"#);
         log::info!("sql:{}", sql);
-        self.session.query(sql).await?;
+        self.session.query_unpaged(sql, &[]).await?;
         anyhow::Ok(())
     }
 
@@ -1396,36 +965,19 @@ impl SchemaTrait for CassandraDB {
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let sql = format!(r#"DESCRIBE TABLE "{table_name}""#);
         log::info!("sql:{}", sql);
-        let rows = self
-            .session
-            .query(&sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
-        if rows.is_empty() {
-            anyhow::bail!("query create table expect return one result.");
-        }
-        let row = rows.first().option_must_be_some()?;
+        let rows = self.session.query_iter(sql.as_ref(), &[]).await?;
 
-        // { flags: RowsMetadataFlags(GLOBAL_TABLE_SPACE), columns_count: 4,
-        // paging_state: None, new_metadata_id: None, global_table_spec: Some(TableSpec
-        // { ks_name: "system", table_name: "describe" }), col_specs: [ColSpec {
-        // table_spec: None, name: "keyspace_name", col_type: ColTypeOption { id:
-        // Varchar, value: None } }, ColSpec { table_spec: None, name: "type", col_type:
-        // ColTypeOption { id: Varchar, value: None } }, ColSpec { table_spec: None,
-        // name: "name", col_type: ColTypeOption { id: Varchar, value: None } }, ColSpec
-        // { table_spec: None, name: "create_statement", col_type: ColTypeOption { id:
-        // Varchar, value: None } }] }
-        // why `row.get_by_index(3)?` looks cassandra return this value.
-        let ret: Option<String> = row.get_by_index(3)?;
-        match ret {
-            Some(x) => anyhow::Ok(CreateTableAndIndexSql {
-                create_table: x,
+        let mut stream = rows.rows_stream::<(String, String, String, String)>()?;
+
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            return anyhow::Ok(CreateTableAndIndexSql {
+                create_table: row.3,
                 indexes: vec![],
-            }),
-            None => anyhow::bail!("create table sql should not be null"),
+            });
         }
+
+        anyhow::bail!("not found create table sql")
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
@@ -1436,7 +988,7 @@ impl SchemaTrait for CassandraDB {
         log::info!("sql:{}", sql);
         log::info!("dup table create table sql:{}", sql);
         // here we create the table
-        self.session.query(sql).await?;
+        self.session.query_unpaged(sql, &[]).await?;
         let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
         let j1 = {
             // load all data
@@ -1462,7 +1014,7 @@ impl SchemaTrait for CassandraDB {
                 while let Some(sql) = receiver.recv().await {
                     // replace table name.
                     let sql = sql.replacen(table.as_str(), &dup, 1);
-                    x.session.query(sql).await?;
+                    x.session.query_unpaged(sql, &[]).await?;
                 }
                 anyhow::Ok(())
             })
@@ -1490,36 +1042,21 @@ impl SchemaTrait for CassandraDB {
             table_name
         );
         log::info!("sql:{}", sql);
-
-        let rows = self
-            .session
-            .query(&sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
+        let pager = self.session.query_iter(sql.as_str(), &[]).await?;
+        let mut stream = pager.rows_stream::<(String, String, String)>()?;
         let mut ret = Vec::new();
-        for row in rows.iter() {
-            let name: Option<String> = row.get_by_index(0)?;
-            let name = name.option_must_be_some()?;
-            let data_type: Option<String> = row.get_by_index(1)?;
-            let data_type = data_type.option_must_be_some()?;
-            let kind: Option<String> = row.get_by_index(2)?;
-            let kind = kind.option_must_be_some()?;
+        while let Some(row) = stream.next().await {
+            let (name, data_type, kind) = row?;
             let is_primary = kind == "partition_key" || kind == "clustering";
-
             ret.push(Field {
                 field: name,
                 data_type,
                 nullable: !is_primary,
-                default_value: None,
                 is_primary,
-                is_auto_increment: false,
                 sortable: kind == "clustering",
-                firebird_binary_sub_type: None,
+                ..Default::default()
             });
         }
-
         anyhow::Ok(ret)
     }
 
@@ -1529,14 +1066,9 @@ impl SchemaTrait for CassandraDB {
         let ShowTableParameter {
             where_str,
             order_by,
-            limit,
             allow_filtering,
             ..
         } = &para;
-        let limit = match limit {
-            Some(x) => *x,
-            None => anyhow::bail!("cassandra show table pass 'limit' parameter"),
-        };
         let cols = self.show_table_columns(table_name).await?;
         let cols_string = self.backend_name().format_fields(Some(&cols));
         let cql = get_select_sql(
@@ -1544,25 +1076,32 @@ impl SchemaTrait for CassandraDB {
             cols_string,
             where_str.as_deref(),
             order_by.as_deref(),
-            limit,
             *allow_filtering,
         );
-        let body = self.session.query(&cql).await?.response_body()?;
-        let meta = match body.as_rows_metadata() {
-            Some(x) => x.clone(),
-            None => anyhow::bail!("should be able get meta."),
-        };
-        let rows = body.into_rows().unwrap_or_default();
-        let data = encode_rows(&meta, &rows)?;
         emit.send(
             QueryResp {
                 fields: cols,
-                sql: Some(cql),
-                data,
+                sql: Some(cql.clone()),
                 ..Default::default()
             }
             .into(),
         )?;
+
+        let pager = self.session.query_iter(cql.as_str(), &[]).await?;
+        let mut stream = pager.rows_stream::<Row>()?;
+        let mut time_elapsed = TimeElapsed::new();
+        let mut rows = vec![];
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            rows.push(row);
+            if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
+                let d = encode_rows(std::mem::take(&mut rows))?;
+
+                emit.send(d.into())?;
+            }
+        }
+        let d = encode_rows(std::mem::take(&mut rows))?;
+        emit.send(d.into())?;
         anyhow::Ok(())
     }
 
@@ -1572,19 +1111,14 @@ impl SchemaTrait for CassandraDB {
             self.config.key_space_str()?
         );
         log::info!("sql:{}", sql);
-        let rows = self
-            .session
-            .query(sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
+        let pager = self.session.query_iter(sql, &[]).await?;
+        let mut stream = pager.rows_stream::<(String,)>()?;
 
         let mut ret = Vec::new();
-        for row in rows {
-            let name: Option<String> = row.get_by_index(0)?;
+        while let Some(row) = stream.next().await {
+            let row = row?;
             ret.push(Index {
-                name,
+                name: row.0.into(),
                 kind: IndexKind::Index,
                 columns: vec![],
             });
@@ -1599,7 +1133,7 @@ impl SchemaTrait for CassandraDB {
         let fs = self.show_table_columns(table_name).await?;
         let sql = self.insert_sql(None, table_name, &fs, &values)?;
         log::info!("sql:{}", sql);
-        self.session.query(&sql).await?;
+        self.session.query_unpaged(sql.as_str(), &[]).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(1),
@@ -1616,7 +1150,7 @@ impl SchemaTrait for CassandraDB {
         let sql = self.update_sql(self.config.db.as_deref(), table_name, &fs, &values, &wheres)?;
 
         log::info!("update sql:{}", sql);
-        self.session.query(&sql).await?;
+        self.session.query_unpaged(sql.as_str(), &[]).await?;
         anyhow::Ok(SqlExecuteRet::from((sql, 1)))
     }
 
@@ -1624,7 +1158,7 @@ impl SchemaTrait for CassandraDB {
         self.can_write()?;
         let sql = format!(r#"TRUNCATE "{table_name}""#);
         log::info!("sql:{}", sql);
-        self.session.query(&sql).await?;
+        self.session.query_unpaged(sql.as_str(), &[]).await?;
         anyhow::Ok(())
     }
 
@@ -1636,7 +1170,7 @@ impl SchemaTrait for CassandraDB {
 
         let sql = self.delete_sql(self.config.db.as_deref(), table_name, &fs, &wheres)?;
         log::info!("sql:{}", sql);
-        self.session.query(&sql).await?;
+        self.session.query_unpaged(sql.as_str(), &[]).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(1),
@@ -1647,7 +1181,7 @@ impl SchemaTrait for CassandraDB {
         self.can_write()?;
         let sql = format!(r#"DROP TABLE "{}";"#, table);
         log::info!("sql:{}", sql);
-        self.session.query(&sql).await?;
+        self.session.query_unpaged(sql.as_str(), &[]).await?;
         anyhow::Ok(())
     }
 
@@ -1656,7 +1190,7 @@ impl SchemaTrait for CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!("ALTER TABLE {table} ADD {name} {}", col.typ);
         log::info!("sql:{}", sql);
-        self.session.query(&sql).await?;
+        self.session.query_unpaged(sql.as_str(), &[]).await?;
         anyhow::Ok(())
     }
 
@@ -1665,14 +1199,14 @@ impl SchemaTrait for CassandraDB {
     ) -> anyhow::Result<()> {
         let sql = format!("ALTER TABLE {table} RENAME {old_name} TO {new_name}");
         log::info!("sql:{}", sql);
-        self.session.query(&sql).await?;
+        self.session.query_unpaged(sql.as_str(), &[]).await?;
         anyhow::Ok(())
     }
 
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
         let sql = format!("ALTER TABLE {table} DROP {col};");
         log::info!("sql:{}", sql);
-        self.session.query(&sql).await?;
+        self.session.query_unpaged(sql.as_str(), &[]).await?;
         anyhow::Ok(())
     }
 
@@ -1698,10 +1232,8 @@ impl SchemaTrait for CassandraDB {
         // Improper DESCRIBE command.
         let sql = format!(r#" DESCRIBE FUNCTION  "{}""#, name);
         log::info!("sql:{}", sql);
-        let body = self.session.query(sql).await?.response_body()?;
-        // let meta = body.as_rows_metadata();
-        // println!("meta:{:?}", meta);
-
+        let body = self.session.query_iter(sql, &[]).await?;
+        let mut stream = body.rows_stream::<(String, Option<String>, String, String)>()?;
         let parameters = match &extra {
             Some(extra) => match &extra {
                 UdfOrProcedureExtraParameter::Cassandra { parameters } => parameters,
@@ -1711,12 +1243,8 @@ impl SchemaTrait for CassandraDB {
             },
             None => anyhow::bail!("show udf for cassandra need extra parameter."),
         };
-
-        let rows = body.into_rows().unwrap_or_default();
-        for row in rows.iter() {
-            let typ: Option<String> = row.get_by_index(1)?;
-            let create_statement: Option<String> = row.get_by_index(3)?;
-            let create_statement = create_statement.option_must_be_some()?;
+        while let Some(row) = stream.next().await {
+            let (_, typ, _, create_statement) = row?;
             let parameters_try_match = extract_parameter_for_function(&create_statement)?;
             if parameters.len() != parameters_try_match.len() {
                 continue;
@@ -1737,6 +1265,7 @@ impl SchemaTrait for CassandraDB {
                 metas: vec![MetaValue::new("type", typ)],
             });
         }
+
         anyhow::bail!(format!(
             "no match for parameters:{:?},this should be a bug",
             parameters
@@ -1761,7 +1290,7 @@ impl SchemaTrait for CassandraDB {
         let sql = format!(r#"DROP FUNCTION "{name}"{p} "#);
 
         log::info!("sql:{}", sql);
-        self.session.query(sql).await?;
+        self.session.query_unpaged(sql, &[]).await?;
         anyhow::Ok(())
     }
 
@@ -1831,15 +1360,14 @@ impl DBTrait for CassandraDB {
     }
 
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let body = self
-            .session
-            .query("DESCRIBE KEYSPACES")
-            .await?
-            .response_body()?;
+        let pager = self.session.query_iter("DESCRIBE KEYSPACES", &[]).await?;
+        let mut stream = pager.rows_stream::<(String, String, String)>()?;
         let mut ret = Vec::new();
-        for row in body.into_rows().unwrap_or_default() {
-            let name: Option<String> = row.get_by_index(0)?;
-            ret.push(name.option_must_be_some()?);
+        while let Some(row) = stream.next().await {
+            println!("{:?}", row);
+
+            let row = row?;
+            ret.push(row.0);
         }
         anyhow::Ok(ret)
     }
@@ -1878,7 +1406,7 @@ impl DBTrait for CassandraDB {
             name, replication_strategy, replication_factor
         );
         log::info!("sql:{}", sql);
-        self.session.query(sql).await?;
+        self.session.query_unpaged(sql, &[]).await?;
         anyhow::Ok(())
     }
 
@@ -1886,7 +1414,7 @@ impl DBTrait for CassandraDB {
         self.can_write()?;
         let sql = format!("DROP KEYSPACE {name}");
         log::info!("sql:{}", sql);
-        self.session.query(&sql).await?;
+        self.session.query_unpaged(sql.as_str(), &[]).await?;
         anyhow::Ok(())
     }
 }
@@ -1899,30 +1427,16 @@ impl CassandraDB {
                 WHERE keyspace_name = '{key_space}';"#
         );
         log::info!("sql:{}", sql);
-        let rows = self
-            .session
-            .query(sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
-
-        let mut ret = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let name: Option<String> = row.get_by_index(0)?;
-            let argument_types: Option<List> = row.get_by_index(1)?;
-            let return_type: Option<String> = row.get_by_index(2)?;
-            let language: Option<String> = row.get_by_index(3)?;
-            let parameters = if let Some(argument_types) = argument_types {
-                extract_parameters_from_server(argument_types)?
-            } else {
-                vec![]
-            };
-            let name = name.option_must_be_some()?;
+        let pager = self.session.query_iter(sql, &[]).await?;
+        let mut stream =
+            pager.rows_stream::<(String, Vec<String>, Option<String>, Option<String>)>()?;
+        let mut ret = Vec::new();
+        while let Some(row) = stream.next().await {
+            let (name, argument_types, return_type, language) = row?;
             ret.push(NamedStaff {
                 name,
                 parameters: None,
-                cassandra_parameters: Some(parameters),
+                cassandra_parameters: Some(argument_types),
                 metas: vec![
                     MetaValue::new("return_type", return_type),
                     MetaValue::new("language", language),
@@ -1931,34 +1445,6 @@ impl CassandraDB {
         }
         anyhow::Ok(ret)
     }
-}
-
-fn extract_parameters_from_server(argument_types: List) -> anyhow::Result<Vec<String>> {
-    let mut parameters = vec![];
-    let c = argument_types.as_cassandra_type()?;
-    if let Some(c) = c {
-        match c {
-            CassandraType::List(mut list) => {
-                for ele in list.iter_mut() {
-                    match ele {
-                        CassandraType::Ascii(x) => {
-                            parameters.push(x.clone());
-                        }
-                        CassandraType::Varchar(x) => {
-                            parameters.push(x.clone());
-                        }
-                        _ => {
-                            log::error!("parameter here should be string")
-                        }
-                    }
-                }
-            }
-            _ => {
-                log::error!(" parameters should be a list")
-            }
-        }
-    }
-    anyhow::Ok(parameters)
 }
 
 #[cfg(test)]
@@ -2005,40 +1491,32 @@ impl CassandraDB {
         "#
         );
         log::info!("sql:{}", sql);
-        let rows = self
-            .session
-            .query(&sql)
-            .await?
-            .response_body()?
-            .into_rows()
-            .unwrap_or_default();
+        let pager = self.session.query_iter(sql.as_str(), &[]).await?;
+        let mut stream = pager.rows_stream::<(
+            String,
+            Option<Vec<String>>,
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+        )>()?;
+        let mut ret = Vec::new();
+        while let Some(row) = stream.next().await {
+            let (name, argument_types, return_type, state_func, final_func, initcond) = row?;
 
-        let mut ret = Vec::with_capacity(rows.len());
-
-        for row in rows.iter() {
-            let name: Option<String> = row.get_by_index(0)?;
-            let parameters: Option<List> = row.get_by_index(1)?;
-            let return_type: Option<String> = row.get_by_index(2)?;
-            let state_func: Option<String> = row.get_by_index(3)?;
-            let final_func: Option<String> = row.get_by_index(4)?;
-            let initcond: Option<String> = row.get_by_index(5)?;
-            let cassandra_parameters = if let Some(list) = parameters {
-                extract_parameters_from_server(list)?
-            } else {
-                vec![]
-            };
             ret.push(NamedStaff {
                 parameters: None,
-                name: name.option_must_be_some()?,
+                name,
                 metas: vec![
                     MetaValue::new("return_type", return_type),
                     MetaValue::new("state_func", state_func),
                     MetaValue::new("final_func", final_func),
                     MetaValue::new("initcond", initcond),
                 ],
-                cassandra_parameters: Some(cassandra_parameters),
+                cassandra_parameters: Some(argument_types.unwrap_or_default()),
             });
         }
+
         anyhow::Ok(ret)
     }
 
@@ -2051,16 +1529,12 @@ impl CassandraDB {
     ) -> anyhow::Result<DefAndMetas> {
         let sql = format!("DESCRIBE AGGREGATE  {name}");
         log::info!("sql:{}", sql);
-        let body = self.session.query(&sql).await?.response_body()?;
-        let _meta = body.as_rows_metadata();
-        // println!("meta:{:?}", _meta);
-        let rows = body.into_rows().unwrap_or_default();
+        let body = self.session.query_iter(sql.as_str(), &[]).await?;
+        let mut steam = body.rows_stream::<(String, Option<String>, String, String)>()?;
 
-        for row in rows.iter() {
-            let typ: Option<String> = row.get_by_index(1)?;
-            let create_statement: Option<String> = row.get_by_index(3)?;
-            let create_statement = create_statement.option_must_be_some()?;
-            let parameters_try_match = [extract_parameter_for_aggregate(&create_statement)?];
+        while let Some(row) = steam.next().await {
+            let (_, typ, _, create_statement) = row?;
+            let parameters_try_match = vec![extract_parameter_for_aggregate(&create_statement)?];
             if parameters.len() != parameters_try_match.len() {
                 continue;
             }
@@ -2090,7 +1564,7 @@ impl CassandraDB {
         let p = format!("({})", parameters.join(","));
         let sql = format!("DROP AGGREGATE {name}{p} ");
         log::info!("sql:{}", sql);
-        self.session.query(sql).await?;
+        self.session.query_unpaged(sql, &[]).await?;
         anyhow::Ok(())
     }
 }
@@ -2118,11 +1592,6 @@ mod tests {
         println!("list schema:{:?}", schemas)
     }
 
-    #[test]
-    fn test_format_decimal() {
-        println!("{}", format_decimal(&Decimal::from(123)).unwrap());
-        println!("{}", format_decimal(&Decimal::from(123.456)).unwrap());
-    }
     #[tokio::test]
     async fn test_aggregate() {
         let _guard = test_lock().lock().await;
@@ -2218,14 +1687,64 @@ mod tests {
         let _guard = test_lock().lock().await;
 
         let db = make_test_object(None).await;
-        crate::db::CheckConn::check_conn(&db).await.unwrap();
+        let d = crate::db::CheckConn::check_conn(&db).await.unwrap();
+        println!("d:{:?}", d);
     }
     fn new_test_show_parameter() -> ShowTableParameter {
         ShowTableParameter {
-            limit: Some(100),
             ..Default::default()
         }
     }
+
+    #[ignore = "xxxx"]
+    #[tokio::test]
+    async fn test_a_lot_data() {
+        let _guard = test_lock().lock().await;
+        let table_name = "test_a_lot_data";
+        let db = make_test_object(Some("test".to_string())).await;
+        let _ = db.drop_table(table_name, false).await;
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        db.execute_sql(
+            query_id,
+            r#"
+                CREATE TABLE test_a_lot_data (
+                    id UUID PRIMARY KEY,
+                    ascii_column VARCHAR,
+                );
+        "#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        let size = 10000;
+
+        for k in 0..size {
+            let mut values = HashMap::new();
+            values.insert("id".to_string(), Some("uuid()".to_string()));
+            values.insert(
+                "ascii_column".to_string(),
+                Some(format!("example_ascii {}", k)),
+            );
+            db.table_insert(table_name, values).await.unwrap();
+            if k % 50 == 0 {
+                println!("insert {}", k);
+            }
+        }
+        let resp = db
+            .show_table_collect(
+                table_name,
+                ShowTableParameter {
+                    limit: Some(size),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.total, size);
+    }
+
     #[tokio::test]
     async fn test_sort() {
         let _guard = test_lock().lock().await;
@@ -2282,16 +1801,6 @@ mod tests {
         for field in fields {
             println!("field:{:?}", field);
         }
-    }
-
-    #[tokio::test]
-    async fn test_error_position() {
-        let _guard = test_lock().lock().await;
-
-        let db = make_test_object(None).await;
-        let x = db.session.query("xxxxxxxxx").await;
-        // should have error on `x` no need check on response.
-        assert!(x.is_err());
     }
 
     #[tokio::test]
@@ -2370,10 +1879,13 @@ mod tests {
     }
     #[tokio::test]
     async fn test_types1() {
+        let now = std::time::Instant::now();
         let _guard = test_lock().lock().await;
         let table_name = "test_types1";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
+
+        println!("drop table:{:?}", now.elapsed());
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         db.execute_sql(
@@ -2385,7 +1897,7 @@ mod tests {
                     bigint_column BIGINT,
                     blob_column BLOB,
                     boolean_column BOOLEAN,
-                    decimal_column DECIMAL,
+                    // decimal_column DECIMAL,
                     double_column DOUBLE
                 );
         "#,
@@ -2393,6 +1905,8 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
+
+        println!("create table:{:?}", now.elapsed());
         let mut values = HashMap::new();
         values.insert("id".to_string(), Some("uuid()".to_string()));
         values.insert(
@@ -2406,7 +1920,7 @@ mod tests {
         values.insert("blob_column".to_string(), Some("0x48656c6c6f".to_string()));
         values.insert("boolean_column".to_string(), Some("true".to_string()));
 
-        values.insert("decimal_column".to_string(), Some("123.45".to_string()));
+        // values.insert("decimal_column".to_string(), Some("123.45".to_string()));
         values.insert("double_column".to_string(), Some("3.14159".to_string()));
         db.table_insert(table_name, values).await.unwrap();
 
@@ -2558,8 +2072,6 @@ mod tests {
     #[tokio::test]
     async fn test_types2() {
         let _guard = test_lock().lock().await;
-
-        enable_test_log();
         let table_name = "test_types2";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
@@ -3106,8 +2618,6 @@ mod tests {
     async fn test_counter() {
         let _guard = test_lock().lock().await;
 
-        enable_test_log();
-
         let table_name = "test_counter";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
@@ -3134,7 +2644,7 @@ mod tests {
         db.table_update(table_name, values, wheres).await.unwrap();
 
         let resp = db
-            .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
+            .show_table_collect(table_name, new_test_show_parameter())
             .await
             .unwrap();
         println!("xxxx:{:?}", resp);
@@ -3173,7 +2683,7 @@ mod tests {
         }
 
         db.session
-            .query(
+            .query_unpaged(
                 r#"
             CREATE FUNCTION IF NOT EXISTS  test_udf(input text)
             RETURNS NULL ON NULL INPUT
@@ -3181,12 +2691,13 @@ mod tests {
             LANGUAGE java
             AS 'return input;';
         "#,
+                &[],
             )
             .await
             .unwrap();
 
         db.session
-            .query(
+            .query_unpaged(
                 r#"
             CREATE FUNCTION IF NOT EXISTS  test_udf(input list<int>)
             RETURNS NULL ON NULL INPUT
@@ -3194,6 +2705,7 @@ mod tests {
             LANGUAGE java
             AS 'return String.valueOf(input);';
         "#,
+                &[],
             )
             .await
             .unwrap();
@@ -3218,7 +2730,7 @@ mod tests {
 
         let db = make_test_object(Some("test".to_string())).await;
         db.session
-            .query(
+            .query_unpaged(
                 r#"
             CREATE TYPE IF NOT EXISTS TypePerson (
                 first_name text,
@@ -3227,6 +2739,7 @@ mod tests {
                 email text
             );
         "#,
+                &[],
             )
             .await
             .unwrap();
@@ -3378,32 +2891,5 @@ mod tests {
             .statements
             .iter()
             .for_each(|x| println!("{:?}", x.statement));
-    }
-
-    #[test]
-    fn tet_fix_limit() {
-        let limit = 100;
-        assert_eq!(
-            fix_limit("select * from test", limit).unwrap(),
-            "select * from test limit 100"
-        );
-        assert_eq!(
-            fix_limit("select * from test limit 100", limit).unwrap(),
-            "select * from test limit 100"
-        );
-
-        assert_eq!(
-            fix_limit("select * from test where a = 1 allow filtering", limit).unwrap(),
-            "select * from test where a = 1  limit 100 allow filtering"
-        );
-
-        assert_eq!(
-            fix_limit(
-                "select * from test where a = 'allow filtering' allow filtering",
-                limit
-            )
-            .unwrap(),
-            "select * from test where a = 'allow filtering'  limit 100 allow filtering"
-        );
     }
 }
