@@ -977,8 +977,10 @@ impl SchemaTrait for SqliteDB {
                 emit.send(d.into())?;
             }
         }
-        let d = encode_rows(&rows)?;
-        emit.send(d.into())?;
+        if !rows.is_empty() {
+            let d = encode_rows(&rows)?;
+            emit.send(d.into())?;
+        }
         anyhow::Ok(())
     }
 
@@ -2348,17 +2350,12 @@ mod tests {
         .await
         .unwrap();
         println!("\n after here are view test.\n");
-
         let views = db.list_view().await.unwrap();
-        for v in views.iter() {
-            let list = db
-                .show_view_collect(
-                    v.name.as_str(),
-                    ShowTableParameter::new_stupid_test("id asc"),
-                )
-                .await
-                .unwrap();
-            println!("view value:{:?}", list);
-        }
+        println!("{:?}", views);
+        let list = db
+            .show_view_collect("test_view", ShowTableParameter::new_stupid_test("id asc"))
+            .await
+            .unwrap();
+        println!("view value:{:?}", list);
     }
 }
