@@ -41,12 +41,11 @@ pub mod sqlite;
 pub mod sqlite_lang_server;
 pub mod sqlparser_completing;
 pub mod sqlparser_completion;
+pub mod sub;
+pub mod sub_lang_server;
 pub mod tidb;
 pub mod tidb_lang_server;
 pub mod typedef;
-
-pub mod sub;
-pub mod sub_lang_server;
 
 lazy_static! {
     static ref TEST_HOST: String =

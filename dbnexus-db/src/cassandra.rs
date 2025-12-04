@@ -45,11 +45,13 @@ use cql3_parser::cassandra_statement::CassandraStatement;
 use cql3_parser::common::{ColumnDefinition, DataType};
 use dashmap::DashMap;
 use futures_util::StreamExt;
+use num_bigint::BigInt;
 use scylla::authentication::PlainTextAuthenticator;
 
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
-use scylla::value::{CqlValue, CqlVarint, Row};
+use scylla::value::{CqlDecimal, CqlValue, CqlVarint, Row};
+use sqlx::types::BigDecimal;
 use std::borrow::Cow;
 use std::collections::HashMap;
 
@@ -160,7 +162,10 @@ fn encode_row_as_json(cols: &[String], rows: Row) -> anyhow::Result<serde_json::
                 serde_json::Value::Array(values)
             }
             CqlValue::Counter(counter) => serde_json::Value::from(counter.0),
-            CqlValue::Decimal(..) => todo!(),
+            CqlValue::Decimal(c) => {
+                let x = cql_decimal_to_bigdecimal(&c).to_string();
+                serde_json::Value::String(x)
+            }
             CqlValue::Date(cql_date) => serde_json::Value::from(cql_date.0),
             CqlValue::Double(x) => serde_json::Value::from(x),
             CqlValue::Duration(cql_duration) => {
@@ -199,8 +204,16 @@ fn encode_row_as_json(cols: &[String], rows: Row) -> anyhow::Result<serde_json::
                 serde_json::Value::Array(values)
             }
             CqlValue::Map(..) => todo!(),
-            CqlValue::UserDefinedType { .. } => {
-                anyhow::bail!("not support user defined type")
+            CqlValue::UserDefinedType { fields, .. } => {
+                let mut m = serde_json::Map::new();
+                for f in fields {
+                    let v = match f.1 {
+                        Some(x) => encode_value_as_json(x)?,
+                        None => serde_json::Value::Null,
+                    };
+                    m.insert(f.0, v);
+                }
+                serde_json::Value::Object(m)
             }
             CqlValue::SmallInt(x) => serde_json::Value::from(x),
             CqlValue::TinyInt(x) => serde_json::Value::from(x),
@@ -272,9 +285,22 @@ fn format_time(x: i64) -> String {
     time.to_string()
 }
 
-fn varint_2_bigint(c: &CqlVarint) -> num_bigint::BigInt {
+fn varint_2_bigint(c: &CqlVarint) -> BigInt {
     num_bigint::BigInt::from_signed_bytes_be(c.as_signed_bytes_be_slice())
 }
+
+fn cql_decimal_to_bigdecimal(cql_decimal: &CqlDecimal) -> BigDecimal {
+    let (bytes, scale) = cql_decimal.as_signed_be_bytes_slice_and_exponent();
+    if bytes.is_empty() {
+        return BigDecimal::new(BigInt::from(0), scale as i64);
+    }
+
+    let big_int = BigInt::from_signed_bytes_be(bytes);
+
+    // 注意：BigDecimal::new 的第二个参数是负数
+    BigDecimal::new(big_int, scale as i64)
+}
+
 fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<String> {
     let v = match value {
         CqlValue::Ascii(x) | CqlValue::Text(x) => {
@@ -287,7 +313,7 @@ fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<St
         CqlValue::Boolean(x) => x.to_string(),
         CqlValue::Blob(x) => format!("0x{}", hex::encode(&x)),
         CqlValue::Counter(counter) => counter.0.to_string(),
-        CqlValue::Decimal(..) => anyhow::bail!("decimal not support"),
+        CqlValue::Decimal(c) => cql_decimal_to_bigdecimal(&c).to_string(),
         CqlValue::Date(cql_date) => format_date(cql_date.0)?,
         CqlValue::Double(x) => x.to_string(),
         CqlValue::Duration(..) => anyhow::bail!("duration not support"),
@@ -308,8 +334,8 @@ fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<St
         CqlValue::Map(m) => {
             let mut values = vec![];
             for (k, v) in m {
-                let v = encode_value_as_string(v, false)?;
-                let k = encode_value_as_string(k, false)?;
+                let v = encode_value_as_string(v, true)?;
+                let k = encode_value_as_string(k, true)?;
                 values.push(format!("{}:{}", k, v));
             }
             format!("{{{}}}", values.join(","))
@@ -322,8 +348,16 @@ fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<St
             }
             format!("{{{}}}", values.join(","))
         }
-        CqlValue::UserDefinedType { .. } => {
-            anyhow::bail!("unsupported user define type")
+        CqlValue::UserDefinedType { fields, .. } => {
+            let mut values = vec![];
+            for (k, v) in fields {
+                let v = match v {
+                    Some(x) => encode_value_as_string(x, true)?,
+                    None => "null".to_string(),
+                };
+                values.push(format!("{}:{}", k, v));
+            }
+            format!("{{{}}}", values.join(","))
         }
         CqlValue::SmallInt(x) => x.to_string(),
         CqlValue::TinyInt(x) => x.to_string(),
@@ -1897,7 +1931,7 @@ mod tests {
                     bigint_column BIGINT,
                     blob_column BLOB,
                     boolean_column BOOLEAN,
-                    // decimal_column DECIMAL,
+                    decimal_column DECIMAL,
                     double_column DOUBLE
                 );
         "#,
@@ -1920,7 +1954,7 @@ mod tests {
         values.insert("blob_column".to_string(), Some("0x48656c6c6f".to_string()));
         values.insert("boolean_column".to_string(), Some("true".to_string()));
 
-        // values.insert("decimal_column".to_string(), Some("123.45".to_string()));
+        values.insert("decimal_column".to_string(), Some("123.45".to_string()));
         values.insert("double_column".to_string(), Some("3.14159".to_string()));
         db.table_insert(table_name, values).await.unwrap();
 
