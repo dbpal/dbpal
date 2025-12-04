@@ -861,30 +861,22 @@ function showProgressingStatus(showNotification, status: string) {
   );
 }
 
-function SelectMaxRowLimit(props: {
-  kind: string;
-  maxRowRef: RefObject<number>;
+function SliderSize(props: {
+  storeKey: string;
+  valueRef: RefObject<number>;
   notice: ReactNode;
-  min?: number;
-  max?: number;
+  min: number;
+  max: number;
+  step: number;
 }) {
-  const { kind, maxRowRef, notice } = props;
-  let { min, max } = props;
-  if (!min) {
-    min = 1000;
-  }
-  if (!max) {
-    max = 10_0000;
-  }
-  const width = "350px";
-  const storekey = "dbpal-max-row-" + kind;
-  const [maxRow, setMaxRow] = useState(
-    parseInt(localStorage.getItem(storekey)) || 2000,
-  );
+  const { storeKey, valueRef, notice, min, max, step } = props;
+  const width = "450px";
+  const storekey = "dbpal-max-row-" + storeKey;
+  const [maxRow, setMaxRow] = useState(parseInt(localStorage.getItem(storekey)) || min);
   useEffect(() => {
     localStorage.setItem(storekey, maxRow + "");
-    maxRowRef.current = maxRow;
-  }, [maxRow, maxRowRef, storekey]);
+    valueRef.current = maxRow;
+  }, [maxRow, valueRef, storekey]);
   return (
     <Tooltip
       slotProps={{
@@ -906,7 +898,7 @@ function SelectMaxRowLimit(props: {
             onChange={(_, v) => {
               setMaxRow(v);
             }}
-            step={1000}
+            step={step}
           />
           {notice}
         </Stack>
@@ -931,5 +923,5 @@ export {
   SaveFavoriteSqlView,
   CancelButton,
   showProgressingStatus,
-  SelectMaxRowLimit,
+  SliderSize,
 };

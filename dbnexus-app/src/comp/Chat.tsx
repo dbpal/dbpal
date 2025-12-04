@@ -12,8 +12,8 @@ import {
   ViewKind,
 } from "./helper";
 import {
+  Autocomplete,
   Button,
-  Chip,
   Divider,
   IconButton,
   Paper,
@@ -25,7 +25,7 @@ import {
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { editor } from "monaco-editor";
-import { AppMarkDown, SimpleFlexEditor } from "./CommonComp2";
+import { AppMarkDown, SliderSize, SimpleFlexEditor } from "./CommonComp2";
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import EditIcon from "@mui/icons-material/Edit";
@@ -598,27 +598,6 @@ human:{question}
   }
 }
 
-class SaveChatMemoryK {
-  static key = "dbpal-chat-memory-k";
-  static defaultK = 4;
-
-  static get(): number {
-    try {
-      const x = localStorage.getItem(SaveChatMemoryK.key);
-      return x ? parseInt(x) : SaveChatMemoryK.defaultK;
-    } catch (e) {
-      if (import.meta.env.DEV) {
-        console.log("get chat memory k error", e);
-      }
-      return SaveChatMemoryK.defaultK;
-    }
-  }
-
-  static save(x: number) {
-    localStorage.setItem(SaveChatMemoryK.key, x + "");
-  }
-}
-
 function SqlChatTextInput(props: {
   uuid: string;
   kind: DataSourceKind;
@@ -641,23 +620,12 @@ function SqlChatTextInput(props: {
   const [chatHistory, setChatHistory] = useState<string[]>([]);
   const [showChatHistory, setShowChatHistory] = useState(false);
   const chatMemory = useRef(new SimpleArrayMemory());
-  const [chatBufferSize, setChatBufferSize] = useState(SaveChatMemoryK.get() + "");
   const [showEditPromptTemplate, setShowEditPromptTemplate] = useState(false);
   const [invokeStatus, setInvokeStatus] = useState("");
-  useEffect(() => {
-    const size = parseInt(chatBufferSize);
-    if (isNaN(size)) {
-      return;
-    }
-    if (size % 2 != 0) {
-      showNotification("warning", "chat buffer size must be even number");
-      return;
-    }
-    SaveChatMemoryK.save(size);
-    chatMemory.current.setK(size);
-  }, [chatBufferSize, showNotification]);
+  const chatMemoryK = useRef<number>(4);
 
   const makePrompt = async () => {
+    chatMemory.current.setK(chatMemoryK.current);
     try {
       const prompt = await new MakePrompt(
         uuid,
@@ -763,22 +731,14 @@ function SqlChatTextInput(props: {
             <EditIcon color="secondary" />
           </IconButton>
         </Tooltip>
-        <TextField
-          value={chatBufferSize}
-          error={isNaN(parseInt(chatBufferSize))}
-          label="chat memory window size"
-          onChange={e => {
-            setChatBufferSize(e.target.value);
-          }}
-          style={{ width: "12rem", flexShrink: 1, minWidth: "4rem" }}
-          type="number"
-          slotProps={{
-            htmlInput: {
-              step: 2,
-              min: 0,
-              max: 20,
-            },
-          }}
+
+        <SliderSize
+          storeKey="chat-memory-buffer-size"
+          valueRef={chatMemoryK}
+          max={20}
+          min={0}
+          step={2}
+          notice="chat memory buffer size"
         />
 
         <Tooltip title="chat input location">
@@ -851,6 +811,7 @@ function EditPromptTemplate(props: {
   );
   const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>(null);
   const { showNotification } = useContext(NotificationContext);
+  const [templateVar, setTemplateVar] = useState("");
   const handleSave = async () => {
     try {
       const config = await LLMConfig.get();
@@ -919,25 +880,27 @@ function EditPromptTemplate(props: {
         <Divider />
         <Stack direction="row" style={{ alignItems: "center" }}>
           <Button onClick={handleSave}> save </Button>
-          {MakePrompt.getDefaultTemplatePredefineVariables(kind).map(variable => {
-            return (
-              <Tooltip title={`click to use this variable in template.`} key={variable}>
-                <Chip
-                  label={variable as string}
-                  onClick={() => {
-                    editor
-                      .getModel()
-                      .pushEditOperations(
-                        null,
-                        [{ range: editor.getSelection(), text: `{${variable}}` }],
-                        null,
-                      );
-                    editor.focus();
-                  }}
-                />
-              </Tooltip>
-            );
-          })}
+          <Autocomplete
+            options={MakePrompt.getDefaultTemplatePredefineVariables(kind)}
+            style={{ width: "22rem" }}
+            value={templateVar}
+            renderInput={params => (
+              <TextField {...params} label="variable can be use in template" />
+            )}
+            freeSolo={false}
+            onChange={(_, templateVar) => {
+              editor
+                .getModel()
+                .pushEditOperations(
+                  null,
+                  [{ range: editor.getSelection(), text: `{${templateVar}}` }],
+                  null,
+                );
+              editor.focus();
+              setTemplateVar(templateVar);
+            }}
+          />
+
           <Tooltip title="delete template,after we will use system default template">
             <IconButton onClick={handleDelete}>
               <DeleteForeverIcon> </DeleteForeverIcon>

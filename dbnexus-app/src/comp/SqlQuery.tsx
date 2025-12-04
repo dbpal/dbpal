@@ -65,7 +65,7 @@ import {
   EditorBar,
   LoadStoreFile,
   SaveFavoriteSqlView,
-  SelectMaxRowLimit,
+  SliderSize,
   showProgressingStatus,
 } from "./CommonComp2.tsx";
 import { ModifyLLMConfigModal } from "./Settings.tsx";
@@ -615,9 +615,12 @@ function SqlQuery(props: {
             )}
             <ModifyLLMConfigModal />
             <ExecutingTime loading={loading} disableTime />
-            <SelectMaxRowLimit
-              kind="sql-query"
-              maxRowRef={maxRow}
+            <SliderSize
+              storeKey="sql-query"
+              valueRef={maxRow}
+              min={1000}
+              max={100000}
+              step={1000}
               notice=<Typography color="info">
                 limit max rows can be query.we don&apos;t want OOM!!!😀
               </Typography>

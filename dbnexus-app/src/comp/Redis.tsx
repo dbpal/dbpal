@@ -61,7 +61,7 @@ import {
 
 import { ExecutingTime, ModalHeader } from "./CommonComp.tsx";
 import { editor, Position } from "monaco-editor";
-import { SelectMaxRowLimit, SimpleFlexEditor } from "./CommonComp2.tsx";
+import { SliderSize, SimpleFlexEditor } from "./CommonComp2.tsx";
 import { invoke } from "@tauri-apps/api/core";
 import { showTable } from "./handlers.ts";
 
@@ -881,9 +881,12 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         style={{ alignItems: "center", justifyContent: "space-between" }}
       >
         <Stack direction="row" style={{ alignItems: "center", width: "50%" }}>
-          <SelectMaxRowLimit
-            kind="redis-set-table"
-            maxRowRef={maxRowRef}
+          <SliderSize
+            storeKey="redis-set-table"
+            valueRef={maxRowRef}
+            min={1000}
+            max={50000}
+            step={1000}
             notice=<LimitMaxRowNotice />
           />
           <TextField
@@ -1506,10 +1509,13 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" style={{ alignItems: "center" }}>
-        <SelectMaxRowLimit
-          kind="redis-zset-table"
+        <SliderSize
+          min={1000}
+          max={50000}
+          step={1000}
+          storeKey="redis-zset-table"
           notice=<LimitMaxRowNotice />
-          maxRowRef={maxRowRef}
+          valueRef={maxRowRef}
         />
         <TextField
           label="key match could be *key,key*,*key*"
@@ -1845,9 +1851,12 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         style={{ justifyContent: "space-between" }}
       >
         <Stack direction="row" style={{ width: "55%", alignItems: "center" }}>
-          <SelectMaxRowLimit
-            kind="redis-hash-table"
-            maxRowRef={maxRowRef}
+          <SliderSize
+            storeKey="redis-hash-table"
+            valueRef={maxRowRef}
+            min={1000}
+            max={50000}
+            step={1000}
             notice=<LimitMaxRowNotice />
           />
           <TextField
