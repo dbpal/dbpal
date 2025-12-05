@@ -47,6 +47,25 @@ fn get_row_types(row: &MySqlRow) -> Vec<Field> {
     ret
 }
 
+impl MysqlDB {
+    async fn infer_fields_by_sql(&self, sql: &str) -> anyhow::Result<Vec<Field>> {
+        use sqlx::Statement;
+        let mut conn = self.get_conn().await?;
+        let fields = conn
+            .deref_mut()
+            .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
+            .await
+            .map(|s| {
+                s.columns()
+                    .iter()
+                    .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        anyhow::Ok(fields)
+    }
+}
+
 impl ReadOnlyTrait for MysqlDB {
     fn read_only(&self) -> bool {
         self.config.read_only
@@ -932,19 +951,8 @@ impl SchemaTrait for MysqlDB {
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
-        use sqlx::Statement;
-        let mut conn = self.get_conn().await?;
         let sql = format!("select * from `{view_name}` limit 1");
-        log::info!("sql:{}", sql);
-        let s = conn
-            .deref_mut()
-            .prepare_with(AssertSqlSafe(sql.as_str()).into_sql_str(), &[])
-            .await?;
-        let ret = s
-            .columns()
-            .iter()
-            .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
-            .collect::<Vec<_>>();
+        let ret = self.infer_fields_by_sql(&sql).await?;
         anyhow::Ok(ret)
     }
 
@@ -1232,6 +1240,17 @@ impl SchemaTrait for MysqlDB {
         }
         if !rows.is_empty() {
             emit.send(encode_rows(&std::mem::take(&mut rows), true)?.into())?;
+        }
+        if first {
+            let fields = self.infer_fields_by_sql(&sql).await?;
+            emit.send(
+                QueryResp {
+                    fields,
+                    sql: Some(sql.into()),
+                    ..Default::default()
+                }
+                .into(),
+            )?;
         }
         anyhow::Ok(())
     }

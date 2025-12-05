@@ -55,6 +55,25 @@ impl ReadOnlyTrait for PostGresDB {
 }
 
 impl PostGresDB {
+    async fn infer_fields_by_sql(&self, sql: &str) -> anyhow::Result<Vec<Field>> {
+        use sqlx::Statement;
+        let mut conn = self.get_conn().await?;
+        let fields = conn
+            .deref_mut()
+            .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
+            .await
+            .map(|s| {
+                s.columns()
+                    .iter()
+                    .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        anyhow::Ok(fields)
+    }
+}
+
+impl PostGresDB {
     async fn list_schema_impl(&self) -> anyhow::Result<Vec<String>> {
         let mut conn = self.get_conn().await?;
         let sql = format!(
@@ -1294,6 +1313,17 @@ impl SchemaTrait for PostGresDB {
         if !rows.is_empty() {
             emit.send(encode_rows(&std::mem::take(&mut rows))?.into())?;
         }
+        if first {
+            let fields = self.infer_fields_by_sql(&sql).await?;
+            emit.send(
+                QueryResp {
+                    fields,
+                    sql: Some(sql.into()),
+                    ..Default::default()
+                }
+                .into(),
+            )?;
+        }
         anyhow::Ok(())
     }
 
@@ -2182,18 +2212,7 @@ impl QuerySql for PostGresDB {
         }
         drop(stream);
         if !has_result {
-            use sqlx::Statement;
-            let fields = conn
-                .deref_mut()
-                .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
-                .await
-                .map(|s| {
-                    s.columns()
-                        .iter()
-                        .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
+            let fields = self.infer_fields_by_sql(sql).await?;
             emit.send(QueryResp::new(fields, 0, vec![], sql.to_owned())?.into())?;
         }
         anyhow::Ok(())

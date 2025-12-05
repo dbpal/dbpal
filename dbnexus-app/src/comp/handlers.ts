@@ -288,6 +288,7 @@ async function showTable(
     name: string;
     isView: boolean;
     showNotification;
+    silent?: boolean;
   } & ShowTableCallBack,
 ) {
   let {
@@ -299,11 +300,11 @@ async function showTable(
     showNotification,
     handleResult,
     setLoading,
+    silent,
   } = props;
   if (!para) {
     para = {};
   }
-
   try {
     setLoading(true);
     let resp: MuiDataGridData = null;
@@ -332,13 +333,16 @@ async function showTable(
             }),
           ];
           handleResult(cop);
+          resp = cop;
           break;
         }
         case "err":
           showNotification("error", "server return error", event.err);
           break;
         case "status":
-          showProgressingStatus(showNotification, event.status);
+          if (!silent) {
+            showProgressingStatus(showNotification, event.status);
+          }
           break;
         default:
           console.error("server send wrong kind of data:", event);
@@ -347,8 +351,6 @@ async function showTable(
     await invoke("show_table", { name: uuid, tableName: name, para, isView, emit });
     if (okCallBack) {
       okCallBack();
-    } else {
-      showNotification("success", "fetch query data finished.");
     }
   } catch (e) {
     setTimeout(() => {

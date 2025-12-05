@@ -981,6 +981,17 @@ impl SchemaTrait for SqliteDB {
             let d = encode_rows(&rows)?;
             emit.send(d.into())?;
         }
+        if first {
+            let fields = self.infer_fields_by_sql(&sql).await?;
+            emit.send(
+                QueryResp {
+                    fields,
+                    sql: Some(sql.into()),
+                    ..Default::default()
+                }
+                .into(),
+            )?;
+        }
         anyhow::Ok(())
     }
 
@@ -1435,6 +1446,25 @@ impl ExportQueryResult for SqliteDB {
     }
 }
 
+impl SqliteDB {
+    async fn infer_fields_by_sql(&self, sql: &str) -> anyhow::Result<Vec<Field>> {
+        use sqlx::Statement;
+        let mut conn = self.get_conn().await?;
+        let fields = conn
+            .deref_mut()
+            .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
+            .await
+            .map(|s| {
+                s.columns()
+                    .iter()
+                    .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        anyhow::Ok(fields)
+    }
+}
+
 #[async_trait::async_trait]
 impl QuerySql for SqliteDB {
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
@@ -1594,22 +1624,11 @@ impl QuerySql for SqliteDB {
             emit.send(encode_rows(&rows)?.into())?;
         }
         drop(stream);
-
         if !has_result {
-            use sqlx::Statement;
-            let fields = conn
-                .deref_mut()
-                .prepare_with(AssertSqlSafe(sql).into_sql_str(), &[])
-                .await
-                .map(|s| {
-                    s.columns()
-                        .iter()
-                        .map(|x| Field::from_name_type(x.name(), x.type_info().to_string()))
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
+            let fields = self.infer_fields_by_sql(sql).await?;
             let r = QueryResp {
                 fields,
+                sql: sql.to_owned().into(),
                 ..Default::default()
             };
             emit.send(r.into())?;

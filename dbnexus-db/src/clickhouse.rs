@@ -432,9 +432,7 @@ impl SchemaTrait for ClickHouseDB {
                     Some(default_value)
                 },
                 is_primary,
-                is_auto_increment: false,
-                sortable: true,
-                firebird_binary_sub_type: None,
+                ..Default::default()
             });
         }
         anyhow::Ok(ret)

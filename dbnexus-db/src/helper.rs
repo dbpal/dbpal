@@ -72,7 +72,6 @@ pub fn separate_sql_by_sqlparser_tokenizer(
     if !cache.is_empty() {
         ret.push(cache.join(" "));
     }
-
     anyhow::Ok(ret)
 }
 

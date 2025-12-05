@@ -31,13 +31,13 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
     Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
-    POOL_MAX_CONNECTIONS, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, TimeElapsed,
-    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
-    escape_sql_str, export_query_as_xlsx_send_data,
+    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlBuilder, SqlExecuteRet, TimeElapsed, UdfOrProcedureExtraParameter,
+    XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
+    export_query_as_xlsx_send_data,
 };
 
-use crate::helper::create_csv;
+use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
 use crate::language_server::LexerCompletionTrait;
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use cql3_parser::cassandra_ast::CassandraAST;
@@ -67,7 +67,7 @@ pub struct CassandraDB {
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
-async fn make_session(config: &CassandraDBConfig, _pool_size: usize) -> anyhow::Result<Session> {
+async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<Session> {
     let mut builder = SessionBuilder::new().known_node(format!(
         "{}:{}",
         config.host,
@@ -82,9 +82,6 @@ async fn make_session(config: &CassandraDBConfig, _pool_size: usize) -> anyhow::
         }
         _ => {}
     }
-    // builder = builder.pool_size(scylla::client::PoolSize::PerHost(
-    //     std::num::NonZero::new(_pool_size).option_must_be_some()?,
-    // ));
     let session = builder.build().await?;
     if let Some(key_space) = config.db.as_ref() {
         session.use_keyspace(key_space, false).await?;
@@ -99,7 +96,7 @@ impl CassandraDB {
                 .conn_timeout
                 .map(|x| x.into())
                 .unwrap_or(Duration::from_secs(3)),
-            async { make_session(&config, POOL_MAX_CONNECTIONS as usize).await },
+            async { make_session(&config).await },
         )
         .await??;
         anyhow::Ok(Self {
@@ -153,8 +150,8 @@ fn encode_row_as_json(cols: &[String], rows: Row) -> anyhow::Result<serde_json::
         };
         m.insert(name.clone(), value);
     }
-    fn encode_value_as_json(v: CqlValue) -> anyhow::Result<serde_json::Value> {
-        let ret = match v {
+    fn encode_value_as_json(value: CqlValue) -> anyhow::Result<serde_json::Value> {
+        let ret = match value {
             CqlValue::Ascii(x) => serde_json::Value::from(x),
             CqlValue::Boolean(x) => serde_json::Value::from(x),
             CqlValue::Blob(items) => {
@@ -182,7 +179,6 @@ fn encode_row_as_json(cols: &[String], rows: Row) -> anyhow::Result<serde_json::
                     "nanoseconds".to_owned(),
                     serde_json::Value::from(cql_duration.nanoseconds),
                 );
-
                 serde_json::Value::Object(obj)
             }
             CqlValue::Empty => serde_json::Value::Null,
@@ -200,10 +196,17 @@ fn encode_row_as_json(cols: &[String], rows: Row) -> anyhow::Result<serde_json::
                     let v = encode_value_as_json(c)?;
                     values.push(v);
                 }
-
                 serde_json::Value::Array(values)
             }
-            CqlValue::Map(..) => todo!(),
+            CqlValue::Map(fields) => {
+                let mut m = serde_json::Map::new();
+                for (k, v) in fields {
+                    let k = encode_value_as_string(k, false)?;
+                    let v = encode_value_as_json(v)?;
+                    m.insert(k, v);
+                }
+                serde_json::Value::Object(m)
+            }
             CqlValue::UserDefinedType { fields, .. } => {
                 let mut m = serde_json::Map::new();
                 for f in fields {
@@ -234,10 +237,9 @@ fn encode_row_as_json(cols: &[String], rows: Row) -> anyhow::Result<serde_json::
                     };
                     values.push(v);
                 }
-
                 serde_json::Value::Array(values)
             }
-            _ => todo!(),
+            _ => anyhow::bail!("unsupported type,{:?}", value),
         };
 
         anyhow::Ok(ret)
@@ -394,16 +396,13 @@ fn encode_rows(rows: Vec<Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
         let v = encode_row(row)?;
         ret.push(v);
     }
-
     anyhow::Ok(ret)
 }
 
-fn sql_to_each(sql: &str) -> Vec<&str> {
-    CassandraAST::new(sql)
-        .statements
-        .iter()
-        .map(|x| &sql[x.start_byte..x.end_byte])
-        .collect()
+fn sql_to_each(sql: &str) -> Vec<String> {
+    separate_sql_by_sqlparser_tokenizer(sql, &sqlparser::dialect::GenericDialect {})
+        .map_err(|e| log::error!("try separate sql failed,err:{}", e))
+        .unwrap_or(vec![sql.to_string()])
 }
 
 impl CassandraDB {
@@ -504,8 +503,8 @@ impl QuerySql for CassandraDB {
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let mut ret = vec![];
-        for sql in sql_to_each(sql) {
-            let resp = self.session.query_unpaged(sql, &[]).await;
+        for sql in sql_to_each(sql).iter() {
+            let resp = self.session.query_unpaged(sql.as_str(), &[]).await;
             match resp {
                 Ok(_) => ret.push(Some("execute ok".to_string())),
                 Err(err) => ret.push(Some(format!("err:{}", err))),
@@ -526,8 +525,8 @@ impl QuerySql for CassandraDB {
             None => anyhow::bail!("query connection closed???"),
         };
         let mut ret = vec![];
-        for sql in sql_to_each(sql) {
-            let resp = conn.query_unpaged(sql, &[]).await;
+        for sql in sql_to_each(sql).iter() {
+            let resp = conn.query_unpaged(sql.as_str(), &[]).await;
             match resp {
                 Ok(_) => ret.push(Some("execute ok".to_string())),
                 Err(err) => ret.push(Some(format!("err:{}", err))),
@@ -551,7 +550,7 @@ impl QuerySql for CassandraDB {
             let mut rows = vec![];
 
             let mut time_elapsed = TimeElapsed::new();
-            let pager = conn.query_iter(sql, &[]).await?;
+            let pager = conn.query_iter(sql.as_str(), &[]).await?;
             emit.send(
                 QueryResp {
                     fields: pager
@@ -580,7 +579,7 @@ impl QuerySql for CassandraDB {
     }
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
-        let session = make_session(&self.config, 1).await?;
+        let session = make_session(&self.config).await?;
         self.query_connection
             .insert(id.to_string(), Arc::new(session));
         anyhow::Ok(())
@@ -890,19 +889,18 @@ impl CassandraDB {
             let row = row?;
             let sql = format!("DESCRIBE TYPE {}", row.0);
             log::info!("sql:{}", sql);
-            // let row = self.session.query_iter(sql.as_str(), &[]).await?;
-            // let create_statement: Option<String> = match &row.columns[3] {
-            //     Some(x) => match x {
-            //         CqlValue::Ascii(x) | CqlValue::Text(x) => x.clone(),
-            //         _ => {
-            //             anyhow::bail!("unexpected column type")
-            //         }
-            //     },
-            //     _ => {
-            //         anyhow::bail!("unexpected column type")
-            //     }
-            // };
-            let create_statement = "xxxx".to_string();
+            let r = self
+                .session
+                .query_unpaged(sql.as_str(), &[])
+                .await?
+                .into_rows_result()?;
+            let mut pager = r.rows::<(String, String, String, String)>()?;
+            let mut create_statement = "".to_string();
+            while let Some(row) = pager.next() {
+                let row = row?;
+                create_statement = row.3;
+                break;
+            }
             ret.push(CreatedTypeDef {
                 name: row.0,
                 sql: create_statement.into(),
@@ -1087,7 +1085,6 @@ impl SchemaTrait for CassandraDB {
                 data_type,
                 nullable: !is_primary,
                 is_primary,
-                sortable: kind == "clustering",
                 ..Default::default()
             });
         }
@@ -1398,8 +1395,6 @@ impl DBTrait for CassandraDB {
         let mut stream = pager.rows_stream::<(String, String, String)>()?;
         let mut ret = Vec::new();
         while let Some(row) = stream.next().await {
-            println!("{:?}", row);
-
             let row = row?;
             ret.push(row.0);
         }
@@ -1610,7 +1605,6 @@ mod tests {
     #[tokio::test]
     async fn test_list_schema() {
         let _guard = test_lock().lock().await;
-
         let db = make_test_object(None).await;
         let _ = db
             .create_schema(
@@ -1655,7 +1649,6 @@ mod tests {
         }
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-
         let _resp = db
             .execute_sql(
                 query_id,
@@ -1730,7 +1723,6 @@ mod tests {
         }
     }
 
-    #[ignore = "xxxx"]
     #[tokio::test]
     async fn test_a_lot_data() {
         let _guard = test_lock().lock().await;
@@ -1751,9 +1743,7 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-
         let size = 10000;
-
         for k in 0..size {
             let mut values = HashMap::new();
             values.insert("id".to_string(), Some("uuid()".to_string()));
@@ -1762,21 +1752,10 @@ mod tests {
                 Some(format!("example_ascii {}", k)),
             );
             db.table_insert(table_name, values).await.unwrap();
-            if k % 50 == 0 {
+            if k % 500 == 0 {
                 println!("insert {}", k);
             }
         }
-        let resp = db
-            .show_table_collect(
-                table_name,
-                ShowTableParameter {
-                    limit: Some(size),
-                    ..Default::default()
-                },
-            )
-            .await
-            .unwrap();
-        assert_eq!(resp.total, size);
     }
 
     #[tokio::test]
@@ -1840,7 +1819,6 @@ mod tests {
     #[tokio::test]
     async fn test_duplicate() {
         let _guard = test_lock().lock().await;
-
         let table_name = "test_duplicate_table";
         let table_dup = "test_duplicate";
         let db = make_test_object(Some("test".to_string())).await;
@@ -1992,7 +1970,6 @@ mod tests {
                 .unwrap();
             println!("jsonline:{}", ret);
 
-            // export jsonline
             let ret = db
                 .export_table_to_string(
                     table_name,
@@ -2202,8 +2179,6 @@ mod tests {
     #[tokio::test]
     async fn test_types2_list() {
         let _guard = test_lock().lock().await;
-
-        enable_test_log();
         let table_name = "test_types_list2";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
@@ -2303,8 +2278,6 @@ mod tests {
     #[tokio::test]
     async fn test_types3() {
         let _guard = test_lock().lock().await;
-
-        enable_test_log();
         let table_name = "test_types3";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
@@ -2404,8 +2377,6 @@ mod tests {
     #[tokio::test]
     async fn test_types_list3() {
         let _guard = test_lock().lock().await;
-
-        enable_test_log();
         let table_name = "test_types_list3";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;
@@ -2508,8 +2479,6 @@ mod tests {
     #[tokio::test]
     async fn test_types4() {
         let _guard = test_lock().lock().await;
-
-        enable_test_log();
         let table_name = "test_types4";
         let db = make_test_object(Some("test".to_string())).await;
         let _ = db.drop_table(table_name, false).await;

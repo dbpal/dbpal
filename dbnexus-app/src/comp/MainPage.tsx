@@ -44,7 +44,9 @@ function ShowPanic() {
         const x = await readTextFile(filepath);
         setPanicInfo(x);
       } catch (e) {
-        console.error("trying to get panic info failed", e);
+        if (import.meta.env.DEV) {
+          console.error("trying to get panic info failed", e);
+        }
       }
     })();
   }, []);

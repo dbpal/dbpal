@@ -734,9 +734,8 @@ impl FireBirdDB {
                 nullable: nullable == "YES",
                 default_value,
                 is_primary,
-                is_auto_increment: false,
-                sortable: true,
                 firebird_binary_sub_type: sub_type,
+                ..Default::default()
             });
         }
         anyhow::Ok(ret)

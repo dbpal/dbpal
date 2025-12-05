@@ -91,7 +91,7 @@ import {
 import { editor, Position } from "monaco-editor";
 import wcmatch from "wildcard-match";
 import { MdEditNote } from "react-icons/md";
-import { SimpleFlexEditor } from "./CommonComp2";
+import { SimpleFlexEditor, SliderSize } from "./CommonComp2";
 import {
   makePutValueInSql,
   makeTableDelete,
@@ -100,7 +100,6 @@ import {
   showTable,
 } from "./handlers";
 import { invoke } from "@tauri-apps/api/core";
-
 const confirmAboutPrimary = async (
   notWarnPri: boolean,
   fields: types.Field[],
@@ -351,7 +350,12 @@ function EditInModal(props: { content: string; handleModify }) {
 }
 
 class EditInModalCellData {
-  constructor(public row: object, public field: string, public content: string) {}
+  constructor(
+    public row: object,
+    public field: string,
+    public content: string,
+    public rowId: number,
+  ) {}
 }
 
 function makeExtractTableSelectWhere(uuid: string) {
@@ -383,7 +387,6 @@ function SqlTableView(props: {
   const deleteOP = makeTableDelete(uuid, tableName);
   const put_value_in_sql = makePutValueInSql(uuid);
   const addOP = makeTableInsertFn(uuid, tableName);
-
   const [loading, setLoading] = useState(false);
   const [where, setWhere] = useState("");
   const [showSetWhere, setShowSetWhere] = useState(false);
@@ -391,7 +394,6 @@ function SqlTableView(props: {
   const [showSetSort, setShowSetSort] = useState(false);
   const [page, setPage] = useState(0);
   const setting = useContext(SettingContext);
-
   const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
   const [resp, setResp] = useState<MuiDataGridData>({
     sql: "",
@@ -401,11 +403,14 @@ function SqlTableView(props: {
     cache_time: null,
     has_more: false,
   });
+  const clientModelLimit = useRef<number>(1000);
   const { showNotification } = useContext(NotificationContext);
-
   const [allowFiltering, setAllowFiltering] = useState(false);
   const [editCellInModal, setEditCellInModal] = useState<EditInModalCellData>(null);
-  const [editInModalRow, setEditInModalRow] = useState<object>(null);
+  const [editRowInModal, setRowEditInModal] = useState<{ row: object; rowId: number }>(
+    null,
+  );
+  const clientModel = [DataSourceKind.Cassandra].includes(kind);
   const [viewInModal, setViewInModal] = useState<object>(null);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
   const handleResp = (resp: MuiDataGridData) => {
@@ -468,7 +473,9 @@ function SqlTableView(props: {
           page: page + 1,
           page_size: pageSize,
           allow_filtering: allowFiltering,
+          limit: clientModelLimit.current,
         },
+        silent: true,
         name: tableName,
         isView: !isTable,
         uuid,
@@ -501,7 +508,7 @@ function SqlTableView(props: {
   );
 
   const handleProcessRowUpdate = useCallback(
-    async (newRow: object, oldRow: object) => {
+    async (newRow: object, oldRow: object, { rowId }) => {
       if (!updateOP) {
         return newRow;
       }
@@ -533,14 +540,17 @@ function SqlTableView(props: {
             <Typography> row affected :{ret.changes} </Typography>
           </Stack>,
         );
-        handleReload(false);
+        handleResp({
+          ...resp,
+          data: resp.data.map((e, index) => (index == rowId ? newRow : e)),
+        });
       } catch (e) {
         showNotification("error", "update failed", e);
         throw e;
       }
       return newRow;
     },
-    [handleReload, notWarnPri, resp.fields, showNotification, updateOP],
+    [notWarnPri, resp, showNotification, updateOP],
   );
 
   const handleDelete = useCallback(
@@ -648,10 +658,12 @@ function SqlTableView(props: {
                   setShowExportMarkDown(true);
                 }}
                 editCellInModal={() => {
-                  setEditCellInModal(new EditInModalCellData(row, field, row[field]));
+                  setEditCellInModal(
+                    new EditInModalCellData(row, field, row[field], parseInt(id)),
+                  );
                 }}
                 editRowInModal={() => {
-                  setEditInModalRow(row);
+                  setRowEditInModal({ row, rowId: parseInt(id) });
                 }}
                 nullable={nullable}
                 fields={resp.fields}
@@ -768,6 +780,7 @@ function SqlTableView(props: {
   const slots = useMemo(() => {
     return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
   }, []);
+  const someModel = clientModel ? "client" : "server";
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" style={{ alignItems: "center" }}>
@@ -819,8 +832,17 @@ function SqlTableView(props: {
             />
           </>
         )}
+        {clientModel && (
+          <SliderSize
+            notice=""
+            min={1000}
+            max={100000}
+            storeKey="sqltable-limit"
+            step={1000}
+            valueRef={clientModelLimit}
+          />
+        )}
       </Stack>
-
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography
           sx={{
@@ -859,14 +881,14 @@ function SqlTableView(props: {
         rowHeight={setting.appearance.datagridRowHeight()}
         columnHeaderHeight={setting.appearance.datagridRowHeight()}
         getRowId={getRowId}
-        paginationModel={paginationModel}
+        paginationModel={clientModel ? undefined : paginationModel}
         pageSizeOptions={pageSizeOptions}
-        paginationMode="server"
-        onPaginationModelChange={onPaginationModelChange}
+        paginationMode={someModel}
+        onPaginationModelChange={clientModel ? undefined : onPaginationModelChange}
         checkboxSelection={false}
-        rowCount={resp.total}
-        sortingMode="server"
-        onSortModelChange={onSortModelChange}
+        rowCount={clientModel ? resp.data.length : resp.total}
+        sortingMode={clientModel ? "client" : "server"}
+        onSortModelChange={clientModel ? undefined : onSortModelChange}
         columns={resp.fields}
         rows={resp.data}
         onColumnResize={onColumnResize}
@@ -923,7 +945,9 @@ function SqlTableView(props: {
               handleModify={async value => {
                 const newRow = { ...editCellInModal.row };
                 newRow[editCellInModal.field] = value;
-                await handleProcessRowUpdate(newRow, editCellInModal.row);
+                await handleProcessRowUpdate(newRow, editCellInModal.row, {
+                  rowId: editCellInModal[keyNotInTable],
+                });
                 handleReload(false);
                 setEditCellInModal(null);
               }}
@@ -931,12 +955,12 @@ function SqlTableView(props: {
           </Box>
         </Modal>
       )}
-      {editInModalRow && (
+      {editRowInModal && (
         <Modal
-          open={!!editInModalRow}
+          open={!!editRowInModal}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
-            setEditInModalRow(null);
+            setRowEditInModal(null);
           })}
         >
           <Box
@@ -947,19 +971,21 @@ function SqlTableView(props: {
             <ModalHeader
               title="edit row"
               handleClose={() => {
-                setEditInModalRow(null);
+                setRowEditInModal(null);
               }}
             />
             <SqlTableViewData
-              initValues={editInModalRow}
+              initValues={editRowInModal.row}
               buttonName="modify"
               fields={resp.fields}
               isAdd={false}
               handleData={async args => {
-                await handleProcessRowUpdate(args, editInModalRow);
+                await handleProcessRowUpdate(args, editRowInModal.row, {
+                  rowId: editRowInModal.rowId,
+                });
                 handleReload(false);
               }}
-              handleClose={() => setEditInModalRow(null)}
+              handleClose={() => setRowEditInModal(null)}
             />
           </Box>
         </Modal>
@@ -1078,14 +1104,14 @@ function SqlTableViewData(props: {
     setLoading(true);
     handleData(argsclone)
       .then(() => {
-        console.info("insert done");
+        console.log("handle value success");
         showNotification("success", `${buttonName} OK`);
         if (handleClose) {
           handleClose();
         }
       })
       .catch(e => {
-        console.error("insert failed");
+        console.error("handle value failure", e);
         showNotification("error", `${buttonName} failure`, e);
       })
       .finally(() => {

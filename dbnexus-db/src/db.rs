@@ -1074,7 +1074,7 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     }
 
     fn query_buffer_size(&self) -> usize {
-        if cfg!(debug_assertions) { 777 } else { 1000 }
+        if cfg!(debug_assertions) { 77 } else { 1000 }
     }
 
     async fn set_auto_commit(&self, _query_id: &str, _commit: bool) -> anyhow::Result<()> {
@@ -1298,7 +1298,7 @@ impl QueryResp {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, TypeDef, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, serde::Serialize, TypeDef, PartialEq, Eq)]
 pub struct Field {
     pub field: String,
     pub data_type: String,
@@ -1309,9 +1309,24 @@ pub struct Field {
     pub is_primary: bool,
     //
     pub is_auto_increment: bool,
+    // right now all of implementation are sortable
     pub sortable: bool,
-
     pub firebird_binary_sub_type: Option<i64>,
+}
+
+impl Default for Field {
+    fn default() -> Self {
+        Self {
+            field: "".to_string(),
+            data_type: "".to_string(),
+            nullable: true,
+            default_value: None,
+            is_primary: false,
+            is_auto_increment: false,
+            sortable: true,
+            firebird_binary_sub_type: None,
+        }
+    }
 }
 
 impl Field {
@@ -1324,10 +1339,6 @@ impl Field {
             data_type: typ,
             ..Default::default()
         }
-    }
-
-    pub fn with_sortable(&mut self, sortable: bool) {
-        self.sortable = sortable;
     }
 }
 

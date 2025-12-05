@@ -959,7 +959,7 @@ function EditorOptions(props: {
 function makeComponents(fontWeight: string | number, intputVariant: string) {
   const components: Components<Omit<Theme, "components" | "palette"> & CssVarsTheme> = {
     MuiCircularProgress: {
-      defaultProps: { size: "1.4rem" },
+      defaultProps: { size: "1.2rem" },
     },
     MuiButton: {
       styleOverrides: {

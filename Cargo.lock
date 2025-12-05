@@ -659,7 +659,6 @@ dependencies = [
  "num-bigint",
  "num-integer",
  "num-traits",
- "serde",
 ]
 
 [[package]]
@@ -1369,14 +1368,13 @@ dependencies = [
 [[package]]
 name = "cql3-parser"
 version = "0.4.2"
-source = "git+https://github.com/dbpal/rust-cql3-parser?rev=89aef5f99854449a78dc37a17363823f889374c8#89aef5f99854449a78dc37a17363823f889374c8"
+source = "git+https://github.com/shotover/rust-cql3-parser?branch=main#6aaba668aaf659379375338427d1b26f7a726c91"
 dependencies = [
  "bigdecimal",
  "bytes",
  "hex",
  "itertools 0.13.0",
  "num-bigint",
- "serde",
  "tree-sitter",
  "tree-sitter-cql",
  "uuid",
@@ -4674,7 +4672,6 @@ checksum = "a5e44f723f1133c9deac646763579fdb3ac745e418f2a7af9cd0c431da1f20b9"
 dependencies = [
  "num-integer",
  "num-traits",
- "serde",
 ]
 
 [[package]]
