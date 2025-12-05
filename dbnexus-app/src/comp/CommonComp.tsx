@@ -114,7 +114,7 @@ function SelectAlign(props: { align: "left" | "right" | "center"; handleChange }
 }
 
 function LogLevelSelection({ handleChange, level }) {
-  const levels = ["trace", "debug", "info", "warn", "error"];
+  const levels = ["none", "trace", "debug", "info", "warn", "error"];
   return (
     <Autocomplete
       options={levels}

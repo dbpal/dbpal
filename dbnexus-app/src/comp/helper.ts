@@ -825,7 +825,7 @@ function editorSetPositionAndReveal(
 }
 
 class LoggerLevel {
-  static level: string = "info";
+  static level: string = "none";
   static async set(level: string) {
     LoggerLevel.level = level;
     await appStore.set(AppStoreKey.LoggerLevel, level);

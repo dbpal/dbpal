@@ -17,10 +17,8 @@ use dbnexus_db::db::{
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
 use dbnexus_db::libsql::LibSqlDB;
-
 use dbnexus_db::mongo::MongoDB;
 use dbnexus_db::mssql::SqlServerDB;
-
 use dbnexus_db::mysql::MysqlDB;
 use dbnexus_db::oracle::OracleDB;
 use dbnexus_db::pg::PostGresDB;
@@ -89,11 +87,6 @@ pub async fn cancel_task(
         )));
     }
     Ok(())
-}
-
-pub fn log_channel_store() -> &'static std::sync::Mutex<Option<Channel<String>>> {
-    static X: std::sync::Mutex<Option<Channel<String>>> = std::sync::Mutex::new(None);
-    &X
 }
 
 #[tauri::command]
@@ -195,16 +188,6 @@ pub fn get_redis_doc(line: &str) -> Result<String, ErrorFrontend> {
             tokens[0].value()
         ))),
     }
-}
-
-#[tauri::command]
-
-pub fn close_log_channel() {
-    *log_channel_store().lock().expect("lock poisoned") = None;
-}
-#[tauri::command]
-pub fn log_channel(on_event: Channel<String>) {
-    *log_channel_store().lock().expect("lock poisoned") = Some(on_event);
 }
 
 #[tauri::command]

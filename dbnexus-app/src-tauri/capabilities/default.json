@@ -1,7 +1,9 @@
 {
   "identifier": "main-capability",
   "description": "Capability for the main window",
-  "windows": ["*"],
+  "windows": [
+    "*"
+  ],
   "permissions": [
     "core:path:default",
     "core:event:default",
@@ -42,11 +44,19 @@
     "fs:allow-read-text-file",
     {
       "identifier": "fs:scope",
-      "allow": ["**/*", "$APPDATA/*", "$LOG/**"]
+      "allow": [
+        "**/*",
+        "$APPDATA/*",
+        "$LOG/**"
+      ]
     },
     {
       "identifier": "http:default",
-      "allow": [{ "url": "https://**" }]
+      "allow": [
+        {
+          "url": "https://**"
+        }
+      ]
     },
     "opener:default",
     "os:default",
@@ -79,6 +89,7 @@
         }
       ]
     },
-    "http:default"
+    "http:default",
+    "log:default"
   ]
 }

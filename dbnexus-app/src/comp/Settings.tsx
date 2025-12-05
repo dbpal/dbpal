@@ -48,6 +48,7 @@ import {
   LLMConfig,
   LLMConfigContext,
   shrinkAble,
+  LoggerLevel,
 } from "./helper";
 import { Position } from "monaco-editor";
 import { invoke } from "@tauri-apps/api/core";
@@ -63,7 +64,7 @@ import { message } from "@tauri-apps/plugin-dialog";
 import { Editor } from "@monaco-editor/react";
 import { listen } from "@tauri-apps/api/event";
 import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
-import { ModalHeader } from "./CommonComp";
+import { LogLevelSelection, ModalHeader } from "./CommonComp";
 
 function AppearanceSetting() {
   const setting = UserSettingAppearance.get();
@@ -810,6 +811,16 @@ function MiscSetting() {
           }}
         />
       </Stack>
+      <Stack direction="row" sx={{ alignItems: "center" }}>
+        <Typography width={headerSize}>logger level</Typography>
+        <LogLevelSelection
+          level={LoggerLevel.level}
+          handleChange={level => {
+            LoggerLevel.set(level);
+          }}
+        />
+      </Stack>
+
       <Divider />
       <Stack direction="row">
         <Button onClick={handleSave}>save</Button>

@@ -4,56 +4,55 @@
 
 mod app;
 mod handlers;
-use std::ops::DerefMut;
-use std::panic;
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::Arc;
-
 use crate::app::generate_random_string;
-use crate::handlers::{TaskManager, log_channel_store};
+use crate::handlers::TaskManager;
 use app::DBPal;
 use handlers::{
     add_table_column, ai_get_search_path, ai_text_completion, all_font_family, auto_completion,
     cancel_task, cassandra_drop_aggregate, cassandra_list_aggregate, cassandra_show_aggregate,
-    check_conn, check_sql, close_conn, close_log_channel, command_panic, conn_opened,
-    create_database, create_index, create_schema, create_table_and_index_sql, create_view_sql,
-    disable_trigger, drop_created_type, drop_database, drop_event, drop_index,
-    drop_materialized_view, drop_procedure, drop_schema, drop_sequence, drop_table,
-    drop_table_column, drop_trigger, drop_udf, drop_view, duplicate_table, enable_trigger,
-    establish_conn, execute_sql, execute_sql_no_open_conn, export_query_result_to_file,
-    export_table_or_view, extract_table_select_selection, extract_table_select_sort, get_locale,
-    get_redis_doc, get_redis_type_hint, is_dangerous_sql, list_created_types, list_data_types,
-    list_database, list_event, list_materialized_view, list_procedure, list_schema, list_sequence,
-    list_sql_current_values, list_table, list_udf, list_view, log_channel, modify_table_column,
-    monaco_editor_themes, mongo_create_index, mongo_delete_ids, mongo_get_one_document_by_id,
-    mongo_insert, mongo_list_time_serial_collection, mongo_query_collection_count_docs,
-    mongo_query_collection_create_index, mongo_query_collection_create_search_index,
-    mongo_query_collection_delete_many, mongo_query_collection_delete_one,
-    mongo_query_collection_distinct, mongo_query_collection_drop,
-    mongo_query_collection_drop_index, mongo_query_collection_drop_indexes,
-    mongo_query_collection_drop_search_index, mongo_query_collection_find,
-    mongo_query_collection_find_one, mongo_query_collection_find_one_and_delete,
-    mongo_query_collection_find_one_and_replace, mongo_query_collection_insert_many,
-    mongo_query_collection_insert_one, mongo_query_collection_list_index_names,
-    mongo_query_collection_list_indexes, mongo_query_collection_list_search_indexes,
-    mongo_query_collection_replace_one, mongo_query_collection_update_many,
-    mongo_query_collection_update_one, mongo_query_db_drop, mongo_query_db_list_collection_names,
-    mongo_query_db_run_command, mongo_show_collection_docs, mongo_show_collection_table_list,
-    mongo_update_one, page_init_callback, put_value_in_sql, query_commit, query_get_commit,
-    query_rollback, query_set_autocommit, query_sql, query_sql_close_connection,
-    query_sql_open_connection, redis_hash_add, redis_hash_del, redis_hash_replace,
-    redis_list_lpush, redis_list_remove, redis_list_rpush, redis_list_set, redis_list_table,
-    redis_set_add, redis_set_del, redis_set_replace, redis_string_set, redis_zset_add,
-    redis_zset_del, redis_zset_replace, rename_index, rename_sequence, rename_table, server_metas,
-    show_indexes, show_procedure, show_table, show_table_columns, show_trigger, show_udf,
-    show_view_columns, table_delete, table_insert, table_update, test_connection, truncate_table,
-    try_get_max_id, try_list_database_schema_candidates, valid_json,
+    check_conn, check_sql, close_conn, command_panic, conn_opened, create_database, create_index,
+    create_schema, create_table_and_index_sql, create_view_sql, disable_trigger, drop_created_type,
+    drop_database, drop_event, drop_index, drop_materialized_view, drop_procedure, drop_schema,
+    drop_sequence, drop_table, drop_table_column, drop_trigger, drop_udf, drop_view,
+    duplicate_table, enable_trigger, establish_conn, execute_sql, execute_sql_no_open_conn,
+    export_query_result_to_file, export_table_or_view, extract_table_select_selection,
+    extract_table_select_sort, get_locale, get_redis_doc, get_redis_type_hint, is_dangerous_sql,
+    list_created_types, list_data_types, list_database, list_event, list_materialized_view,
+    list_procedure, list_schema, list_sequence, list_sql_current_values, list_table, list_udf,
+    list_view, modify_table_column, monaco_editor_themes, mongo_create_index, mongo_delete_ids,
+    mongo_get_one_document_by_id, mongo_insert, mongo_list_time_serial_collection,
+    mongo_query_collection_count_docs, mongo_query_collection_create_index,
+    mongo_query_collection_create_search_index, mongo_query_collection_delete_many,
+    mongo_query_collection_delete_one, mongo_query_collection_distinct,
+    mongo_query_collection_drop, mongo_query_collection_drop_index,
+    mongo_query_collection_drop_indexes, mongo_query_collection_drop_search_index,
+    mongo_query_collection_find, mongo_query_collection_find_one,
+    mongo_query_collection_find_one_and_delete, mongo_query_collection_find_one_and_replace,
+    mongo_query_collection_insert_many, mongo_query_collection_insert_one,
+    mongo_query_collection_list_index_names, mongo_query_collection_list_indexes,
+    mongo_query_collection_list_search_indexes, mongo_query_collection_replace_one,
+    mongo_query_collection_update_many, mongo_query_collection_update_one, mongo_query_db_drop,
+    mongo_query_db_list_collection_names, mongo_query_db_run_command, mongo_show_collection_docs,
+    mongo_show_collection_table_list, mongo_update_one, page_init_callback, put_value_in_sql,
+    query_commit, query_get_commit, query_rollback, query_set_autocommit, query_sql,
+    query_sql_close_connection, query_sql_open_connection, redis_hash_add, redis_hash_del,
+    redis_hash_replace, redis_list_lpush, redis_list_remove, redis_list_rpush, redis_list_set,
+    redis_list_table, redis_set_add, redis_set_del, redis_set_replace, redis_string_set,
+    redis_zset_add, redis_zset_del, redis_zset_replace, rename_index, rename_sequence,
+    rename_table, server_metas, show_indexes, show_procedure, show_table, show_table_columns,
+    show_trigger, show_udf, show_view_columns, table_delete, table_insert, table_update,
+    test_connection, truncate_table, try_get_max_id, try_list_database_schema_candidates,
+    valid_json,
 };
 use std::io::Write;
+use std::panic;
+use std::path::PathBuf;
+use std::str::FromStr;
+use std::sync::OnceLock;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Wry};
-use tauri_plugin_store::{Store, StoreExt};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Wry};
+use tauri_plugin_log::{Target, TargetKind};
+use tauri_plugin_store::StoreExt;
 mod migration;
 use rustls::crypto::{CryptoProvider, aws_lc_rs};
 use std::fs::OpenOptions;
@@ -125,76 +124,48 @@ fn is_macos() -> bool {
     cfg!(target_os = "macos")
 }
 
-pub struct AppLogger {
-    config: Arc<Store<Wry>>,
-}
+static APP_HANDLE: OnceLock<AppHandle<Wry>> = OnceLock::new();
 
-impl AppLogger {
-    fn get_level(&self) -> log::Level {
-        let x = self.config.get("logger-level");
-        let r = x.and_then(|x| match x {
-            serde_json::Value::String(level) => match log::Level::from_str(&level) {
-                Ok(level) => Some(level),
-                Err(err) => {
-                    println!(
-                        "parse level failed,err:{:?} this is a bug from frontend",
-                        err
-                    );
-                    None
-                }
-            },
-            _ => None,
-        });
-        r.unwrap_or(log::Level::Info)
-    }
-}
-
-impl log::Log for AppLogger {
-    fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.level() <= self.get_level()
-    }
-
-    fn log(&self, record: &log::Record) {
-        if !self.enabled(record.metadata()) {
-            return;
-        }
-        let log_str = format!(
-            "{} {} {}-{}\n",
-            chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-            if cfg!(debug_assertions) {
-                format!(
-                    "{}:{}",
-                    record.file().unwrap_or_default(),
-                    record.line().unwrap_or_default(),
-                )
-            } else {
-                "".to_string()
-            },
-            record.level(),
-            record.args()
-        );
-        #[cfg(debug_assertions)]
-        println!("{}", log_str);
-        let mut sender = log_channel_store().lock().expect("lock failed");
-        if let Some(x) = sender.deref_mut() {
-            if let Err(e) = x.send(log_str) {
-                println!("send log failed:{}", e);
+fn get_logger_level() -> Option<log::Level> {
+    match APP_HANDLE.get() {
+        None => None,
+        Some(handle) => match handle.store(STORE_FILE) {
+            Ok(x) => {
+                let x = x.get("logger-level");
+                let r = x.and_then(|x| match x {
+                    serde_json::Value::String(level) => match level.as_str() {
+                        "none" => None,
+                        _ => match log::Level::from_str(&level) {
+                            Ok(level) => Some(level),
+                            Err(err) => {
+                                println!(
+                                    "parse level failed,err:{:?} this is a bug from frontend",
+                                    err
+                                );
+                                None
+                            }
+                        },
+                    },
+                    _ => None,
+                });
+                r
             }
-        }
+            Err(err) => {
+                eprint!("get store failed,err:{:?}", err);
+                None
+            }
+        },
     }
-
-    fn flush(&self) {}
 }
 
 const STORE_FILE: &str = "store.json";
 
 mod zoom {
+    use crate::STORE_FILE;
     use tauri::{AppHandle, Manager};
     use tauri_plugin_store::StoreExt;
-
-    use crate::STORE_FILE;
-
     pub(super) const STEP: f64 = 0.03;
+
     pub(crate) fn get_configured_zoom(handle: &AppHandle) -> anyhow::Result<f64> {
         let x = handle
             .get_store(STORE_FILE)
@@ -242,6 +213,7 @@ fn main() {
                 .app_log_dir()
                 .expect("should be able to get app data dir"),
         );
+        APP_HANDLE.set(app.handle().clone()).unwrap();
         #[cfg(debug_assertions)] // only include this code on debug builds
         {
             let window = app
@@ -249,21 +221,14 @@ fn main() {
                 .expect("should be able to get main window");
             window.open_devtools();
         }
-        {
-            let _store = app
-                .store(STORE_FILE)
-                .expect("should be able to create store");
-            let logger = AppLogger {
-                config: _store.clone(),
-            };
-            log::set_boxed_logger(Box::new(logger)).unwrap();
-            log::set_max_level(log::LevelFilter::Trace);
-        }
         Ok(())
     };
-    let log_window_id = generate_random_string(10);
     let setting_window_id = generate_random_string(10);
-    let builder = tauri::Builder::default();
+    let builder = tauri::Builder::default().plugin(
+        tauri_plugin_log::Builder::new()
+            .level(tauri_plugin_log::log::LevelFilter::Info)
+            .build(),
+    );
     let about_meta = AboutMetadata {
         website: Some("https://dbpal.site".to_string()),
         name: Some("dbpal".to_string()),
@@ -281,6 +246,21 @@ fn main() {
         .plugin(
             tauri_plugin_sql::Builder::new()
                 .add_migrations("sqlite:dbpal.sqlite.db", migration::migrations())
+                .build(),
+        )
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .filter(|meta| {
+                    let level = dbg!(get_logger_level());
+                    match level {
+                        Some(level) => dbg!(level >= meta.level()),
+                        None => false,
+                    }
+                })
+                .targets(vec![
+                    Target::new(TargetKind::LogDir { file_name: None }),
+                    Target::new(TargetKind::Stdout),
+                ])
                 .build(),
         )
         .plugin(tauri_plugin_process::init())
@@ -387,20 +367,11 @@ fn main() {
                         handle,
                         "about",
                         true,
-                        &[
-                            &MenuItem::with_id(
-                                handle,
-                                "open_logger_window",
-                                "open logger window",
-                                true,
-                                None as Option<&'static str>,
-                            )?,
-                            &PredefinedMenuItem::about(
-                                handle,
-                                Some("make database management easy."),
-                                Some(about_meta),
-                            )?,
-                        ],
+                        &[&PredefinedMenuItem::about(
+                            handle,
+                            Some("make database management easy."),
+                            Some(about_meta),
+                        )?],
                     )?,
                 ],
             )
@@ -474,24 +445,6 @@ fn main() {
                 zoom::set_webview_zoom(handle, zoom);
                 if let Err(err) = zoom::configure_zoom(handle, zoom) {
                     log::error!("set zoom failed:{}", err);
-                }
-            }
-            if event.id.0 == "open_logger_window" {
-                if let Some(window) = handle.get_webview_window(&log_window_id) {
-                    if let Err(err) = window.set_focus() {
-                        log::error!("set focus failed:{}", err);
-                    }
-                } else if let Err(err) = WebviewWindowBuilder::new(
-                    handle,
-                    log_window_id.clone(),
-                    WebviewUrl::App("log_window.html".to_string().into()),
-                )
-                .title("view log")
-                .inner_size(800f64, 600f64)
-                .maximized(true)
-                .build()
-                {
-                    log::error!("create log file window failed:{}", err);
                 }
             }
         })
@@ -625,8 +578,6 @@ fn main() {
             drop_event,
             extract_table_select_selection,
             extract_table_select_sort,
-            log_channel,
-            close_log_channel,
             get_redis_doc,
             monaco_editor_themes,
             ai_text_completion,
