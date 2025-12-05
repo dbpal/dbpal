@@ -249,11 +249,10 @@ fn main() {
                 .expect("should be able to get main window");
             window.open_devtools();
         }
-        let _store = app
-            .store(STORE_FILE)
-            .expect("should be able to create store");
-        #[cfg(not(debug_assertions))]
         {
+            let _store = app
+                .store(STORE_FILE)
+                .expect("should be able to create store");
             let logger = AppLogger {
                 config: _store.clone(),
             };
@@ -264,14 +263,7 @@ fn main() {
     };
     let log_window_id = generate_random_string(10);
     let setting_window_id = generate_random_string(10);
-    #[cfg(debug_assertions)] // only enable instrumentation in development builds
-    let devtools = tauri_plugin_devtools::init();
-    #[allow(unused_mut)]
-    let mut builder = tauri::Builder::default();
-    #[cfg(debug_assertions)]
-    {
-        builder = builder.plugin(devtools);
-    }
+    let builder = tauri::Builder::default();
     let about_meta = AboutMetadata {
         website: Some("https://dbpal.site".to_string()),
         name: Some("dbpal".to_string()),
