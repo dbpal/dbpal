@@ -11,18 +11,16 @@ use duckdb::arrow::datatypes::DataType;
 use duckdb::types::TimeUnit;
 use r2d2::PooledConnection;
 use tokio::sync::Mutex;
-use tokio::task::block_in_place;
+use tokio::task::{block_in_place, spawn_blocking};
 
 use crate::datasource_config::DuckDBConfig;
 use crate::db::{
-    CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
+    BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
-    IndexKind, ListTable, ListTable, NamedStaff, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableExtraArgs, SqlBuilder, SqlExecuteRet, not_support_features,
+    IndexKind, ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, not_support_feature,
 };
-use crate::helper::{SqlKind, SqlWithKind, create_csv, is_dangerous_sql_by_parser, sql_to_sql_seq};
-
-use crate::query_log::{QueryLogEvent, QueryLogMap};
+use crate::helper::create_csv;
 pub struct PoolManage {
     path: String,
 }
@@ -75,7 +73,6 @@ pub struct DuckDB {
     pub(crate) config: DuckDBConfig,
     pool: r2d2::Pool<PoolManage>,
     query_connection: Arc<DashMap<String, Arc<Mutex<duckdb::Connection>>>>,
-    query_logs: QueryLogMap,
 }
 
 #[async_trait::async_trait]
@@ -102,10 +99,8 @@ impl DuckDB {
             config,
             pool,
             query_connection: Default::default(),
-            query_logs: Default::default(),
         })
     }
-
     pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<PoolManage>> {
         let conn = block_in_place(|| self.pool.get())?;
 
@@ -142,8 +137,8 @@ impl CheckConn for DuckDB {
 }
 
 impl GetBackendKind for DuckDB {
-    fn backend_name(&self) -> &str {
-        "duckdb"
+    fn backend_name(&self) -> BackendKind {
+        BackendKind::DuckDB
     }
 }
 
@@ -343,16 +338,6 @@ fn encode_row_as_json<'stmt>(
     }
 }
 
-fn get_sql_seq(sql: &str) -> anyhow::Result<Vec<SqlWithKind>> {
-    let dialect = sqlparser::dialect::DuckDbDialect {};
-    sql_to_sql_seq(
-        sql,
-        &dialect,
-        |s| SqlKind::get_from_statement(s),
-        |x| SqlKind::get_from_sql(x),
-    )
-}
-
 impl DuckDB {
     fn query_resp(conn: &Connection, sql: &str) -> anyhow::Result<QueryResp> {
         let mut stmt = conn.prepare(sql)?;
@@ -386,10 +371,6 @@ impl SqlBuilder for DuckDB {
     ) -> anyhow::Result<String> {
         put_value_in_sql(typ, value)
     }
-
-    fn type_support_compare(&self, typ: &str) -> bool {
-        type_support_compare(typ)
-    }
 }
 
 #[async_trait::async_trait]
@@ -404,7 +385,7 @@ impl ExportQueryResult for DuckDB {
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -418,56 +399,22 @@ impl ExportQueryResult for DuckDB {
             ExportKind::Sql {
                 include_table_schema: _,
             } => ExportKind::cannot_query_result_export_as_sql(),
+            ExportKind::Xlsx { include_header } => todo!(),
+            ExportKind::Html { include_header } => todo!(),
         }
     }
 }
 #[async_trait::async_trait]
 impl QuerySql for DuckDB {
-    fn get_query_log(&self, id: uuid::Uuid) -> anyhow::Result<Vec<QueryLogEvent>> {
-        anyhow::Ok(self.query_logs.get(&id))
-    }
-
     async fn query_sql(
-        &self, query_id: &str, sql: &str,
-    ) -> anyhow::Result<Vec<Result<QueryResp, String>>> {
-        let mut _log_guard = self.query_logs.get_guard(query_id, sql);
-        let conn = match self.query_connection.get(&query_id.to_string()) {
-            Some(x) => x.clone(),
-            None => anyhow::bail!("connection closed???"),
-        };
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-
-        let ss = match get_sql_seq(sql) {
-            Ok(x) => x,
-            Err(_err) => {
-                vec![SqlWithKind {
-                    sql: sql.to_string(),
-                    kind: SqlKind::Query,
-                }]
-            }
-        };
-        let mut ret = Vec::new();
-        for s in ss.iter() {
-            match s.kind {
-                SqlKind::Query => match Self::query_resp(&conn, &s.sql) {
-                    Ok(x) => ret.push(Ok(x)),
-                    Err(err) => ret.push(Err(err.to_string())),
-                },
-                _ => match conn.execute(&s.sql, []) {
-                    Ok(x) => ret.push(Ok(QueryResp::row_affected(x as u64, s.sql.to_string()))),
-                    Err(err) => ret.push(Err(err.to_string())),
-                },
-            }
-        }
-        _log_guard.set_success(ret.iter().all(|x| x.is_ok()));
-        anyhow::Ok(ret)
+        &self, query_id: &str, _sql: &str, max_row: usize, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
+        unimplemented!()
     }
 
     async fn execute_sql(
         &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut _log_guard = self.query_logs.get_guard(query_id, sql);
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
@@ -478,21 +425,25 @@ impl QuerySql for DuckDB {
             Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
             Err(err) => Err(err.to_string()),
         };
-        _log_guard.set_success(resp.is_ok());
         anyhow::Ok(resp)
     }
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
-        let uuid = uuid::Uuid::new_v4();
         let conn = make_conn(&self.config.path)?;
         self.query_connection
-            .insert(uuid, Arc::new(Mutex::new(conn)));
-        anyhow::Ok(uuid)
+            .insert(id.to_string(), Arc::new(Mutex::new(conn)));
+        anyhow::Ok(())
     }
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
-        self.query_connection.remove(&id);
+        self.query_connection.remove(&id.to_string());
         anyhow::Ok(())
+    }
+
+    async fn execute_sql_no_open_conn(
+        &self, sql: &str,
+    ) -> anyhow::Result<Result<QueryResp, String>> {
+        todo!()
     }
 }
 
@@ -870,7 +821,7 @@ impl DuckDB {
         let fs = self.show_table_columns(&table_name).await?;
         let mut parsed_types = Vec::with_capacity(fs.len());
         for f in fs.iter() {
-            parsed_types.push(parse_type(&f.typ)?);
+            parsed_types.push(parse_type(&f.data_type)?);
         }
         spawn_blocking(move || {
             let conn = handle.get_conn()?;
@@ -925,7 +876,7 @@ impl DuckDB {
         anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
     }
 
-    pub(crate) fn list_view_impl(&self, db: &str, schema: &str) -> anyhow::Result<Vec<NamedStaff>> {
+    pub(crate) fn list_view_impl(&self, db: &str, schema: &str) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             r#"SELECT table_name 
                 FROM information_schema.views 
@@ -941,7 +892,7 @@ impl DuckDB {
         }
         anyhow::Ok(
             ret.into_iter()
-                .map(|x| NamedStaff::from(x))
+                .map(|x| ListTable::from(x))
                 .collect::<Vec<_>>(),
         )
     }
@@ -972,7 +923,7 @@ impl SchemaTrait for DuckDB {
     async fn rename_index(
         &self, _table: &str, _old_name: &str, _new_name: &str,
     ) -> anyhow::Result<()> {
-        not_support_features(self.backend_name())
+        not_support_feature(self.backend_name())
     }
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
@@ -1140,7 +1091,7 @@ impl SchemaTrait for DuckDB {
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::CSV {
+            ExportKind::Csv {
                 include_header,
                 delimiter,
             } => {
@@ -1155,6 +1106,8 @@ impl SchemaTrait for DuckDB {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
+            ExportKind::Xlsx { include_header } => todo!(),
+            ExportKind::Html { include_header } => todo!(),
         }
     }
 
@@ -1211,17 +1164,26 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn show_view(
-        &self, view_name: &str, where_str: Option<&str>, order_by: Option<&str>, page: usize,
-        page_size: usize, _duckdb_extracted_statementsextra: Option<ShowTableExtraArgs>,
-    ) -> anyhow::Result<QueryResp> {
-        let total = self.query_count(view_name, where_str.clone())?;
-        let sql = gen_show_sql(
-            self.config.schema_str(),
-            view_name,
+        &self, view_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
+        let ShowTableParameter {
             where_str,
             order_by,
             page,
             page_size,
+            limit,
+            min,
+            max,
+            allow_filtering,
+        } = &para;
+        let total = self.query_count(view_name, where_str.as_deref())?;
+        let sql = gen_show_sql(
+            self.config.schema_str(),
+            view_name,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
         );
         log::info!("sql:{}", sql);
         let fs = self.show_view_columns(view_name).await?;
@@ -1233,9 +1195,8 @@ impl SchemaTrait for DuckDB {
             .collect();
         let mut parsed_type = Vec::with_capacity(fs.len());
         for f in fs.iter() {
-            parsed_type.push(parse_type(&f.typ));
+            parsed_type.push(parse_type(&f.data_type));
         }
-
         let parsed_type = if parsed_type.iter().all(|x| x.is_ok()) {
             Some(
                 parsed_type
@@ -1255,7 +1216,7 @@ impl SchemaTrait for DuckDB {
                 parsed_type.as_ref().map(|x| &x[..]),
             )?);
         }
-        anyhow::Ok(QueryResp::new(fs, total, data, sql)?)
+        unimplemented!()
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -1317,13 +1278,11 @@ impl SchemaTrait for DuckDB {
 
             ret.push(Field {
                 field: name,
-                typ: data_type,
+                data_type,
                 nullable: is_nullable.eq_ignore_ascii_case("yes"),
                 default_value: column_default,
                 is_primary,
-                is_auto_increment: false,
-                sortable: true,
-                firebird_binary_sub_type: None,
+                ..Default::default()
             });
         }
         anyhow::Ok(ret)
@@ -1395,16 +1354,27 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn show_table(
-        &self, table_name: &str, para: ShowTableParameter, status_emit: ShowTableStatusEmiter,
-    ) -> anyhow::Result<QueryResp> {
-        let total = self.query_count(table_name, where_str.clone())?;
-        let sql = gen_show_sql(
-            self.config.schema_str(),
-            table_name,
+        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
+    ) -> anyhow::Result<()> {
+        let ShowTableParameter {
             where_str,
             order_by,
             page,
             page_size,
+            limit,
+            min,
+            max,
+            allow_filtering,
+        } = &para;
+
+        let total = self.query_count(table_name, where_str.as_deref())?;
+        let sql = gen_show_sql(
+            self.config.schema_str(),
+            table_name,
+            where_str.as_deref(),
+            order_by.as_deref(),
+            *page,
+            *page_size,
         );
         log::info!("sql:{}", sql);
         let fs = self.show_table_columns(table_name).await?;
@@ -1416,17 +1386,18 @@ impl SchemaTrait for DuckDB {
             .collect();
         let mut parsed_type = Vec::with_capacity(fs.len());
         for f in fs.iter() {
-            parsed_type.push(parse_type(&f.typ)?);
+            parsed_type.push(parse_type(&f.data_type)?);
         }
         let mut rows = stmt.query([])?;
         let mut data = Vec::new();
         while let Some(row) = rows.next()? {
             data.push(encode_row(&row, &types[..], Some(&parsed_type[..]))?);
         }
-        anyhow::Ok(QueryResp::new(fs, total, data, sql)?)
+
+        unimplemented!()
     }
 
-    async fn insert(
+    async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
@@ -1442,7 +1413,7 @@ impl SchemaTrait for DuckDB {
         })
     }
 
-    async fn update(
+    async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
@@ -1464,7 +1435,7 @@ impl SchemaTrait for DuckDB {
         })
     }
 
-    async fn delete(
+    async fn table_delete(
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
@@ -1495,6 +1466,10 @@ impl SchemaTrait for DuckDB {
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
         Box::new(Clone::clone(self))
+    }
+
+    async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
+        todo!()
     }
 }
 
@@ -1638,6 +1613,7 @@ pub(crate) fn make_test_object(schema: Option<String>) -> DuckDB {
     let path = format!("{dir}/tests/test.duckdb");
 
     DuckDB::new(DuckDBConfig {
+        conn_timeout: None,
         path,
         read_only: false,
         db: Some("test".to_string()),
@@ -1655,7 +1631,6 @@ fn parse_type(typ: &str) -> anyhow::Result<sqlparser::ast::DataType> {
 }
 
 fn extract_index_columns(sql: &str) -> anyhow::Result<Vec<String>> {
-    // ;
     use sqlparser::ast::{Expr, Statement};
 
     let d = sqlparser::dialect::DuckDbDialect {};
@@ -1666,7 +1641,7 @@ fn extract_index_columns(sql: &str) -> anyhow::Result<Vec<String>> {
         Statement::CreateIndex(create_index) => {
             let mut ret = Vec::new();
             for col in create_index.columns.iter() {
-                match &col.expr {
+                match &col.column.expr {
                     Expr::Identifier(x) => {
                         ret.push(x.value.clone());
                     }
@@ -1686,7 +1661,7 @@ fn extract_index_columns(sql: &str) -> anyhow::Result<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::enable_test_log;
+    use crate::{db::ShowTableParameter, enable_test_log};
     fn test_lock() -> &'static Mutex<()> {
         static MUTEX: Mutex<()> = Mutex::const_new(());
         &MUTEX
@@ -1778,7 +1753,7 @@ mod tests {
             }
         }
         let resp = db
-            .show_view(view_name, ShowTableParameter::new_test())
+            .show_view_collect(view_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("{:?}", resp);
@@ -1847,7 +1822,7 @@ mod tests {
             }
         }
         let resp = db
-            .show_view(view_name, ShowTableParameter::new_test())
+            .show_view_collect(view_name, ShowTableParameter::new_stupid_test("id asc"))
             .await
             .unwrap();
         println!("{:?}", resp);
@@ -2063,15 +2038,11 @@ mod tests {
         values.insert("boolean_column".to_string(), Some("TRUE".to_string()));
         values.insert("date_column".to_string(), Some("2025-03-25".to_string()));
         values.insert("decimal_column".to_string(), Some("12345.67".to_string()));
-        db.insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
         let resp = db
-            .show_table(
+            .show_table_collect(
                 table_name,
-                Some("1 = 1 "),
-                Some("decimal_column asc "),
-                1,
-                100,
-                None,
+                ShowTableParameter::new_stupid_test("bigint_column asc"),
             )
             .await
             .unwrap();
@@ -2083,7 +2054,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2166,15 +2137,11 @@ mod tests {
             "decimal_column".to_string(),
             Some("[123.45, 678.90]".to_string()),
         );
-        db.insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
         let resp = db
-            .show_table(
+            .show_table_collect(
                 table_name,
-                Some("1 = 1 "),
-                Some("decimal_column asc "),
-                1,
-                100,
-                None,
+                ShowTableParameter::new_stupid_test("bigint_column asc"),
             )
             .await
             .unwrap();
@@ -2186,7 +2153,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2264,9 +2231,12 @@ mod tests {
             "col_json".to_string(),
             Some(r#"{"key1": "value1", "key2": 123, "key3": [1, 2, 3]}"#.to_string()),
         );
-        db.insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
         let resp = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table_collect(
+                table_name,
+                ShowTableParameter::new_stupid_test("col_double asc"),
+            )
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2277,7 +2247,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2355,9 +2325,10 @@ mod tests {
             "col_json".to_string(),
             Some(r#"{"key1": "value1", "key2": 123, "key3": [1, 2, 3]}"#.to_string()),
         );
-        db.insert(table_name, values).await.unwrap();
+
+        db.table_insert(table_name, values).await.unwrap();
         let resp = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2368,7 +2339,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2445,9 +2416,12 @@ mod tests {
             "col_ubigint".to_string(),
             Some("18446744073709551615".to_string()),
         );
-        db.insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
         let resp = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table_collect(
+                table_name,
+                ShowTableParameter::new_stupid_test("col_smallint asc"),
+            )
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2458,7 +2432,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2535,9 +2509,9 @@ mod tests {
             "col_ubigint".to_string(),
             Some("[18446744073709551615]".to_string()),
         );
-        db.insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
         let resp = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2548,7 +2522,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2618,9 +2592,12 @@ mod tests {
         values.insert("my_usmallint".to_string(), Some("65000".to_string()));
         values.insert("my_utinyint".to_string(), Some("123".to_string()));
         values.insert("my_varchar".to_string(), Some("Example1".to_string()));
-        db.insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
         let resp = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table_collect(
+                table_name,
+                ShowTableParameter::new_stupid_test("my_uhugeint asc"),
+            )
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2631,7 +2608,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },
@@ -2706,10 +2683,9 @@ mod tests {
             Some("{'name' : 'xxx' , 'age' : 100}".to_string()),
         );
         values.insert("my_union".to_string(), Some("'hello'".to_string()));
-
-        db.insert(table_name, values).await.unwrap();
+        db.table_insert(table_name, values).await.unwrap();
         let resp = db
-            .show_table(table_name, ShowTableParameter::new_test())
+            .show_table_collect(table_name, ShowTableParameter::new_stupid_test(None))
             .await
             .unwrap();
         println!("resp:{:?}", resp);
@@ -2720,7 +2696,7 @@ mod tests {
             let ret = db
                 .export_table_to_string(
                     table_name,
-                    ExportKind::CSV {
+                    ExportKind::Csv {
                         include_header: true,
                         delimiter: ',',
                     },

@@ -14,6 +14,7 @@ use dbnexus_db::db::{
     ShowTableParameter, SqlEvent, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
     escape_sql_str,
 };
+use dbnexus_db::duckdb::DuckDB;
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
 use dbnexus_db::libsql::LibSqlDB;
@@ -2928,12 +2929,8 @@ pub async fn put_value_in_sql(
     if let Ok(e) = xxx::<SqlServerDB>(a, &typ, value) {
         return Ok(e);
     }
-    #[cfg(feature = "duckdb")]
-    {
-        use dbnexus_db::duckdb::DuckDB;
-        if let Ok(e) = xxx::<DuckDB>(a, &typ, value) {
-            return Ok(e);
-        }
+    if let Ok(e) = xxx::<DuckDB>(a, &typ, value) {
+        return Ok(e);
     }
     Err(ErrorFrontend::from(
         "not valid schema to put value in sql.maybe a internal error",

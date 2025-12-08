@@ -1,43 +1,110 @@
-use std::collections::HashSet;
-use std::sync::Arc;
-
-use tokio::task::block_in_place;
-
-use crate::db::CatalogTrait;
 use crate::duckdb::{DuckDB, use_database};
 use crate::language_server::{
-    AstCompletionHelper, CompletionItem, CompletionKind, LangServerCommon, LanguageServer,
-    LexerCompletionTrait, try_completion_on_syntax,
+    AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, GetKeyWords,
+    LangServerCommon, LanguageServer, LexerCompletionTrait,
 };
+use crate::sqlparser_completion::TempTableColumn;
+
+use std::collections::HashSet;
+use tokio::task::block_in_place;
 #[async_trait::async_trait]
 impl LanguageServer for DuckDB {
     async fn auto_completion(
-        &self, sql: &str, line: u32, col: u32, use_lexer: bool,
-    ) -> anyhow::Result<Vec<CompletionList>> {
-        let r =
-            try_completion_on_syntax(&sql, line, col, sqlparser::dialect::DuckDbDialect {}, self)
-                .await;
+        &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
+    ) -> anyhow::Result<CompletionList> {
+        unimplemented!()
+    }
 
-        match r {
-            Ok(xs) => return Ok(xs),
-            Err(err) => {
-                log::error!("completion on ast failed,err:{}", err);
+    async fn ai_text_completion(
+        &self, sql: &str, line: u32, col: u32,
+    ) -> anyhow::Result<CompletionList> {
+        todo!()
+    }
+
+    fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
+        todo!()
+    }
+
+    fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        todo!()
+    }
+
+    fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
+        todo!()
+    }
+}
+
+#[async_trait::async_trait]
+
+impl LangServerCommon for DuckDB {
+    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let db = Self::not_allow_empty_db(self.db_merge_config(schema))?;
+        let schema = Self::not_allow_empty_db(self.schema_merge_config(schema))?;
+        let ret = self.list_table_impl(db, schema)?;
+        anyhow::Ok(ret.into_iter().map(|x| x.name).collect())
+    }
+
+    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let db = Self::not_allow_empty_db(self.db_merge_config(schema))?;
+        let schema = Self::not_allow_empty_db(self.schema_merge_config(schema))?;
+        let ret = self.list_view_impl(db, schema)?;
+        anyhow::Ok(ret.into_iter().map(|x| x.name).collect())
+    }
+
+    async fn list_column(
+        &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
+    ) -> anyhow::Result<Vec<TempTableColumn>> {
+        let schema = Self::not_allow_empty_db(self.schema_merge_config(schema))?;
+        let sql = format!(r#"select * from "{}"."{}" limit 1"#, schema, name);
+        let conn = self.get_conn()?;
+        use_database(&conn, schema)?;
+        let mut stmt = block_in_place(|| conn.prepare(&sql))?;
+        block_in_place(|| stmt.execute([]))?;
+        let fs = stmt
+            .column_names()
+            .into_iter()
+            .enumerate()
+            .map(|(index, name)| TempTableColumn {
+                name: name.into(),
+                data_type: Some(stmt.column_type(index).to_string().into()),
+            })
+            .collect::<Vec<_>>();
+        anyhow::Ok(fs)
+    }
+
+    async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        todo!()
+    }
+
+    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
+        todo!()
+    }
+
+    async fn list_function(
+        &self, _schema: Option<&str>, _include_build_in: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let sql = r#"SELECT function_name ,description  FROM duckdb_functions()"#;
+
+        let conn = self.get_conn()?;
+        let mut stmt = block_in_place(|| conn.prepare(sql))?;
+        let mut rows = block_in_place(|| stmt.query([]))?;
+        let mut ret = Vec::new();
+        let mut names = HashSet::new();
+
+        while let Some(row) = block_in_place(|| rows.next())? {
+            let name: String = row.get(0)?;
+            if names.contains(&name) {
+                continue;
             }
-        };
-        if !use_lexer {
-            log::warn!("disabled use lexer , we can return empty data.");
-            return anyhow::Ok(vec![]);
+            let desc: Option<String> = row.get(1)?;
+            ret.push(CompletionItem {
+                item: name.clone().into(),
+                kind: CompletionKind::Function,
+                desc: desc.map(|x| x.into()),
+            });
+            names.insert(name);
         }
-        return LexerCompletionTrait::do_auto_completion(
-            self,
-            sql,
-            &sqlparser::dialect::DuckDbDialect {},
-            sqlparser::tokenizer::Location {
-                line: line as u64,
-                column: col as u64,
-            },
-        )
-        .await;
+        anyhow::Ok(ret)
     }
 }
 
@@ -70,72 +137,10 @@ impl AstCompletionHelper for DuckDB {
         anyhow::Ok(ret)
     }
 
-    async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_empty_db(self.db_merge_config(db))?;
-        let schema = Self::not_allow_empty_db(self.schema_merge_config(schema))?;
-        let ret = self.list_table_impl(db, schema)?;
-        anyhow::Ok(ret.into_iter().map(|x| x.name).collect())
-    }
-
-    async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_empty_db(self.db_merge_config(db))?;
-        let schema = Self::not_allow_empty_db(self.schema_merge_config(schema))?;
-        let ret = self.list_view_impl(db, schema)?;
-        anyhow::Ok(ret.into_iter().map(|x| x.name).collect())
-    }
-
-    async fn list_column(
-        &self, schema: Option<&str>, name: &str, is_call: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let schema = Self::not_allow_empty_db(self.schema_merge_config(schema))?;
-        let sql = format!(r#"select * from "{}" limit 1"#, schema, name);
-        let conn = self.get_conn()?;
-        use_database(&conn, db)?;
-        let mut stmt = block_in_place(|| conn.prepare(&sql))?;
-        block_in_place(|| stmt.execute([]))?;
-        let fs = stmt
-            .column_names()
-            .into_iter()
-            .enumerate()
-            .map(|(index, name)| CompletionItem {
-                item: name.into(),
-                desc: Some(stmt.column_type(index).to_string().into()),
-                kind: CompletionKind::Column,
-            })
-            .collect::<Vec<_>>();
-        anyhow::Ok(fs)
-    }
-
-    async fn list_function(
-        &self, _schema: Option<&str>, _include_build_in: bool,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let sql = r#"SELECT function_name ,description  FROM duckdb_functions()"#;
-
-        let conn = self.get_conn()?;
-        let mut stmt = block_in_place(|| conn.prepare(sql))?;
-        let mut rows = block_in_place(|| stmt.query([]))?;
-        let mut ret = Vec::new();
-        let mut names = HashSet::new();
-
-        while let Some(row) = block_in_place(|| rows.next())? {
-            let name: String = row.get(0)?;
-            if names.contains(&name) {
-                continue;
-            }
-            let desc: Option<String> = row.get(1)?;
-            ret.push(CompletionItem {
-                item: name.clone().into(),
-                kind: CompletionKind::Function,
-                desc: desc.map(|x| x.into()),
-            });
-            names.insert(name);
-        }
-
-        anyhow::Ok(ret)
-    }
-
-    async fn list_index(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(vec![])
+    async fn get_query_columns(
+        &self, _sql: &str,
+    ) -> anyhow::Result<Vec<crate::sqlparser_completion::TempTableColumn>> {
+        todo!()
     }
 }
 
@@ -176,20 +181,11 @@ impl DuckDB {
 }
 
 #[async_trait::async_trait]
-impl LexerCompletionTrait for DuckDB {
-    type Dialect = sqlparser::dialect::DuckDbDialect;
 
-    const KEY_WORDS: &'static [&'static str] = KEY_WORDS;
-    const TEXTS: &'static [&'static str] = &["true", "false"];
-    const TYPES: &'static [&'static str] = TYPES;
-
-    async fn list_function(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        AstCompletionHelper::list_function(self, None, None, true).await
-    }
-
+impl GetKeyWords for DuckDB {
     // some backend can use a query to query this.
-    async fn key_words(&self) -> anyhow::Result<Vec<CompletionItem>> {
-        let sql = "select  keyword_name from duckdb_keywords() ";
+    async fn key_words(&self) -> anyhow::Result<Vec<String>> {
+        let sql = "select keyword_name from duckdb_keywords() ";
         let conn = self.get_conn()?;
         let mut stmt = block_in_place(|| conn.prepare(sql))?;
         let mut rows = block_in_place(|| stmt.query([]))?;
@@ -197,34 +193,22 @@ impl LexerCompletionTrait for DuckDB {
         while let Some(row) = block_in_place(|| rows.next())? {
             let name: String = row.get(0)?;
             let name = name.to_uppercase();
-            ret.push(CompletionItem {
-                item: name.into(),
-                kind: CompletionKind::KeyWord,
-                desc: None,
-            });
+            ret.push(name);
         }
         anyhow::Ok(ret)
     }
 }
 
 #[async_trait::async_trait]
-impl LangServerCommon for DuckDB {
-    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
-        CatalogTrait::list_database(self).await
+impl LexerCompletionTrait for DuckDB {
+    async fn get_types(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(TYPES.iter().map(|x| x.to_string()).collect())
     }
 
-    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let db = self.db_merge_config(db);
-        if let Some(db) = db {
-            self.list_schema_impl(db)
-        } else {
-            anyhow::Ok(vec![])
-        }
+    async fn get_text(&self) -> anyhow::Result<Vec<String>> {
+        anyhow::Ok(vec![])
     }
 }
-
-// can use a query to query all keywords
-const KEY_WORDS: &'static [&'static str] = &[];
 
 const TYPES: &'static [&'static str] = &[
     "BIGINT",
@@ -283,7 +267,6 @@ mod tests {
     use crate::db::QuerySql;
     use crate::duckdb::make_test_object;
     use crate::enable_test_log;
-    use crate::language_server::LexerCompletionTrait;
     use crate::language_server::completion_test::test_file_auto_completion;
 
     // partition test failed , sqlparser can't parse a valid partition statement.

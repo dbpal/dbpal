@@ -27,6 +27,7 @@ pub enum BackendKind {
     ClickHouse,
     Firebird,
     Oracle,
+    DuckDB,
 }
 
 impl BackendKind {

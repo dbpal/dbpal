@@ -38,6 +38,7 @@ redis = { version = "*", features = [
 
 ] }
 
+rust_xlsxwriter = { version = "0.90.0", features = ["constant_memory"] }
 dashmap.workspace = true
 hex.workspace = true
 mac_address = "1.1.5"
@@ -49,7 +50,7 @@ serde_json.workspace = true
 sqlparser = { version = "0.60", features = ["serde"] }
 lazy_static.workspace = true
 log.workspace = true
-
+duckdb = { version = "1.4.1", features = [] }
 cql3-parser = { git = "https://github.com/shotover/rust-cql3-parser", branch = "main" }
 futures-util.workspace = true
 futures-core.workspace = true
@@ -78,9 +79,6 @@ r2d2 = "*"
 base64 = "*"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 clickhouse = { version = "0.14", features = ["rustls-tls", "time", "uuid"] }
-rust_xlsxwriter = { version = "0.90.0", features = ["constant_memory"] }
-duckdb = { version = "=1.4.1", features = ["bundled"], optional = true }
-libduckdb-sys = { version = "=1.4.1", optional = true }
 libsql = { version = "0.9.7", default-features = false, features = [
     "remote",
     "tls",
@@ -94,4 +92,3 @@ include_dir.workspace = true
 opener = "*"
 
 [features]
-duckdb = ["dep:duckdb", "dep:libduckdb-sys"]
