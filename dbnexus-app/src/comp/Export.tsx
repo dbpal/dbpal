@@ -222,7 +222,7 @@ function ExportView(props: {
       )}
 
       <Divider />
-      <OpenFileWithDefaultApp file={file} />
+
       <Stack direction="row" style={{ alignItems: "center" }}>
         <IconButton
           onClick={async () => {
@@ -242,6 +242,7 @@ function ExportView(props: {
           />
         )}
         <Typography ref={exportedSize} />
+        <OpenFileWithDefaultApp file={file} />
       </Stack>
     </Stack>
   );

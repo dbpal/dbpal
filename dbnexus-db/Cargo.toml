@@ -46,7 +46,7 @@ chrono = "0.4.34"
 bit-vec = "=0.6.3"
 uuid.workspace = true
 serde_json.workspace = true
-sqlparser = { version = "0.59.0", features = ["serde"] }
+sqlparser = { version = "0.60", features = ["serde"] }
 lazy_static.workspace = true
 log.workspace = true
 

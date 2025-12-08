@@ -190,7 +190,7 @@ impl LangServerCommon for OracleDB {
     }
 
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
-        Box::new(sqlparser::dialect::GenericDialect {})
+        Box::new(sqlparser::dialect::OracleDialect {})
     }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         DBTrait::list_schema(self).await

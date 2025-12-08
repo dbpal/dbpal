@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::time::Duration;
 
-use sqlparser::ast::{SetExpr, Statement};
+use sqlparser::ast::{SetExpr, Statement, Update};
 use sqlparser::keywords::Keyword;
 use sqlparser::tokenizer::{Location, Token, TokenWithSpan};
 use typescript_type_def::TypeDef;
@@ -515,7 +515,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
                 Statement::Discard { .. } => true,
                 Statement::DropConnector { .. } => true,
                 Statement::Delete(x) => x.selection.is_none(),
-                Statement::Update { selection, .. } => selection.is_none(),
+                Statement::Update(Update { selection, .. }) => selection.is_none(),
                 _ => false,
             };
             if x {

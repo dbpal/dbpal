@@ -305,12 +305,12 @@ impl<'a> CompletionStatement<'a> {
             _ => Some(self.scopes.enter(Scope::default())),
         };
         match statement {
-            Statement::Analyze {
+            Statement::Analyze(Analyze {
                 table_name,
                 columns,
                 partitions,
                 ..
-            } => {
+            }) => {
                 self.c_on_table(table_name).await;
                 if self.finished() {
                     return;
@@ -330,12 +330,12 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            Statement::Truncate {
+            Statement::Truncate(Truncate {
                 table_names,
                 on_cluster,
                 partitions,
                 ..
-            } => {
+            }) => {
                 for t in table_names.iter() {
                     self.c_on_table(&t.name).await;
                     if self.finished() {
@@ -503,7 +503,7 @@ impl<'a> CompletionStatement<'a> {
             Statement::Close { .. } => {
                 // fallback to lexer
             }
-            Statement::Update {
+            Statement::Update(Update {
                 table,
                 assignments,
                 from,
@@ -511,7 +511,8 @@ impl<'a> CompletionStatement<'a> {
                 returning,
                 or: _,
                 limit,
-            } => {
+                ..
+            }) => {
                 let mut joins = vec![table.clone()];
                 if let Some(kind) = from.as_ref() {
                     joins.extend(
@@ -577,7 +578,7 @@ impl<'a> CompletionStatement<'a> {
                     self.c_on_select_items(&r[..]).await;
                 }
             }
-            Statement::CreateView {
+            Statement::CreateView(CreateView {
                 query,
                 name,
                 columns,
@@ -585,7 +586,7 @@ impl<'a> CompletionStatement<'a> {
                 options,
                 to,
                 ..
-            } => {
+            }) => {
                 // name is user defined no need completion.
                 let cols = self.c_on_query(query).await.unwrap_or_default();
                 self.scopes.current_scope(|s| s.enter_temp_cols(cols));
@@ -691,7 +692,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            Statement::CreateRole {
+            Statement::CreateRole(CreateRole {
                 names,
                 in_role,
                 in_group,
@@ -700,7 +701,7 @@ impl<'a> CompletionStatement<'a> {
                 admin,
                 authorization_owner,
                 ..
-            } => {
+            }) => {
                 for name in names.iter() {
                     if self.in_pos(&name.span()) {
                         self.set_on_def();
@@ -791,12 +792,12 @@ impl<'a> CompletionStatement<'a> {
                     if self.finished() {}
                 }
             }
-            Statement::AlterTable {
+            Statement::AlterTable(AlterTable {
                 name,
                 operations,
                 on_cluster,
                 ..
-            } => {
+            }) => {
                 self.c_on_table(name).await;
                 if self.finished() {
                     return;
@@ -922,7 +923,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            Statement::DropFunction { func_desc, .. } => {
+            Statement::DropFunction(DropFunction { func_desc, .. }) => {
                 for d in func_desc.iter() {
                     self.c_on_function_drop(&d.name).await;
                     if self.finished() {
@@ -1224,8 +1225,16 @@ impl<'a> CompletionStatement<'a> {
                 // due to this https://github.com/apache/datafusion-sqlparser-rs/issues/1356
                 if let Some(x) = &create_f.function_body {
                     match x {
-                        CreateFunctionBody::AsBeforeOptions(expr)
-                        | CreateFunctionBody::AsAfterOptions(expr)
+                        CreateFunctionBody::AsBeforeOptions {
+                            body: expr,
+                            link_symbol,
+                        } => {
+                            self.c_on_expr(expr).await;
+                            if let Some(expr) = link_symbol {
+                                self.c_on_expr(expr).await;
+                            }
+                        }
+                        CreateFunctionBody::AsAfterOptions(expr)
                         | CreateFunctionBody::Return(expr)
                         | CreateFunctionBody::AsReturnExpr(expr) => {
                             self.c_on_expr(expr).await;
@@ -1584,23 +1593,27 @@ impl<'a> CompletionStatement<'a> {
                     self.set_on_def();
                     return;
                 }
-                match representation {
-                    UserDefinedTypeRepresentation::Composite { attributes } => {
-                        for a in attributes.iter() {
-                            if self.in_pos(&a.name.span) {
+                if let Some(rep) = representation {
+                    match rep {
+                        UserDefinedTypeRepresentation::Composite { attributes } => {
+                            for a in attributes.iter() {
+                                if self.in_pos(&a.name.span) {
+                                    self.set_on_def();
+                                    return;
+                                }
+                                self.c_on_data_type(&a.data_type).await;
+                                if self.finished() {
+                                    return;
+                                }
+                            }
+                        }
+                        UserDefinedTypeRepresentation::Enum { labels } => {
+                            if labels.iter().any(|i| self.in_pos(&i.span)) {
                                 self.set_on_def();
-                                return;
-                            }
-                            self.c_on_data_type(&a.data_type).await;
-                            if self.finished() {
-                                return;
                             }
                         }
-                    }
-                    UserDefinedTypeRepresentation::Enum { labels } => {
-                        if labels.iter().any(|i| self.in_pos(&i.span)) {
-                            self.set_on_def();
-                        }
+                        UserDefinedTypeRepresentation::Range { .. } => {}
+                        UserDefinedTypeRepresentation::SqlDefinition { .. } => {}
                     }
                 }
             }
@@ -1703,7 +1716,7 @@ impl<'a> CompletionStatement<'a> {
             Statement::DropConnector { .. } => {
                 // hive not support
             }
-            Statement::CreateExtension { name, schema, .. } => {
+            Statement::CreateExtension(CreateExtension { name, schema, .. }) => {
                 self.c_on_postgres_extension(name, false).await;
                 if self.finished() {
                     return;
@@ -1714,7 +1727,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            Statement::DropExtension { names, .. } => {
+            Statement::DropExtension(DropExtension { names, .. }) => {
                 for name in names.iter() {
                     self.c_on_postgres_extension(name, true).await;
                     if self.finished() {
@@ -1788,6 +1801,14 @@ impl<'a> CompletionStatement<'a> {
             Statement::Vacuum(..) => {
                 // redshift not support right now
             }
+            Statement::CreateOperator(..) => {}
+            Statement::CreateOperatorFamily(..) => {}
+            Statement::CreateOperatorClass(..) => {}
+            Statement::DropOperator(..) => {}
+            Statement::DropOperatorFamily(..) => {}
+            Statement::DropOperatorClass(..) => {}
+            Statement::AlterUser(..) => {}
+            Statement::Reset(..) => {}
         }
     }
 
@@ -2192,6 +2213,7 @@ impl<'a> CompletionStatement<'a> {
             Set::SetTransaction { .. } => {
                 // fallback to lexer
             }
+            Set::SetSessionAuthorization(..) => {}
         }
     }
 

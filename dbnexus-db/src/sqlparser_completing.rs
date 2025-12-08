@@ -89,13 +89,14 @@ impl<'a> CompletionStatement<'a> {
             OutputClause::Output {
                 select_items,
                 into_table,
+                ..
             } => {
                 self.c_on_select_items(&select_items[..]).await;
                 if let Some(into_table) = into_table {
                     self.c_on_select_into(into_table).await;
                 }
             }
-            OutputClause::Returning { select_items } => {
+            OutputClause::Returning { select_items, .. } => {
                 self.c_on_select_items(&select_items[..]).await;
             }
         }
@@ -863,18 +864,18 @@ impl<'a> CompletionStatement<'a> {
         &mut self, constraint: &TableConstraint, table_name: Option<&ObjectName>,
     ) {
         match constraint {
-            TableConstraint::Unique {
+            TableConstraint::Unique(UniqueConstraint {
                 name,
                 index_name,
                 columns,
                 ..
-            }
-            | TableConstraint::PrimaryKey {
+            })
+            | TableConstraint::PrimaryKey(PrimaryKeyConstraint {
                 name,
                 index_name,
                 columns,
                 ..
-            } => {
+            }) => {
                 if let Some(name) = name {
                     if let Some(table_name) = table_name {
                         self.c_on_constraint(table_name, name).await;
@@ -896,13 +897,13 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            TableConstraint::ForeignKey {
+            TableConstraint::ForeignKey(ForeignKeyConstraint {
                 name,
                 columns,
                 foreign_table,
                 referred_columns,
                 ..
-            } => {
+            }) => {
                 if let Some(name) = name {
                     if self.in_pos(&name.span) {
                         self.set_on_def();
@@ -923,7 +924,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            TableConstraint::Check { name, expr, .. } => {
+            TableConstraint::Check(CheckConstraint { name, expr, .. }) => {
                 //  https://www.w3schools.com/sql/sql_check.asp
                 if let Some(name) = name {
                     if self.in_pos(&name.span) {
@@ -933,7 +934,7 @@ impl<'a> CompletionStatement<'a> {
                 }
                 self.c_on_expr(expr).await;
             }
-            TableConstraint::Index { name, columns, .. } => {
+            TableConstraint::Index(IndexConstraint { name, columns, .. }) => {
                 // MySQLs [index definition][1] for index creation
                 if let Some(name) = name {
                     if self.in_pos(&name.span) {
@@ -948,11 +949,11 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            TableConstraint::FulltextOrSpatial {
+            TableConstraint::FulltextOrSpatial(FullTextOrSpatialConstraint {
                 opt_index_name,
                 columns,
                 ..
-            } => {
+            }) => {
                 if let Some(opt_index_name) = opt_index_name {
                     if self.in_pos(&opt_index_name.span) {
                         self.set_on_def();
@@ -1238,6 +1239,9 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
+            AlterTableOperation::Refresh => {}
+            AlterTableOperation::Suspend => {}
+            AlterTableOperation::Resume => {}
         }
     }
 
@@ -1575,11 +1579,11 @@ impl<'a> CompletionStatement<'a> {
                 Box::pin(self.c_on_expr(expr)).await;
             }
             ColumnOption::Unique { .. } => {}
-            ColumnOption::ForeignKey {
+            ColumnOption::ForeignKey(ForeignKeyConstraint {
                 foreign_table,
                 referred_columns,
                 ..
-            } => {
+            }) => {
                 self.c_on_table(foreign_table).await;
                 if self.finished() {
                     return;
@@ -1589,7 +1593,7 @@ impl<'a> CompletionStatement<'a> {
                     if self.finished() {}
                 }
             }
-            ColumnOption::Check(expr) => {
+            ColumnOption::Check(CheckConstraint { expr, .. }) => {
                 self.c_on_expr(expr).await;
             }
             ColumnOption::DialectSpecific(..) => {
@@ -1661,6 +1665,8 @@ impl<'a> CompletionStatement<'a> {
             ColumnOption::Srid(expr) => {
                 self.c_on_expr(expr).await;
             }
+            ColumnOption::PrimaryKey(..) => {}
+            ColumnOption::Invisible => {}
         }
     }
 
@@ -3743,7 +3749,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            MergeAction::Update { assignments } => {
+            MergeAction::Update { assignments, .. } => {
                 for ass in assignments.iter() {
                     self.c_on_assignment(ass).await;
                     if self.finished() {
@@ -3751,7 +3757,7 @@ impl<'a> CompletionStatement<'a> {
                     }
                 }
             }
-            MergeAction::Delete => {}
+            MergeAction::Delete { .. } => {}
         }
     }
     pub(crate) async fn c_on_procedure(&mut self, name: &ObjectName) {
