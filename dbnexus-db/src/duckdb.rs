@@ -8,7 +8,7 @@ use chrono::NaiveDate;
 use dashmap::DashMap;
 use duckdb::Connection;
 use duckdb::arrow::datatypes::DataType;
-use duckdb::types::TimeUnit;
+use duckdb::types::{TimeUnit, Value};
 use r2d2::PooledConnection;
 
 use tokio::task::spawn_blocking;
@@ -249,27 +249,27 @@ fn encode_row_as_json<'stmt>(
 ) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
     let mut ret = serde_json::Map::new();
     for (index, name) in names.iter().enumerate() {
-        let v: duckdb::types::Value = row.get(index)?;
+        let v: Value = row.get(index)?;
         ret.insert(name.clone(), value_2_json(&v)?);
     }
     return anyhow::Ok(ret);
-    fn value_2_json(value: &duckdb::types::Value) -> anyhow::Result<serde_json::Value> {
+    fn value_2_json(value: &Value) -> anyhow::Result<serde_json::Value> {
         let v = match value {
-            duckdb::types::Value::Null => serde_json::Value::Null,
-            duckdb::types::Value::Boolean(x) => serde_json::Value::from(*x),
-            duckdb::types::Value::TinyInt(x) => serde_json::Value::from(*x),
-            duckdb::types::Value::SmallInt(x) => serde_json::Value::from(*x),
-            duckdb::types::Value::Int(x) => serde_json::Value::from(*x),
-            duckdb::types::Value::BigInt(x) => serde_json::Value::from(*x),
-            duckdb::types::Value::HugeInt(x) => serde_json::Value::from(x.to_string()),
-            duckdb::types::Value::UTinyInt(x) => serde_json::Value::from(*x),
-            duckdb::types::Value::USmallInt(x) => serde_json::Value::from(*x),
-            duckdb::types::Value::UInt(x) => serde_json::Value::from(*x),
-            duckdb::types::Value::UBigInt(x) => serde_json::Value::from(*x),
-            duckdb::types::Value::Float(x) => serde_json::Value::from(*x),
-            duckdb::types::Value::Double(x) => serde_json::Value::from(*x),
-            duckdb::types::Value::Decimal(decimal) => serde_json::Value::from(decimal.to_string()),
-            duckdb::types::Value::Timestamp(time_unit, value) => {
+            Value::Null => serde_json::Value::Null,
+            Value::Boolean(x) => serde_json::Value::from(*x),
+            Value::TinyInt(x) => serde_json::Value::from(*x),
+            Value::SmallInt(x) => serde_json::Value::from(*x),
+            Value::Int(x) => serde_json::Value::from(*x),
+            Value::BigInt(x) => serde_json::Value::from(*x),
+            Value::HugeInt(x) => serde_json::Value::from(x.to_string()),
+            Value::UTinyInt(x) => serde_json::Value::from(*x),
+            Value::USmallInt(x) => serde_json::Value::from(*x),
+            Value::UInt(x) => serde_json::Value::from(*x),
+            Value::UBigInt(x) => serde_json::Value::from(*x),
+            Value::Float(x) => serde_json::Value::from(*x),
+            Value::Double(x) => serde_json::Value::from(*x),
+            Value::Decimal(decimal) => serde_json::Value::from(decimal.to_string()),
+            Value::Timestamp(time_unit, value) => {
                 let mut m = serde_json::Map::new();
                 m.insert(
                     "timeUnit".to_string(),
@@ -278,19 +278,19 @@ fn encode_row_as_json<'stmt>(
                 m.insert("value".to_string(), serde_json::Value::from(*value));
                 serde_json::Value::Object(m)
             }
-            duckdb::types::Value::Text(x) => serde_json::Value::from(x.clone()),
-            duckdb::types::Value::Blob(items) => {
+            Value::Text(x) => serde_json::Value::from(x.clone()),
+            Value::Blob(items) => {
                 let items = items
                     .iter()
                     .map(|x| serde_json::Value::from(*x))
                     .collect::<Vec<_>>();
                 serde_json::Value::Array(items)
             }
-            duckdb::types::Value::Date32(days) => {
+            Value::Date32(days) => {
                 let d = format_date(*days)?;
                 serde_json::Value::from(d)
             }
-            duckdb::types::Value::Time64(time_unit, value) => {
+            Value::Time64(time_unit, value) => {
                 let mut m = serde_json::Map::new();
                 m.insert(
                     "timeUnit".to_string(),
@@ -299,7 +299,7 @@ fn encode_row_as_json<'stmt>(
                 m.insert("value".to_string(), serde_json::Value::from(*value));
                 serde_json::Value::Object(m)
             }
-            duckdb::types::Value::Interval {
+            Value::Interval {
                 months,
                 days,
                 nanos,
@@ -307,36 +307,36 @@ fn encode_row_as_json<'stmt>(
                 let v = format_interval(*months, *days, *nanos);
                 serde_json::Value::from(v)
             }
-            duckdb::types::Value::List(values) => {
+            Value::List(values) => {
                 let mut ret = Vec::with_capacity(values.len());
                 for value in values.iter() {
                     ret.push(value_2_json(value)?);
                 }
                 serde_json::Value::Array(ret)
             }
-            duckdb::types::Value::Enum(x) => serde_json::Value::from(x.clone()),
-            duckdb::types::Value::Struct(ordered_map) => {
+            Value::Enum(x) => serde_json::Value::from(x.clone()),
+            Value::Struct(ordered_map) => {
                 let mut m = serde_json::Map::new();
                 for (k, v) in ordered_map.iter() {
                     m.insert(k.clone(), value_2_json(v)?);
                 }
                 serde_json::Value::Object(m)
             }
-            duckdb::types::Value::Array(values) => {
+            Value::Array(values) => {
                 let mut ret = Vec::with_capacity(values.len());
                 for value in values.iter() {
                     ret.push(value_2_json(value)?);
                 }
                 serde_json::Value::Array(ret)
             }
-            duckdb::types::Value::Map(ordered_map) => {
+            Value::Map(ordered_map) => {
                 let mut m = serde_json::Map::new();
                 for (k, v) in ordered_map.iter() {
                     m.insert(serde_json::to_string(&value_2_json(k)?)?, value_2_json(v)?);
                 }
                 serde_json::Value::Object(m)
             }
-            duckdb::types::Value::Union(value) => value_2_json(&value)?,
+            Value::Union(value) => value_2_json(&value)?,
         };
 
         anyhow::Ok(v)
@@ -490,8 +490,7 @@ fn format_timestamp(time_uint: TimeUnit, value: i64, is_time: bool) -> anyhow::R
 }
 
 fn encode_value(
-    value: &duckdb::types::Value, ty: &DataType, parsed_type: Option<&sqlparser::ast::DataType>,
-    nested: bool,
+    value: &Value, ty: &DataType, parsed_type: Option<&sqlparser::ast::DataType>, nested: bool,
 ) -> anyhow::Result<Option<String>> {
     log::trace!("value:{:?} ty:{:?} parse type:{:?}", value, ty, parsed_type);
     let is_time = matches!(ty, DataType::Time32(_)) || matches!(ty, DataType::Time64(_));
@@ -502,32 +501,32 @@ fn encode_value(
         })
         .unwrap_or(false);
     let r = match value {
-        duckdb::types::Value::Null => None,
-        duckdb::types::Value::Boolean(x) => Some(x.to_string()),
-        duckdb::types::Value::TinyInt(x) => Some(x.to_string()),
-        duckdb::types::Value::SmallInt(x) => Some(x.to_string()),
-        duckdb::types::Value::Int(x) => Some(x.to_string()),
-        duckdb::types::Value::BigInt(x) => Some(x.to_string()),
-        duckdb::types::Value::HugeInt(x) => Some(x.to_string()),
-        duckdb::types::Value::UTinyInt(x) => Some(x.to_string()),
-        duckdb::types::Value::USmallInt(x) => Some(x.to_string()),
-        duckdb::types::Value::UInt(x) => Some(x.to_string()),
-        duckdb::types::Value::UBigInt(x) => Some(x.to_string()),
-        duckdb::types::Value::Float(x) => Some(x.to_string()),
-        duckdb::types::Value::Double(x) => Some(x.to_string()),
-        duckdb::types::Value::Decimal(decimal) => Some(decimal.to_string()),
-        duckdb::types::Value::Timestamp(time_unit, value) => {
+        Value::Null => None,
+        Value::Boolean(x) => Some(x.to_string()),
+        Value::TinyInt(x) => Some(x.to_string()),
+        Value::SmallInt(x) => Some(x.to_string()),
+        Value::Int(x) => Some(x.to_string()),
+        Value::BigInt(x) => Some(x.to_string()),
+        Value::HugeInt(x) => Some(x.to_string()),
+        Value::UTinyInt(x) => Some(x.to_string()),
+        Value::USmallInt(x) => Some(x.to_string()),
+        Value::UInt(x) => Some(x.to_string()),
+        Value::UBigInt(x) => Some(x.to_string()),
+        Value::Float(x) => Some(x.to_string()),
+        Value::Double(x) => Some(x.to_string()),
+        Value::Decimal(decimal) => Some(decimal.to_string()),
+        Value::Timestamp(time_unit, value) => {
             let v = format_timestamp(*time_unit, *value, is_time)?;
             Some(v)
         }
-        duckdb::types::Value::Text(x) => {
+        Value::Text(x) => {
             let mut x = Some(x.to_string());
             if nested {
                 x = x.map(|x| format!("'{}'", x))
             }
             x
         }
-        duckdb::types::Value::Blob(items) => {
+        Value::Blob(items) => {
             if is_bit {
                 let last = items.last();
                 let last = match last {
@@ -543,21 +542,21 @@ fn encode_value(
                 Some(format!("x'{}'", hex::encode(items.as_slice())))
             }
         }
-        duckdb::types::Value::Date32(x) => {
+        Value::Date32(x) => {
             let mut x = format_date(*x)?;
             if nested {
                 x = format!("'{}'", x)
             }
             Some(x)
         }
-        duckdb::types::Value::Time64(time_unit, value) => {
+        Value::Time64(time_unit, value) => {
             let mut v = format_timestamp(*time_unit, *value, is_time)?;
             if nested {
                 v = format!("'{}'", v)
             }
             Some(v)
         }
-        duckdb::types::Value::Interval {
+        Value::Interval {
             months,
             days,
             nanos,
@@ -566,7 +565,7 @@ fn encode_value(
             Some(x)
         }
 
-        duckdb::types::Value::List(values) | duckdb::types::Value::Array(values) => {
+        Value::List(values) | Value::Array(values) => {
             let ety = match ty {
                 DataType::List(x) => x.as_ref().data_type(),
                 DataType::FixedSizeList(x, _) => x.as_ref().data_type(),
@@ -602,8 +601,8 @@ fn encode_value(
                 .collect::<Vec<_>>();
             Some(format!("[{}]", eles.join(",")))
         }
-        duckdb::types::Value::Enum(x) => Some(format!("'{}'", x)),
-        duckdb::types::Value::Struct(ordered_map) => {
+        Value::Enum(x) => Some(format!("'{}'", x)),
+        Value::Struct(ordered_map) => {
             let mut values = Vec::new();
 
             for (k, v) in ordered_map.iter() {
@@ -651,7 +650,7 @@ fn encode_value(
             }
             Some(format!("{{{}}}", values.join(",")))
         }
-        duckdb::types::Value::Map(ordered_map) => {
+        Value::Map(ordered_map) => {
             let (kty, vty) = match ty {
                 DataType::Map(k, _) => match k.data_type() {
                     DataType::Struct(fs) => {
@@ -717,7 +716,7 @@ fn encode_value(
                 values.join(",")
             ))
         }
-        duckdb::types::Value::Union(value) => encode_value(&value, ty, None, true)?,
+        Value::Union(value) => encode_value(&value, ty, None, true)?,
     };
 
     anyhow::Ok(r)
@@ -767,7 +766,7 @@ fn encode_row<'stmt>(
     for index in 0..types.len() {
         let ty = &types[index];
         let parsed_type = parsed_types.as_ref().map(|x| x.get(index)).flatten();
-        let x: duckdb::types::Value = row.get(index)?;
+        let x: Value = row.get(index)?;
         values.push(encode_value(&x, ty, parsed_type, false)?);
     }
     anyhow::Ok(values)
