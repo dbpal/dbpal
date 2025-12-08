@@ -58,6 +58,7 @@ custom-protocol = ["tauri/custom-protocol"]
 # 打开口所有的接口都会卡一会
 random-sleep = []
 random-error = []
+duckdb = ["dbnexus-db/duckdb"]
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"

@@ -1,36 +1,38 @@
-use crate::duckdb::{DuckDB, use_database};
+use tokio::task::spawn_blocking;
+
+use crate::duckdb::DuckDB;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, GetKeyWords,
-    LangServerCommon, LanguageServer, LexerCompletionTrait,
+    LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::sqlparser_completion::TempTableColumn;
-
 use std::collections::HashSet;
-use tokio::task::block_in_place;
+
 #[async_trait::async_trait]
 impl LanguageServer for DuckDB {
     async fn auto_completion(
         &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
-        unimplemented!()
+        self.completion_id.set_optional(query_id);
+        try_parser_dot_lexer(self, sql, line, col, use_lexer).await
     }
 
     async fn ai_text_completion(
         &self, sql: &str, line: u32, col: u32,
     ) -> anyhow::Result<CompletionList> {
-        todo!()
+        LexerCompletionTrait::ai_text_completion(self, sql, line, col).await
     }
 
-    fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
-        todo!()
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        LangServerCommon::is_dangerous_sql_by_parser(self, sql)
     }
 
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
-        todo!()
+        LangServerCommon::extract_table_select_selection(self, sql)
     }
 
     fn extract_table_select_sort(&self, sql: &str) -> anyhow::Result<Option<String>> {
-        todo!()
+        LangServerCommon::extract_table_select_sort(self, sql)
     }
 }
 
@@ -38,38 +40,39 @@ impl LanguageServer for DuckDB {
 
 impl LangServerCommon for DuckDB {
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_empty_db(self.db_merge_config(schema))?;
-        let schema = Self::not_allow_empty_db(self.schema_merge_config(schema))?;
-        let ret = self.list_table_impl(db, schema)?;
+        let schema = self.get_schema_xxx(schema).await?;
+        let ret = self.list_table_impl(schema.as_str()).await?;
         anyhow::Ok(ret.into_iter().map(|x| x.name).collect())
     }
 
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let db = Self::not_allow_empty_db(self.db_merge_config(schema))?;
-        let schema = Self::not_allow_empty_db(self.schema_merge_config(schema))?;
-        let ret = self.list_view_impl(db, schema)?;
+        let schema = self.get_schema_xxx(schema).await?;
+        let ret = self.list_view_impl(&schema).await?;
         anyhow::Ok(ret.into_iter().map(|x| x.name).collect())
     }
 
     async fn list_column(
         &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
-        let schema = Self::not_allow_empty_db(self.schema_merge_config(schema))?;
+        let this = Clone::clone(self);
+        let schema = this.get_schema_xxx(schema).await?;
         let sql = format!(r#"select * from "{}"."{}" limit 1"#, schema, name);
-        let conn = self.get_conn()?;
-        use_database(&conn, schema)?;
-        let mut stmt = block_in_place(|| conn.prepare(&sql))?;
-        block_in_place(|| stmt.execute([]))?;
-        let fs = stmt
-            .column_names()
-            .into_iter()
-            .enumerate()
-            .map(|(index, name)| TempTableColumn {
-                name: name.into(),
-                data_type: Some(stmt.column_type(index).to_string().into()),
-            })
-            .collect::<Vec<_>>();
-        anyhow::Ok(fs)
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let mut stmt = conn.prepare(&sql)?;
+            stmt.execute([])?;
+            let fs = stmt
+                .column_names()
+                .into_iter()
+                .enumerate()
+                .map(|(index, name)| TempTableColumn {
+                    name: name.into(),
+                    data_type: Some(stmt.column_type(index).to_string().into()),
+                })
+                .collect::<Vec<_>>();
+            anyhow::Ok(fs)
+        })
+        .await?
     }
 
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
@@ -83,28 +86,30 @@ impl LangServerCommon for DuckDB {
     async fn list_function(
         &self, _schema: Option<&str>, _include_build_in: bool,
     ) -> anyhow::Result<Vec<CompletionItem>> {
+        let this = Clone::clone(self);
         let sql = r#"SELECT function_name ,description  FROM duckdb_functions()"#;
-
-        let conn = self.get_conn()?;
-        let mut stmt = block_in_place(|| conn.prepare(sql))?;
-        let mut rows = block_in_place(|| stmt.query([]))?;
-        let mut ret = Vec::new();
-        let mut names = HashSet::new();
-
-        while let Some(row) = block_in_place(|| rows.next())? {
-            let name: String = row.get(0)?;
-            if names.contains(&name) {
-                continue;
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let mut stmt = conn.prepare(sql)?;
+            let mut rows = stmt.query([])?;
+            let mut ret = Vec::new();
+            let mut names = HashSet::new();
+            while let Some(row) = rows.next()? {
+                let name: String = row.get(0)?;
+                if names.contains(&name) {
+                    continue;
+                }
+                let desc: Option<String> = row.get(1)?;
+                ret.push(CompletionItem {
+                    item: name.clone().into(),
+                    kind: CompletionKind::Function,
+                    desc: desc.map(|x| x.into()),
+                });
+                names.insert(name);
             }
-            let desc: Option<String> = row.get(1)?;
-            ret.push(CompletionItem {
-                item: name.clone().into(),
-                kind: CompletionKind::Function,
-                desc: desc.map(|x| x.into()),
-            });
-            names.insert(name);
-        }
-        anyhow::Ok(ret)
+            anyhow::Ok(ret)
+        })
+        .await?
     }
 }
 
@@ -119,22 +124,24 @@ impl AstCompletionHelper for DuckDB {
         if let Some(installed) = installed {
             sql.push_str(format!("where installed={}", installed).as_str());
         }
-
-        let conn = self.get_conn()?;
-        let mut stmt = conn.prepare(&sql)?;
-        let mut rows = block_in_place(|| stmt.query([]))?;
-        let mut ret = Vec::new();
-        while let Some(row) = block_in_place(|| rows.next())? {
-            let name: String = row.get(0)?;
-            let desc: Option<String> = row.get(2)?;
-            ret.push(CompletionItem {
-                item: name.into(),
-                kind: CompletionKind::Extension,
-                desc: desc.map(|x| x.into()),
-            });
-        }
-
-        anyhow::Ok(ret)
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let mut stmt = conn.prepare(&sql)?;
+            let mut rows = stmt.query([])?;
+            let mut ret = Vec::new();
+            while let Some(row) = rows.next()? {
+                let name: String = row.get(0)?;
+                let desc: Option<String> = row.get(2)?;
+                ret.push(CompletionItem {
+                    item: name.into(),
+                    kind: CompletionKind::Extension,
+                    desc: desc.map(|x| x.into()),
+                });
+            }
+            anyhow::Ok(ret)
+        })
+        .await?
     }
 
     async fn get_query_columns(
@@ -145,37 +152,10 @@ impl AstCompletionHelper for DuckDB {
 }
 
 impl DuckDB {
-    fn db_merge_config<'a, 'b>(&'a self, db: Option<&'b str>) -> Option<&'a str>
-    where
-        'b: 'a,
-    {
-        if db.is_some() {
-            return db;
-        }
-        return self.config.db.as_ref().map(|x| x.as_str());
-    }
-
-    fn schema_merge_config<'a, 'b>(&'a self, schema: Option<&'b str>) -> Option<&'a str>
-    where
-        'b: 'a,
-    {
-        if schema.is_some() {
-            return schema;
-        }
-        return self.config.schema.as_deref();
-    }
-
-    fn not_allow_empty_db<'a>(db: Option<&'a str>) -> anyhow::Result<&'a str> {
-        match db {
-            Some(x) => return anyhow::Ok(x),
-            None => anyhow::bail!("empty database"),
-        }
-    }
-
-    fn not_allow_empty_schema<'a>(db: Option<&'a str>) -> anyhow::Result<&'a str> {
-        match db {
-            Some(x) => return anyhow::Ok(x),
-            None => anyhow::bail!("empty schema"),
+    async fn get_schema_xxx(&self, schema: Option<&str>) -> anyhow::Result<String> {
+        match schema {
+            Some(x) => anyhow::Ok(x.to_string()),
+            None => todo!(),
         }
     }
 }
@@ -185,17 +165,21 @@ impl DuckDB {
 impl GetKeyWords for DuckDB {
     // some backend can use a query to query this.
     async fn key_words(&self) -> anyhow::Result<Vec<String>> {
-        let sql = "select keyword_name from duckdb_keywords() ";
-        let conn = self.get_conn()?;
-        let mut stmt = block_in_place(|| conn.prepare(sql))?;
-        let mut rows = block_in_place(|| stmt.query([]))?;
-        let mut ret = Vec::new();
-        while let Some(row) = block_in_place(|| rows.next())? {
-            let name: String = row.get(0)?;
-            let name = name.to_uppercase();
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let sql = "select keyword_name from duckdb_keywords() ";
+            let conn = this.get_conn()?;
+            let mut stmt = conn.prepare(sql)?;
+            let mut rows = stmt.query([])?;
+            let mut ret = Vec::new();
+            while let Some(row) = rows.next()? {
+                let name: String = row.get(0)?;
+                let name = name.to_uppercase();
+                ret.push(name);
+            }
+            anyhow::Ok(ret)
+        })
+        .await?
     }
 }
 

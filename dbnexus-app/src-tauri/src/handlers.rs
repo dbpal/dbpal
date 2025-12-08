@@ -14,7 +14,7 @@ use dbnexus_db::db::{
     ShowTableParameter, SqlEvent, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
     escape_sql_str,
 };
-use dbnexus_db::duckdb::DuckDB;
+
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
 use dbnexus_db::libsql::LibSqlDB;
@@ -27,7 +27,6 @@ use dbnexus_db::redis::{RedisDB, RedisListTable, RedisToken};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use dbnexus_db::sqlite::SqliteDB;
 use dbnexus_db::sub::SubDB;
-use tokio::task::block_in_place;
 
 use crate::app::{self, DBConnectionConfig, DBPal, DatabaseBackend, name_to_parts};
 use font_kit::error::SelectionError;
@@ -2929,9 +2928,14 @@ pub async fn put_value_in_sql(
     if let Ok(e) = xxx::<SqlServerDB>(a, &typ, value) {
         return Ok(e);
     }
-    if let Ok(e) = xxx::<DuckDB>(a, &typ, value) {
-        return Ok(e);
+    #[cfg(feature = "duckdb")]
+    {
+        use dbnexus_db::duckdb::DuckDB;
+        if let Ok(e) = xxx::<DuckDB>(a, &typ, value) {
+            return Ok(e);
+        }
     }
+
     Err(ErrorFrontend::from(
         "not valid schema to put value in sql.maybe a internal error",
     ))
@@ -3184,7 +3188,7 @@ fn block_random_sleep() {
             let millis = rng.random_range(500..1700);
             std::time::Duration::from_millis(millis)
         };
-        block_in_place(|| std::thread::sleep(duration));
+        tokio::task::block_in_place(|| std::thread::sleep(duration));
     }
 }
 async fn random_sleep() {

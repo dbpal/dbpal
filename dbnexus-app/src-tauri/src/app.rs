@@ -228,18 +228,25 @@ impl DBConnectionConfig {
                 anyhow::Ok(db)
             }
             DBConnectionConfig::DuckDB { conn: _conn, .. } => {
-                let db = dbnexus_db::duckdb::DuckDB::new(_conn.clone())?;
-                return match &_conn.db {
-                    Some(_) => match &_conn.schema {
-                        Some(_) => {
-                            anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn SchemaTrait>))
+                #[cfg(feature = "duckdb")]
+                {
+                    let db = dbnexus_db::duckdb::DuckDB::new(_conn.clone())?;
+                    return match &_conn.db {
+                        Some(_) => match &_conn.schema {
+                            Some(_) => anyhow::Ok(DatabaseBackend::from(
+                                Arc::new(db) as Arc<dyn SchemaTrait>
+                            )),
+                            None => {
+                                anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn DBTrait>))
+                            }
+                        },
+                        None => {
+                            anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn CatalogTrait>))
                         }
-                        None => anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn DBTrait>)),
-                    },
-                    None => {
-                        anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn CatalogTrait>))
-                    }
-                };
+                    };
+                }
+                #[cfg(not(feature = "duckdb"))]
+                anyhow::bail!("duckdb feature not enabled")
             }
             DBConnectionConfig::ClickHouse { conn, .. } => {
                 let db = dbnexus_db::clickhouse::ClickHouseDB::new(conn.clone())?;

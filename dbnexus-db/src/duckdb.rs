@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use chrono::NaiveDate;
@@ -10,15 +10,16 @@ use duckdb::Connection;
 use duckdb::arrow::datatypes::DataType;
 use duckdb::types::TimeUnit;
 use r2d2::PooledConnection;
-use tokio::sync::Mutex;
-use tokio::task::{block_in_place, spawn_blocking};
+
+use tokio::task::spawn_blocking;
 
 use crate::datasource_config::DuckDBConfig;
 use crate::db::{
-    BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    CreateTableAndIndexSql, DBTrait, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
-    IndexKind, ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, not_support_feature,
+    AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
+    CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, ExportKind, ExportQueryResult, Field,
+    GetBackendKind, Index, IndexKind, ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
+    TimeElapsed, not_support_feature,
 };
 use crate::helper::create_csv;
 pub struct PoolManage {
@@ -73,6 +74,8 @@ pub struct DuckDB {
     pub(crate) config: DuckDBConfig,
     pool: r2d2::Pool<PoolManage>,
     query_connection: Arc<DashMap<String, Arc<Mutex<duckdb::Connection>>>>,
+
+    pub(crate) completion_id: AutoCompletionQueryId,
 }
 
 #[async_trait::async_trait]
@@ -99,18 +102,17 @@ impl DuckDB {
             config,
             pool,
             query_connection: Default::default(),
+            completion_id: Default::default(),
         })
     }
     pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<PoolManage>> {
-        let conn = block_in_place(|| self.pool.get())?;
-
+        let conn = self.pool.get()?;
         if let Some(db) = self.config.db.as_ref() {
             use_database(conn.deref(), db)?;
         }
         if let Some(s) = self.config.schema.as_ref() {
             conn.execute(&format!("SET SCHEMA '{s}';"), [])?;
         }
-
         anyhow::Ok(conn)
     }
 }
@@ -129,10 +131,14 @@ impl std::fmt::Debug for DuckDB {
 #[async_trait::async_trait]
 impl CheckConn for DuckDB {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
-        let conn = self.get_conn()?;
-        let now = std::time::Instant::now();
-        conn.execute("select 1", [])?;
-        anyhow::Ok(now.elapsed())
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let now = std::time::Instant::now();
+            conn.execute("select 1", [])?;
+            anyhow::Ok(now.elapsed())
+        })
+        .await?
     }
 }
 
@@ -165,8 +171,7 @@ impl DuckDB {
             }
             let mut stream = stmt.query([])?;
             while let Some(row) = stream.next()? {
-                let data = encode_row(&row, &types[..], None)?;
-                sender.blocking_send(Cow::Owned(create_csv(&vec![data], delimiter)))?;
+                unimplemented!()
             }
             anyhow::Ok(())
         })
@@ -338,33 +343,6 @@ fn encode_row_as_json<'stmt>(
     }
 }
 
-impl DuckDB {
-    fn query_resp(conn: &Connection, sql: &str) -> anyhow::Result<QueryResp> {
-        let mut stmt = conn.prepare(sql)?;
-        stmt.execute([])?;
-        let types: Vec<_> = (0..stmt.column_count())
-            .map(|x| stmt.column_type(x))
-            .collect();
-        let names = stmt.column_names();
-        let mut rows = block_in_place(|| stmt.query([]))?;
-        let mut data = vec![];
-        while let Some(row) = block_in_place(|| rows.next())? {
-            let d = encode_row(row, &types[..], None)?;
-            data.push(d);
-        }
-        anyhow::Ok(QueryResp {
-            fields: names
-                .iter()
-                .zip(types.iter())
-                .map(|(name, typ)| Field::from_name_type(name, typ.to_string()))
-                .collect::<Vec<_>>(),
-            data,
-            sql: Some(sql.to_string()),
-            total: 0,
-        })
-    }
-}
-
 impl SqlBuilder for DuckDB {
     fn put_value_in_sql(
         &self, typ: &str, _: Option<i64>, value: Option<&str>,
@@ -404,8 +382,15 @@ impl ExportQueryResult for DuckDB {
         }
     }
 }
+
 #[async_trait::async_trait]
 impl QuerySql for DuckDB {
+    async fn set_auto_commit(&self, _query_id: &str, _commit: bool) -> anyhow::Result<()> {
+        anyhow::bail!(
+            "ascyn rust not allow refcell and self reference,so this can't be implemented,we can't prove this is safe to rust compiler."
+        )
+    }
+
     async fn query_sql(
         &self, query_id: &str, _sql: &str, max_row: usize, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
@@ -415,17 +400,23 @@ impl QuerySql for DuckDB {
     async fn execute_sql(
         &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let conn = match self.query_connection.get(&query_id.to_string()) {
-            Some(x) => x.clone(),
-            None => anyhow::bail!("connection closed???"),
-        };
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let resp = match conn.execute_batch(sql) {
-            Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
-            Err(err) => Err(err.to_string()),
-        };
-        anyhow::Ok(resp)
+        let this = Clone::clone(self);
+        let query_id = query_id.to_string();
+        let sql = sql.to_string();
+        spawn_blocking(move || {
+            let conn = match this.query_connection.get(&query_id) {
+                Some(x) => x.clone(),
+                None => anyhow::bail!("connection closed???"),
+            };
+            let mut conn = conn.lock().expect("lock failed");
+            let conn = conn.deref_mut();
+            let resp = match conn.execute_batch(&sql) {
+                Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
+                Err(err) => Err(err.to_string()),
+            };
+            anyhow::Ok(resp)
+        })
+        .await?
     }
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
@@ -443,7 +434,17 @@ impl QuerySql for DuckDB {
     async fn execute_sql_no_open_conn(
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        todo!()
+        let this = Clone::clone(self);
+        let sql = sql.to_string();
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let resp = match conn.execute_batch(&sql) {
+                Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
+                Err(err) => Err(err.to_string()),
+            };
+            anyhow::Ok(resp)
+        })
+        .await?
     }
 }
 
@@ -461,11 +462,9 @@ impl DuckDB {
         if let Some(where_str) = where_str {
             sql.push_str(format!(" where {where_str}").as_str());
         }
-        let r = block_in_place(|| {
-            conn.query_row(&sql, [], |row| {
-                let r: i64 = row.get(0)?;
-                Ok(r)
-            })
+        let r = conn.query_row(&sql, [], |row| {
+            let r: i64 = row.get(0)?;
+            Ok(r)
         })?;
         anyhow::Ok(r as usize)
     }
@@ -674,7 +673,6 @@ fn encode_value(
                     anyhow::bail!("data should be a map but {:?}", ty)
                 }
             };
-
             let (pkty, pvty) = match parsed_type {
                 None => (None, None),
                 Some(parsed_type) => match parsed_type {
@@ -691,7 +689,7 @@ fn encode_value(
                                 Some(parse_type(&subtypes[1])?),
                             )
                         } else {
-                            anyhow::bail!("custon should be map but {:?}", x)
+                            anyhow::bail!("custom should be map but {:?}", x)
                         }
                     }
                     _ => {
@@ -748,6 +746,18 @@ fn format_interval(months: i32, days: i32, nanos: i64) -> String {
     // Join all parts and trim any excess whitespace
     let interval_string = parts.join(" ").trim().to_string();
     format!("INTERVAL '{}'", interval_string)
+}
+
+fn encode_rows<'stmt>(
+    rows: &[&duckdb::Row<'stmt>], types: &[DataType],
+    parsed_types: Option<&[sqlparser::ast::DataType]>,
+) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+    let mut ret = Vec::with_capacity(rows.len());
+    for row in rows.iter() {
+        let v = encode_row(row, types, parsed_types)?;
+        ret.push(v);
+    }
+    anyhow::Ok(ret)
 }
 
 fn encode_row<'stmt>(
@@ -858,43 +868,53 @@ impl DuckDB {
 }
 
 impl DuckDB {
-    pub(crate) fn list_table_impl(&self, db: &str, schema: &str) -> anyhow::Result<Vec<ListTable>> {
+    pub(crate) async fn list_table_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
+        let this = Clone::clone(self);
         let sql = format!(
             r#"SELECT  table_name
             FROM information_schema.tables
-            WHERE table_schema = '{schema}' AND table_type = 'BASE TABLE'  and table_catalog='{db}';"#,
+            WHERE table_schema = '{schema}' AND table_type = 'BASE TABLE'  and table_catalog='{}';"#,
+            this.config.db_str(),
         );
-
-        let conn = self.get_conn()?;
-        let mut stmt = block_in_place(|| conn.prepare(&sql))?;
-        let mut rows = stmt.query([])?;
-        let mut ret = Vec::new();
-        while let Some(row) = rows.next()? {
-            let name: String = row.get(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let mut stmt = conn.prepare(&sql)?;
+            let mut rows = stmt.query([])?;
+            let mut ret = Vec::new();
+            while let Some(row) = rows.next()? {
+                let name: String = row.get(0)?;
+                ret.push(name);
+            }
+            anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
+        })
+        .await?
     }
 
-    pub(crate) fn list_view_impl(&self, db: &str, schema: &str) -> anyhow::Result<Vec<ListTable>> {
-        let sql = format!(
-            r#"SELECT table_name 
+    pub(crate) async fn list_view_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
+        let this = Clone::clone(self);
+        let schema = schema.to_owned();
+        spawn_blocking(move || {
+            let sql = format!(
+                r#"SELECT table_name 
                 FROM information_schema.views 
-                WHERE table_schema = '{schema}' and table_catalog = '{db}'"#,
-        );
-        let conn = self.get_conn()?;
-        let mut stmt = conn.prepare(&sql)?;
-        let mut rows = block_in_place(|| stmt.query([]))?;
-        let mut ret = Vec::new();
-        while let Some(row) = block_in_place(|| rows.next())? {
-            let name: String = row.get(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(
-            ret.into_iter()
-                .map(|x| ListTable::from(x))
-                .collect::<Vec<_>>(),
-        )
+                WHERE table_schema = '{schema}' and table_catalog = '{}'"#,
+                this.config.db_str(),
+            );
+            let conn = this.get_conn()?;
+            let mut stmt = conn.prepare(&sql)?;
+            let mut rows = stmt.query([])?;
+            let mut ret = Vec::new();
+            while let Some(row) = rows.next()? {
+                let name: String = row.get(0)?;
+                ret.push(name);
+            }
+            anyhow::Ok(
+                ret.into_iter()
+                    .map(|x| ListTable::from(x))
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .await?
     }
 
     fn list_materialized_table_impl(
@@ -918,6 +938,19 @@ impl DuckDB {
     }
 }
 
+impl DuckDB {
+    async fn execute(&self, sql: &str) -> anyhow::Result<usize> {
+        let sql = sql.to_string();
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let aff = conn.execute(&sql, [])?;
+            anyhow::Ok(aff)
+        })
+        .await?
+    }
+}
+
 #[async_trait::async_trait]
 impl SchemaTrait for DuckDB {
     async fn rename_index(
@@ -928,41 +961,45 @@ impl SchemaTrait for DuckDB {
 
     async fn drop_index(&self, _table_name: &str, index: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP INDEX "{index}";"#);
-        log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, []))?;
-        anyhow::Ok(())
+
+        self.execute(&sql).await.map(|_| ())
     }
 
     async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
-        let sql = format!(
-            "select index_name , is_unique , sql from duckdb_indexes() where database_name='{}' and schema_name='{}' and  table_name =  '{}'",
-            self.config.db_str(),
-            self.config.schema_str(),
-            table_name
-        );
-        let conn = self.get_conn()?;
-
-        let mut stmt = block_in_place(|| conn.prepare(&sql))?;
-
-        let mut rows = block_in_place(|| stmt.query([]))?;
-        let mut ret = Vec::new();
-        while let Some(row) = block_in_place(|| rows.next())? {
-            let name: String = row.get(0)?;
-            let is_unique: bool = row.get(1)?;
-            let sql: String = row.get(2)?;
-            let columns = extract_index_columns(&sql)?;
-            ret.push(Index {
-                name: Some(name),
-                kind: if is_unique {
-                    IndexKind::Unique
-                } else {
-                    IndexKind::Index
-                },
-                columns,
-            });
-        }
-        anyhow::Ok(ret)
+        let this = Clone::clone(self);
+        let table_name = table_name.to_string();
+        spawn_blocking(move || {
+            let sql = format!(
+                r#"
+            select index_name,
+            is_unique,sql from duckdb_indexes() 
+            where database_name='{}' and schema_name='{}' and  table_name =  '{}'"#,
+                this.config.db_str(),
+                this.config.schema_str(),
+                table_name
+            );
+            let conn = this.get_conn()?;
+            let mut stmt = conn.prepare(&sql)?;
+            let mut rows = stmt.query([])?;
+            let mut ret = Vec::new();
+            while let Some(row) = rows.next()? {
+                let name: String = row.get(0)?;
+                let is_unique: bool = row.get(1)?;
+                let sql: String = row.get(2)?;
+                let columns = extract_index_columns(&sql)?;
+                ret.push(Index {
+                    name: Some(name),
+                    kind: if is_unique {
+                        IndexKind::Unique
+                    } else {
+                        IndexKind::Index
+                    },
+                    columns,
+                });
+            }
+            anyhow::Ok(ret)
+        })
+        .await?
     }
 
     async fn create_index(
@@ -979,8 +1016,7 @@ impl SchemaTrait for DuckDB {
             fields.join(",")
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, []))?;
+        self.execute(&sql).await?;
         anyhow::Ok(())
     }
 
@@ -990,17 +1026,13 @@ impl SchemaTrait for DuckDB {
              ALTER TABLE "{table}" DROP COLUMN "{col}";
         "#
         );
-
-        log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, []))?;
+        self.execute(&sql).await?;
         anyhow::Ok(())
     }
 
     async fn modify_table_column(
         &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
-        let conn = self.get_conn()?;
         if old_name != new_name {
             let sql = format!(
                 r#"
@@ -1008,7 +1040,7 @@ impl SchemaTrait for DuckDB {
             "#
             );
             log::info!("sql:{}", sql);
-            block_in_place(|| conn.execute(&sql, []))?;
+            self.execute(&sql).await?;
         }
         if let Some(typ) = typ.as_ref() {
             let sql = format!(
@@ -1020,7 +1052,7 @@ impl SchemaTrait for DuckDB {
             );
             log::info!("sql:{}", sql);
 
-            block_in_place(|| conn.execute(&sql, []))?;
+            self.execute(&sql).await?;
 
             if let Some(null) = typ.nullness.as_ref() {
                 let sql = if null.trim().to_lowercase() == "null" {
@@ -1039,7 +1071,7 @@ impl SchemaTrait for DuckDB {
                     )
                 };
                 log::info!("sql:{}", sql);
-                block_in_place(|| conn.execute(&sql, []))?;
+                self.execute(&sql).await?;
             }
 
             if let Some(x) = typ.default_value.as_ref() {
@@ -1050,7 +1082,7 @@ impl SchemaTrait for DuckDB {
                     self.put_value_in_sql(&typ.typ, None, Some(x.as_str()))?
                 );
 
-                block_in_place(|| conn.execute(&sql, []))?;
+                self.execute(&sql).await?;
             }
         }
         anyhow::Ok(())
@@ -1076,15 +1108,13 @@ impl SchemaTrait for DuckDB {
                 "".to_owned()
             }
         );
-        let conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, []))?;
+
+        self.execute(&sql).await?;
         anyhow::Ok(())
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        block_in_place(|| {
-            self.list_materialized_table_impl(self.config.db_str(), self.config.schema_str())
-        })
+        self.list_materialized_table_impl(self.config.db_str(), self.config.schema_str())
     }
 
     async fn export_table_or_view(
@@ -1121,110 +1151,117 @@ impl SchemaTrait for DuckDB {
             WHERE type = 'table' AND name = '{table_name}';
         "#
         );
-        let conn = self.get_conn()?;
-        let mut ret = block_in_place(|| {
-            conn.query_row(&sql, [], |x| {
+        let this = Clone::clone(self);
+        let table_name = table_name.to_string();
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let mut ret = conn.query_row(&sql, [], |x| {
                 let sql: String = x.get(0)?;
                 Ok(CreateTableAndIndexSql {
                     create_table: sql,
                     indexes: vec![],
                 })
-            })
-        })?;
-        ret.indexes = {
-            let sql = format!(
-                r#"
+            })?;
+            ret.indexes = {
+                let sql = format!(
+                    r#"
                 SELECT sql
                 FROM sqlite_master
                 WHERE type = 'index' AND tbl_name = '{table_name}';
             "#
-            );
+                );
 
-            let mut stmt = conn.prepare(&sql)?;
-            let mut indexes = vec![];
-            let mut rows = block_in_place(|| stmt.query([]))?;
-            while let Some(row) = rows.next()? {
-                let s: String = row.get(0)?;
-                indexes.push(s);
-            }
-            indexes
-        };
-        anyhow::Ok(ret)
+                let mut stmt = conn.prepare(&sql)?;
+                let mut indexes = vec![];
+                let mut rows = stmt.query([])?;
+                while let Some(row) = rows.next()? {
+                    let s: String = row.get(0)?;
+                    indexes.push(s);
+                }
+                indexes
+            };
+            anyhow::Ok(ret)
+        })
+        .await?
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
-        block_in_place(|| self.list_view_impl(self.config.db_str(), self.config.schema_str()))
+        self.list_view_impl(self.config.schema_str()).await
     }
 
     async fn drop_view(&self, view_name: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DROP VIEW "{view_name}";"#);
-        let conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, []))?;
+        self.execute(&sql).await?;
         anyhow::Ok(())
     }
 
     async fn show_view(
         &self, view_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            limit,
-            min,
-            max,
-            allow_filtering,
-        } = &para;
-        let total = self.query_count(view_name, where_str.as_deref())?;
-        let sql = gen_show_sql(
-            self.config.schema_str(),
-            view_name,
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
-        log::info!("sql:{}", sql);
+        let this = Clone::clone(self);
+
         let fs = self.show_view_columns(view_name).await?;
-        let conn = self.get_conn()?;
-        let mut stmt = conn.prepare(&sql)?;
-        stmt.execute([])?;
-        let types: Vec<_> = (0..stmt.column_count())
-            .map(|x| stmt.column_type(x))
-            .collect();
-        let mut parsed_type = Vec::with_capacity(fs.len());
-        for f in fs.iter() {
-            parsed_type.push(parse_type(&f.data_type));
-        }
-        let parsed_type = if parsed_type.iter().all(|x| x.is_ok()) {
-            Some(
-                parsed_type
-                    .into_iter()
-                    .map(|x| x.unwrap())
-                    .collect::<Vec<_>>(),
-            )
-        } else {
-            None
-        };
-        let mut rows = stmt.query([])?;
-        let mut data = Vec::new();
-        while let Some(row) = rows.next()? {
-            data.push(encode_row(
-                &row,
-                &types[..],
-                parsed_type.as_ref().map(|x| &x[..]),
-            )?);
-        }
-        unimplemented!()
+        let view_name = view_name.to_owned();
+        spawn_blocking(move || {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = &para;
+            let total = this.query_count(&view_name, where_str.as_deref())?;
+            let sql = gen_show_sql(
+                this.config.schema_str(),
+                &view_name,
+                where_str.as_deref(),
+                order_by.as_deref(),
+                *page,
+                *page_size,
+            );
+            log::info!("sql:{}", sql);
+            let conn = this.get_conn()?;
+            let mut stmt = conn.prepare(&sql)?;
+            stmt.execute([])?;
+            let types: Vec<_> = (0..stmt.column_count())
+                .map(|x| stmt.column_type(x))
+                .collect();
+            let mut parsed_type = Vec::with_capacity(fs.len());
+            for f in fs.iter() {
+                parsed_type.push(parse_type(&f.data_type));
+            }
+            let parsed_type = if parsed_type.iter().all(|x| x.is_ok()) {
+                Some(
+                    parsed_type
+                        .into_iter()
+                        .map(|x| x.unwrap())
+                        .collect::<Vec<_>>(),
+                )
+            } else {
+                None
+            };
+            let mut rows = stmt.query([])?;
+            let mut data = Vec::new();
+            while let Some(row) = rows.next()? {
+                data.push(encode_row(
+                    &row,
+                    &types[..],
+                    parsed_type.as_ref().map(|x| &x[..]),
+                )?);
+            }
+            unimplemented!()
+        })
+        .await?
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        let conn = self.get_conn()?;
-
-        let primary_keys = {
-            let sql = format!(
-                "
+        let this = Clone::clone(self);
+        let table_name = table_name.to_owned();
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let primary_keys = {
+                let sql = format!(
+                    "
                 SELECT c.column_name
                     FROM information_schema.table_constraints tc
                     JOIN information_schema.constraint_column_usage c
@@ -1234,58 +1271,56 @@ impl SchemaTrait for DuckDB {
                     and tc.table_catalog = '{}'
                     AND tc.constraint_type = 'PRIMARY KEY';
            ",
-                table_name,
-                self.config.db_str(),
-                self.config.schema_str()
-            );
+                    table_name,
+                    this.config.db_str(),
+                    this.config.schema_str()
+                );
 
-            log::info!("sql:{}", sql);
-            let mut primary_keys = HashSet::new();
-            let mut stmt = conn.prepare(&sql)?;
-            let mut rows = stmt.query([])?;
-            while let Some(row) = rows.next()? {
-                let name: String = row.get(0)?;
-                primary_keys.insert(name);
-            }
+                log::info!("sql:{}", sql);
+                let mut primary_keys = HashSet::new();
+                let mut stmt = conn.prepare(&sql)?;
+                let mut rows = stmt.query([])?;
+                while let Some(row) = rows.next()? {
+                    let name: String = row.get(0)?;
+                    primary_keys.insert(name);
+                }
+                primary_keys
+            };
 
-            primary_keys
-        };
-
-        let sql = format!(
-            r#"
+            let sql = format!(
+                r#"
             SELECT column_name, data_type, is_nullable , column_default
                 FROM information_schema.columns
                 WHERE table_name = '{}'
                 AND table_schema = '{}' 
                 AND table_catalog = '{}';  -- 指定 schema 名称
         "#,
-            table_name,
-            self.config.schema_str(),
-            self.config.db_str(),
-        );
-        log::info!("sql:{}", sql);
-
-        let mut stmt = conn.prepare(&sql)?;
-
-        let mut rows = block_in_place(|| stmt.query([]))?;
-        let mut ret = Vec::new();
-        while let Some(row) = rows.next()? {
-            let name: String = row.get(0)?;
-            let data_type: String = row.get(1)?;
-            let is_nullable: String = row.get(2)?;
-            let column_default: Option<String> = row.get(3)?;
-            let is_primary = primary_keys.contains(&name);
-
-            ret.push(Field {
-                field: name,
-                data_type,
-                nullable: is_nullable.eq_ignore_ascii_case("yes"),
-                default_value: column_default,
-                is_primary,
-                ..Default::default()
-            });
-        }
-        anyhow::Ok(ret)
+                table_name,
+                this.config.schema_str(),
+                this.config.db_str(),
+            );
+            log::info!("sql:{}", sql);
+            let mut stmt = conn.prepare(&sql)?;
+            let mut rows = stmt.query([])?;
+            let mut ret = Vec::new();
+            while let Some(row) = rows.next()? {
+                let name: String = row.get(0)?;
+                let data_type: String = row.get(1)?;
+                let is_nullable: String = row.get(2)?;
+                let column_default: Option<String> = row.get(3)?;
+                let is_primary = primary_keys.contains(&name);
+                ret.push(Field {
+                    field: name,
+                    data_type,
+                    nullable: is_nullable.eq_ignore_ascii_case("yes"),
+                    default_value: column_default,
+                    is_primary,
+                    ..Default::default()
+                });
+            }
+            anyhow::Ok(ret)
+        })
+        .await?
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1294,20 +1329,19 @@ impl SchemaTrait for DuckDB {
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
         let sql = format!(r#"ALTER TABLE "{old}"  RENAME TO "{new}";"#);
-        let conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, []))?;
+        self.execute(&sql).await?;
+
         anyhow::Ok(())
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
         let sql = format!(r#"CREATE TABLE "{dup}" AS SELECT * FROM "{table}";"#);
-        let conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, []))?;
+        self.execute(&sql).await?;
         anyhow::Ok(())
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        self.list_table_impl(self.config.db_str(), self.config.schema_str())
+        self.list_table_impl(self.config.schema_str()).await
     }
 
     async fn show_view_columns(&self, name: &str) -> anyhow::Result<Vec<Field>> {
@@ -1361,10 +1395,7 @@ impl SchemaTrait for DuckDB {
             order_by,
             page,
             page_size,
-            limit,
-            min,
-            max,
-            allow_filtering,
+            ..
         } = &para;
 
         let total = self.query_count(table_name, where_str.as_deref())?;
@@ -1378,6 +1409,15 @@ impl SchemaTrait for DuckDB {
         );
         log::info!("sql:{}", sql);
         let fs = self.show_table_columns(table_name).await?;
+        emit.send(
+            QueryResp {
+                fields: fs.clone(),
+                sql: Some(sql.to_string()),
+                total,
+                ..Default::default()
+            }
+            .into(),
+        )?;
         let conn = self.get_conn()?;
         let mut stmt = conn.prepare(&sql)?;
         stmt.execute([])?;
@@ -1388,25 +1428,21 @@ impl SchemaTrait for DuckDB {
         for f in fs.iter() {
             parsed_type.push(parse_type(&f.data_type)?);
         }
-        let mut rows = stmt.query([])?;
-        let mut data = Vec::new();
-        while let Some(row) = rows.next()? {
-            data.push(encode_row(&row, &types[..], Some(&parsed_type[..]))?);
+        let mut stream = stmt.query([])?;
+        while let Some(row) = stream.next()? {
+            let d = encode_row(row, &types[..], Some(&parsed_type[..]))?;
+            emit.send(vec![d].into())?;
         }
-
-        unimplemented!()
+        anyhow::Ok(())
     }
 
     async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
-
         let sql = self.insert_sql(self.config.schema.as_deref(), table_name, &fs, &values)?;
         log::info!("sql:{}", sql);
-
-        let conn = self.get_conn()?;
-        let changes = block_in_place(|| conn.execute(&sql, []))?;
+        let changes = self.execute(&sql).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(changes as u64),
@@ -1427,8 +1463,7 @@ impl SchemaTrait for DuckDB {
             &wheres,
         )?;
 
-        let conn = self.get_conn()?;
-        let changes = block_in_place(|| conn.execute(&sql, []))?;
+        let changes = self.execute(&sql).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(changes as u64),
@@ -1439,11 +1474,8 @@ impl SchemaTrait for DuckDB {
         &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
         let fs = self.show_table_columns(table_name).await?;
-
         let sql = self.delete_sql(self.config.schema.as_deref(), table_name, &fs, &wheres)?;
-
-        let conn = self.get_conn()?;
-        let changes = block_in_place(|| conn.execute(&sql, []))?;
+        let changes = self.execute(&sql).await?;
         anyhow::Ok(SqlExecuteRet {
             sql,
             changes: Some(changes as u64),
@@ -1452,15 +1484,13 @@ impl SchemaTrait for DuckDB {
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DELETE FROM "{}";"#, table_name);
-        let conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, []))?;
+        self.execute(&sql).await?;
         anyhow::Ok(())
     }
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
         let sql = format!(r#"DROP TABLE "{}";"#, table);
-        let conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, []))?;
+        self.execute(&sql).await?;
         anyhow::Ok(())
     }
 
@@ -1506,20 +1536,25 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
 }
 
 impl DuckDB {
-    pub(crate) fn list_schema_impl(&self, db: &str) -> anyhow::Result<Vec<String>> {
+    pub(crate) async fn list_schema_impl(&self, db: &str) -> anyhow::Result<Vec<String>> {
         let sql = format!(
             "SELECT schema_name FROM information_schema.schemata  where catalog_name = '{db}' ;",
         );
         log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
-        let mut p = conn.prepare(&sql)?;
-        let mut rows = block_in_place(|| p.query([]))?;
-        let mut ret = Vec::new();
-        while let Some(row) = rows.next()? {
-            let name: String = row.get(0)?;
-            ret.push(name);
-        }
-        anyhow::Ok(ret)
+
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let mut p = conn.prepare(&sql)?;
+            let mut rows = p.query([])?;
+            let mut ret = Vec::new();
+            while let Some(row) = rows.next()? {
+                let name: String = row.get(0)?;
+                ret.push(name);
+            }
+            anyhow::Ok(ret)
+        })
+        .await?
     }
 }
 
@@ -1531,7 +1566,7 @@ impl DBTrait for DuckDB {
     }
 
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        self.list_schema_impl(self.config.db_str())
+        self.list_schema_impl(self.config.db_str()).await
     }
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
@@ -1546,8 +1581,7 @@ impl DBTrait for DuckDB {
         self.can_write()?;
         let sql = format!("CREATE SCHEMA {};", name);
         log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, []))?;
+        self.execute(&sql).await?;
         anyhow::Ok(())
     }
 
@@ -1555,8 +1589,7 @@ impl DBTrait for DuckDB {
         self.can_write()?;
         let sql = format!("DROP SCHEMA {} CASCADE;", name);
         log::info!("sql:{}", sql);
-        let conn = self.get_conn()?;
-        block_in_place(|| conn.execute(&sql, []))?;
+        self.execute(&sql).await?;
         anyhow::Ok(())
     }
 }
@@ -1632,7 +1665,6 @@ fn parse_type(typ: &str) -> anyhow::Result<sqlparser::ast::DataType> {
 
 fn extract_index_columns(sql: &str) -> anyhow::Result<Vec<String>> {
     use sqlparser::ast::{Expr, Statement};
-
     let d = sqlparser::dialect::DuckDbDialect {};
     let mut p = sqlparser::parser::Parser::new(&d);
     p = p.try_with_sql(sql)?;
@@ -1662,6 +1694,7 @@ fn extract_index_columns(sql: &str) -> anyhow::Result<Vec<String>> {
 mod tests {
     use super::*;
     use crate::{db::ShowTableParameter, enable_test_log};
+    use tokio::sync::Mutex;
     fn test_lock() -> &'static Mutex<()> {
         static MUTEX: Mutex<()> = Mutex::const_new(());
         &MUTEX
@@ -1760,7 +1793,7 @@ mod tests {
     }
     #[ignore = "materizlized view not implemented https://github.com/duckdb/duckdb/discussions/3638"]
     #[tokio::test]
-    async fn test_materializd_view() {
+    async fn test_materialized_view() {
         let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
@@ -2732,3 +2765,30 @@ mod tests {
         }
     }
 }
+
+// impl DuckDB {
+//     fn query_resp(conn: &Connection, sql: &str) -> anyhow::Result<QueryResp> {
+//         let mut stmt = conn.prepare(sql)?;
+//         stmt.execute([])?;
+//         let types: Vec<_> = (0..stmt.column_count())
+//             .map(|x| stmt.column_type(x))
+//             .collect();
+//         let names = stmt.column_names();
+//         let mut rows =   stmt.query([])?;
+//         let mut data = vec![];
+//         while let Some(row) =  rows.next()? {
+//             let d = encode_row(row, &types[..], None)?;
+//             data.push(d);
+//         }
+//         anyhow::Ok(QueryResp {
+//             fields: names
+//                 .iter()
+//                 .zip(types.iter())
+//                 .map(|(name, typ)| Field::from_name_type(name, typ.to_string()))
+//                 .collect::<Vec<_>>(),
+//             data,
+//             sql: Some(sql.to_string()),
+//             total: 0,
+//         })
+//     }
+// }
