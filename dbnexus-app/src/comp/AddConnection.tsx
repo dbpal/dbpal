@@ -1305,7 +1305,9 @@ function AddConnection(props: {
           {connectionType === DataSourceKind.Sqlite && (
             <Sqlite config={config as types.SqliteDBConfig} />
           )}
-          {connectionType === DataSourceKind.DuckDB && <DuckDB />}
+          {connectionType === DataSourceKind.DuckDB && (
+            <DuckDB config={config as types.DuckDBConfig} />
+          )}
         </Stack>
       </AddConnectionContext>
 
@@ -1314,10 +1316,19 @@ function AddConnection(props: {
   );
 }
 
-function DuckDB() {
-  const [path, setPath] = useState("");
-  const [db, setDb] = useState("");
-  const [schema, setSchema] = useState("");
+function DuckDB(props: { config: types.DuckDBConfig }) {
+  const { config } = props;
+
+  function getConfigStr(key: string) {
+    if (!config) {
+      return "";
+    }
+    const v = config[key];
+    return v ? v : "";
+  }
+  const [path, setPath] = useState(getConfigStr("path"));
+  const [db, setDb] = useState(getConfigStr("db"));
+  const [schema, setSchema] = useState(getConfigStr("schema"));
   const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
   function makeConfig(): types.DBConnectionConfig {
     const x: types.DBConnectionConfig = {
