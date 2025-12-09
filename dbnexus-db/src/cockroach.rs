@@ -1,12 +1,8 @@
-use crate::db::{
-    GetBackendKind, ListTable, QueryEventEmitter, QueryResp, QuerySql, SchemaTrait,
-    ShowTableParameter, TimeElapsed,
-};
-use crate::pg::{PostGresDB, gen_show_sql};
-use crate::pg_format::encode_rows;
+use crate::{db::ListTable, pg::PostGresDB};
+
 #[cfg(test)]
 use crate::sub::SubDB;
-use futures_util::StreamExt;
+
 use sqlx::{AssertSqlSafe, Row};
 use std::ops::DerefMut;
 
@@ -78,57 +74,6 @@ pub(crate) const COCKROACH_TYPES: &[&str] = &[
 ];
 
 impl PostGresDB {
-    pub(crate) async fn cock_roach_show_table(
-        &self, table_name: &str, para: ShowTableParameter, emit: QueryEventEmitter,
-    ) -> anyhow::Result<()> {
-        let ShowTableParameter {
-            where_str,
-            order_by,
-            page,
-            page_size,
-            ..
-        } = &para;
-
-        emit.send("trying to query columns".into())?;
-        let fields = self.show_table_columns(table_name).await?;
-        let total = self.query_count(table_name, where_str.as_deref()).await?;
-        emit.send("trying to query total".into())?;
-        emit.send(
-            QueryResp {
-                fields: fields.clone(),
-                total,
-                ..Default::default()
-            }
-            .into(),
-        )?;
-        let sql = gen_show_sql(
-            self.config.schema_str()?,
-            table_name,
-            Some(self.backend_name().format_fields(Some(&fields))),
-            where_str.as_deref(),
-            order_by.as_deref(),
-            *page,
-            *page_size,
-        );
-        log::info!("sql:{}", sql);
-        emit.send("trying to query data".into())?;
-        let mut conn = self.get_conn().await?;
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
-        let mut rows = vec![];
-        let mut time_elapsed = TimeElapsed::new();
-        while let Some(x) = stream.next().await {
-            let row = x?;
-            rows.push(row);
-            if time_elapsed.elapsed() || rows.len() >= self.query_buffer_size() {
-                emit.send(encode_rows(&std::mem::take(&mut rows))?.into())?;
-            }
-        }
-        if !rows.is_empty() {
-            emit.send(encode_rows(&rows)?.into())?;
-        }
-        anyhow::Ok(())
-    }
-
     pub(crate) async fn cock_roach_list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!(
             r#"
@@ -161,7 +106,7 @@ impl PostGresDB {
 mod tests {
     use super::*;
     use crate::db::{
-        CatalogTrait, CheckConn, ColumnType, IndexKind, QuerySql, ServerMetas,
+        CatalogTrait, CheckConn, ColumnType, IndexKind, QuerySql, SchemaTrait, ServerMetas,
         UdfOrProcedureExtraParameter,
     };
     use crate::db::{ExportKind, ShowTableParameter};

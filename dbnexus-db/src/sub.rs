@@ -283,14 +283,9 @@ impl SchemaTrait for SubDB {
     async fn show_table(
         &self, table_name: &str, para: ShowTableParameter, status_emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        match self {
-            SubDB::CocoRoach(x) => x.cock_roach_show_table(table_name, para, status_emit).await,
-            _ => {
-                self.as_schema()
-                    .show_table(table_name, para, status_emit)
-                    .await
-            }
-        }
+        self.as_schema()
+            .show_table(table_name, para, status_emit)
+            .await
     }
 
     async fn table_insert(
