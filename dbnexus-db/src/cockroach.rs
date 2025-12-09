@@ -271,10 +271,6 @@ mod tests {
     #[tokio::test]
     async fn test_databases() {
         let db = make_test_object().await;
-        let _ = CatalogTrait::drop_database(&db, "abc").await;
-        CatalogTrait::create_database(&db, "abc", None)
-            .await
-            .unwrap();
         let dbs = CatalogTrait::list_database(&db).await.unwrap();
         println!("{:?}", dbs);
     }
@@ -282,8 +278,6 @@ mod tests {
     async fn test_schemas() {
         use crate::db::DBTrait;
         let db = make_test_object().await;
-        let _ = db.drop_schema("abc").await;
-        let _ = db.create_schema("abc", None).await;
         let resp = db.list_schema().await.unwrap();
         println!("{:?}", resp);
     }
@@ -323,7 +317,7 @@ mod tests {
 
         db.show_table_collect(
             "test_rename2",
-            ShowTableParameter::new_stupid_test("id asc"),
+            ShowTableParameter::new_stupid_test("name asc"),
         )
         .await
         .unwrap();
@@ -361,7 +355,7 @@ mod tests {
         let resp = db
             .show_table_collect(
                 "test_duplicate2",
-                ShowTableParameter::new_stupid_test("id asc"),
+                ShowTableParameter::new_stupid_test("data asc"),
             )
             .await
             .unwrap();
@@ -373,7 +367,14 @@ mod tests {
         let db = make_test_object().await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let _ = db.drop_procedure("test_procedure", None).await;
+        let _ = db
+            .drop_procedure(
+                "test_procedure",
+                Some(UdfOrProcedureExtraParameter::PostGres {
+                    parameters: "".to_string(),
+                }),
+            )
+            .await;
         db.execute_sql(
             query_id,
             r#"
@@ -436,7 +437,7 @@ mod tests {
         let list = db.list_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
-                .show_view_collect(&l.name, ShowTableParameter::new_stupid_test("id asc"))
+                .show_view_collect(&l.name, ShowTableParameter::new_stupid_test("name asc"))
                 .await
                 .unwrap();
             println!("resp:{:?}", table_resp);
@@ -475,7 +476,7 @@ mod tests {
         let list = db.list_materialized_view().await.unwrap();
         for l in list.iter() {
             let table_resp = db
-                .show_view_collect(&l.name, ShowTableParameter::new_stupid_test("id asc"))
+                .show_view_collect(&l.name, ShowTableParameter::new_stupid_test("name asc"))
                 .await
                 .unwrap();
             println!("resp:{:?}", table_resp);
