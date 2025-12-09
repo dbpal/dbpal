@@ -1,5 +1,7 @@
+use duckdb::Connection;
 use tokio::task::spawn_blocking;
 
+use crate::db::CatalogTrait;
 use crate::duckdb::DuckDB;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, GetKeyWords,
@@ -7,6 +9,7 @@ use crate::language_server::{
 };
 use crate::sqlparser_completion::TempTableColumn;
 use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 
 #[async_trait::async_trait]
 impl LanguageServer for DuckDB {
@@ -39,15 +42,24 @@ impl LanguageServer for DuckDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for DuckDB {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        let db = self.get_database().await?;
+        DuckDB::list_schema_impl(self, &db).await
+    }
+    async fn list_database(&self) -> anyhow::Result<Vec<String>> {
+        CatalogTrait::list_database(self).await
+    }
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let db = self.get_database().await?;
         let schema = self.get_schema(schema).await?;
-        let ret = self.list_table_impl(schema.as_str()).await?;
+        let ret = self.list_table_impl(&db, schema.as_str()).await?;
         anyhow::Ok(ret.into_iter().map(|x| x.name).collect())
     }
 
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schema = self.get_schema(schema).await?;
-        let ret = self.list_view_impl(&schema).await?;
+        let db = self.get_database().await?;
+        let ret = self.list_view_impl(&db, &schema).await?;
         anyhow::Ok(ret.into_iter().map(|x| x.name).collect())
     }
 
@@ -56,7 +68,16 @@ impl LangServerCommon for DuckDB {
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let this = Clone::clone(self);
         let schema = this.get_schema(schema).await?;
-        let sql = format!(r#"select * from "{}"."{}" limit 1"#, schema, name);
+        let sql = if let Some(is_call) = is_call {
+            format!(
+                r#"select * from "{}"."{}"({}) limit 1"#,
+                schema,
+                name,
+                is_call.join(",")
+            )
+        } else {
+            format!(r#"select * from "{}"."{}" limit 1"#, schema, name)
+        };
         spawn_blocking(move || {
             let conn = this.get_conn()?;
             let mut stmt = conn.prepare(&sql)?;
@@ -76,7 +97,29 @@ impl LangServerCommon for DuckDB {
     }
 
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        todo!()
+        let schema = self.get_schema(schema).await?;
+        let db = self.get_database().await?;
+
+        let sql = format!(
+            r#"
+            select index_name  from duckdb_indexes() 
+            where database_name='{}' and schema_name='{}'"#,
+            db, schema
+        );
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let mut stmt = conn.prepare(&sql)?;
+            let mut stream = stmt.query([])?;
+            let mut ret = vec![];
+            while let Some(row) = stream.next()? {
+                let name: String = row.get(0)?;
+                ret.push(name);
+            }
+
+            anyhow::Ok(ret)
+        })
+        .await?
     }
 
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
@@ -145,9 +188,25 @@ impl AstCompletionHelper for DuckDB {
     }
 
     async fn get_query_columns(
-        &self, _sql: &str,
+        &self, sql: &str,
     ) -> anyhow::Result<Vec<crate::sqlparser_completion::TempTableColumn>> {
-        todo!()
+        let sql = format!("select * from ({sql})  limit 1");
+
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let mut stmt = conn.prepare(&sql)?;
+            stmt.execute([])?;
+            let mut ret = vec![];
+            for index in 0..stmt.column_count() {
+                ret.push(TempTableColumn {
+                    name: stmt.column_name(index)?.to_string(),
+                    data_type: format!("{:?}", stmt.column_type(index)).into(),
+                });
+            }
+            anyhow::Ok(ret)
+        })
+        .await?
     }
 }
 
@@ -155,7 +214,47 @@ impl DuckDB {
     async fn get_schema(&self, schema: Option<&str>) -> anyhow::Result<String> {
         match schema {
             Some(x) => anyhow::Ok(x.to_string()),
-            None => todo!(),
+            None => {
+                let this = Clone::clone(self);
+                spawn_blocking(move || {
+                    let conn = this.get_query_conn()?;
+                    let conn = conn.lock().expect("lock failed");
+                    let r = conn.query_row("SELECT current_schema()", [], |row| {
+                        let r: Option<String> = row.get(0)?;
+                        Ok(r)
+                    })?;
+                    match r {
+                        Some(x) => anyhow::Ok(x),
+                        None => match &this.config.schema {
+                            Some(x) => anyhow::Ok(x.to_owned()),
+                            None => anyhow::Ok("main".to_string()),
+                        },
+                    }
+                })
+                .await?
+            }
+        }
+    }
+
+    // get `use xxxx`
+    async fn get_database(&self) -> anyhow::Result<String> {
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.get_query_conn()?;
+            let conn = conn.lock().expect("lock failed");
+            let r = conn.query_row("SELECT current_database()", [], |row| {
+                let r: String = row.get(0)?;
+                Ok(r)
+            })?;
+            anyhow::Ok(r)
+        })
+        .await?
+    }
+
+    fn get_query_conn(&self) -> anyhow::Result<Arc<Mutex<Connection>>> {
+        match self.query_connection.get(&self.completion_id.get()) {
+            Some(x) => anyhow::Ok(x.clone()),
+            None => anyhow::bail!(format!("query id '{}' not found", self.completion_id.get())),
         }
     }
 }
@@ -186,7 +285,7 @@ impl GetKeyWords for DuckDB {
 #[async_trait::async_trait]
 impl LexerCompletionTrait for DuckDB {
     async fn get_types(&self) -> anyhow::Result<Vec<String>> {
-        anyhow::Ok(TYPES.iter().map(|x| x.to_string()).collect())
+        anyhow::Ok(DUCKDB_TYPES.iter().map(|x| x.to_string()).collect())
     }
 
     async fn get_text(&self) -> anyhow::Result<Vec<String>> {
@@ -194,7 +293,7 @@ impl LexerCompletionTrait for DuckDB {
     }
 }
 
-const TYPES: &'static [&'static str] = &[
+pub(crate) const DUCKDB_TYPES: &'static [&'static str] = &[
     "BIGINT",
     "INT8",
     "LONG",

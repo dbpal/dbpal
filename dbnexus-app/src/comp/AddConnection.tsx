@@ -1155,6 +1155,7 @@ function AddConnection(props: {
   useEffect(() => {
     ConnectionHandler.nameDuplicated(connectionName).then(setCnameDuplicated);
   }, [connectionName]);
+
   return (
     <Stack>
       <FormControl fullWidth>
@@ -1178,7 +1179,7 @@ function AddConnection(props: {
           <MenuItem value={DataSourceKind.ClickHouse}>Clickhouse</MenuItem>
           <MenuItem value={DataSourceKind.LibSql}> LibSql </MenuItem>
           <MenuItem value={DataSourceKind.FireBird}> FireBird </MenuItem>
-          {/* <MenuItem value={DataSourceKind.DuckDB}> Duckdb </MenuItem> */}
+          <MenuItem value={DataSourceKind.DuckDB}> Duckdb </MenuItem>
           <MenuItem value={DataSourceKind.Cockroach}> Cockroach </MenuItem>
         </Select>
       </FormControl>
@@ -1304,10 +1305,53 @@ function AddConnection(props: {
           {connectionType === DataSourceKind.Sqlite && (
             <Sqlite config={config as types.SqliteDBConfig} />
           )}
+          {connectionType === DataSourceKind.DuckDB && <DuckDB />}
         </Stack>
       </AddConnectionContext>
 
       <TestConnAndSave connectionNameDom={connectionNameDom} />
+    </Stack>
+  );
+}
+
+function DuckDB() {
+  const [path, setPath] = useState("");
+  const [db, setDb] = useState("");
+  const [schema, setSchema] = useState("");
+  const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
+  function makeConfig(): types.DBConnectionConfig {
+    const x: types.DBConnectionConfig = {
+      conn_type: "duckdb",
+      path,
+      db: db ? db : null,
+      conn_timeout: connTimeOut,
+      name: connectionName,
+      read_only: readOnly,
+      schema: schema ? schema : null,
+    };
+    console.info("makeConfig", x);
+    return x;
+  }
+  globalMakeConfig = makeConfig;
+  return (
+    <Stack>
+      <SelectPath path={path} setPath={setPath} label="database file path" required />
+      {path && (
+        <DbSchemaCadidates
+          name={db}
+          setName={setDb}
+          makeConfig={makeConfig}
+          label="database"
+        />
+      )}
+      {db && (
+        <DbSchemaCadidates
+          name={schema}
+          setName={setSchema}
+          label="schema"
+          makeConfig={makeConfig}
+        />
+      )}
     </Stack>
   );
 }

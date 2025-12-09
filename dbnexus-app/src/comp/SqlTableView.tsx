@@ -665,6 +665,7 @@ function SqlTableView(props: {
                 editRowInModal={() => {
                   setRowEditInModal({ row, rowId: parseInt(id) });
                 }}
+                isTable={isTable}
                 nullable={nullable}
                 fields={resp.fields}
                 field={field}
@@ -1216,6 +1217,7 @@ function Menu(props: {
   kind: DataSourceKind;
   viewInModal: () => void;
   showExportMarkDown: () => void;
+  isTable: boolean;
 }) {
   const {
     field,
@@ -1236,6 +1238,7 @@ function Menu(props: {
     kind,
     viewInModal,
     showExportMarkDown,
+    isTable,
   } = props;
   const { showNotification } = useContext(NotificationContext);
   const [showFilter, setShowFilter] = useState(false);
@@ -1254,7 +1257,7 @@ function Menu(props: {
   return (
     <div>
       <MenuList>
-        {updateOP && (
+        {isTable && (
           <MenuItem
             onClick={() => {
               editCellInModal();
@@ -1267,7 +1270,7 @@ function Menu(props: {
           </MenuItem>
         )}
 
-        {updateOP && (
+        {isTable && (
           <MenuItem
             onClick={() => {
               editRowInModal();
@@ -1280,7 +1283,7 @@ function Menu(props: {
           </MenuItem>
         )}
 
-        {nullable && setNull && (
+        {nullable && isTable && setNull && (
           <MenuItem
             onClick={() => {
               setNull();
@@ -1349,7 +1352,7 @@ function Menu(props: {
         )}
         <Divider />
 
-        {addOP && (
+        {isTable && (
           <MenuItem
             onClick={() => {
               setShowClone(true);
@@ -1361,7 +1364,7 @@ function Menu(props: {
             <ListItemText> Clone Row </ListItemText>
           </MenuItem>
         )}
-        {handleDelete && (
+        {isTable && (
           <MenuItem onClick={handleDelete}>
             <ListItemIcon>
               <DeleteForeverIcon />

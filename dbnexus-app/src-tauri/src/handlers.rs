@@ -328,7 +328,6 @@ pub async fn establish_conn(
     #[cfg(debug_assertions)]
     println!("open connection:{:?}", config);
     let secs = 10;
-
     tokio::time::timeout(Duration::from_secs(secs), async {
         app.establish_conn(&config)
             .await
@@ -3028,7 +3027,7 @@ pub async fn drop_created_type(
 
 #[tauri::command]
 pub async fn command_panic() -> Result<(), ErrorFrontend> {
-    todo!("this is a panic.")
+    panic!("this is a panic for testing.")
 }
 
 #[tauri::command]

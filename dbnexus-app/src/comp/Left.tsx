@@ -528,7 +528,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   );
 }
 
-function Left_() {
+function Left() {
   const [configs, setConfigs] = useState<types.DBConnectionConfig[]>([]);
   const { showNotification } = useContext(NotificationContext);
   const [matchPattern, setMatchPattern] = useState<string[]>(
@@ -1016,7 +1016,6 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     DataSourceKind.Cassandra,
   ].includes(kind);
   const supportEvent = [DataSourceKind.Mysql, DataSourceKind.MariaDB].includes(kind);
-
   const { setUpMenu } = useContext(ContextMenuContext);
   const [loading, setLoading] = useState(false);
   const idForTree = useRef(generateRandomString());
@@ -1063,6 +1062,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
           <ViewsTree viewKind={ViewKind.View} />
         </>
       )}
+
       {opened && kind == DataSourceKind.DuckDB && (
         <>
           <TablesTree typ={TableType.Normal} />
@@ -1667,6 +1667,5 @@ function DatabaseTree(props: { database?: string; reloadDatabase?: () => void })
     </TreeItem>
   );
 }
-const Left = React.memo(Left_);
 
 export { Left, AllKindQuery };

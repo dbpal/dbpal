@@ -65,7 +65,6 @@ import {
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { MongoTable } from "./MongoDB";
-
 import { DataGrid, GridColDef, GridSlotsComponentsProps } from "@mui/x-data-grid";
 import { SimpleFlexEditor } from "./CommonComp2";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";

@@ -1,9 +1,7 @@
 {
   "identifier": "main-capability",
   "description": "Capability for the main window",
-  "windows": [
-    "*"
-  ],
+  "windows": ["*"],
   "permissions": [
     "core:path:default",
     "core:event:default",
@@ -47,7 +45,8 @@
       "allow": [
         "**/*",
         "$APPDATA/*",
-        "$LOG/**"
+        "$LOG/**",
+        "$HOME/.local/share/site.dbpal.dev/logs/*"
       ]
     },
     {
