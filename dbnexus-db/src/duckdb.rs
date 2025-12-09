@@ -172,6 +172,7 @@ impl DuckDB {
             }
         }
     }
+
     async fn export_query_result_as_csv(
         &self, sql: &str, query_id: Option<&str>, include_header: bool, delimiter: char,
         sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
@@ -183,19 +184,17 @@ impl DuckDB {
             let conn = this.get_conn_by_query_id(query_id.as_deref())?;
             let conn = conn.lock().expect("lock failed");
             let mut stmt = conn.prepare(&sql)?;
-            stmt.execute([])?;
-
-            let names = stmt.column_names();
-            let types = (0..names.len())
-                .map(|x| stmt.column_type(x))
-                .collect::<Vec<_>>();
-            if include_header {
-                let fs = names.iter().map(|x| x.clone()).map(Some).collect();
-                sender.blocking_send(Cow::Owned(create_csv(&vec![fs], delimiter)))?;
-            }
             let mut stream = stmt.query([])?;
+            let mut first = true;
             while let Some(row) = stream.next()? {
-                let d = encode_row(row, &types, None)?;
+                if first {
+                    first = false;
+                    if include_header {
+                        let fs = row.as_ref().column_names().into_iter().map(Some).collect();
+                        sender.blocking_send(Cow::Owned(create_csv(&vec![fs], delimiter)))?;
+                    }
+                }
+                let d = encode_row(row, None)?;
                 let r = create_csv(&[d], delimiter);
                 sender.blocking_send(r.into())?;
             }
@@ -216,20 +215,23 @@ impl DuckDB {
             let conn = this.get_conn_by_query_id(query_id.as_deref())?;
             let conn = conn.lock().expect("lock failed");
             let mut stmt = conn.prepare(&sql)?;
-            stmt.execute([])?;
-
             let mut row_num = 0;
-            let names = stmt.column_names();
-            let types = (0..names.len())
-                .map(|x| stmt.column_type(x))
-                .collect::<Vec<_>>();
-            if include_header {
-                let names: Vec<_> = names.iter().map(|x| Some(x.clone())).collect();
-                export_query_as_xlsx_send_blocking_data(&mut row_num, vec![names], sender.clone())?;
-            }
             let mut stream = stmt.query([])?;
+            let mut first = true;
             while let Some(row) = stream.next()? {
-                let d = encode_row(row, &types, None)?;
+                if first {
+                    first = false;
+                    if include_header {
+                        let names: Vec<_> =
+                            row.as_ref().column_names().into_iter().map(Some).collect();
+                        export_query_as_xlsx_send_blocking_data(
+                            &mut row_num,
+                            vec![names],
+                            sender.clone(),
+                        )?;
+                    }
+                }
+                let d = encode_row(row, None)?;
                 export_query_as_xlsx_send_blocking_data(&mut row_num, vec![d], sender.clone())?;
             }
             anyhow::Ok(())
@@ -248,18 +250,17 @@ impl DuckDB {
             let conn = this.get_conn_by_query_id(query_id.as_deref())?;
             let conn = conn.lock().expect("lock failed");
             let mut stmt = conn.prepare(&sql)?;
-            stmt.execute([])?;
-
-            let names = stmt.column_names();
-            let types = (0..names.len())
-                .map(|x| stmt.column_type(x))
-                .collect::<Vec<_>>();
-            if include_header {
-                sender.blocking_send(Cow::Owned(create_html_table_header(&names)))?;
-            }
             let mut stream = stmt.query([])?;
+            let mut first = true;
             while let Some(row) = stream.next()? {
-                let d = encode_row(row, &types, None)?;
+                if first {
+                    first = false;
+                    if include_header {
+                        let names = row.as_ref().column_names();
+                        sender.blocking_send(Cow::Owned(create_html_table_header(&names)))?;
+                    }
+                }
+                let d = encode_row(row, None)?;
                 let r = create_html_table_data(&[d]);
                 sender.blocking_send(r.into())?;
             }
@@ -281,12 +282,10 @@ impl DuckDB {
             let conn = this.get_conn_by_query_id(query_id.as_deref())?;
             let conn = conn.lock().expect("lock failed");
             let mut stmt = conn.prepare(&sql)?;
-            stmt.execute([])?;
-            let names = stmt.column_names();
             let mut first = true;
             let mut stream = stmt.query([])?;
             while let Some(row) = stream.next()? {
-                let value = encode_row_as_json(&names, row)?;
+                let value = encode_row_as_json(row)?;
                 if !first {
                     sender.blocking_send(",".into())?;
                 }
@@ -322,13 +321,9 @@ impl DuckDB {
             let conn = this.get_conn_by_query_id(query_id.as_deref())?;
             let conn = conn.lock().expect("lock failed");
             let mut stmt = conn.prepare(&sql)?;
-            // after  `execute` can call column_names
-            stmt.execute([])?;
-
-            let names = stmt.column_names();
             let mut rows = stmt.query([])?;
             while let Some(row) = rows.next()? {
-                let serde_value = encode_row_as_json(&names, row)?;
+                let serde_value = encode_row_as_json(row)?;
                 let str = serde_json::to_string(&serde_value)?;
                 sender.blocking_send(Cow::Owned(str))?;
             }
@@ -340,10 +335,10 @@ impl DuckDB {
 }
 
 fn encode_row_as_json<'stmt>(
-    names: &[String], row: &duckdb::Row<'stmt>,
+    row: &duckdb::Row<'stmt>,
 ) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
     let mut ret = serde_json::Map::new();
-    for (index, name) in names.iter().enumerate() {
+    for (index, name) in row.as_ref().column_names().iter().enumerate() {
         let v: Value = row.get(index)?;
         ret.insert(name.clone(), value_2_json(&v)?);
     }
@@ -519,30 +514,31 @@ impl QuerySql for DuckDB {
             let conn = conn.lock().expect("lock failed");
             for sql in sql.iter() {
                 let mut stmt = conn.prepare(&sql)?;
-                stmt.execute([])?;
-                let types: Vec<_> = (0..stmt.column_count())
-                    .map(|index| stmt.column_type(index))
-                    .collect();
-                emit.send(
-                    QueryResp {
-                        fields: (0..stmt.column_count())
-                            .map(|index| {
-                                Field::from_name_type(
-                                    stmt.column_name(index).unwrap().to_string(),
-                                    format!("{:?}", stmt.column_type(index)),
-                                )
-                            })
-                            .collect(),
-                        sql: Some(sql.clone()),
-                        ..Default::default()
-                    }
-                    .into(),
-                )?;
                 let mut time_elapsed = TimeElapsed::new();
                 let mut data = vec![];
                 let mut stream = stmt.query([])?;
+                let mut first = true;
                 while let Some(row) = stream.next()? {
-                    let d = encode_row(row, &types, None)?;
+                    if first {
+                        first = false;
+                        let stmt = row.as_ref();
+                        emit.send(
+                            QueryResp {
+                                fields: (0..stmt.column_count())
+                                    .map(|index| {
+                                        Field::from_name_type(
+                                            stmt.column_name(index).unwrap().to_string(),
+                                            format!("{:?}", stmt.column_type(index)),
+                                        )
+                                    })
+                                    .collect(),
+                                sql: Some(sql.clone()),
+                                ..Default::default()
+                            }
+                            .into(),
+                        )?;
+                    }
+                    let d = encode_row(row, None)?;
                     data.push(d);
                     if data.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
                         emit.send(std::mem::take(&mut data).into())?;
@@ -907,8 +903,11 @@ fn format_interval(months: i32, days: i32, nanos: i64) -> String {
 }
 
 fn encode_row<'stmt>(
-    row: &duckdb::Row<'stmt>, types: &[DataType], parsed_types: Option<&[sqlparser::ast::DataType]>,
+    row: &duckdb::Row<'stmt>, parsed_types: Option<&[sqlparser::ast::DataType]>,
 ) -> anyhow::Result<Vec<Option<String>>> {
+    let types: Vec<_> = (0..row.as_ref().column_count())
+        .map(|index| row.as_ref().column_type(index))
+        .collect();
     let mut values = Vec::with_capacity(types.len());
     for index in 0..types.len() {
         let ty = &types[index];
@@ -1019,15 +1018,12 @@ impl DuckDB {
                 table_name
             );
             let mut stmt = conn.prepare(&sql)?;
-            stmt.execute([])?;
-            let names = stmt.column_names();
-            let types: Vec<_> = (0..names.len()).map(|x| stmt.column_type(x)).collect();
             let mut stream = stmt.query([])?;
             while let Some(row) = stream.next()? {
-                let data = encode_row(row, &types[..], Some(&parsed_types[..]))?;
+                let data = encode_row(row, Some(&parsed_types[..]))?;
                 let mut values = HashMap::new();
-                for (name, value) in names.iter().zip(data.into_iter()) {
-                    values.insert(name.clone(), value);
+                for (f, value) in fs.iter().zip(data.into_iter()) {
+                    values.insert(f.field.clone(), value);
                 }
                 let sql =
                     this.insert_sql(this.config.schema.as_deref(), &table_name, &fs, &values)?;
@@ -1388,10 +1384,6 @@ impl SchemaTrait for DuckDB {
             )?;
             let conn = this.get_conn()?;
             let mut stmt = conn.prepare(&sql)?;
-            stmt.execute([])?;
-            let types: Vec<_> = (0..stmt.column_count())
-                .map(|x| stmt.column_type(x))
-                .collect();
             let mut parsed_type = Vec::with_capacity(cols.len());
             for f in cols.iter() {
                 parsed_type.push(parse_type(&f.data_type)?);
@@ -1400,7 +1392,7 @@ impl SchemaTrait for DuckDB {
             let mut data = Vec::new();
             let mut time_elapsed = TimeElapsed::new();
             while let Some(row) = rows.next()? {
-                data.push(encode_row(&row, &types[..], Some(&parsed_type))?);
+                data.push(encode_row(&row, Some(&parsed_type))?);
                 if data.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
                     emit.send(std::mem::take(&mut data).into())?;
                 }
@@ -1533,16 +1525,14 @@ impl SchemaTrait for DuckDB {
                 name
             );
             let mut stmt = conn.prepare(&sql)?;
-            stmt.execute([])?;
-            let fs = stmt
-                .column_names()
-                .into_iter()
-                .enumerate()
-                .map(|(index, name)| {
-                    Field::from_name_type(name, stmt.column_type(index).to_string())
-                })
-                .collect::<Vec<_>>();
-            anyhow::Ok(fs)
+            let mut stream = stmt.query([])?;
+            let mut ret = vec![];
+            while let Some(row) = stream.next()? {
+                let name: String = row.get(0)?;
+                let typ: Option<String> = row.get(1)?;
+                ret.push(Field::from_name_type(name, typ.unwrap_or_default()));
+            }
+            anyhow::Ok(ret)
         })
         .await?
     }
@@ -1583,10 +1573,6 @@ impl SchemaTrait for DuckDB {
             )?;
             let conn = this.get_conn()?;
             let mut stmt = conn.prepare(&sql)?;
-            stmt.execute([])?;
-            let types: Vec<_> = (0..stmt.column_count())
-                .map(|x| stmt.column_type(x))
-                .collect();
             let mut parsed_type = Vec::with_capacity(cols.len());
             for f in cols.iter() {
                 parsed_type.push(parse_type(&f.data_type)?);
@@ -1595,7 +1581,7 @@ impl SchemaTrait for DuckDB {
             let mut time_elapsed = TimeElapsed::new();
             let mut stream = stmt.query([])?;
             while let Some(row) = stream.next()? {
-                let d = encode_row(row, &types[..], Some(&parsed_type[..]))?;
+                let d = encode_row(row, Some(&parsed_type[..]))?;
                 data.push(d);
                 if data.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
                     emit.send(std::mem::take(&mut data).into())?;
