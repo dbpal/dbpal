@@ -40,13 +40,13 @@ impl LanguageServer for DuckDB {
 
 impl LangServerCommon for DuckDB {
     async fn list_table(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = self.get_schema_xxx(schema).await?;
+        let schema = self.get_schema(schema).await?;
         let ret = self.list_table_impl(schema.as_str()).await?;
         anyhow::Ok(ret.into_iter().map(|x| x.name).collect())
     }
 
     async fn list_view(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        let schema = self.get_schema_xxx(schema).await?;
+        let schema = self.get_schema(schema).await?;
         let ret = self.list_view_impl(&schema).await?;
         anyhow::Ok(ret.into_iter().map(|x| x.name).collect())
     }
@@ -55,7 +55,7 @@ impl LangServerCommon for DuckDB {
         &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<TempTableColumn>> {
         let this = Clone::clone(self);
-        let schema = this.get_schema_xxx(schema).await?;
+        let schema = this.get_schema(schema).await?;
         let sql = format!(r#"select * from "{}"."{}" limit 1"#, schema, name);
         spawn_blocking(move || {
             let conn = this.get_conn()?;
@@ -80,7 +80,7 @@ impl LangServerCommon for DuckDB {
     }
 
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
-        todo!()
+        Box::new(sqlparser::dialect::DuckDbDialect {})
     }
 
     async fn list_function(
@@ -152,7 +152,7 @@ impl AstCompletionHelper for DuckDB {
 }
 
 impl DuckDB {
-    async fn get_schema_xxx(&self, schema: Option<&str>) -> anyhow::Result<String> {
+    async fn get_schema(&self, schema: Option<&str>) -> anyhow::Result<String> {
         match schema {
             Some(x) => anyhow::Ok(x.to_string()),
             None => todo!(),
