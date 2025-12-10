@@ -1234,7 +1234,6 @@ impl ClickHouseDB {
             }
         );
         log::info!("url:{}", uri);
-
         let response = self
             .client
             .get(uri)
@@ -1360,6 +1359,9 @@ fn replace_new_line_to_whitespace(sql: &str) -> anyhow::Result<String> {
 mod tests {
     use std::collections::HashMap;
     use std::usize;
+
+    use clickhouse::Row;
+    use serde::{Deserialize, Serialize};
 
     use super::*;
     use super::{make_test_object, parse_type};
@@ -2095,6 +2097,32 @@ from test
                 .unwrap();
 
             println!("json:{}", json);
+        }
+    }
+
+    #[tokio::test]
+
+    async fn xxx() {
+        enable_test_log();
+        let db = make_test_object();
+        let table_name = "test_types5";
+
+        let conn = db.get_conn().unwrap();
+        #[derive(Row, Serialize, Deserialize, Debug)]
+        struct DynamicRow {
+            // 使用 HashMap 存储所有列
+            // 注意：ClickHouse 的 Map(K, V) 类型支持反序列化为 HashMap
+            #[serde(flatten)]
+            columns: HashMap<String, String>,
+        }
+
+        let rows = conn
+            .query("select * from test_types5")
+            .fetch_all::<DynamicRow>()
+            .await
+            .unwrap();
+        for r in rows {
+            println!("!!!!!!!!!!:{:?}", r);
         }
     }
 
