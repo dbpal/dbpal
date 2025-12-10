@@ -322,6 +322,24 @@ pub trait LexerCompletionTrait: LangServerCommon {
         ret.extend(self.list_sequence_completion(None).await);
         ret.extend(self.list_domain_completion(None).await);
         ret.extend(self.list_index_completion(None).await);
+        ret.extend(
+            self.duckdb_extensions()
+                .await
+                .map_err(|e| log::error!("list duck extension failed ,err:{}", e))
+                .unwrap_or_default(),
+        );
+        ret.extend(
+            self.postgres_list_extension_completion(false)
+                .await
+                .map_err(|e| log::error!("list postgres extension failed ,err:{}", e))
+                .unwrap_or_default(),
+        );
+        ret.extend(
+            self.postgres_list_extension_completion(true)
+                .await
+                .map_err(|e| log::error!("list postgres extension failed ,err:{}", e))
+                .unwrap_or_default(),
+        );
         ret
     }
 
@@ -421,6 +439,14 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         &self, _installed: bool,
     ) -> anyhow::Result<Vec<PostGresExtension>> {
         anyhow::Ok(vec![])
+    }
+
+    async fn postgres_list_extension_completion(
+        &self, _installed: bool,
+    ) -> anyhow::Result<Vec<CompletionItem>> {
+        let r = self.postgres_list_extension(_installed).await?;
+        let r: Vec<_> = r.into_iter().map(CompletionItem::from).collect();
+        anyhow::Ok(r)
     }
     async fn duckdb_extensions(&self) -> anyhow::Result<Vec<CompletionItem>> {
         anyhow::Ok(vec![])

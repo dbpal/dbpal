@@ -652,7 +652,6 @@ function SqlTableView(props: {
           setUpMenu({
             content: (
               <Menu
-                updateOP={updateOP}
                 kind={kind}
                 showExportMarkDown={() => {
                   setShowExportMarkDown(true);
@@ -740,6 +739,7 @@ function SqlTableView(props: {
     deleteOP,
     handleDelete,
     handleReload,
+    isTable,
     kind,
     put_value_in_sql,
     resp.data,
@@ -1207,7 +1207,6 @@ function Menu(props: {
   put_value_in_sql: (value?: string) => Promise<string>;
   setNull?: () => void;
   addOP?: (x: object) => Promise<void>;
-  updateOP?;
   row: object;
   fields: types.Field[];
   nullable: boolean;
@@ -1228,7 +1227,6 @@ function Menu(props: {
     put_value_in_sql,
     setNull,
     addOP,
-    updateOP,
     row,
     fields,
     nullable,

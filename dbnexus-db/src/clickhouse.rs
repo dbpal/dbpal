@@ -1726,22 +1726,23 @@ from test
         println!("{:?}", ret);
     }
 
-    #[ignore = "example_table may not exists"]
-    #[tokio::test]
-    async fn test_show_table() {
-        let db = make_test_object();
-        let resp = db
-            .show_table_collect(
-                "example_table",
-                ShowTableParameter::new_stupid_test("id asc"),
-            )
-            .await
-            .unwrap();
+    // #[ignore = "example_table may not exists"]
+    // #[tokio::test]
+    // async fn test_show_table() {
+    //     let db = make_test_object();
+    //     let resp = db
+    //         .show_table_collect(
+    //             "example_table",
+    //             ShowTableParameter::new_stupid_test("id asc"),
+    //         )
+    //         .await
+    //         .unwrap();
 
-        for d in resp.data.iter() {
-            println!("{:?}", d);
-        }
-    }
+    //     for d in resp.data.iter() {
+    //         println!("{:?}", d);
+    //     }
+    // }
+
     #[tokio::test]
     async fn test_types1() {
         enable_test_log();

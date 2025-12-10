@@ -83,7 +83,7 @@ import { TbDatabaseSearch } from "react-icons/tb";
 import { SqlQuery } from "./SqlQuery";
 import { RedisQuery } from "./RedisQuery";
 import { MongoQuery } from "./MongoQuery.tsx";
-import React from "react";
+ 
 import {
   ConnPingTime,
   MenuCloseConn,

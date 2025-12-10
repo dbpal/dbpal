@@ -1,16 +1,13 @@
-use duckdb::Connection;
-use duckdb::types::Value;
-use tokio::task::spawn_blocking;
-
 use crate::db::CatalogTrait;
-use crate::duckdb::DuckDB;
+use crate::duckdb::{DuckDB, DuckDbPooledConn};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, GetKeyWords,
     LangServerCommon, LanguageServer, LexerCompletionTrait, try_parser_dot_lexer,
 };
 use crate::sqlparser_completion::TempTableColumn;
+use duckdb::types::Value;
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use tokio::task::spawn_blocking;
 
 #[async_trait::async_trait]
 impl LanguageServer for DuckDB {
@@ -284,7 +281,7 @@ impl DuckDB {
         .await?
     }
 
-    fn get_query_conn(&self) -> anyhow::Result<Arc<Mutex<Connection>>> {
+    fn get_query_conn(&self) -> anyhow::Result<DuckDbPooledConn> {
         match self.query_connection.get(&self.completion_id.get()) {
             Some(x) => anyhow::Ok(x.clone()),
             None => anyhow::bail!(format!("query id '{}' not found", self.completion_id.get())),
@@ -378,7 +375,7 @@ pub(crate) const DUCKDB_TYPES: &'static [&'static str] = &[
 
 #[cfg(test)]
 mod tests {
-    use crate::db::QuerySql;
+    use crate::db::{QuerySql, SchemaTrait};
     use crate::duckdb::make_test_object;
     use crate::enable_test_log;
     use crate::language_server::LanguageServer;
@@ -392,10 +389,10 @@ mod tests {
         enable_test_log();
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
-        let _err = db
-            .execute_sql(
-                query_id,
-                r#"
+        let _ = db.drop_table("employees", false).await;
+        db.execute_sql(
+            query_id,
+            r#"
                     CREATE TABLE employees (
                         id INTEGER PRIMARY KEY,
                         first_name TEXT NOT NULL,        
@@ -405,23 +402,21 @@ mod tests {
                         salary DECIMAL(10, 2) NOT NULL  
                     );
                  "#,
-            )
-            .await
-            .unwrap();
-        if let Err(err) = _err {
-            println!("create employees error failed:{:?}", err)
-        }
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
+        db.execute_sql(
+            query_id,
+            r#"
             INSERT INTO employees (id, first_name, last_name, job_title, hire_date, salary)
                 VALUES (1, 'San', 'Zhang', 'Software Engineer', '2023-08-15', 15000.00);
         "#,
-            )
-            .await
-            .unwrap();
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let mut file_path = Path::new(manifest_dir).to_path_buf();
