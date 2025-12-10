@@ -626,7 +626,7 @@ mod tests {
         file_path.push("tests");
         file_path.push("firebird_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, false).await;
+        test_file_auto_completion(&content, &db, None, false).await;
     }
 
     #[ignore = "手动跑跑的测试"]
@@ -634,7 +634,7 @@ mod tests {
     async fn test_completion_xxx() {
         enable_test_log();
         let db = make_test_object().await;
-        test_file_auto_completion(include_str!("./xxx.sql"), &db, true).await;
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, None, true).await;
     }
 
     #[tokio::test]

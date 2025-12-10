@@ -108,34 +108,6 @@ impl PostGresDB {
 #[async_trait::async_trait]
 
 impl AstCompletionHelper for PostGresDB {
-    async fn postgres_list_extension(
-        &self, installed: bool,
-    ) -> anyhow::Result<Vec<PostGresExtension>> {
-        let mut conn = self.get_conn().await?;
-        if !installed {
-            let sql = "SELECT name,comment  FROM pg_available_extensions";
-            let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
-            let mut ret = Vec::with_capacity(rows.len());
-            for row in rows.iter() {
-                let name: String = row.try_get(0)?;
-                let comment: Option<String> = row.try_get(1)?;
-                ret.push(PostGresExtension { name, comment });
-            }
-            return anyhow::Ok(ret);
-        }
-        let sql = "SELECT extname  FROM pg_extension";
-        let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
-        let mut ret = Vec::with_capacity(rows.len());
-        for row in rows.iter() {
-            let name: String = row.try_get(0)?;
-            ret.push(PostGresExtension {
-                name,
-                comment: None,
-            });
-        }
-        anyhow::Ok(ret)
-    }
-
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let mut conn = self.get_conn().await?;
         let s = conn
@@ -261,6 +233,34 @@ impl AstCompletionHelper for PostGresDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for PostGresDB {
+    async fn postgres_list_extension(
+        &self, installed: bool,
+    ) -> anyhow::Result<Vec<PostGresExtension>> {
+        let mut conn = self.get_conn().await?;
+        if !installed {
+            let sql = "SELECT name,comment  FROM pg_available_extensions";
+            let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+            let mut ret = Vec::with_capacity(rows.len());
+            for row in rows.iter() {
+                let name: String = row.try_get(0)?;
+                let comment: Option<String> = row.try_get(1)?;
+                ret.push(PostGresExtension { name, comment });
+            }
+            return anyhow::Ok(ret);
+        }
+        let sql = "SELECT extname  FROM pg_extension";
+        let rows = sqlx::query(sql).fetch_all(conn.deref_mut()).await?;
+        let mut ret = Vec::with_capacity(rows.len());
+        for row in rows.iter() {
+            let name: String = row.try_get(0)?;
+            ret.push(PostGresExtension {
+                name,
+                comment: None,
+            });
+        }
+        anyhow::Ok(ret)
+    }
+
     async fn list_index(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
         let schemas = self.get_search_path(schema, true).await;
         let mut conn = self.get_conn().await?;
@@ -841,7 +841,7 @@ mod tests {
         file_path.push("pg_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
 
-        test_file_auto_completion(&content, &db, false).await;
+        test_file_auto_completion(&content, &db, None, false).await;
     }
 
     #[ignore = "手动跑跑的测试"]
@@ -849,7 +849,7 @@ mod tests {
     async fn test_completion_xxx() {
         enable_test_log();
         let db = make_test_object().await;
-        test_file_auto_completion(include_str!("./xxx.sql"), &db, false).await;
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, None, false).await;
     }
 
     #[tokio::test]

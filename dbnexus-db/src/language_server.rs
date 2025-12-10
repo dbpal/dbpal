@@ -417,6 +417,14 @@ pub trait GetKeyWords: GetBackendKind {
 
 #[async_trait::async_trait]
 pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
+    async fn postgres_list_extension(
+        &self, _installed: bool,
+    ) -> anyhow::Result<Vec<PostGresExtension>> {
+        anyhow::Ok(vec![])
+    }
+    async fn duckdb_extensions(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        anyhow::Ok(vec![])
+    }
     fn parse_err(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
         let dialect = self.dialect();
         let ss = sqlparser::parser::Parser::parse_sql(dialect.as_ref(), sql);
@@ -601,7 +609,7 @@ pub trait LangServerCommon: GetBackendKind + GetKeyWords + Send + Sync {
         self.list_procedure(schema)
             .await
             .map_err(|e| {
-                log::error!("list procedure error:{:?}", e);
+                log::error!("list procedure error:{}", e);
             })
             .ok()
             .unwrap_or_default()
@@ -1025,18 +1033,7 @@ impl From<DBExecutable> for CompletionItem {
 
 #[async_trait::async_trait]
 pub trait AstCompletionHelper: Send + Sync + 'static + GetBackendKind + LangServerCommon {
-    async fn postgres_list_extension(
-        &self, _installed: bool,
-    ) -> anyhow::Result<Vec<PostGresExtension>> {
-        anyhow::Ok(vec![])
-    }
     async fn get_query_columns(&self, _sql: &str) -> anyhow::Result<Vec<TempTableColumn>>;
-
-    async fn duckdb_extensions(
-        &self, _installed: Option<bool>,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        anyhow::Ok(vec![])
-    }
 
     async fn list_clickhouse_table_projects(
         &self, _schema: Option<&str>, _table: &str,
@@ -1293,14 +1290,20 @@ select xxxx
     }
 
     pub(crate) async fn test_file_auto_completion(
-        content: &str, db: &dyn LanguageServer, use_lexer: bool,
+        content: &str, db: &dyn LanguageServer, query_id: Option<&str>, use_lexer: bool,
     ) {
         let items = parse_auto_completion_test_file(content);
         for item in items.iter() {
             for i in item.tests.iter() {
                 log::trace!("on pos:{}:{}", item.line, i.0);
                 let list = db
-                    .auto_completion(None, &item.sql, 1, i.0 as u32, use_lexer)
+                    .auto_completion(
+                        query_id.map(|x| x.to_owned()),
+                        &item.sql,
+                        1,
+                        i.0 as u32,
+                        use_lexer,
+                    )
                     .await
                     .unwrap();
                 for should in i.1.iter() {

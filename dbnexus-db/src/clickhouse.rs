@@ -1019,6 +1019,7 @@ impl ClickHouseDB {
     pub fn new(config: ClickHouseConfig) -> anyhow::Result<Self> {
         let mut builder = r2d2::Builder::<PoolManager>::new();
         builder = builder.max_size(POOL_MAX_CONNECTIONS);
+        builder = builder.min_idle(Some(5));
         let pool = builder.build(PoolManager {
             config: config.clone(),
         })?;

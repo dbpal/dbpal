@@ -1198,6 +1198,7 @@ impl FireBirdDB {
         spawn_blocking(move || {
             let mut builder = r2d2::Pool::builder();
             builder = builder.max_size(POOL_MAX_CONNECTIONS);
+            builder = builder.min_idle(Some(5));
             if let Some(x) = config.conn_timeout {
                 builder = builder.connection_timeout(x.into());
             }

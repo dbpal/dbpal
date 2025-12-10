@@ -957,7 +957,7 @@ mod tests {
         file_path.push("tests");
         file_path.push("mysql_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, false).await;
+        test_file_auto_completion(&content, &db, None, false).await;
     }
     #[ignore = "手动跑跑的测试"]
     #[tokio::test]
@@ -967,7 +967,7 @@ mod tests {
         config.db = None;
 
         let db = make_test_object(config).await;
-        test_file_auto_completion(include_str!("./xxx.sql"), &db, false).await;
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, None, false).await;
     }
     #[tokio::test]
     async fn test_prepare() {

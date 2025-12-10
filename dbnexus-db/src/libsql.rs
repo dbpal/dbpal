@@ -390,6 +390,7 @@ impl LibSqlDB {
             builder = builder.connection_timeout(x.into());
         }
         builder = builder.max_size(POOL_MAX_CONNECTIONS);
+        builder = builder.min_idle(Some(5));
         let pool = builder.build(manager).await?;
         anyhow::Ok(Self {
             config,

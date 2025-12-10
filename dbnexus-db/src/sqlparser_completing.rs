@@ -367,13 +367,13 @@ impl<'a> CompletionStatement<'a> {
                 .collect(),
         )
     }
-    pub(crate) async fn c_on_duck_extension(&mut self, name: &Ident, installed: Option<bool>) {
+    pub(crate) async fn c_on_duck_extension(&mut self, name: &Ident) {
         if !self.in_pos(&name.span) {
             return;
         }
         self.result = Some(
             self.helper
-                .duckdb_extensions(installed)
+                .duckdb_extensions()
                 .await
                 .map_err(|err| {
                     log::error!("duckdb_extensions failed:{}", err);

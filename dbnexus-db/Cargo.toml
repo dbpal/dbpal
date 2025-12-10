@@ -50,7 +50,7 @@ serde_json.workspace = true
 sqlparser = { version = "0.60", features = ["serde"] }
 lazy_static.workspace = true
 log.workspace = true
-duckdb = { version = "1.4.1", features = ["bundled"], optional = true }
+duckdb = { version = "1.4.1", features = ["bundled", "r2d2"], optional = true }
 cql3-parser = { git = "https://github.com/shotover/rust-cql3-parser", branch = "main" }
 futures-util.workspace = true
 futures-core.workspace = true

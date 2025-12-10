@@ -1,4 +1,5 @@
 use duckdb::Connection;
+use duckdb::types::Value;
 use tokio::task::spawn_blocking;
 
 use crate::db::CatalogTrait;
@@ -13,6 +14,20 @@ use std::sync::{Arc, Mutex};
 
 #[async_trait::async_trait]
 impl LanguageServer for DuckDB {
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        let sql = format!(r#"select max(id) from   "{name}" "#,);
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let r = conn.query_row(&sql, [], |row| {
+                let r: i128 = row.get(0)?;
+                Ok(r)
+            })?;
+            anyhow::Ok(r.to_string())
+        })
+        .await?
+    }
+
     async fn auto_completion(
         &self, query_id: Option<String>, sql: &str, line: u32, col: u32, use_lexer: bool,
     ) -> anyhow::Result<CompletionList> {
@@ -42,6 +57,52 @@ impl LanguageServer for DuckDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for DuckDB {
+    async fn duckdb_extensions(&self) -> anyhow::Result<Vec<CompletionItem>> {
+        let sql = "SELECT extension_name, installed, description,aliases FROM duckdb_extensions()";
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let mut stmt = conn.prepare(&sql)?;
+            let mut rows = stmt.query([])?;
+            let mut ret = Vec::new();
+            while let Some(row) = rows.next()? {
+                let name: String = row.get(0)?;
+                let desc: Option<String> = row.get(2)?;
+                let alias: duckdb::types::Value = row.get(3)?;
+                let mut name_set: HashSet<_> = match alias {
+                    Value::List(values) => {
+                        let mut set = HashSet::new();
+                        for value in values {
+                            match value {
+                                Value::Text(x) => {
+                                    set.insert(x);
+                                }
+                                _ => {
+                                    log::error!(
+                                        "duckdb extension alias should be a string but:{:?}",
+                                        value
+                                    );
+                                }
+                            }
+                        }
+                        set
+                    }
+                    _ => Default::default(),
+                };
+                name_set.insert(name);
+                for name in name_set {
+                    ret.push(CompletionItem {
+                        item: name.into(),
+                        kind: CompletionKind::Extension,
+                        desc: desc.clone().map(|x| x.into()),
+                    });
+                }
+            }
+            anyhow::Ok(ret)
+        })
+        .await?
+    }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         let db = self.get_database().await?;
         DuckDB::list_schema_impl(self, &db).await
@@ -159,34 +220,6 @@ impl LangServerCommon for DuckDB {
 #[async_trait::async_trait]
 
 impl AstCompletionHelper for DuckDB {
-    async fn duckdb_extensions(
-        &self, installed: Option<bool>,
-    ) -> anyhow::Result<Vec<CompletionItem>> {
-        let mut sql =
-            "SELECT extension_name, installed, description FROM duckdb_extensions() ".to_string();
-        if let Some(installed) = installed {
-            sql.push_str(format!("where installed={}", installed).as_str());
-        }
-        let this = Clone::clone(self);
-        spawn_blocking(move || {
-            let conn = this.get_conn()?;
-            let mut stmt = conn.prepare(&sql)?;
-            let mut rows = stmt.query([])?;
-            let mut ret = Vec::new();
-            while let Some(row) = rows.next()? {
-                let name: String = row.get(0)?;
-                let desc: Option<String> = row.get(2)?;
-                ret.push(CompletionItem {
-                    item: name.into(),
-                    kind: CompletionKind::Extension,
-                    desc: desc.map(|x| x.into()),
-                });
-            }
-            anyhow::Ok(ret)
-        })
-        .await?
-    }
-
     async fn get_query_columns(
         &self, sql: &str,
     ) -> anyhow::Result<Vec<crate::sqlparser_completion::TempTableColumn>> {
@@ -345,12 +378,12 @@ pub(crate) const DUCKDB_TYPES: &'static [&'static str] = &[
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
     use crate::db::QuerySql;
     use crate::duckdb::make_test_object;
     use crate::enable_test_log;
+    use crate::language_server::LanguageServer;
     use crate::language_server::completion_test::test_file_auto_completion;
+    use std::path::Path;
 
     // partition test failed , sqlparser can't parse a valid partition statement.
     #[tokio::test]
@@ -364,14 +397,13 @@ mod tests {
                 query_id,
                 r#"
                     CREATE TABLE employees (
-                        employee_id INTEGER PRIMARY KEY,  
+                        id INTEGER PRIMARY KEY,
                         first_name TEXT NOT NULL,        
                         last_name TEXT NOT NULL,         
                         job_title TEXT NOT NULL,         
                         hire_date DATE NOT NULL,          
                         salary DECIMAL(10, 2) NOT NULL  
                     );
-                r#"
                  "#,
             )
             .await
@@ -379,11 +411,39 @@ mod tests {
         if let Err(err) = _err {
             println!("create employees error failed:{:?}", err)
         }
+
+        let _ = db
+            .execute_sql(
+                query_id,
+                r#"
+            INSERT INTO employees (id, first_name, last_name, job_title, hire_date, salary)
+                VALUES (1, 'San', 'Zhang', 'Software Engineer', '2023-08-15', 15000.00);
+        "#,
+            )
+            .await
+            .unwrap();
+
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");
         file_path.push("duckdb_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, false).await;
+        test_file_auto_completion(&content, &db, None, false).await;
+    }
+
+    #[ignore = "手动跑跑的测试"]
+    #[tokio::test]
+    async fn test_completion_xxx() {
+        enable_test_log();
+        let db = make_test_object("main".to_owned().into());
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, None, true).await;
+    }
+
+    #[tokio::test]
+
+    async fn test_try_get_max_id() {
+        let db = make_test_object(Some("main".to_string()));
+        let max_id = db.try_get_max_id("employees").await.unwrap();
+        println!("max id is:{}", max_id);
     }
 }

@@ -1673,9 +1673,14 @@ pub(crate) fn gen_show_sql(
 }
 
 #[cfg(test)]
-pub(crate) async fn make_test_object() -> SqliteDB {
-    let path = std::env::var("DBPAL_SQLITE_TEST_FILE").unwrap();
 
+pub(crate) fn sqlite_test_file_path() -> String {
+    std::env::var("DBPAL_SQLITE_TEST_FILE").unwrap()
+}
+
+#[cfg(test)]
+pub(crate) async fn make_test_object() -> SqliteDB {
+    let path = sqlite_test_file_path();
     let db = SqliteDB::new(
         SqliteDBConfig {
             path,

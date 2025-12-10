@@ -428,10 +428,10 @@ impl<'a> CompletionStatement<'a> {
                 }
             }
             Statement::Install { extension_name } => {
-                self.c_on_duck_extension(extension_name, Some(false)).await;
+                self.c_on_duck_extension(extension_name).await;
             }
             Statement::Load { extension_name } => {
-                self.c_on_duck_extension(extension_name, Some(true)).await;
+                self.c_on_duck_extension(extension_name).await;
             }
             Statement::Directory { source, .. } => {
                 let _ = self.c_on_query(source).await;

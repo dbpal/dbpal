@@ -904,7 +904,7 @@ mod tests {
         file_path.push("tests");
         file_path.push("mssql_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, false).await;
+        test_file_auto_completion(&content, &db, None, false).await;
     }
 
     #[ignore = "手动跑跑的测试"]
@@ -917,6 +917,7 @@ mod tests {
             r#"GRANT SELECT ON dbo.employees TO public;
 20 dbo ; 30 employees"#,
             &db,
+            None,
             false,
         )
         .await;

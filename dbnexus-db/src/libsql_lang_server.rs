@@ -367,7 +367,7 @@ mod tests {
         file_path.push("sqlite_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
 
-        test_file_auto_completion(&content, &db, false).await;
+        test_file_auto_completion(&content, &db, None, false).await;
     }
 
     #[ignore = "手动跑跑的测试"]
@@ -379,6 +379,7 @@ mod tests {
             r#"select employees.id  from employees
 13 employees ; 19 name ; 32 departments ; 32 main"#,
             &db,
+            None,
             false,
         )
         .await;

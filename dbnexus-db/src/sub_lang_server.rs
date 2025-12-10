@@ -117,6 +117,13 @@ impl SubDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for SubDB {
+    async fn postgres_list_extension(
+        &self, _installed: bool,
+    ) -> anyhow::Result<Vec<PostGresExtension>> {
+        self.as_ast_completion_helper()
+            .postgres_list_extension(_installed)
+            .await
+    }
     async fn list_cluster(&self) -> anyhow::Result<Vec<String>> {
         self.as_lang_server_common().list_cluster().await
     }
@@ -221,13 +228,6 @@ impl SubDB {
 #[async_trait::async_trait]
 
 impl AstCompletionHelper for SubDB {
-    async fn postgres_list_extension(
-        &self, _installed: bool,
-    ) -> anyhow::Result<Vec<PostGresExtension>> {
-        self.as_ast_completion_helper()
-            .postgres_list_extension(_installed)
-            .await
-    }
     async fn get_query_columns(&self, _sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         self.as_ast_completion_helper()
             .get_query_columns(_sql)

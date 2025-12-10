@@ -175,10 +175,11 @@ impl SqlServerDB {
         if let Some(x) = c.conn_timeout {
             builder = builder.connection_timeout(x.into());
         }
-        let pool = builder
-            .max_size(POOL_MAX_CONNECTIONS)
-            .build(manager)
-            .await?;
+
+        builder = builder.max_size(POOL_MAX_CONNECTIONS);
+        builder = builder.min_idle(Some(5));
+
+        let pool = builder.build(manager).await?;
 
         anyhow::Ok(Self {
             config: c,

@@ -1,31 +1,24 @@
+use crate::datasource_config::DuckDBConfig;
+use crate::db::{
+    AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
+    CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, ExportKind, ExportQueryResult, Field,
+    GetBackendKind, Index, IndexKind, ListTable, MetaValue, POOL_MAX_CONNECTIONS,
+    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlBuilder, SqlExecuteRet, TimeElapsed, create_html_table_data,
+    create_html_table_header, export_query_as_xlsx_send_blocking_data, not_support_feature,
+};
+use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
+use chrono::NaiveDate;
+use dashmap::DashMap;
+use duckdb::types::{TimeUnit, Value};
+use duckdb::{AccessMode, Connection, DuckdbConnectionManager};
+use r2d2::{Pool, PooledConnection};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-
-use chrono::NaiveDate;
-use dashmap::DashMap;
-use duckdb::Connection;
-use duckdb::arrow::datatypes::DataType;
-use duckdb::types::{TimeUnit, Value};
-
-use r2d2::{ManageConnection, Pool, PooledConnection};
 use tokio::task::spawn_blocking;
-
-use crate::datasource_config::DuckDBConfig;
-use crate::db::{
-    AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
-    CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, ExportKind, ExportQueryResult, Field,
-    GetBackendKind, Index, IndexKind, ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
-    TimeElapsed, create_html_table_data, create_html_table_header,
-    export_query_as_xlsx_send_blocking_data, not_support_feature,
-};
-use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
-pub struct PoolManage {
-    config: DuckDBConfig,
-}
 
 fn gen_show_sql(
     schema: &str, table_name: &str, fields: &str, where_str: Option<&str>, order_by: Option<&str>,
@@ -40,48 +33,36 @@ fn gen_show_sql(
     }
     let offset = (page - 1) * page_size;
     sql.push_str(format!(" OFFSET {} LIMIT {}", offset, page_size).as_str());
-
     sql
 }
 
-fn make_conn(path: &str) -> duckdb::Result<Connection> {
+fn make_conn(path: &str, read_only: bool) -> duckdb::Result<Connection> {
     let mut config = duckdb::Config::default();
-    config = config.access_mode(duckdb::AccessMode::ReadWrite)?;
+    config = config.access_mode(if read_only {
+        AccessMode::ReadOnly
+    } else {
+        AccessMode::ReadWrite
+    })?;
     let conn = duckdb::Connection::open_with_flags(path, config)?;
     Ok(conn)
 }
 
-impl ManageConnection for PoolManage {
-    type Connection = duckdb::Connection;
-    type Error = duckdb::Error;
-
-    fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        let conn = make_conn(&self.config.path)?;
+impl DuckDB {
+    pub(crate) fn use_database(&self, conn: &Connection) -> anyhow::Result<()> {
         if let Some(db) = self.config.db.as_ref() {
             conn.execute(&format!("use {}", db), [])?;
         }
         if let Some(s) = self.config.schema.as_ref() {
             conn.execute(&format!("SET SCHEMA '{s}';"), [])?;
         }
-        Ok(conn)
-    }
-
-    fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        let sql = "select 1";
-        conn.execute(&sql, [])?;
-        Ok(())
-    }
-
-    fn has_broken(&self, conn: &mut Self::Connection) -> bool {
-        self.is_valid(conn).is_err()
+        anyhow::Ok(())
     }
 }
 
 impl DuckDB {
+    // new a standalone Connection
     pub(crate) fn new_connection(&self) -> anyhow::Result<Connection> {
-        let conn = ManageConnection::connect(&PoolManage {
-            config: self.config.clone(),
-        })?;
+        let conn = make_conn(&self.config.path, self.config.read_only)?;
         anyhow::Ok(conn)
     }
 }
@@ -89,13 +70,12 @@ impl DuckDB {
 #[derive(Clone)]
 pub struct DuckDB {
     pub(crate) config: DuckDBConfig,
-    pool: Pool<PoolManage>,
+    pool: Pool<DuckdbConnectionManager>,
     pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<duckdb::Connection>>>>,
     pub(crate) completion_id: AutoCompletionQueryId,
 }
 
 #[async_trait::async_trait]
-
 impl ServerMetas for DuckDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         let this = Clone::clone(self);
@@ -112,11 +92,29 @@ impl ServerMetas for DuckDB {
     }
 }
 
+impl TryFrom<&DuckDBConfig> for DuckdbConnectionManager {
+    type Error = duckdb::Error;
+    fn try_from(value: &DuckDBConfig) -> Result<Self, duckdb::Error> {
+        let mut config = duckdb::Config::default();
+        config = config.access_mode(if value.read_only {
+            AccessMode::ReadOnly
+        } else {
+            AccessMode::ReadWrite
+        })?;
+        DuckdbConnectionManager::file_with_flags(value.path.clone(), config)
+    }
+}
+
 impl DuckDB {
     pub fn new(config: DuckDBConfig) -> anyhow::Result<Self> {
-        let pool = r2d2::Builder::<PoolManage>::new().build(PoolManage {
-            config: config.clone(),
-        })?;
+        let mut builder = r2d2::Builder::<DuckdbConnectionManager>::new();
+        builder = builder.max_size(POOL_MAX_CONNECTIONS);
+        builder = builder.min_idle(Some(5));
+
+        if let Some(timeout) = config.conn_timeout {
+            builder = builder.connection_timeout(timeout.into());
+        }
+        let pool = builder.build(DuckdbConnectionManager::try_from(&config)?)?;
         anyhow::Ok(Self {
             config,
             pool,
@@ -125,10 +123,16 @@ impl DuckDB {
         })
     }
 
-    pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<PoolManage>> {
+    pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<DuckdbConnectionManager>> {
         let conn = self.pool.get()?;
+        self.use_database(&conn)?;
+        // xxx(conn);
         anyhow::Ok(conn)
     }
+}
+
+fn xxx<T: Send + Sync + 'static>(xxx: T) -> T {
+    return xxx;
 }
 
 impl std::fmt::Debug for DuckDB {
@@ -194,7 +198,7 @@ impl DuckDB {
                         sender.blocking_send(Cow::Owned(create_csv(&vec![fs], delimiter)))?;
                     }
                 }
-                let d = encode_row(row, None)?;
+                let d = encode_row(row)?;
                 let r = create_csv(&[d], delimiter);
                 sender.blocking_send(r.into())?;
             }
@@ -231,7 +235,7 @@ impl DuckDB {
                         )?;
                     }
                 }
-                let d = encode_row(row, None)?;
+                let d = encode_row(row)?;
                 export_query_as_xlsx_send_blocking_data(&mut row_num, vec![d], sender.clone())?;
             }
             anyhow::Ok(())
@@ -260,7 +264,7 @@ impl DuckDB {
                         sender.blocking_send(Cow::Owned(create_html_table_header(&names)))?;
                     }
                 }
-                let d = encode_row(row, None)?;
+                let d = encode_row(row)?;
                 let r = create_html_table_data(&[d]);
                 sender.blocking_send(r.into())?;
             }
@@ -299,6 +303,7 @@ impl DuckDB {
                 }))?;
                 first = false;
             }
+
             if pretty {
                 sender.blocking_send("\n".into())?;
             }
@@ -321,8 +326,8 @@ impl DuckDB {
             let conn = this.get_conn_by_query_id(query_id.as_deref())?;
             let conn = conn.lock().expect("lock failed");
             let mut stmt = conn.prepare(&sql)?;
-            let mut rows = stmt.query([])?;
-            while let Some(row) = rows.next()? {
+            let mut stream = stmt.query([])?;
+            while let Some(row) = stream.next()? {
                 let serde_value = encode_row_as_json(row)?;
                 let str = serde_json::to_string(&serde_value)?;
                 sender.blocking_send(Cow::Owned(str))?;
@@ -338,9 +343,9 @@ fn encode_row_as_json<'stmt>(
     row: &duckdb::Row<'stmt>,
 ) -> anyhow::Result<serde_json::Map<String, serde_json::Value>> {
     let mut ret = serde_json::Map::new();
-    for (index, name) in row.as_ref().column_names().iter().enumerate() {
+    for (index, name) in row.as_ref().column_names().into_iter().enumerate() {
         let v: Value = row.get(index)?;
-        ret.insert(name.clone(), value_2_json(&v)?);
+        ret.insert(name, value_2_json(&v)?);
     }
     return anyhow::Ok(ret);
     fn value_2_json(value: &Value) -> anyhow::Result<serde_json::Value> {
@@ -360,13 +365,8 @@ fn encode_row_as_json<'stmt>(
             Value::Double(x) => serde_json::Value::from(*x),
             Value::Decimal(decimal) => serde_json::Value::from(decimal.to_string()),
             Value::Timestamp(time_unit, value) => {
-                let mut m = serde_json::Map::new();
-                m.insert(
-                    "timeUnit".to_string(),
-                    serde_json::Value::from(format!("{:?}", time_unit).to_lowercase()),
-                );
-                m.insert("value".to_string(), serde_json::Value::from(*value));
-                serde_json::Value::Object(m)
+                let v = format_timestamp(*time_unit, *value, false)?;
+                serde_json::Value::from(v)
             }
             Value::Text(x) => serde_json::Value::from(x.clone()),
             Value::Blob(items) => {
@@ -381,13 +381,8 @@ fn encode_row_as_json<'stmt>(
                 serde_json::Value::from(d)
             }
             Value::Time64(time_unit, value) => {
-                let mut m = serde_json::Map::new();
-                m.insert(
-                    "timeUnit".to_string(),
-                    serde_json::Value::from(format!("{:?}", time_unit).to_lowercase()),
-                );
-                m.insert("value".to_string(), serde_json::Value::from(*value));
-                serde_json::Value::Object(m)
+                let v = format_timestamp(*time_unit, *value, true)?;
+                serde_json::Value::from(v)
             }
             Value::Interval {
                 months,
@@ -428,7 +423,6 @@ fn encode_row_as_json<'stmt>(
             }
             Value::Union(value) => value_2_json(&value)?,
         };
-
         anyhow::Ok(v)
     }
 }
@@ -538,13 +532,15 @@ impl QuerySql for DuckDB {
                             .into(),
                         )?;
                     }
-                    let d = encode_row(row, None)?;
+                    let d = encode_row(row)?;
                     data.push(d);
                     if data.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
                         emit.send(std::mem::take(&mut data).into())?;
                     }
                 }
-                emit.send(std::mem::take(&mut data).into())?;
+                if !data.is_empty() {
+                    emit.send(std::mem::take(&mut data).into())?;
+                }
             }
             anyhow::Ok(())
         })
@@ -574,10 +570,15 @@ impl QuerySql for DuckDB {
     }
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
-        let conn = make_conn(&self.config.path)?;
-        self.query_connection
-            .insert(id.to_string(), Arc::new(Mutex::new(conn)));
-        anyhow::Ok(())
+        let this = Clone::clone(self);
+        let id = id.to_string();
+        spawn_blocking(move || {
+            let conn = make_conn(&this.config.path, this.config.read_only)?;
+            this.use_database(&conn)?;
+            this.query_connection.insert(id, Arc::new(Mutex::new(conn)));
+            anyhow::Ok(())
+        })
+        .await?
     }
 
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
@@ -643,18 +644,7 @@ fn format_timestamp(time_uint: TimeUnit, value: i64, is_time: bool) -> anyhow::R
     });
 }
 
-fn encode_value(
-    value: &Value, ty: &DataType, parsed_type: Option<&sqlparser::ast::DataType>, nested: bool,
-) -> anyhow::Result<Option<String>> {
-    log::trace!("value:{:?} ty:{:?} parse type:{:?}", value, ty, parsed_type);
-    let is_time = matches!(ty, DataType::Time32(_)) || matches!(ty, DataType::Time64(_));
-    let is_bit = parsed_type
-        .map(|x| match x {
-            sqlparser::ast::DataType::Bit(_) => true,
-            _ => false,
-        })
-        .unwrap_or(false);
-
+fn encode_value(value: &Value, nested: bool) -> anyhow::Result<Option<String>> {
     let r = match value {
         Value::Null => None,
         Value::Boolean(x) => Some(x.to_string()),
@@ -671,7 +661,7 @@ fn encode_value(
         Value::Double(x) => Some(x.to_string()),
         Value::Decimal(decimal) => Some(decimal.to_string()),
         Value::Timestamp(time_unit, value) => {
-            let v = format_timestamp(*time_unit, *value, is_time)?;
+            let v = format_timestamp(*time_unit, *value, false)?;
             Some(v)
         }
         Value::Text(x) => {
@@ -681,22 +671,7 @@ fn encode_value(
             }
             x
         }
-        Value::Blob(items) => {
-            if is_bit {
-                let last = items.last();
-                let last = match last {
-                    Some(x) => x,
-                    None => anyhow::bail!("bit expect at least one byte"),
-                };
-                if (last & 1) != 0 {
-                    Some(1.to_string())
-                } else {
-                    Some(0.to_string())
-                }
-            } else {
-                Some(format!("x'{}'", hex::encode(items.as_slice())))
-            }
-        }
+        Value::Blob(items) => Some(format!("x'{}'", hex::encode(items.as_slice()))),
         Value::Date32(x) => {
             let mut x = format_date(*x)?;
             if nested {
@@ -705,7 +680,7 @@ fn encode_value(
             Some(x)
         }
         Value::Time64(time_unit, value) => {
-            let mut v = format_timestamp(*time_unit, *value, is_time)?;
+            let mut v = format_timestamp(*time_unit, *value, true)?;
             if nested {
                 v = format!("'{}'", v)
             }
@@ -719,35 +694,10 @@ fn encode_value(
             let x = format_interval(*months, *days, *nanos);
             Some(x)
         }
-
         Value::List(values) | Value::Array(values) => {
-            let ety = match ty {
-                DataType::List(x) => x.as_ref().data_type(),
-                DataType::FixedSizeList(x, _) => x.as_ref().data_type(),
-                _ => {
-                    anyhow::bail!("expect a list type but:{:?}", ty)
-                }
-            };
-            let parsed_type = match parsed_type {
-                Some(x) => match x {
-                    sqlparser::ast::DataType::Array(x) => match x {
-                        sqlparser::ast::ArrayElemTypeDef::SquareBracket(data_type, _) => {
-                            Some(data_type.as_ref())
-                        }
-                        _ => {
-                            anyhow::bail!("not suitable type for duckdb :{:?}", x)
-                        }
-                    },
-                    _ => {
-                        anyhow::bail!("expect an array type but:{:?}", ty)
-                    }
-                },
-                None => None,
-            };
-
             let mut eles = Vec::with_capacity(values.len());
             for value in values.iter() {
-                let v = encode_value(value, ety, parsed_type, true)?;
+                let v = encode_value(value, true)?;
                 eles.push(v);
             }
             let eles = eles
@@ -759,103 +709,21 @@ fn encode_value(
         Value::Enum(x) => Some(format!("'{}'", x)),
         Value::Struct(ordered_map) => {
             let mut values = Vec::new();
-
             for (k, v) in ordered_map.iter() {
-                let ty = match ty {
-                    DataType::Struct(x) => match x.find(&k) {
-                        Some(x) => x.1.data_type(),
-                        None => anyhow::bail!("field {} not found,this should not happen", k),
-                    },
-                    _ => {
-                        anyhow::bail!("expect struct type but {:?}", ty)
-                    }
-                };
-                let parsed_type = match parsed_type {
-                    Some(x) => match x {
-                        sqlparser::ast::DataType::Struct(x, _) => {
-                            let f = x.iter().find(|x| match &x.field_name {
-                                Some(x) => x.value.to_string().eq_ignore_ascii_case(k),
-                                None => false,
-                            });
-                            match f {
-                                Some(f) => Some(f.field_type.clone()),
-                                None => {
-                                    anyhow::bail!(
-                                        "field '{}' not found,availables are:{:?}",
-                                        k,
-                                        x.iter()
-                                            .map(|x| x.field_name.as_ref().map(|x| &x.value))
-                                            .flatten()
-                                            .collect::<Vec<_>>()
-                                    )
-                                }
-                            }
-                        }
-                        _ => {
-                            anyhow::bail!("expect a struct type but {:?}", x)
-                        }
-                    },
-                    None => None,
-                };
                 values.push(format!(
                     "{}:{}",
                     k,
-                    encode_value(v, ty, parsed_type.as_ref(), true)?.unwrap_or("null".to_string())
+                    encode_value(v, true)?.unwrap_or("null".to_string())
                 ));
             }
             Some(format!("{{{}}}", values.join(",")))
         }
         Value::Map(ordered_map) => {
-            let (kty, vty) = match ty {
-                DataType::Map(k, _) => match k.data_type() {
-                    DataType::Struct(fs) => {
-                        let kty = fs.find("key");
-                        let vty = fs.find("value");
-
-                        match (kty, vty) {
-                            (Some(k), Some(v)) => (k.1.data_type(), v.1.data_type()),
-                            _ => {
-                                anyhow::bail!("map must have key and value field")
-                            }
-                        }
-                    }
-                    _ => {
-                        anyhow::bail!("type here should a struct")
-                    }
-                },
-                _ => {
-                    anyhow::bail!("data should be a map but {:?}", ty)
-                }
-            };
-            let (pkty, pvty) = match parsed_type {
-                None => (None, None),
-                Some(parsed_type) => match parsed_type {
-                    sqlparser::ast::DataType::Map(k, v) => {
-                        (Some(k.as_ref().clone()), Some(v.as_ref().clone()))
-                    }
-                    sqlparser::ast::DataType::Custom(x, subtypes) => {
-                        if x.to_string().to_uppercase() == "MAP" {
-                            if subtypes.len() != 2 {
-                                anyhow::bail!("sub type should have length 2 but {:?}", subtypes)
-                            }
-                            (
-                                Some(parse_type(&subtypes[0])?),
-                                Some(parse_type(&subtypes[1])?),
-                            )
-                        } else {
-                            anyhow::bail!("custom should be map but {:?}", x)
-                        }
-                    }
-                    _ => {
-                        anyhow::bail!("type must be map but {:?}", parsed_type)
-                    }
-                },
-            };
             let mut keys = Vec::new();
             let mut values = Vec::new();
             for (k, v) in ordered_map.iter() {
-                keys.push(encode_value(k, kty, pkty.as_ref(), nested)?);
-                values.push(encode_value(v, vty, pvty.as_ref(), nested)?);
+                keys.push(encode_value(k, true)?);
+                values.push(encode_value(v, true)?);
             }
             let keys = keys
                 .into_iter()
@@ -871,9 +739,8 @@ fn encode_value(
                 values.join(",")
             ))
         }
-        Value::Union(value) => encode_value(&value, ty, None, true)?,
+        Value::Union(value) => encode_value(&value, true)?,
     };
-
     anyhow::Ok(r)
 }
 
@@ -902,18 +769,11 @@ fn format_interval(months: i32, days: i32, nanos: i64) -> String {
     format!("INTERVAL '{}'", interval_string)
 }
 
-fn encode_row<'stmt>(
-    row: &duckdb::Row<'stmt>, parsed_types: Option<&[sqlparser::ast::DataType]>,
-) -> anyhow::Result<Vec<Option<String>>> {
-    let types: Vec<_> = (0..row.as_ref().column_count())
-        .map(|index| row.as_ref().column_type(index))
-        .collect();
-    let mut values = Vec::with_capacity(types.len());
-    for index in 0..types.len() {
-        let ty = &types[index];
-        let parsed_type = parsed_types.as_ref().map(|x| x.get(index)).flatten();
+fn encode_row<'stmt>(row: &duckdb::Row<'stmt>) -> anyhow::Result<Vec<Option<String>>> {
+    let mut values = Vec::with_capacity(row.as_ref().column_count());
+    for index in 0..row.as_ref().column_count() {
         let x: Value = row.get(index)?;
-        values.push(encode_value(&x, ty, parsed_type, false)?);
+        values.push(encode_value(&x, false)?);
     }
     anyhow::Ok(values)
 }
@@ -1005,10 +865,6 @@ impl DuckDB {
         let this = Clone::clone(self);
         let table_name = table_name.to_owned();
         let fs = self.show_table_columns(&table_name).await?;
-        let mut parsed_types = Vec::with_capacity(fs.len());
-        for f in fs.iter() {
-            parsed_types.push(parse_type(&f.data_type)?);
-        }
         spawn_blocking(move || {
             let conn = this.get_conn()?;
             let sql = format!(
@@ -1020,7 +876,7 @@ impl DuckDB {
             let mut stmt = conn.prepare(&sql)?;
             let mut stream = stmt.query([])?;
             while let Some(row) = stream.next()? {
-                let data = encode_row(row, Some(&parsed_types[..]))?;
+                let data = encode_row(row)?;
                 let mut values = HashMap::new();
                 for (f, value) in fs.iter().zip(data.into_iter()) {
                     values.insert(f.field.clone(), value);
@@ -1384,20 +1240,18 @@ impl SchemaTrait for DuckDB {
             )?;
             let conn = this.get_conn()?;
             let mut stmt = conn.prepare(&sql)?;
-            let mut parsed_type = Vec::with_capacity(cols.len());
-            for f in cols.iter() {
-                parsed_type.push(parse_type(&f.data_type)?);
-            }
             let mut rows = stmt.query([])?;
             let mut data = Vec::new();
             let mut time_elapsed = TimeElapsed::new();
             while let Some(row) = rows.next()? {
-                data.push(encode_row(&row, Some(&parsed_type))?);
+                data.push(encode_row(&row)?);
                 if data.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
                     emit.send(std::mem::take(&mut data).into())?;
                 }
             }
-            emit.send(std::mem::take(&mut data).into())?;
+            if !data.is_empty() {
+                emit.send(std::mem::take(&mut data).into())?;
+            }
             anyhow::Ok(())
         })
         .await?
@@ -1573,21 +1427,20 @@ impl SchemaTrait for DuckDB {
             )?;
             let conn = this.get_conn()?;
             let mut stmt = conn.prepare(&sql)?;
-            let mut parsed_type = Vec::with_capacity(cols.len());
-            for f in cols.iter() {
-                parsed_type.push(parse_type(&f.data_type)?);
-            }
             let mut data = vec![];
             let mut time_elapsed = TimeElapsed::new();
             let mut stream = stmt.query([])?;
             while let Some(row) = stream.next()? {
-                let d = encode_row(row, Some(&parsed_type[..]))?;
+                let d = encode_row(row)?;
                 data.push(d);
                 if data.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
                     emit.send(std::mem::take(&mut data).into())?;
                 }
             }
-            emit.send(std::mem::take(&mut data).into())?;
+            if !data.is_empty() {
+                emit.send(std::mem::take(&mut data).into())?;
+            }
+
             anyhow::Ok(())
         })
         .await?
@@ -1800,12 +1653,15 @@ fn format_date(days_since_epoch: i32) -> anyhow::Result<String> {
         None => anyhow::bail!("days is none"),
     }
 }
+#[cfg(test)]
+
+pub(crate) fn duckdb_test_file_path() -> String {
+    std::env::var("DBPAL_DUCKDB_TEST_FILE").unwrap()
+}
 
 #[cfg(test)]
 pub(crate) fn make_test_object(schema: Option<String>) -> DuckDB {
-    let dir = env!("CARGO_MANIFEST_DIR");
-    let path = format!("{dir}/tests/test.duckdb");
-
+    let path = duckdb_test_file_path();
     DuckDB::new(DuckDBConfig {
         conn_timeout: None,
         path,
@@ -1814,14 +1670,6 @@ pub(crate) fn make_test_object(schema: Option<String>) -> DuckDB {
         schema,
     })
     .unwrap()
-}
-
-fn parse_type(typ: &str) -> anyhow::Result<sqlparser::ast::DataType> {
-    let d = sqlparser::dialect::DuckDbDialect {};
-    let mut p = sqlparser::parser::Parser::new(&d);
-    p = p.try_with_sql(&typ)?;
-    let ret = p.parse_data_type()?;
-    anyhow::Ok(ret)
 }
 
 fn extract_index_columns(sql: &str) -> anyhow::Result<Vec<String>> {
@@ -1869,19 +1717,6 @@ mod tests {
             extract_index_columns(r#"CREATE UNIQUE INDEX test_index_name ON test_index("name")"#)
                 .unwrap();
         assert_eq!(s, vec!["name".to_string()])
-    }
-
-    #[test]
-    fn test_parse_type() {
-        {
-            let x = parse_type("BIT[]").unwrap();
-
-            println!("parsed type:{:?}", x);
-        }
-        {
-            let x = parse_type("STRUCT(name VARCHAR, age INTEGER)").unwrap();
-            println!("parsed type:{:?}", x);
-        }
     }
 
     #[tokio::test]
@@ -2023,17 +1858,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_show_table_columns1111() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object(Some("main".to_string()));
-        let conn = db.get_conn().unwrap();
-        let mut stmt = conn.prepare("SELECT * from main.test_types1").unwrap();
-        let _xxxx = stmt.execute([]).unwrap();
-
-        println!("{:?}", stmt.column_names());
-    }
-
-    #[tokio::test]
     async fn test_index() {
         let _guard = test_lock().lock().await;
         enable_test_log();
@@ -2136,14 +1960,12 @@ mod tests {
         )
         .await
         .unwrap();
-
         db.drop_table_column(table_name, "email2").await.unwrap();
     }
 
     #[tokio::test]
     async fn test_types1() {
         let _guard = test_lock().lock().await;
-        enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_types1";
         let _ = db.truncate_table(table_name).await;
@@ -2155,7 +1977,6 @@ mod tests {
                 r#"
             CREATE TABLE test_types1 (
                 bigint_column BIGINT,
-                bit_column BIT,
                 blob_column BLOB,
                 boolean_column BOOLEAN,
                 date_column DATE,
@@ -2167,7 +1988,6 @@ mod tests {
             .unwrap();
         let mut values = HashMap::new();
         values.insert("bigint_column".to_string(), Some("123".to_string()));
-        values.insert("bit_column".to_string(), Some("1".to_string()));
         values.insert("blob_column".to_string(), Some("x'0102030405'".to_string()));
         values.insert("boolean_column".to_string(), Some("TRUE".to_string()));
         values.insert("date_column".to_string(), Some("2025-03-25".to_string()));
@@ -2229,7 +2049,7 @@ mod tests {
         let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object(Some("main".to_string()));
-        let table_name = "test_types1_array";
+        let table_name: &str = "test_types1_array";
         let _ = db.truncate_table(table_name).await;
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
@@ -2239,7 +2059,6 @@ mod tests {
                 r#"
              CREATE TABLE test_types1_array (
                 bigint_column BIGINT[],
-                bit_column BIT[],
                 blob_column BLOB[],
                 boolean_column BOOLEAN[],
                 date_column DATE[],
@@ -2254,7 +2073,6 @@ mod tests {
             "bigint_column".to_string(),
             Some("[1234567890, 9876543210]".to_string()),
         );
-        values.insert("bit_column".to_string(), Some("[1, 0]".to_string()));
         values.insert(
             "blob_column".to_string(),
             Some("[X'12345678', X'87654321']".to_string()),
@@ -2349,23 +2167,26 @@ mod tests {
             )
             .await
             .unwrap();
-        let mut values = HashMap::new();
-        values.insert("col_double".to_string(), Some("123.456".to_string()));
-        values.insert("col_float".to_string(), Some("78.9".to_string()));
-        values.insert(
-            "col_hugeint".to_string(),
-            Some("1234567890123456789".to_string()),
-        );
-        values.insert("col_integer".to_string(), Some("42".to_string()));
-        values.insert(
-            "col_interval".to_string(),
-            Some("INTERVAL '1 year 2 months 3 days 4 hours 5 minutes 6 seconds'".to_string()),
-        );
-        values.insert(
-            "col_json".to_string(),
-            Some(r#"{"key1": "value1", "key2": 123, "key3": [1, 2, 3]}"#.to_string()),
-        );
-        db.table_insert(table_name, values).await.unwrap();
+        {
+            let mut values = HashMap::new();
+            values.insert("col_double".to_string(), Some("123.456".to_string()));
+            values.insert("col_float".to_string(), Some("78.9".to_string()));
+            values.insert(
+                "col_hugeint".to_string(),
+                Some("1234567890123456789".to_string()),
+            );
+            values.insert("col_integer".to_string(), Some("42".to_string()));
+            values.insert(
+                "col_interval".to_string(),
+                Some("INTERVAL '1 year 2 months 3 days 4 hours 5 minutes 6 seconds'".to_string()),
+            );
+            values.insert(
+                "col_json".to_string(),
+                Some(r#"{"key1": "value1", "key2": 123, "key3": [1, 2, 3]}"#.to_string()),
+            );
+            db.table_insert(table_name, values).await.unwrap();
+        }
+
         let resp = db
             .show_table_collect(
                 table_name,
@@ -2867,32 +2688,6 @@ mod tests {
     }
 }
 
-// impl DuckDB {
-//     fn query_resp(conn: &Connection, sql: &str) -> anyhow::Result<QueryResp> {
-//         let mut stmt = conn.prepare(sql)?;
-//         stmt.execute([])?;
-//         let types: Vec<_> = (0..stmt.column_count())
-//             .map(|x| stmt.column_type(x))
-//             .collect();
-//         let names = stmt.column_names();
-//         let mut rows =   stmt.query([])?;
-//         let mut data = vec![];
-//         while let Some(row) =  rows.next()? {
-//             let d = encode_row(row, &types[..], None)?;
-//             data.push(d);
-//         }
-//         anyhow::Ok(QueryResp {
-//             fields: names
-//                 .iter()
-//                 .zip(types.iter())
-//                 .map(|(name, typ)| Field::from_name_type(name, typ.to_string()))
-//                 .collect::<Vec<_>>(),
-//             data,
-//             sql: Some(sql.to_string()),
-//             total: 0,
-//         })
-//     }
-// }
 // #[ignore = "materizlized view not implemented https://github.com/duckdb/duckdb/discussions/3638"]
 // #[tokio::test]
 // async fn test_materialized_view() {

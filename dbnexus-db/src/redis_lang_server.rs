@@ -1292,7 +1292,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        test_file_auto_completion(&content, &db, false).await;
+        test_file_auto_completion(&content, &db, None, false).await;
     }
     #[ignore = "手动跑跑的测试"]
     #[tokio::test]
@@ -1303,6 +1303,7 @@ mod tests {
             r#"ZRANGE set
 11 zset_value"#,
             &db,
+            None,
             false,
         )
         .await;

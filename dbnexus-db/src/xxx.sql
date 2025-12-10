@@ -1,2 +1,2 @@
-select EMPLOYEEID from EMPLOYEE
-18 EMPLOYEEID  ; 32 EMPLOYEE
+install xxx
+12 sqlite

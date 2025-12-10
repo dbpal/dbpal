@@ -315,6 +315,9 @@ async function showTable(
       para.order_by = null;
     }
     const emit = new Channel<QueryEvent>(event => {
+      if (import.meta.env.DEV) {
+        console.log("show table event:", event);
+      }
       switch (event.kind) {
         case "structure":
           resp = event.resp;

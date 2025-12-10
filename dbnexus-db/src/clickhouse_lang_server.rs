@@ -387,13 +387,13 @@ mod tests {
         file_path.push("tests");
         file_path.push("clickhouse_auto_completion_test.sql");
         let content = std::fs::read_to_string(file_path.as_path()).unwrap();
-        test_file_auto_completion(&content, &db, false).await;
+        test_file_auto_completion(&content, &db, None, false).await;
     }
     #[ignore = "手动跑跑的测试"]
     #[tokio::test]
     async fn test_completion_xxx() {
         enable_test_log();
         let db = make_test_object();
-        test_file_auto_completion(include_str!("./xxx.sql"), &db, false).await;
+        test_file_auto_completion(include_str!("./xxx.sql"), &db, None, false).await;
     }
 }
