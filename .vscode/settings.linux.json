@@ -1,3 +1,0 @@
-{
-  "rust-analyzer.cargo.features": ["random-error", "random-sleep", "duckdb"]
-}
