@@ -73,14 +73,11 @@ async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<Session> {
         config.host,
         config.port.unwrap_or(9042)
     ));
-    match (&config.username, &config.password) {
-        (Some(user), Some(pass)) => {
-            builder = builder.authenticator_provider(Arc::new(PlainTextAuthenticator::new(
-                user.clone(),
-                pass.clone(),
-            )));
-        }
-        _ => {}
+    if let (Some(user), Some(pass)) = (&config.username, &config.password) {
+        builder = builder.authenticator_provider(Arc::new(PlainTextAuthenticator::new(
+            user.clone(),
+            pass.clone(),
+        )));
     }
     let session = builder.build().await?;
     if let Some(key_space) = config.db.as_ref() {
@@ -265,7 +262,7 @@ fn format_timestamp(x: i64) -> anyhow::Result<String> {
     let time = DateTime::from_timestamp_millis(x);
     match time {
         Some(x) => anyhow::Ok(x.naive_local().to_string()),
-        None => Err(anyhow::Error::msg(format!(""))),
+        None => Err(anyhow::Error::msg(String::new())),
     }
 }
 
@@ -894,9 +891,9 @@ impl CassandraDB {
                 .query_unpaged(sql.as_str(), &[])
                 .await?
                 .into_rows_result()?;
-            let mut pager = r.rows::<(String, String, String, String)>()?;
+            let pager = r.rows::<(String, String, String, String)>()?;
             let mut create_statement = "".to_string();
-            while let Some(row) = pager.next() {
+            for row in pager {
                 let row = row?;
                 create_statement = row.3;
                 break;
@@ -1563,7 +1560,7 @@ impl CassandraDB {
 
         while let Some(row) = steam.next().await {
             let (_, typ, _, create_statement) = row?;
-            let parameters_try_match = vec![extract_parameter_for_aggregate(&create_statement)?];
+            let parameters_try_match = [extract_parameter_for_aggregate(&create_statement)?];
             if parameters.len() != parameters_try_match.len() {
                 continue;
             }

@@ -1294,15 +1294,14 @@ impl SchemaTrait for RedisDB {
                 while let Some(value) = ret.next().await {
                     let value = value?;
                     values.push(value);
-                    if values.len() % 2 == 0 {
-                        if values.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
+                    if values.len() % 2 == 0
+                        && (values.len() >= self.query_buffer_size() || time_elapsed.elapsed()) {
                             let values = values.chunks(2);
                             let values = values
                                 .map(|x| vec![Some(hex::encode(&x[0])), Some(hex::encode(&x[1]))])
                                 .collect::<Vec<_>>();
                             emit.send(values.into())?;
                         }
-                    }
                 }
                 if !values.is_empty() {
                     let values = values.chunks(2);

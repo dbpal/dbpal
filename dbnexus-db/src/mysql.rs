@@ -1246,7 +1246,7 @@ impl SchemaTrait for MysqlDB {
             emit.send(
                 QueryResp {
                     fields,
-                    sql: Some(sql.into()),
+                    sql: Some(sql),
                     ..Default::default()
                 }
                 .into(),

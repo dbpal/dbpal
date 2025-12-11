@@ -1470,10 +1470,10 @@ impl SchemaTrait for OracleDB {
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            let mut stream = conn.query(&sql, &[])?;
+            let stream = conn.query(&sql, &[])?;
             let mut rows = vec![];
             let mut time_elapsed = TimeElapsed::new();
-            while let Some(row) = stream.next() {
+            for row in stream {
                 let row = row?;
                 rows.push(row);
                 if rows.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
@@ -1637,11 +1637,11 @@ impl SchemaTrait for OracleDB {
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            let mut stream = conn.query(&sql, &[])?;
+            let stream = conn.query(&sql, &[])?;
             let mut first = true;
             let mut rows = vec![];
             let mut time_elapsed = TimeElapsed::new();
-            while let Some(row) = stream.next() {
+            for row in stream {
                 let row = row?;
                 if first {
                     first = false;

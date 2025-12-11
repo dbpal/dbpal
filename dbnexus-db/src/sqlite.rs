@@ -986,7 +986,7 @@ impl SchemaTrait for SqliteDB {
             emit.send(
                 QueryResp {
                     fields,
-                    sql: Some(sql.into()),
+                    sql: Some(sql),
                     ..Default::default()
                 }
                 .into(),

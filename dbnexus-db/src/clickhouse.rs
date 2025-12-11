@@ -996,7 +996,7 @@ impl QuerySql for ClickHouseDB {
                 "try to execute sql: {}",
                 sql
             )))?;
-            let mut stream = self.query_row(&sql).await?;
+            let mut stream = self.query_row(sql).await?;
             while let Some(row) = stream.next().await {
                 let row = row?;
 
@@ -1272,7 +1272,7 @@ impl ClickHouseDB {
         let res = self.query_as_response(query, format, http_extra).await?;
         let reader = StreamReader::new(
             res.bytes_stream()
-                .map(|x| x.map_err(|e| std::io::Error::other(e))),
+                .map(|x| x.map_err(std::io::Error::other)),
         );
         let reader = BufReader::new(reader);
         let lines = Box::pin(LinesStream::new(reader.lines()));

@@ -157,7 +157,7 @@ impl QueryEventEmit for QueryRespMemoryCollector {
                 use std::ops::DerefMut;
                 let x = lock.deref_mut();
                 let x = x.as_mut().unwrap();
-                x.data.extend(data.into_iter());
+                x.data.extend(data);
             }
             _ => {
                 println!("event:{:?}", event);

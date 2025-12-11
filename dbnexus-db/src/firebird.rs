@@ -864,10 +864,10 @@ impl SchemaTrait for FireBirdDB {
             log::info!("sql:{}", sql);
             emit.send("trying to query data".into())?;
             let mut rows = vec![];
-            let mut stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
+            let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
             let mut time_elapsed = TimeElapsed::new();
-            while let Some(row) = stream.next() {
+            for row in stream {
                 let row = row?;
                 rows.push(row);
                 if rows.len() >= this.query_buffer_size() || time_elapsed.elapsed() {

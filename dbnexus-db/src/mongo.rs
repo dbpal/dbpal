@@ -308,7 +308,7 @@ impl MongoDB {
         &self, collection_name: &str, filter: Document, sort: Document, page: u64, page_size: u64,
     ) -> anyhow::Result<QueryResp> {
         let db = self.get_db().await?;
-        let count = db
+        let count: u64 = db
             .collection::<Document>(collection_name)
             .count_documents(filter.clone())
             .await?;
@@ -453,7 +453,6 @@ impl ServerMetas for MongoDB {
                 ret.push(MetaValue::new(*k, x.to_string()))
             }
         }
-
         anyhow::Ok(ret)
     }
 }
