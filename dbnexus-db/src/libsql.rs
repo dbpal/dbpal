@@ -225,7 +225,7 @@ impl QuerySql for LibSqlDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, _max_row: usize, emit: QueryEventEmitter,
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let tr = self.query_connections_transaction.get(&query_id.to_owned());
         let conn = self.query_connection.get(&query_id.to_string());
@@ -1854,7 +1854,6 @@ mod tests {
             PRAGMA table_info('test_table')
 
         "#,
-                usize::MAX,
                 Arc::new(TestQueryEventEmit::default()),
             )
             .await

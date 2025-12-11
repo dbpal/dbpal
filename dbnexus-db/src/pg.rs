@@ -2151,7 +2151,7 @@ impl QuerySql for PostGresDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, _max_row: usize, emit: QueryEventEmitter,
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         emit.send(QueryEvent::new_status("trying to lock connection."))?;

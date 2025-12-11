@@ -1056,7 +1056,7 @@ pub async fn query_sql(
     let fur = async move {
         random_sleep().await;
         db.as_query_sql()
-            .query_sql(query_id, &sql, max_row, sender)
+            .query_sql(query_id, &sql, sender)
             .await
             .map_err(ErrorFrontend::from)
     };

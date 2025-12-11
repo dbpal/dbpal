@@ -194,6 +194,7 @@ impl LangServerCommon for CassandraDB {
         }
         anyhow::Ok(ret)
     }
+
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         DBTrait::list_schema(self).await
     }

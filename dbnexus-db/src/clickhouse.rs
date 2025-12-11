@@ -4,8 +4,8 @@ use crate::db::{
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue,
     NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
-    UdfOrProcedureExtraParameter, XlsxEdit, build_limit_sql, create_html_table_data,
-    create_html_table_header, escape_sql_str, ty_is_float, ty_is_int,
+    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
+    escape_sql_str, ty_is_float, ty_is_int,
 };
 
 use crate::helper::separate_sql_by_sqlparser_tokenizer;
@@ -196,7 +196,6 @@ impl ClickHouseDB {
 
     pub(crate) async fn list_table_impl(&self, db: &str) -> anyhow::Result<Vec<ListTable>> {
         let sql = format!("show tables from `{}`", db);
-
         let ret: Vec<String> = self.client.query(&sql).fetch_all().await?;
         // delete materialized view
         let mut ret = ret.into_iter().collect::<HashSet<_>>();
@@ -813,14 +812,33 @@ impl ClickHouseDB {
     }
 
     async fn export_query_result_as_json(
-        &self, sql: &str, _pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
     ) -> anyhow::Result<()> {
-        let mut stream = self.query_as_text_line(sql, "JSON", None).await?;
+        let mut stream = self.query_as_text_line(sql, "JSONEachRow", None).await?;
+        sender.send("[".into()).await?;
+        let mut first = true;
         while let Some(data) = stream.next().await {
             let data = data?;
-            sender.send(Cow::Owned(data)).await?;
+            if !first {
+                sender.send(",".into()).await?;
+            }
+            if pretty {
+                sender.send("\n".into()).await?;
+            }
+            if pretty {
+                let v: HashMap<String, serde_json::Value> = serde_json::from_str(&data)?;
+                sender
+                    .send(serde_json::to_string_pretty(&v)?.into())
+                    .await?;
+            } else {
+                sender.send(Cow::Owned(data)).await?;
+            }
+            first = false;
+        }
+        if pretty {
             sender.send("\n".into()).await?;
         }
+        sender.send("]".into()).await?;
         anyhow::Ok(())
     }
 
@@ -968,13 +986,12 @@ impl QuerySql for ClickHouseDB {
     }
 
     async fn query_sql(
-        &self, _query_id: &str, sql: &str, max_row: usize, emit: QueryEventEmitter,
+        &self, _query_id: &str, sql: &str, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         self.not_allow_switch_db(sql)?;
         let dialect = sqlparser::dialect::ClickHouseDialect {};
         let sqls = separate_sql_by_sqlparser_tokenizer(sql, &dialect)?;
         for sql in sqls.iter() {
-            let sql = build_limit_sql(sql, max_row);
             emit.send(QueryEvent::new_status(format!(
                 "try to execute sql: {}",
                 sql
@@ -1210,7 +1227,7 @@ pub enum FieldsOrData {
 impl ClickHouseDB {
     pub(crate) async fn query_row(
         &'_ self, query: &str,
-    ) -> anyhow::Result<BoxStream<'_, Result<FieldsOrData, std::io::Error>>> {
+    ) -> anyhow::Result<BoxStream<'_, anyhow::Result<FieldsOrData>>> {
         let stream = self
             .query_as_text_line(query, "JSONCompactEachRowWithNamesAndTypes", None)
             .await?;
@@ -1218,32 +1235,21 @@ impl ClickHouseDB {
         let mut cols: Vec<String> = vec![];
         let mut ts: Vec<_> = vec![];
         let r = stream.map(move |x| match x {
-            Err(err) => Err(std::io::Error::other(err)),
+            Err(err) => Err(anyhow::Error::from(err)),
             Ok(line) => {
                 if count == 0 {
                     count += 1;
-                    cols = match serde_json::from_str(&line).map_err(|e| std::io::Error::other(e)) {
-                        Ok(x) => x,
-                        Err(err) => return Err(err),
-                    };
-                    return Ok(FieldsOrData::ReadingColumns);
+                    cols = serde_json::from_str(&line)?;
+                    return anyhow::Ok(FieldsOrData::ReadingColumns);
                 }
                 if count == 1 {
                     count += 1;
-                    let ts_str: Vec<String> =
-                        match serde_json::from_str(&line).map_err(|e| std::io::Error::other(e)) {
-                            Ok(x) => x,
-                            Err(err) => return Err(err),
-                        };
-
+                    let ts_str: Vec<String> = serde_json::from_str(&line)?;
                     for x in ts_str.iter() {
-                        let t = match parse_type(x) {
-                            Ok(t) => t,
-                            Err(err) => return Err(std::io::Error::other(err)),
-                        };
+                        let t = parse_type(x)?;
                         ts.push(t);
                     }
-                    return Ok(FieldsOrData::Fields(
+                    return anyhow::Ok(FieldsOrData::Fields(
                         ts_str
                             .iter()
                             .zip(cols.iter())
@@ -1252,8 +1258,8 @@ impl ClickHouseDB {
                     ));
                 }
                 // now we have data
-                let r = encode_json_result(&ts, &line).unwrap();
-                Ok(FieldsOrData::Data(r))
+                let r = encode_json_result(&ts, &line)?;
+                anyhow::Ok(FieldsOrData::Data(r))
             }
         });
         anyhow::Ok(Box::pin(r))
@@ -1418,18 +1424,15 @@ fn replace_new_line_to_whitespace(sql: &str) -> anyhow::Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::usize;
-
     use super::*;
     use super::{make_test_object, parse_type};
     use crate::db::{
         ColumnType, DBTrait, ExportKind, QuerySql, SchemaTrait, ServerMetas, TestQueryEventEmit,
     };
     use crate::enable_test_log;
+    use std::collections::HashMap;
 
     #[test]
-
     fn test_replace_new_line_to_whitespace() {
         {
             let sql = r#"select *
@@ -1466,6 +1469,17 @@ from test
         for l in db.list_udf().await.unwrap() {
             let detail = db.show_udf(&l.name, None).await.unwrap();
             println!("detail:{:?}", detail);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_show_tables() {
+        enable_test_log();
+        let db = make_test_object();
+        let mut stream = db.query_row("show TABLES from default").await.unwrap();
+        while let Some(row) = stream.next().await {
+            let row = row.unwrap();
+            println!("!!!!!!!!!!!!:{:?}", row);
         }
     }
 
@@ -1684,6 +1698,15 @@ from test
             .unwrap();
 
         println!("view data:{:?}", _resp);
+
+        {
+            let json = db
+                .export_table_to_string(view_name, ExportKind::Json { pretty: true })
+                .await
+                .unwrap();
+            let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+            println!("!!!!!!!!!!!!:{:?}", v);
+        }
     }
 
     #[tokio::test]
@@ -2332,7 +2355,6 @@ from test
         db.query_sql(
             query_id,
             "SELECT * fro test_types4",
-            usize::MAX,
             Arc::new(TestQueryEventEmit::default()),
         )
         .await

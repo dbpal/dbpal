@@ -1563,7 +1563,7 @@ impl QuerySql for SqliteDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, _max_row: usize, emit: QueryEventEmitter,
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         crate::language_server::LangServerCommon::contains_tx_operation_error(self, sql)?;
         emit.send(QueryEvent::Status("trying to get connection".into()))?;
@@ -1702,7 +1702,6 @@ impl ReadOnlyTrait for SqliteDB {
 
 #[cfg(test)]
 mod tests {
-    use std::usize;
 
     use super::*;
     use crate::{
@@ -2361,7 +2360,6 @@ mod tests {
             PRAGMA table_info('test_table')
 
         "#,
-                usize::MAX,
                 Arc::new(TestQueryEventEmit::default()),
             )
             .await

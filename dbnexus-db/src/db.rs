@@ -1087,12 +1087,9 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     async fn rollback(&self, _query_id: &str) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
-    // `max_row` max returning row size.
-    // this is tricky when this implementation is total async rust
-    // u don't this this var `emit` will try limit the returning results and cancel the task
-    // and return a error
+
     async fn query_sql(
-        &self, query_id: &str, _sql: &str, max_row: usize, emit: QueryEventEmitter,
+        &self, query_id: &str, _sql: &str, emit: QueryEventEmitter,
     ) -> anyhow::Result<()>;
 
     async fn execute_sql(

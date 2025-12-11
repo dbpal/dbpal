@@ -1961,7 +1961,7 @@ impl QuerySql for SqlServerDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, _max_row: usize, emit: QueryEventEmitter,
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let conn = match self.query_connection.get(&query_id.to_string()) {
             Some(x) => x.clone(),
@@ -2873,7 +2873,6 @@ GO
         db.query_sql(
             query_id,
             "SELECT  COUNT(*) from test_type1 ",
-            usize::MAX,
             Arc::new(TestQueryEventEmit::default()),
         )
         .await
@@ -3131,7 +3130,6 @@ FROM sys.sequences;
 
 
         "#,
-            usize::MAX,
             Arc::new(TestQueryEventEmit::default()),
         )
         .await

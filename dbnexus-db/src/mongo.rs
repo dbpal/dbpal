@@ -309,7 +309,7 @@ impl MongoDB {
     ) -> anyhow::Result<QueryResp> {
         let db = self.get_db().await?;
         let count = db
-            .collection::<u64>(collection_name)
+            .collection::<Document>(collection_name)
             .count_documents(filter.clone())
             .await?;
         let mut stream = db
@@ -783,7 +783,7 @@ impl SchemaTrait for MongoDB {
 #[async_trait::async_trait]
 impl QuerySql for MongoDB {
     async fn query_sql(
-        &self, _id: &str, _sql: &str, _max_row: usize, _emit: QueryEventEmitter,
+        &self, _id: &str, _sql: &str, _emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }

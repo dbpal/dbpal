@@ -589,7 +589,7 @@ function Oracle(props: { config?: types.OracleDBConfig }) {
 function ClickHouse(props: { config?: types.ClickHouseConfig }) {
   const { config } = props;
   const [host, setHost] = useState(getHost(config));
-  const [port, setPort] = useState((config?.port || 3306) + "");
+  const [port, setPort] = useState((config?.port || 8123) + "");
   const [user, setUser] = useState(getUser(config));
   const [password, setPassword] = useState(getPassword(config));
   const [database, setDatabase] = useState(getDB(config));
@@ -605,8 +605,8 @@ function ClickHouse(props: { config?: types.ClickHouseConfig }) {
       username: user,
       password: password ? password : null,
       save_password: savePassword,
-      db: database,
-      https: https,
+      db: database ? database : null,
+      https: !!https,
       read_only: readOnly,
       conn_timeout: connTimeOut,
     };
@@ -874,7 +874,7 @@ function FireBird(props: { config?: types.FireBirdConfig }) {
       username: user,
       password,
       save_password: savePassword,
-      db: database,
+      db: database ? database : null,
       conn_timeout: connTimeOut,
       read_only: readOnly,
     };

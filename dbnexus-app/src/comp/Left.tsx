@@ -20,7 +20,6 @@ import {
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
 import {
-  memo,
   ReactNode,
   useCallback,
   useContext,
@@ -83,7 +82,7 @@ import { TbDatabaseSearch } from "react-icons/tb";
 import { SqlQuery } from "./SqlQuery";
 import { RedisQuery } from "./RedisQuery";
 import { MongoQuery } from "./MongoQuery.tsx";
- 
+
 import {
   ConnPingTime,
   MenuCloseConn,
@@ -602,7 +601,7 @@ function Left() {
                     uuid: e.name,
                   }}
                 >
-                  <OneConnection key={e.name} config={e} />
+                  <OneConfig key={e.name} config={e} />
                 </UuidContext.Provider>
               </ConnTypeContext.Provider>
             </MatchPatternContext.Provider>
@@ -925,8 +924,7 @@ function FavoriteSqlList(props: { handleClose }) {
   );
 }
 
-const OneConnection = memo(OneConfig_);
-function OneConfig_(props: { config: types.DBConnectionConfig }) {
+function OneConfig(props: { config: types.DBConnectionConfig }) {
   const { config } = props;
   const [opened, setOpened] = useState(false);
 

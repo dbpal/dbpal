@@ -275,12 +275,11 @@ impl QuerySql for OracleDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, max_row: usize, emit: QueryEventEmitter,
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let query_id = query_id.to_owned();
         let sql = sql.to_owned();
-        let mut total = 0;
         spawn_blocking(move || {
             emit.send(QueryEvent::new_status("trying to lock connection."))?;
             let conn = match this.query_connection.get(&query_id.to_string()) {
@@ -311,12 +310,8 @@ impl QuerySql for OracleDB {
                         rows_cache.push(row);
                         if rows_cache.len() >= this.query_buffer_size() || timeelapsed.elapsed() {
                             let r = encode_rows(std::mem::take(&mut rows_cache))?;
-                            total += r.len();
                             emit.send(r.into())?;
                         }
-                    }
-                    if total > max_row {
-                        anyhow::bail!(format!("{} exceed {} results", total, max_row));
                     }
                     if !rows_cache.is_empty() {
                         let r = encode_rows(std::mem::take(&mut rows_cache))?;

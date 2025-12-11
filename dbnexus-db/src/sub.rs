@@ -204,11 +204,9 @@ impl QuerySql for SubDB {
     }
 
     async fn query_sql(
-        &self, query_id: &str, sql: &str, max_row: usize, emit: QueryEventEmitter,
+        &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        self.as_query_sql()
-            .query_sql(query_id, sql, max_row, emit)
-            .await
+        self.as_query_sql().query_sql(query_id, sql, emit).await
     }
 
     async fn execute_sql(
