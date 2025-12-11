@@ -1600,7 +1600,6 @@ impl QuerySql for SqliteDB {
                         if !rows.is_empty() {
                             let data = encode_rows(&std::mem::take(&mut rows))?;
                             emit.send(data.into())?;
-                            tokio::task::yield_now().await;
                         }
                         emit.send(
                             QueryResp {
@@ -1615,7 +1614,6 @@ impl QuerySql for SqliteDB {
                     if rows.len() >= self.query_buffer_size() || timeelapsed.elapsed() {
                         let data = encode_rows(&std::mem::take(&mut rows))?;
                         emit.send(data.into())?;
-                        tokio::task::yield_now().await;
                     }
                 }
             }

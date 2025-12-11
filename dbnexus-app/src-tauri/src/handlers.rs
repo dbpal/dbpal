@@ -1008,6 +1008,7 @@ impl QueryEventChannelEmit {
 impl QueryEventEmit for QueryEventChannelEmit {
     fn send(&self, event: dbnexus_db::db::QueryEvent) -> anyhow::Result<()> {
         block_random_sleep();
+
         let r = QueryEvent::from(event);
         let total = self.emitted_size.fetch_add(r.rows(), Ordering::Relaxed);
         let err = self.channel.send(r).map_err(anyhow::Error::from);

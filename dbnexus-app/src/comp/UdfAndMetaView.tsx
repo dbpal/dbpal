@@ -12,7 +12,7 @@ import {
   makeExecuteSql,
   resizeHandlerSize,
 } from "./helper";
-import { MultiQueryResp } from "./QueryResp";
+import { MultiQueryResp, queryRespFix } from "./QueryResp";
 import { editor } from "monaco-editor";
 import { SimpleFlexEditor } from "./CommonComp2";
 import types from "./ApiStruct";
@@ -59,8 +59,12 @@ function DefAndMetasView(props: {
   const handleExecute = () => {
     const sql = getEditorText(editor.current, showNotification);
     setExecuteLoading(true);
+
     executeOP(sql)
       .then(e => {
+        if (e.Ok) {
+          queryRespFix(e.Ok);
+        }
         setQueryResp([e]);
       })
       .catch(e => {

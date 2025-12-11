@@ -900,9 +900,9 @@ class SaveQueryLogConfigure {
   }
 }
 
-function makeExecuteSql(uuid) {
-  return (sql: string): Promise<any> => {
-    return invoke<any>("execute_sql_no_open_conn", {
+function makeExecuteSql(uuid: string) {
+  return (sql: string) => {
+    return invoke<QueryRespData>("execute_sql_no_open_conn", {
       name: uuid,
       sql,
     }).then(e => {
