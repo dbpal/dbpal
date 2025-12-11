@@ -37,7 +37,7 @@ redis = { version = "*", features = [
     "tokio-rustls-comp",
 
 ] }
-
+tokio-stream = { version = "0.1.17", features = ["io-util"] }
 rust_xlsxwriter = { version = "0.90.0", features = ["constant_memory"] }
 dashmap.workspace = true
 hex.workspace = true
@@ -81,7 +81,7 @@ rand.workspace = true
 num-bigint = "*"
 r2d2 = "*"
 base64 = "*"
-reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"] }
 clickhouse = { version = "0.14", features = ["rustls-tls", "time", "uuid"] }
 libsql = { version = "0.9.7", default-features = false, features = [
     "remote",

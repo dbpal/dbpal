@@ -1,6 +1,8 @@
 use std::vec;
 
-use crate::clickhouse::{ClickHouseDB, JsonRespMeta};
+use futures_util::StreamExt;
+
+use crate::clickhouse::{ClickHouseDB, FieldsOrData};
 use crate::db::DBTrait;
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, ErrAndLoc, GetKeyWords,
@@ -16,8 +18,8 @@ impl GetKeyWords for ClickHouseDB {
             return anyhow::Ok(lock.clone());
         }
         let sql = "select * from system.keywords";
-        let conn = self.get_conn()?;
-        let ret: Vec<String> = conn.query(sql).fetch_all().await?;
+
+        let ret: Vec<String> = self.client.query(sql).fetch_all().await?;
         *lock = ret;
         return anyhow::Ok(lock.clone());
     }
@@ -28,8 +30,8 @@ impl GetKeyWords for ClickHouseDB {
 impl LanguageServer for ClickHouseDB {
     async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
         let sql = format!("select max(id) from `{name}`");
-        let conn = self.get_conn()?;
-        let r: i64 = conn.query(&sql).fetch_one().await?;
+
+        let r: i64 = self.client.query(&sql).fetch_one().await?;
         anyhow::Ok(r.to_string())
     }
 
@@ -86,8 +88,8 @@ impl LangServerCommon for ClickHouseDB {
             system.clusters
 
         "#;
-        let conn = self.get_conn()?;
-        let ret: Vec<String> = conn.query(sql).fetch_all().await?;
+
+        let ret: Vec<String> = self.client.query(sql).fetch_all().await?;
         anyhow::Ok(ret)
     }
     fn clickhouse_format_clause(&self) -> Vec<String> {
@@ -133,8 +135,8 @@ impl LangServerCommon for ClickHouseDB {
         // 在 ClickHouse 中，使用以下查询可以查看所有函数，包括表函数（table functions）：
         // 看起来clickhouse 都有全局的作用域
         let sql = "select name , description from system.functions";
-        let conn = self.get_conn()?;
-        let result: Vec<(String, String)> = conn.query(sql).fetch_all().await?;
+
+        let result: Vec<(String, String)> = self.client.query(sql).fetch_all().await?;
 
         anyhow::Ok(
             result
@@ -176,7 +178,6 @@ impl AstCompletionHelper for ClickHouseDB {
     async fn list_clickhouse_table_projects(
         &self, schema: Option<&str>, table: &str,
     ) -> anyhow::Result<Vec<String>> {
-        let conn = self.get_conn()?;
         let db = self.not_allow_none_schema(schema)?;
         let sql = format!(
             r#"
@@ -185,24 +186,33 @@ impl AstCompletionHelper for ClickHouseDB {
                 WHERE "table"  = '{table}' and database = '{db}'
         "#
         );
-        let result: Vec<String> = conn.query(&sql).fetch_all().await?;
+        let result: Vec<String> = self.client.query(&sql).fetch_all().await?;
         anyhow::Ok(result)
     }
 
     async fn get_query_columns(&self, sql: &str) -> anyhow::Result<Vec<TempTableColumn>> {
         let sql = format!("select * from({}) limit 1", sql);
-        let meta = self.query_as_json(&sql).await?.meta;
-        anyhow::Ok(
-            meta.into_iter()
-                .map(|x| {
-                    let JsonRespMeta { name, r#type } = x;
-                    TempTableColumn {
-                        name,
-                        data_type: Some(r#type),
-                    }
-                })
-                .collect(),
-        )
+        let mut stream = self.query_row(&sql).await?;
+
+        while let Some(x) = stream.next().await {
+            match x? {
+                FieldsOrData::Fields(fields) => {
+                    return anyhow::Ok(
+                        fields
+                            .into_iter()
+                            .map(|x| TempTableColumn {
+                                name: x.field,
+                                data_type: Some(x.data_type),
+                            })
+                            .collect(),
+                    );
+                }
+                FieldsOrData::Data(..) => {}
+                FieldsOrData::ReadingColumns => {}
+            }
+        }
+
+        anyhow::Ok(vec![])
     }
 }
 
