@@ -1113,12 +1113,13 @@ impl DBTrait for ClickHouseDB {
         anyhow::Ok(())
     }
 }
+
 fn encode_nested(value: &serde_json::Value, typ: &DataType) -> anyhow::Result<String> {
     let x = match value {
         serde_json::Value::Null => "null".to_string(),
         serde_json::Value::Bool(x) => x.to_string(),
         serde_json::Value::Number(number) => number.to_string(),
-        serde_json::Value::String(x) => format!("'{}'", x),
+        serde_json::Value::String(x) => format!("'{}'", escape_sql_str(x)),
         serde_json::Value::Array(values) => {
             match typ {
                 DataType::Tuple(tys) => {
