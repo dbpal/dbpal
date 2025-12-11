@@ -1270,10 +1270,8 @@ impl ClickHouseDB {
     ) -> anyhow::Result<BoxStream<'_, Result<String, std::io::Error>>> {
         use tokio_stream::wrappers::LinesStream;
         let res = self.query_as_response(query, format, http_extra).await?;
-        let reader = StreamReader::new(
-            res.bytes_stream()
-                .map(|x| x.map_err(std::io::Error::other)),
-        );
+        let reader =
+            StreamReader::new(res.bytes_stream().map(|x| x.map_err(std::io::Error::other)));
         let reader = BufReader::new(reader);
         let lines = Box::pin(LinesStream::new(reader.lines()));
         anyhow::Ok(lines)
@@ -2264,7 +2262,7 @@ from test
 
     #[tokio::test]
     async fn test_types6() {
-        // enable_test_log();
+        enable_test_log();
         let db = make_test_object();
         let table_name = "test_types6";
         let _ = db.drop_table(table_name, false).await;
@@ -2290,8 +2288,14 @@ from test
         {
             let mut values = HashMap::new();
 
-            values.insert("common_value".to_string(), Some("common_value".to_string()));
-            values.insert("some_string".to_string(), Some("hello world".to_string()));
+            values.insert(
+                "low_cardinality_field".to_string(),
+                Some("some stupid value".to_string()),
+            );
+            values.insert(
+                "nullable_field".to_string(),
+                Some("hello world".to_string()),
+            );
 
             db.table_insert(table_name, values).await.unwrap();
         }
@@ -2306,6 +2310,7 @@ from test
 
             println!("resp:{:?}", resp);
         }
+
         {
             let sql = db
                 .export_table_to_string(
