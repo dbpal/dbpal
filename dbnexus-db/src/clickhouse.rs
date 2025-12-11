@@ -1217,7 +1217,6 @@ impl ClickHouseDB {
         let mut count = 0;
         let mut cols: Vec<String> = vec![];
         let mut ts: Vec<_> = vec![];
-        let mut ts_str: Vec<String> = vec![];
         let r = stream.map(move |x| match x {
             Err(err) => Err(std::io::Error::other(err)),
             Ok(line) => {
@@ -1231,11 +1230,11 @@ impl ClickHouseDB {
                 }
                 if count == 1 {
                     count += 1;
-                    ts_str = match serde_json::from_str(&line).map_err(|e| std::io::Error::other(e))
-                    {
-                        Ok(x) => x,
-                        Err(err) => return Err(err),
-                    };
+                    let ts_str: Vec<String> =
+                        match serde_json::from_str(&line).map_err(|e| std::io::Error::other(e)) {
+                            Ok(x) => x,
+                            Err(err) => return Err(err),
+                        };
 
                     for x in ts_str.iter() {
                         let t = match parse_type(x) {
