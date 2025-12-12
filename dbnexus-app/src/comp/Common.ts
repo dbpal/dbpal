@@ -9,7 +9,6 @@ import { message } from "@tauri-apps/plugin-dialog";
 import * as keyring from "tauri-plugin-keyring-api";
 import {
   appDatabase,
-  AppStoreKey,
   backendCompletionItemToEditor,
   DataSourceKind,
   extractConfigNameFromUuid,
@@ -579,7 +578,6 @@ export {
   dropDatabase,
   dropSchema,
   reloadOK,
-  AppStoreKey,
   keyNotInTable,
   extractBaseName,
   modalHandleClose,

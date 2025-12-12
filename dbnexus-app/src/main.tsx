@@ -3,7 +3,7 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 import { App } from "./comp/MainPage";
 import { invoke } from "@tauri-apps/api/core";
-import { secondConfirm } from "./comp/helper.ts";
+import { appStore, LoggerLevel, secondConfirm } from "./comp/helper.ts";
 
 const currentWebview = WebviewWindow.getCurrent();
 
@@ -34,7 +34,43 @@ if (import.meta.env.DEV) {
   });
 }
 
+function levelStr2Num(level: string): number {
+  let level_num = null;
+  switch (level) {
+    case "none":
+      break;
+    case "error":
+      level_num = 1;
+      break;
+    case "warn":
+      level_num = 2;
+      break;
+    case "info":
+      level_num = 3;
+      break;
+    case "debug":
+      level_num = 4;
+      break;
+    case "trace":
+      level_num = 5;
+      break;
+  }
+
+  return level_num;
+}
+
+function setLogLevel(level: string) {
+  invoke("set_log_level", { level: levelStr2Num(level) });
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);
+appStore.onKeyChange<string>(LoggerLevel.key, level => {
+  setLogLevel(level);
+});
+
+appStore.get<string>(LoggerLevel.key).then(level => {
+  setLogLevel(level);
+});
 
 // if (import.meta.env.DEV) {
 //   setTimeout(() => {

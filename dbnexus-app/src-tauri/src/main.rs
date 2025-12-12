@@ -5,7 +5,7 @@
 mod app;
 mod handlers;
 use crate::app::generate_random_string;
-use crate::handlers::TaskManager;
+use crate::handlers::{TaskManager, log_level_loc};
 use app::DBPal;
 use handlers::{
     add_table_column, ai_get_search_path, ai_text_completion, all_font_family, auto_completion,
@@ -39,20 +39,17 @@ use handlers::{
     redis_hash_replace, redis_list_lpush, redis_list_remove, redis_list_rpush, redis_list_set,
     redis_list_table, redis_set_add, redis_set_del, redis_set_replace, redis_string_set,
     redis_zset_add, redis_zset_del, redis_zset_replace, rename_index, rename_sequence,
-    rename_table, server_metas, show_indexes, show_procedure, show_table, show_table_columns,
-    show_trigger, show_udf, show_view_columns, table_delete, table_insert, table_update,
-    test_connection, truncate_table, try_get_max_id, try_list_database_schema_candidates,
-    valid_json,
+    rename_table, server_metas, set_log_level, show_indexes, show_procedure, show_table,
+    show_table_columns, show_trigger, show_udf, show_view_columns, table_delete, table_insert,
+    table_update, test_connection, truncate_table, try_get_max_id,
+    try_list_database_schema_candidates, valid_json,
 };
 use std::io::Write;
 use std::panic;
 use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::OnceLock;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Wry};
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_log::{Target, TargetKind};
-use tauri_plugin_store::StoreExt;
 mod migration;
 use rustls::crypto::{CryptoProvider, aws_lc_rs};
 use std::fs::OpenOptions;
@@ -124,38 +121,32 @@ fn is_macos() -> bool {
     cfg!(target_os = "macos")
 }
 
-static APP_HANDLE: OnceLock<AppHandle<Wry>> = OnceLock::new();
-
 fn get_logger_level() -> Option<log::Level> {
-    match APP_HANDLE.get() {
-        None => None,
-        Some(handle) => match handle.store(STORE_FILE) {
-            Ok(x) => {
-                let x = x.get("logger-level");
-                let r = x.and_then(|x| match x {
-                    serde_json::Value::String(level) => match level.as_str() {
-                        "none" => None,
-                        _ => match log::Level::from_str(&level) {
-                            Ok(level) => Some(level),
-                            Err(err) => {
-                                println!(
-                                    "parse level failed,err:{:?} this is a bug from frontend",
-                                    err
-                                );
-                                None
-                            }
-                        },
-                    },
-                    _ => None,
-                });
-                r
-            }
-            Err(err) => {
-                eprint!("get store failed,err:{:?}", err);
-                None
-            }
-        },
-    }
+    let level = log_level_loc().lock().expect("lock failed").clone();
+    level.map(|x| match x {
+        1 => log::Level::Error,
+        2 => log::Level::Warn,
+        3 => log::Level::Info,
+        4 => log::Level::Debug,
+        5 => log::Level::Trace,
+        _ => log::Level::Error,
+    })
+}
+
+#[allow(unused)]
+fn logger_test() {
+    #[cfg(debug_assertions)]
+    std::thread::spawn(|| {
+        loop {
+            use std::time::Duration;
+            log::trace!("this is trace log");
+            log::debug!("this is debug log");
+            log::info!("this is info log");
+            log::warn!("this is warn log");
+            log::error!("this is error log");
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
+    });
 }
 
 const STORE_FILE: &str = "store.json";
@@ -194,6 +185,8 @@ mod zoom {
 // https://api.moonshot.cn/v1
 
 fn main() {
+    logger_test();
+
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -213,7 +206,6 @@ fn main() {
                 .app_log_dir()
                 .expect("should be able to get app data dir"),
         );
-        APP_HANDLE.set(app.handle().clone()).unwrap();
         #[cfg(debug_assertions)] // only include this code on debug builds
         {
             let window = app
@@ -224,11 +216,6 @@ fn main() {
         Ok(())
     };
     let setting_window_id = generate_random_string(10);
-    let builder = tauri::Builder::default().plugin(
-        tauri_plugin_log::Builder::new()
-            .level(tauri_plugin_log::log::LevelFilter::Info)
-            .build(),
-    );
     let about_meta = AboutMetadata {
         website: Some("https://dbpal.site".to_string()),
         name: Some("dbpal".to_string()),
@@ -239,6 +226,7 @@ fn main() {
         copyright: Some("Copyright © yuyang 2025 All rights reserved.".to_string()),
         ..AboutMetadata::default()
     };
+    let builder = tauri::Builder::default();
     builder
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
@@ -251,9 +239,9 @@ fn main() {
         .plugin(
             tauri_plugin_log::Builder::new()
                 .filter(|meta| {
-                    let level = dbg!(get_logger_level());
+                    let level = get_logger_level();
                     match level {
-                        Some(level) => dbg!(level >= meta.level()),
+                        Some(level) => level >= meta.level(),
                         None => false,
                     }
                 })
@@ -586,6 +574,7 @@ fn main() {
             try_get_max_id,
             ai_get_search_path,
             cancel_task,
+            set_log_level,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

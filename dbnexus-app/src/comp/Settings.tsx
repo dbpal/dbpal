@@ -28,7 +28,7 @@ import {
 } from "@mui/material";
 import { HexColorPicker } from "react-colorful";
 import { NotificationContext } from "./Notification";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import {
   ErrAndLoc,
   ColorFn,
@@ -65,6 +65,7 @@ import { Editor } from "@monaco-editor/react";
 import { listen } from "@tauri-apps/api/event";
 import { EscDownEvent, modalHandleClose, modalStyle } from "./Common";
 import { LogLevelSelection, ModalHeader } from "./CommonComp";
+import { appLogDir } from "@tauri-apps/api/path";
 
 function AppearanceSetting() {
   const setting = UserSettingAppearance.get();
@@ -799,6 +800,11 @@ function MiscSetting() {
     }
     showNotification("success", "save setting ok");
   };
+  const [loglevel, setLogLevel] = useState(LoggerLevel.level);
+
+  useEffect(() => {
+    LoggerLevel.set(loglevel);
+  }, [loglevel]);
   return (
     <Stack style={{ textAlign: "right" }}>
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -814,11 +820,22 @@ function MiscSetting() {
       <Stack direction="row" sx={{ alignItems: "center" }}>
         <Typography width={headerSize}>logger level</Typography>
         <LogLevelSelection
-          level={LoggerLevel.level}
+          level={loglevel}
           handleChange={level => {
-            LoggerLevel.set(level);
+            setLogLevel(level);
           }}
         />
+        {loglevel !== "none" && (
+          <Tooltip title="open log directory">
+            <Button
+              onClick={async () => {
+                openPath(await appLogDir());
+              }}
+            >
+              open
+            </Button>
+          </Tooltip>
+        )}
       </Stack>
 
       <Divider />

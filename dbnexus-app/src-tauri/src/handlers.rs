@@ -42,6 +42,16 @@ pub struct TaskManager {
     tokens: Arc<std::sync::Mutex<HashMap<String, CancellationToken>>>,
 }
 
+pub fn log_level_loc() -> &'static Mutex<Option<u32>> {
+    static LOG_LEVEL_LOC: Mutex<Option<u32>> = Mutex::new(None);
+    &LOG_LEVEL_LOC
+}
+
+#[tauri::command]
+pub fn set_log_level(level: Option<u32>) {
+    *log_level_loc().lock().expect("lock failed") = level;
+}
+
 impl TaskManager {
     fn add(&self, task_id: String) -> (CancellationToken, impl Drop) {
         let token = CancellationToken::new();

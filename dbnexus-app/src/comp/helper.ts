@@ -331,10 +331,6 @@ function isTypeLargeText(s: string): boolean {
   );
 }
 
-enum AppStoreKey {
-  LoggerLevel = "logger-level",
-}
-
 class SaveLeftTopShow {
   key = "dbpal-left-top-show";
   get() {
@@ -825,15 +821,16 @@ function editorSetPositionAndReveal(
 }
 
 class LoggerLevel {
+  static key: string = "logger-level";
+
   static level: string = "none";
   static async set(level: string) {
     LoggerLevel.level = level;
-    await appStore.set(AppStoreKey.LoggerLevel, level);
+    await appStore.set(LoggerLevel.key, level);
   }
 }
-
 {
-  const level = await appStore.get<string>(AppStoreKey.LoggerLevel);
+  const level = await appStore.get<string>(LoggerLevel.key);
   if (level) {
     LoggerLevel.level = level;
   }
@@ -1257,7 +1254,6 @@ export {
   connTypeToDataSourceKind,
   secondConfirm,
   appStore,
-  AppStoreKey,
   ColumnWidth,
   handleCopyToClipboard,
   validJson,
