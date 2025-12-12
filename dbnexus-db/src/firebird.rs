@@ -181,12 +181,12 @@ impl FireBirdDB {
             for row in stream {
                 let row = row?;
                 if first && include_header {
-                    let fs = row.cols.iter().map(|x| x.name.clone()).map(Some).collect();
-                    sender.blocking_send(Cow::Owned(create_csv(&[fs], delimiter)))?;
+                    let fs: Vec<_> = row.cols.iter().map(|x| x.name.clone()).map(Some).collect();
+                    sender.blocking_send(Cow::Owned(create_csv(&fs, delimiter)))?;
                     first = false;
                 }
                 let data = encode_row(&row, true, None)?;
-                sender.blocking_send(Cow::Owned(create_csv(&[data], delimiter)))?;
+                sender.blocking_send(Cow::Owned(create_csv(&data, delimiter)))?;
             }
             anyhow::Ok(())
         })
@@ -342,7 +342,7 @@ impl FireBirdDB {
                     first = false;
                 }
                 let data = encode_row(&row, true, None)?;
-                export_query_as_xlsx_send_blocking_data(&mut row_num, vec![data], sender.clone())?;
+                export_query_as_xlsx_send_blocking_data(&mut row_num, data, sender.clone())?;
             }
             anyhow::Ok(())
         })

@@ -5,7 +5,8 @@ use crate::db::{
     GetBackendKind, Index, IndexKind, ListTable, MetaValue, POOL_MAX_CONNECTIONS,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableParameter, SqlBuilder, SqlExecuteRet, create_html_table_data,
-    create_html_table_header, export_query_as_xlsx_send_blocking_data, not_support_feature,
+    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_blocking_data,
+    not_support_feature,
 };
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
 use chrono::NaiveDate;
@@ -176,7 +177,7 @@ impl DuckDB {
                     }
                 }
                 let d = encode_row(row)?;
-                let r = create_csv(&[d], delimiter);
+                let r = create_csv(&d, delimiter);
                 sender.blocking_send(r.into())?;
             }
             anyhow::Ok(())
@@ -207,13 +208,13 @@ impl DuckDB {
                             row.as_ref().column_names().into_iter().map(Some).collect();
                         export_query_as_xlsx_send_blocking_data(
                             &mut row_num,
-                            vec![names],
+                            names,
                             sender.clone(),
                         )?;
                     }
                 }
                 let d = encode_row(row)?;
-                export_query_as_xlsx_send_blocking_data(&mut row_num, vec![d], sender.clone())?;
+                export_query_as_xlsx_send_blocking_data(&mut row_num, d, sender.clone())?;
             }
             anyhow::Ok(())
         })
@@ -635,11 +636,18 @@ fn encode_value(value: &Value, nested: bool) -> anyhow::Result<Option<String>> {
         Value::Text(x) => {
             let mut x = Some(x.to_string());
             if nested {
-                x = x.map(|x| format!("'{}'", x))
+                x = x.map(|x| format!("'{}'", escape_sql_str(&x)))
             }
             x
         }
-        Value::Blob(items) => Some(format!("x'{}'", hex::encode(items.as_slice()))),
+        Value::Blob(items) => {
+            let x = items
+                .iter()
+                .map(|x| format!("\\x{}", hex::encode(&[*x])))
+                .collect::<Vec<_>>()
+                .join("");
+            Some(format!("'{}'", x))
+        }
         Value::Date32(x) => {
             let mut x = format_date(*x)?;
             if nested {
@@ -1941,7 +1949,10 @@ mod tests {
             .unwrap();
         let mut values = HashMap::new();
         values.insert("bigint_column".to_string(), Some("123".to_string()));
-        values.insert("blob_column".to_string(), Some("x'0102030405'".to_string()));
+        values.insert(
+            "blob_column".to_string(),
+            Some("'\x01\x02\x03'".to_string()),
+        );
         values.insert("boolean_column".to_string(), Some("TRUE".to_string()));
         values.insert("date_column".to_string(), Some("2025-03-25".to_string()));
         values.insert("decimal_column".to_string(), Some("12345.67".to_string()));

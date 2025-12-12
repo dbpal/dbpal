@@ -106,7 +106,7 @@ impl OracleDB {
                     row_num += 1;
                 }
                 let data = encode_row(row)?;
-                export_query_as_xlsx_send_blocking_data(&mut row_num, vec![data], sender.clone())?;
+                export_query_as_xlsx_send_blocking_data(&mut row_num, data, sender.clone())?;
             }
             anyhow::Ok(())
         })
@@ -909,16 +909,16 @@ impl OracleDB {
             for row in rows {
                 let row = row?;
                 if include_header && first {
-                    let fs = row
+                    let fs: Vec<_> = row
                         .column_info()
                         .iter()
                         .map(|x| Some(x.name().to_owned()))
                         .collect();
-                    sender.blocking_send(Cow::Owned(create_csv(&[fs], delimiter)))?;
+                    sender.blocking_send(Cow::Owned(create_csv(&fs, delimiter)))?;
                     first = false;
                 }
                 let data = encode_row(row)?;
-                sender.blocking_send(Cow::Owned(create_csv(&[data], delimiter)))?;
+                sender.blocking_send(Cow::Owned(create_csv(&data, delimiter)))?;
             }
             anyhow::Ok(())
         })

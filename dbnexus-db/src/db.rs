@@ -159,8 +159,15 @@ impl QueryEventEmit for QueryRespMemoryCollector {
                 let x = x.as_mut().unwrap();
                 x.data.extend(data);
             }
-            _ => {
-                println!("event:{:?}", event);
+            QueryEvent::Status(s) => {
+                println!("status:{}", s);
+            }
+            QueryEvent::Err(err) => println!("err:{}", err),
+            QueryEvent::Row(data) => {
+                use std::ops::DerefMut;
+                let x = lock.deref_mut();
+                let x = x.as_mut().unwrap();
+                x.data.push(data);
             }
         };
         anyhow::Ok(())
@@ -889,38 +896,13 @@ impl From<Cow<'static, str>> for XlsxEdit {
 }
 
 pub(crate) async fn export_query_as_xlsx_send_data(
-    row_num: &mut u32, data: Vec<Vec<Option<String>>>,
+    row_num: &mut u32, data: Vec<Option<String>>,
     sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
 ) -> anyhow::Result<()> {
-    for data in data {
-        for (col, d) in data.into_iter().enumerate() {
-            if let Some(d) = d {
-                sender
-                    .send(
-                        XlsxEdit {
-                            row: *row_num,
-                            column: col as rust_xlsxwriter::ColNum,
-                            content: d,
-                        }
-                        .to_string()
-                        .into(),
-                    )
-                    .await?;
-            }
-        }
-        *row_num += 1;
-    }
-    anyhow::Ok(())
-}
-
-pub(crate) fn export_query_as_xlsx_send_blocking_data(
-    row_num: &mut u32, data: Vec<Vec<Option<String>>>,
-    sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
-) -> anyhow::Result<()> {
-    for data in data {
-        for (col, d) in data.into_iter().enumerate() {
-            if let Some(d) = d {
-                sender.blocking_send(
+    for (col, d) in data.into_iter().enumerate() {
+        if let Some(d) = d {
+            sender
+                .send(
                     XlsxEdit {
                         row: *row_num,
                         column: col as rust_xlsxwriter::ColNum,
@@ -928,11 +910,32 @@ pub(crate) fn export_query_as_xlsx_send_blocking_data(
                     }
                     .to_string()
                     .into(),
-                )?;
-            }
+                )
+                .await?;
         }
-        *row_num += 1;
     }
+    *row_num += 1;
+    anyhow::Ok(())
+}
+
+pub(crate) fn export_query_as_xlsx_send_blocking_data(
+    row_num: &mut u32, data: Vec<Option<String>>,
+    sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+) -> anyhow::Result<()> {
+    for (col, d) in data.into_iter().enumerate() {
+        if let Some(d) = d {
+            sender.blocking_send(
+                XlsxEdit {
+                    row: *row_num,
+                    column: col as rust_xlsxwriter::ColNum,
+                    content: d,
+                }
+                .to_string()
+                .into(),
+            )?;
+        }
+    }
+    *row_num += 1;
     anyhow::Ok(())
 }
 

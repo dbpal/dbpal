@@ -420,15 +420,13 @@ impl MysqlDB {
                     .map(|x| x.name().to_string())
                     .map(Some)
                     .collect::<Vec<_>>();
-                sender
-                    .send(Cow::Owned(create_csv(&[fs], delimiter)))
-                    .await?;
+                sender.send(Cow::Owned(create_csv(&fs, delimiter))).await?;
                 first = false
             }
 
             let data = encode_row(&row, true)?;
             sender
-                .send(Cow::Owned(create_csv(&[data], delimiter)))
+                .send(Cow::Owned(create_csv(&data, delimiter)))
                 .await?;
         }
         anyhow::Ok(())
@@ -1727,7 +1725,7 @@ impl MysqlDB {
             }
 
             let data = encode_row(&row, true)?;
-            export_query_as_xlsx_send_data(&mut row_num, vec![data], sender.clone()).await?;
+            export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
         }
         anyhow::Ok(())
     }

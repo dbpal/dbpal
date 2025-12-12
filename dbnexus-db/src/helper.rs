@@ -27,23 +27,19 @@ where
 
 /// create csv file list of string
 /// each line of line separator
-pub(crate) fn create_csv(ds: &[Vec<Option<String>>], delimiter: char) -> String {
-    let mut s = String::new();
-    for d in ds.iter() {
-        let mut s2 = String::new();
-        let last = d.len() - 1;
-        for (index, x) in d.iter().enumerate() {
-            if let Some(x) = x {
-                s2.push_str(&escape_csv(x, delimiter));
-            }
-            if index != last {
-                s2.push(delimiter);
-            }
+pub(crate) fn create_csv(ds: &[Option<String>], delimiter: char) -> String {
+    let mut ret = String::new();
+    let last = ds.len() - 1;
+    for (index, x) in ds.iter().enumerate() {
+        if let Some(x) = x {
+            ret.push_str(&escape_csv(x, delimiter));
         }
-        s.push_str(s2.as_str());
-        s.push('\n');
+        if index != last {
+            ret.push(delimiter);
+        }
     }
-    s
+    ret.push('\n');
+    ret
 }
 
 pub fn separate_sql_by_sqlparser_tokenizer(

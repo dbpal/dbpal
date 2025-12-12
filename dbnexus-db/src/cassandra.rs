@@ -432,7 +432,7 @@ impl CassandraDB {
         while let Some(row) = stream.next().await {
             let row = row?;
             let data = encode_row(row)?;
-            export_query_as_xlsx_send_data(&mut row_num, vec![data], sender.clone()).await?;
+            export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
         }
         anyhow::Ok(())
     }
@@ -667,13 +667,13 @@ impl CassandraDB {
                 .iter()
                 .map(|x| Some(x.name().to_owned()))
                 .collect();
-            sender.send(create_csv(&[cols], delimiter).into()).await?;
+            sender.send(create_csv(&cols, delimiter).into()).await?;
         }
         let mut stream = pager.rows_stream::<Row>()?;
         while let Some(row) = stream.next().await {
             let row = row?;
             let d = encode_row(row)?;
-            sender.send(create_csv(&[d], delimiter).into()).await?;
+            sender.send(create_csv(&d, delimiter).into()).await?;
         }
         anyhow::Ok(())
     }

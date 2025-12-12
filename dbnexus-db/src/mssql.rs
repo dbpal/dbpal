@@ -1624,7 +1624,7 @@ impl SqlServerDB {
             let row = rows?;
             match row {
                 tiberius::QueryItem::Row(r) => {
-                    let s = create_csv(&[encode_row(&r)?], delimiter);
+                    let s = create_csv(&encode_row(&r)?, delimiter);
                     sender.send(Cow::Owned(s)).await?;
                 }
                 tiberius::QueryItem::Metadata(meta) => {
@@ -1635,9 +1635,7 @@ impl SqlServerDB {
                             .map(|x| x.name().to_string())
                             .map(Some)
                             .collect::<Vec<_>>();
-                        sender
-                            .send(Cow::Owned(create_csv(&[fs], delimiter)))
-                            .await?;
+                        sender.send(Cow::Owned(create_csv(&fs, delimiter))).await?;
                         first = false
                     }
                 }
@@ -1741,7 +1739,7 @@ impl SqlServerDB {
             match row {
                 tiberius::QueryItem::Row(row) => {
                     let d = encode_row(&row)?;
-                    export_query_as_xlsx_send_data(&mut row_num, vec![d], sender.clone()).await?;
+                    export_query_as_xlsx_send_data(&mut row_num, d, sender.clone()).await?;
                 }
                 tiberius::QueryItem::Metadata(meta) => {
                     if !first {

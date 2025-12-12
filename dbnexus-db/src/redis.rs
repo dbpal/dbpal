@@ -261,7 +261,7 @@ impl RedisDB {
             RedisType::String => {
                 let value: Vec<u8> = conn.get(key).await?;
                 sender
-                    .send(create_csv(&[vec![Some(to_string_or_hex(value))]], delimiter).into())
+                    .send(create_csv(&[Some(to_string_or_hex(value))], delimiter).into())
                     .await?;
             }
 
@@ -275,7 +275,9 @@ impl RedisDB {
                         .into_iter()
                         .map(|x| vec![Some(to_string_or_hex(x))])
                         .collect::<Vec<_>>();
-                    sender.send(create_csv(&list, delimiter).into()).await?;
+                    for l in list {
+                        sender.send(create_csv(&l, delimiter).into()).await?;
+                    }
                 }
             }
 
@@ -286,7 +288,9 @@ impl RedisDB {
                         .into_iter()
                         .map(|x| vec![Some(to_string_or_hex(x))])
                         .collect::<Vec<_>>();
-                    sender.send(create_csv(&set, delimiter).into()).await?;
+                    for s in set {
+                        sender.send(create_csv(&s, delimiter).into()).await?;
+                    }
                 }
             }
 
@@ -296,10 +300,10 @@ impl RedisDB {
                     let kv = check_resp(value)?;
                     sender
                         .send(Cow::Owned(create_csv(
-                            &[vec![
+                            &[
                                 Some(to_string_or_hex(kv[0].clone())),
                                 Some(to_string_or_hex(kv[1].clone())),
-                            ]],
+                            ],
                             delimiter,
                         )))
                         .await?;
@@ -311,10 +315,10 @@ impl RedisDB {
                     let kv = check_resp(value)?;
                     sender
                         .send(Cow::Owned(create_csv(
-                            &[vec![
+                            &[
                                 Some(to_string_or_hex(kv[0].clone())),
                                 Some(to_string_or_hex(kv[1].clone())),
-                            ]],
+                            ],
                             delimiter,
                         )))
                         .await?;
@@ -754,7 +758,7 @@ impl RedisDB {
         while let Some(value) = stream.next().await {
             let value = value?;
             sender
-                .send(create_csv(&[vec![Some(value)]], delimiter).into())
+                .send(create_csv(&[Some(value)], delimiter).into())
                 .await?;
         }
         anyhow::Ok(())
