@@ -237,21 +237,21 @@ fn main() {
                 .add_migrations("sqlite:dbpal.sqlite.db", migration::migrations())
                 .build(),
         )
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .filter(|meta| {
-                    let level = get_logger_level();
-                    match level {
-                        Some(level) => level >= meta.level(),
-                        None => false,
-                    }
-                })
-                .targets(vec![
-                    Target::new(TargetKind::LogDir { file_name: None }),
-                    Target::new(TargetKind::Stdout),
-                ])
-                .build(),
-        )
+        // .plugin(
+        //     tauri_plugin_log::Builder::new()
+        //         .filter(|meta| {
+        //             let level = get_logger_level();
+        //             match level {
+        //                 Some(level) => level >= meta.level(),
+        //                 None => false,
+        //             }
+        //         })
+        //         .targets(vec![
+        //             Target::new(TargetKind::LogDir { file_name: None }),
+        //             Target::new(TargetKind::Stdout),
+        //         ])
+        //         .build(),
+        // )
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
