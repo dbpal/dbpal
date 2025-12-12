@@ -22,8 +22,8 @@ use crate::db::{
     BackendKind, CheckConn, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
     ListTable, MetaValue, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlExecuteRet, TimeElapsed, XlsxEdit, create_html_table_data, create_html_table_header,
-    escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
+    SqlExecuteRet, XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
+    export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
 
 use crate::helper::create_csv;
@@ -109,9 +109,9 @@ fn is_time(x: &Option<&String>) -> bool {
     x.map(|x| x.eq_ignore_ascii_case("time")).unwrap_or(false)
 }
 
-fn encode_rows(
-    rows: &[Row], try_blob_2_str: bool, types: Option<HashMap<&String, &Field>>,
-) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+fn encode_row(
+    row: &Row, try_blob_2_str: bool, types: Option<HashMap<&String, &Field>>,
+) -> anyhow::Result<Vec<Option<String>>> {
     let get_binary_sub_type = |name: &String| {
         types
             .as_ref()
@@ -124,50 +124,45 @@ fn encode_rows(
             .and_then(|x| x.get(name).map(|x| &x.data_type))
             .map(|x| x.to_uppercase())
     };
-    let mut ret = Vec::with_capacity(rows.len());
-    for row in rows.iter() {
-        let mut data = Vec::with_capacity(row.cols.len());
-        for v in row.cols.iter() {
-            let value = match &v.value {
-                SqlType::Text(x) => Some(x.clone()),
-                SqlType::Integer(x) => Some(x.to_string()),
-                SqlType::Floating(x) => Some(x.to_string()),
-                SqlType::Timestamp(naive_date_time) => {
-                    let typ = get_type(&v.name);
-                    let typ = typ.as_ref();
-                    if is_date(&typ) {
-                        Some(naive_date_time.date().to_string())
-                    } else if is_time(&typ) {
-                        Some(naive_date_time.time().to_string())
-                    } else {
-                        Some(naive_date_time.to_string())
-                    }
+    let mut data = Vec::with_capacity(row.cols.len());
+    for v in row.cols.iter() {
+        let value = match &v.value {
+            SqlType::Text(x) => Some(x.clone()),
+            SqlType::Integer(x) => Some(x.to_string()),
+            SqlType::Floating(x) => Some(x.to_string()),
+            SqlType::Timestamp(naive_date_time) => {
+                let typ = get_type(&v.name);
+                let typ = typ.as_ref();
+                if is_date(&typ) {
+                    Some(naive_date_time.date().to_string())
+                } else if is_time(&typ) {
+                    Some(naive_date_time.time().to_string())
+                } else {
+                    Some(naive_date_time.to_string())
                 }
-                SqlType::Binary(items) => {
-                    let sub_type = get_binary_sub_type(&v.name);
-                    match sub_type {
-                        _ if sub_type_is_text(sub_type) => Some(String::from_utf8(items.clone())?),
-                        _ => {
-                            if try_blob_2_str {
-                                match String::from_utf8(items.clone()) {
-                                    Ok(x) => Some(x),
-                                    Err(_) => Some(hex::encode(items.as_slice())),
-                                }
-                            } else {
-                                Some(hex::encode(items.as_slice()))
+            }
+            SqlType::Binary(items) => {
+                let sub_type = get_binary_sub_type(&v.name);
+                match sub_type {
+                    _ if sub_type_is_text(sub_type) => Some(String::from_utf8(items.clone())?),
+                    _ => {
+                        if try_blob_2_str {
+                            match String::from_utf8(items.clone()) {
+                                Ok(x) => Some(x),
+                                Err(_) => Some(hex::encode(items.as_slice())),
                             }
+                        } else {
+                            Some(hex::encode(items.as_slice()))
                         }
                     }
                 }
-                SqlType::Boolean(x) => Some(x.to_string()),
-                SqlType::Null => None,
-            };
-            data.push(value);
-        }
-
-        ret.push(data);
+            }
+            SqlType::Boolean(x) => Some(x.to_string()),
+            SqlType::Null => None,
+        };
+        data.push(value);
     }
-    anyhow::Ok(ret)
+    anyhow::Ok(data)
 }
 
 impl FireBirdDB {
@@ -190,8 +185,8 @@ impl FireBirdDB {
                     sender.blocking_send(Cow::Owned(create_csv(&[fs], delimiter)))?;
                     first = false;
                 }
-                let data = encode_rows(&[row], true, None)?;
-                sender.blocking_send(Cow::Owned(create_csv(&data, delimiter)))?;
+                let data = encode_row(&row, true, None)?;
+                sender.blocking_send(Cow::Owned(create_csv(&[data], delimiter)))?;
             }
             anyhow::Ok(())
         })
@@ -219,8 +214,8 @@ impl FireBirdDB {
                     sender.blocking_send(Cow::Owned(create_html_table_header(&fs)))?;
                     first = false;
                 }
-                let data = encode_rows(&[row], true, None)?;
-                sender.blocking_send(Cow::Owned(create_html_table_data(&data)))?;
+                let data = encode_row(&row, true, None)?;
+                sender.blocking_send(Cow::Owned(create_html_table_data(&[data])))?;
             }
             anyhow::Ok(())
         })
@@ -346,8 +341,8 @@ impl FireBirdDB {
                     }
                     first = false;
                 }
-                let data = encode_rows(&[row], true, None)?;
-                export_query_as_xlsx_send_blocking_data(&mut row_num, data, sender.clone())?;
+                let data = encode_row(&row, true, None)?;
+                export_query_as_xlsx_send_blocking_data(&mut row_num, vec![data], sender.clone())?;
             }
             anyhow::Ok(())
         })
@@ -472,8 +467,6 @@ impl QuerySql for FireBirdDB {
             let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
             let mut first = true;
-            let mut rows = vec![];
-            let mut timeelapsed = TimeElapsed::new();
             for row in stream {
                 let item = row?;
                 if first {
@@ -486,14 +479,7 @@ impl QuerySql for FireBirdDB {
                         .into(),
                     )?;
                 }
-                rows.push(item);
-                if rows.len() >= this.query_buffer_size() || timeelapsed.elapsed() {
-                    let d = encode_rows(&std::mem::take(&mut rows), true, None)?;
-                    emit.send(d.into())?;
-                }
-            }
-            if !rows.is_empty() {
-                let d = encode_rows(&rows, true, None)?;
+                let d = encode_row(&item, true, None)?;
                 emit.send(d.into())?;
             }
             anyhow::Ok(())
@@ -659,16 +645,14 @@ impl FireBirdDB {
             let rows: Box<dyn Iterator<Item = Result<Row, FbError>>> = conn.query_iter(&sql, ())?;
             for row in rows {
                 let row = row?;
-                let data = encode_rows(&[row], true, Some(types.clone()))?;
-                for d in data.into_iter() {
-                    let mut m = HashMap::new();
-                    for (d, f) in d.into_iter().zip(cols.iter()) {
-                        m.insert(f.field.clone(), d);
-                    }
-                    let insert_sql = firebird.insert_sql(None, &table_name, &cols, &m)?;
-                    sender.blocking_send(Cow::Owned(insert_sql))?;
-                    sender.blocking_send(";\n".into())?;
+                let data = encode_row(&row, true, Some(types.clone()))?;
+                let mut m = HashMap::new();
+                for (d, f) in data.into_iter().zip(cols.iter()) {
+                    m.insert(f.field.clone(), d);
                 }
+                let insert_sql = firebird.insert_sql(None, &table_name, &cols, &m)?;
+                sender.blocking_send(Cow::Owned(insert_sql))?;
+                sender.blocking_send(";\n".into())?;
             }
             anyhow::Ok(())
         })
@@ -863,21 +847,12 @@ impl SchemaTrait for FireBirdDB {
             }
             log::info!("sql:{}", sql);
             emit.send("trying to query data".into())?;
-            let mut rows = vec![];
             let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
-            let mut time_elapsed = TimeElapsed::new();
             for row in stream {
                 let row = row?;
-                rows.push(row);
-                if rows.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
-                    emit.send(
-                        encode_rows(&std::mem::take(&mut rows), true, Some(fs_map.clone()))?.into(),
-                    )?;
-                }
+                emit.send(encode_row(&row, true, Some(fs_map.clone()))?.into())?;
             }
-            let data = encode_rows(&rows, false, Some(fs_map.clone()))?;
-            emit.send(data.into())?;
             anyhow::Ok(())
         })
         .await?
@@ -1089,18 +1064,9 @@ impl SchemaTrait for FireBirdDB {
             emit.send("trying to query.".into())?;
             let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
                 conn.query_iter(&sql, ())?;
-            let mut rows = vec![];
-            let mut time_elapsed = TimeElapsed::new();
             for row in stream {
                 let row = row?;
-                rows.push(row);
-                if rows.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
-                    let d = encode_rows(&std::mem::take(&mut rows), true, None)?;
-                    emit.send(d.into())?;
-                }
-            }
-            if !rows.is_empty() {
-                let d = encode_rows(&rows, true, None)?;
+                let d = encode_row(&row, true, None)?;
                 emit.send(d.into())?;
             }
             anyhow::Ok(())

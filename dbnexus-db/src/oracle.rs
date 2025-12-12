@@ -16,8 +16,8 @@ use crate::db::{
     DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable,
     MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlExecuteRet, TimeElapsed, TriggerDetail, TriggerEnable,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent,
+    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
     create_html_table_header, escape_sql_str, export_query_as_xlsx_send_blocking_data,
     not_support_feature,
 };
@@ -105,8 +105,8 @@ impl OracleDB {
                     first = false;
                     row_num += 1;
                 }
-                let data = encode_rows(vec![row])?;
-                export_query_as_xlsx_send_blocking_data(&mut row_num, data, sender.clone())?;
+                let data = encode_row(row)?;
+                export_query_as_xlsx_send_blocking_data(&mut row_num, vec![data], sender.clone())?;
             }
             anyhow::Ok(())
         })
@@ -288,12 +288,10 @@ impl QuerySql for OracleDB {
             };
             let mut lock = conn.lock().expect("lock failed");
             let conn = lock.deref_mut();
-            let mut timeelapsed = TimeElapsed::new();
             emit.send(QueryEvent::new_status("locked connection."))?;
             match conn.query(&sql, &[]) {
                 Ok(rows) => {
                     let mut first = true;
-                    let mut rows_cache = vec![];
                     for row in rows {
                         let row = row?;
                         if first {
@@ -307,14 +305,7 @@ impl QuerySql for OracleDB {
                                 .into(),
                             )?;
                         }
-                        rows_cache.push(row);
-                        if rows_cache.len() >= this.query_buffer_size() || timeelapsed.elapsed() {
-                            let r = encode_rows(std::mem::take(&mut rows_cache))?;
-                            emit.send(r.into())?;
-                        }
-                    }
-                    if !rows_cache.is_empty() {
-                        let r = encode_rows(std::mem::take(&mut rows_cache))?;
+                        let r = encode_row(row)?;
                         emit.send(r.into())?;
                     }
                 }
@@ -381,115 +372,110 @@ fn infer_schema_by_row(x: &oracle::Row) -> Vec<Field> {
     ret
 }
 
-fn encode_rows(rows: Vec<Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
-    let mut data = vec![];
-    for r in rows {
-        let mut values = vec![];
-        for c in 0..r.sql_values().len() {
-            let col_info = &r.column_info()[c];
-            let type_not_support = Err(anyhow::Error::msg(format!(
-                "type '{}' not supported",
-                col_info.oracle_type()
-            ))) as anyhow::Result<Vec<Vec<Option<String>>>>;
+fn encode_row(row: Row) -> anyhow::Result<Vec<Option<String>>> {
+    let mut values = vec![];
+    for c in 0..row.sql_values().len() {
+        let col_info = &row.column_info()[c];
+        let type_not_support = Err(anyhow::Error::msg(format!(
+            "type '{}' not supported",
+            col_info.oracle_type()
+        ))) as anyhow::Result<Vec<Option<String>>>;
 
-            let v = match col_info.oracle_type() {
-                oracle::sql_type::OracleType::Varchar2(_) => {
-                    let x: Option<String> = r.get(c)?;
-                    x
-                }
-                oracle::sql_type::OracleType::NVarchar2(_) => {
-                    let x: Option<String> = r.get(c)?;
-                    x
-                }
-                oracle::sql_type::OracleType::Char(_) => {
-                    let x: Option<String> = r.get(c)?;
-                    x
-                }
-                oracle::sql_type::OracleType::NChar(_) => {
-                    let x: Option<String> = r.get(c)?;
-                    x
-                }
-                oracle::sql_type::OracleType::Rowid => {
-                    let x: Option<String> = r.get(c)?;
-                    x
-                }
-                oracle::sql_type::OracleType::Raw(_) => {
-                    let x: Option<String> = r.get(c)?;
-                    x
-                }
-                oracle::sql_type::OracleType::BinaryFloat => {
-                    let x: Option<f32> = r.get(c)?;
-                    x.map(|x| x.to_string())
-                }
+        let v = match col_info.oracle_type() {
+            oracle::sql_type::OracleType::Varchar2(_) => {
+                let x: Option<String> = row.get(c)?;
+                x
+            }
+            oracle::sql_type::OracleType::NVarchar2(_) => {
+                let x: Option<String> = row.get(c)?;
+                x
+            }
+            oracle::sql_type::OracleType::Char(_) => {
+                let x: Option<String> = row.get(c)?;
+                x
+            }
+            oracle::sql_type::OracleType::NChar(_) => {
+                let x: Option<String> = row.get(c)?;
+                x
+            }
+            oracle::sql_type::OracleType::Rowid => {
+                let x: Option<String> = row.get(c)?;
+                x
+            }
+            oracle::sql_type::OracleType::Raw(_) => {
+                let x: Option<String> = row.get(c)?;
+                x
+            }
+            oracle::sql_type::OracleType::BinaryFloat => {
+                let x: Option<f32> = row.get(c)?;
+                x.map(|x| x.to_string())
+            }
 
-                oracle::sql_type::OracleType::BinaryDouble => {
-                    let x: Option<f64> = r.get(c)?;
-                    x.map(|x| x.to_string())
-                }
-                oracle::sql_type::OracleType::Number(..) => {
-                    let x: Option<f64> = r.get(c)?;
-                    x.map(|x| x.to_string())
-                }
-                oracle::sql_type::OracleType::Float(_) => {
-                    let x: Option<f64> = r.get(c)?;
-                    x.map(|x| x.to_string())
-                }
-                oracle::sql_type::OracleType::Date => {
-                    let x: Option<chrono::NaiveDate> = r.get(c)?;
-                    x.map(|x| x.to_string())
-                }
-                oracle::sql_type::OracleType::Timestamp(_) => {
-                    let x: Option<chrono::NaiveDateTime> = r.get(c)?;
-                    x.map(|x| x.to_string())
-                }
-                oracle::sql_type::OracleType::TimestampTZ(_) => return type_not_support,
-                oracle::sql_type::OracleType::TimestampLTZ(_) => return type_not_support,
-                oracle::sql_type::OracleType::IntervalDS(..) => return type_not_support,
-                oracle::sql_type::OracleType::IntervalYM(_) => return type_not_support,
-                oracle::sql_type::OracleType::CLOB => {
-                    let x: Option<String> = r.get(c)?;
-                    x
-                }
-                oracle::sql_type::OracleType::NCLOB => {
-                    let x: Option<String> = r.get(c)?;
-                    x
-                }
-                oracle::sql_type::OracleType::BLOB => {
-                    let x: Option<String> = r.get(c)?;
-                    x
-                }
-                oracle::sql_type::OracleType::BFILE => return type_not_support,
-                oracle::sql_type::OracleType::Boolean => {
-                    let x: Option<bool> = r.get(c)?;
-                    x.map(|x| x.to_string())
-                }
-                oracle::sql_type::OracleType::RefCursor => return type_not_support,
-                oracle::sql_type::OracleType::Object(_) => return type_not_support,
-                oracle::sql_type::OracleType::Long => {
-                    let x: Option<String> = r.get(c)?;
-                    x
-                }
-                oracle::sql_type::OracleType::LongRaw => {
-                    let x: Option<String> = r.get(c)?;
-                    x
-                }
-                oracle::sql_type::OracleType::Json => return type_not_support,
-                oracle::sql_type::OracleType::Xml => return type_not_support,
-                oracle::sql_type::OracleType::Int64 => {
-                    let x: Option<i64> = r.get(c)?;
-                    x.map(|x| x.to_string())
-                }
-                oracle::sql_type::OracleType::UInt64 => {
-                    let x: Option<u64> = r.get(c)?;
-                    x.map(|x| x.to_string())
-                }
-            };
-            values.push(v);
-        }
-        data.push(values);
+            oracle::sql_type::OracleType::BinaryDouble => {
+                let x: Option<f64> = row.get(c)?;
+                x.map(|x| x.to_string())
+            }
+            oracle::sql_type::OracleType::Number(..) => {
+                let x: Option<f64> = row.get(c)?;
+                x.map(|x| x.to_string())
+            }
+            oracle::sql_type::OracleType::Float(_) => {
+                let x: Option<f64> = row.get(c)?;
+                x.map(|x| x.to_string())
+            }
+            oracle::sql_type::OracleType::Date => {
+                let x: Option<chrono::NaiveDate> = row.get(c)?;
+                x.map(|x| x.to_string())
+            }
+            oracle::sql_type::OracleType::Timestamp(_) => {
+                let x: Option<chrono::NaiveDateTime> = row.get(c)?;
+                x.map(|x| x.to_string())
+            }
+            oracle::sql_type::OracleType::TimestampTZ(_) => return type_not_support,
+            oracle::sql_type::OracleType::TimestampLTZ(_) => return type_not_support,
+            oracle::sql_type::OracleType::IntervalDS(..) => return type_not_support,
+            oracle::sql_type::OracleType::IntervalYM(_) => return type_not_support,
+            oracle::sql_type::OracleType::CLOB => {
+                let x: Option<String> = row.get(c)?;
+                x
+            }
+            oracle::sql_type::OracleType::NCLOB => {
+                let x: Option<String> = row.get(c)?;
+                x
+            }
+            oracle::sql_type::OracleType::BLOB => {
+                let x: Option<String> = row.get(c)?;
+                x
+            }
+            oracle::sql_type::OracleType::BFILE => return type_not_support,
+            oracle::sql_type::OracleType::Boolean => {
+                let x: Option<bool> = row.get(c)?;
+                x.map(|x| x.to_string())
+            }
+            oracle::sql_type::OracleType::RefCursor => return type_not_support,
+            oracle::sql_type::OracleType::Object(_) => return type_not_support,
+            oracle::sql_type::OracleType::Long => {
+                let x: Option<String> = row.get(c)?;
+                x
+            }
+            oracle::sql_type::OracleType::LongRaw => {
+                let x: Option<String> = row.get(c)?;
+                x
+            }
+            oracle::sql_type::OracleType::Json => return type_not_support,
+            oracle::sql_type::OracleType::Xml => return type_not_support,
+            oracle::sql_type::OracleType::Int64 => {
+                let x: Option<i64> = row.get(c)?;
+                x.map(|x| x.to_string())
+            }
+            oracle::sql_type::OracleType::UInt64 => {
+                let x: Option<u64> = row.get(c)?;
+                x.map(|x| x.to_string())
+            }
+        };
+        values.push(v);
     }
-
-    anyhow::Ok(data)
+    anyhow::Ok(values)
 }
 
 fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
@@ -797,16 +783,14 @@ impl OracleDB {
             let rows = conn.query(sql.as_str(), &[])?;
             for row in rows {
                 let row = row?;
-                let data = encode_rows(vec![row])?;
-                for d in data.into_iter() {
-                    let mut m = HashMap::new();
-                    for (d, f) in d.into_iter().zip(cols.iter()) {
-                        m.insert(f.field.clone(), d);
-                    }
-                    let insert_sql = this.insert_sql(None, &table_name, &cols, &m)?;
-                    sender.blocking_send(Cow::Owned(insert_sql))?;
-                    sender.blocking_send(";\n".into())?;
+                let data = encode_row(row)?;
+                let mut m = HashMap::new();
+                for (d, f) in data.into_iter().zip(cols.iter()) {
+                    m.insert(f.field.clone(), d);
                 }
+                let insert_sql = this.insert_sql(None, &table_name, &cols, &m)?;
+                sender.blocking_send(Cow::Owned(insert_sql))?;
+                sender.blocking_send(";\n".into())?;
             }
             anyhow::Ok(())
         })
@@ -933,8 +917,8 @@ impl OracleDB {
                     sender.blocking_send(Cow::Owned(create_csv(&[fs], delimiter)))?;
                     first = false;
                 }
-                let data = encode_rows(vec![row])?;
-                sender.blocking_send(Cow::Owned(create_csv(&data, delimiter)))?;
+                let data = encode_row(row)?;
+                sender.blocking_send(Cow::Owned(create_csv(&[data], delimiter)))?;
             }
             anyhow::Ok(())
         })
@@ -967,8 +951,8 @@ impl OracleDB {
                     sender.blocking_send(Cow::Owned(create_html_table_header(&fs)))?;
                     first = false;
                 }
-                let data = encode_rows(vec![row])?;
-                sender.blocking_send(Cow::Owned(create_html_table_data(&data)))?;
+                let data = encode_row(row)?;
+                sender.blocking_send(Cow::Owned(create_html_table_data(&[data])))?;
             }
             anyhow::Ok(())
         })
@@ -1471,18 +1455,11 @@ impl SchemaTrait for OracleDB {
         spawn_blocking(move || {
             let conn = this.get_conn()?;
             let stream = conn.query(&sql, &[])?;
-            let mut rows = vec![];
-            let mut time_elapsed = TimeElapsed::new();
             for row in stream {
                 let row = row?;
-                rows.push(row);
-                if rows.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
-                    let d = encode_rows(std::mem::take(&mut rows))?;
-                    emit.send(d.into())?;
-                }
+                let d = encode_row(row)?;
+                emit.send(d.into())?;
             }
-            let d = encode_rows(rows)?;
-            emit.send(d.into())?;
             anyhow::Ok(())
         })
         .await?
@@ -1639,8 +1616,6 @@ impl SchemaTrait for OracleDB {
             let conn = this.get_conn()?;
             let stream = conn.query(&sql, &[])?;
             let mut first = true;
-            let mut rows = vec![];
-            let mut time_elapsed = TimeElapsed::new();
             for row in stream {
                 let row = row?;
                 if first {
@@ -1655,14 +1630,9 @@ impl SchemaTrait for OracleDB {
                         .into(),
                     )?;
                 }
-                rows.push(row);
-                if rows.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
-                    let d = encode_rows(std::mem::take(&mut rows))?;
-                    emit.send(d.into())?;
-                }
+                let d = encode_row(row)?;
+                emit.send(d.into())?;
             }
-            let d = encode_rows(std::mem::take(&mut rows))?;
-            emit.send(d.into())?;
             Ok(())
         })
         .await?

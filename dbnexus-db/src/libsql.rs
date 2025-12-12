@@ -1,12 +1,11 @@
+use bb8::ManageConnection;
+use dashmap::DashMap;
+use libsql::{Connection, Row, ValueType, params};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::time::Duration;
-
-use bb8::ManageConnection;
-use dashmap::DashMap;
-use libsql::{Connection, Row, ValueType, params};
 use tokio::sync::Mutex;
 
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
@@ -15,8 +14,8 @@ use crate::db::{
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
-    TimeElapsed, TriggerDetail, XlsxEdit, create_html_table_data, create_html_table_header,
-    escape_sql_str, export_query_as_xlsx_send_data,
+    TriggerDetail, XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
+    export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
@@ -82,9 +81,8 @@ impl LibSqlDB {
                 first = false;
                 row_num += 1;
             }
-
-            let data = encode_rows(&[row])?;
-            export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
+            let data = encode_row(&row)?;
+            export_query_as_xlsx_send_data(&mut row_num, vec![data], sender.clone()).await?;
         }
         anyhow::Ok(())
     }
@@ -237,12 +235,10 @@ impl QuerySql for LibSqlDB {
                 None => anyhow::bail!("collection closed????"),
             },
         };
-        let mut timeelapsed = TimeElapsed::new();
         let mut batch_rows = conn.execute_batch(sql).await?;
         while let Some(mut rows) = batch_rows.next_stmt_row().flatten() {
             emit.send(QueryEvent::new_status("getting next result set"))?;
             let mut first = true;
-            let mut rows_cache = Vec::new();
             while let Some(row) = rows.next().await? {
                 if first {
                     first = false;
@@ -264,16 +260,7 @@ impl QuerySql for LibSqlDB {
                         .into(),
                     )?;
                 }
-                rows_cache.push(row);
-                if rows_cache.len() >= self.query_buffer_size() || timeelapsed.elapsed() {
-                    let r = std::mem::take(&mut rows_cache);
-                    let data = encode_rows(&r)?;
-                    emit.send(data.into())?;
-                }
-            }
-            if !rows_cache.is_empty() {
-                let r = std::mem::take(&mut rows_cache);
-                let data = encode_rows(&r)?;
+                let data = encode_row(&row)?;
                 emit.send(data.into())?;
             }
         }
@@ -854,17 +841,10 @@ impl SchemaTrait for LibSqlDB {
         let conn: bb8::PooledConnection<'_, PoolManager> = self.get_conn().await?;
         emit.send("trying to query data".into())?;
         let mut query_rows = conn.query(&sql, params!()).await?;
-        let mut rows = Vec::new();
-        let mut time_elapsed = TimeElapsed::new();
-        while let Some(r) = query_rows.next().await? {
-            rows.push(r);
-            if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                let data = encode_rows(&std::mem::take(&mut rows))?;
-                emit.send(data.into())?;
-            }
+        while let Some(row) = query_rows.next().await? {
+            let data = encode_row(&row)?;
+            emit.send(data.into())?;
         }
-        let data = encode_rows(&rows)?;
-        emit.send(data.into())?;
         anyhow::Ok(())
     }
 
@@ -893,9 +873,7 @@ impl SchemaTrait for LibSqlDB {
         log::info!("show table sql:{}", sql);
         emit.send("trying to query data".into())?;
         let mut stream = conn.query(&sql, params!()).await?;
-        let mut rows = Vec::new();
         let mut first = true;
-        let mut time_elapsed = TimeElapsed::new();
         while let Some(row) = stream.next().await? {
             if first {
                 first = false;
@@ -909,14 +887,7 @@ impl SchemaTrait for LibSqlDB {
                     .into(),
                 )?;
             }
-            rows.push(row);
-            if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                let d = encode_rows(&std::mem::take(&mut rows))?;
-                emit.send(d.into())?;
-            }
-        }
-        if !rows.is_empty() {
-            let d = encode_rows(&rows)?;
+            let d = encode_row(&row)?;
             emit.send(d.into())?;
         }
         anyhow::Ok(())
@@ -1045,17 +1016,14 @@ impl LibSqlDB {
         let mut rows = conn.query(&sql, params!()).await?;
 
         while let Some(row) = rows.next().await? {
-            let data = encode_rows(&[row])?;
-            for d in data.into_iter() {
-                let mut m = HashMap::new();
-                for (d, f) in d.into_iter().zip(cols.iter()) {
-                    m.insert(f.field.clone(), d);
-                }
-
-                let insert_sql = self.insert_sql(None, table_name, &cols, &m)?;
-                sender.send(Cow::Owned(insert_sql)).await?;
-                sender.send(";\n".into()).await?;
+            let data = encode_row(&row)?;
+            let mut m = HashMap::new();
+            for (d, f) in data.into_iter().zip(cols.iter()) {
+                m.insert(f.field.clone(), d);
             }
+            let insert_sql = self.insert_sql(None, table_name, &cols, &m)?;
+            sender.send(Cow::Owned(insert_sql)).await?;
+            sender.send(";\n".into()).await?;
         }
         anyhow::Ok(())
     }
@@ -1164,10 +1132,9 @@ impl LibSqlDB {
                     .await?;
                 first = false;
             }
-            let data = encode_rows(&[row])?;
-
+            let data = encode_row(&row)?;
             sender
-                .send(Cow::Owned(create_csv(&data, delimiter)))
+                .send(Cow::Owned(create_csv(&[data], delimiter)))
                 .await?;
         }
         anyhow::Ok(())
@@ -1189,9 +1156,9 @@ impl LibSqlDB {
                     .await?;
                 first = false;
             }
-            let data = encode_rows(&[row])?;
+            let data = encode_row(&row)?;
             sender
-                .send(Cow::Owned(create_html_table_data(&data)))
+                .send(Cow::Owned(create_html_table_data(&[data])))
                 .await?;
         }
         anyhow::Ok(())
@@ -1234,52 +1201,48 @@ async fn query_trigger_detail(conn: &mut Connection, name: &str) -> anyhow::Resu
     extract_trigger_detail_from_sql(name, sql)
 }
 
-fn encode_rows(rows: &[Row]) -> anyhow::Result<Vec<Vec<Option<String>>>> {
-    let mut ret = Vec::with_capacity(rows.len());
+fn encode_row(row: &Row) -> anyhow::Result<Vec<Option<String>>> {
+    let mut values = Vec::with_capacity(row.column_count() as usize);
+    for c in 0..row.column_count() {
+        let ty = row.column_type(c).unwrap_or(ValueType::Null);
+        let v = match ty {
+            ValueType::Null => {
+                if let Result::Ok(s) = row.get::<f64>(c) {
+                    Some(s.to_string())
+                } else if let Result::Ok(s) = row.get::<i64>(c) {
+                    Some(s.to_string())
+                } else if let Result::Ok(s) = row.get::<String>(c) {
+                    Some(s)
+                } else if let Result::Ok(s) = row.get::<bool>(c) {
+                    Some(s.to_string())
+                } else if let Result::Ok(s) = row.get::<Vec<u8>>(c) {
+                    Some(encode_bytes(s.as_slice()))
+                } else {
+                    None
+                }
+            }
+            ValueType::Text => {
+                let v: Option<String> = row.get(c)?;
+                v
+            }
+            ValueType::Integer => {
+                let v: Option<i64> = row.get(c)?;
+                v.map(|x| x.to_string())
+            }
+            ValueType::Real => {
+                let v: Option<f64> = row.get(c)?;
+                v.map(|x| format!("{}", x))
+            }
+            ValueType::Blob => {
+                let v: Option<Vec<u8>> = row.get(c)?;
+                v.map(|x| encode_bytes(x.as_slice()))
+            }
+        };
 
-    for r in rows.iter() {
-        let mut values = Vec::with_capacity(r.column_count() as usize);
-        for c in 0..r.column_count() {
-            let ty = r.column_type(c).unwrap_or(ValueType::Null);
-            let v = match ty {
-                ValueType::Null => {
-                    if let Result::Ok(s) = r.get::<f64>(c) {
-                        Some(s.to_string())
-                    } else if let Result::Ok(s) = r.get::<i64>(c) {
-                        Some(s.to_string())
-                    } else if let Result::Ok(s) = r.get::<String>(c) {
-                        Some(s)
-                    } else if let Result::Ok(s) = r.get::<bool>(c) {
-                        Some(s.to_string())
-                    } else if let Result::Ok(s) = r.get::<Vec<u8>>(c) {
-                        Some(encode_bytes(s.as_slice()))
-                    } else {
-                        None
-                    }
-                }
-                ValueType::Text => {
-                    let v: Option<String> = r.get(c)?;
-                    v
-                }
-                ValueType::Integer => {
-                    let v: Option<i64> = r.get(c)?;
-                    v.map(|x| x.to_string())
-                }
-                ValueType::Real => {
-                    let v: Option<f64> = r.get(c)?;
-                    v.map(|x| format!("{}", x))
-                }
-                ValueType::Blob => {
-                    let v: Option<Vec<u8>> = r.get(c)?;
-                    v.map(|x| encode_bytes(x.as_slice()))
-                }
-            };
-
-            values.push(v);
-        }
-        ret.push(values);
+        values.push(v);
     }
-    anyhow::Ok(ret)
+
+    anyhow::Ok(values)
 }
 
 fn encode_row_as_json(r: &Row) -> anyhow::Result<serde_json::Value> {

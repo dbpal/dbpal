@@ -5,15 +5,15 @@ use crate::db::{
     GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
     POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlEvent,
-    SqlExecuteRet, TimeElapsed, TriggerDetail, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
-    escape_sql_str, export_query_as_xlsx_send_data,
+    SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
+    XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
+    export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
 use chrono::Utc;
 use dashmap::DashMap;
-use futures_util::{StreamExt, TryStreamExt};
+use futures_util::StreamExt;
 use sqlx::mysql::MySqlRow;
 use sqlx::pool::{PoolConnection, PoolOptions};
 use sqlx::types::BigDecimal;
@@ -295,23 +295,17 @@ impl MysqlDB {
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let sql = format!(r#"SELECT * from `{}`"#, table_name);
         log::info!("sql:{}", sql);
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch(conn.deref_mut())
-            .try_chunks(100);
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-
-            let data = encode_rows(&rows, true)?;
-            for d in data.into_iter() {
-                let mut m = HashMap::new();
-                for (d, f) in d.into_iter().zip(cols.iter()) {
-                    m.insert(f.field.clone(), d);
-                }
-
-                let insert_sql = self.insert_sql(None, table_name, &cols, &m)?;
-                sender.send(Cow::Owned(insert_sql)).await?;
-                sender.send(";\n".into()).await?;
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let data = encode_row(&row, true)?;
+            let mut m = HashMap::new();
+            for (d, f) in data.into_iter().zip(cols.iter()) {
+                m.insert(f.field.clone(), d);
             }
+            let insert_sql = self.insert_sql(None, table_name, &cols, &m)?;
+            sender.send(Cow::Owned(insert_sql)).await?;
+            sender.send(";\n".into()).await?;
         }
         anyhow::Ok(())
     }
@@ -415,17 +409,12 @@ impl MysqlDB {
         let conn = conn.deref_mut();
         let mut first = true;
 
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch(conn.deref_mut())
-            .try_chunks(100);
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
 
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-
-            if first && !rows.is_empty() && include_header {
-                let fs = rows
-                    .first()
-                    .expect("row is not empty")
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            if first && include_header {
+                let fs = row
                     .columns()
                     .iter()
                     .map(|x| x.name().to_string())
@@ -437,9 +426,9 @@ impl MysqlDB {
                 first = false
             }
 
-            let data = encode_rows(&rows, true)?;
+            let data = encode_row(&row, true)?;
             sender
-                .send(Cow::Owned(create_csv(&data, delimiter)))
+                .send(Cow::Owned(create_csv(&[data], delimiter)))
                 .await?;
         }
         anyhow::Ok(())
@@ -453,16 +442,12 @@ impl MysqlDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let mut first = true;
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch(conn.deref_mut())
-            .try_chunks(100);
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
 
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-            if first && !rows.is_empty() && include_header {
-                let fs = rows
-                    .first()
-                    .expect("rows is not empty ")
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            if first && include_header {
+                let fs = row
                     .columns()
                     .iter()
                     .map(|x| x.name().to_string())
@@ -472,9 +457,9 @@ impl MysqlDB {
                     .await?;
                 first = false
             }
-            let data = encode_rows(&rows, true)?;
+            let data = encode_row(&row, true)?;
             sender
-                .send(Cow::Owned(create_html_table_data(&data)))
+                .send(Cow::Owned(create_html_table_data(&[data])))
                 .await?;
         }
         anyhow::Ok(())
@@ -1216,8 +1201,6 @@ impl SchemaTrait for MysqlDB {
         let total = self.query_count(view_name, where_str.as_deref()).await?;
         emit.send("trying to query data.".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
-        let mut rows = vec![];
-        let mut time_elapsed = TimeElapsed::new();
         let mut first = true;
         while let Some(row) = stream.next().await {
             let row = row?;
@@ -1233,13 +1216,7 @@ impl SchemaTrait for MysqlDB {
                     .into(),
                 )?;
             }
-            rows.push(row);
-            if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                emit.send(encode_rows(&std::mem::take(&mut rows), true)?.into())?;
-            }
-        }
-        if !rows.is_empty() {
-            emit.send(encode_rows(&std::mem::take(&mut rows), true)?.into())?;
+            emit.send(encode_row(&row, true)?.into())?;
         }
         if first {
             let fields = self.infer_fields_by_sql(&sql).await?;
@@ -1445,18 +1422,11 @@ impl SchemaTrait for MysqlDB {
         let mut conn = self.get_conn().await?;
         emit.send("trying to query data".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
-        let mut rows = vec![];
-        let mut time_elapsed = TimeElapsed::new();
         while let Some(row) = stream.next().await {
             let row = row?;
-            rows.push(row);
-            if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                let d = encode_rows(&std::mem::take(&mut rows), true)?;
-                emit.send(d.into())?;
-            }
+            let d = encode_row(&row, true)?;
+            emit.send(d.into())?;
         }
-        let d = encode_rows(&std::mem::take(&mut rows), true)?;
-        emit.send(d.into())?;
         anyhow::Ok(())
     }
 
@@ -1495,114 +1465,108 @@ impl SchemaTrait for MysqlDB {
     }
 }
 
-fn encode_rows(
-    rows: &[MySqlRow], try_blob_to_str: bool,
-) -> anyhow::Result<Vec<Vec<Option<String>>>> {
-    let mut ret = Vec::with_capacity(rows.len());
-    for r in rows.iter() {
-        let mut values = Vec::with_capacity(r.len());
-        for c in 0..r.len() {
-            let col = r.column(c);
-            let ty = col.type_info().name();
-            let ty = ty.to_uppercase();
-            let v = match ty.as_str() {
-                "BOOLEAN" | "BOOL" => {
-                    let value: Option<bool> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "TINYINT" => {
-                    let value: Option<i8> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "SMALLINT" => {
-                    let value: Option<i16> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "INT" => {
-                    let value: Option<i32> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "BIGINT" => {
-                    let value: Option<i64> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "TINYINT UNSIGNED" => {
-                    let value: Option<u8> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "SMALLINT UNSIGNED" => {
-                    let value: Option<u16> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "INT UNSIGNED" => {
-                    let value: Option<u32> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "BIGINT UNSIGNED" => {
-                    let value: Option<u64> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "FLOAT" => {
-                    let value: Option<f32> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "DOUBLE" => {
-                    let value: Option<f64> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
+fn encode_row(r: &MySqlRow, try_blob_to_str: bool) -> anyhow::Result<Vec<Option<String>>> {
+    let mut values = Vec::with_capacity(r.len());
+    for c in 0..r.len() {
+        let col = r.column(c);
+        let ty = col.type_info().name();
+        let ty = ty.to_uppercase();
+        let v = match ty.as_str() {
+            "BOOLEAN" | "BOOL" => {
+                let value: Option<bool> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "TINYINT" => {
+                let value: Option<i8> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "SMALLINT" => {
+                let value: Option<i16> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "INT" => {
+                let value: Option<i32> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "BIGINT" => {
+                let value: Option<i64> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "TINYINT UNSIGNED" => {
+                let value: Option<u8> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "SMALLINT UNSIGNED" => {
+                let value: Option<u16> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "INT UNSIGNED" => {
+                let value: Option<u32> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "BIGINT UNSIGNED" => {
+                let value: Option<u64> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "FLOAT" => {
+                let value: Option<f32> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "DOUBLE" => {
+                let value: Option<f64> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
 
-                _ if type_is_string(&ty) => {
-                    let value: Option<String> = r.try_get(c)?;
-                    value.map(|x| x.to_string())
-                }
-                "ENUM" => {
-                    let value: Option<String> = r.try_get(c)?;
-                    value.map(|x| x.to_string())
-                }
-                _ if type_is_blob(&ty) => {
-                    let x: Option<Vec<u8>> = r.try_get(c)?;
-                    let str_value: sqlx::Result<Option<String>> = r.try_get(c);
-                    let str_value = str_value.ok().flatten();
-                    x.map(|x| match (str_value, try_blob_to_str) {
-                        (Some(value), true) => value,
-                        _ => {
-                            format!("0x{}", hex::encode_upper(x.as_slice()))
-                        }
-                    })
-                }
-                "TIMESTAMP" => {
-                    let value: Option<chrono::DateTime<Utc>> = r.try_get(c)?;
-                    value.map(|x| x.naive_utc().to_string())
-                }
-                "DATETIME" => {
-                    let value: Option<chrono::NaiveDateTime> = r.try_get(c)?;
-                    value.map(|x| x.to_string())
-                }
-                "DATE" => {
-                    let value: Option<chrono::NaiveDate> = r.try_get(c)?;
-                    value.map(|x| x.to_string())
-                }
-                "TIME" => {
-                    let value: Option<chrono::NaiveTime> = r.try_get(c)?;
-                    value.map(|x| x.to_string())
-                }
-                "DECIMAL" => {
-                    let value: Option<BigDecimal> = r.try_get(c)?;
-                    value.map(|x| x.to_string())
-                }
-                "JSON" => {
-                    let value: Option<serde_json::Value> = r.try_get(c)?;
-                    value.map(|x| x.to_string())
-                }
-                "NULL" => None,
+            _ if type_is_string(&ty) => {
+                let value: Option<String> = r.try_get(c)?;
+                value.map(|x| x.to_string())
+            }
+            "ENUM" => {
+                let value: Option<String> = r.try_get(c)?;
+                value.map(|x| x.to_string())
+            }
+            _ if type_is_blob(&ty) => {
+                let x: Option<Vec<u8>> = r.try_get(c)?;
+                let str_value: sqlx::Result<Option<String>> = r.try_get(c);
+                let str_value = str_value.ok().flatten();
+                x.map(|x| match (str_value, try_blob_to_str) {
+                    (Some(value), true) => value,
+                    _ => {
+                        format!("0x{}", hex::encode_upper(x.as_slice()))
+                    }
+                })
+            }
+            "TIMESTAMP" => {
+                let value: Option<chrono::DateTime<Utc>> = r.try_get(c)?;
+                value.map(|x| x.naive_utc().to_string())
+            }
+            "DATETIME" => {
+                let value: Option<chrono::NaiveDateTime> = r.try_get(c)?;
+                value.map(|x| x.to_string())
+            }
+            "DATE" => {
+                let value: Option<chrono::NaiveDate> = r.try_get(c)?;
+                value.map(|x| x.to_string())
+            }
+            "TIME" => {
+                let value: Option<chrono::NaiveTime> = r.try_get(c)?;
+                value.map(|x| x.to_string())
+            }
+            "DECIMAL" => {
+                let value: Option<BigDecimal> = r.try_get(c)?;
+                value.map(|x| x.to_string())
+            }
+            "JSON" => {
+                let value: Option<serde_json::Value> = r.try_get(c)?;
+                value.map(|x| x.to_string())
+            }
+            "NULL" => None,
 
-                _ => anyhow::bail!(format!("type '{ty}' not supported")),
-            };
-            values.push(v);
-        }
-        ret.push(values);
+            _ => anyhow::bail!(format!("type '{ty}' not supported")),
+        };
+        values.push(v);
     }
-    anyhow::Ok(ret)
+    anyhow::Ok(values)
 }
 
 impl MysqlDB {
@@ -1739,14 +1703,12 @@ impl MysqlDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let mut first = true;
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch(conn.deref_mut())
-            .try_chunks(100);
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         let mut row_num = 0;
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-            if first && !rows.is_empty() && include_header {
-                for (index, col) in rows[0].columns().iter().enumerate() {
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            if first && include_header {
+                for (index, col) in row.columns().iter().enumerate() {
                     let col = col.name();
                     sender
                         .send(
@@ -1764,10 +1726,9 @@ impl MysqlDB {
                 row_num += 1;
             }
 
-            let data = encode_rows(&rows, true)?;
-            export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
+            let data = encode_row(&row, true)?;
+            export_query_as_xlsx_send_data(&mut row_num, vec![data], sender.clone()).await?;
         }
-
         anyhow::Ok(())
     }
 }
@@ -1937,10 +1898,8 @@ impl QuerySql for MysqlDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
-        let mut rows = Vec::new();
         let mut emit_fields: Vec<Field> = vec![];
         let mut has_result = false;
-        let mut timeelapsed = TimeElapsed::new();
         while let Some(item) = stream.next().await {
             let item = match item {
                 Ok(x) => x,
@@ -1957,10 +1916,6 @@ impl QuerySql for MysqlDB {
                     has_result = true;
                     let fields = get_row_types(&row);
                     if emit_fields.is_empty() || !fields.eq(&emit_fields) {
-                        if !rows.is_empty() {
-                            let data = encode_rows(&std::mem::take(&mut rows), true)?;
-                            emit.send(data.into())?;
-                        }
                         emit.send(
                             QueryResp {
                                 fields: fields.clone(),
@@ -1970,16 +1925,10 @@ impl QuerySql for MysqlDB {
                         )?;
                         emit_fields = fields;
                     }
-                    rows.push(row);
-                    if rows.len() >= self.query_buffer_size() || timeelapsed.elapsed() {
-                        let data = encode_rows(&std::mem::take(&mut rows), true)?;
-                        emit.send(data.into())?;
-                    }
+                    let data = encode_row(&row, true)?;
+                    emit.send(data.into())?;
                 }
             }
-        }
-        if !rows.is_empty() {
-            emit.send(encode_rows(&rows, true)?.into())?;
         }
         drop(stream);
         if !has_result {

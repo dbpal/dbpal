@@ -18,7 +18,7 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind,
     ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlExecuteRet, TimeElapsed, XlsxEdit, create_html_table_data,
+    SqlExecuteRet, XlsxEdit, create_html_table_data,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 
@@ -1207,7 +1207,6 @@ impl SchemaTrait for RedisDB {
         } = &para;
         let typ = Self::get_key_type(&mut conn, key).await?;
         use futures_util::StreamExt;
-        let mut time_elapsed = TimeElapsed::new();
         match typ {
             RedisType::String => {
                 let ret: Option<Vec<u8>> = conn.get(key).await?;
@@ -1255,23 +1254,9 @@ impl SchemaTrait for RedisDB {
                 let mut ret: AsyncIter<Vec<u8>> = conn
                     .sscan_match(key, where_str.clone().unwrap_or("*".to_string()))
                     .await?;
-                let mut set_values = Vec::new();
                 while let Some(value) = ret.next().await {
                     let value = value?;
-                    set_values.push(value);
-                    if set_values.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                        let d = set_values
-                            .iter()
-                            .map(|x| vec![Some(hex::encode(x))])
-                            .collect::<Vec<_>>();
-                        emit.send(d.into())?;
-                    }
-                }
-                if !set_values.is_empty() {
-                    let d = set_values
-                        .iter()
-                        .map(|x| vec![Some(hex::encode(x))])
-                        .collect::<Vec<_>>();
+                    let d = vec![Some(hex::encode(&value))];
                     emit.send(d.into())?;
                 }
                 anyhow::Ok(())
@@ -1287,29 +1272,21 @@ impl SchemaTrait for RedisDB {
                     }
                     .into(),
                 )?;
-                let mut ret: AsyncIter<Vec<u8>> = conn
-                    .hscan_match(key, where_str.clone().unwrap_or("*".to_string()))
-                    .await?;
-                let mut values = Vec::new();
-                while let Some(value) = ret.next().await {
-                    let value = value?;
-                    values.push(value);
-                    if values.len() % 2 == 0
-                        && (values.len() >= self.query_buffer_size() || time_elapsed.elapsed()) {
-                            let values = values.chunks(2);
-                            let values = values
-                                .map(|x| vec![Some(hex::encode(&x[0])), Some(hex::encode(&x[1]))])
-                                .collect::<Vec<_>>();
-                            emit.send(values.into())?;
-                        }
+                let mut ret = conn
+                    .hscan_match::<_, _, Vec<u8>>(key, where_str.clone().unwrap_or("*".to_string()))
+                    .await?
+                    .chunks(2);
+                while let Some(row) = ret.next().await {
+                    let mut values = Vec::with_capacity(2);
+                    for r in row {
+                        let r = r?;
+                        values.push(r);
+                    }
+                    emit.send(
+                        vec![Some(hex::encode(&values[0])), Some(hex::encode(&values[1]))].into(),
+                    )?;
                 }
-                if !values.is_empty() {
-                    let values = values.chunks(2);
-                    let values = values
-                        .map(|x| vec![Some(hex::encode(&x[0])), Some(hex::encode(&x[1]))])
-                        .collect::<Vec<_>>();
-                    emit.send(values.into())?;
-                }
+
                 anyhow::Ok(())
             }
             RedisType::Zset => {
@@ -1329,38 +1306,21 @@ impl SchemaTrait for RedisDB {
                     }
                     .into(),
                 )?;
-                let mut key_values = Vec::new();
                 while let Some(item) = ret.next_item().await {
-                    let value = item?;
+                    let (key, score) = item?;
                     // try match
                     if let Some(min) = min {
-                        if value.1 < *min {
+                        if score < *min {
                             continue;
                         }
                     }
                     if let Some(max) = max {
-                        if value.1 > *max {
+                        if score > *max {
                             continue;
                         }
                     }
-                    key_values.push(value);
-                    if key_values.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                        let d = std::mem::take(&mut key_values);
-                        let d = d
-                            .iter()
-                            .map(|(key, score)| {
-                                vec![Some(hex::encode(key)), Some(score.to_string())]
-                            })
-                            .collect::<Vec<_>>();
-                        emit.send(d.into())?;
-                    }
+                    emit.send(vec![Some(score.to_string()), Some(hex::encode(&key))].into())?;
                 }
-                let d = std::mem::take(&mut key_values);
-                let d = d
-                    .iter()
-                    .map(|(key, score)| vec![Some(score.to_string()), Some(hex::encode(key))])
-                    .collect::<Vec<_>>();
-                emit.send(d.into())?;
                 anyhow::Ok(())
             }
         }

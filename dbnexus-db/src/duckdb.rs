@@ -4,7 +4,7 @@ use crate::db::{
     CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, ExportKind, ExportQueryResult, Field,
     GetBackendKind, Index, IndexKind, ListTable, MetaValue, POOL_MAX_CONNECTIONS,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlExecuteRet, TimeElapsed, create_html_table_data,
+    ShowTableParameter, SqlBuilder, SqlExecuteRet, create_html_table_data,
     create_html_table_header, export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
@@ -485,8 +485,6 @@ impl QuerySql for DuckDB {
             let conn = conn.lock().expect("lock failed");
             for sql in sql.iter() {
                 let mut stmt = conn.prepare(&sql)?;
-                let mut time_elapsed = TimeElapsed::new();
-                let mut data = vec![];
                 let mut stream = stmt.query([])?;
                 let mut first = true;
                 while let Some(row) = stream.next()? {
@@ -510,13 +508,7 @@ impl QuerySql for DuckDB {
                         )?;
                     }
                     let d = encode_row(row)?;
-                    data.push(d);
-                    if data.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
-                        emit.send(std::mem::take(&mut data).into())?;
-                    }
-                }
-                if !data.is_empty() {
-                    emit.send(std::mem::take(&mut data).into())?;
+                    emit.send(d.into())?;
                 }
             }
             anyhow::Ok(())
@@ -1217,17 +1209,11 @@ impl SchemaTrait for DuckDB {
             let conn = this.get_conn()?;
             let mut stmt = conn.prepare(&sql)?;
             let mut rows = stmt.query([])?;
-            let mut data = Vec::new();
-            let mut time_elapsed = TimeElapsed::new();
             while let Some(row) = rows.next()? {
-                data.push(encode_row(&row)?);
-                if data.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
-                    emit.send(std::mem::take(&mut data).into())?;
-                }
+                let data = encode_row(&row)?;
+                emit.send(data.into())?;
             }
-            if !data.is_empty() {
-                emit.send(std::mem::take(&mut data).into())?;
-            }
+
             anyhow::Ok(())
         })
         .await?
@@ -1403,20 +1389,11 @@ impl SchemaTrait for DuckDB {
             )?;
             let conn = this.get_conn()?;
             let mut stmt = conn.prepare(&sql)?;
-            let mut data = vec![];
-            let mut time_elapsed = TimeElapsed::new();
             let mut stream = stmt.query([])?;
             while let Some(row) = stream.next()? {
                 let d = encode_row(row)?;
-                data.push(d);
-                if data.len() >= this.query_buffer_size() || time_elapsed.elapsed() {
-                    emit.send(std::mem::take(&mut data).into())?;
-                }
+                emit.send(d.into())?;
             }
-            if !data.is_empty() {
-                emit.send(std::mem::take(&mut data).into())?;
-            }
-
             anyhow::Ok(())
         })
         .await?

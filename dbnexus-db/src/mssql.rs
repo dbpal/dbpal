@@ -6,7 +6,7 @@ use crate::db::{
     DBTrait, DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind,
     ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryResp,
     QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlExecuteRet, TimeElapsed, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
     UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
     escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset,
     not_support_feature,
@@ -17,7 +17,7 @@ use crate::language_server::LexerCompletionTrait;
 use chrono::FixedOffset;
 use dashmap::DashMap;
 use futures_core::future::BoxFuture;
-use futures_util::{StreamExt, TryStreamExt};
+use futures_util::StreamExt;
 use sqlparser::tokenizer::Token;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -52,7 +52,6 @@ impl ServerMetas for SqlServerDB {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
         let mut conn = self.get_conn().await?;
         let mut ret = Vec::new();
-
         let mut stream = conn
             .simple_query(
                 r#"
@@ -142,27 +141,22 @@ impl ServerMetas for SqlServerDB {
             "#,
             )
             .await?;
-        let mut rows = Vec::new();
-
         while let Some(item) = stream.next().await {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(r) => {
-                    rows.push(r);
+                    let m = encode_row(&r)?;
+                    ret.push(MetaValue::new(
+                        m.first()
+                            .expect("must have results")
+                            .as_ref()
+                            .option_must_be_some()?
+                            .to_string(),
+                        m[1].clone(),
+                    ));
                 }
                 tiberius::QueryItem::Metadata(_) => {}
             }
-        }
-        let metas = encode_rows(&rows)?;
-        for m in metas.iter() {
-            ret.push(MetaValue::new(
-                m.first()
-                    .expect("must have results")
-                    .as_ref()
-                    .option_must_be_some()?
-                    .to_string(),
-                m[1].clone(),
-            ));
         }
         anyhow::Ok(ret)
     }
@@ -279,17 +273,13 @@ impl<'a> tiberius::FromSql<'a> for ConvertColumnDataToString {
     }
 }
 
-fn encode_rows(rows: &[tiberius::Row]) -> anyhow::Result<Vec<Vec<Option<String>>>> {
-    let mut data = vec![];
-    for r in rows.iter() {
-        let mut values: Vec<Option<String>> = Vec::new();
-        for index in 0..rows[0].columns().len() {
-            let v: Option<ConvertColumnDataToString> = r.try_get(index)?;
-            values.push(v.map(|x| x.value));
-        }
-        data.push(values);
+fn encode_row(row: &tiberius::Row) -> anyhow::Result<Vec<Option<String>>> {
+    let mut values: Vec<Option<String>> = Vec::new();
+    for index in 0..row.columns().len() {
+        let v: Option<ConvertColumnDataToString> = row.try_get(index)?;
+        values.push(v.map(|x| x.value));
     }
-    anyhow::Ok(data)
+    anyhow::Ok(values)
 }
 
 fn gen_select_sql(
@@ -834,17 +824,12 @@ impl SchemaTrait for SqlServerDB {
         log::info!("sql:{}", sql);
         emit.send("trying to get data.".into())?;
         let mut stream = conn.query(&sql, &[]).await?;
-        let mut rows = Vec::new();
-        let mut time_elapsed = TimeElapsed::new();
         while let Some(item) = stream.next().await {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(row) => {
-                    rows.push(row);
-                    if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                        let data = encode_rows(&std::mem::take(&mut rows))?;
-                        emit.send(data.into())?;
-                    }
+                    let data = encode_row(&row)?;
+                    emit.send(data.into())?;
                 }
                 tiberius::QueryItem::Metadata(m) => {
                     emit.send(
@@ -858,10 +843,6 @@ impl SchemaTrait for SqlServerDB {
                     )?;
                 }
             }
-        }
-        if !rows.is_empty() {
-            let data = encode_rows(&rows)?;
-            emit.send(data.into())?;
         }
         anyhow::Ok(())
     }
@@ -996,25 +977,18 @@ impl SchemaTrait for SqlServerDB {
             .query(&sql, &[])
             .await
             .map_err(|e| anyhow::Error::msg(format!("err:'{}' sql:'{}'", e, sql)))?;
-        let mut rows = Vec::new();
-        let mut time_elapsed = TimeElapsed::new();
         while let Some(item) = stream.next().await {
             let item = item?;
             match item {
                 tiberius::QueryItem::Row(row) => {
-                    rows.push(row);
-                    if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                        let d = encode_rows(&std::mem::take(&mut rows))?;
-                        emit.send(d.into())?;
-                    }
+                    let d = encode_row(&row)?;
+                    emit.send(d.into())?;
                 }
                 tiberius::QueryItem::Metadata(..) => {
                     // we have send the fields.
                 }
             }
         }
-        let d = encode_rows(&std::mem::take(&mut rows))?;
-        emit.send(d.into())?;
         anyhow::Ok(())
     }
 
@@ -1511,27 +1485,22 @@ impl SqlServerDB {
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
-        let mut stream = conn.query(sql.as_str(), &[]).await?.try_chunks(100);
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-            let mut rows_row = Vec::with_capacity(rows.len());
-            for r in rows.into_iter() {
-                match r {
-                    tiberius::QueryItem::Row(x) => rows_row.push(x),
-                    tiberius::QueryItem::Metadata(_) => {}
+        let mut stream = conn.query(sql.as_str(), &[]).await?;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            match row {
+                tiberius::QueryItem::Row(row) => {
+                    let data = encode_row(&row)?;
+                    let mut m = HashMap::new();
+                    for (d, f) in data.into_iter().zip(cols.iter()) {
+                        m.insert(f.field.clone(), d);
+                    }
+                    let insert_sql =
+                        self.insert_sql(self.config.schema.as_deref(), table_name, &cols, &m)?;
+                    sender.send(Cow::Owned(insert_sql)).await?;
+                    sender.send(";\n".into()).await?;
                 }
-            }
-            let data = encode_rows(&rows_row)?;
-            for d in data.into_iter() {
-                let mut m = HashMap::new();
-                for (d, f) in d.into_iter().zip(cols.iter()) {
-                    m.insert(f.field.clone(), d);
-                }
-
-                let insert_sql =
-                    self.insert_sql(self.config.schema.as_deref(), table_name, &cols, &m)?;
-                sender.send(Cow::Owned(insert_sql)).await?;
-                sender.send(";\n".into()).await?;
+                tiberius::QueryItem::Metadata(..) => {}
             }
         }
         anyhow::Ok(())
@@ -1655,7 +1624,7 @@ impl SqlServerDB {
             let row = rows?;
             match row {
                 tiberius::QueryItem::Row(r) => {
-                    let s = create_csv(&encode_rows(&[r])?, delimiter);
+                    let s = create_csv(&[encode_row(&r)?], delimiter);
                     sender.send(Cow::Owned(s)).await?;
                 }
                 tiberius::QueryItem::Metadata(meta) => {
@@ -1690,7 +1659,7 @@ impl SqlServerDB {
             let row = row?;
             match row {
                 tiberius::QueryItem::Row(r) => {
-                    let s = create_html_table_data(&encode_rows(&[r])?);
+                    let s = create_html_table_data(&[encode_row(&r)?]);
                     sender.send(Cow::Owned(s)).await?;
                 }
                 tiberius::QueryItem::Metadata(meta) => {
@@ -1765,42 +1734,36 @@ impl SqlServerDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let mut first = true;
-        let mut stream = conn.query(sql, &[]).await?.try_chunks(100);
+        let mut stream = conn.query(sql, &[]).await?;
         let mut row_num = 0;
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-            let mut rows_row = Vec::new();
-            for r in rows.into_iter() {
-                match r {
-                    tiberius::QueryItem::Row(r) => {
-                        rows_row.push(r);
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            match row {
+                tiberius::QueryItem::Row(row) => {
+                    let d = encode_row(&row)?;
+                    export_query_as_xlsx_send_data(&mut row_num, vec![d], sender.clone()).await?;
+                }
+                tiberius::QueryItem::Metadata(meta) => {
+                    if !first {
+                        anyhow::bail!("multiple result set")
                     }
-                    tiberius::QueryItem::Metadata(meta) => {
-                        if !first {
-                            anyhow::bail!("multiple result set")
+                    if first && include_header {
+                        for (index, col) in meta.columns().iter().enumerate() {
+                            sender
+                                .send(
+                                    XlsxEdit {
+                                        row: row_num,
+                                        column: index as rust_xlsxwriter::ColNum,
+                                        content: col.name().to_owned(),
+                                    }
+                                    .to_string()
+                                    .into(),
+                                )
+                                .await?;
                         }
-                        if first && include_header {
-                            for (index, col) in meta.columns().iter().enumerate() {
-                                sender
-                                    .send(
-                                        XlsxEdit {
-                                            row: row_num,
-                                            column: index as rust_xlsxwriter::ColNum,
-                                            content: col.name().to_owned(),
-                                        }
-                                        .to_string()
-                                        .into(),
-                                    )
-                                    .await?;
-                            }
-                            first = false
-                        }
+                        first = false
                     }
                 }
-            }
-            if !rows_row.is_empty() {
-                let data = encode_rows(&rows_row)?;
-                export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
             }
         }
         anyhow::Ok(())
@@ -1970,8 +1933,6 @@ impl QuerySql for SqlServerDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let mut stream = conn.simple_query(sql).await?;
-        let mut rows = Vec::new();
-        let mut timeelapsed = TimeElapsed::new();
         while let Some(item) = stream.next().await {
             let item = match item {
                 Ok(item) => item,
@@ -1982,10 +1943,7 @@ impl QuerySql for SqlServerDB {
             };
             match item {
                 tiberius::QueryItem::Row(row) => {
-                    rows.push(row);
-                    if rows.len() >= self.query_buffer_size() || timeelapsed.elapsed() {
-                        emit.send(encode_rows(&std::mem::take(&mut rows))?.into())?;
-                    }
+                    emit.send(encode_row(&row)?.into())?;
                 }
                 tiberius::QueryItem::Metadata(meta) => {
                     let f = get_fields_from_meta(&meta);
@@ -1998,10 +1956,6 @@ impl QuerySql for SqlServerDB {
                     )?;
                 }
             }
-        }
-        if !rows.is_empty() {
-            let data = encode_rows(&rows)?;
-            emit.send(data.into())?;
         }
         anyhow::Ok(())
     }

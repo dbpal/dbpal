@@ -32,8 +32,8 @@ use crate::db::{
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
     Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlExecuteRet, TimeElapsed, UdfOrProcedureExtraParameter,
-    XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
+    ShowTableParameter, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
+    create_html_table_data, create_html_table_header, escape_sql_str,
     export_query_as_xlsx_send_data,
 };
 
@@ -387,14 +387,6 @@ fn encode_value_as_string(value: CqlValue, is_nested: bool) -> anyhow::Result<St
     };
     anyhow::Ok(v)
 }
-fn encode_rows(rows: Vec<Row>) -> anyhow::Result<Vec<Vec<Option<String>>>> {
-    let mut ret = vec![];
-    for row in rows {
-        let v = encode_row(row)?;
-        ret.push(v);
-    }
-    anyhow::Ok(ret)
-}
 
 fn sql_to_each(sql: &str) -> Vec<String> {
     separate_sql_by_sqlparser_tokenizer(sql, &sqlparser::dialect::GenericDialect {})
@@ -544,9 +536,6 @@ impl QuerySql for CassandraDB {
             None => anyhow::bail!("query connection closed???"),
         };
         for sql in sql_to_each(sql) {
-            let mut rows = vec![];
-
-            let mut time_elapsed = TimeElapsed::new();
             let pager = conn.query_iter(sql.as_str(), &[]).await?;
             emit.send(
                 QueryResp {
@@ -563,12 +552,7 @@ impl QuerySql for CassandraDB {
             let mut stream = pager.rows_stream::<Row>()?;
             while let Some(x) = stream.next().await {
                 let row = x?;
-                rows.push(row);
-                if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                    let d = encode_rows(std::mem::take(&mut rows))?;
-                    emit.send(d.into())?;
-                }
-                let d = encode_rows(std::mem::take(&mut rows))?;
+                let d = encode_row(row)?;
                 emit.send(d.into())?;
             }
         }
@@ -1114,22 +1098,13 @@ impl SchemaTrait for CassandraDB {
             }
             .into(),
         )?;
-
         let pager = self.session.query_iter(cql.as_str(), &[]).await?;
         let mut stream = pager.rows_stream::<Row>()?;
-        let mut time_elapsed = TimeElapsed::new();
-        let mut rows = vec![];
         while let Some(row) = stream.next().await {
             let row = row?;
-            rows.push(row);
-            if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                let d = encode_rows(std::mem::take(&mut rows))?;
-
-                emit.send(d.into())?;
-            }
+            let d = encode_row(row)?;
+            emit.send(d.into())?;
         }
-        let d = encode_rows(std::mem::take(&mut rows))?;
-        emit.send(d.into())?;
         anyhow::Ok(())
     }
 

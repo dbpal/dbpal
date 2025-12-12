@@ -1,14 +1,13 @@
+use dashmap::DashMap;
+use futures_util::StreamExt;
+use sqlx::pool::{PoolConnection, PoolOptions};
+use sqlx::postgres::PgRow;
+use sqlx::{AssertSqlSafe, Column, Executor, PgConnection, Postgres, Row, SqlSafeStr};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
-
-use dashmap::DashMap;
-use futures_util::{StreamExt, TryStreamExt};
-use sqlx::pool::{PoolConnection, PoolOptions};
-use sqlx::postgres::PgRow;
-use sqlx::{AssertSqlSafe, Column, Executor, PgConnection, Postgres, Row, SqlSafeStr};
 use tokio::sync::Mutex;
 
 use crate::datasource_config::PGDBConfig;
@@ -18,12 +17,12 @@ use crate::db::{
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlExecuteRet, TimeElapsed, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
-    create_html_table_header, export_query_as_xlsx_send_data,
+    ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
+    export_query_as_xlsx_send_data,
 };
-use crate::helper::create_csv;
 
+use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
 use crate::pg_format::*;
 
@@ -169,24 +168,18 @@ impl PostGresDB {
             table_name
         );
         log::info!("sql:{}", sql);
-        let mut stream = sqlx::query(AssertSqlSafe(sql.as_str()))
-            .fetch(conn.deref_mut())
-            .try_chunks(100);
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-
-            let data = encode_rows(&rows)?;
-            for d in data.into_iter() {
-                let mut m = HashMap::new();
-                for (d, f) in d.into_iter().zip(cols.iter()) {
-                    m.insert(f.field.clone(), d);
-                }
-
-                let insert_sql =
-                    self.insert_sql(self.config.schema.as_deref(), table_name, &cols, &m)?;
-                sender.send(Cow::Owned(insert_sql)).await?;
-                sender.send(";\n".into()).await?;
+        let mut stream = sqlx::query(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let data = encode_row(&row)?;
+            let mut m = HashMap::new();
+            for (d, f) in data.into_iter().zip(cols.iter()) {
+                m.insert(f.field.clone(), d);
             }
+            let insert_sql =
+                self.insert_sql(self.config.schema.as_deref(), table_name, &cols, &m)?;
+            sender.send(Cow::Owned(insert_sql)).await?;
+            sender.send(";\n".into()).await?;
         }
         anyhow::Ok(())
     }
@@ -309,16 +302,12 @@ impl PostGresDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
         let mut first = true;
-        let mut stream = sqlx::query(AssertSqlSafe(sql))
-            .fetch(conn.deref_mut())
-            .try_chunks(100);
+        let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
 
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-            if first && !rows.is_empty() && include_header {
-                let fs = rows
-                    .first()
-                    .expect("rows is not empty")
+        while let Some(row) = stream.next().await {
+            let row: PgRow = row?;
+            if first && include_header {
+                let fs = row
                     .columns()
                     .iter()
                     .map(|x| x.name().to_string())
@@ -330,10 +319,10 @@ impl PostGresDB {
                 first = false
             }
 
-            let data = encode_rows(&rows)?;
+            let data = encode_row(&row)?;
             sender
-                .send(Cow::Owned(create_csv(&data, delimiter)))
-                .await?;
+                .send(Cow::Owned(create_csv(&[data], delimiter)))
+                .await?
         }
         anyhow::Ok(())
     }
@@ -347,16 +336,12 @@ impl PostGresDB {
         let conn = conn.deref_mut();
         let mut first = true;
 
-        let mut stream = sqlx::query(AssertSqlSafe(sql))
-            .fetch(conn.deref_mut())
-            .try_chunks(100);
+        let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
 
         while let Some(rows) = stream.next().await {
-            let rows = rows?;
-            if first && !rows.is_empty() && include_header {
-                let fs = rows
-                    .first()
-                    .expect("rows is not empty")
+            let row = rows?;
+            if first && !row.is_empty() && include_header {
+                let fs = row
                     .columns()
                     .iter()
                     .map(|x| x.name().to_string())
@@ -366,10 +351,9 @@ impl PostGresDB {
                     .await?;
                 first = false
             }
-
-            let data = encode_rows(&rows)?;
+            let data = encode_row(&row)?;
             sender
-                .send(Cow::Owned(create_html_table_data(&data)))
+                .send(Cow::Owned(create_html_table_data(&[data])))
                 .await?;
         }
         anyhow::Ok(())
@@ -1288,8 +1272,6 @@ impl SchemaTrait for PostGresDB {
         emit.send("trying to get connection.".into())?;
         let mut conn = self.get_conn().await?;
         emit.send("trying to query data.".into())?;
-        let mut rows = vec![];
-        let mut time_elapsed = TimeElapsed::new();
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
         let mut first = true;
         while let Some(row) = stream.next().await {
@@ -1305,14 +1287,9 @@ impl SchemaTrait for PostGresDB {
                     .into(),
                 )?;
             }
-            rows.push(row);
-            if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                emit.send(encode_rows(&std::mem::take(&mut rows))?.into())?;
-            }
+            emit.send(encode_row(&row)?.into())?;
         }
-        if !rows.is_empty() {
-            emit.send(encode_rows(&std::mem::take(&mut rows))?.into())?;
-        }
+
         if first {
             let fields = self.infer_fields_by_sql(&sql).await?;
             emit.send(
@@ -1626,18 +1603,11 @@ impl SchemaTrait for PostGresDB {
         let mut conn = self.get_conn().await?;
         emit.send("trying to query data.".into())?;
         let mut stream = sqlx::query(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
-        let mut rows = vec![];
-        let mut time_elapsed = TimeElapsed::new();
         while let Some(row) = stream.next().await {
             let row = row?;
-            rows.push(row);
-            if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                let d = encode_rows(&std::mem::take(&mut rows))?;
-                emit.send(d.into())?;
-            }
+            let d = encode_row(&row)?;
+            emit.send(d.into())?;
         }
-        let d = encode_rows(&std::mem::take(&mut rows))?;
-        emit.send(d.into())?;
         anyhow::Ok(())
     }
 
@@ -1965,15 +1935,13 @@ impl PostGresDB {
         let conn = conn.deref_mut();
         let mut first = true;
 
-        let mut stream = sqlx::query(AssertSqlSafe(sql))
-            .fetch(conn.deref_mut())
-            .try_chunks(100);
+        let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         let mut row_num = 0;
 
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-            if first && !rows.is_empty() && include_header {
-                for (index, col) in rows[0].columns().iter().enumerate() {
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            if first && include_header {
+                for (index, col) in row.columns().iter().enumerate() {
                     sender
                         .send(
                             XlsxEdit {
@@ -1989,9 +1957,8 @@ impl PostGresDB {
                 row_num += 1;
                 first = false
             }
-
-            let data = encode_rows(&rows)?;
-            export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
+            let data = encode_row(&row)?;
+            export_query_as_xlsx_send_data(&mut row_num, vec![data], sender.clone()).await?;
         }
         anyhow::Ok(())
     }
@@ -2166,9 +2133,7 @@ impl QuerySql for PostGresDB {
         emit.send(QueryEvent::new_status("trying to query."))?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
         let mut has_result = false;
-        let mut rows = Vec::new();
         let mut emit_fields = vec![];
-        let mut timeelapsed = TimeElapsed::new();
         while let Some(item) = stream.next().await {
             let item = match item {
                 Ok(x) => x,
@@ -2185,10 +2150,6 @@ impl QuerySql for PostGresDB {
                     has_result = true;
                     let fields = get_rows_types(&row);
                     if emit_fields.is_empty() || !emit_fields.eq(&fields) {
-                        if !rows.is_empty() {
-                            let data = encode_rows(&std::mem::take(&mut rows))?;
-                            emit.send(data.into())?;
-                        }
                         emit.send(
                             QueryResp {
                                 fields: fields.clone(),
@@ -2198,18 +2159,12 @@ impl QuerySql for PostGresDB {
                         )?;
                         emit_fields = fields;
                     }
-                    rows.push(row);
-                    if rows.len() >= self.query_buffer_size() || timeelapsed.elapsed() {
-                        let data = encode_rows(&std::mem::take(&mut rows))?;
-                        emit.send(data.into())?;
-                    }
+                    let data = encode_row(&row)?;
+                    emit.send(data.into())?;
                 }
             }
         }
-        if !rows.is_empty() {
-            let data = encode_rows(&std::mem::take(&mut rows))?;
-            emit.send(data.into())?;
-        }
+
         drop(stream);
         if !has_result {
             let fields = self.infer_fields_by_sql(sql).await?;

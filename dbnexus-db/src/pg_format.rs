@@ -597,343 +597,338 @@ pub(crate) fn encode_row_as_json(
 }
 
 /// encode rows to `Vec<Vec<String>>`
-pub(crate) fn encode_rows(rows: &[PgRow]) -> anyhow::Result<Vec<Vec<Option<String>>>> {
-    let mut ret = Vec::with_capacity(rows.len());
-    for r in rows.iter() {
-        let mut values = Vec::with_capacity(r.columns().len());
-        for c in 0..r.len() {
-            let col = r.column(c);
-            let ty = col.type_info().to_string();
-            let value = r.try_get_raw(c)?;
-            let default_str = if value.is_null() {
+pub(crate) fn encode_row(r: &PgRow) -> anyhow::Result<Vec<Option<String>>> {
+    let mut values = Vec::with_capacity(r.columns().len());
+    for c in 0..r.len() {
+        let col = r.column(c);
+        let ty = col.type_info().to_string();
+        let value = r.try_get_raw(c)?;
+        let default_str = if value.is_null() {
+            None
+        } else {
+            Some(format!(
+                "pg object[ty:{} data:{}]",
+                ty,
+                output_bytes(
+                    value
+                        .as_bytes()
+                        .map_err(|e| anyhow::Error::msg(e.to_string()))?
+                )
+            ))
+        };
+
+        let v = match ty.as_str() {
+            "BOOL" => {
+                let value: Option<bool> = r.try_get(c)?;
+                value.map(|x| x.to_string())
+            }
+            "BYTEA" => {
+                let value: Option<Vec<u8>> = r.try_get(c)?;
+                value.map(|x| output_bytes(&x[..]))
+            }
+
+            "NAME" => {
+                let value: Option<String> = r.try_get(c)?;
+                value
+            }
+            "INT8" => {
+                let value: Option<i64> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "INT2" => {
+                let value: Option<i16> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "INT4" => {
+                let value: Option<i32> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "TEXT" => {
+                let value: Option<String> = r.try_get(c)?;
+                value
+            }
+            "OID" => {
+                let value: Option<sqlx::postgres::types::Oid> = r.try_get(c)?;
+                value.map(|x| format!("{}", x.0))
+            }
+
+            "FLOAT4" => {
+                let value: Option<f32> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "FLOAT8" => {
+                let value: Option<f64> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "MACADDR8" => {
+                let value: Option<MacAddr8> = r.get_unchecked(c);
+                value.map(|x| format!("{}", x))
+            }
+            "MACADDR8[]" => {
+                let value: Option<Vec<MacAddr8>> = r.get_unchecked(c);
+                value.map(|x| output_macaddr8_array(&x))
+            }
+
+            "MACADDR" => {
+                let value: Option<mac_address::MacAddress> = r.try_get(c)?;
+                value.map(|x| x.to_string())
+            }
+
+            "INET" => {
+                let value: Option<ipnetwork::IpNetwork> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "BOOL[]" => {
+                let value: Option<Vec<bool>> = r.try_get(c)?;
+                value.map(|x| output_bool_array(&x))
+            }
+            "BYTEA[]" => {
+                let value: Option<Vec<Vec<u8>>> = r.try_get(c)?;
+                value.map(|x| output_bytes_array(&x))
+            }
+            "NAME[]" => {
+                let value: Option<Vec<String>> = r.try_get(c)?;
+                value.map(|x| output_array(&x))
+            }
+            "INT2[]" => {
+                let value: Option<Vec<i16>> = r.try_get(c)?;
+                value.map(|x| output_array(&x))
+            }
+            "INT4[]" => {
+                let value: Option<Vec<i32>> = r.try_get(c)?;
+                value.map(|x| output_array(&x))
+            }
+            "TEXT[]" => {
+                let value: Option<Vec<String>> = r.try_get(c)?;
+                value.map(|x| output_array(&x))
+            }
+            "CHAR[]" | "BPCHAR[]" => {
+                let value: Option<Vec<String>> = r.try_get(c)?;
+                value.map(|x| output_array(&x))
+            }
+            "VARCHAR[]" => {
+                let value: Option<Vec<String>> = r.try_get(c)?;
+                value.map(|x| output_array(&x))
+            }
+            "INT8[]" => {
+                let value: Option<Vec<i64>> = r.try_get(c)?;
+                value.map(|x| output_array(&x))
+            }
+            "POINT[]" => default_str,
+            "LSEG[]" => default_str,
+            "PATH" => default_str,
+            "PATH[]" => default_str,
+            "BOX[]" => default_str,
+            "FLOAT4[]" => {
+                let value: Option<Vec<f32>> = r.try_get(c)?;
+                value.map(|x| output_array(&x))
+            }
+            "FLOAT8[]" => {
+                let value: Option<Vec<f64>> = r.try_get(c)?;
+                value.map(|x| output_array(&x))
+            }
+            "POLYGON[]" => default_str,
+            "OID[]" => {
+                let value: Option<Vec<sqlx::postgres::types::Oid>> = r.try_get(c)?;
+                value
+                    .map(|x| x.into_iter().map(|x| x.0).collect::<Vec<_>>())
+                    .map(|x| output_array(&x))
+            }
+            "MACADDR[]" => {
+                let value: Option<Vec<mac_address::MacAddress>> = r.try_get(c)?;
+                value.map(|x| output_array(&x))
+            }
+            "INET[]" => {
+                let value: Option<Vec<ipnetwork::IpNetwork>> = r.try_get(c)?;
+                value.map(|x| output_array(&x))
+            }
+            "CHAR" => {
+                let value: Option<String> = r.try_get(c)?;
+                value
+            }
+            "\"CHAR\"" => {
+                let value: Option<i8> = r.try_get(c)?;
+                value.map(|x| x as u8 as char).map(|x| x.to_string())
+            }
+            "VARCHAR" => {
+                let value: Option<String> = r.try_get(c)?;
+                value
+            }
+            "DATE" => {
+                let value: Option<chrono::NaiveDate> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "TIME" | "TIME WITHOUT TIME ZONE" => {
+                let value: Option<chrono::NaiveTime> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "TIMESTAMP" | "TIMESTAMP WITHOUT TIME ZONE" => {
+                let value: Option<chrono::NaiveDateTime> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "TIMESTAMP[]" => {
+                let value: Option<Vec<chrono::NaiveDateTime>> = r.try_get(c)?;
+                value.map(|x| output_naive_datetime_array(&x))
+            }
+            "DATE[]" => {
+                let value: Option<Vec<chrono::NaiveDate>> = r.try_get(c)?;
+                value.map(|x| output_naive_date_array(&x))
+            }
+            "TIME[]" => {
+                let value: Option<Vec<chrono::NaiveTime>> = r.try_get(c)?;
+                value.map(|x| output_naive_time_array(&x))
+            }
+            "TIMESTAMPTZ" | "TIMESTAMP WITH TIME ZONE" => {
+                let value: Option<chrono::DateTime<FixedOffset>> = r.try_get(c)?;
+                value.map(|x| format_data_time_fix_offset(&x))
+            }
+
+            "TIMESTAMPTZ[]" => {
+                let value: Option<Vec<chrono::DateTime<FixedOffset>>> = r.try_get(c)?;
+                value.map(|x| output_date_time_fixoffset_array(&x))
+            }
+            "INTERVAL" => {
+                let value: Option<sqlx::postgres::types::PgInterval> = r.try_get(c)?;
+                value.map(|x| output_pg_interval(&x))
+            }
+
+            "INTERVAL[]" => {
+                let value: Option<Vec<PgInterval>> = r.try_get(c)?;
+                value.map(|x| output_pg_interval_array(&x))
+            }
+            "NUMERIC" => {
+                let value: Option<BigDecimal> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+            "NUMERIC[]" => {
+                let value: Option<Vec<BigDecimal>> = r.try_get(c)?;
+                value.map(|x| output_array(&x))
+            }
+
+            "TIMETZ" | "TIME WITH TIME ZONE" => {
+                let value: Option<PgTimeTz> = r.try_get(c)?;
+                value.map(|x| output_pg_timez(&x))
+            }
+            "TIMETZ[]" => {
+                let value: Option<Vec<PgTimeTz>> = r.try_get(c)?;
+                value.map(|x| output_pg_timez_array(&x))
+            }
+            "BIT" => {
+                let value: Option<bit_vec::BitVec> = r.try_get(c)?;
+                value.map(|x| output_bit_vec(&x))
+            }
+            "BIT[]" => {
+                let value: Option<Vec<bit_vec::BitVec>> = r.try_get(c)?;
+                value.map(|x| output_bit_vec_array(&x))
+            }
+
+            "VARBIT" | "BIT VARYING" => {
+                let value: Option<bit_vec::BitVec> = r.try_get(c)?;
+                value.map(|x| output_bit_vec(&x))
+            }
+            "VARBIT[]" => {
+                let value: Option<Vec<bit_vec::BitVec>> = r.try_get(c)?;
+                value.map(|x| output_bit_vec_array(&x))
+            }
+            "RECORD" => default_str,
+            "RECORD[]" => default_str,
+            "UUID" => {
+                let value: Option<uuid::Uuid> = r.try_get(c)?;
+                value.map(|x| format!("{}", x))
+            }
+
+            "UUID[]" => {
+                let value: Option<Vec<uuid::Uuid>> = r.try_get(c)?;
+                value.map(|x| output_array(&x))
+            }
+
+            "JSON" => {
+                let value: Option<serde_json::Value> = r.try_get(c)?;
+                value.map(|x| x.to_string())
+            }
+            "JSONB" => {
+                let value: Option<serde_json::Value> = r.try_get(c)?;
+                value.map(|x| x.to_string())
+            }
+            "JSONB[]" => {
+                let value: Option<Vec<serde_json::Value>> = r.try_get(c)?;
+                value.map(|x| output_jsonb_array(&x))
+            }
+            "INT4RANGE" => {
+                let value: Option<PgRange<i32>> = r.try_get(c)?;
+                value.map(|x| output_range(&x))
+            }
+            "INT4RANGE[]" => {
+                let value: Option<Vec<PgRange<i32>>> = r.try_get(c)?;
+                value.map(|x| output_range_array(&x))
+            }
+            "NUMRANGE" => {
+                let value: Option<PgRange<BigDecimal>> = r.try_get(c)?;
+                value.map(|x| output_range(&x))
+            }
+            "NUMRANGE[]" => {
+                let value: Option<Vec<PgRange<BigDecimal>>> = r.try_get(c)?;
+                value.map(|x| output_range_array(&x))
+            }
+            "TSRANGE" => {
+                let value: Option<PgRange<chrono::NaiveDateTime>> = r.try_get(c)?;
+                value.map(|x| output_range(&x))
+            }
+            "TSRANGE[]" => {
+                let value: Option<Vec<PgRange<chrono::NaiveDateTime>>> = r.try_get(c)?;
+                value.map(|x| output_range_array(&x))
+            }
+
+            "TSTZRANGE" => {
+                let value: Option<PgRange<chrono::DateTime<FixedOffset>>> = r.try_get(c)?;
+                value.map(|x| output_range_data_time_fixoffset(&x))
+            }
+            "TSTZRANGE[]" => {
+                let value: Option<Vec<PgRange<chrono::DateTime<FixedOffset>>>> = r.try_get(c)?;
+                value.map(|x| output_range_data_time_fix_offset_array(&x))
+            }
+            "DATERANGE" => {
+                let value: Option<PgRange<chrono::NaiveDate>> = r.try_get(c)?;
+                value.map(|x| output_range(&x))
+            }
+            "DATERANGE[]" => {
+                let value: Option<Vec<PgRange<chrono::NaiveDate>>> = r.try_get(c)?;
+                value.map(|x| output_range_array(&x))
+            }
+            "INT8RANGE" => {
+                let value: Option<PgRange<i64>> = r.try_get(c)?;
+                value.map(|x| output_range(&x))
+            }
+            "INT8RANGE[]" => {
+                let value: Option<Vec<PgRange<i64>>> = r.try_get(c)?;
+                value.map(|x| output_range_array(&x))
+            }
+
+            "JSONPATH" => {
+                anyhow::bail!("JSONPATH not support");
+            }
+            "JSONPATH[]" => {
+                anyhow::bail!("JSONPATH[] not support");
+            }
+
+            "MONEY" => {
+                let value: Option<PgMoney> = r.try_get(c)?;
+                value.map(|x| format!("{}", PgMoneyFmt::from(x)))
+            }
+
+            "MONEY[]" => {
+                let value: Option<Vec<PgMoney>> = r.try_get(c)?;
+                value.map(|x| output_pg_money_array(&x))
+            }
+            "VOID" => {
+                // TODO it this right.
                 None
-            } else {
-                Some(format!(
-                    "pg object[ty:{} data:{}]",
-                    ty,
-                    output_bytes(
-                        value
-                            .as_bytes()
-                            .map_err(|e| anyhow::Error::msg(e.to_string()))?
-                    )
-                ))
-            };
-
-            let v = match ty.as_str() {
-                "BOOL" => {
-                    let value: Option<bool> = r.try_get(c)?;
-                    value.map(|x| x.to_string())
-                }
-                "BYTEA" => {
-                    let value: Option<Vec<u8>> = r.try_get(c)?;
-                    value.map(|x| output_bytes(&x[..]))
-                }
-
-                "NAME" => {
-                    let value: Option<String> = r.try_get(c)?;
-                    value
-                }
-                "INT8" => {
-                    let value: Option<i64> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "INT2" => {
-                    let value: Option<i16> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "INT4" => {
-                    let value: Option<i32> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "TEXT" => {
-                    let value: Option<String> = r.try_get(c)?;
-                    value
-                }
-                "OID" => {
-                    let value: Option<sqlx::postgres::types::Oid> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x.0))
-                }
-
-                "FLOAT4" => {
-                    let value: Option<f32> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "FLOAT8" => {
-                    let value: Option<f64> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "MACADDR8" => {
-                    let value: Option<MacAddr8> = r.get_unchecked(c);
-                    value.map(|x| format!("{}", x))
-                }
-                "MACADDR8[]" => {
-                    let value: Option<Vec<MacAddr8>> = r.get_unchecked(c);
-                    value.map(|x| output_macaddr8_array(&x))
-                }
-
-                "MACADDR" => {
-                    let value: Option<mac_address::MacAddress> = r.try_get(c)?;
-                    value.map(|x| x.to_string())
-                }
-
-                "INET" => {
-                    let value: Option<ipnetwork::IpNetwork> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "BOOL[]" => {
-                    let value: Option<Vec<bool>> = r.try_get(c)?;
-                    value.map(|x| output_bool_array(&x))
-                }
-                "BYTEA[]" => {
-                    let value: Option<Vec<Vec<u8>>> = r.try_get(c)?;
-                    value.map(|x| output_bytes_array(&x))
-                }
-                "NAME[]" => {
-                    let value: Option<Vec<String>> = r.try_get(c)?;
-                    value.map(|x| output_array(&x))
-                }
-                "INT2[]" => {
-                    let value: Option<Vec<i16>> = r.try_get(c)?;
-                    value.map(|x| output_array(&x))
-                }
-                "INT4[]" => {
-                    let value: Option<Vec<i32>> = r.try_get(c)?;
-                    value.map(|x| output_array(&x))
-                }
-                "TEXT[]" => {
-                    let value: Option<Vec<String>> = r.try_get(c)?;
-                    value.map(|x| output_array(&x))
-                }
-                "CHAR[]" | "BPCHAR[]" => {
-                    let value: Option<Vec<String>> = r.try_get(c)?;
-                    value.map(|x| output_array(&x))
-                }
-                "VARCHAR[]" => {
-                    let value: Option<Vec<String>> = r.try_get(c)?;
-                    value.map(|x| output_array(&x))
-                }
-                "INT8[]" => {
-                    let value: Option<Vec<i64>> = r.try_get(c)?;
-                    value.map(|x| output_array(&x))
-                }
-                "POINT[]" => default_str,
-                "LSEG[]" => default_str,
-                "PATH" => default_str,
-                "PATH[]" => default_str,
-                "BOX[]" => default_str,
-                "FLOAT4[]" => {
-                    let value: Option<Vec<f32>> = r.try_get(c)?;
-                    value.map(|x| output_array(&x))
-                }
-                "FLOAT8[]" => {
-                    let value: Option<Vec<f64>> = r.try_get(c)?;
-                    value.map(|x| output_array(&x))
-                }
-                "POLYGON[]" => default_str,
-                "OID[]" => {
-                    let value: Option<Vec<sqlx::postgres::types::Oid>> = r.try_get(c)?;
-                    value
-                        .map(|x| x.into_iter().map(|x| x.0).collect::<Vec<_>>())
-                        .map(|x| output_array(&x))
-                }
-                "MACADDR[]" => {
-                    let value: Option<Vec<mac_address::MacAddress>> = r.try_get(c)?;
-                    value.map(|x| output_array(&x))
-                }
-                "INET[]" => {
-                    let value: Option<Vec<ipnetwork::IpNetwork>> = r.try_get(c)?;
-                    value.map(|x| output_array(&x))
-                }
-                "CHAR" => {
-                    let value: Option<String> = r.try_get(c)?;
-                    value
-                }
-                "\"CHAR\"" => {
-                    let value: Option<i8> = r.try_get(c)?;
-                    value.map(|x| x as u8 as char).map(|x| x.to_string())
-                }
-                "VARCHAR" => {
-                    let value: Option<String> = r.try_get(c)?;
-                    value
-                }
-                "DATE" => {
-                    let value: Option<chrono::NaiveDate> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "TIME" | "TIME WITHOUT TIME ZONE" => {
-                    let value: Option<chrono::NaiveTime> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "TIMESTAMP" | "TIMESTAMP WITHOUT TIME ZONE" => {
-                    let value: Option<chrono::NaiveDateTime> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "TIMESTAMP[]" => {
-                    let value: Option<Vec<chrono::NaiveDateTime>> = r.try_get(c)?;
-                    value.map(|x| output_naive_datetime_array(&x))
-                }
-                "DATE[]" => {
-                    let value: Option<Vec<chrono::NaiveDate>> = r.try_get(c)?;
-                    value.map(|x| output_naive_date_array(&x))
-                }
-                "TIME[]" => {
-                    let value: Option<Vec<chrono::NaiveTime>> = r.try_get(c)?;
-                    value.map(|x| output_naive_time_array(&x))
-                }
-                "TIMESTAMPTZ" | "TIMESTAMP WITH TIME ZONE" => {
-                    let value: Option<chrono::DateTime<FixedOffset>> = r.try_get(c)?;
-                    value.map(|x| format_data_time_fix_offset(&x))
-                }
-
-                "TIMESTAMPTZ[]" => {
-                    let value: Option<Vec<chrono::DateTime<FixedOffset>>> = r.try_get(c)?;
-                    value.map(|x| output_date_time_fixoffset_array(&x))
-                }
-                "INTERVAL" => {
-                    let value: Option<sqlx::postgres::types::PgInterval> = r.try_get(c)?;
-                    value.map(|x| output_pg_interval(&x))
-                }
-
-                "INTERVAL[]" => {
-                    let value: Option<Vec<PgInterval>> = r.try_get(c)?;
-                    value.map(|x| output_pg_interval_array(&x))
-                }
-                "NUMERIC" => {
-                    let value: Option<BigDecimal> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-                "NUMERIC[]" => {
-                    let value: Option<Vec<BigDecimal>> = r.try_get(c)?;
-                    value.map(|x| output_array(&x))
-                }
-
-                "TIMETZ" | "TIME WITH TIME ZONE" => {
-                    let value: Option<PgTimeTz> = r.try_get(c)?;
-                    value.map(|x| output_pg_timez(&x))
-                }
-                "TIMETZ[]" => {
-                    let value: Option<Vec<PgTimeTz>> = r.try_get(c)?;
-                    value.map(|x| output_pg_timez_array(&x))
-                }
-                "BIT" => {
-                    let value: Option<bit_vec::BitVec> = r.try_get(c)?;
-                    value.map(|x| output_bit_vec(&x))
-                }
-                "BIT[]" => {
-                    let value: Option<Vec<bit_vec::BitVec>> = r.try_get(c)?;
-                    value.map(|x| output_bit_vec_array(&x))
-                }
-
-                "VARBIT" | "BIT VARYING" => {
-                    let value: Option<bit_vec::BitVec> = r.try_get(c)?;
-                    value.map(|x| output_bit_vec(&x))
-                }
-                "VARBIT[]" => {
-                    let value: Option<Vec<bit_vec::BitVec>> = r.try_get(c)?;
-                    value.map(|x| output_bit_vec_array(&x))
-                }
-                "RECORD" => default_str,
-                "RECORD[]" => default_str,
-                "UUID" => {
-                    let value: Option<uuid::Uuid> = r.try_get(c)?;
-                    value.map(|x| format!("{}", x))
-                }
-
-                "UUID[]" => {
-                    let value: Option<Vec<uuid::Uuid>> = r.try_get(c)?;
-                    value.map(|x| output_array(&x))
-                }
-
-                "JSON" => {
-                    let value: Option<serde_json::Value> = r.try_get(c)?;
-                    value.map(|x| x.to_string())
-                }
-                "JSONB" => {
-                    let value: Option<serde_json::Value> = r.try_get(c)?;
-                    value.map(|x| x.to_string())
-                }
-                "JSONB[]" => {
-                    let value: Option<Vec<serde_json::Value>> = r.try_get(c)?;
-                    value.map(|x| output_jsonb_array(&x))
-                }
-                "INT4RANGE" => {
-                    let value: Option<PgRange<i32>> = r.try_get(c)?;
-                    value.map(|x| output_range(&x))
-                }
-                "INT4RANGE[]" => {
-                    let value: Option<Vec<PgRange<i32>>> = r.try_get(c)?;
-                    value.map(|x| output_range_array(&x))
-                }
-                "NUMRANGE" => {
-                    let value: Option<PgRange<BigDecimal>> = r.try_get(c)?;
-                    value.map(|x| output_range(&x))
-                }
-                "NUMRANGE[]" => {
-                    let value: Option<Vec<PgRange<BigDecimal>>> = r.try_get(c)?;
-                    value.map(|x| output_range_array(&x))
-                }
-                "TSRANGE" => {
-                    let value: Option<PgRange<chrono::NaiveDateTime>> = r.try_get(c)?;
-                    value.map(|x| output_range(&x))
-                }
-                "TSRANGE[]" => {
-                    let value: Option<Vec<PgRange<chrono::NaiveDateTime>>> = r.try_get(c)?;
-                    value.map(|x| output_range_array(&x))
-                }
-
-                "TSTZRANGE" => {
-                    let value: Option<PgRange<chrono::DateTime<FixedOffset>>> = r.try_get(c)?;
-                    value.map(|x| output_range_data_time_fixoffset(&x))
-                }
-                "TSTZRANGE[]" => {
-                    let value: Option<Vec<PgRange<chrono::DateTime<FixedOffset>>>> =
-                        r.try_get(c)?;
-                    value.map(|x| output_range_data_time_fix_offset_array(&x))
-                }
-                "DATERANGE" => {
-                    let value: Option<PgRange<chrono::NaiveDate>> = r.try_get(c)?;
-                    value.map(|x| output_range(&x))
-                }
-                "DATERANGE[]" => {
-                    let value: Option<Vec<PgRange<chrono::NaiveDate>>> = r.try_get(c)?;
-                    value.map(|x| output_range_array(&x))
-                }
-                "INT8RANGE" => {
-                    let value: Option<PgRange<i64>> = r.try_get(c)?;
-                    value.map(|x| output_range(&x))
-                }
-                "INT8RANGE[]" => {
-                    let value: Option<Vec<PgRange<i64>>> = r.try_get(c)?;
-                    value.map(|x| output_range_array(&x))
-                }
-
-                "JSONPATH" => {
-                    anyhow::bail!("JSONPATH not support");
-                }
-                "JSONPATH[]" => {
-                    anyhow::bail!("JSONPATH[] not support");
-                }
-
-                "MONEY" => {
-                    let value: Option<PgMoney> = r.try_get(c)?;
-                    value.map(|x| format!("{}", PgMoneyFmt::from(x)))
-                }
-
-                "MONEY[]" => {
-                    let value: Option<Vec<PgMoney>> = r.try_get(c)?;
-                    value.map(|x| output_pg_money_array(&x))
-                }
-                "VOID" => {
-                    // TODO it this right.
-                    None
-                }
-                _ => default_str,
-            };
-            values.push(v);
-        }
-        ret.push(values);
+            }
+            _ => default_str,
+        };
+        values.push(v);
     }
-    anyhow::Ok(ret)
+    anyhow::Ok(values)
 }
 
 pub(crate) fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {

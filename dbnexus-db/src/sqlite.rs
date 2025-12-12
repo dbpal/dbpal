@@ -5,8 +5,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dashmap::DashMap;
+use futures_util::StreamExt;
 use futures_util::lock::Mutex;
-use futures_util::{StreamExt, TryStreamExt};
 use sqlparser::ast::{ColumnOption, Statement};
 use sqlparser::tokenizer::Token;
 use sqlx::pool::{PoolConnection, PoolOptions};
@@ -19,7 +19,7 @@ use crate::db::{
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
-    TimeElapsed, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, create_html_table_data,
+    TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, create_html_table_data,
     create_html_table_header, escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
 };
 use crate::helper::create_csv;
@@ -88,23 +88,17 @@ impl SqliteDB {
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .fetch(conn.deref_mut())
-            .try_chunks(100);
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-
-            let data = encode_rows(&rows)?;
-            for d in data.into_iter() {
-                let mut m = HashMap::new();
-                for (d, f) in d.into_iter().zip(cols.iter()) {
-                    m.insert(f.field.clone(), d);
-                }
-
-                let insert_sql = self.insert_sql(None, table_name, &cols, &m)?;
-                sender.send(Cow::Owned(insert_sql)).await?;
-                sender.send(";\n".into()).await?;
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            let data = encode_row(&row)?;
+            let mut m = HashMap::new();
+            for (d, f) in data.into_iter().zip(cols.iter()) {
+                m.insert(f.field.clone(), d);
             }
+            let insert_sql = self.insert_sql(None, table_name, &cols, &m)?;
+            sender.send(Cow::Owned(insert_sql)).await?;
+            sender.send(";\n".into()).await?;
         }
         anyhow::Ok(())
     }
@@ -205,32 +199,25 @@ impl SqliteDB {
         let conn = self.get_conn_by_query_id(query_id).await?;
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch(conn.deref_mut())
-            .try_chunks(100);
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         let mut first = true;
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-            if first && !rows.is_empty() && include_header {
-                let fs = rows
-                    .first()
-                    .expect("rows is not empty")
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            if first && include_header {
+                let fs = row
                     .columns()
                     .iter()
                     .map(|x| x.name().to_string())
                     .map(Some)
                     .collect();
-
                 sender
                     .send(Cow::Owned(create_csv(&[fs], delimiter)))
                     .await?;
                 first = false;
             }
-            let data = encode_rows(&rows)?;
-
+            let data = encode_row(&row)?;
             sender
-                .send(Cow::Owned(create_csv(&data, delimiter)))
+                .send(Cow::Owned(create_csv(&[data], delimiter)))
                 .await?;
         }
         anyhow::Ok(())
@@ -243,15 +230,13 @@ impl SqliteDB {
         let conn = self.get_conn_by_query_id(query_id).await?;
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch(conn.deref_mut())
-            .try_chunks(1000);
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         let mut first = true;
         let mut row_num = 0;
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-            if first && !rows.is_empty() && include_header {
-                for (index, col) in rows[0].columns().iter().enumerate() {
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            if first && include_header {
+                for (index, col) in row.columns().iter().enumerate() {
                     sender
                         .send(
                             XlsxEdit {
@@ -267,8 +252,8 @@ impl SqliteDB {
                 row_num += 1;
                 first = false;
             }
-            let data = encode_rows(&rows)?;
-            export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
+            let data = encode_row(&row)?;
+            export_query_as_xlsx_send_data(&mut row_num, vec![data], sender.clone()).await?;
         }
         anyhow::Ok(())
     }
@@ -280,25 +265,19 @@ impl SqliteDB {
         let conn = self.get_conn_by_query_id(query_id).await?;
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql))
-            .fetch(conn.deref_mut())
-            .try_chunks(1000);
+        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
         let mut first = true;
-        while let Some(rows) = stream.next().await {
-            let rows = rows?;
-            if first && !rows.is_empty() && include_header {
-                let cols: Vec<_> = rows[0]
-                    .columns()
-                    .iter()
-                    .map(|x| x.name().to_string())
-                    .collect();
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            if first && include_header {
+                let cols: Vec<_> = row.columns().iter().map(|x| x.name().to_string()).collect();
                 sender
                     .send(create_html_table_header(&cols[..]).into())
                     .await?;
                 first = false;
             }
-            let data = encode_rows(&rows)?;
-            sender.send(create_html_table_data(&data).into()).await?;
+            let data = encode_row(&row)?;
+            sender.send(create_html_table_data(&[data]).into()).await?;
         }
         anyhow::Ok(())
     }
@@ -914,18 +893,11 @@ impl SchemaTrait for SqliteDB {
         emit.send("trying to get connection.".into())?;
         let mut conn = self.get_conn().await?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
-        let mut rows = vec![];
-        let mut time_elapsed = TimeElapsed::new();
         while let Some(row) = stream.next().await {
             let row = row?;
-            rows.push(row);
-            if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                let d = encode_rows(&std::mem::take(&mut rows))?;
-                emit.send(d.into())?;
-            }
+            let d = encode_row(&row)?;
+            emit.send(d.into())?;
         }
-        let d = encode_rows(&std::mem::take(&mut rows))?;
-        emit.send(d.into())?;
         anyhow::Ok(())
     }
 
@@ -954,8 +926,6 @@ impl SchemaTrait for SqliteDB {
         log::info!("show table sql:{}", sql);
         emit.send("trying to query data.".into())?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
-        let mut rows = vec![];
-        let mut time_elapsed = TimeElapsed::new();
         let mut first = true;
         while let Some(row) = stream.next().await {
             let row = row?;
@@ -971,14 +941,7 @@ impl SchemaTrait for SqliteDB {
                     .into(),
                 )?;
             }
-            rows.push(row);
-            if rows.len() >= self.query_buffer_size() || time_elapsed.elapsed() {
-                let d = encode_rows(&std::mem::take(&mut rows))?;
-                emit.send(d.into())?;
-            }
-        }
-        if !rows.is_empty() {
-            let d = encode_rows(&rows)?;
+            let d = encode_row(&row)?;
             emit.send(d.into())?;
         }
         if first {
@@ -1233,87 +1196,81 @@ pub(crate) fn real_like(typ: &str) -> bool {
     typ == "REAL" || typ == "DOUBLE" || typ == "DOUBLE PRECISION" || typ == "FLOAT"
 }
 
-fn encode_rows(rows: &[SqliteRow]) -> anyhow::Result<Vec<Vec<Option<String>>>> {
-    let mut ret = Vec::with_capacity(rows.len());
+fn encode_row(row: &SqliteRow) -> anyhow::Result<Vec<Option<String>>> {
+    let mut values = Vec::with_capacity(row.len());
+    for c in 0..row.len() {
+        let ty = row.column(c).type_info().name();
+        let v = match ty {
+            "NULL" | "" => {
+                // null table is not always null. I quote 'suitable for
+                // representing missing or unknown data'
+                // try get possible values
+                if let Result::Ok(s) = row.try_get::<'_, f64, _>(c) {
+                    Some(s.to_string())
+                } else if let Result::Ok(s) = row.try_get::<'_, i64, _>(c) {
+                    Some(s.to_string())
+                } else if let Result::Ok(s) = row.try_get(c) {
+                    Some(s)
+                } else if let Result::Ok(s) = row.try_get::<'_, bool, _>(c) {
+                    Some(s.to_string())
+                } else if let Result::Ok(s) = row.try_get::<'_, Vec<u8>, _>(c) {
+                    Some(encode_bytes(s.as_slice()))
+                } else {
+                    None
+                }
+            }
 
-    for r in rows.iter() {
-        let mut values = Vec::with_capacity(r.len());
-        for c in 0..r.len() {
-            let ty = r.column(c).type_info().name();
+            "TEXT" => {
+                let v: Option<String> = row.try_get(c)?;
+                v
+            }
+            "REAL" => {
+                let v: Option<f64> = row.try_get(c)?;
+                v.map(|x| format!("{}", x))
+            }
+            "BLOB" => {
+                let v: Option<Vec<u8>> = row.try_get(c)?;
+                v.map(|x| encode_bytes(x.as_slice()))
+            }
 
-            let v = match ty {
-                "NULL" | "" => {
-                    // null table is not always null. I quote 'suitable for
-                    // representing missing or unknown data'
-                    // try get possible values
-                    if let Result::Ok(s) = r.try_get::<'_, f64, _>(c) {
-                        Some(s.to_string())
-                    } else if let Result::Ok(s) = r.try_get::<'_, i64, _>(c) {
-                        Some(s.to_string())
-                    } else if let Result::Ok(s) = r.try_get(c) {
-                        Some(s)
-                    } else if let Result::Ok(s) = r.try_get::<'_, bool, _>(c) {
-                        Some(s.to_string())
-                    } else if let Result::Ok(s) = r.try_get::<'_, Vec<u8>, _>(c) {
-                        Some(encode_bytes(s.as_slice()))
-                    } else {
-                        None
+            _ if integer_like(ty) => {
+                let v: Result<Option<i64>, _> = row.try_get(c);
+                match v {
+                    Ok(x) => x.map(|x| x.to_string()),
+                    Err(_) => {
+                        // sometimes can save a float in here
+                        let v: Option<f64> = row.try_get(c)?;
+                        v.map(|x| format!("{}", x))
                     }
                 }
+            }
+            _ if numeric_like(ty) => {
+                let v: Option<f64> = row.try_get(c)?;
+                v.map(|x| format!("{}", x))
+            }
 
-                "TEXT" => {
-                    let v: Option<String> = r.try_get(c)?;
-                    v
-                }
-                "REAL" => {
-                    let v: Option<f64> = r.try_get(c)?;
-                    v.map(|x| format!("{}", x))
-                }
-                "BLOB" => {
-                    let v: Option<Vec<u8>> = r.try_get(c)?;
-                    v.map(|x| encode_bytes(x.as_slice()))
-                }
+            "BOOLEAN" => {
+                let v: Option<bool> = row.try_get(c)?;
+                v.map(|x| format!("{}", x))
+            }
+            "DATE" => {
+                let v: Option<chrono::NaiveDate> = row.try_get(c)?;
+                v.map(|x| format!("{}", x))
+            }
+            "TIME" => {
+                let v: Option<chrono::NaiveTime> = row.try_get(c)?;
+                v.map(|x| format!("{}", x))
+            }
+            "DATETIME" => {
+                let v: Option<chrono::NaiveDateTime> = row.try_get(c)?;
+                v.map(|x| format!("{}", x))
+            }
+            _ => anyhow::bail!(format!("type '{ty}' not supported")),
+        };
 
-                _ if integer_like(ty) => {
-                    let v: Result<Option<i64>, _> = r.try_get(c);
-                    match v {
-                        Ok(x) => x.map(|x| x.to_string()),
-                        Err(_) => {
-                            // sometimes can save a float in here
-                            let v: Option<f64> = r.try_get(c)?;
-                            v.map(|x| format!("{}", x))
-                        }
-                    }
-                }
-                _ if numeric_like(ty) => {
-                    let v: Option<f64> = r.try_get(c)?;
-                    v.map(|x| format!("{}", x))
-                }
-
-                "BOOLEAN" => {
-                    let v: Option<bool> = r.try_get(c)?;
-                    v.map(|x| format!("{}", x))
-                }
-                "DATE" => {
-                    let v: Option<chrono::NaiveDate> = r.try_get(c)?;
-                    v.map(|x| format!("{}", x))
-                }
-                "TIME" => {
-                    let v: Option<chrono::NaiveTime> = r.try_get(c)?;
-                    v.map(|x| format!("{}", x))
-                }
-                "DATETIME" => {
-                    let v: Option<chrono::NaiveDateTime> = r.try_get(c)?;
-                    v.map(|x| format!("{}", x))
-                }
-                _ => anyhow::bail!(format!("type '{ty}' not supported")),
-            };
-
-            values.push(v);
-        }
-        ret.push(values);
+        values.push(v);
     }
-    anyhow::Ok(ret)
+    anyhow::Ok(values)
 }
 
 impl SqliteDB {
@@ -1577,9 +1534,7 @@ impl QuerySql for SqliteDB {
         emit.send(QueryEvent::Status("trying to get response stream".into()))?;
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch_many(conn.deref_mut());
         emit.send(QueryEvent::Status("get response ok.".into()))?;
-        let mut rows = Vec::new();
         let mut emit_fields = Vec::new();
-        let mut timeelapsed = TimeElapsed::new();
         let mut has_result = false;
         while let Some(item) = stream.next().await {
             let item = match item {
@@ -1597,10 +1552,6 @@ impl QuerySql for SqliteDB {
                     has_result = true;
                     let fields = get_row_types(&row);
                     if emit_fields.is_empty() || !fields.eq(&emit_fields) {
-                        if !rows.is_empty() {
-                            let data = encode_rows(&std::mem::take(&mut rows))?;
-                            emit.send(data.into())?;
-                        }
                         emit.send(
                             QueryResp {
                                 fields: fields.clone(),
@@ -1610,16 +1561,10 @@ impl QuerySql for SqliteDB {
                         )?;
                         emit_fields = fields;
                     }
-                    rows.push(row);
-                    if rows.len() >= self.query_buffer_size() || timeelapsed.elapsed() {
-                        let data = encode_rows(&std::mem::take(&mut rows))?;
-                        emit.send(data.into())?;
-                    }
+                    let data = encode_row(&row)?;
+                    emit.send(data.into())?;
                 }
             }
-        }
-        if !rows.is_empty() {
-            emit.send(encode_rows(&rows)?.into())?;
         }
         drop(stream);
         if !has_result {

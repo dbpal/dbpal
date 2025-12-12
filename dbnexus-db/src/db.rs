@@ -1074,10 +1074,6 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
         not_support_feature(self.backend_name())
     }
 
-    fn query_buffer_size(&self) -> usize {
-        if cfg!(debug_assertions) { 77 } else { 1000 }
-    }
-
     async fn set_auto_commit(&self, _query_id: &str, _commit: bool) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
@@ -1594,13 +1590,13 @@ pub struct TimeElapsed {
 }
 
 impl TimeElapsed {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             d: Duration::from_millis(100),
             ins: std::time::Instant::now(),
         }
     }
-    pub(crate) fn elapsed(&mut self) -> bool {
+    pub fn elapsed(&mut self) -> bool {
         let e = self.ins.elapsed() > self.d;
         if e {
             self.ins = std::time::Instant::now();
@@ -1682,6 +1678,25 @@ pub enum QueryEvent {
     Data(Vec<Vec<Option<String>>>),
     Status(String),
     Err(String),
+    Row(Vec<Option<String>>),
+}
+
+impl From<Vec<Option<String>>> for QueryEvent {
+    fn from(value: Vec<Option<String>>) -> Self {
+        QueryEvent::Row(value)
+    }
+}
+
+impl QueryEvent {
+    pub fn data_len(&self) -> usize {
+        match self {
+            QueryEvent::Resp(query_resp) => query_resp.data.len(),
+            QueryEvent::Data(items) => items.len(),
+            QueryEvent::Status(_) => 0,
+            QueryEvent::Err(_) => 0,
+            QueryEvent::Row(..) => 1,
+        }
+    }
 }
 
 impl QueryEvent {

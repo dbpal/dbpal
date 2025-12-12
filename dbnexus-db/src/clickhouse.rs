@@ -481,23 +481,17 @@ impl SchemaTrait for ClickHouseDB {
             .into(),
         )?;
         emit.send("trying to query data.".into())?;
-        let mut rows = vec![];
         let mut stream = self.query_row(&sql).await?;
         while let Some(row) = stream.next().await {
             let row = row?;
             match row {
                 FieldsOrData::Fields(_) => {}
                 FieldsOrData::Data(row) => {
-                    rows.push(row);
+                    emit.send(row.into())?;
                 }
                 FieldsOrData::ReadingColumns => {}
             }
-
-            if rows.len() >= self.query_buffer_size() {
-                emit.send(std::mem::take(&mut rows).into())?;
-            }
         }
-        emit.send(std::mem::take(&mut rows).into())?;
         anyhow::Ok(())
     }
 
@@ -526,7 +520,6 @@ impl SchemaTrait for ClickHouseDB {
         );
         log::info!("sql:{}", sql);
         emit.send("trying to query data.".into())?;
-        let mut rows = vec![];
         let mut stream = self.query_row(&sql).await?;
         while let Some(row) = stream.next().await {
             let row = row?;
@@ -542,16 +535,11 @@ impl SchemaTrait for ClickHouseDB {
                     )?;
                 }
                 FieldsOrData::Data(row) => {
-                    rows.push(row);
+                    emit.send(row.into())?;
                 }
                 FieldsOrData::ReadingColumns => {}
             }
-
-            if rows.len() >= self.query_buffer_size() {
-                emit.send(std::mem::take(&mut rows).into())?;
-            }
         }
-        emit.send(std::mem::take(&mut rows).into())?;
         anyhow::Ok(())
     }
 
@@ -999,7 +987,6 @@ impl QuerySql for ClickHouseDB {
             let mut stream = self.query_row(sql).await?;
             while let Some(row) = stream.next().await {
                 let row = row?;
-
                 match row {
                     FieldsOrData::Fields(fields) => emit.send(
                         QueryResp {

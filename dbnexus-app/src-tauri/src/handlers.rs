@@ -1,9 +1,3 @@
-use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, LazyLock, Mutex};
-use std::time::Duration;
-use std::usize;
-
 use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
@@ -11,9 +5,14 @@ use dbnexus_db::db::{
     ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef,
     DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, ProcedureDetail, QueryEventEmit, QueryResp, SequenceDetail,
-    ShowTableParameter, SqlEvent, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
-    escape_sql_str,
+    ShowTableParameter, SqlEvent, SqlExecuteRet, TimeElapsed, TriggerDetail,
+    UdfOrProcedureExtraParameter, escape_sql_str,
 };
+use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, LazyLock, Mutex};
+use std::time::Duration;
+use std::usize;
 
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
@@ -926,7 +925,6 @@ pub async fn export_query_result_to_file(
             log::error!("remove file failed:{}", e);
         }
     };
-
     let r = tokio::select! {
         biased;
         res =  fur  => res,
@@ -989,6 +987,14 @@ struct QueryEventChannelEmit {
     cancel_msg: CanTokenMsg,
     limit: Option<usize>,
     emitted_size: AtomicUsize,
+    cache: Arc<Mutex<Vec<Vec<Option<String>>>>>,
+    time_elapsed: Arc<Mutex<TimeElapsed>>,
+}
+
+impl QueryEventChannelEmit {
+    fn elapsed(&self) -> bool {
+        self.time_elapsed.lock().expect("lock failed").elapsed()
+    }
 }
 
 impl QueryEventChannelEmit {
@@ -998,6 +1004,8 @@ impl QueryEventChannelEmit {
             cancel_msg,
             limit,
             emitted_size: AtomicUsize::new(0),
+            cache: Default::default(),
+            time_elapsed: Arc::new(Mutex::new(TimeElapsed::new())),
         }
     }
     fn get_limit(&self) -> usize {
@@ -1005,13 +1013,31 @@ impl QueryEventChannelEmit {
     }
 }
 
+impl Drop for QueryEventChannelEmit {
+    fn drop(&mut self) {
+        if let Err(err) = self.take_data_and_send() {
+            println!("send data to frontend failed,err:{}", err);
+        }
+    }
+}
+
+impl QueryEventChannelEmit {
+    fn take_data_and_send(&self) -> anyhow::Result<()> {
+        let mut data = self.cache.lock().expect("lock failed");
+        let r = std::mem::take(&mut *data);
+        if !r.is_empty() {
+            self.channel.send(QueryEvent::Data { data: r })?;
+        }
+        anyhow::Ok(())
+    }
+}
+
 impl QueryEventEmit for QueryEventChannelEmit {
     fn send(&self, event: dbnexus_db::db::QueryEvent) -> anyhow::Result<()> {
         block_random_sleep();
-
-        let r = QueryEvent::from(event);
-        let total = self.emitted_size.fetch_add(r.rows(), Ordering::Relaxed);
-        let err = self.channel.send(r).map_err(anyhow::Error::from);
+        let total = self
+            .emitted_size
+            .fetch_add(event.data_len(), Ordering::Relaxed);
         if total > self.get_limit() {
             let err_msg = format!(
                 "Query result is too large({}), limit:{}",
@@ -1021,18 +1047,39 @@ impl QueryEventEmit for QueryEventChannelEmit {
             self.cancel_msg.cancel(err_msg.clone());
             return Err(anyhow::anyhow!(err_msg));
         }
-        err
-    }
-}
-
-impl QueryEvent {
-    fn rows(&self) -> usize {
-        match self {
-            QueryEvent::Err { .. } => 0,
-            QueryEvent::Status { .. } => 0,
-            QueryEvent::Data { data } => data.len(),
-            QueryEvent::Structure { resp } => resp.data.len(),
+        let cache_size = if cfg!(debug_assertions) { 77 } else { 1000 };
+        match event {
+            dbnexus_db::db::QueryEvent::Resp(query_resp) => {
+                self.take_data_and_send()?;
+                self.channel.send(QueryEvent::Structure {
+                    resp: MuiDataGridData::from(query_resp),
+                })?;
+            }
+            dbnexus_db::db::QueryEvent::Data(items) => {
+                let mut data = self.cache.lock().expect("lock failed");
+                data.extend(items);
+                if data.len() > cache_size || self.elapsed() {
+                    drop(data);
+                    self.take_data_and_send()?;
+                }
+            }
+            dbnexus_db::db::QueryEvent::Status(s) => {
+                self.channel.send(QueryEvent::Status { status: s })?;
+            }
+            dbnexus_db::db::QueryEvent::Err(err) => {
+                self.channel.send(QueryEvent::Err { err })?;
+            }
+            dbnexus_db::db::QueryEvent::Row(x) => {
+                let mut data = self.cache.lock().expect("lock failed");
+                data.push(x);
+                if data.len() > cache_size || self.elapsed() {
+                    drop(data);
+                    self.take_data_and_send()?;
+                }
+            }
         }
+
+        anyhow::Ok(())
     }
 }
 
@@ -1065,19 +1112,6 @@ pub async fn query_sql(
         biased;
         _ = token.cancelled() => Err(ErrorFrontend::cancelled(cancel_msg.get_msg())),
         res = fur => res,
-    }
-}
-
-impl From<dbnexus_db::db::QueryEvent> for QueryEvent {
-    fn from(x: dbnexus_db::db::QueryEvent) -> Self {
-        match x {
-            dbnexus_db::db::QueryEvent::Err(err) => QueryEvent::Err { err },
-            dbnexus_db::db::QueryEvent::Status(x) => QueryEvent::Status { status: x },
-            dbnexus_db::db::QueryEvent::Data(data) => QueryEvent::Data { data },
-            dbnexus_db::db::QueryEvent::Resp(x) => QueryEvent::Structure {
-                resp: MuiDataGridData::from(x),
-            },
-        }
     }
 }
 
