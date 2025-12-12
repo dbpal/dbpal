@@ -9,7 +9,7 @@ use dbnexus_db::db::{
     UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 use std::usize;
@@ -42,14 +42,14 @@ pub struct TaskManager {
     tokens: Arc<std::sync::Mutex<HashMap<String, CancellationToken>>>,
 }
 
-pub fn log_level_loc() -> &'static Mutex<Option<u32>> {
-    static LOG_LEVEL_LOC: Mutex<Option<u32>> = Mutex::new(None);
+pub fn log_level_loc() -> &'static AtomicU32 {
+    static LOG_LEVEL_LOC: AtomicU32 = AtomicU32::new(0);
     &LOG_LEVEL_LOC
 }
 
 #[tauri::command]
 pub fn set_log_level(level: Option<u32>) {
-    *log_level_loc().lock().expect("lock failed") = level;
+    log_level_loc().store(level.unwrap_or_default(), Ordering::Relaxed);
 }
 
 impl TaskManager {

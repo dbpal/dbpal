@@ -47,6 +47,7 @@ use handlers::{
 use std::io::Write;
 use std::panic;
 use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_log::{Target, TargetKind};
@@ -122,15 +123,15 @@ fn is_macos() -> bool {
 }
 
 fn get_logger_level() -> Option<log::Level> {
-    let level = log_level_loc().lock().expect("lock failed").clone();
-    level.map(|x| match x {
-        1 => log::Level::Error,
-        2 => log::Level::Warn,
-        3 => log::Level::Info,
-        4 => log::Level::Debug,
-        5 => log::Level::Trace,
-        _ => log::Level::Error,
-    })
+    let level = log_level_loc().load(Ordering::Relaxed);
+    match level {
+        1 => Some(log::Level::Error),
+        2 => Some(log::Level::Warn),
+        3 => Some(log::Level::Info),
+        4 => Some(log::Level::Debug),
+        5 => Some(log::Level::Trace),
+        _ => None,
+    }
 }
 
 #[allow(unused)]
@@ -185,7 +186,7 @@ mod zoom {
 // https://api.moonshot.cn/v1
 
 fn main() {
-    logger_test();
+    // logger_test();
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
