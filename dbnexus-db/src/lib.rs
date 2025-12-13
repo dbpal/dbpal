@@ -32,6 +32,7 @@ pub mod mssql;
 pub mod mssql_lang_server;
 pub mod mysql;
 pub mod mysql_lang_server;
+pub mod odbc;
 pub mod oracle;
 pub mod oracle_lang_server;
 pub mod pg;
