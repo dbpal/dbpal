@@ -61,11 +61,13 @@ function Query(props: {
 function Exiting() {
   const [count, setCount] = useState(10);
   useEffect(() => {
-    WebviewWindow.getCurrent()
-      .hide()
-      .catch(e => {
-        console.log("hide error", e);
-      });
+    if (!import.meta.env.DEV) {
+      WebviewWindow.getCurrent()
+        .hide()
+        .catch(e => {
+          console.log("hide error", e);
+        });
+    }
     setInterval(() => {
       setCount(count => count - 1);
     }, 1000);

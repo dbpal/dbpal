@@ -28,6 +28,7 @@ pub enum BackendKind {
     Firebird,
     Oracle,
     DuckDB,
+    BigQuery,
 }
 
 impl BackendKind {

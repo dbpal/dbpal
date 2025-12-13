@@ -7,6 +7,8 @@ pub mod datasource_config;
 pub mod db;
 pub mod language_server;
 
+pub mod bigquery;
+pub mod bigquery_lang_server;
 pub mod cassandra;
 pub mod cassandra_lang_server;
 pub mod clickhouse;
