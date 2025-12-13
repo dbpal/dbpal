@@ -1,15 +1,32 @@
 #![allow(unused)]
 
-use std::ffi::CString;
+use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::{ffi::CString, sync::atomic::AtomicBool};
 
 use anyhow::Error;
+use gcp_bigquery_client::model::row;
+use odbc_api::buffers::TextRowSet;
 use odbc_api::{
-    ConnectionOptions, Cursor, DataType, Environment, Nullability, Nullable, ResultSetMetadata,
+    Connection, ConnectionOptions, Cursor, DataType, Environment, Nullability, Nullable,
+    ResultSetMetadata,
     buffers::{AnySlice, BufferDesc, ColumnarAnyBuffer},
+    sys::AttrConnectionPooling,
 };
+use tokio::task::spawn_blocking;
 
+use crate::db::QuerySql;
+use crate::db::{Field, QueryEventEmitter, QueryResp};
 /// Maximum number of rows fetched with one row set. Fetching batches of rows is usually much
 /// faster than fetching individual rows.
+use std::sync::LazyLock;
+
+static ODBC_ENV: LazyLock<Environment> = LazyLock::new(|| {
+    // may don't need this?
+    unsafe { Environment::set_connection_pooling(AttrConnectionPooling::DriverAware).unwrap() };
+    let env = Environment::new().unwrap();
+    env
+});
 
 #[cfg(test)]
 fn odbc_next_row() -> Result<(), Error> {
@@ -23,7 +40,7 @@ fn odbc_next_row() -> Result<(), Error> {
 
     let connection_string = test_connect_str();
 
-    let connection = environment
+    let connection = ODBC_ENV
         .connect_with_connection_string(&connection_string, ConnectionOptions::default())?;
     println!("make connection{:?}", now.elapsed());
     // Execute a one of query without any parameters.
@@ -132,19 +149,17 @@ fn to_desc(types: &[(DataType, Nullability)]) -> Vec<BufferDesc> {
         })
         .collect()
 }
+
 #[cfg(test)]
 fn any_buffer() -> Result<(), Error> {
     let now = std::time::Instant::now();
     // If you do not do anything fancy it is recommended to have only one Environment in the
     // entire process.
-    let environment = Environment::new()?;
-
-    // Connect using a DSN. Alternatively we could have used a connection string
 
     let connection_string = test_connect_str();
     println!("conn str:{}", connection_string);
 
-    let mut connection = environment
+    let mut connection = ODBC_ENV
         .connect_with_connection_string(&connection_string, ConnectionOptions::default())?;
     println!("make connection{:?}", now.elapsed());
     // Execute a one of query without any parameters.
@@ -232,6 +247,104 @@ fn test_connect_str() -> String {
         crate::sqlite::sqlite_test_file_path()
     )
 }
+
+#[derive(Clone)]
+pub struct OdbcDb {
+    conn: Arc<Mutex<Connection<'static>>>,
+
+    // 也就是说 不管是commit还是rollback  不会影响提交模式对吧
+    // 对，完全正确。
+    // SQLEndTran(SQL_COMMIT) 或 SQLRollback() 只负责“把当前事务收尾”，绝不碰 SQL_ATTR_AUTOCOMMIT 这个开关。
+    // so we save this to memory
+    commit_mode: Arc<AtomicBool>,
+}
+
+impl OdbcDb {
+    async fn get_auto_commit(&self) -> anyhow::Result<bool> {
+        anyhow::Ok(self.commit_mode.load(Ordering::Relaxed))
+    }
+    async fn set_auto_commit(&self, _commit: bool) -> anyhow::Result<()> {
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.conn.lock().expect("lock failed");
+            conn.set_autocommit(_commit)?;
+            anyhow::Ok(())
+        })
+        .await?
+    }
+    async fn commit(&self, _query_id: &str) -> anyhow::Result<()> {
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.conn.lock().expect("lock failed");
+            conn.commit()?;
+            anyhow::Ok(())
+        })
+        .await?
+    }
+    async fn rollback(&self, _query_id: &str) -> anyhow::Result<()> {
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.conn.lock().expect("lock failed");
+            conn.rollback()?;
+            anyhow::Ok(())
+        })
+        .await?
+    }
+
+    async fn query_sql(&self, _sql: &str, emit: QueryEventEmitter) -> anyhow::Result<()> {
+        let this = Clone::clone(self);
+        let _sql = _sql.to_string();
+        spawn_blocking(move || {
+            let conn = this.conn.lock().expect("lock failed");
+            let cursor = conn.execute(&_sql, (), None)?;
+            let mut cursor = match cursor {
+                Some(x) => x,
+                None => return anyhow::Ok(()),
+            };
+            let mut fs = vec![];
+            for index in 0..cursor.column_names()?.count() {
+                let name = cursor.col_name((index + 1) as u16)?;
+                let ty = cursor.col_data_type((index + 1) as u16)?;
+                fs.push(Field::from_name_type(name, format!("{:?}", ty)));
+            }
+            emit.send(
+                QueryResp {
+                    fields: fs,
+                    ..Default::default()
+                }
+                .into(),
+            )?;
+
+            // TODO config max str len
+            let mut buffers = TextRowSet::for_cursor(100, &mut cursor, Some(4096))?;
+            let mut row_set_cursor = cursor.bind_buffer(&mut buffers)?;
+            while let Some(batch) = row_set_cursor.fetch()? {
+                for row_index in 0..batch.num_rows() {
+                    let mut data = vec![];
+                    for col_index in 0..batch.num_cols() {
+                        let r = batch.at_as_str(col_index, row_index)?;
+                        data.push(r.map(|x| x.to_string()));
+                    }
+                    emit.send(data.into())?;
+                }
+            }
+            anyhow::Ok(())
+        })
+        .await?
+    }
+
+    async fn execute_sql(&self, _sql: &str) -> anyhow::Result<Result<QueryResp, String>> {
+        let this = Clone::clone(self);
+        let _sql = _sql.to_string();
+        spawn_blocking(move || {
+            let conn = this.conn.lock().expect("lock failed");
+            conn.execute(&_sql, (), None)?;
+            anyhow::Ok(Ok(QueryResp::execute_ok(None)))
+        })
+        .await?
+    }
+}
+
 mod tests {
     use super::*;
 
