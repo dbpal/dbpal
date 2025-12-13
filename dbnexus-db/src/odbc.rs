@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::ffi::CString;
 
 use anyhow::Error;
@@ -5,9 +7,11 @@ use odbc_api::{
     ConnectionOptions, Cursor, DataType, Environment, Nullability, Nullable, ResultSetMetadata,
     buffers::{AnySlice, BufferDesc, ColumnarAnyBuffer},
 };
+
 /// Maximum number of rows fetched with one row set. Fetching batches of rows is usually much
 /// faster than fetching individual rows.
 
+#[cfg(test)]
 fn odbc_next_row() -> Result<(), Error> {
     let now = std::time::Instant::now();
 
@@ -17,10 +21,10 @@ fn odbc_next_row() -> Result<(), Error> {
 
     // Connect using a DSN. Alternatively we could have used a connection string
 
-    let connection_string = r#"Driver={SQLite3};Database=/Users/yuyang/test/sqlite.test.db"#;
+    let connection_string = test_connect_str();
 
     let connection = environment
-        .connect_with_connection_string(connection_string, ConnectionOptions::default())?;
+        .connect_with_connection_string(&connection_string, ConnectionOptions::default())?;
     println!("make connection{:?}", now.elapsed());
     // Execute a one of query without any parameters.
     match connection.execute("SELECT * FROM Persons", (), None)? {
@@ -90,7 +94,7 @@ fn odbc_next_row() -> Result<(), Error> {
     println!("whole {:?}", now.elapsed());
     Ok(())
 }
-
+#[cfg(test)]
 fn to_desc(types: &[(DataType, Nullability)]) -> Vec<BufferDesc> {
     types
         .iter()
@@ -128,7 +132,7 @@ fn to_desc(types: &[(DataType, Nullability)]) -> Vec<BufferDesc> {
         })
         .collect()
 }
-
+#[cfg(test)]
 fn any_buffer() -> Result<(), Error> {
     let now = std::time::Instant::now();
     // If you do not do anything fancy it is recommended to have only one Environment in the
@@ -137,10 +141,11 @@ fn any_buffer() -> Result<(), Error> {
 
     // Connect using a DSN. Alternatively we could have used a connection string
 
-    let connection_string = r#"Driver={SQLite3};Database=/Users/yuyang/test/sqlite.test.db"#;
+    let connection_string = test_connect_str();
+    println!("conn str:{}", connection_string);
 
     let mut connection = environment
-        .connect_with_connection_string(connection_string, ConnectionOptions::default())?;
+        .connect_with_connection_string(&connection_string, ConnectionOptions::default())?;
     println!("make connection{:?}", now.elapsed());
     // Execute a one of query without any parameters.
     match connection.execute("SELECT id,name FROM Persons", (), None)? {
@@ -220,12 +225,20 @@ fn any_buffer() -> Result<(), Error> {
     Ok(())
 }
 
+#[cfg(test)]
+fn test_connect_str() -> String {
+    format!(
+        r#"Driver={{SQLite3}};Database={}"#,
+        crate::sqlite::sqlite_test_file_path()
+    )
+}
 mod tests {
     use super::*;
 
     #[test]
 
     fn xxx() {
+        println!("odbc");
         odbc_next_row();
         any_buffer();
     }
