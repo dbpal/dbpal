@@ -249,7 +249,7 @@ fn test_connect_str() -> String {
 }
 
 #[derive(Clone)]
-pub struct OdbcDb {
+pub struct OdbcDbQuery {
     conn: Arc<Mutex<Connection<'static>>>,
 
     // 也就是说 不管是commit还是rollback  不会影响提交模式对吧
@@ -259,20 +259,21 @@ pub struct OdbcDb {
     commit_mode: Arc<AtomicBool>,
 }
 
-impl OdbcDb {
+impl OdbcDbQuery {
     async fn get_auto_commit(&self) -> anyhow::Result<bool> {
         anyhow::Ok(self.commit_mode.load(Ordering::Relaxed))
     }
-    async fn set_auto_commit(&self, _commit: bool) -> anyhow::Result<()> {
+
+    async fn set_auto_commit(&self, commit: bool) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.conn.lock().expect("lock failed");
-            conn.set_autocommit(_commit)?;
+            conn.set_autocommit(commit)?;
             anyhow::Ok(())
         })
         .await?
     }
-    async fn commit(&self, _query_id: &str) -> anyhow::Result<()> {
+    async fn commit(&self) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.conn.lock().expect("lock failed");
@@ -281,7 +282,7 @@ impl OdbcDb {
         })
         .await?
     }
-    async fn rollback(&self, _query_id: &str) -> anyhow::Result<()> {
+    async fn rollback(&self) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.conn.lock().expect("lock failed");
@@ -291,9 +292,9 @@ impl OdbcDb {
         .await?
     }
 
-    async fn query_sql(&self, _sql: &str, emit: QueryEventEmitter) -> anyhow::Result<()> {
+    async fn query_sql(&self, sql: &str, emit: QueryEventEmitter) -> anyhow::Result<()> {
         let this = Clone::clone(self);
-        let _sql = _sql.to_string();
+        let _sql = sql.to_string();
         spawn_blocking(move || {
             let conn = this.conn.lock().expect("lock failed");
             let cursor = conn.execute(&_sql, (), None)?;
@@ -333,9 +334,9 @@ impl OdbcDb {
         .await?
     }
 
-    async fn execute_sql(&self, _sql: &str) -> anyhow::Result<Result<QueryResp, String>> {
+    async fn execute_sql(&self, sql: &str) -> anyhow::Result<Result<QueryResp, String>> {
         let this = Clone::clone(self);
-        let _sql = _sql.to_string();
+        let _sql = sql.to_string();
         spawn_blocking(move || {
             let conn = this.conn.lock().expect("lock failed");
             conn.execute(&_sql, (), None)?;
