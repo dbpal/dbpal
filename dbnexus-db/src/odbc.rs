@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use std::string;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::{ffi::CString, sync::atomic::AtomicBool};
@@ -17,6 +18,7 @@ use tokio::task::spawn_blocking;
 
 use crate::db::QuerySql;
 use crate::db::{Field, QueryEventEmitter, QueryResp};
+
 /// Maximum number of rows fetched with one row set. Fetching batches of rows is usually much
 /// faster than fetching individual rows.
 use std::sync::LazyLock;
@@ -111,13 +113,16 @@ fn odbc_next_row() -> Result<(), Error> {
     println!("whole {:?}", now.elapsed());
     Ok(())
 }
+
 #[cfg(test)]
 fn to_desc(types: &[(DataType, Nullability)]) -> Vec<BufferDesc> {
     types
         .iter()
         .map(|(ty, n)| match ty {
             DataType::Unknown => panic!("haha"),
-            DataType::Char { length } => BufferDesc::Text { max_str_len: 4096 },
+            DataType::Char { length } => BufferDesc::Text {
+                max_str_len: 1 << 20,
+            },
             DataType::WChar { length } => todo!(),
             DataType::Numeric { precision, scale } => todo!(),
             DataType::Decimal { precision, scale } => todo!(),
@@ -248,6 +253,33 @@ fn test_connect_str() -> String {
     )
 }
 
+#[derive(Clone, Debug)]
+pub struct OdbcPool {
+    conn_str: String,
+    select_1_sql: String,
+}
+
+impl r2d2::ManageConnection for OdbcPool {
+    type Connection = Connection<'static>;
+
+    type Error = odbc_api::Error;
+
+    fn connect(&self) -> Result<Self::Connection, Self::Error> {
+        let conn = ODBC_ENV
+            .connect_with_connection_string(&self.conn_str, ConnectionOptions::default())?;
+        Ok(conn)
+    }
+
+    fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
+        conn.execute(&self.select_1_sql, (), None)?;
+        Ok(())
+    }
+
+    fn has_broken(&self, conn: &mut Self::Connection) -> bool {
+        false
+    }
+}
+
 #[derive(Clone)]
 pub struct OdbcDbQuery {
     conn: Arc<Mutex<Connection<'static>>>,
@@ -294,10 +326,10 @@ impl OdbcDbQuery {
 
     async fn query_sql(&self, sql: &str, emit: QueryEventEmitter) -> anyhow::Result<()> {
         let this = Clone::clone(self);
-        let _sql = sql.to_string();
+        let sql = sql.to_string();
         spawn_blocking(move || {
             let conn = this.conn.lock().expect("lock failed");
-            let cursor = conn.execute(&_sql, (), None)?;
+            let cursor = conn.execute(&sql, (), None)?;
             let mut cursor = match cursor {
                 Some(x) => x,
                 None => return anyhow::Ok(()),
@@ -336,10 +368,10 @@ impl OdbcDbQuery {
 
     async fn execute_sql(&self, sql: &str) -> anyhow::Result<Result<QueryResp, String>> {
         let this = Clone::clone(self);
-        let _sql = sql.to_string();
+        let sql = sql.to_string();
         spawn_blocking(move || {
             let conn = this.conn.lock().expect("lock failed");
-            conn.execute(&_sql, (), None)?;
+            conn.execute(&sql, (), None)?;
             anyhow::Ok(Ok(QueryResp::execute_ok(None)))
         })
         .await?
@@ -353,7 +385,7 @@ mod tests {
 
     fn xxx() {
         println!("odbc");
-        odbc_next_row();
+        // odbc_next_row();
         any_buffer();
     }
 }
