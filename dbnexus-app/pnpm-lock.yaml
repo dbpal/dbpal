@@ -128,6 +128,9 @@ importers:
       tauri-plugin-keyring-api:
         specifier: ^0.1.1
         version: 0.1.1
+      uuid:
+        specifier: ^13.0.0
+        version: 13.0.0
       vite-plugin-ejs:
         specifier: ^1.7.0
         version: 1.7.0(vite@7.2.7(@types/node@22.19.2)(yaml@2.8.1))
@@ -2683,6 +2686,10 @@ packages:
 
   uuid@10.0.0:
     resolution: {integrity: sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ==}
+    hasBin: true
+
+  uuid@13.0.0:
+    resolution: {integrity: sha512-XQegIaBTVUjSHliKqcnFqYypAd4S+WCYt5NIeRs6w/UAry7z8Y9j5ZwRRL4kzq9U3sD6v+85er9FvkEaBpji2w==}
     hasBin: true
 
   uuid@9.0.1:
@@ -5690,6 +5697,8 @@ snapshots:
       react: 19.2.3
 
   uuid@10.0.0: {}
+
+  uuid@13.0.0: {}
 
   uuid@9.0.1: {}
 

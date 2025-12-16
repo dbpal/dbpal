@@ -43,7 +43,6 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   DataSourceKind,
   ErrAndLoc,
-  generateRandomString,
   getEditorText,
   getLanguageFromDataSourceKind,
   MuiDataGridData,
@@ -71,6 +70,7 @@ import {
 import { ModifyLLMConfigModal } from "./Settings.tsx";
 import { cancelTask, checkSql } from "./handlers.ts";
 import { Channel } from "@tauri-apps/api/core";
+import { v4 as uuidv4 } from "uuid";
 function SqlTransaction(props: { conn: QueryConn; executeTimes: number }) {
   const { conn, executeTimes } = props;
   const [commit, setCommit] = useState(true);
@@ -210,9 +210,7 @@ function SqlQuery(props: {
   const setting = useContext(SettingContext);
   const queryLogHandler = useRef(new QueryLogHandler(uuid));
   const [executeTimes, setExecuteTimes] = useState(0);
-  const [conn] = useState<QueryConn>(
-    new QueryConn(uuid, generateRandomString(8), kind),
-  );
+  const [conn] = useState<QueryConn>(new QueryConn(uuid, uuidv4(), kind));
   const maxRow = useRef(2000);
   const [showExport, setShowExport] = useState(false);
   const [openOk, setOpenOk] = useState(false);
@@ -608,11 +606,6 @@ function SqlQuery(props: {
             </Tooltip>
             {extras}
 
-            {openOk && (
-              <Tooltip title="connection id">
-                <Typography style={shrinkAble}> #{conn.queryId} </Typography>
-              </Tooltip>
-            )}
             <ModifyLLMConfigModal />
             <ExecutingTime loading={loading} disableTime />
             <SliderSize
@@ -625,6 +618,11 @@ function SqlQuery(props: {
                 limit max rows can be query.we don&apos;t want OOM!!!😀
               </Typography>
             />
+            {openOk && import.meta.env.DEV && (
+              <Tooltip title="connection id">
+                <Typography> #{conn.queryId} </Typography>
+              </Tooltip>
+            )}
           </Stack>
           <div
             style={{
