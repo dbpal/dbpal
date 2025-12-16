@@ -764,12 +764,9 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
-        let s = format!(
-            r#"DROP TABLE "{table}" {}"#,
-            if cascade { " CASCADE " } else { "" }
-        );
+        let s = format!(r#"DROP TABLE "{table}" "#,);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(s.as_str()))
             .execute(conn.deref_mut())

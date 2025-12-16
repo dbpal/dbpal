@@ -698,12 +698,9 @@ impl SchemaTrait for LibSqlDB {
         anyhow::Ok(())
     }
 
-    async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
+    async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
         self.can_write()?;
-        let s = format!(
-            r#"DROP TABLE "{table}" {}"#,
-            if cascade { " CASCADE " } else { "" }
-        );
+        let s = format!(r#"DROP TABLE "{table}" "#,);
         let conn = self.get_conn().await?;
         conn.execute(&s, params!()).await?;
 

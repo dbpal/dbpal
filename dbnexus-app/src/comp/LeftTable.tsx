@@ -246,8 +246,6 @@ function DropTable(props: {
       case DataSourceKind.TiDB:
       case DataSourceKind.Postgres:
       case DataSourceKind.Cockroach:
-      case DataSourceKind.Sqlite:
-      case DataSourceKind.LibSql:
       case DataSourceKind.Oracle:
         return true;
       default:
