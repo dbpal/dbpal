@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::DerefMut;
 use std::str::FromStr;
@@ -16,9 +15,9 @@ use typescript_type_def::TypeDef;
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind,
-    ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryEvent, QueryEventEmitter,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlExecuteRet, XlsxEdit, create_html_table_data,
+    ExportQueryResult, ExportXXX, Field, GetBackendKind, ListTable, MetaValue, QueryEvent,
+    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlExecuteRet, XlsxEdit, create_html_table_data,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 
@@ -253,7 +252,7 @@ fn check_resp(
 // export impl
 impl RedisDB {
     async fn export_table_as_csv(
-        &self, key: &str, delimiter: char, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, key: &str, delimiter: char, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -299,13 +298,16 @@ impl RedisDB {
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
                     sender
-                        .send(Cow::Owned(create_csv(
-                            &[
-                                Some(to_string_or_hex(kv[0].clone())),
-                                Some(to_string_or_hex(kv[1].clone())),
-                            ],
-                            delimiter,
-                        )))
+                        .send(
+                            create_csv(
+                                &[
+                                    Some(to_string_or_hex(kv[0].clone())),
+                                    Some(to_string_or_hex(kv[1].clone())),
+                                ],
+                                delimiter,
+                            )
+                            .into(),
+                        )
                         .await?;
                 }
             }
@@ -314,13 +316,16 @@ impl RedisDB {
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
                     sender
-                        .send(Cow::Owned(create_csv(
-                            &[
-                                Some(to_string_or_hex(kv[0].clone())),
-                                Some(to_string_or_hex(kv[1].clone())),
-                            ],
-                            delimiter,
-                        )))
+                        .send(
+                            create_csv(
+                                &[
+                                    Some(to_string_or_hex(kv[0].clone())),
+                                    Some(to_string_or_hex(kv[1].clone())),
+                                ],
+                                delimiter,
+                            )
+                            .into(),
+                        )
                         .await?;
                 }
             }
@@ -329,7 +334,7 @@ impl RedisDB {
     }
 
     async fn export_table_as_html(
-        &self, key: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -371,10 +376,13 @@ impl RedisDB {
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
                     sender
-                        .send(Cow::Owned(create_html_table_data(&[vec![
-                            Some(to_string_or_hex(kv[0].clone())),
-                            Some(to_string_or_hex(kv[1].clone())),
-                        ]])))
+                        .send(
+                            create_html_table_data(&[vec![
+                                Some(to_string_or_hex(kv[0].clone())),
+                                Some(to_string_or_hex(kv[1].clone())),
+                            ]])
+                            .into(),
+                        )
                         .await?;
                 }
             }
@@ -383,10 +391,13 @@ impl RedisDB {
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
                     sender
-                        .send(Cow::Owned(create_html_table_data(&[vec![
-                            Some(to_string_or_hex(kv[0].clone())),
-                            Some(to_string_or_hex(kv[1].clone())),
-                        ]])))
+                        .send(
+                            create_html_table_data(&[vec![
+                                Some(to_string_or_hex(kv[0].clone())),
+                                Some(to_string_or_hex(kv[1].clone())),
+                            ]])
+                            .into(),
+                        )
                         .await?;
                 }
             }
@@ -396,7 +407,7 @@ impl RedisDB {
     }
 
     async fn export_table_as_json(
-        &self, key: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, key: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -412,7 +423,7 @@ impl RedisDB {
                     serde_json::to_string(&m)
                 };
                 let value = value?;
-                sender.send(Cow::Owned(value)).await?;
+                sender.send(value.into()).await?;
             }
             RedisType::List => {
                 sender.send("[".into()).await?;
@@ -433,11 +444,14 @@ impl RedisDB {
                         let value = to_json_value(value);
 
                         sender
-                            .send(if pretty {
-                                Cow::Owned(serde_json::to_string_pretty(&value)?)
-                            } else {
-                                Cow::Owned(serde_json::to_string(&value)?)
-                            })
+                            .send(
+                                if pretty {
+                                    serde_json::to_string_pretty(&value)?
+                                } else {
+                                    serde_json::to_string(&value)?
+                                }
+                                .into(),
+                            )
                             .await?;
                         first = false;
                     }
@@ -465,11 +479,14 @@ impl RedisDB {
                     let value = to_json_value(s);
 
                     sender
-                        .send(Cow::Owned(if pretty {
-                            serde_json::to_string_pretty(&value)?
-                        } else {
-                            serde_json::to_string(&value)?
-                        }))
+                        .send(
+                            if pretty {
+                                serde_json::to_string_pretty(&value)?
+                            } else {
+                                serde_json::to_string(&value)?
+                            }
+                            .into(),
+                        )
                         .await?;
                     first = false;
                 }
@@ -488,11 +505,14 @@ impl RedisDB {
                     m.insert(key, value);
                 }
                 sender
-                    .send(Cow::Owned(if pretty {
-                        serde_json::to_string_pretty(&m)?
-                    } else {
-                        serde_json::to_string(&m)?
-                    }))
+                    .send(
+                        if pretty {
+                            serde_json::to_string_pretty(&m)?
+                        } else {
+                            serde_json::to_string(&m)?
+                        }
+                        .into(),
+                    )
                     .await?;
             }
             RedisType::Zset => {
@@ -509,14 +529,14 @@ impl RedisDB {
                 } else {
                     serde_json::to_string(&m)?
                 };
-                sender.send(Cow::Owned(value)).await?;
+                sender.send(value.into()).await?;
             }
         }
         anyhow::Ok(())
     }
 
     async fn export_table_as_json_line(
-        &self, key: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -527,7 +547,7 @@ impl RedisDB {
                 m.insert(key, to_json_value(value));
                 let value = serde_json::to_string(&m);
                 let value = value?;
-                sender.send(Cow::Owned(value)).await?;
+                sender.send(value.into()).await?;
             }
             RedisType::List => {
                 let total: isize = conn.llen(key).await?;
@@ -582,7 +602,7 @@ impl RedisDB {
     }
 
     async fn export_table_to_command(
-        &self, key: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -590,11 +610,14 @@ impl RedisDB {
             RedisType::String => {
                 let x: String = conn.get(key).await?;
                 sender
-                    .send(Cow::Owned(format!(
-                        "SET {} '{}'\n",
-                        key,
-                        escape_string_in_single_quote(x.as_str())
-                    )))
+                    .send(
+                        format!(
+                            "SET {} '{}'\n",
+                            key,
+                            escape_string_in_single_quote(x.as_str())
+                        )
+                        .into(),
+                    )
                     .await?;
             }
 
@@ -606,11 +629,10 @@ impl RedisDB {
                     let list: Vec<String> = conn.lrange(key, x, x + size).await?;
                     for l in list.iter() {
                         sender
-                            .send(Cow::Owned(format!(
-                                "RPUSH {} '{}'\n",
-                                key,
-                                escape_string_in_single_quote(l)
-                            )))
+                            .send(
+                                format!("RPUSH {} '{}'\n", key, escape_string_in_single_quote(l))
+                                    .into(),
+                            )
                             .await?;
                     }
                 }
@@ -620,11 +642,14 @@ impl RedisDB {
                 while let Some(value) = iter.next().await {
                     let value = value?;
                     sender
-                        .send(Cow::Owned(format!(
-                            "SADD {} '{}'\n",
-                            key,
-                            escape_string_in_single_quote(value.as_str())
-                        )))
+                        .send(
+                            format!(
+                                "SADD {} '{}'\n",
+                                key,
+                                escape_string_in_single_quote(value.as_str())
+                            )
+                            .into(),
+                        )
                         .await?;
                 }
             }
@@ -638,12 +663,15 @@ impl RedisDB {
                         kv.push(v);
                     }
                     sender
-                        .send(Cow::Owned(format!(
-                            "HMSET {} {} '{}'\n",
-                            key,
-                            kv[0],
-                            escape_string_in_single_quote(kv[1].as_str())
-                        )))
+                        .send(
+                            format!(
+                                "HMSET {} {} '{}'\n",
+                                key,
+                                kv[0],
+                                escape_string_in_single_quote(kv[1].as_str())
+                            )
+                            .into(),
+                        )
                         .await?;
                 }
             }
@@ -658,12 +686,15 @@ impl RedisDB {
                     }
                     // ZADD myzset 1 "uno"
                     sender
-                        .send(Cow::Owned(format!(
-                            "ZADD {} {} '{}'\n",
-                            key,
-                            kv[1],
-                            escape_string_in_single_quote(kv[0].as_str())
-                        )))
+                        .send(
+                            format!(
+                                "ZADD {} {} '{}'\n",
+                                key,
+                                kv[1],
+                                escape_string_in_single_quote(kv[0].as_str())
+                            )
+                            .into(),
+                        )
                         .await?;
                 }
             }
@@ -737,7 +768,7 @@ impl RedisDB {
 
     async fn export_query_result_as_csv(
         &self, query_id: Option<&str>, sql: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         if include_header {
             anyhow::bail!("don't support export without header")
@@ -766,7 +797,7 @@ impl RedisDB {
 
     async fn export_query_result_as_html(
         &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         if include_header {
             anyhow::bail!("don't support export without header")
@@ -794,7 +825,7 @@ impl RedisDB {
     }
     async fn export_query_result_as_json(
         &self, query_id: Option<&str>, sql: &str, pretty: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let commands = get_command_from_sql(sql)?;
         if commands.len() != 1 {
@@ -842,8 +873,7 @@ impl RedisDB {
     }
 
     async fn export_query_result_as_jsonline(
-        &self, query_id: Option<&str>, sql: &str,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let commands = get_command_from_sql(sql)?;
         if commands.len() != 1 {
@@ -872,7 +902,7 @@ impl RedisDB {
 impl ExportQueryResult for RedisDB {
     async fn export_query_result(
         &self, query_id: &str, sql: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -916,7 +946,7 @@ impl ExportQueryResult for RedisDB {
 impl RedisDB {
     async fn export_query_result_as_xlsx(
         &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         if include_header {
             anyhow::bail!("Redis does not support exporting header");
@@ -957,8 +987,7 @@ impl RedisDB {
 
 impl RedisDB {
     async fn export_table_as_xlsx(
-        &self, key: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, key: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         if include_header {
             anyhow::bail!("redis have no header")
@@ -1146,7 +1175,7 @@ impl SchemaTrait for RedisDB {
     }
 
     async fn export_table_or_view(
-        &self, key: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, key: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {

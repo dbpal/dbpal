@@ -30,10 +30,10 @@ use crate::datasource_config::CassandraDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
-    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter, XlsxEdit,
-    create_html_table_data, create_html_table_header, escape_sql_str,
+    ExportXXX, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    OptionMustBeSomeErr, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter,
+    XlsxEdit, create_html_table_data, create_html_table_header, escape_sql_str,
     export_query_as_xlsx_send_data,
 };
 
@@ -52,7 +52,6 @@ use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
 use scylla::value::{CqlDecimal, CqlValue, CqlVarint, Row};
 use sqlx::types::BigDecimal;
-use std::borrow::Cow;
 use std::collections::HashMap;
 
 use std::sync::Arc;
@@ -406,7 +405,7 @@ impl CassandraDB {
     }
     async fn export_as_xlsx(
         &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let session = self.get_session_by_query_id(query_id)?;
         let pager = session.query_iter(sql, &[]).await?;
@@ -420,7 +419,6 @@ impl CassandraDB {
                             column: index as rust_xlsxwriter::ColNum,
                             content: col.name().to_string(),
                         }
-                        .to_string()
                         .into(),
                     )
                     .await?;
@@ -447,7 +445,7 @@ impl ExportQueryResult for CassandraDB {
 
     async fn export_query_result(
         &self, query_id: &str, sql: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -617,7 +615,7 @@ fn get_select_sql(
 impl CassandraDB {
     async fn export_query_result_as_json(
         &self, query_id: Option<&str>, sql: &str, pretty: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let session = self.get_session_by_query_id(query_id)?;
         let pager = session.query_iter(sql, &[]).await?;
@@ -639,11 +637,14 @@ impl CassandraDB {
                 sender.send("\n".into()).await?;
             }
             sender
-                .send(Cow::Owned(if pretty {
-                    serde_json::to_string_pretty(&value)?
-                } else {
-                    serde_json::to_string(&value)?
-                }))
+                .send(
+                    if pretty {
+                        serde_json::to_string_pretty(&value)?
+                    } else {
+                        serde_json::to_string(&value)?
+                    }
+                    .into(),
+                )
                 .await?;
             first = false;
         }
@@ -657,7 +658,7 @@ impl CassandraDB {
 
     async fn export_query_result_as_csv(
         &self, query_id: Option<&str>, sql: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let session = self.get_session_by_query_id(query_id)?;
         let pager = session.query_iter(sql, &[]).await?;
@@ -680,7 +681,7 @@ impl CassandraDB {
 
     async fn export_query_result_as_html(
         &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let session = self.get_session_by_query_id(query_id)?;
         let pager = session.query_iter(sql, &[]).await?;
@@ -702,8 +703,7 @@ impl CassandraDB {
     }
 
     async fn export_query_result_as_json_line(
-        &self, query_id: Option<&str>, sql: &str,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let session = self.get_session_by_query_id(query_id)?;
         let pager = session.query_iter(sql, &[]).await?;
@@ -717,9 +717,7 @@ impl CassandraDB {
         while let Some(row) = stream.next().await {
             let row = row?;
             let value = encode_row_as_json(&cols, row)?;
-            sender
-                .send(Cow::Owned(serde_json::to_string(&value)?))
-                .await?;
+            sender.send(serde_json::to_string(&value)?.into()).await?;
         }
         anyhow::Ok(())
     }
@@ -733,7 +731,7 @@ impl ReadOnlyTrait for CassandraDB {
 impl CassandraDB {
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
@@ -741,8 +739,7 @@ impl CassandraDB {
             .await
     }
     async fn export_table_as_html(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
@@ -751,7 +748,7 @@ impl CassandraDB {
     }
 
     async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
@@ -760,7 +757,7 @@ impl CassandraDB {
     }
 
     async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
@@ -769,8 +766,7 @@ impl CassandraDB {
     }
 
     async fn export_table_as_xlsx(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
@@ -780,14 +776,14 @@ impl CassandraDB {
 
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
             let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
-            sender.send(Cow::Owned(ss.create_table.clone())).await?;
+            sender.send(ss.create_table.clone().into()).await?;
             sender.send(";\n".into()).await?;
             for index in ss.indexes.into_iter() {
-                sender.send(Cow::Owned(index)).await?;
+                sender.send(index.into()).await?;
                 sender.send(";\n".into()).await?;
             }
         }
@@ -810,7 +806,7 @@ impl CassandraDB {
             });
             let sql = self.insert_sql(self.config.db.as_deref(), table_name, &cols, &m)?;
             let sql = format!("{sql};\n");
-            sender.send(Cow::Owned(sql)).await?;
+            sender.send(sql.into()).await?;
         }
         anyhow::Ok(())
     }
@@ -921,7 +917,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -1026,7 +1022,7 @@ impl SchemaTrait for CassandraDB {
             tokio::spawn(async move {
                 while let Some(sql) = receiver.recv().await {
                     // replace table name.
-                    let sql = sql.replacen(table.as_str(), &dup, 1);
+                    let sql = sql.as_str()?.replacen(table.as_str(), &dup, 1);
                     x.session.query_unpaged(sql, &[]).await?;
                 }
                 anyhow::Ok(())

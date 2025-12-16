@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
@@ -16,10 +15,10 @@ use mongodb::{IndexModel, bson};
 use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
-    BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, Field,
-    GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr, QueryEventEmitter,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter,
-    SqlExecuteRet, not_support_feature,
+    BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, ExportXXX,
+    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr,
+    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlExecuteRet, not_support_feature,
 };
 
 #[derive(Clone)]
@@ -90,7 +89,7 @@ impl ReadOnlyTrait for MongoDB {
 impl ExportQueryResult for MongoDB {
     async fn export_query_result(
         &self, _query_id: &str, _sql: &str, _kind: ExportKind,
-        _sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        _sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
@@ -459,13 +458,11 @@ impl ServerMetas for MongoDB {
 
 impl MongoDB {
     async fn export_stream_as_json_line(
-        mut stream: mongodb::Cursor<Document>, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        mut stream: mongodb::Cursor<Document>, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         while let Some(item) = stream.next().await {
             let item = item?;
-            sender
-                .send(Cow::Owned(serde_json::to_string(&item)?))
-                .await?;
+            sender.send(serde_json::to_string(&item)?.into()).await?;
             sender.send("\n".into()).await?;
         }
         anyhow::Ok(())
@@ -473,7 +470,7 @@ impl MongoDB {
 
     async fn export_stream_as_json(
         mut stream: mongodb::Cursor<Document>, pretty: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         sender.send("[".into()).await?;
         let mut first = true;
@@ -486,11 +483,14 @@ impl MongoDB {
                 sender.send("\n".into()).await?;
             }
             sender
-                .send(Cow::Owned(if pretty {
-                    serde_json::to_string_pretty(&item)?
-                } else {
-                    serde_json::to_string(&item)?
-                }))
+                .send(
+                    if pretty {
+                        serde_json::to_string_pretty(&item)?
+                    } else {
+                        serde_json::to_string(&item)?
+                    }
+                    .into(),
+                )
                 .await?;
 
             first = false;
@@ -503,7 +503,7 @@ impl MongoDB {
     }
 
     async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let db = self.get_db().await?;
         let stream = db.collection::<Document>(table_name).find(doc! {}).await?;
@@ -511,7 +511,7 @@ impl MongoDB {
     }
 
     async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let db = self.get_db().await?;
         let stream = db.collection::<Document>(table_name).find(doc! {}).await?;
@@ -613,7 +613,7 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,

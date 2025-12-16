@@ -157,7 +157,7 @@ impl DuckDB {
 
     async fn export_query_result_as_csv(
         &self, sql: &str, query_id: Option<&str>, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let sql = sql.to_owned();
@@ -173,7 +173,7 @@ impl DuckDB {
                     first = false;
                     if include_header {
                         let fs = row.as_ref().column_names().into_iter().map(Some).collect();
-                        sender.blocking_send(Cow::Owned(create_csv(&vec![fs], delimiter)))?;
+                        sender.blocking_send(create_csv(&vec![fs], delimiter).into())?;
                     }
                 }
                 let d = encode_row(row)?;
@@ -188,7 +188,7 @@ impl DuckDB {
 
     async fn export_query_result_as_xlsx(
         &self, sql: &str, query_id: Option<&str>, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let sql = sql.to_owned();
@@ -223,7 +223,7 @@ impl DuckDB {
     }
     async fn export_query_result_as_html(
         &self, sql: &str, query_id: Option<&str>, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let sql = sql.to_owned();
@@ -239,7 +239,7 @@ impl DuckDB {
                     first = false;
                     if include_header {
                         let names = row.as_ref().column_names();
-                        sender.blocking_send(Cow::Owned(create_html_table_header(&names)))?;
+                        sender.blocking_send(create_html_table_header(&names).into())?;
                     }
                 }
                 let d = encode_row(row)?;
@@ -254,7 +254,7 @@ impl DuckDB {
 
     async fn export_query_result_as_json(
         &self, sql: &str, query_id: Option<&str>, pretty: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let sql = sql.to_owned();
@@ -274,11 +274,14 @@ impl DuckDB {
                 if pretty {
                     sender.blocking_send("\n".into())?;
                 }
-                sender.blocking_send(Cow::Owned(if pretty {
-                    serde_json::to_string_pretty(&value)?
-                } else {
-                    serde_json::to_string(&value)?
-                }))?;
+                sender.blocking_send(
+                    if pretty {
+                        serde_json::to_string_pretty(&value)?
+                    } else {
+                        serde_json::to_string(&value)?
+                    }
+                    .into(),
+                )?;
                 first = false;
             }
 
@@ -294,8 +297,7 @@ impl DuckDB {
     }
 
     async fn export_query_result_as_json_line(
-        &self, sql: &str, query_id: Option<&str>,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, sql: &str, query_id: Option<&str>, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let sql = sql.to_owned();
@@ -308,7 +310,7 @@ impl DuckDB {
             while let Some(row) = stream.next()? {
                 let serde_value = encode_row_as_json(row)?;
                 let str = serde_json::to_string(&serde_value)?;
-                sender.blocking_send(Cow::Owned(str))?;
+                sender.blocking_send(str.into())?;
             }
             anyhow::Ok(())
         })
@@ -422,7 +424,7 @@ impl ExportQueryResult for DuckDB {
 
     async fn export_query_result(
         &self, query_id: &str, sql: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -757,7 +759,7 @@ fn encode_row<'stmt>(row: &duckdb::Row<'stmt>) -> anyhow::Result<Vec<Option<Stri
 impl DuckDB {
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from "{}"."{}""#,
@@ -771,7 +773,7 @@ impl DuckDB {
     }
 
     async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from "{}"."{}""#,
@@ -784,8 +786,7 @@ impl DuckDB {
     }
 
     async fn export_table_as_html(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from "{}"."{}""#,
@@ -798,8 +799,7 @@ impl DuckDB {
     }
 
     async fn export_table_as_xlsx(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from "{}"."{}""#,
@@ -812,7 +812,7 @@ impl DuckDB {
     }
 
     async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from "{}"."{}""#,
@@ -826,15 +826,15 @@ impl DuckDB {
 
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
             let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
-            sender.send(Cow::Owned(ss.create_table.clone())).await?;
+            sender.send(ss.create_table.clone().into()).await?;
             sender.send(";\n".into()).await?;
 
             for index in ss.indexes.into_iter() {
-                sender.send(Cow::Owned(index)).await?;
+                sender.send(index.into()).await?;
                 sender.send(";\n".into()).await?;
             }
         }
@@ -859,7 +859,7 @@ impl DuckDB {
                 }
                 let sql =
                     this.insert_sql(this.config.schema.as_deref(), &table_name, &fs, &values)?;
-                sender.blocking_send(Cow::Owned(sql))?;
+                sender.blocking_send(sql.into())?;
             }
             anyhow::Ok(())
         })
@@ -1095,7 +1095,7 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {

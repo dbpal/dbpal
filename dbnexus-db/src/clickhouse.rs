@@ -1,8 +1,8 @@
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    DefAndMetas, ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue,
-    NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
+    DefAndMetas, ExportKind, ExportQueryResult, ExportXXX, Field, GetBackendKind, ListTable,
+    MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
     UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
     escape_sql_str, ty_is_float, ty_is_int,
@@ -14,9 +14,7 @@ use futures_core::stream::BoxStream;
 use futures_util::StreamExt;
 use reqwest::Response;
 use sqlparser::ast::{ArrayElemTypeDef, DataType};
-
 use sqlparser::tokenizer::Token;
-use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
@@ -32,7 +30,7 @@ impl GetBackendKind for ClickHouseDB {
 impl ClickHouseDB {
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from `{}`.`{}`"#,
@@ -44,8 +42,7 @@ impl ClickHouseDB {
             .await
     }
     async fn export_table_as_html(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from `{}`.`{}`"#,
@@ -58,7 +55,7 @@ impl ClickHouseDB {
     }
 
     async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from `{}`.`{}`"#,
@@ -71,7 +68,7 @@ impl ClickHouseDB {
     }
 
     async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from `{}`.`{}`"#,
@@ -83,8 +80,7 @@ impl ClickHouseDB {
     }
 
     async fn export_table_as_xlsx(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from `{}`.`{}`"#,
@@ -98,11 +94,11 @@ impl ClickHouseDB {
 
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
             let x = self.create_table_and_index_sql(table_name).await?;
-            sender.send(Cow::Owned(x.create_table)).await?;
+            sender.send(x.create_table.into()).await?;
         }
 
         let sql = format!(
@@ -128,7 +124,7 @@ impl ClickHouseDB {
                     };
                     let s = self.insert_sql(self.config.db.as_deref(), table_name, &fs, &values)?;
                     let s = format!("{};\n", s);
-                    sender.send(Cow::Owned(s)).await?;
+                    sender.send(s.into()).await?;
                 }
                 FieldsOrData::ReadingColumns => {}
             }
@@ -257,7 +253,7 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -344,7 +340,7 @@ impl SchemaTrait for ClickHouseDB {
             tokio::spawn(async move {
                 while let Some(sql) = receiver.recv().await {
                     // replace table name.
-                    let sql = sql.replacen(table.as_str(), &dup, 1);
+                    let sql = sql.as_str()?.replacen(table.as_str(), &dup, 1);
                     this.client.query(&sql).execute().await?;
                 }
                 anyhow::Ok(())
@@ -746,10 +742,10 @@ impl ServerMetas for ClickHouseDB {
 impl ClickHouseDB {
     async fn export_query_result_as_csv(
         &self, sql: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
-        let mut stream = self
-            .query_as_text_line(
+        let resp = self
+            .query_as_response(
                 sql,
                 if include_header {
                     "CSVWithNames"
@@ -759,17 +755,17 @@ impl ClickHouseDB {
                 Some(format!("format_csv_delimiter={}", delimiter)),
             )
             .await?;
+        let mut stream = resp.bytes_stream();
         while let Some(data) = stream.next().await {
             let data = data?;
-            sender.send(Cow::Owned(data)).await?;
+            sender.send(data.into()).await?;
             sender.send("\n".into()).await?;
         }
         anyhow::Ok(())
     }
 
     async fn export_query_result_as_html(
-        &self, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let mut stream = self.query_row(sql).await?;
         while let Some(row) = stream.next().await {
@@ -781,15 +777,11 @@ impl ClickHouseDB {
                             .into_iter()
                             .map(|x| x.field.clone())
                             .collect::<Vec<_>>();
-                        sender
-                            .send(Cow::Owned(create_html_table_header(&x[..])))
-                            .await?;
+                        sender.send(create_html_table_header(&x[..]).into()).await?;
                     }
                 }
                 FieldsOrData::Data(data) => {
-                    sender
-                        .send(Cow::Owned(create_html_table_data(&[data])))
-                        .await?;
+                    sender.send(create_html_table_data(&[data]).into()).await?;
                 }
 
                 FieldsOrData::ReadingColumns => {}
@@ -800,7 +792,7 @@ impl ClickHouseDB {
     }
 
     async fn export_query_result_as_json(
-        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let mut stream = self.query_as_text_line(sql, "JSONEachRow", None).await?;
         sender.send("[".into()).await?;
@@ -819,7 +811,7 @@ impl ClickHouseDB {
                     .send(serde_json::to_string_pretty(&v)?.into())
                     .await?;
             } else {
-                sender.send(Cow::Owned(data)).await?;
+                sender.send(data.into()).await?;
             }
             first = false;
         }
@@ -831,13 +823,15 @@ impl ClickHouseDB {
     }
 
     async fn export_query_result_as_json_line(
-        &self, sql: &str, sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, sql: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
-        let mut stream = self.query_as_text_line(sql, "JSONEachRow", None).await?;
+        let mut stream = self
+            .query_as_response(sql, "JSONEachRow", None)
+            .await?
+            .bytes_stream();
         while let Some(data) = stream.next().await {
             let data = data?;
-            sender.send(Cow::Owned(data)).await?;
-            sender.send("\n".into()).await?;
+            sender.send(data.into()).await?;
         }
         anyhow::Ok(())
     }
@@ -845,8 +839,7 @@ impl ClickHouseDB {
 
 impl ClickHouseDB {
     async fn export_query_result_as_xlsx(
-        &self, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         let mut stream = self.query_row(sql).await?;
         let mut row_number = 0;
@@ -905,7 +898,7 @@ impl ExportQueryResult for ClickHouseDB {
 
     async fn export_query_result(
         &self, _query_id: &str, sql: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<Cow<'static, str>>,
+        sender: tokio::sync::mpsc::Sender<ExportXXX>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
