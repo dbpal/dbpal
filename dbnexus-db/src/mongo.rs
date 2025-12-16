@@ -15,7 +15,7 @@ use mongodb::{IndexModel, bson};
 use crate::TEST_HOST;
 use crate::datasource_config::MongoDBConfig;
 use crate::db::{
-    BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, ExportXXX,
+    BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind, ExportQueryResult, ExportFrame,
     Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableParameter, SqlExecuteRet, not_support_feature,
@@ -89,7 +89,7 @@ impl ReadOnlyTrait for MongoDB {
 impl ExportQueryResult for MongoDB {
     async fn export_query_result(
         &self, _query_id: &str, _sql: &str, _kind: ExportKind,
-        _sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
@@ -458,7 +458,7 @@ impl ServerMetas for MongoDB {
 
 impl MongoDB {
     async fn export_stream_as_json_line(
-        mut stream: mongodb::Cursor<Document>, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        mut stream: mongodb::Cursor<Document>, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         while let Some(item) = stream.next().await {
             let item = item?;
@@ -470,7 +470,7 @@ impl MongoDB {
 
     async fn export_stream_as_json(
         mut stream: mongodb::Cursor<Document>, pretty: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         sender.send("[".into()).await?;
         let mut first = true;
@@ -503,7 +503,7 @@ impl MongoDB {
     }
 
     async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let db = self.get_db().await?;
         let stream = db.collection::<Document>(table_name).find(doc! {}).await?;
@@ -511,7 +511,7 @@ impl MongoDB {
     }
 
     async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let db = self.get_db().await?;
         let stream = db.collection::<Document>(table_name).find(doc! {}).await?;
@@ -613,7 +613,7 @@ impl SchemaTrait for MongoDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,

@@ -14,10 +14,11 @@ use typescript_type_def::TypeDef;
 
 use crate::datasource_config::RedisDBConfig;
 use crate::db::{
-    AutoCompletionQueryId, BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportKind,
-    ExportQueryResult, ExportXXX, Field, GetBackendKind, ListTable, MetaValue, QueryEvent,
+    AutoCompletionQueryId, BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame,
+    ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryEvent,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlExecuteRet, XlsxEdit, create_html_table_data,
+    ShowTableParameter, SqlExecuteRet, XlsxEdit, create_html_table_data, create_html_table_header,
+    create_markdown_data, create_markdown_header,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 
@@ -252,7 +253,7 @@ fn check_resp(
 // export impl
 impl RedisDB {
     async fn export_table_as_csv(
-        &self, key: &str, delimiter: char, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, key: &str, delimiter: char, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -334,7 +335,7 @@ impl RedisDB {
     }
 
     async fn export_table_as_html(
-        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -406,8 +407,96 @@ impl RedisDB {
         anyhow::Ok(())
     }
 
+    async fn export_table_as_md(
+        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let mut conn = self.get_conn().await?;
+        let ty = Self::get_key_type(&mut conn, key).await?;
+        match ty {
+            RedisType::String => {
+                sender
+                    .send(create_markdown_header(&["value".to_string()]).into())
+                    .await?;
+
+                let value: Vec<u8> = conn.get(key).await?;
+                let value = Some(to_string_or_hex(value));
+                sender.send(create_markdown_data(&[value]).into()).await?;
+            }
+            RedisType::List => {
+                sender
+                    .send(create_markdown_header(&["value".to_string()]).into())
+                    .await?;
+                let total: isize = conn.llen(key).await?;
+                let size: isize = 100;
+                let iter = OffsetLimitIter::new(total, 100);
+                for x in iter {
+                    let list: Vec<Vec<u8>> = conn.lrange(key, x, x + size).await?;
+                    let list = list
+                        .into_iter()
+                        .map(|x| vec![Some(to_string_or_hex(x))])
+                        .collect::<Vec<_>>();
+
+                    for l in list {
+                        sender.send(create_markdown_data(&l).into()).await?;
+                    }
+                }
+            }
+
+            RedisType::Set => {
+                sender
+                    .send(create_markdown_header(&["value".to_string()]).into())
+                    .await?;
+                let mut iter = conn.sscan::<_, Vec<u8>>(key).await?;
+                while let Some(set) = iter.next_item().await {
+                    let set = set
+                        .into_iter()
+                        .map(|x| Some(to_string_or_hex(x)))
+                        .collect::<Vec<_>>();
+                    sender.send(create_markdown_data(&set).into()).await?;
+                }
+            }
+            RedisType::Hash => {
+                sender
+                    .send(create_markdown_header(&["key".to_string(), "value".to_string()]).into())
+                    .await?;
+                let mut stream = conn.hscan::<_, Vec<u8>>(key).await?.chunks(2);
+                while let Some(value) = stream.next().await {
+                    let kv = check_resp(value)?;
+                    sender
+                        .send(
+                            create_markdown_data(&[
+                                Some(to_string_or_hex(kv[0].clone())),
+                                Some(to_string_or_hex(kv[1].clone())),
+                            ])
+                            .into(),
+                        )
+                        .await?;
+                }
+            }
+            RedisType::Zset => {
+                sender
+                    .send(create_markdown_header(&["key".to_string(), "score".to_string()]).into())
+                    .await?;
+                let mut stream = conn.zscan::<_, Vec<u8>>(key).await?.chunks(2);
+                while let Some(value) = stream.next().await {
+                    let kv = check_resp(value)?;
+                    sender
+                        .send(
+                            create_markdown_data(&[
+                                Some(to_string_or_hex(kv[0].clone())),
+                                Some(to_string_or_hex(kv[1].clone())),
+                            ])
+                            .into(),
+                        )
+                        .await?;
+                }
+            }
+        }
+        anyhow::Ok(())
+    }
+
     async fn export_table_as_json(
-        &self, key: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, key: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -536,7 +625,7 @@ impl RedisDB {
     }
 
     async fn export_table_as_json_line(
-        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -602,7 +691,7 @@ impl RedisDB {
     }
 
     async fn export_table_to_command(
-        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
@@ -768,7 +857,7 @@ impl RedisDB {
 
     async fn export_query_result_as_csv(
         &self, query_id: Option<&str>, sql: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_header {
             anyhow::bail!("don't support export without header")
@@ -797,7 +886,7 @@ impl RedisDB {
 
     async fn export_query_result_as_html(
         &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_header {
             anyhow::bail!("don't support export without header")
@@ -823,9 +912,37 @@ impl RedisDB {
         }
         anyhow::Ok(())
     }
+
+    async fn export_query_result_as_md(
+        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let commands = get_command_from_sql(sql)?;
+        if commands.len() != 1 {
+            anyhow::bail!("Redis does not support multiple commands");
+        }
+        let c = &commands[0];
+        log::info!("cmd is:{:?}", c);
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        let args = &c[1..];
+        let mut redis_cmd = redis::cmd(c[0].as_str());
+        redis_cmd.arg(args);
+        let mut stream = redis_cmd.iter_async::<String>(conn).await?;
+        sender
+            .send(create_html_table_header(&["result".to_string()]).into())
+            .await?;
+        while let Some(value) = stream.next().await {
+            let value = value?;
+            sender
+                .send(create_markdown_data(&[Some(value)]).into())
+                .await?;
+        }
+        anyhow::Ok(())
+    }
     async fn export_query_result_as_json(
         &self, query_id: Option<&str>, sql: &str, pretty: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let commands = get_command_from_sql(sql)?;
         if commands.len() != 1 {
@@ -873,7 +990,7 @@ impl RedisDB {
     }
 
     async fn export_query_result_as_jsonline(
-        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let commands = get_command_from_sql(sql)?;
         if commands.len() != 1 {
@@ -902,7 +1019,7 @@ impl RedisDB {
 impl ExportQueryResult for RedisDB {
     async fn export_query_result(
         &self, query_id: &str, sql: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -935,6 +1052,10 @@ impl ExportQueryResult for RedisDB {
                 self.export_query_result_as_html(Some(query_id), sql, include_header, sender)
                     .await
             }
+            ExportKind::MarkDown => {
+                self.export_query_result_as_md(Some(query_id), sql, sender)
+                    .await
+            }
         }
     }
 
@@ -946,7 +1067,7 @@ impl ExportQueryResult for RedisDB {
 impl RedisDB {
     async fn export_query_result_as_xlsx(
         &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_header {
             anyhow::bail!("Redis does not support exporting header");
@@ -975,7 +1096,6 @@ impl RedisDB {
                         column: 0,
                         content: value,
                     }
-                    .to_string()
                     .into(),
                 )
                 .await?;
@@ -987,7 +1107,7 @@ impl RedisDB {
 
 impl RedisDB {
     async fn export_table_as_xlsx(
-        &self, key: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, key: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_header {
             anyhow::bail!("redis have no header")
@@ -1004,7 +1124,6 @@ impl RedisDB {
                             column: 0,
                             content: value,
                         }
-                        .to_string()
                         .into(),
                     )
                     .await?;
@@ -1021,7 +1140,6 @@ impl RedisDB {
                                 column: 0,
                                 content: to_string_or_hex(value),
                             }
-                            .to_string()
                             .into(),
                         )
                         .await?;
@@ -1039,7 +1157,6 @@ impl RedisDB {
                                 column: 0,
                                 content: to_string_or_hex(set),
                             }
-                            .to_string()
                             .into(),
                         )
                         .await?;
@@ -1058,7 +1175,6 @@ impl RedisDB {
                                 column: (offset % 2) as rust_xlsxwriter::ColNum,
                                 content: to_string_or_hex(value),
                             }
-                            .to_string()
                             .into(),
                         )
                         .await?;
@@ -1077,7 +1193,6 @@ impl RedisDB {
                                 column: (offset % 2) as rust_xlsxwriter::ColNum,
                                 content: to_string_or_hex(value),
                             }
-                            .to_string()
                             .into(),
                         )
                         .await?;
@@ -1175,7 +1290,7 @@ impl SchemaTrait for RedisDB {
     }
 
     async fn export_table_or_view(
-        &self, key: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, key: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -1201,6 +1316,7 @@ impl SchemaTrait for RedisDB {
                 }
                 self.export_table_as_html(key, sender).await
             }
+            ExportKind::MarkDown => self.export_table_as_md(key, sender).await,
         }
     }
 
@@ -2418,6 +2534,21 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .await
                 .unwrap();
             println!("sql:{}", s);
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Html {
+                        include_header: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("html:{}", s);
+            let s = db
+                .export_table_to_string(table_name, ExportKind::MarkDown)
+                .await
+                .unwrap();
+            println!("markdown:{}", s);
         }
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
@@ -2500,6 +2631,21 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .await
                 .unwrap();
             println!("sql:{}", s);
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Html {
+                        include_header: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("html:{}", s);
+            let s = db
+                .export_table_to_string(table_name, ExportKind::MarkDown)
+                .await
+                .unwrap();
+            println!("markdown:{}", s);
         }
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
@@ -2590,6 +2736,21 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .await
                 .unwrap();
             println!("sql:{}", s);
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Html {
+                        include_header: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("html:{}", s);
+            let s = db
+                .export_table_to_string(table_name, ExportKind::MarkDown)
+                .await
+                .unwrap();
+            println!("markdown:{}", s);
         }
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
@@ -2671,6 +2832,21 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .await
                 .unwrap();
             println!("sql:{}", s);
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Html {
+                        include_header: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("html:{}", s);
+            let s = db
+                .export_table_to_string(table_name, ExportKind::MarkDown)
+                .await
+                .unwrap();
+            println!("markdown:{}", s);
         }
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);
@@ -2755,6 +2931,21 @@ db1:keys=1,expires=0,avg_ttl=0"#,
                 .await
                 .unwrap();
             println!("sql:{}", s);
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Html {
+                        include_header: false,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("html:{}", s);
+            let s = db
+                .export_table_to_string(table_name, ExportKind::MarkDown)
+                .await
+                .unwrap();
+            println!("markdown:{}", s);
         }
         let cols = db.show_table_columns(table_name).await.unwrap();
         println!("{:?}", cols);

@@ -9,12 +9,12 @@ use tokio::sync::Mutex;
 
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
 use crate::db::{
-    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportKind,
-    ExportQueryResult, ExportXXX, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
+    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportFrame,
+    ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
     NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter,
     QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
     SqlExecuteRet, TriggerDetail, XlsxEdit, create_html_table_data, create_html_table_header,
-    escape_sql_str, export_query_as_xlsx_send_data,
+    create_markdown_data, create_markdown_header, escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
@@ -56,7 +56,7 @@ fn get_row_types(r: &Row) -> Vec<Field> {
 impl LibSqlDB {
     async fn export_query_result_as_xlsx(
         &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
         let mut stream = conn.query(sql, params!()).await?;
@@ -72,7 +72,6 @@ impl LibSqlDB {
                                 column: index as rust_xlsxwriter::ColNum,
                                 content: row.column_name(index).unwrap_or_default().to_owned(),
                             }
-                            .to_string()
                             .into(),
                         )
                         .await?;
@@ -95,7 +94,7 @@ impl ExportQueryResult for LibSqlDB {
 
     async fn export_query_result(
         &self, query_id: &str, sql: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -128,6 +127,10 @@ impl ExportQueryResult for LibSqlDB {
             }
             ExportKind::Html { include_header } => {
                 self.export_query_result_as_html(Some(query_id), sql, include_header, sender)
+                    .await
+            }
+            ExportKind::MarkDown => {
+                self.export_query_result_as_md(Some(query_id), sql, sender)
                     .await
             }
         }
@@ -195,8 +198,8 @@ impl QuerySql for LibSqlDB {
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let conn = self.get_conn().await?;
-        let ret: Result<QueryResp, String> = match conn.execute(sql, params!()).await {
-            Ok(x) => Ok(QueryResp::row_affected(x, sql.to_owned())),
+        let ret: Result<QueryResp, String> = match conn.execute_batch(sql).await {
+            Ok(..) => Ok(QueryResp::execute_ok(sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
         anyhow::Ok(ret)
@@ -214,8 +217,8 @@ impl QuerySql for LibSqlDB {
                 None => anyhow::bail!("collection closed????"),
             },
         };
-        let ret: Result<QueryResp, String> = match conn.execute(sql, params!()).await {
-            Ok(x) => Ok(QueryResp::row_affected(x, sql.to_owned())),
+        let ret: Result<QueryResp, String> = match conn.execute_batch(sql).await {
+            Ok(..) => Ok(QueryResp::execute_ok(sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
         anyhow::Ok(ret)
@@ -640,7 +643,7 @@ impl SchemaTrait for LibSqlDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -666,6 +669,7 @@ impl SchemaTrait for LibSqlDB {
                 self.export_table_as_html(name, include_header, sender)
                     .await
             }
+            ExportKind::MarkDown => self.export_table_as_md(name, sender).await,
         }
     }
 
@@ -997,7 +1001,7 @@ impl LibSqlDB {
 
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
             let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
@@ -1028,7 +1032,7 @@ impl LibSqlDB {
     }
 
     async fn export_query_result_as_json_line(
-        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
         let mut stream = conn.query(sql, params!()).await?;
@@ -1041,7 +1045,7 @@ impl LibSqlDB {
     }
 
     async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
@@ -1069,7 +1073,7 @@ impl LibSqlDB {
 
     async fn export_query_result_as_json(
         &self, query_id: Option<&str>, sql: &str, pretty: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
         let mut stream = conn.query(sql, params!()).await?;
@@ -1103,7 +1107,7 @@ impl LibSqlDB {
     }
 
     async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
@@ -1113,7 +1117,7 @@ impl LibSqlDB {
 
     async fn export_query_result_as_csv(
         &self, query_id: Option<&str>, sql: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
         let mut stream = conn.query(sql, params!()).await?;
@@ -1137,7 +1141,7 @@ impl LibSqlDB {
 
     async fn export_query_result_as_html(
         &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
         let mut stream = conn.query(sql, params!()).await?;
@@ -1155,9 +1159,28 @@ impl LibSqlDB {
         anyhow::Ok(())
     }
 
+    async fn export_query_result_as_md(
+        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut stream = conn.query(sql, params!()).await?;
+        let mut first = true;
+        while let Some(row) = stream.next().await? {
+            if first {
+                let fs = get_row_types(&row);
+                let fs = fs.into_iter().map(|x| x.field).collect::<Vec<_>>();
+                sender.send(create_markdown_header(&fs).into()).await?;
+                first = false;
+            }
+            let data = encode_row(&row)?;
+            sender.send(create_markdown_data(&data).into()).await?;
+        }
+        anyhow::Ok(())
+    }
+
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
@@ -1166,15 +1189,25 @@ impl LibSqlDB {
     }
 
     async fn export_table_as_html(
-        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
         self.export_query_result_as_html(None, &sql, include_header, sender)
             .await
     }
+
+    async fn export_table_as_md(
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_md(None, &sql, sender).await
+    }
     async fn export_table_as_xlsx(
-        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
@@ -1669,6 +1702,25 @@ mod tests {
                 .await
                 .unwrap();
             println!("json_line:{}", s);
+        }
+        {
+            let s = db
+                .export_table_to_string(table_name, ExportKind::MarkDown)
+                .await
+                .unwrap();
+            println!("markdown:{}", s);
+        }
+        {
+            let s = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Html {
+                        include_header: true,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("html:{}", s);
         }
         println!("########################################");
 

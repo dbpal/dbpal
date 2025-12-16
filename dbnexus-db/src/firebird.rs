@@ -19,12 +19,12 @@ RDB$RELATION_NAME 的数据类型是 CHAR(31)，定长字符，不足 31 字节�
 */
 use crate::datasource_config::FireBirdConfig;
 use crate::db::{
-    BackendKind, CheckConn, ExportKind, ExportQueryResult, ExportXXX, Field, GetBackendKind, Index,
-    IndexKind, ListTable, MetaValue, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent,
+    BackendKind, CheckConn, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
+    Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableParameter, SqlBuilder, SqlExecuteRet, XlsxEdit, create_html_table_data,
-    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_blocking_data,
-    not_support_feature,
+    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
+    export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
 
 use crate::helper::create_csv;
@@ -169,7 +169,7 @@ fn encode_row(
 impl FireBirdDB {
     async fn export_query_result_as_csv(
         &self, sql: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let firebird = Clone::clone(self);
         let sql = sql.to_owned();
@@ -197,7 +197,7 @@ impl FireBirdDB {
     }
 
     async fn export_query_result_as_html(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let firebird = Clone::clone(self);
         let sql = sql.to_owned();
@@ -224,8 +224,36 @@ impl FireBirdDB {
         anyhow::Ok(())
     }
 
+    async fn export_query_result_as_md(
+        &self, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let firebird = Clone::clone(self);
+        let sql = sql.to_owned();
+
+        spawn_blocking(move || {
+            let mut conn = firebird.get_conn()?;
+            let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
+                conn.query_iter(&sql, ())?;
+            let mut first = true;
+            for row in stream {
+                let row = row?;
+                if first {
+                    let fs: Vec<_> = row.cols.iter().map(|x| x.name.clone()).collect();
+                    sender.blocking_send(create_markdown_header(&fs).into())?;
+                    first = false;
+                }
+                let data = encode_row(&row, true, None)?;
+                sender.blocking_send(create_markdown_data(&data).into())?;
+            }
+            anyhow::Ok(())
+        })
+        .await??;
+
+        anyhow::Ok(())
+    }
+
     async fn export_query_result_as_json(
-        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let firebird = Clone::clone(self);
         let sql = sql.to_owned();
@@ -269,7 +297,7 @@ impl FireBirdDB {
     }
 
     async fn export_query_result_as_json_line(
-        &self, sql: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let firebird = Clone::clone(self);
         let sql = sql.to_owned();
@@ -317,7 +345,7 @@ fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Value> {
 
 impl FireBirdDB {
     async fn export_query_result_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let sql = sql.to_owned();
@@ -337,7 +365,6 @@ impl FireBirdDB {
                                 column: index as rust_xlsxwriter::ColNum,
                                 content: col.name.clone(),
                             }
-                            .to_string()
                             .into(),
                         )?;
                     }
@@ -360,7 +387,7 @@ impl ExportQueryResult for FireBirdDB {
 
     async fn export_query_result(
         &self, _query_id: &str, sql: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -385,6 +412,7 @@ impl ExportQueryResult for FireBirdDB {
                 self.export_query_result_as_html(sql, include_header, sender)
                     .await
             }
+            ExportKind::MarkDown => self.export_query_result_as_md(sql, sender).await,
         }
     }
 }
@@ -577,7 +605,7 @@ impl ServerMetas for FireBirdDB {
 impl FireBirdDB {
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
@@ -586,7 +614,8 @@ impl FireBirdDB {
     }
 
     async fn export_table_as_html(
-        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
@@ -594,8 +623,16 @@ impl FireBirdDB {
             .await
     }
 
+    async fn export_table_as_md(
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_md(&sql, sender).await
+    }
+
     async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
@@ -604,7 +641,7 @@ impl FireBirdDB {
     }
 
     async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
@@ -612,7 +649,8 @@ impl FireBirdDB {
     }
 
     async fn export_table_as_xlsx(
-        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
@@ -622,7 +660,7 @@ impl FireBirdDB {
 
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
             anyhow::bail!("include schema not support by firebird");
@@ -737,7 +775,7 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -763,6 +801,7 @@ impl SchemaTrait for FireBirdDB {
                 self.export_table_as_html(name, include_header, sender)
                     .await
             }
+            ExportKind::MarkDown => self.export_table_as_md(name, sender).await,
         }
     }
 
@@ -1595,6 +1634,21 @@ mod tests {
                 .await
                 .unwrap();
             println!("sql:{}", ret);
+            let ret = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Html {
+                        include_header: true,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("html:{}", ret);
+            let ret = db
+                .export_table_to_string(table_name, ExportKind::MarkDown)
+                .await
+                .unwrap();
+            println!("markdonw:{}", ret);
         }
     }
 

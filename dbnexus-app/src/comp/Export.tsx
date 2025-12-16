@@ -92,6 +92,8 @@ function ExportView(props: {
         return { export_kind: "xlsx", include_header: includeHeader };
       case "html":
         return { export_kind: "html", include_header: includeHeader };
+      case "markdown":
+        return { export_kind: "markdown" };
     }
   };
 

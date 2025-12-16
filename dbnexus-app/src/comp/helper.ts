@@ -967,8 +967,8 @@ function getSupportExportKind(kind: DataSourceKind, isTable: boolean) {
       return ["json", "jsonline"];
     default:
       return isTable
-        ? ["csv", "sql", "json", "jsonline", "xlsx", "html"]
-        : ["csv", "json", "jsonline", "xlsx", "html"];
+        ? ["csv", "sql", "json", "jsonline", "xlsx", "html", "markdown"]
+        : ["csv", "json", "jsonline", "xlsx", "html", "markdown"];
   }
 }
 
@@ -979,6 +979,9 @@ function generateDefaultFilename(name, extension) {
       这是社区事实标准：GitHub、Git LFS、Apache Spark、BigQuery、Hugging Face 等生态都按 .jsonl 识别，工具链（grep、jq、ripgrep、VS Code 插件）也都默认支持。
     */
     extension = "jsonl";
+  }
+  if (extension == "markdown") {
+    extension = "md";
   }
   // 获取当前时间
   const now = new Date();

@@ -1,11 +1,11 @@
 use crate::datasource_config::ClickHouseConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    DefAndMetas, ExportKind, ExportQueryResult, ExportXXX, Field, GetBackendKind, ListTable,
+    DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable,
     MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
     UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
-    escape_sql_str, ty_is_float, ty_is_int,
+    create_markdown_data, create_markdown_header, escape_sql_str, ty_is_float, ty_is_int,
 };
 
 use crate::helper::separate_sql_by_sqlparser_tokenizer;
@@ -30,7 +30,7 @@ impl GetBackendKind for ClickHouseDB {
 impl ClickHouseDB {
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from `{}`.`{}`"#,
@@ -42,7 +42,8 @@ impl ClickHouseDB {
             .await
     }
     async fn export_table_as_html(
-        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from `{}`.`{}`"#,
@@ -53,9 +54,20 @@ impl ClickHouseDB {
         self.export_query_result_as_html(&sql, include_header, sender)
             .await
     }
+    async fn export_table_as_md(
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"SELECT * from `{}`.`{}`"#,
+            self.config.db_str(),
+            table_name
+        );
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_md(&sql, sender).await
+    }
 
     async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from `{}`.`{}`"#,
@@ -68,7 +80,7 @@ impl ClickHouseDB {
     }
 
     async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from `{}`.`{}`"#,
@@ -80,7 +92,8 @@ impl ClickHouseDB {
     }
 
     async fn export_table_as_xlsx(
-        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from `{}`.`{}`"#,
@@ -94,7 +107,7 @@ impl ClickHouseDB {
 
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
             let x = self.create_table_and_index_sql(table_name).await?;
@@ -253,7 +266,7 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -279,6 +292,7 @@ impl SchemaTrait for ClickHouseDB {
                 self.export_table_as_html(name, include_header, sender)
                     .await
             }
+            ExportKind::MarkDown => self.export_table_as_md(name, sender).await,
         }
     }
 
@@ -742,7 +756,7 @@ impl ServerMetas for ClickHouseDB {
 impl ClickHouseDB {
     async fn export_query_result_as_csv(
         &self, sql: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let resp = self
             .query_as_response(
@@ -765,7 +779,7 @@ impl ClickHouseDB {
     }
 
     async fn export_query_result_as_html(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut stream = self.query_row(sql).await?;
         while let Some(row) = stream.next().await {
@@ -791,8 +805,31 @@ impl ClickHouseDB {
         anyhow::Ok(())
     }
 
+    async fn export_query_result_as_md(
+        &self, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let mut stream = self.query_row(sql).await?;
+        while let Some(row) = stream.next().await {
+            let row = row?;
+            match row {
+                FieldsOrData::Fields(fields) => {
+                    let x = fields
+                        .into_iter()
+                        .map(|x| x.field.clone())
+                        .collect::<Vec<_>>();
+                    sender.send(create_markdown_header(&x[..]).into()).await?;
+                }
+                FieldsOrData::Data(data) => {
+                    sender.send(create_markdown_data(&data).into()).await?;
+                }
+                FieldsOrData::ReadingColumns => {}
+            }
+        }
+        anyhow::Ok(())
+    }
+
     async fn export_query_result_as_json(
-        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut stream = self.query_as_text_line(sql, "JSONEachRow", None).await?;
         sender.send("[".into()).await?;
@@ -823,7 +860,7 @@ impl ClickHouseDB {
     }
 
     async fn export_query_result_as_json_line(
-        &self, sql: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut stream = self
             .query_as_response(sql, "JSONEachRow", None)
@@ -839,7 +876,7 @@ impl ClickHouseDB {
 
 impl ClickHouseDB {
     async fn export_query_result_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut stream = self.query_row(sql).await?;
         let mut row_number = 0;
@@ -856,7 +893,6 @@ impl ClickHouseDB {
                                         column: index as rust_xlsxwriter::ColNum,
                                         content: c.field.clone(),
                                     }
-                                    .to_string()
                                     .into(),
                                 )
                                 .await?;
@@ -874,7 +910,6 @@ impl ClickHouseDB {
                                         column: col as rust_xlsxwriter::ColNum,
                                         content: d,
                                     }
-                                    .to_string()
                                     .into(),
                                 )
                                 .await?;
@@ -898,7 +933,7 @@ impl ExportQueryResult for ClickHouseDB {
 
     async fn export_query_result(
         &self, _query_id: &str, sql: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -923,6 +958,7 @@ impl ExportQueryResult for ClickHouseDB {
                 self.export_query_result_as_html(sql, include_header, sender)
                     .await
             }
+            ExportKind::MarkDown => self.export_query_result_as_md(sql, sender).await,
         }
     }
 }
@@ -1862,6 +1898,23 @@ from test
                 .unwrap();
 
             println!("json:{}", json);
+            let html = db
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Html {
+                        include_header: true,
+                    },
+                )
+                .await
+                .unwrap();
+
+            println!("html:{}", html);
+            let md = db
+                .export_table_to_string(table_name, ExportKind::MarkDown)
+                .await
+                .unwrap();
+
+            println!("markdown:{}", md);
         }
     }
 

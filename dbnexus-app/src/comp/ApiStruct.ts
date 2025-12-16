@@ -342,7 +342,9 @@ export namespace types {
         "export_kind": "html";
     } & {
         "include_header": boolean;
-    }));
+    }) | {
+        "export_kind": "markdown";
+    });
     export type RedisListTable = {
         "string_tables": (string)[];
         "list_tables": (string)[];

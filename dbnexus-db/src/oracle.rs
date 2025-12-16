@@ -12,13 +12,13 @@ use tokio::task::spawn_blocking;
 use crate::datasource_config::OracleDBConfig;
 use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    DefAndMetas, ExportKind, ExportQueryResult, ExportXXX, Field, GetBackendKind, Index, IndexKind,
-    ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail,
-    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
-    create_html_table_header, escape_sql_str, export_query_as_xlsx_send_blocking_data,
-    not_support_feature,
+    DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
+    IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS,
+    ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
 
 use crate::helper::{create_csv, run_with_timeout};
@@ -76,7 +76,7 @@ impl OracleDB {
 impl OracleDB {
     async fn export_query_result_as_xlsx(
         &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let query_id = query_id.map(|s| s.to_owned());
@@ -97,7 +97,6 @@ impl OracleDB {
                                 column: index as rust_xlsxwriter::ColNum,
                                 content: col.name().to_owned(),
                             }
-                            .to_string()
                             .into(),
                         )?;
                     }
@@ -122,7 +121,7 @@ impl ExportQueryResult for OracleDB {
 
     async fn export_query_result(
         &self, query_id: &str, sql: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -155,6 +154,10 @@ impl ExportQueryResult for OracleDB {
             }
             ExportKind::Html { include_header } => {
                 self.export_query_result_as_html(Some(query_id), sql, include_header, sender)
+                    .await
+            }
+            ExportKind::MarkDown => {
+                self.export_query_result_as_md(Some(query_id), sql, sender)
                     .await
             }
         }
@@ -761,7 +764,7 @@ impl OracleDB {
 impl OracleDB {
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
         let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
@@ -797,7 +800,7 @@ impl OracleDB {
     }
 
     async fn export_query_result_as_json_line(
-        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let query_id = query_id.map(|x| x.to_string());
@@ -819,7 +822,7 @@ impl OracleDB {
     }
 
     async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
@@ -829,7 +832,7 @@ impl OracleDB {
 
     async fn export_query_result_as_json(
         &self, query_id: Option<&str>, sql: &str, pretty: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let sql = sql.to_string();
@@ -867,7 +870,7 @@ impl OracleDB {
     }
 
     async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!("SELECT * from {}", table_name);
         log::info!("sql:{}", sql);
@@ -893,7 +896,7 @@ impl OracleDB {
         sql: &str,
         include_header: bool, // include header if possible,
         delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let s = Clone::clone(self);
         let query_id = query_id.map(|x| x.to_string());
@@ -928,7 +931,7 @@ impl OracleDB {
         query_id: Option<&str>,
         sql: &str,
         include_header: bool, // include header if possible,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let sql = sql.to_string();
@@ -957,9 +960,39 @@ impl OracleDB {
         .await?
     }
 
+    async fn export_query_result_as_md(
+        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let this = Clone::clone(self);
+        let sql = sql.to_string();
+        let query_id = query_id.map(|x| x.to_string());
+        spawn_blocking(move || {
+            let conn = this.get_conn_by_query_id(query_id.as_deref())?;
+            let conn = conn.lock().expect("lock failed");
+            let mut first = true;
+            let rows = conn.query(&sql, &[])?;
+            for row in rows {
+                let row = row?;
+                if first {
+                    let fs: Vec<_> = row
+                        .column_info()
+                        .iter()
+                        .map(|x| x.name().to_owned())
+                        .collect();
+                    sender.blocking_send(create_markdown_header(&fs).into())?;
+                    first = false;
+                }
+                let data = encode_row(row)?;
+                sender.blocking_send(create_markdown_data(&data).into())?;
+            }
+            anyhow::Ok(())
+        })
+        .await?
+    }
+
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
@@ -973,7 +1006,8 @@ impl OracleDB {
         .await
     }
     async fn export_table_as_html(
-        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
@@ -985,8 +1019,17 @@ impl OracleDB {
         )
         .await
     }
+
+    async fn export_table_as_md(
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(r#"SELECT * from "{}""#, table_name);
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_md(None, &sql, sender).await
+    }
     async fn export_table_as_xlsx(
-        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
@@ -1227,7 +1270,7 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -1253,6 +1296,7 @@ impl SchemaTrait for OracleDB {
                 self.export_table_as_html(name, include_header, sender)
                     .await
             }
+            ExportKind::MarkDown => self.export_table_as_md(name, sender).await,
         }
     }
 
@@ -2498,6 +2542,21 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
                 .await
                 .unwrap();
             println!("export sql:{}", e);
+            let e = db
+                .export_table_to_string(
+                    table_name,
+                    crate::db::ExportKind::Html {
+                        include_header: true,
+                    },
+                )
+                .await
+                .unwrap();
+            println!("export html:{}", e);
+            let e = db
+                .export_table_to_string(table_name, crate::db::ExportKind::MarkDown)
+                .await
+                .unwrap();
+            println!("export markdown:{}", e);
         }
     }
 

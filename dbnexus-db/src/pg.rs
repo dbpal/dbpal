@@ -13,13 +13,14 @@ use tokio::sync::Mutex;
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
-    CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind,
-    ExportQueryResult, ExportXXX, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
+    CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame,
+    ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
     NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail,
     ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent,
     TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
-    create_html_table_header, export_query_as_xlsx_send_data,
+    create_html_table_header, create_markdown_data, create_markdown_header,
+    export_query_as_xlsx_send_data,
 };
 
 use crate::helper::create_csv;
@@ -145,7 +146,7 @@ impl DBTrait for PostGresDB {
 impl PostGresDB {
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
             // let ss = SchemaTrait::create_table_and_index_sql(self,
@@ -200,7 +201,7 @@ impl PostGresDB {
     }
 
     async fn export_query_result_as_json_line(
-        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
         let mut conn = conn.lock().await;
@@ -217,7 +218,7 @@ impl PostGresDB {
     }
 
     async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             "SELECT * from \"{}\".\"{}\"",
@@ -231,7 +232,7 @@ impl PostGresDB {
 
     async fn export_query_result_as_json(
         &self, query_id: Option<&str>, sql: &str, pretty: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
         let mut conn = conn.lock().await;
@@ -268,7 +269,7 @@ impl PostGresDB {
     }
 
     async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             "SELECT * from \"{}\".\"{}\"",
@@ -281,7 +282,8 @@ impl PostGresDB {
     }
 
     async fn export_table_as_xlsx(
-        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             "SELECT * from \"{}\".\"{}\"",
@@ -295,7 +297,7 @@ impl PostGresDB {
 
     async fn export_query_result_as_csv(
         &self, query_id: Option<&str>, sql: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
         let mut conn = conn.lock().await;
@@ -324,7 +326,7 @@ impl PostGresDB {
 
     async fn export_query_result_as_html(
         &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
         let mut conn = conn.lock().await;
@@ -350,9 +352,34 @@ impl PostGresDB {
         anyhow::Ok(())
     }
 
+    async fn export_query_result_as_md(
+        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        let mut first = true;
+        let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
+        while let Some(rows) = stream.next().await {
+            let row = rows?;
+            if first {
+                let fs = row
+                    .columns()
+                    .iter()
+                    .map(|x| x.name().to_string())
+                    .collect::<Vec<_>>();
+                sender.send(create_markdown_header(&fs).into()).await?;
+                first = false
+            }
+            let data = encode_row(&row)?;
+            sender.send(create_markdown_data(&data).into()).await?;
+        }
+        anyhow::Ok(())
+    }
+
     async fn export_table_as_csv(
         &self, table_name: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from "{}"."{}""#,
@@ -364,7 +391,8 @@ impl PostGresDB {
             .await
     }
     async fn export_table_as_html(
-        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(
             r#"SELECT * from "{}"."{}""#,
@@ -373,6 +401,18 @@ impl PostGresDB {
         );
         log::info!("sql:{}", sql);
         self.export_query_result_as_html(None, sql.as_str(), include_header, sender)
+            .await
+    }
+    async fn export_table_as_md(
+        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+    ) -> anyhow::Result<()> {
+        let sql = format!(
+            r#"SELECT * from "{}"."{}""#,
+            self.config.schema_str()?,
+            table_name
+        );
+        log::info!("sql:{}", sql);
+        self.export_query_result_as_md(None, sql.as_str(), sender)
             .await
     }
 }
@@ -1137,7 +1177,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -1163,6 +1203,7 @@ impl SchemaTrait for PostGresDB {
                 self.export_table_as_html(name, include_header, sender)
                     .await
             }
+            ExportKind::MarkDown => self.export_table_as_md(name, sender).await,
         }
     }
 
@@ -1918,7 +1959,7 @@ async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Re
 impl PostGresDB {
     async fn export_query_result_as_xlsx(
         &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
         let mut conn = conn.lock().await;
@@ -1939,7 +1980,6 @@ impl PostGresDB {
                                 column: index as rust_xlsxwriter::ColNum,
                                 content: col.name().to_string(),
                             }
-                            .to_string()
                             .into(),
                         )
                         .await?;
@@ -1962,7 +2002,7 @@ impl ExportQueryResult for PostGresDB {
 
     async fn export_query_result(
         &self, query_id: &str, sql: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Csv {
@@ -1995,6 +2035,10 @@ impl ExportQueryResult for PostGresDB {
             }
             ExportKind::Html { include_header } => {
                 self.export_query_result_as_html(Some(query_id), sql, include_header, sender)
+                    .await
+            }
+            ExportKind::MarkDown => {
+                self.export_query_result_as_md(Some(query_id), sql, sender)
                     .await
             }
         }
@@ -3040,6 +3084,25 @@ mod tests {
             let _: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
 
             println!("export sql:{}", sql);
+
+            let html = pg
+                .export_table_to_string(
+                    table_name,
+                    ExportKind::Html {
+                        include_header: true,
+                    },
+                )
+                .await
+                .unwrap();
+
+            println!("export html:{}", html);
+
+            let html = pg
+                .export_table_to_string(table_name, ExportKind::MarkDown)
+                .await
+                .unwrap();
+
+            println!("export mdrkdown:{}", html);
         }
     }
 

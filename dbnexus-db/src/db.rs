@@ -291,7 +291,7 @@ pub trait SchemaTrait:
     }
 
     async fn export_table_or_view(
-        &self, _name: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, _name: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
@@ -878,14 +878,8 @@ pub struct XlsxEdit {
     pub content: String,
 }
 
-impl std::fmt::Display for XlsxEdit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}:{}", self.row, self.column, self.content)
-    }
-}
-
 pub(crate) async fn export_query_as_xlsx_send_data(
-    row_num: &mut u32, data: Vec<Option<String>>, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+    row_num: &mut u32, data: Vec<Option<String>>, sender: tokio::sync::mpsc::Sender<ExportFrame>,
 ) -> anyhow::Result<()> {
     for (col, d) in data.into_iter().enumerate() {
         if let Some(d) = d {
@@ -896,7 +890,6 @@ pub(crate) async fn export_query_as_xlsx_send_data(
                         column: col as rust_xlsxwriter::ColNum,
                         content: d,
                     }
-                    .to_string()
                     .into(),
                 )
                 .await?;
@@ -907,7 +900,7 @@ pub(crate) async fn export_query_as_xlsx_send_data(
 }
 
 pub(crate) fn export_query_as_xlsx_send_blocking_data(
-    row_num: &mut u32, data: Vec<Option<String>>, sender: tokio::sync::mpsc::Sender<ExportXXX>,
+    row_num: &mut u32, data: Vec<Option<String>>, sender: tokio::sync::mpsc::Sender<ExportFrame>,
 ) -> anyhow::Result<()> {
     for (col, d) in data.into_iter().enumerate() {
         if let Some(d) = d {
@@ -917,7 +910,6 @@ pub(crate) fn export_query_as_xlsx_send_blocking_data(
                     column: col as rust_xlsxwriter::ColNum,
                     content: d,
                 }
-                .to_string()
                 .into(),
             )?;
         }
@@ -927,41 +919,41 @@ pub(crate) fn export_query_as_xlsx_send_blocking_data(
 }
 
 #[derive(Debug, Clone)]
-pub enum ExportXXX {
+pub enum ExportFrame {
     Str(&'static str),
     String(String),
     Xlsx(XlsxEdit),
     Bytes(tokio_util::bytes::Bytes),
 }
 
-impl From<tokio_util::bytes::Bytes> for ExportXXX {
+impl From<tokio_util::bytes::Bytes> for ExportFrame {
     fn from(value: tokio_util::bytes::Bytes) -> Self {
         Self::Bytes(value)
     }
 }
 
-impl std::fmt::Display for ExportXXX {
+impl std::fmt::Display for ExportFrame {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ExportXXX::Str(x) => write!(f, "{}", x),
-            ExportXXX::String(s) => write!(f, "{}", s),
-            ExportXXX::Xlsx(xlsx_edit) => write!(f, "{}", xlsx_edit),
-            ExportXXX::Bytes(bytes) => {
+            ExportFrame::Str(x) => write!(f, "{}", x),
+            ExportFrame::String(s) => write!(f, "{}", s),
+            ExportFrame::Xlsx(xlsx_edit) => write!(f, "{:?}", xlsx_edit),
+            ExportFrame::Bytes(bytes) => {
                 write!(f, "{}", String::from_utf8_lossy(bytes.deref()))
             }
         }
     }
 }
 
-impl ExportXXX {
+impl ExportFrame {
     pub(crate) fn as_str(&self) -> anyhow::Result<&str> {
         let r = match self {
-            ExportXXX::Str(x) => *x,
-            ExportXXX::String(s) => s.as_str(),
-            ExportXXX::Xlsx(..) => {
+            ExportFrame::Str(x) => *x,
+            ExportFrame::String(s) => s.as_str(),
+            ExportFrame::Xlsx(..) => {
                 anyhow::bail!("this is xlsx edit,should be a internal error")
             }
-            ExportXXX::Bytes(..) => {
+            ExportFrame::Bytes(..) => {
                 anyhow::bail!("this is bytes,should be a internal error")
             }
         };
@@ -970,32 +962,32 @@ impl ExportXXX {
 
     pub(crate) fn as_bytes(&self) -> anyhow::Result<&[u8]> {
         let r = match self {
-            ExportXXX::Str(x) => x.as_bytes(),
-            ExportXXX::String(s) => s.as_bytes(),
-            ExportXXX::Xlsx(..) => {
+            ExportFrame::Str(x) => x.as_bytes(),
+            ExportFrame::String(s) => s.as_bytes(),
+            ExportFrame::Xlsx(..) => {
                 anyhow::bail!("this is xlsx edit,should be a internal error")
             }
-            ExportXXX::Bytes(bytes) => &bytes,
+            ExportFrame::Bytes(bytes) => &bytes,
         };
         anyhow::Ok(r)
     }
 }
 
-impl From<&'static str> for ExportXXX {
+impl From<&'static str> for ExportFrame {
     fn from(value: &'static str) -> Self {
-        ExportXXX::Str(value)
+        ExportFrame::Str(value)
     }
 }
 
-impl From<String> for ExportXXX {
+impl From<String> for ExportFrame {
     fn from(value: String) -> Self {
-        ExportXXX::String(value)
+        ExportFrame::String(value)
     }
 }
 
-impl From<XlsxEdit> for ExportXXX {
+impl From<XlsxEdit> for ExportFrame {
     fn from(value: XlsxEdit) -> Self {
-        ExportXXX::Xlsx(value)
+        ExportFrame::Xlsx(value)
     }
 }
 
@@ -1005,7 +997,7 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
 
     async fn export_query_result(
         &self, query_id: &str, _sql: &str, _kind: ExportKind,
-        _sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()>;
 
     async fn export_query_result_to_string(
@@ -1059,7 +1051,7 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
 }
 
 async fn write_export_file(
-    kind: ExportKind, filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<ExportXXX>,
+    kind: ExportKind, filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<ExportFrame>,
     title: &str, emit: ExportedSizeEmitter,
 ) -> anyhow::Result<()> {
     let mut size = TimeElapsed::new();
@@ -1102,7 +1094,7 @@ async fn write_export_file(
                 let worksheet = workbook.add_worksheet_with_constant_memory();
                 while let Some(edit) = receiver.blocking_recv() {
                     let edit = match edit {
-                        ExportXXX::Xlsx(xlsx_edit) => xlsx_edit,
+                        ExportFrame::Xlsx(xlsx_edit) => xlsx_edit,
                         _ => {
                             anyhow::bail!(format!("this should be xlsx edit,but:{:?}", edit))
                         }
@@ -1449,6 +1441,7 @@ pub enum ExportKind {
     Html {
         include_header: bool,
     },
+    MarkDown,
 }
 
 impl ExportKind {
@@ -1725,6 +1718,35 @@ pub(crate) fn create_html_table_data(data: &[Vec<Option<String>>]) -> String {
     ret
 }
 
+pub(crate) fn create_markdown_header(header: &[String]) -> String {
+    let mut ret = format!("|{}|\n", header.join("|"));
+    ret.push_str(
+        format!(
+            "|{}|\n",
+            (0..header.len())
+                .map(|_| ":---:")
+                .collect::<Vec<_>>()
+                .join("|")
+        )
+        .as_str(),
+    );
+    ret
+}
+
+pub(crate) fn create_markdown_data(header: &[Option<String>]) -> String {
+    let ret = format!(
+        "|{}|\n",
+        header
+            .iter()
+            .map(|x| match x {
+                Some(x) => x.as_str(),
+                None => "",
+            })
+            .collect::<Vec<_>>()
+            .join("|")
+    );
+    ret
+}
 pub type QueryEventEmitter = Arc<dyn QueryEventEmit>;
 
 pub trait QueryEventEmit: Sync + Send + 'static {

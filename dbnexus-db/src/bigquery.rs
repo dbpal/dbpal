@@ -5,7 +5,7 @@ use gcp_bigquery_client::client_builder::ClientBuilder;
 use crate::{
     datasource_config::BigQueryDbConfig,
     db::{
-        BackendKind, CheckConn, ExportKind, ExportQueryResult, ExportXXX, Field, GetBackendKind,
+        BackendKind, CheckConn, ExportKind, ExportQueryResult, ExportFrame, Field, GetBackendKind,
         ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
         ServerMetas, ShowTableParameter, SqlExecuteRet, not_support_feature,
     },
@@ -166,7 +166,7 @@ impl ExportQueryResult for BigQueryDb {
 
     async fn export_query_result(
         &self, query_id: &str, _sql: &str, _kind: ExportKind,
-        _sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         todo!()
     }

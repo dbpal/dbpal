@@ -2,11 +2,11 @@ use crate::{
     datasource_config::{MysqlDBConfig, PGDBConfig},
     db::{
         BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-        CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind,
-        ExportQueryResult, ExportXXX, ExportedSizeEmitter, Field, GetBackendKind, Index, IndexKind,
-        ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmitter,
-        QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas,
-        ShowTableParameter, SqlEvent, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
+        CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind,
+        ExportQueryResult, ExportedSizeEmitter, Field, GetBackendKind, Index, IndexKind, ListTable,
+        MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmitter, QueryResp,
+        QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter,
+        SqlEvent, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
     },
     mariadb::MariaDB,
     mysql::MysqlDB,
@@ -171,7 +171,7 @@ impl ExportQueryResult for SubDB {
 
     async fn export_query_result(
         &self, query_id: &str, _sql: &str, _kind: ExportKind,
-        _sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         self.as_export_query_result()
             .export_query_result(query_id, _sql, _kind, _sender)
@@ -381,7 +381,7 @@ impl SchemaTrait for SubDB {
     }
 
     async fn export_table_or_view(
-        &self, _name: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<ExportXXX>,
+        &self, _name: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         self.as_schema()
             .export_table_or_view(_name, _kind, _sender)
