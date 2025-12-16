@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use sqlparser::dialect::Dialect;
 use sqlparser::tokenizer::Token;
 
@@ -27,19 +25,21 @@ where
 
 /// create csv file list of string
 /// each line of line separator
-pub(crate) fn create_csv(ds: &[Option<String>], delimiter: char) -> String {
-    let mut ret = String::new();
-    let last = ds.len() - 1;
-    for (index, x) in ds.iter().enumerate() {
-        if let Some(x) = x {
-            ret.push_str(&escape_csv(x, delimiter));
-        }
-        if index != last {
-            ret.push(delimiter);
-        }
-    }
-    ret.push('\n');
-    ret
+pub(crate) fn create_csv(
+    ds: &[Option<String>], delimiter: char,
+) -> anyhow::Result<tokio_util::bytes::Bytes> {
+    let mut writer = csv::WriterBuilder::new()
+        .delimiter(delimiter as u8)
+        .from_writer(Vec::new());
+
+    writer.write_record(ds.iter().map(|x| match x {
+        Some(x) => x.as_bytes(),
+        None => &[],
+    }))?;
+    writer.flush()?;
+    let r = writer.into_inner()?;
+    let r = tokio_util::bytes::Bytes::from(r);
+    anyhow::Ok(r)
 }
 
 pub fn separate_sql_by_sqlparser_tokenizer(
@@ -69,14 +69,6 @@ pub fn separate_sql_by_sqlparser_tokenizer(
         ret.push(cache.join(" "));
     }
     anyhow::Ok(ret)
-}
-
-fn escape_csv(s: &str, delimiter: char) -> Cow<'_, str> {
-    if s.contains(delimiter) {
-        Cow::Owned(format!(r#""{}""#, s))
-    } else {
-        Cow::Borrowed(s)
-    }
 }
 
 /// get current timestamp

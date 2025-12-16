@@ -912,11 +912,11 @@ impl OracleDB {
                         .iter()
                         .map(|x| Some(x.name().to_owned()))
                         .collect();
-                    sender.blocking_send(create_csv(&fs, delimiter).into())?;
+                    sender.blocking_send(create_csv(&fs, delimiter)?.into())?;
                     first = false;
                 }
                 let data = encode_row(row)?;
-                sender.blocking_send(create_csv(&data, delimiter).into())?;
+                sender.blocking_send(create_csv(&data, delimiter)?.into())?;
             }
             anyhow::Ok(())
         })

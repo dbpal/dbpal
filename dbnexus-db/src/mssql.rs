@@ -1623,7 +1623,7 @@ impl SqlServerDB {
             match row {
                 tiberius::QueryItem::Row(r) => {
                     let s = create_csv(&encode_row(&r)?, delimiter);
-                    sender.send(s.into()).await?;
+                    sender.send(s?.into()).await?;
                 }
                 tiberius::QueryItem::Metadata(meta) => {
                     if first && include_header {
@@ -1633,7 +1633,7 @@ impl SqlServerDB {
                             .map(|x| x.name().to_string())
                             .map(Some)
                             .collect::<Vec<_>>();
-                        sender.send(create_csv(&fs, delimiter).into()).await?;
+                        sender.send(create_csv(&fs, delimiter)?.into()).await?;
                         first = false
                     }
                 }

@@ -668,13 +668,13 @@ impl CassandraDB {
                 .iter()
                 .map(|x| Some(x.name().to_owned()))
                 .collect();
-            sender.send(create_csv(&cols, delimiter).into()).await?;
+            sender.send(create_csv(&cols, delimiter)?.into()).await?;
         }
         let mut stream = pager.rows_stream::<Row>()?;
         while let Some(row) = stream.next().await {
             let row = row?;
             let d = encode_row(row)?;
-            sender.send(create_csv(&d, delimiter).into()).await?;
+            sender.send(create_csv(&d, delimiter)?.into()).await?;
         }
         anyhow::Ok(())
     }

@@ -260,7 +260,7 @@ impl RedisDB {
             RedisType::String => {
                 let value: Vec<u8> = conn.get(key).await?;
                 sender
-                    .send(create_csv(&[Some(to_string_or_hex(value))], delimiter).into())
+                    .send(create_csv(&[Some(to_string_or_hex(value))], delimiter)?.into())
                     .await?;
             }
 
@@ -275,7 +275,7 @@ impl RedisDB {
                         .map(|x| vec![Some(to_string_or_hex(x))])
                         .collect::<Vec<_>>();
                     for l in list {
-                        sender.send(create_csv(&l, delimiter).into()).await?;
+                        sender.send(create_csv(&l, delimiter)?.into()).await?;
                     }
                 }
             }
@@ -288,7 +288,7 @@ impl RedisDB {
                         .map(|x| vec![Some(to_string_or_hex(x))])
                         .collect::<Vec<_>>();
                     for s in set {
-                        sender.send(create_csv(&s, delimiter).into()).await?;
+                        sender.send(create_csv(&s, delimiter)?.into()).await?;
                     }
                 }
             }
@@ -305,7 +305,7 @@ impl RedisDB {
                                     Some(to_string_or_hex(kv[1].clone())),
                                 ],
                                 delimiter,
-                            )
+                            )?
                             .into(),
                         )
                         .await?;
@@ -323,7 +323,7 @@ impl RedisDB {
                                     Some(to_string_or_hex(kv[1].clone())),
                                 ],
                                 delimiter,
-                            )
+                            )?
                             .into(),
                         )
                         .await?;
@@ -789,7 +789,7 @@ impl RedisDB {
         while let Some(value) = stream.next().await {
             let value = value?;
             sender
-                .send(create_csv(&[Some(value)], delimiter).into())
+                .send(create_csv(&[Some(value)], delimiter)?.into())
                 .await?;
         }
         anyhow::Ok(())

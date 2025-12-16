@@ -183,11 +183,11 @@ impl FireBirdDB {
                 let row = row?;
                 if first && include_header {
                     let fs: Vec<_> = row.cols.iter().map(|x| x.name.clone()).map(Some).collect();
-                    sender.blocking_send(create_csv(&fs, delimiter).into())?;
+                    sender.blocking_send(create_csv(&fs, delimiter)?.into())?;
                     first = false;
                 }
                 let data = encode_row(&row, true, None)?;
-                sender.blocking_send(create_csv(&data, delimiter).into())?;
+                sender.blocking_send(create_csv(&data, delimiter)?.into())?;
             }
             anyhow::Ok(())
         })

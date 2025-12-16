@@ -947,7 +947,7 @@ impl std::fmt::Display for ExportXXX {
             ExportXXX::String(s) => write!(f, "{}", s),
             ExportXXX::Xlsx(xlsx_edit) => write!(f, "{}", xlsx_edit),
             ExportXXX::Bytes(bytes) => {
-                write!(f, "{}", String::from_utf8_lossy(bytes.deref().to_vec()))
+                write!(f, "{}", String::from_utf8_lossy(bytes.deref()))
             }
         }
     }
@@ -961,7 +961,7 @@ impl ExportXXX {
             ExportXXX::Xlsx(..) => {
                 anyhow::bail!("this is xlsx edit,should be a internal error")
             }
-            ExportXXX::Bytes(bytes) => {
+            ExportXXX::Bytes(..) => {
                 anyhow::bail!("this is bytes,should be a internal error")
             }
         };

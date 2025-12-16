@@ -50,6 +50,7 @@ use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+#[allow(unused_imports)]
 use tauri_plugin_log::{Target, TargetKind};
 mod migration;
 use rustls::crypto::{CryptoProvider, aws_lc_rs};
@@ -122,6 +123,7 @@ fn is_macos() -> bool {
     cfg!(target_os = "macos")
 }
 
+#[allow(dead_code)]
 fn get_logger_level() -> Option<log::Level> {
     let level = log_level_loc().load(Ordering::Relaxed);
     match level {
@@ -227,7 +229,16 @@ fn main() {
         copyright: Some("Copyright © yuyang 2025 All rights reserved.".to_string()),
         ..AboutMetadata::default()
     };
-    let builder = tauri::Builder::default();
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default();
+
+    #[cfg(debug_assertions)] // only enable instrumentation in development builds
+    let devtools = tauri_plugin_devtools::init();
+    #[cfg(debug_assertions)]
+    {
+        builder = builder.plugin(devtools);
+    }
+
     builder
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())

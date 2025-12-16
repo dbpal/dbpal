@@ -209,11 +209,11 @@ impl SqliteDB {
                     .map(|x| x.name().to_string())
                     .map(Some)
                     .collect();
-                sender.send(create_csv(&fs, delimiter).into()).await?;
+                sender.send(create_csv(&fs, delimiter)?.into()).await?;
                 first = false;
             }
             let data = encode_row(&row)?;
-            sender.send(create_csv(&data, delimiter).into()).await?;
+            sender.send(create_csv(&data, delimiter)?.into()).await?;
         }
         anyhow::Ok(())
     }
