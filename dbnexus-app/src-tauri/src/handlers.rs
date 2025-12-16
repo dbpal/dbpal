@@ -2922,9 +2922,7 @@ pub async fn put_value_in_sql(
         a: &dyn std::any::Any, typ: &str, value: Option<&str>,
     ) -> Result<String, ErrorFrontend> {
         if let Some(x) = a.downcast_ref::<T>() {
-            return x
-                .put_value_in_sql(typ, None, value)
-                .map_err(ErrorFrontend::from);
+            return x.put_value_in_sql(typ, value).map_err(ErrorFrontend::from);
         }
         Err(ErrorFrontend::from("type not match"))
     }

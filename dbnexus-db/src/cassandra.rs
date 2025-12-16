@@ -29,8 +29,8 @@
 use crate::datasource_config::CassandraDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
-    CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, ExportQueryResult,
-    ExportFrame, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind,
+    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
     ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter,
     XlsxEdit, create_html_table_data, create_html_table_header, create_markdown_data,
@@ -784,7 +784,8 @@ impl CassandraDB {
             .await
     }
     async fn export_table_as_html(
-        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
@@ -819,7 +820,8 @@ impl CassandraDB {
     }
 
     async fn export_table_as_xlsx(
-        &self, table_name: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self, table_name: &str, include_header: bool,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let sql = format!(r#"SELECT * from "{}""#, table_name);
         log::info!("sql:{}", sql);
@@ -893,9 +895,7 @@ pub const CQL_CURRENT_LITERALS: &[&str] = &[
 
 impl SqlBuilder for CassandraDB {
     const CURRENT_VALUES: &'static [&'static str] = CQL_CURRENT_LITERALS;
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
             return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }

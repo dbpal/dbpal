@@ -111,14 +111,8 @@ fn is_time(x: &Option<&String>) -> bool {
 }
 
 fn encode_row(
-    row: &Row, try_blob_2_str: bool, types: Option<HashMap<&String, &Field>>,
+    row: &Row, types: Option<HashMap<&String, &Field>>,
 ) -> anyhow::Result<Vec<Option<String>>> {
-    let get_binary_sub_type = |name: &String| {
-        types
-            .as_ref()
-            .and_then(|x| x.get(name).map(|x| x.firebird_binary_sub_type))
-            .flatten()
-    };
     let get_type = |name: &String| {
         types
             .as_ref()
@@ -142,22 +136,7 @@ fn encode_row(
                     Some(naive_date_time.to_string())
                 }
             }
-            SqlType::Binary(items) => {
-                let sub_type = get_binary_sub_type(&v.name);
-                match sub_type {
-                    _ if sub_type_is_text(sub_type) => Some(String::from_utf8(items.clone())?),
-                    _ => {
-                        if try_blob_2_str {
-                            match String::from_utf8(items.clone()) {
-                                Ok(x) => Some(x),
-                                Err(_) => Some(hex::encode(items.as_slice())),
-                            }
-                        } else {
-                            Some(hex::encode(items.as_slice()))
-                        }
-                    }
-                }
-            }
+            SqlType::Binary(items) => Some(format!("x'{}'", hex::encode(items.as_slice()))),
             SqlType::Boolean(x) => Some(x.to_string()),
             SqlType::Null => None,
         };
@@ -186,7 +165,7 @@ impl FireBirdDB {
                     sender.blocking_send(create_csv(&fs, delimiter)?.into())?;
                     first = false;
                 }
-                let data = encode_row(&row, true, None)?;
+                let data = encode_row(&row, None)?;
                 sender.blocking_send(create_csv(&data, delimiter)?.into())?;
             }
             anyhow::Ok(())
@@ -214,7 +193,7 @@ impl FireBirdDB {
                     sender.blocking_send(create_html_table_header(&fs).into())?;
                     first = false;
                 }
-                let data = encode_row(&row, true, None)?;
+                let data = encode_row(&row, None)?;
                 sender.blocking_send(create_html_table_data(&[data]).into())?;
             }
             anyhow::Ok(())
@@ -242,7 +221,7 @@ impl FireBirdDB {
                     sender.blocking_send(create_markdown_header(&fs).into())?;
                     first = false;
                 }
-                let data = encode_row(&row, true, None)?;
+                let data = encode_row(&row, None)?;
                 sender.blocking_send(create_markdown_data(&data).into())?;
             }
             anyhow::Ok(())
@@ -370,7 +349,7 @@ impl FireBirdDB {
                     }
                     first = false;
                 }
-                let data = encode_row(&row, true, None)?;
+                let data = encode_row(&row, None)?;
                 export_query_as_xlsx_send_blocking_data(&mut row_num, data, sender.clone())?;
             }
             anyhow::Ok(())
@@ -509,7 +488,7 @@ impl QuerySql for FireBirdDB {
                         .into(),
                     )?;
                 }
-                let d = encode_row(&item, true, None)?;
+                let d = encode_row(&item, None)?;
                 emit.send(d.into())?;
             }
             anyhow::Ok(())
@@ -683,7 +662,7 @@ impl FireBirdDB {
             let rows: Box<dyn Iterator<Item = Result<Row, FbError>>> = conn.query_iter(&sql, ())?;
             for row in rows {
                 let row = row?;
-                let data = encode_row(&row, true, Some(types.clone()))?;
+                let data = encode_row(&row, Some(types.clone()))?;
                 let mut m = HashMap::new();
                 for (d, f) in data.into_iter().zip(cols.iter()) {
                     m.insert(f.field.clone(), d);
@@ -746,7 +725,7 @@ impl FireBirdDB {
         let rows: Vec<(String, String, Option<i64>, String, Option<String>)> =
             conn.query(&sql, ())?;
         let mut ret = Vec::new();
-        for (name, typ, sub_type, nullable, default_value) in rows {
+        for (name, typ, _sub_type, nullable, default_value) in rows {
             let name = name.trim().to_owned();
             let data_type = typ.trim().to_owned();
             let is_primary = pri_keys.contains(&name);
@@ -756,7 +735,6 @@ impl FireBirdDB {
                 nullable: nullable == "YES",
                 default_value,
                 is_primary,
-                firebird_binary_sub_type: sub_type,
                 ..Default::default()
             });
         }
@@ -890,7 +868,7 @@ impl SchemaTrait for FireBirdDB {
                 conn.query_iter(&sql, ())?;
             for row in stream {
                 let row = row?;
-                emit.send(encode_row(&row, true, Some(fs_map.clone()))?.into())?;
+                emit.send(encode_row(&row, Some(fs_map.clone()))?.into())?;
             }
             anyhow::Ok(())
         })
@@ -1105,7 +1083,7 @@ impl SchemaTrait for FireBirdDB {
                 conn.query_iter(&sql, ())?;
             for row in stream {
                 let row = row?;
-                let d = encode_row(&row, true, None)?;
+                let d = encode_row(&row, None)?;
                 emit.send(d.into())?;
             }
             anyhow::Ok(())
@@ -1123,13 +1101,11 @@ pub const FB_CURRENT_LITERALS: &[&str] = &[
 
 impl SqlBuilder for FireBirdDB {
     const CURRENT_VALUES: &'static [&'static str] = FB_CURRENT_LITERALS;
-    fn put_value_in_sql(
-        &self, typ: &str, firebird_blob_sub_type: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
             return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }
-        put_value_in_sql(typ, firebird_blob_sub_type, value)
+        put_value_in_sql(typ, value)
     }
 }
 
@@ -1145,43 +1121,18 @@ impl FireBirdDB {
         anyhow::Ok(row.map(|x| x.0 as usize).unwrap_or_default())
     }
 }
-
-fn sub_type_is_text(sub_type: Option<i64>) -> bool {
-    sub_type.map(|x| x == 1).unwrap_or_default()
-}
-
-fn put_value_in_sql(
-    typ: &str, sub_type: Option<i64>, value: Option<&str>,
-) -> anyhow::Result<String> {
+fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
     let typ = typ.to_lowercase();
     log::trace!("encode value '{:?}' on type '{}'", value, typ);
-    match typ.as_str() {
-        "text" | "varying" => anyhow::Ok(
-            value
-                .map(|x| format!("'{}'", escape_sql_str(x)))
-                .unwrap_or("null".to_string()),
-        ),
-        "date" | "time" | "timestamp" => anyhow::Ok(
-            value
-                .map(|x| format!("'{}'", escape_sql_str(x)))
-                .unwrap_or("null".to_string()),
-        ),
-        // binary is blob
-        "blob" if sub_type_is_text(sub_type) => anyhow::Ok(
-            value
-                .map(|x| format!("'{}'", x))
-                .unwrap_or("null".to_string()),
-        ),
-        "blob" => match sub_type {
-            Some(sub_type) => anyhow::Ok(
-                value
-                    .map(|x| format!("CAST(HEX_DECODE('{}') AS BLOB SUB_TYPE {})", x, sub_type))
-                    .unwrap_or("null".to_string()),
-            ),
-            None => anyhow::bail!("sub type should some."),
-        },
-        _ => anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string())),
-    }
+    let r = match typ.as_str() {
+        "text" | "varying" => anyhow::Ok(value.map(|x| format!("'{}'", escape_sql_str(x)))),
+        "date" | "time" | "timestamp" => {
+            anyhow::Ok(value.map(|x| format!("'{}'", escape_sql_str(x))))
+        }
+        "blob" => anyhow::Ok(value.map(|x| x.to_string())),
+        _ => anyhow::Ok(value.map(|x| x.to_string())),
+    };
+    r.map(|x| x.unwrap_or("null".to_string()))
 }
 
 #[async_trait::async_trait]
@@ -1655,7 +1606,6 @@ mod tests {
     #[tokio::test]
     async fn test_table2() {
         let _guard = test_lock().lock().await;
-
         enable_test_log();
         let table_name = "TEST_TABLE2";
         let db = make_test_object().await;
@@ -1691,13 +1641,10 @@ mod tests {
             "COL_VARCHAR".to_string(),
             Some("Variable Length Text".to_string()),
         );
-        values.insert(
-            "COL_BLOB_TEXT".to_string(),
-            Some("This is a text BLOB".to_string()),
-        );
+        values.insert("COL_BLOB_TEXT".to_string(), Some("x'616263'".to_string()));
         values.insert(
             "COL_BLOB_BINARY".to_string(),
-            Some("48656C6C6F".to_string()),
+            Some("x'48656C6C6F'".to_string()),
         );
         values.insert("COL_DATE".to_string(), Some("2025-03-17".to_string()));
         values.insert("COL_TIME".to_string(), Some("14:30:00".to_string()));

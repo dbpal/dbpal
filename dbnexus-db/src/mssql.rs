@@ -567,7 +567,7 @@ impl SchemaTrait for SqlServerDB {
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, None, Some(d.as_str()))?
+                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
                 )
             } else {
                 "".to_owned()
@@ -1268,9 +1268,7 @@ impl SqlBuilder for SqlServerDB {
     const CURRENT_VALUES: &'static [&'static str] = SQLSERVER_CURRENT_LITERALS;
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
             return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }

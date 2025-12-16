@@ -509,9 +509,7 @@ pub trait SqlBuilder: GetBackendKind {
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(
-        &self, _typ: &str, _: Option<i64>, _value: Option<&str>,
-    ) -> anyhow::Result<String>;
+    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String>;
 
     fn make_where(
         &self, fs: &[Field], wheres: &HashMap<String, Option<String>>,
@@ -545,11 +543,7 @@ pub trait SqlBuilder: GetBackendKind {
                     "{} {} = {}",
                     if !first { " AND " } else { "" },
                     self.quote(k),
-                    self.put_value_in_sql(
-                        &f.data_type,
-                        f.firebird_binary_sub_type,
-                        v.as_ref().map(|x| x.as_str())
-                    )?
+                    self.put_value_in_sql(&f.data_type, v.as_ref().map(|x| x.as_str()))?
                 )
                 .as_str(),
             );
@@ -616,7 +610,6 @@ pub trait SqlBuilder: GetBackendKind {
                         self.quote(k),
                         self.put_value_in_sql(
                             &f.option_must_be_some()?.data_type,
-                            f.option_must_be_some()?.firebird_binary_sub_type,
                             v.as_ref().map(|x| x.as_str())
                         )?
                     )
@@ -686,11 +679,7 @@ pub trait SqlBuilder: GetBackendKind {
                     sql.push(',');
                 }
                 let value = values.get(&f.field).cloned().flatten();
-                sql.push_str(&self.put_value_in_sql(
-                    &f.data_type,
-                    f.firebird_binary_sub_type,
-                    value.as_deref(),
-                )?);
+                sql.push_str(&self.put_value_in_sql(&f.data_type, value.as_deref())?);
                 first = false;
             }
             sql.push(')');
@@ -1366,7 +1355,6 @@ pub struct Field {
     pub is_auto_increment: bool,
     // right now all of implementation are sortable
     pub sortable: bool,
-    pub firebird_binary_sub_type: Option<i64>,
 }
 
 impl Default for Field {
@@ -1379,7 +1367,6 @@ impl Default for Field {
             is_primary: false,
             is_auto_increment: false,
             sortable: true,
-            firebird_binary_sub_type: None,
         }
     }
 }
@@ -1412,7 +1399,6 @@ impl Field {
             is_primary,
             is_auto_increment,
             sortable: true,
-            firebird_binary_sub_type: None,
         }
     }
 }

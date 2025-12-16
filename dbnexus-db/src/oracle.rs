@@ -1426,7 +1426,7 @@ impl SchemaTrait for OracleDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE "{table}" MODIFY "{new_name}" DEFAULT {}"#,
-                    self.put_value_in_sql(&typ.typ, None, Some(dv.as_str()))?
+                    self.put_value_in_sql(&typ.typ, Some(dv.as_str()))?
                 );
                 log::info!("sql:{}", sql);
                 self.execute(sql).await?;
@@ -1449,7 +1449,7 @@ impl SchemaTrait for OracleDB {
             if let Some(dv) = typ.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql(&typ.typ, None, Some(dv.as_str()))?
+                    self.put_value_in_sql(&typ.typ, Some(dv.as_str()))?
                 )
             } else {
                 "".to_owned()
@@ -1851,9 +1851,7 @@ impl SqlBuilder for OracleDB {
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
             return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }

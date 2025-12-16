@@ -631,7 +631,7 @@ impl SchemaTrait for ClickHouseDB {
                     ALTER TABLE {table}
                     MODIFY COLUMN {new_name} DEFAULT {}
                 "#,
-                    self.put_value_in_sql(&typ.typ, None, Some(dv.as_str()))?
+                    self.put_value_in_sql(&typ.typ, Some(dv.as_str()))?
                 );
                 log::info!("sql:{}", sql);
                 self.client.query(&sql).execute().await?;
@@ -652,7 +652,7 @@ impl SchemaTrait for ClickHouseDB {
             sql.push_str(
                 format!(
                     "DEFAULT {} ",
-                    self.put_value_in_sql(&col.typ, None, Some(dv.as_str()))?
+                    self.put_value_in_sql(&col.typ, Some(dv.as_str()))?
                 )
                 .as_str(),
             );
@@ -1379,7 +1379,6 @@ impl SqlBuilder for ClickHouseDB {
                         self.quote(k),
                         self.put_value_in_sql(
                             &f.option_must_be_some()?.data_type,
-                            f.option_must_be_some()?.firebird_binary_sub_type,
                             v.as_ref().map(|x| x.as_str())
                         )?
                     )
@@ -1396,9 +1395,7 @@ impl SqlBuilder for ClickHouseDB {
         anyhow::Ok(sql)
     }
 
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
             return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }

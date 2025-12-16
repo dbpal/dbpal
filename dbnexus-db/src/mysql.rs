@@ -888,7 +888,7 @@ impl SchemaTrait for MysqlDB {
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, None, Some(d.as_str()))?
+                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
                 )
             } else {
                 "".to_owned()
@@ -1997,9 +1997,7 @@ pub const MYSQL_CURRENT_LITERALS: &[&str] = &[
 
 impl SqlBuilder for MysqlDB {
     const CURRENT_VALUES: &'static [&'static str] = MYSQL_CURRENT_LITERALS;
-    fn put_value_in_sql(
-        &self, f: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, f: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
             return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }

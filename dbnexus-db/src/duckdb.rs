@@ -435,9 +435,7 @@ fn encode_row_as_json<'stmt>(
 }
 
 impl SqlBuilder for DuckDB {
-    fn put_value_in_sql(
-        &self, typ: &str, _: Option<i64>, value: Option<&str>,
-    ) -> anyhow::Result<String> {
+    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         put_value_in_sql(typ, value)
     }
 }
@@ -1105,7 +1103,7 @@ impl SchemaTrait for DuckDB {
                     r#"
                     ALTER TABLE "{table}" ALTER COLUMN "{new_name}" SET DEFAULT {};
                     "#,
-                    self.put_value_in_sql(&typ.typ, None, Some(x.as_str()))?
+                    self.put_value_in_sql(&typ.typ, Some(x.as_str()))?
                 );
 
                 self.execute(sql).await?;
@@ -1128,7 +1126,7 @@ impl SchemaTrait for DuckDB {
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
-                    self.put_value_in_sql(&col.typ, None, Some(d.as_str()))?
+                    self.put_value_in_sql(&col.typ, Some(d.as_str()))?
                 )
             } else {
                 "".to_owned()
