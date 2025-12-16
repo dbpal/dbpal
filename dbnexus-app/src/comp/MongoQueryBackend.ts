@@ -107,6 +107,9 @@ class MongoDBQueryFindCommon {
 class MongoDBQueryFind extends MongoDBQueryFindCommon implements IFindBuilder {
   _limit: number;
   async find() {
+    if (!this._limit) {
+      throw `limit can't be null`;
+    }
     const x = this.makeCommonArg();
     x.limit = this._limit;
     return invoke<number[][]>("mongo_query_collection_find", x).then(e => {
