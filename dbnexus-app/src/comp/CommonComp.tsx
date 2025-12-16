@@ -35,6 +35,7 @@ import {
   GridSlotsComponentsProps,
   GridSortModel,
 } from "@mui/x-data-grid";
+import { FaFolderOpen } from "react-icons/fa";
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -47,7 +48,6 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { IoTimerOutline } from "react-icons/io5";
-
 import {
   ColumnWidth,
   ContextMenuContext,
@@ -902,18 +902,19 @@ function OpenFileWithDefaultApp({ file }) {
   return (
     <>
       {file && (
-        <Button
-          onClick={() => {
-            openPath(file)
-              .then(() => {})
-              .catch(e => {
-                showNotification("warning", "open export file failed", e);
-              });
-          }}
-          variant="text"
-        >
-          open with default app (if applicable)
-        </Button>
+        <Tooltip title="open with default app (if applicable)">
+          <IconButton
+            onClick={() => {
+              openPath(file)
+                .then(() => {})
+                .catch(e => {
+                  showNotification("warning", "open export file failed", e);
+                });
+            }}
+          >
+            <FaFolderOpen fontSize="1.5rem" />
+          </IconButton>
+        </Tooltip>
       )}
     </>
   );

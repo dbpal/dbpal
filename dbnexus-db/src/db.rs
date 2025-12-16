@@ -1111,7 +1111,7 @@ async fn write_export_file(
                     emit(total)
                 }
             }
-            emit(0);
+            emit(total);
             anyhow::Ok(())
         }
     };
