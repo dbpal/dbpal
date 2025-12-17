@@ -479,7 +479,6 @@ function SqlQuery(props: {
                 <Tooltip title="query">
                   <IconButton
                     loading={loading}
-                    disabled={loading}
                     onClick={() => {
                       handleQuery(false);
                     }}
@@ -489,10 +488,9 @@ function SqlQuery(props: {
                   </IconButton>
                 </Tooltip>
 
-                <Tooltip title="query and append result to results tabs">
+                <Tooltip title="execute query in new tab">
                   <IconButton
                     loading={loading}
-                    disabled={loading}
                     onClick={() => {
                       handleQuery(true);
                     }}
@@ -503,12 +501,7 @@ function SqlQuery(props: {
                 </Tooltip>
 
                 <Tooltip title="execute sql not expecting result">
-                  <IconButton
-                    loading={loading}
-                    disabled={loading}
-                    onClick={handleExecute}
-                    color="primary"
-                  >
+                  <IconButton loading={loading} onClick={handleExecute} color="primary">
                     <FaExclamation />
                   </IconButton>
                 </Tooltip>
@@ -523,7 +516,6 @@ function SqlQuery(props: {
                   <Tooltip title="explain sql">
                     <IconButton
                       loading={loading}
-                      disabled={loading}
                       onClick={() => {
                         handleQuery(false, true);
                       }}
@@ -562,7 +554,6 @@ function SqlQuery(props: {
               <Tooltip title="export query result to a file">
                 <IconButton
                   loading={loading}
-                  disabled={loading}
                   onClick={() => {
                     const value = getEditorText(editor, showNotification);
                     if (!value) {

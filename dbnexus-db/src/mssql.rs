@@ -16,7 +16,6 @@ use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
 use chrono::FixedOffset;
 use dashmap::DashMap;
-use futures_core::future::BoxFuture;
 use futures_util::StreamExt;
 use sqlparser::tokenizer::Token;
 use std::collections::HashMap;
@@ -168,12 +167,9 @@ impl SqlServerDB {
         if let Some(x) = c.conn_timeout {
             builder = builder.connection_timeout(x.into());
         }
-
         builder = builder.max_size(POOL_MAX_CONNECTIONS);
         builder = builder.min_idle(Some(5));
-
         let pool = builder.build(manager).await?;
-
         anyhow::Ok(Self {
             config: c,
             pool,
@@ -2021,16 +2017,6 @@ impl SqlServerDB {
         .await??;
 
         anyhow::Ok(conn)
-    }
-
-    #[allow(unused)]
-    async fn with_conn<R>(
-        &self,
-        call_back: impl FnOnce(&mut Client<Compat<TcpStream>>) -> BoxFuture<anyhow::Result<R>>,
-    ) -> anyhow::Result<R> {
-        let mut conn = self.get_conn().await?;
-        let conn = conn.deref_mut();
-        call_back(conn).await
     }
 }
 
