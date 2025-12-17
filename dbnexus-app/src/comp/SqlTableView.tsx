@@ -537,7 +537,9 @@ function SqlTableView(props: {
           "Update OK",
           <Stack>
             <Typography> sql:{ret.sql} </Typography>
-            {ret.changes && <Typography> row affected :{ret.changes} </Typography>}
+            {typeof ret.changes == "number" && (
+              <Typography> row affected:{ret.changes} </Typography>
+            )}
           </Stack>,
         );
         handleResp({
@@ -580,7 +582,9 @@ function SqlTableView(props: {
           "delete OK",
           <Stack>
             <Typography> sql:{ret.sql} </Typography>
-            {ret.changes && <Typography> row affected :{ret.changes} </Typography>}
+            {typeof ret.changes == "number" && (
+              <Typography> row affected:{ret.changes} </Typography>
+            )}
           </Stack>,
         );
       } catch (e) {
