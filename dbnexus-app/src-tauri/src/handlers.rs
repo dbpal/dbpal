@@ -1057,7 +1057,7 @@ impl QueryEventEmit for QueryEventChannelEmit {
             self.cancel_msg.cancel(err_msg.clone());
             return Err(anyhow::anyhow!(err_msg));
         }
-        let cache_size = if cfg!(debug_assertions) { 77 } else { 1000 };
+        let cache_size = if cfg!(debug_assertions) { 177 } else { 1000 };
         match event {
             dbnexus_db::db::QueryEvent::Resp(query_resp) => {
                 self.take_data_and_send()?;
