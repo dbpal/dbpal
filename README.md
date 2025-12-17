@@ -92,3 +92,12 @@ from
     has_data_2,
     Persons ,
     has_data_1  
+
+
+
+
+
+统计
+~~~bash 
+find . -path ./target -prune -o -name '*.rs' -exec wc -l {} +
+~~~

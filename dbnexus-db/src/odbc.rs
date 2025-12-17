@@ -378,6 +378,33 @@ impl OdbcDbQuery {
     }
 }
 
+// https://public.dhe.ibm.com/ibmdl/export/pub/software/data/db2/drivers/odbc_cli/
+fn test_db2() -> anyhow::Result<()> {
+    let conn_str = "Driver={Driver_IBM_DB2};Database=TSKDB;Hostname=127.0.0.1;Port=50000;Protocol=TCPIP;UID=db2inst1;PWD=db2inst1-pwd;";
+    let conn = ODBC_ENV
+        .connect_with_connection_string(conn_str, ConnectionOptions::default())
+        .unwrap();
+    let mut cursor = conn
+        .execute("SELECT 'hello' FROM SYSIBM.SYSDUMMY1", (), None)
+        .unwrap()
+        .unwrap();
+    let mut buffer = TextRowSet::for_cursor(100, &mut cursor, Some(4096)).unwrap();
+    let mut row_mut_set = cursor.bind_buffer(&mut buffer).unwrap();
+
+    while let Some(batch) = row_mut_set.fetch().unwrap() {
+        for row_index in 0..batch.num_rows() {
+            for col_index in 0..batch.num_cols() {
+                println!("col_index:{} , row_index:{}", col_index, row_index);
+
+                let r = batch.at_as_str(col_index, row_index).unwrap();
+                dbg!(r);
+            }
+        }
+    }
+
+    anyhow::Ok(())
+}
+
 mod tests {
     use super::*;
 
@@ -387,5 +414,11 @@ mod tests {
         println!("odbc");
         // odbc_next_row();
         any_buffer();
+    }
+
+    #[test]
+
+    fn ddddd() {
+        test_db2();
     }
 }
