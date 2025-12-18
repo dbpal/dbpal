@@ -15,6 +15,8 @@ pub mod clickhouse;
 pub mod clickhouse_lang_server;
 pub mod cockroach;
 pub mod cockroach_lang_server;
+pub mod db2;
+pub mod db2_lang_server;
 #[cfg(feature = "duckdb")]
 pub mod duckdb;
 #[cfg(feature = "duckdb")]

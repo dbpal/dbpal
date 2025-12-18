@@ -5,7 +5,7 @@ use gcp_bigquery_client::client_builder::ClientBuilder;
 use crate::{
     datasource_config::BigQueryDbConfig,
     db::{
-        BackendKind, CheckConn, ExportKind, ExportQueryResult, ExportFrame, Field, GetBackendKind,
+        BackendKind, CheckConn, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
         ListTable, MetaValue, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
         ServerMetas, ShowTableParameter, SqlExecuteRet, not_support_feature,
     },

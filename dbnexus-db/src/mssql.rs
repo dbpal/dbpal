@@ -1931,8 +1931,8 @@ impl QuerySql for SqlServerDB {
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
         let mut conn = self.get_conn().await?;
-        let ret = match conn.execute(sql.trim(), &[]).await {
-            Ok(x) => Ok(QueryResp::row_affected(x.total(), sql.to_owned())),
+        let ret = match conn.simple_query(sql.trim()).await {
+            Ok(..) => Ok(QueryResp::execute_ok(sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
         anyhow::Ok(ret)
@@ -1948,8 +1948,8 @@ impl QuerySql for SqlServerDB {
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
 
-        let ret = match conn.execute(sql.trim(), &[]).await {
-            Ok(x) => Ok(QueryResp::row_affected(x.total(), sql.to_owned())),
+        let ret = match conn.simple_query(sql.trim()).await {
+            Ok(..) => Ok(QueryResp::execute_ok(sql.to_owned())),
             Err(err) => Err(err.to_string()),
         };
         anyhow::Ok(ret)
@@ -2455,13 +2455,12 @@ mod tests {
         let _ = db.drop_procedure("test_procedure", None).await;
         db.execute_sql(
             query_id,
-            r#"GO
+            r#"
 CREATE PROCEDURE dbo.test_procedure
 AS
 BEGIN
     SELECT 1;
 END;
-GO
         "#,
         )
         .await
@@ -2871,30 +2870,6 @@ GO
     // }
 
     #[tokio::test]
-    #[ignore = "reason"]
-
-    async fn test_xxx() {
-        let _guard = test_lock().lock().await;
-        let db = make_test_object().await;
-        let query_id = "";
-        db.open_connection("").await.unwrap();
-        db.execute_sql(
-            query_id,
-            r#"CREATE VIEW test_view AS
-                SELECT
-                    id,
-                    name,
-                    age,
-                    email
-                FROM
-                    test_view_table"#,
-        )
-        .await
-        .unwrap()
-        .unwrap();
-    }
-
-    #[tokio::test]
     async fn test_view() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
@@ -3092,7 +3067,7 @@ GO
 
     #[ignore = "xxx"]
     #[tokio::test]
-    async fn test_table_xxxx() {
+    async fn test_table_not_impl_will_panic() {
         let _guard = test_lock().lock().await;
         enable_test_log();
         let db = make_test_object().await;

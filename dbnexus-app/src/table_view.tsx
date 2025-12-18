@@ -2,7 +2,6 @@ import ReactDOM from "react-dom/client";
 import React, { ReactNode } from "react";
 import {
   DataSourceKind,
-  MongoTableHandler,
   NewWindowTableParameter,
   SomeTempStore,
 } from "./comp/helper.ts";
@@ -22,17 +21,8 @@ switch (kind) {
     content = makeRedisViewTable(uuid, table, redisTableType);
     break;
   case DataSourceKind.Mongo:
-    content = (
-      <MongoTable
-        reloadOPTableList={MongoTableHandler.reloadTableList(uuid, table)}
-        reloadOPDocs={MongoTableHandler.reloadDocs(uuid, table)}
-        modifyOP={isTable ? MongoTableHandler.modifyOP(uuid, table) : undefined}
-        loadOne={MongoTableHandler.loadOne(uuid, table)}
-        deleteOP={isTable ? MongoTableHandler.deleteOP(uuid, table) : undefined}
-      />
-    );
+    content = <MongoTable uuid={uuid} table={table} isTable={isTable} />;
     break;
-
   default:
     content = (
       <SqlTableView tableName={table} uuid={uuid} kind={kind} isTable={isTable} />

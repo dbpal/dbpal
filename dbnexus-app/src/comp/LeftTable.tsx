@@ -63,7 +63,6 @@ import {
   TabsSetContext,
   UuidContext,
   handleCopyToClipboard,
-  MongoTableHandler,
   getSupportExportKind,
   SettingContext,
   RedisTableType,
@@ -322,15 +321,7 @@ function makeViewTable(
       tableList = makeRedisViewTable(uuid, table, redisTableType);
       break;
     case DataSourceKind.Mongo:
-      tableList = (
-        <MongoTable
-          reloadOPTableList={MongoTableHandler.reloadTableList(uuid, table)}
-          reloadOPDocs={MongoTableHandler.reloadDocs(uuid, table)}
-          modifyOP={MongoTableHandler.modifyOP(uuid, table)}
-          loadOne={MongoTableHandler.loadOne(uuid, table)}
-          deleteOP={MongoTableHandler.deleteOP(uuid, table)}
-        />
-      );
+      tableList = <MongoTable uuid={uuid} table={table} isTable />;
       break;
   }
   return tableList;

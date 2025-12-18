@@ -89,6 +89,7 @@ import {
 } from "./helper";
 import { EditorBar, SimpleFlexEditor } from "./CommonComp2";
 import { message } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 enum MongoDataViewModel {
   List,
   Object,
@@ -1140,7 +1141,7 @@ function MongoTableList(props: {
   modifyOP?: (doc: BSON.Document) => Promise<void>;
   deleteOP?: (ids: any[] | any) => Promise<void>;
   triggerReload;
-  loading;
+  loading: boolean;
   setLoading;
 }) {
   const {
@@ -1157,7 +1158,6 @@ function MongoTableList(props: {
     setLoading,
   } = props;
   const [page, setPage] = useState(0);
-
   const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
   const { showNotification } = useContext(NotificationContext);
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
@@ -1212,7 +1212,6 @@ function MongoTableList(props: {
     },
     [loadOne, showNotification],
   );
-
   const getRowId = useCallback(e => {
     return renderId(e[keyNotInTable]);
   }, []);
@@ -1556,25 +1555,78 @@ function MongoTableObject(props: {
   );
 }
 
+class MongoTableHandler {
+  static reloadTableList(uuid: string, table) {
+    return async (filter, sort, page, pageSize): Promise<MuiDataGridData> => {
+      return await invoke("mongo_show_collection_table_list", {
+        name: uuid,
+        tableName: table,
+        filter: BSON.serialize(filter),
+        sort: BSON.serialize(sort),
+        page,
+        pageSize,
+      });
+    };
+  }
+  static reloadDocs(uuid: string, table) {
+    return async (filter, sort, page, pageSize): Promise<DocsAndCount> => {
+      return invoke<{ count: number; docs: number[][] }>("mongo_show_collection_docs", {
+        name: uuid,
+        tableName: table,
+        filter: BSON.serialize(filter),
+        sort: BSON.serialize(sort),
+        page,
+        pageSize,
+      }).then(x => {
+        const docs = x.docs.map(e => BSON.deserialize(new Uint8Array(e)));
+        const count = x.count;
+        return new DocsAndCount(docs, count);
+      });
+    };
+  }
+
+  static loadOne(uuid: string, table) {
+    return async (id): Promise<BSON.Document> => {
+      return invoke<number[]>("mongo_get_one_document_by_id", {
+        name: uuid,
+        tableName: table,
+        id: JSON.stringify(EJSON.serialize(id)),
+      }).then(x => {
+        return BSON.deserialize(new Uint8Array(x));
+      });
+    };
+  }
+
+  static modifyOP(uuid, table) {
+    return async doc => {
+      return invoke<void>("mongo_update_one", {
+        name: uuid,
+        tableName: table,
+        doc: BSON.serialize(doc),
+      });
+    };
+  }
+  static deleteOP(uuid, table) {
+    return async ids => {
+      if (!Array.isArray(ids)) {
+        ids = [ids];
+      }
+      return invoke<void>("mongo_delete_ids", {
+        name: uuid,
+        tableName: table,
+        ids: JSON.stringify(EJSON.serialize(ids)),
+      });
+    };
+  }
+}
 let oldViewModel = MongoDataViewModel.Object;
-function MongoTable(props: {
-  reloadOPTableList: (
-    filter: BSON.Document,
-    sort: BSON.Document,
-    page: number,
-    pageSize: number,
-  ) => Promise<MuiDataGridData>;
-  reloadOPDocs: (
-    filter: BSON.Document,
-    sort: BSON.Document,
-    page: number,
-    pageSize: number,
-  ) => Promise<DocsAndCount>;
-  loadOne: (id: any) => Promise<BSON.Document>;
-  modifyOP?: (doc: BSON.Document) => Promise<void>;
-  deleteOP?: (ids: any[] | any) => Promise<void>;
-}) {
-  const { reloadOPTableList, loadOne, modifyOP, reloadOPDocs, deleteOP } = props;
+function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
+  const { uuid, table, isTable } = props;
+  const reloadOPTableList = MongoTableHandler.reloadTableList(uuid, table);
+  const reloadOPDocs = MongoTableHandler.reloadDocs(uuid, table);
+  const modifyOP = isTable ? MongoTableHandler.modifyOP(uuid, table) : undefined;
+  const loadOne = MongoTableHandler.loadOne(uuid, table);
+  const deleteOP = isTable ? MongoTableHandler.deleteOP(uuid, table) : undefined;
   const [filter, setFilter] = useState<BSON.Document>({});
   const [sort, setSort] = useState<BSON.Document>({});
   const [viewModel, setViewModel] = useState(oldViewModel);

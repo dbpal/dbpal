@@ -11,7 +11,7 @@ import { ask, message } from "@tauri-apps/plugin-dialog";
 import { load } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
-import { BSON, EJSON } from "bson";
+import { BSON } from "bson";
 import Database, { QueryResult } from "@tauri-apps/plugin-sql";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
@@ -624,71 +624,6 @@ class DocsAndCount {
   constructor(public docs: BSON.Document[], public count: number) {}
 }
 
-class MongoTableHandler {
-  static reloadTableList(uuid: string, table) {
-    return async (filter, sort, page, pageSize): Promise<MuiDataGridData> => {
-      return await invoke("mongo_show_collection_table_list", {
-        name: uuid,
-        tableName: table,
-        filter: BSON.serialize(filter),
-        sort: BSON.serialize(sort),
-        page,
-        pageSize,
-      });
-    };
-  }
-  static reloadDocs(uuid: string, table) {
-    return async (filter, sort, page, pageSize): Promise<DocsAndCount> => {
-      return invoke<{ count: number; docs: number[][] }>("mongo_show_collection_docs", {
-        name: uuid,
-        tableName: table,
-        filter: BSON.serialize(filter),
-        sort: BSON.serialize(sort),
-        page,
-        pageSize,
-      }).then(x => {
-        const docs = x.docs.map(e => BSON.deserialize(new Uint8Array(e)));
-        const count = x.count;
-        return new DocsAndCount(docs, count);
-      });
-    };
-  }
-
-  static loadOne(uuid: string, table) {
-    return async (id): Promise<BSON.Document> => {
-      return invoke<number[]>("mongo_get_one_document_by_id", {
-        name: uuid,
-        tableName: table,
-        id: JSON.stringify(EJSON.serialize(id)),
-      }).then(x => {
-        return BSON.deserialize(new Uint8Array(x));
-      });
-    };
-  }
-
-  static modifyOP(uuid, table) {
-    return async doc => {
-      return invoke<void>("mongo_update_one", {
-        name: uuid,
-        tableName: table,
-        doc: BSON.serialize(doc),
-      });
-    };
-  }
-  static deleteOP(uuid, table) {
-    return async ids => {
-      if (!Array.isArray(ids)) {
-        ids = [ids];
-      }
-      return invoke<void>("mongo_delete_ids", {
-        name: uuid,
-        tableName: table,
-        ids: JSON.stringify(EJSON.serialize(ids)),
-      });
-    };
-  }
-}
-
 function notifySettingChange() {
   emit(settingChangeEvent, "");
 }
@@ -1268,7 +1203,6 @@ export {
   saveAndSetSize,
   SaveDomSizes,
   DocsAndCount,
-  MongoTableHandler,
   UserSetting,
   SettingContext,
   SetCloseConfirmTextContext,

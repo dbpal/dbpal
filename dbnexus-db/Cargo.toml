@@ -100,3 +100,4 @@ opener = "*"
 
 [features]
 duckdb = ["dep:duckdb"]
+paid = []

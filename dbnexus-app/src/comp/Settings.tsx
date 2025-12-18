@@ -641,6 +641,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
           value={apiKey}
           style={{ width: "40rem" }}
           onChange={e => setApiKey(e.target.value)}
+          type="password"
           slotProps={{
             input: {
               endAdornment: apiKey && (

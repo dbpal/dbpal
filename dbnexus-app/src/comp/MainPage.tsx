@@ -211,6 +211,7 @@ function App() {
                       overflowY: "auto",
                       overflowX: "hidden",
                       height: "100%",
+                      paddingRight: "2px",
                     }}
                     minSize={10}
                     maxSize={85}
@@ -227,6 +228,7 @@ function App() {
                     style={{
                       overflow: "auto",
                       height: "100%",
+                      paddingLeft: "2px",
                     }}
                   >
                     <TabsWithContent

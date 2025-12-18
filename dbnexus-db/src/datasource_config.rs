@@ -462,3 +462,24 @@ pub struct BigQueryDbConfig {
     pub read_only: bool,
     pub base_url: String,
 }
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+pub struct Db2Config {
+    #[serde(flatten)]
+    pub odbc_common: OdbcCommon,
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub password: String,
+    pub db: String,
+    pub save_password: bool,
+    pub read_only: bool,
+    pub conn_timeout: Option<ConnTimeOut>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
+pub struct OdbcCommon {
+    pub driver_name: String,
+    pub max_str_len: usize,
+    pub max_bin_len: usize,
+}

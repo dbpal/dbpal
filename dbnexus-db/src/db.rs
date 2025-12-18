@@ -29,6 +29,7 @@ pub enum BackendKind {
     Oracle,
     DuckDB,
     BigQuery,
+    Db2,
 }
 
 impl BackendKind {

@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use std::num::NonZero;
 use std::string;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -7,7 +8,10 @@ use std::{ffi::CString, sync::atomic::AtomicBool};
 
 use anyhow::Error;
 use gcp_bigquery_client::model::row;
+use mongodb::bson::de;
+use odbc_api::Bit;
 use odbc_api::buffers::TextRowSet;
+use odbc_api::sys::{Date, Numeric, Time, Timestamp};
 use odbc_api::{
     Connection, ConnectionOptions, Cursor, DataType, Environment, Nullability, Nullable,
     ResultSetMetadata,
@@ -16,247 +20,32 @@ use odbc_api::{
 };
 use tokio::task::spawn_blocking;
 
-use crate::db::QuerySql;
 use crate::db::{Field, QueryEventEmitter, QueryResp};
+use crate::db::{QuerySql, TimeElapsed};
 
 /// Maximum number of rows fetched with one row set. Fetching batches of rows is usually much
 /// faster than fetching individual rows.
 use std::sync::LazyLock;
 
-static ODBC_ENV: LazyLock<Environment> = LazyLock::new(|| {
-    // may don't need this?
-    unsafe { Environment::set_connection_pooling(AttrConnectionPooling::DriverAware).unwrap() };
+pub(crate) static ODBC_ENV: LazyLock<Environment> = LazyLock::new(|| {
     let env = Environment::new().unwrap();
     env
 });
 
-#[cfg(test)]
-fn odbc_next_row() -> Result<(), Error> {
-    let now = std::time::Instant::now();
-
-    // If you do not do anything fancy it is recommended to have only one Environment in the
-    // entire process.
-    let environment = Environment::new()?;
-
-    // Connect using a DSN. Alternatively we could have used a connection string
-
-    let connection_string = test_connect_str();
-
-    let connection = ODBC_ENV
-        .connect_with_connection_string(&connection_string, ConnectionOptions::default())?;
-    println!("make connection{:?}", now.elapsed());
-    // Execute a one of query without any parameters.
-    match connection.execute("SELECT * FROM Persons", (), None)? {
-        Some(mut cursor) => {
-            for name in cursor.column_names().unwrap() {
-                println!("!!!!!!!!!!!!!!:{:?}", name);
-            }
-            let tys: Vec<_> = (0..cursor.column_names().unwrap().count())
-                .map(|index| cursor.col_data_type((index + 1) as u16).unwrap())
-                .collect();
-            println!("typs:{:?}", tys);
-
-            while let Some(mut row) = cursor.next_row().unwrap() {
-                for (col_index, ty) in tys.iter().enumerate() {
-                    match ty {
-                        DataType::Integer => {
-                            let mut field = Nullable::<i32>::null();
-                            row.get_data((col_index + 1) as u16, &mut field).unwrap();
-
-                            println!("int32 value:{:?}", field.as_opt());
-                        }
-                        DataType::Unknown => todo!(),
-                        DataType::Char { length } => {
-                            let mut buf = vec![];
-
-                            row.get_text((col_index + 1) as u16, &mut buf).unwrap();
-                            println!("chat value:{:?}", String::from_utf8(buf));
-                        }
-                        DataType::WChar { length } => todo!(),
-                        DataType::Numeric { precision, scale } => todo!(),
-                        DataType::Decimal { precision, scale } => todo!(),
-                        DataType::SmallInt => todo!(),
-                        DataType::Float { precision } => todo!(),
-                        DataType::Real => todo!(),
-                        DataType::Double => {
-                            let mut field = Nullable::<f64>::null();
-                            row.get_data((col_index + 1) as u16, &mut field).unwrap();
-
-                            println!("int32 value:{:?}", field.as_opt());
-                        }
-                        DataType::Varchar { length } => todo!(),
-                        DataType::WVarchar { length } => todo!(),
-                        DataType::LongVarchar { length } => todo!(),
-                        DataType::WLongVarchar { length } => todo!(),
-                        DataType::LongVarbinary { length } => todo!(),
-                        DataType::Date => todo!(),
-                        DataType::Time { precision } => todo!(),
-                        DataType::Timestamp { precision } => todo!(),
-                        DataType::BigInt => todo!(),
-                        DataType::TinyInt => todo!(),
-                        DataType::Bit => todo!(),
-                        DataType::Varbinary { length } => todo!(),
-                        DataType::Binary { length } => todo!(),
-                        DataType::Other {
-                            data_type,
-                            column_size,
-                            decimal_digits,
-                        } => todo!(),
-                    }
-                }
-            }
-        }
-        None => {
-            eprintln!("Query came back empty. No output has been created.");
-        }
-    }
-    println!("whole {:?}", now.elapsed());
-    Ok(())
-}
-
-#[cfg(test)]
-fn to_desc(types: &[(DataType, Nullability)]) -> Vec<BufferDesc> {
-    types
-        .iter()
-        .map(|(ty, n)| match ty {
-            DataType::Unknown => panic!("haha"),
-            DataType::Char { length } => BufferDesc::Text {
-                max_str_len: 1 << 20,
-            },
-            DataType::WChar { length } => todo!(),
-            DataType::Numeric { precision, scale } => todo!(),
-            DataType::Decimal { precision, scale } => todo!(),
-            DataType::Integer => BufferDesc::I32 {
-                nullable: *n == Nullability::Nullable,
-            },
-            DataType::SmallInt => todo!(),
-            DataType::Float { precision } => todo!(),
-            DataType::Real => todo!(),
-            DataType::Double => todo!(),
-            DataType::Varchar { length } => todo!(),
-            DataType::WVarchar { length } => todo!(),
-            DataType::LongVarchar { length } => todo!(),
-            DataType::WLongVarchar { length } => todo!(),
-            DataType::LongVarbinary { length } => todo!(),
-            DataType::Date => todo!(),
-            DataType::Time { precision } => todo!(),
-            DataType::Timestamp { precision } => todo!(),
-            DataType::BigInt => todo!(),
-            DataType::TinyInt => todo!(),
-            DataType::Bit => todo!(),
-            DataType::Varbinary { length } => todo!(),
-            DataType::Binary { length } => todo!(),
-            DataType::Other {
-                data_type,
-                column_size,
-                decimal_digits,
-            } => todo!(),
-        })
-        .collect()
-}
-
-#[cfg(test)]
-fn any_buffer() -> Result<(), Error> {
-    let now = std::time::Instant::now();
-    // If you do not do anything fancy it is recommended to have only one Environment in the
-    // entire process.
-
-    let connection_string = test_connect_str();
-    println!("conn str:{}", connection_string);
-
-    let mut connection = ODBC_ENV
-        .connect_with_connection_string(&connection_string, ConnectionOptions::default())?;
-    println!("make connection{:?}", now.elapsed());
-    // Execute a one of query without any parameters.
-    match connection.execute("SELECT id,name FROM Persons", (), None)? {
-        Some(mut cursor) => {
-            println!("execute:{:?}", cursor);
-            // Write the column names to stdout
-            let mut headline: Vec<String> = cursor.column_names()?.collect::<Result<_, _>>()?;
-
-            // Use schema in cursor to initialize a text buffer large enough to hold the largest
-            // possible strings for each column up to an upper limit of 4KiB
-
-            let mut buffers = ColumnarAnyBuffer::from_descs(
-                100,
-                to_desc(
-                    &(0..cursor.column_names().unwrap().count())
-                        .map(|index| {
-                            (
-                                cursor.col_data_type((index + 1) as u16).unwrap(),
-                                cursor.col_nullability((index + 1) as u16).unwrap(),
-                            )
-                        })
-                        .collect::<Vec<_>>()[..],
-                ),
-            );
-            // Bind the buffer to the cursor. It is now being filled with every call to fetch.
-            let mut row_set_cursor = cursor.bind_buffer(&mut buffers)?;
-
-            // Iterate over batches
-            while let Some(batch) = row_set_cursor.fetch()? {
-                // Within a batch, iterate over every row
-                for row_index in 0..batch.num_rows() {
-                    for col_index in 0..batch.num_cols() {
-                        match batch.column(col_index) {
-                            AnySlice::Text(text_column_view) => {
-                                let c = text_column_view.get(row_index).unwrap();
-                                let s = unsafe { CString::from_vec_unchecked(c.to_vec()) };
-                                println!("{:?}", s);
-                            }
-                            AnySlice::WText(text_column_view) => todo!(),
-                            AnySlice::Binary(bin_column_view) => todo!(),
-                            AnySlice::Date(dates) => todo!(),
-                            AnySlice::Time(times) => todo!(),
-                            AnySlice::Timestamp(timestamps) => todo!(),
-                            AnySlice::F64(items) => todo!(),
-                            AnySlice::F32(items) => todo!(),
-                            AnySlice::I8(items) => todo!(),
-                            AnySlice::I16(items) => todo!(),
-                            AnySlice::I32(items) => todo!(),
-                            AnySlice::I64(items) => todo!(),
-                            AnySlice::U8(items) => todo!(),
-                            AnySlice::Bit(bits) => todo!(),
-                            AnySlice::Numeric(numerics) => todo!(),
-                            AnySlice::NullableDate(nullable_slice) => todo!(),
-                            AnySlice::NullableTime(nullable_slice) => todo!(),
-                            AnySlice::NullableTimestamp(nullable_slice) => todo!(),
-                            AnySlice::NullableF64(nullable_slice) => todo!(),
-                            AnySlice::NullableF32(nullable_slice) => todo!(),
-                            AnySlice::NullableI8(nullable_slice) => todo!(),
-                            AnySlice::NullableI16(nullable_slice) => todo!(),
-                            AnySlice::NullableI32(nullable_slice) => {
-                                println!("!!!:{:?}", nullable_slice.raw_values());
-                            }
-                            AnySlice::NullableI64(nullable_slice) => todo!(),
-                            AnySlice::NullableU8(nullable_slice) => todo!(),
-                            AnySlice::NullableBit(nullable_slice) => todo!(),
-                            AnySlice::NullableNumeric(nullable_slice) => todo!(),
-                        }
-                    }
-                }
-            }
-        }
-        None => {
-            eprintln!("Query came back empty. No output has been created.");
-        }
-    }
-    println!("whole {:?}", now.elapsed());
-    Ok(())
-}
-
-#[cfg(test)]
-fn test_connect_str() -> String {
-    format!(
-        r#"Driver={{SQLite3}};Database={}"#,
-        crate::sqlite::sqlite_test_file_path()
+pub(crate) fn make_conn(conn_str: &str) -> Result<Connection<'static>, odbc_api::Error> {
+    ODBC_ENV.connect_with_connection_string(
+        &conn_str,
+        ConnectionOptions {
+            login_timeout_sec: Some(10),
+            packet_size: None,
+        },
     )
 }
 
 #[derive(Clone, Debug)]
 pub struct OdbcPool {
-    conn_str: String,
-    select_1_sql: String,
+    pub(crate) conn_str: String,
+    pub(crate) select_1_sql: String,
 }
 
 impl r2d2::ManageConnection for OdbcPool {
@@ -280,6 +69,16 @@ impl r2d2::ManageConnection for OdbcPool {
     }
 }
 
+impl OdbcDbQuery {
+    pub fn new(conn: Connection<'static>, helper: Arc<dyn OdbcHelper>) -> Self {
+        Self {
+            conn: Arc::new(Mutex::new(conn)),
+            commit_mode: Arc::new(AtomicBool::new(true)),
+            helper,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct OdbcDbQuery {
     conn: Arc<Mutex<Connection<'static>>>,
@@ -289,14 +88,180 @@ pub struct OdbcDbQuery {
     // SQLEndTran(SQL_COMMIT) 或 SQLRollback() 只负责“把当前事务收尾”，绝不碰 SQL_ATTR_AUTOCOMMIT 这个开关。
     // so we save this to memory
     commit_mode: Arc<AtomicBool>,
+    pub helper: Arc<dyn OdbcHelper>,
+}
+
+pub trait OdbcHelper: Sync + Send + 'static {
+    fn format_date(&self, x: &Date) -> String {
+        format!("{}-{}-{}", x.year, x.month, x.day)
+    }
+    fn format_time(&self, x: &Time) -> String {
+        format!("{}:{}:{}", x.hour, x.minute, x.second)
+    }
+    fn get_max_str_len(&self) -> usize;
+
+    fn get_max_bin_len(&self) -> usize;
+
+    fn format_timestamp(&self, x: &Timestamp) -> String;
+    fn format_bit(&self, x: &Bit) -> String;
+    fn format_binary(&self, x: &[u8]) -> String;
+    fn format_numeric(&self, x: &Numeric) -> String;
+}
+
+impl dyn OdbcHelper {
+    fn encode_batch(&self, batch: &ColumnarAnyBuffer) -> anyhow::Result<Vec<Vec<Option<String>>>> {
+        let mut result = vec![];
+        for row_index in 0..batch.num_rows() {
+            let mut values: Vec<Option<String>> = Vec::with_capacity(batch.num_cols());
+            for col_index in 0..batch.num_cols() {
+                let v = match batch.column(col_index) {
+                    AnySlice::Text(text_column_view) => {
+                        let value = text_column_view.get(row_index);
+                        match value {
+                            Some(bs) => Some(String::from_utf8_lossy(bs).to_string()),
+                            None => None,
+                        }
+                    }
+                    AnySlice::WText(text_column_view) => {
+                        let value = text_column_view.get(row_index);
+                        match value {
+                            Some(x) => match String::from_utf16(x) {
+                                Ok(x) => Some(x),
+                                Err(err) => {
+                                    anyhow::bail!("not a valid utf-16 string,err:{}", err)
+                                }
+                            },
+                            None => None,
+                        }
+                    }
+                    AnySlice::Binary(bin_column_view) => {
+                        let value = bin_column_view.get(row_index);
+                        value.map(|x| self.format_binary(x))
+                    }
+                    AnySlice::Date(dates) => {
+                        let r = self.format_date(&dates[row_index]);
+                        Some(r)
+                    }
+                    AnySlice::Time(times) => {
+                        let r = self.format_time(&times[row_index]);
+                        Some(r)
+                    }
+                    AnySlice::Timestamp(timestamps) => {
+                        let r = self.format_timestamp(&timestamps[row_index]);
+                        Some(r)
+                    }
+                    AnySlice::F64(items) => Some(items[row_index].to_string()),
+                    AnySlice::F32(items) => Some(items[row_index].to_string()),
+                    AnySlice::I8(items) => Some(items[row_index].to_string()),
+                    AnySlice::I16(items) => Some(items[row_index].to_string()),
+                    AnySlice::I32(items) => Some(items[row_index].to_string()),
+                    AnySlice::I64(items) => Some(items[row_index].to_string()),
+                    AnySlice::U8(items) => Some(items[row_index].to_string()),
+                    AnySlice::Bit(bits) => Some(self.format_bit(&bits[row_index])),
+                    AnySlice::Numeric(numerics) => Some(self.format_numeric(&numerics[row_index])),
+                    AnySlice::NullableDate(nullable_slice) => {
+                        let v = nullable_slice.get(row_index);
+                        v.map(|x| self.format_date(x))
+                    }
+                    AnySlice::NullableTime(nullable_slice) => {
+                        let v = nullable_slice.get(row_index);
+                        v.map(|x| self.format_time(x))
+                    }
+                    AnySlice::NullableTimestamp(nullable_slice) => {
+                        let r = nullable_slice.get(row_index);
+                        r.map(|x| self.format_timestamp(x))
+                    }
+                    AnySlice::NullableF64(nullable_slice) => {
+                        let v = nullable_slice.get(row_index);
+                        v.map(|x| x.to_string())
+                    }
+                    AnySlice::NullableF32(nullable_slice) => {
+                        let v = nullable_slice.get(row_index);
+                        v.map(|x| x.to_string())
+                    }
+                    AnySlice::NullableI8(nullable_slice) => {
+                        let v = nullable_slice.get(row_index);
+                        v.map(|x| x.to_string())
+                    }
+                    AnySlice::NullableI16(nullable_slice) => {
+                        let v = nullable_slice.get(row_index);
+                        v.map(|x| x.to_string())
+                    }
+                    AnySlice::NullableI32(nullable_slice) => {
+                        let v = nullable_slice.get(row_index);
+                        v.map(|x| x.to_string())
+                    }
+                    AnySlice::NullableI64(nullable_slice) => {
+                        let v = nullable_slice.get(row_index);
+                        v.map(|x| x.to_string())
+                    }
+                    AnySlice::NullableU8(nullable_slice) => {
+                        let v = nullable_slice.get(row_index);
+                        v.map(|x| x.to_string())
+                    }
+                    AnySlice::NullableBit(nullable_slice) => {
+                        let v = nullable_slice.get(row_index);
+                        v.map(|x| self.format_bit(&x))
+                    }
+                    AnySlice::NullableNumeric(nullable_slice) => {
+                        let v = nullable_slice.get(row_index);
+                        v.map(|x| self.format_numeric(&x))
+                    }
+                };
+                values.push(v);
+            }
+            result.push(values);
+        }
+        anyhow::Ok(result)
+    }
 }
 
 impl OdbcDbQuery {
-    async fn get_auto_commit(&self) -> anyhow::Result<bool> {
-        anyhow::Ok(self.commit_mode.load(Ordering::Relaxed))
+    fn fix_length(&self, tys: &mut [DataType]) {
+        for ty in tys.iter_mut() {
+            match ty {
+                DataType::Unknown => {}
+                DataType::Char { length }
+                | DataType::WChar { length }
+                | DataType::Varchar { length }
+                | DataType::WVarchar { length }
+                | DataType::LongVarchar { length }
+                | DataType::WLongVarchar { length } => match length {
+                    Some(_) => {}
+                    None => *length = NonZero::new(self.helper.get_max_str_len()),
+                },
+                DataType::Numeric { .. } => {}
+                DataType::Decimal { .. } => {}
+                DataType::Integer => {}
+                DataType::SmallInt => {}
+                DataType::Float { .. } => {}
+                DataType::Real => {}
+                DataType::Double => {}
+
+                DataType::LongVarbinary { length }
+                | DataType::Varbinary { length }
+                | DataType::Binary { length } => match length {
+                    Some(_) => {}
+                    None => *length = NonZero::new(self.helper.get_max_bin_len()),
+                },
+                DataType::Date => {}
+                DataType::Time { .. } => {}
+                DataType::Timestamp { precision } => {}
+                DataType::BigInt => {}
+                DataType::TinyInt => {}
+                DataType::Bit => {}
+                DataType::Other { .. } => {}
+            }
+        }
+    }
+}
+
+impl OdbcDbQuery {
+    pub(crate) fn get_auto_commit(&self) -> bool {
+        self.commit_mode.load(Ordering::Relaxed)
     }
 
-    async fn set_auto_commit(&self, commit: bool) -> anyhow::Result<()> {
+    pub(crate) async fn set_auto_commit(&self, commit: bool) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.conn.lock().expect("lock failed");
@@ -305,7 +270,8 @@ impl OdbcDbQuery {
         })
         .await?
     }
-    async fn commit(&self) -> anyhow::Result<()> {
+
+    pub(crate) async fn commit(&self) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.conn.lock().expect("lock failed");
@@ -314,7 +280,7 @@ impl OdbcDbQuery {
         })
         .await?
     }
-    async fn rollback(&self) -> anyhow::Result<()> {
+    pub(crate) async fn rollback(&self) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.conn.lock().expect("lock failed");
@@ -324,7 +290,7 @@ impl OdbcDbQuery {
         .await?
     }
 
-    async fn query_sql(&self, sql: &str, emit: QueryEventEmitter) -> anyhow::Result<()> {
+    pub(crate) async fn query_sql(&self, sql: &str, emit: QueryEventEmitter) -> anyhow::Result<()> {
         let this = Clone::clone(self);
         let sql = sql.to_string();
         spawn_blocking(move || {
@@ -335,10 +301,14 @@ impl OdbcDbQuery {
                 None => return anyhow::Ok(()),
             };
             let mut fs = vec![];
+            let mut tys = vec![];
+            let mut nulls = vec![];
             for index in 0..cursor.column_names()?.count() {
                 let name = cursor.col_name((index + 1) as u16)?;
                 let ty = cursor.col_data_type((index + 1) as u16)?;
                 fs.push(Field::from_name_type(name, format!("{:?}", ty)));
+                tys.push(ty);
+                nulls.push(cursor.col_nullability((index + 1) as u16)?);
             }
             emit.send(
                 QueryResp {
@@ -347,26 +317,37 @@ impl OdbcDbQuery {
                 }
                 .into(),
             )?;
-
-            // TODO config max str len
-            let mut buffers = TextRowSet::for_cursor(100, &mut cursor, Some(4096))?;
+            this.fix_length(&mut tys);
+            let mut buffer_desc = vec![];
+            for (ty, null_able) in tys.into_iter().zip(nulls.iter()) {
+                let d = BufferDesc::from_data_type(
+                    ty.clone(),
+                    match null_able {
+                        Nullability::Unknown => true,
+                        Nullability::Nullable => true,
+                        Nullability::NoNulls => false,
+                    },
+                );
+                buffer_desc.push(match d {
+                    Some(x) => x,
+                    None => {
+                        anyhow::bail!(format!("should be able to convert {:?} to buffer desc", ty))
+                    }
+                });
+            }
+            //
+            let mut buffers = ColumnarAnyBuffer::from_descs(100, buffer_desc);
             let mut row_set_cursor = cursor.bind_buffer(&mut buffers)?;
             while let Some(batch) = row_set_cursor.fetch()? {
-                for row_index in 0..batch.num_rows() {
-                    let mut data = vec![];
-                    for col_index in 0..batch.num_cols() {
-                        let r = batch.at_as_str(col_index, row_index)?;
-                        data.push(r.map(|x| x.to_string()));
-                    }
-                    emit.send(data.into())?;
-                }
+                let data = this.helper.encode_batch(*batch)?;
+                emit.send(data.into())?;
             }
             anyhow::Ok(())
         })
         .await?
     }
 
-    async fn execute_sql(&self, sql: &str) -> anyhow::Result<Result<QueryResp, String>> {
+    pub(crate) async fn execute_sql(&self, sql: &str) -> anyhow::Result<Result<QueryResp, String>> {
         let this = Clone::clone(self);
         let sql = sql.to_string();
         spawn_blocking(move || {
@@ -385,7 +366,7 @@ fn test_db2() -> anyhow::Result<()> {
         .connect_with_connection_string(conn_str, ConnectionOptions::default())
         .unwrap();
     let mut cursor = conn
-        .execute("SELECT 'hello' FROM SYSIBM.SYSDUMMY1", (), None)
+        .execute("SELECT 1 FROM SYSIBM.SYSDUMMY1", (), None)
         .unwrap()
         .unwrap();
     let mut buffer = TextRowSet::for_cursor(100, &mut cursor, Some(4096)).unwrap();
@@ -395,26 +376,16 @@ fn test_db2() -> anyhow::Result<()> {
         for row_index in 0..batch.num_rows() {
             for col_index in 0..batch.num_cols() {
                 println!("col_index:{} , row_index:{}", col_index, row_index);
-
-                let r = batch.at_as_str(col_index, row_index).unwrap();
+                let r = batch.at(col_index, row_index).unwrap();
                 dbg!(r);
             }
         }
     }
-
     anyhow::Ok(())
 }
 
 mod tests {
     use super::*;
-
-    #[test]
-
-    fn xxx() {
-        println!("odbc");
-        // odbc_next_row();
-        any_buffer();
-    }
 
     #[test]
 

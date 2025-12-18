@@ -54,7 +54,6 @@ import {
   getSupportExportKind,
   handleCopyToClipboard,
   MatchPatternContext,
-  MongoTableHandler,
   NewWindowTableParameter,
   secondConfirm,
   SettingContext,
@@ -509,13 +508,7 @@ function ViewMenu(props: {
         break;
 
       case DataSourceKind.Mongo:
-        list = (
-          <MongoTable
-            reloadOPTableList={MongoTableHandler.reloadTableList(uuid, view)}
-            reloadOPDocs={MongoTableHandler.reloadDocs(uuid, view)}
-            loadOne={MongoTableHandler.loadOne(uuid, view)}
-          />
-        );
+        list = <MongoTable isTable={false} uuid={uuid} table={view} />;
         break;
       default:
         showNotification("error", `data source ${kind} need impl view`);
