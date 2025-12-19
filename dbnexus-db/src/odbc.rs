@@ -103,15 +103,15 @@ pub trait OdbcHelper: Sync + Send + 'static {
     fn format_time(&self, x: &Time) -> String {
         format!("{}:{}:{}", x.hour, x.minute, x.second)
     }
-    fn get_max_str_len(&self) -> usize;
+    fn max_str_len(&self) -> usize;
 
-    fn get_max_bin_len(&self) -> usize;
+    fn max_bin_len(&self) -> usize;
 
     fn format_timestamp(&self, x: &Timestamp) -> String;
     fn format_bit(&self, x: &Bit) -> String;
     fn format_binary(&self, x: &[u8]) -> String;
     fn format_numeric(&self, x: &Numeric) -> String;
-    fn format_str(&self, _: &[u8]) -> anyhow::Result<String>;
+    fn get_str(&self, _: &[u8]) -> anyhow::Result<String>;
 }
 
 impl dyn OdbcHelper {
@@ -124,7 +124,7 @@ impl dyn OdbcHelper {
             for (col_index, name) in col_names.iter().enumerate() {
                 let v: serde_json::Value = match batch.column(col_index) {
                     AnySlice::Text(text_column_view) => match text_column_view.get(row_index) {
-                        Some(x) => serde_json::Value::from(self.format_str(x)?),
+                        Some(x) => serde_json::Value::from(self.get_str(x)?),
                         None => serde_json::Value::Null,
                     },
                     AnySlice::WText(text_column_view) => match text_column_view.get(row_index) {
@@ -324,7 +324,7 @@ impl dyn OdbcHelper {
                     AnySlice::Text(text_column_view) => {
                         let value = text_column_view.get(row_index);
                         match value {
-                            Some(bs) => Some(self.format_str(bs)?),
+                            Some(bs) => Some(self.get_str(bs)?),
                             None => None,
                         }
                     }
@@ -434,7 +434,7 @@ impl dyn OdbcHelper {
                 | DataType::LongVarchar { length }
                 | DataType::WLongVarchar { length } => match length {
                     Some(_) => {}
-                    None => *length = NonZero::new(self.get_max_str_len()),
+                    None => *length = NonZero::new(self.max_str_len()),
                 },
                 DataType::Numeric { .. } => {}
                 DataType::Decimal { .. } => {}
@@ -448,7 +448,7 @@ impl dyn OdbcHelper {
                 | DataType::Varbinary { length }
                 | DataType::Binary { length } => match length {
                     Some(_) => {}
-                    None => *length = NonZero::new(self.get_max_bin_len()),
+                    None => *length = NonZero::new(self.max_bin_len()),
                 },
                 DataType::Date => {}
                 DataType::Time { .. } => {}
@@ -638,6 +638,7 @@ impl OdbcDbQuery {
             } = this.helper.collect_meta(&mut cursor)?;
             let mut buffers = ColumnarAnyBuffer::from_descs(100, buffer_desc);
             let mut row_set_cursor = cursor.bind_buffer(&mut buffers)?;
+            let mut first = true;
             while let Some(batch) = row_set_cursor.fetch()? {
                 match kind {
                     ExportKind::Csv {
@@ -661,7 +662,8 @@ impl OdbcDbQuery {
                     }
                     ExportKind::Xlsx { include_header } => {
                         let mut num_row = 0;
-                        if include_header {
+                        if first && include_header {
+                            first = false;
                             for (index, name) in col_names.iter().enumerate() {
                                 sender.blocking_send(
                                     XlsxEdit {
@@ -692,7 +694,8 @@ impl OdbcDbQuery {
                         }
                     }
                     ExportKind::Html { include_header } => {
-                        if include_header {
+                        if first && include_header {
+                            first = false;
                             let r = create_html_table_header(&col_names);
                             sender.blocking_send(r.into())?;
                         }
@@ -700,8 +703,11 @@ impl OdbcDbQuery {
                         sender.blocking_send(create_html_table_data(&r).into())?;
                     }
                     ExportKind::MarkDown => {
-                        let r = create_markdown_header(&col_names);
-                        sender.blocking_send(r.into())?;
+                        if first {
+                            first = false;
+                            let r = create_markdown_header(&col_names);
+                            sender.blocking_send(r.into())?;
+                        }
                         let r = this.helper.encode_batch(&batch)?;
                         for x in r {
                             let r = create_markdown_data(&x);

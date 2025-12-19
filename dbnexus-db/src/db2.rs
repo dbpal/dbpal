@@ -360,11 +360,11 @@ pub struct Db2OdbcHelper {
 }
 
 impl OdbcHelper for Db2OdbcHelper {
-    fn get_max_str_len(&self) -> usize {
+    fn max_str_len(&self) -> usize {
         self.config.odbc_common.max_str_len
     }
 
-    fn get_max_bin_len(&self) -> usize {
+    fn max_bin_len(&self) -> usize {
         self.config.odbc_common.max_bin_len
     }
 
@@ -384,7 +384,7 @@ impl OdbcHelper for Db2OdbcHelper {
         todo!()
     }
 
-    fn format_str(&self, bs: &[u8]) -> anyhow::Result<String> {
+    fn get_str(&self, bs: &[u8]) -> anyhow::Result<String> {
         let x = CStr::from_bytes_until_nul(bs)?;
         let r = x.to_str()?;
         anyhow::Ok(r.to_string())
