@@ -170,7 +170,7 @@ impl ExportQueryResult for SubDB {
     }
 
     async fn export_query_result(
-        &self, query_id: &str, _sql: &str, _kind: ExportKind,
+        &self, query_id: Option<&str>, _sql: &str, _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         self.as_export_query_result()
@@ -482,6 +482,7 @@ impl SchemaTrait for SubDB {
         self.as_schema().drop_created_type(_name).await
     }
 
+    #[cfg(test)]
     async fn export_table_to_string(
         &self, table_name: &str, kind: ExportKind,
     ) -> anyhow::Result<String> {

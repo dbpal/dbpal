@@ -145,158 +145,6 @@ fn encode_row(
     anyhow::Ok(data)
 }
 
-impl FireBirdDB {
-    async fn export_query_result_as_csv(
-        &self, sql: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let firebird = Clone::clone(self);
-        let sql = sql.to_owned();
-
-        spawn_blocking(move || {
-            let mut conn = firebird.get_conn()?;
-            let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
-                conn.query_iter(&sql, ())?;
-            let mut first = true;
-            for row in stream {
-                let row = row?;
-                if first && include_header {
-                    let fs: Vec<_> = row.cols.iter().map(|x| x.name.clone()).map(Some).collect();
-                    sender.blocking_send(create_csv(&fs, delimiter)?.into())?;
-                    first = false;
-                }
-                let data = encode_row(&row, None)?;
-                sender.blocking_send(create_csv(&data, delimiter)?.into())?;
-            }
-            anyhow::Ok(())
-        })
-        .await??;
-
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_html(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let firebird = Clone::clone(self);
-        let sql = sql.to_owned();
-
-        spawn_blocking(move || {
-            let mut conn = firebird.get_conn()?;
-            let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
-                conn.query_iter(&sql, ())?;
-            let mut first = true;
-            for row in stream {
-                let row = row?;
-                if first && include_header {
-                    let fs: Vec<_> = row.cols.iter().map(|x| x.name.clone()).collect();
-                    sender.blocking_send(create_html_table_header(&fs).into())?;
-                    first = false;
-                }
-                let data = encode_row(&row, None)?;
-                sender.blocking_send(create_html_table_data(&[data]).into())?;
-            }
-            anyhow::Ok(())
-        })
-        .await??;
-
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_md(
-        &self, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let firebird = Clone::clone(self);
-        let sql = sql.to_owned();
-
-        spawn_blocking(move || {
-            let mut conn = firebird.get_conn()?;
-            let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
-                conn.query_iter(&sql, ())?;
-            let mut first = true;
-            for row in stream {
-                let row = row?;
-                if first {
-                    let fs: Vec<_> = row.cols.iter().map(|x| x.name.clone()).collect();
-                    sender.blocking_send(create_markdown_header(&fs).into())?;
-                    first = false;
-                }
-                let data = encode_row(&row, None)?;
-                sender.blocking_send(create_markdown_data(&data).into())?;
-            }
-            anyhow::Ok(())
-        })
-        .await??;
-
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_json(
-        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let firebird = Clone::clone(self);
-        let sql = sql.to_owned();
-        spawn_blocking(move || {
-            let mut conn = firebird.get_conn()?;
-
-            sender.blocking_send("[".into())?;
-            let rows: Box<dyn Iterator<Item = Result<Row, FbError>>> = conn.query_iter(&sql, ())?;
-            let mut first = true;
-            for row in rows {
-                let row = row?;
-                let value = encode_row_as_json(&row)?;
-                if !first {
-                    sender.blocking_send(",".into())?;
-                }
-                if pretty {
-                    sender.blocking_send("\n".into())?;
-                }
-
-                sender.blocking_send(
-                    if pretty {
-                        serde_json::to_string_pretty(&value)?
-                    } else {
-                        serde_json::to_string(&value)?
-                    }
-                    .into(),
-                )?;
-
-                first = false;
-            }
-
-            if pretty {
-                sender.blocking_send("\n".into())?;
-            }
-            sender.blocking_send("]".into())?;
-            anyhow::Ok(())
-        })
-        .await??;
-
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_json_line(
-        &self, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let firebird = Clone::clone(self);
-        let sql = sql.to_owned();
-        spawn_blocking(move || {
-            let mut conn = firebird.get_conn()?;
-            let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
-                conn.query_iter(&sql, ())?;
-            for row in stream {
-                let row = row?;
-                let value = encode_row_as_json(&row)?;
-                sender.blocking_send(serde_json::to_string(&value)?.into())?;
-                sender.blocking_send("\n".into())?;
-            }
-            anyhow::Ok(())
-        })
-        .await??;
-        anyhow::Ok(())
-    }
-}
-
 fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Value> {
     let mut m = serde_json::Map::new();
     for col in row.cols.iter() {
@@ -322,42 +170,6 @@ fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Value> {
     anyhow::Ok(serde_json::Value::Object(m))
 }
 
-impl FireBirdDB {
-    async fn export_query_result_as_xlsx(
-        &self, sql: &str, include_header: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let this = Clone::clone(self);
-        let sql = sql.to_owned();
-        spawn_blocking(move || {
-            let mut conn = this.get_conn()?;
-            let mut row_num = 0;
-            let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
-                conn.query_iter(&sql, ())?;
-            let mut first = true;
-            for row in stream {
-                let row = row?;
-                if first && include_header {
-                    for (index, col) in row.cols.iter().enumerate() {
-                        sender.blocking_send(
-                            XlsxEdit {
-                                row: row_num,
-                                column: index as rust_xlsxwriter::ColNum,
-                                content: col.name.clone(),
-                            }
-                            .into(),
-                        )?;
-                    }
-                    first = false;
-                }
-                let data = encode_row(&row, None)?;
-                export_query_as_xlsx_send_blocking_data(&mut row_num, data, sender.clone())?;
-            }
-            anyhow::Ok(())
-        })
-        .await?
-    }
-}
-
 #[async_trait::async_trait]
 impl ExportQueryResult for FireBirdDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
@@ -365,34 +177,82 @@ impl ExportQueryResult for FireBirdDB {
     }
 
     async fn export_query_result(
-        &self, _query_id: &str, sql: &str, kind: ExportKind,
+        &self, _query_id: Option<&str>, sql: &str, kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        match kind {
-            ExportKind::Csv {
-                include_header,
-                delimiter,
-            } => {
-                self.export_query_result_as_csv(sql, include_header, delimiter, sender)
-                    .await
+        let this = Clone::clone(self);
+        let sql = sql.to_string();
+        spawn_blocking(move || {
+            let mut conn = this.get_conn()?;
+            let stream: Box<dyn Iterator<Item = Result<Row, FbError>>> =
+                conn.query_iter(&sql, ())?;
+            let mut first = true;
+            let mut row_num = 0;
+            for row in stream {
+                let row = row?;
+                match kind {
+                    ExportKind::Csv {
+                        include_header,
+                        delimiter,
+                    } => {
+                        if first && include_header {
+                            first = false;
+                            let fs: Vec<_> =
+                                row.cols.iter().map(|x| x.name.clone()).map(Some).collect();
+                            sender.blocking_send(create_csv(&fs, delimiter)?.into())?;
+                        }
+                        let data = encode_row(&row, None)?;
+                        sender.blocking_send(create_csv(&data, delimiter)?.into())?;
+                    }
+                    ExportKind::Json { .. } | ExportKind::JsonLine => {
+                        let value = encode_row_as_json(&row)?;
+                        sender.blocking_send(value.into())?;
+                    }
+                    ExportKind::Sql { .. } => anyhow::bail!("can't export query result as sql"),
+                    ExportKind::Xlsx { include_header } => {
+                        if first && include_header {
+                            first = false;
+                            for (index, col) in row.cols.iter().enumerate() {
+                                sender.blocking_send(
+                                    XlsxEdit {
+                                        row: row_num,
+                                        column: index as rust_xlsxwriter::ColNum,
+                                        content: col.name.clone(),
+                                    }
+                                    .into(),
+                                )?;
+                            }
+                        }
+                        let data = encode_row(&row, None)?;
+                        export_query_as_xlsx_send_blocking_data(
+                            &mut row_num,
+                            data,
+                            sender.clone(),
+                        )?;
+                    }
+                    ExportKind::Html { include_header } => {
+                        if first && include_header {
+                            first = false;
+                            let fs: Vec<_> = row.cols.iter().map(|x| x.name.clone()).collect();
+                            sender.blocking_send(create_html_table_header(&fs).into())?;
+                        }
+                        let data = encode_row(&row, None)?;
+                        sender.blocking_send(create_html_table_data(&[data]).into())?;
+                    }
+                    ExportKind::MarkDown => {
+                        if first {
+                            first = false;
+                            let fs: Vec<_> = row.cols.iter().map(|x| x.name.clone()).collect();
+                            sender.blocking_send(create_markdown_header(&fs).into())?;
+                        }
+                        let data = encode_row(&row, None)?;
+                        sender.blocking_send(create_markdown_data(&data).into())?;
+                    }
+                }
             }
-            ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
-            }
-            ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
-            ExportKind::Sql {
-                include_table_schema: _,
-            } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { include_header } => {
-                self.export_query_result_as_xlsx(sql, include_header, sender)
-                    .await
-            }
-            ExportKind::Html { include_header } => {
-                self.export_query_result_as_html(sql, include_header, sender)
-                    .await
-            }
-            ExportKind::MarkDown => self.export_query_result_as_md(sql, sender).await,
-        }
+            anyhow::Ok(())
+        })
+        .await?
     }
 }
 
@@ -582,61 +442,6 @@ impl ServerMetas for FireBirdDB {
 }
 
 impl FireBirdDB {
-    async fn export_table_as_csv(
-        &self, table_name: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(r#"SELECT * from "{}""#, table_name);
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
-            .await
-    }
-
-    async fn export_table_as_html(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(r#"SELECT * from "{}""#, table_name);
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_html(&sql, include_header, sender)
-            .await
-    }
-
-    async fn export_table_as_md(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(r#"SELECT * from "{}""#, table_name);
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_md(&sql, sender).await
-    }
-
-    async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from {}", table_name);
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_json(sql.as_str(), pretty, sender)
-            .await
-    }
-
-    async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from {}", table_name);
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_json_line(&sql, sender).await
-    }
-
-    async fn export_table_as_xlsx(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from {}", table_name);
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_xlsx(&sql, include_header, sender)
-            .await
-    }
-
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
@@ -674,7 +479,6 @@ impl FireBirdDB {
             anyhow::Ok(())
         })
         .await??;
-
         anyhow::Ok(())
     }
 }
@@ -756,30 +560,17 @@ impl SchemaTrait for FireBirdDB {
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::Csv {
-                include_header,
-                delimiter,
-            } => {
-                self.export_table_as_csv(name, include_header, delimiter, sender)
-                    .await
-            }
-            ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
-            ExportKind::JsonLine => self.export_table_as_json_line(name, sender).await,
             ExportKind::Sql {
                 include_table_schema,
             } => {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
-            ExportKind::Xlsx { include_header } => {
-                self.export_table_as_xlsx(name, include_header, sender)
-                    .await
+
+            _ => {
+                let sql = format!("SELECT * FROM {}", name);
+                self.export_query_result(None, &sql, kind, sender).await
             }
-            ExportKind::Html { include_header } => {
-                self.export_table_as_html(name, include_header, sender)
-                    .await
-            }
-            ExportKind::MarkDown => self.export_table_as_md(name, sender).await,
         }
     }
 

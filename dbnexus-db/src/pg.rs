@@ -199,222 +199,6 @@ impl PostGresDB {
             }
         }
     }
-
-    async fn export_query_result_as_json_line(
-        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
-        while let Some(row) = stream.next().await {
-            let row = row?;
-            let value = encode_row_as_json(&row)?;
-            sender.send(serde_json::to_string(&value)?.into()).await?;
-            sender.send("\n".into()).await?;
-        }
-
-        anyhow::Ok(())
-    }
-
-    async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            "SELECT * from \"{}\".\"{}\"",
-            self.config.schema_str()?,
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_json_line(None, &sql, sender)
-            .await
-    }
-
-    async fn export_query_result_as_json(
-        &self, query_id: Option<&str>, sql: &str, pretty: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
-        sender.send("[".into()).await?;
-        let mut first = true;
-        while let Some(row) = stream.next().await {
-            let row = row?;
-            let value = encode_row_as_json(&row)?;
-            if !first {
-                sender.send(",".into()).await?;
-            }
-            if pretty {
-                sender.send("\n".into()).await?;
-            }
-            sender
-                .send(
-                    if pretty {
-                        serde_json::to_string_pretty(&value)?
-                    } else {
-                        serde_json::to_string(&value)?
-                    }
-                    .into(),
-                )
-                .await?;
-            first = false;
-        }
-        if pretty {
-            sender.send("\n".into()).await?;
-        }
-        sender.send("]".into()).await?;
-        anyhow::Ok(())
-    }
-
-    async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            "SELECT * from \"{}\".\"{}\"",
-            self.config.schema_str()?,
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_json(None, &sql, pretty, sender)
-            .await
-    }
-
-    async fn export_table_as_xlsx(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            "SELECT * from \"{}\".\"{}\"",
-            self.config.schema_str()?,
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_xlsx(None, &sql, include_header, sender)
-            .await
-    }
-
-    async fn export_query_result_as_csv(
-        &self, query_id: Option<&str>, sql: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let mut first = true;
-        let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
-
-        while let Some(row) = stream.next().await {
-            let row: PgRow = row?;
-            if first && include_header {
-                let fs = row
-                    .columns()
-                    .iter()
-                    .map(|x| x.name().to_string())
-                    .map(Some)
-                    .collect::<Vec<_>>();
-                sender.send(create_csv(&fs, delimiter)?.into()).await?;
-                first = false
-            }
-
-            let data = encode_row(&row)?;
-            sender.send(create_csv(&data, delimiter)?.into()).await?
-        }
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_html(
-        &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let mut first = true;
-
-        let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
-
-        while let Some(rows) = stream.next().await {
-            let row = rows?;
-            if first && !row.is_empty() && include_header {
-                let fs = row
-                    .columns()
-                    .iter()
-                    .map(|x| x.name().to_string())
-                    .collect::<Vec<_>>();
-                sender.send(create_html_table_header(&fs).into()).await?;
-                first = false
-            }
-            let data = encode_row(&row)?;
-            sender.send(create_html_table_data(&[data]).into()).await?;
-        }
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_md(
-        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let mut first = true;
-        let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
-        while let Some(rows) = stream.next().await {
-            let row = rows?;
-            if first {
-                let fs = row
-                    .columns()
-                    .iter()
-                    .map(|x| x.name().to_string())
-                    .collect::<Vec<_>>();
-                sender.send(create_markdown_header(&fs).into()).await?;
-                first = false
-            }
-            let data = encode_row(&row)?;
-            sender.send(create_markdown_data(&data).into()).await?;
-        }
-        anyhow::Ok(())
-    }
-
-    async fn export_table_as_csv(
-        &self, table_name: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"SELECT * from "{}"."{}""#,
-            self.config.schema_str()?,
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_csv(None, sql.as_str(), include_header, delimiter, sender)
-            .await
-    }
-    async fn export_table_as_html(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"SELECT * from "{}"."{}""#,
-            self.config.schema_str()?,
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_html(None, sql.as_str(), include_header, sender)
-            .await
-    }
-    async fn export_table_as_md(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"SELECT * from "{}"."{}""#,
-            self.config.schema_str()?,
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_md(None, sql.as_str(), sender)
-            .await
-    }
 }
 
 pub(crate) fn gen_show_sql(
@@ -1180,30 +964,20 @@ impl SchemaTrait for PostGresDB {
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::Csv {
-                include_header,
-                delimiter,
-            } => {
-                self.export_table_as_csv(name, include_header, delimiter, sender)
-                    .await
-            }
-            ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
-            ExportKind::JsonLine => self.export_table_as_json_line(name, sender).await,
             ExportKind::Sql {
                 include_table_schema,
             } => {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
-            ExportKind::Xlsx { include_header } => {
-                self.export_table_as_xlsx(name, include_header, sender)
-                    .await
+            _ => {
+                let sql = format!(
+                    r#"SELECT * from "{}"."{}""#,
+                    self.config.schema_str()?,
+                    name
+                );
+                self.export_query_result(None, &sql, kind, sender).await
             }
-            ExportKind::Html { include_header } => {
-                self.export_table_as_html(name, include_header, sender)
-                    .await
-            }
-            ExportKind::MarkDown => self.export_table_as_md(name, sender).await,
         }
     }
 
@@ -1956,43 +1730,6 @@ async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Re
     anyhow::Ok(())
 }
 
-impl PostGresDB {
-    async fn export_query_result_as_xlsx(
-        &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let mut first = true;
-
-        let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
-        let mut row_num = 0;
-
-        while let Some(row) = stream.next().await {
-            let row = row?;
-            if first && include_header {
-                for (index, col) in row.columns().iter().enumerate() {
-                    sender
-                        .send(
-                            XlsxEdit {
-                                row: row_num,
-                                column: index as rust_xlsxwriter::ColNum,
-                                content: col.name().to_string(),
-                            }
-                            .into(),
-                        )
-                        .await?;
-                }
-                row_num += 1;
-                first = false
-            }
-            let data = encode_row(&row)?;
-            export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
-        }
-        anyhow::Ok(())
-    }
-}
 #[async_trait::async_trait]
 
 impl ExportQueryResult for PostGresDB {
@@ -2001,47 +1738,92 @@ impl ExportQueryResult for PostGresDB {
     }
 
     async fn export_query_result(
-        &self, query_id: &str, sql: &str, kind: ExportKind,
+        &self, query_id: Option<&str>, sql: &str, kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        match kind {
-            ExportKind::Csv {
-                include_header,
-                delimiter,
-            } => {
-                self.export_query_result_as_csv(
-                    Some(query_id),
-                    sql,
+        let conn = self.get_conn_by_query_id(query_id).await?;
+        let mut conn = conn.lock().await;
+        let conn = conn.deref_mut();
+        let mut first = true;
+        let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn.deref_mut());
+        let mut row_num = 0;
+
+        while let Some(row) = stream.next().await {
+            let row: PgRow = row?;
+            match kind {
+                ExportKind::Csv {
                     include_header,
                     delimiter,
-                    sender,
-                )
-                .await
-            }
-            ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(Some(query_id), sql, pretty, sender)
-                    .await
-            }
-            ExportKind::JsonLine => {
-                self.export_query_result_as_json_line(Some(query_id), sql, sender)
-                    .await
-            }
-            ExportKind::Sql {
-                include_table_schema: _,
-            } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { include_header } => {
-                self.export_query_result_as_xlsx(Some(query_id), sql, include_header, sender)
-                    .await
-            }
-            ExportKind::Html { include_header } => {
-                self.export_query_result_as_html(Some(query_id), sql, include_header, sender)
-                    .await
-            }
-            ExportKind::MarkDown => {
-                self.export_query_result_as_md(Some(query_id), sql, sender)
-                    .await
+                } => {
+                    if first && include_header {
+                        first = false;
+                        let fs = row
+                            .columns()
+                            .iter()
+                            .map(|x| x.name().to_string())
+                            .map(Some)
+                            .collect::<Vec<_>>();
+                        sender.send(create_csv(&fs, delimiter)?.into()).await?;
+                    }
+                    let data = encode_row(&row)?;
+                    sender.send(create_csv(&data, delimiter)?.into()).await?
+                }
+                ExportKind::Json { .. } | ExportKind::JsonLine => {
+                    let value = encode_row_as_json(&row)?;
+                    sender.send(value.into()).await?;
+                }
+                ExportKind::Sql { .. } => {
+                    anyhow::bail!("can't export query result as sql")
+                }
+                ExportKind::Xlsx { include_header } => {
+                    if first && include_header {
+                        first = false;
+                        for (index, col) in row.columns().iter().enumerate() {
+                            sender
+                                .send(
+                                    XlsxEdit {
+                                        row: row_num,
+                                        column: index as rust_xlsxwriter::ColNum,
+                                        content: col.name().to_string(),
+                                    }
+                                    .into(),
+                                )
+                                .await?;
+                        }
+                        row_num += 1;
+                    }
+                    let data = encode_row(&row)?;
+                    export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
+                }
+                ExportKind::Html { include_header } => {
+                    if first && !row.is_empty() && include_header {
+                        first = false;
+                        let fs = row
+                            .columns()
+                            .iter()
+                            .map(|x| x.name().to_string())
+                            .collect::<Vec<_>>();
+                        sender.send(create_html_table_header(&fs).into()).await?;
+                    }
+                    let data = encode_row(&row)?;
+                    sender.send(create_html_table_data(&[data]).into()).await?;
+                }
+                ExportKind::MarkDown => {
+                    if first {
+                        first = false;
+                        let fs = row
+                            .columns()
+                            .iter()
+                            .map(|x| x.name().to_string())
+                            .collect::<Vec<_>>();
+                        sender.send(create_markdown_header(&fs).into()).await?;
+                    }
+                    let data = encode_row(&row)?;
+                    sender.send(create_markdown_data(&data).into()).await?;
+                }
             }
         }
+        anyhow::Ok(())
     }
 }
 

@@ -1,5 +1,5 @@
 use dbnexus_db::datasource_config::{
-    CassandraDBConfig, ClickHouseConfig, DuckDBConfig, FireBirdConfig, LibSqlDBConfig,
+    CassandraDBConfig, ClickHouseConfig, Db2Config, DuckDBConfig, FireBirdConfig, LibSqlDBConfig,
     MongoDBConfig, MysqlDBConfig, OracleDBConfig, PGDBConfig, RedisDBConfig, SqlServerDBConfig,
     SqliteDBConfig,
 };
@@ -32,6 +32,7 @@ impl DBConnectionConfig {
             | DBConnectionConfig::FireBird { name, .. }
             | DBConnectionConfig::DuckDB { name, .. }
             | DBConnectionConfig::CockRoach { name, .. } => name.as_str(),
+            DBConnectionConfig::Db2 { name, .. } => name.as_str(),
         }
     }
 }
@@ -114,6 +115,11 @@ pub enum DBConnectionConfig {
         conn: DuckDBConfig,
         name: String,
     },
+    Db2 {
+        #[serde(flatten)]
+        conn: Db2Config,
+        name: String,
+    },
 }
 
 impl DBConnectionConfig {
@@ -158,7 +164,6 @@ impl DBConnectionConfig {
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
-
             DBConnectionConfig::Postgres { conn, name: _ } => {
                 let o = Arc::new(dbnexus_db::pg::PostGresDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
@@ -264,6 +269,14 @@ impl DBConnectionConfig {
             DBConnectionConfig::FireBird { conn, .. } => {
                 let db = dbnexus_db::firebird::FireBirdDB::new(conn.clone()).await?;
                 anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn SchemaTrait>))
+            }
+            DBConnectionConfig::Db2 { conn, .. } => {
+                let db = dbnexus_db::db2::Db2Db::new(conn.clone()).await?;
+                let r = match &conn.schema {
+                    Some(_) => DatabaseBackend::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
+                    None => DatabaseBackend::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
+                };
+                anyhow::Ok(r)
             }
         }
     }

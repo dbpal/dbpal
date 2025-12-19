@@ -1,6 +1,7 @@
 #![allow(unused)]
 use std::{
     collections::HashMap,
+    ffi::CStr,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -8,13 +9,14 @@ use std::{
 use dashmap::DashMap;
 use futures_util::io::Close;
 use gcp_bigquery_client::google::cloud::bigquery::storage::v1::read_rows_response::Schema;
+use odbc_api::{Cursor, buffers::TextRowSet};
 use r2d2::{Pool, PooledConnection};
 use tokio::task::spawn_blocking;
 
 use crate::{
     datasource_config::{Db2Config, OdbcCommon},
     db::{
-        BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind,
+        BackendKind, CatalogTrait, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind,
         ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, POOL_MAX_CONNECTIONS,
         QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
         ShowTableParameter, SqlExecuteRet, not_support_feature,
@@ -112,15 +114,8 @@ impl QuerySql for Db2Db {
         let id = id.to_owned();
         spawn_blocking(move || {
             let conn = crate::odbc::make_conn(&this.config.make_odbc_str())?;
-            this.query_connection.insert(
-                id,
-                OdbcDbQuery::new(
-                    conn,
-                    Arc::new(Db2OdbcHelper {
-                        config: this.config.clone(),
-                    }),
-                ),
-            );
+            this.query_connection
+                .insert(id, OdbcDbQuery::new(conn, this.make_helper()));
             anyhow::Ok(())
         })
         .await?
@@ -131,26 +126,37 @@ impl QuerySql for Db2Db {
     }
 }
 
+impl Db2Db {
+    pub(crate) fn make_helper(&self) -> Arc<dyn OdbcHelper> {
+        Arc::new(Db2OdbcHelper {
+            config: self.config.clone(),
+        })
+    }
+}
+
 const SELECT_1_SQL: &str = "SELECT 1 FROM SYSIBM.SYSDUMMY1";
 
 impl Db2Db {
-    pub(crate) fn new(config: Db2Config) -> anyhow::Result<Self> {
-        let conn_str = config.make_odbc_str();
-        let mut builder = r2d2::Pool::<OdbcPool>::builder();
-        builder = builder.max_size(POOL_MAX_CONNECTIONS);
-        if let Some(timeout) = config.conn_timeout {
-            builder = builder.connection_timeout(timeout.into());
-        }
-        builder = builder.min_idle(Some(5));
-        let pool = builder.build(OdbcPool {
-            conn_str,
-            select_1_sql: SELECT_1_SQL.to_string(),
-        })?;
-        anyhow::Ok(Db2Db {
-            config,
-            pool: Arc::new(pool),
-            query_connection: Default::default(),
+    pub async fn new(config: Db2Config) -> anyhow::Result<Self> {
+        spawn_blocking(move || {
+            let conn_str = config.make_odbc_str();
+            let mut builder = r2d2::Pool::<OdbcPool>::builder();
+            builder = builder.max_size(POOL_MAX_CONNECTIONS);
+            if let Some(timeout) = config.conn_timeout {
+                builder = builder.connection_timeout(timeout.into());
+            }
+            builder = builder.min_idle(Some(0));
+            let pool = builder.build(OdbcPool {
+                conn_str,
+                select_1_sql: SELECT_1_SQL,
+            })?;
+            anyhow::Ok(Db2Db {
+                config,
+                pool: Arc::new(pool),
+                query_connection: Default::default(),
+            })
         })
+        .await?
     }
 }
 
@@ -166,17 +172,33 @@ impl Db2Config {
             ..
         } = self;
 
-        format!(
-            "Driver={{{driver_name}}};Database={db};Hostname={host};Port={port};Protocol=TCPIP;UID={username};PWD={password};CodePage=1208"
-        )
+        let mut ret = format!(
+            "Driver={{{driver_name}}};Hostname={host};Port={port};Protocol=TCPIP;UID={username};PWD={password};CodePage=1208;Database={db};"
+        );
+        #[cfg(debug_assertions)]
+        println!("conn str:{}", ret);
+        ret
     }
 }
 
 #[async_trait::async_trait]
-
 impl DBTrait for Db2Db {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        todo!()
+        let sql = "select tbspace from syscat.tablespaces";
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let r: Vec<(Option<String>)> = crate::odbc::odbc_query(&conn, sql, this.make_helper())?;
+
+            let mut ret = vec![];
+            for x in r {
+                if let Some(name) = x {
+                    ret.push(name);
+                }
+            }
+            anyhow::Ok(ret)
+        })
+        .await?
     }
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
@@ -221,8 +243,7 @@ impl CheckConn for Db2Db {
 }
 
 #[cfg(test)]
-
-fn make_test_object() -> Db2Db {
+async fn make_test_object() -> Db2Db {
     use crate::TEST_HOST;
     Db2Db::new(Db2Config {
         odbc_common: OdbcCommon {
@@ -238,7 +259,9 @@ fn make_test_object() -> Db2Db {
         save_password: true,
         read_only: false,
         conn_timeout: Some(5000.into()),
+        schema: None,
     })
+    .await
     .unwrap()
 }
 
@@ -250,7 +273,7 @@ impl ExportQueryResult for Db2Db {
     }
 
     async fn export_query_result(
-        &self, query_id: &str, _sql: &str, _kind: ExportKind,
+        &self, query_id: Option<&str>, _sql: &str, _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         todo!()
@@ -275,7 +298,7 @@ impl std::fmt::Debug for Db2Db {
 
 impl SchemaTrait for Db2Db {
     fn as_any(&self) -> &dyn std::any::Any {
-        todo!()
+        self
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
@@ -360,7 +383,16 @@ impl OdbcHelper for Db2OdbcHelper {
     fn format_numeric(&self, x: &odbc_api::sys::Numeric) -> String {
         todo!()
     }
+
+    fn format_str(&self, bs: &[u8]) -> anyhow::Result<String> {
+        let x = CStr::from_bytes_until_nul(bs)?;
+        let r = x.to_str()?;
+        anyhow::Ok(r.to_string())
+    }
 }
+
+// 是的，这个理解完全正确——无法通过标准 SQL 语句列出 DB2 实例下的所有数据库，必须使用命令行工具或实例级 API。
+// 所以db2不实现catalogtrait
 
 #[cfg(test)]
 mod tests {
@@ -368,13 +400,13 @@ mod tests {
     use crate::db::TestQueryEventEmit;
     #[tokio::test]
     async fn test_check_conn() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         crate::db::CheckConn::check_conn(&db).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_query() {
-        let db = make_test_object();
+        let db = make_test_object().await;
         crate::db::CheckConn::check_conn(&db).await.unwrap();
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
@@ -385,5 +417,12 @@ mod tests {
         )
         .await
         .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_schema() {
+        let db = make_test_object().await;
+        let s = db.list_schema().await.unwrap();
+        println!("schema:{:?}", s);
     }
 }

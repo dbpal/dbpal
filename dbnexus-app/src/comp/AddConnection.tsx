@@ -1181,6 +1181,7 @@ function AddConnection(props: {
           <MenuItem value={DataSourceKind.FireBird}> FireBird </MenuItem>
           <MenuItem value={DataSourceKind.DuckDB}> Duckdb </MenuItem>
           <MenuItem value={DataSourceKind.Cockroach}> Cockroach </MenuItem>
+          <MenuItem value={DataSourceKind.Db2}> Db2(luw) </MenuItem>
         </Select>
       </FormControl>
       <Stack direction="row" style={{ alignItems: "flex-start" }}>
@@ -1307,6 +1308,9 @@ function AddConnection(props: {
           )}
           {connectionType === DataSourceKind.DuckDB && (
             <DuckDB config={config as types.DuckDBConfig} />
+          )}
+          {connectionType === DataSourceKind.Db2 && (
+            <Db2 config={config as types.Db2Config} />
           )}
         </Stack>
       </AddConnectionContext>
@@ -1496,6 +1500,179 @@ function LibSql(props: { config?: types.LibSqlDBConfig }) {
         </>
       )}
     </>
+  );
+}
+
+function OdbcDriverCommon(props: { config: RefObject<types.OdbcCommon> }) {
+  const { config } = props;
+  const [driverName, setDriverName] = useState(config.current.driver_name);
+  const [maxStrLen, setMaxStrLen] = useState(config.current.max_str_len + "");
+  const [maxbinLen, setMaxBinLen] = useState(config.current.max_bin_len + "");
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability
+    config.current.driver_name = driverName;
+    config.current.max_str_len = parseInt(maxStrLen);
+    config.current.max_bin_len = parseInt(maxbinLen);
+  }, [config, driverName, maxStrLen, maxbinLen]);
+
+  return (
+    <Stack direction="row">
+      <TextField
+        label="driver name"
+        value={driverName}
+        sx={{ mr: 1 }}
+        onChange={e => setDriverName(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: driverName && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setDriverName("");
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+        required
+      />
+
+      <TextField
+        label="max string length"
+        value={maxStrLen}
+        sx={{ mr: 1 }}
+        onChange={e => setMaxStrLen(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: maxStrLen && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setMaxStrLen("");
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+        error={maxStrLen ? isNaN(parseInt(maxStrLen)) : false}
+        required
+      />
+
+      <TextField
+        label="max bin length"
+        value={maxbinLen}
+        sx={{ mr: 1 }}
+        onChange={e => setMaxBinLen(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: maxbinLen && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setMaxBinLen("");
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+        error={maxbinLen ? isNaN(parseInt(maxbinLen)) : false}
+        required
+      />
+    </Stack>
+  );
+}
+
+function Db2(props: { config?: types.Db2Config }) {
+  const { config } = props;
+  const [host, setHost] = useState(getHost(config));
+  const [port, setPort] = useState<string>((config?.port || 50000) + "");
+
+  const [user, setUser] = useState(getUser(config));
+  const [password, setPassword] = useState(getPassword(config));
+  const [database, setDatabase] = useState(getDB(config));
+  const [schema, setSchema] = useState(getSchema(config));
+  const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
+  const [savePassword, setSavePassword] = useState(getSavePassword(config));
+  const odbccommon = useRef<types.OdbcCommon>({
+    driver_name: "Driver_IBM_DB2",
+    max_str_len: 4096,
+    max_bin_len: 4096,
+  });
+
+  function makeConfig(): types.DBConnectionConfig {
+    return {
+      conn_type: "db2",
+      host,
+      port: parseInt(port),
+      username: user,
+      password: password,
+      save_password: savePassword,
+      db: database,
+      schema: schema,
+      conn_timeout: connTimeOut,
+      read_only: readOnly,
+      name: connectionName,
+      ...odbccommon.current,
+    };
+  }
+  globalMakeConfig = makeConfig;
+  return (
+    <Stack>
+      <HostAndPort host={host} port={port} setHost={setHost} setPort={setPort} />
+      <UserAndPassword
+        user={user}
+        password={password}
+        setUser={setUser}
+        setPassword={setPassword}
+        savePassword={savePassword}
+        setSavePassword={setSavePassword}
+      />
+      <TextField
+        label="database"
+        value={database}
+        sx={{ mr: 1 }}
+        onChange={e => setDatabase(e.target.value)}
+        slotProps={{
+          input: {
+            endAdornment: database && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setDatabase("");
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+        required
+      />
+      {database && (
+        <DbSchemaCadidates
+          name={schema}
+          setName={setSchema}
+          label="schema"
+          makeConfig={makeConfig}
+        />
+      )}
+      <OdbcDriverCommon config={odbccommon} />
+    </Stack>
   );
 }
 

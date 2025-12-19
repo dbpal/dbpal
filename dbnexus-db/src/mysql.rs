@@ -324,200 +324,6 @@ impl MysqlDB {
             }
         }
     }
-    async fn export_query_result_as_json_line(
-        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
-        while let Some(row) = stream.next().await {
-            let row = row?;
-            let value = encode_row_as_json(&row, true)?;
-
-            sender.send(serde_json::to_string(&value)?.into()).await?;
-            sender.send("\n".into()).await?;
-        }
-
-        anyhow::Ok(())
-    }
-
-    async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from `{}`", table_name);
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_json_line(None, sql.as_str(), sender)
-            .await
-    }
-
-    async fn export_query_result_as_json(
-        &self, query_id: Option<&str>, sql: &str, pretty: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
-
-        sender.send("[".into()).await?;
-        let mut first = true;
-        while let Some(row) = stream.next().await {
-            let row = row?;
-            let value = encode_row_as_json(&row, true)?;
-            if !first {
-                sender.send(",".into()).await?;
-            }
-            if pretty {
-                sender.send("\n".into()).await?;
-            }
-            sender
-                .send(
-                    if pretty {
-                        serde_json::to_string_pretty(&value)?
-                    } else {
-                        serde_json::to_string(&value)?
-                    }
-                    .into(),
-                )
-                .await?;
-            first = false;
-        }
-        if pretty {
-            sender.send("\n".into()).await?;
-        }
-        sender.send("]".into()).await?;
-        anyhow::Ok(())
-    }
-
-    async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from `{}`", table_name);
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_json(None, sql.as_str(), pretty, sender)
-            .await
-    }
-
-    async fn export_query_result_as_csv(
-        &self, query_id: Option<&str>, sql: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let mut first = true;
-
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
-
-        while let Some(row) = stream.next().await {
-            let row = row?;
-            if first && include_header {
-                let fs = row
-                    .columns()
-                    .iter()
-                    .map(|x| x.name().to_string())
-                    .map(Some)
-                    .collect::<Vec<_>>();
-                sender.send(create_csv(&fs, delimiter)?.into()).await?;
-                first = false
-            }
-
-            let data = encode_row(&row, true)?;
-            sender.send(create_csv(&data, delimiter)?.into()).await?;
-        }
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_html(
-        &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let mut first = true;
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
-
-        while let Some(row) = stream.next().await {
-            let row = row?;
-            if first && include_header {
-                let fs = row
-                    .columns()
-                    .iter()
-                    .map(|x| x.name().to_string())
-                    .collect::<Vec<_>>();
-                sender.send(create_html_table_header(&fs).into()).await?;
-                first = false
-            }
-            let data = encode_row(&row, true)?;
-            sender.send(create_html_table_data(&[data]).into()).await?;
-        }
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_md(
-        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let mut first = true;
-        let mut stream = sqlx::raw_sql(AssertSqlSafe(sql)).fetch(conn.deref_mut());
-
-        while let Some(row) = stream.next().await {
-            let row = row?;
-            if first {
-                let fs = row
-                    .columns()
-                    .iter()
-                    .map(|x| x.name().to_string())
-                    .collect::<Vec<_>>();
-                sender.send(create_markdown_header(&fs).into()).await?;
-                first = false
-            }
-            let data = encode_row(&row, true)?;
-            sender.send(create_markdown_data(&data).into()).await?;
-        }
-        anyhow::Ok(())
-    }
-
-    async fn export_table_as_csv(
-        &self, table_name: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from `{}`", table_name);
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_csv(None, sql.as_str(), include_header, delimiter, sender)
-            .await
-    }
-    async fn export_table_as_xlsx(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from `{}`", table_name);
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_xlsx(None, sql.as_str(), include_header, sender)
-            .await
-    }
-    async fn export_table_as_html(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from `{}`", table_name);
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_html(None, sql.as_str(), include_header, sender)
-            .await
-    }
-    async fn export_table_as_md(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!("SELECT * from `{}`", table_name);
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_md(None, sql.as_str(), sender)
-            .await
-    }
 }
 
 impl MysqlDB {
@@ -1139,30 +945,17 @@ impl SchemaTrait for MysqlDB {
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::Csv {
-                include_header,
-                delimiter,
-            } => {
-                self.export_table_as_csv(name, include_header, delimiter, sender)
-                    .await
-            }
-            ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
-            ExportKind::JsonLine => self.export_table_as_json_line(name, sender).await,
             ExportKind::Sql {
                 include_table_schema,
             } => {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
-            ExportKind::Xlsx { include_header } => {
-                self.export_table_as_xlsx(name, include_header, sender)
-                    .await
+            _ => {
+                let sql = format!("SELECT * from `{}`", name);
+                log::info!("sql:{}", sql);
+                self.export_query_result(None, &sql, kind, sender).await
             }
-            ExportKind::Html { include_header } => {
-                self.export_table_as_html(name, include_header, sender)
-                    .await
-            }
-            ExportKind::MarkDown => self.export_table_as_md(name, sender).await,
         }
     }
 
@@ -1721,9 +1514,14 @@ impl DBTrait for MysqlDB {
     }
 }
 
-impl MysqlDB {
-    async fn export_query_result_as_xlsx(
-        &self, query_id: Option<&str>, sql: &str, include_header: bool,
+#[async_trait::async_trait]
+impl ExportQueryResult for MysqlDB {
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        Box::new(Clone::clone(self))
+    }
+
+    async fn export_query_result(
+        &self, query_id: Option<&str>, sql: &str, kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let conn = self.get_conn_by_query_id(query_id).await?;
@@ -1734,79 +1532,82 @@ impl MysqlDB {
         let mut row_num = 0;
         while let Some(row) = stream.next().await {
             let row = row?;
-            if first && include_header {
-                for (index, col) in row.columns().iter().enumerate() {
-                    let col = col.name();
-                    sender
-                        .send(
-                            XlsxEdit {
-                                row: row_num,
-                                column: index as rust_xlsxwriter::ColNum,
-                                content: col.to_owned(),
-                            }
-                            .into(),
-                        )
-                        .await?;
-                }
-                first = false;
-                row_num += 1;
-            }
-
-            let data = encode_row(&row, true)?;
-            export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
-        }
-        anyhow::Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl ExportQueryResult for MysqlDB {
-    fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
-    }
-
-    async fn export_query_result(
-        &self, query_id: &str, sql: &str, kind: ExportKind,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        match kind {
-            ExportKind::Csv {
-                include_header,
-                delimiter,
-            } => {
-                self.export_query_result_as_csv(
-                    Some(query_id),
-                    sql,
+            match kind {
+                ExportKind::Csv {
                     include_header,
                     delimiter,
-                    sender,
-                )
-                .await
-            }
-            ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(Some(query_id), sql, pretty, sender)
-                    .await
-            }
-            ExportKind::JsonLine => {
-                self.export_query_result_as_json_line(Some(query_id), sql, sender)
-                    .await
-            }
-            ExportKind::Sql {
-                include_table_schema: _,
-            } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { include_header } => {
-                self.export_query_result_as_xlsx(Some(query_id), sql, include_header, sender)
-                    .await
-            }
-            ExportKind::Html { include_header } => {
-                self.export_query_result_as_html(Some(query_id), sql, include_header, sender)
-                    .await
-            }
-            ExportKind::MarkDown => {
-                self.export_query_result_as_md(Some(query_id), sql, sender)
-                    .await
+                } => {
+                    if first && include_header {
+                        first = false;
+                        let fs = row
+                            .columns()
+                            .iter()
+                            .map(|x| x.name().to_string())
+                            .map(Some)
+                            .collect::<Vec<_>>();
+                        sender.send(create_csv(&fs, delimiter)?.into()).await?;
+                    }
+                    let data = encode_row(&row, true)?;
+                    sender.send(create_csv(&data, delimiter)?.into()).await?;
+                }
+                ExportKind::Json { .. } | ExportKind::JsonLine => {
+                    let value = encode_row_as_json(&row, true)?;
+                    sender.send(value.into()).await?;
+                }
+                ExportKind::Sql { .. } => {
+                    anyhow::bail!("can't export query result as sql")
+                }
+                ExportKind::Xlsx { include_header } => {
+                    if first && include_header {
+                        first = false;
+                        for (index, col) in row.columns().iter().enumerate() {
+                            let col = col.name();
+                            sender
+                                .send(
+                                    XlsxEdit {
+                                        row: row_num,
+                                        column: index as rust_xlsxwriter::ColNum,
+                                        content: col.to_owned(),
+                                    }
+                                    .into(),
+                                )
+                                .await?;
+                        }
+                        row_num += 1;
+                    }
+
+                    let data = encode_row(&row, true)?;
+                    export_query_as_xlsx_send_data(&mut row_num, data, sender.clone()).await?;
+                }
+                ExportKind::Html { include_header } => {
+                    if first && include_header {
+                        first = false;
+                        let fs = row
+                            .columns()
+                            .iter()
+                            .map(|x| x.name().to_string())
+                            .collect::<Vec<_>>();
+                        sender.send(create_html_table_header(&fs).into()).await?;
+                    }
+                    let data = encode_row(&row, true)?;
+                    sender.send(create_html_table_data(&[data]).into()).await?;
+                }
+                ExportKind::MarkDown => {
+                    if first {
+                        first = false;
+                        let fs = row
+                            .columns()
+                            .iter()
+                            .map(|x| x.name().to_string())
+                            .collect::<Vec<_>>();
+                        sender.send(create_markdown_header(&fs).into()).await?;
+                    }
+                    let data = encode_row(&row, true)?;
+                    sender.send(create_markdown_data(&data).into()).await?;
+                }
             }
         }
+        anyhow::Ok(())
     }
 }
 
@@ -1814,18 +1615,14 @@ impl ExportQueryResult for MysqlDB {
 impl QuerySql for MysqlDB {
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         use sqlx_core::any::AnyConnectionBackend;
-
         let conn = self.query_connection.get(&query_id.to_string());
         let conn = match conn {
             Some(x) => x.clone(),
             None => anyhow::bail!("connection closed???"),
         };
-
         let mut conn = conn.lock().await;
         let conn = conn.deref_mut();
-
         let d = conn.get_transaction_depth();
-
         anyhow::Ok(d == 0)
     }
 
@@ -2477,7 +2274,7 @@ pub(crate) mod test_fns {
         {
             let s = schema_trait
                 .export_query_result_to_string(
-                    query_id,
+                    query_id.into(),
                     format!("select * from {table_name}").as_str(),
                     ExportKind::Json { pretty: true },
                 )
@@ -2489,7 +2286,7 @@ pub(crate) mod test_fns {
         {
             let s = schema_trait
                 .export_query_result_to_string(
-                    "",
+                    "".into(),
                     format!("select * from {table_name}").as_str(),
                     ExportKind::Csv {
                         include_header: true,
@@ -2504,7 +2301,7 @@ pub(crate) mod test_fns {
         {
             let s = schema_trait
                 .export_query_result_to_string(
-                    query_id,
+                    query_id.into(),
                     format!("select * from {table_name}").as_str(),
                     ExportKind::JsonLine,
                 )

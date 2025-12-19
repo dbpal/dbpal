@@ -301,6 +301,7 @@ enum DataSourceKind {
   FireBird = "firebird",
   DuckDB = "duckdb",
   Cockroach = "cockroach",
+  Db2 = "db2",
 }
 
 function quoteDatabaseIdentifier(x: DataSourceKind) {

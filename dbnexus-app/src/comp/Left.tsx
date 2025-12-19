@@ -965,6 +965,8 @@ function OneConfig(props: { config: types.DBConnectionConfig }) {
           return <CatalogTree />;
         }
         return config.schema ? <SchemaTree /> : <DatabaseTree />;
+      case DataSourceKind.Db2:
+        return config.schema ? <SchemaTree /> : <DatabaseTree />;
       default:
         console.error("impl database kind:", config);
     }

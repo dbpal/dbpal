@@ -323,7 +323,7 @@ impl LexerCompletionTrait for DuckDB {
     }
 }
 
-pub(crate) const DUCKDB_TYPES: &'static [&'static str] = &[
+pub(crate) const DUCKDB_TYPES: &[&str] = &[
     "BIGINT",
     "INT8",
     "LONG",

@@ -153,197 +153,6 @@ impl DuckDB {
             }
         }
     }
-
-    async fn export_query_result_as_csv(
-        &self, sql: &str, query_id: Option<&str>, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let this = Clone::clone(self);
-        let sql = sql.to_owned();
-        let query_id = query_id.map(|s| s.to_owned());
-        spawn_blocking(move || {
-            let conn = this.get_conn_by_query_id(query_id.as_deref())?;
-            let conn = conn.lock().expect("lock failed");
-            let mut stmt = conn.prepare(&sql)?;
-            let mut stream = stmt.query([])?;
-            let mut first = true;
-            while let Some(row) = stream.next()? {
-                if first {
-                    first = false;
-                    if include_header {
-                        let fs = row.as_ref().column_names().into_iter().map(Some).collect();
-                        sender.blocking_send(create_csv(&[fs], delimiter)?.into())?;
-                    }
-                }
-                let d = encode_row(row)?;
-                let r = create_csv(&d, delimiter)?;
-                sender.blocking_send(r.into())?;
-            }
-            anyhow::Ok(())
-        })
-        .await??;
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_xlsx(
-        &self, sql: &str, query_id: Option<&str>, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let this = Clone::clone(self);
-        let sql = sql.to_owned();
-        let query_id = query_id.map(|s| s.to_owned());
-        spawn_blocking(move || {
-            let conn = this.get_conn_by_query_id(query_id.as_deref())?;
-            let conn = conn.lock().expect("lock failed");
-            let mut stmt = conn.prepare(&sql)?;
-            let mut row_num = 0;
-            let mut stream = stmt.query([])?;
-            let mut first = true;
-            while let Some(row) = stream.next()? {
-                if first {
-                    first = false;
-                    if include_header {
-                        let names: Vec<_> =
-                            row.as_ref().column_names().into_iter().map(Some).collect();
-                        export_query_as_xlsx_send_blocking_data(
-                            &mut row_num,
-                            names,
-                            sender.clone(),
-                        )?;
-                    }
-                }
-                let d = encode_row(row)?;
-                export_query_as_xlsx_send_blocking_data(&mut row_num, d, sender.clone())?;
-            }
-            anyhow::Ok(())
-        })
-        .await??;
-        anyhow::Ok(())
-    }
-    async fn export_query_result_as_html(
-        &self, sql: &str, query_id: Option<&str>, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let this = Clone::clone(self);
-        let sql = sql.to_owned();
-        let query_id = query_id.map(|s| s.to_owned());
-        spawn_blocking(move || {
-            let conn = this.get_conn_by_query_id(query_id.as_deref())?;
-            let conn = conn.lock().expect("lock failed");
-            let mut stmt = conn.prepare(&sql)?;
-            let mut stream = stmt.query([])?;
-            let mut first = true;
-            while let Some(row) = stream.next()? {
-                if first {
-                    first = false;
-                    if include_header {
-                        let names = row.as_ref().column_names();
-                        sender.blocking_send(create_html_table_header(&names).into())?;
-                    }
-                }
-                let d = encode_row(row)?;
-                let r = create_html_table_data(&[d]);
-                sender.blocking_send(r.into())?;
-            }
-            anyhow::Ok(())
-        })
-        .await??;
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_md(
-        &self, sql: &str, query_id: Option<&str>, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let this = Clone::clone(self);
-        let sql = sql.to_owned();
-        let query_id = query_id.map(|s| s.to_owned());
-        spawn_blocking(move || {
-            let conn = this.get_conn_by_query_id(query_id.as_deref())?;
-            let conn = conn.lock().expect("lock failed");
-            let mut stmt = conn.prepare(&sql)?;
-            let mut stream = stmt.query([])?;
-            let mut first = true;
-            while let Some(row) = stream.next()? {
-                if first {
-                    first = false;
-                    let names = row.as_ref().column_names();
-                    sender.blocking_send(create_markdown_header(&names).into())?;
-                }
-                let d = encode_row(row)?;
-                let r = create_markdown_data(&d);
-                sender.blocking_send(r.into())?;
-            }
-            anyhow::Ok(())
-        })
-        .await??;
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_json(
-        &self, sql: &str, query_id: Option<&str>, pretty: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let this = Clone::clone(self);
-        let sql = sql.to_owned();
-        sender.send("[".into()).await?;
-        let query_id = query_id.map(|s| s.to_owned());
-        spawn_blocking(move || {
-            let conn = this.get_conn_by_query_id(query_id.as_deref())?;
-            let conn = conn.lock().expect("lock failed");
-            let mut stmt = conn.prepare(&sql)?;
-            let mut first = true;
-            let mut stream = stmt.query([])?;
-            while let Some(row) = stream.next()? {
-                let value = encode_row_as_json(row)?;
-                if !first {
-                    sender.blocking_send(",".into())?;
-                }
-                if pretty {
-                    sender.blocking_send("\n".into())?;
-                }
-                sender.blocking_send(
-                    if pretty {
-                        serde_json::to_string_pretty(&value)?
-                    } else {
-                        serde_json::to_string(&value)?
-                    }
-                    .into(),
-                )?;
-                first = false;
-            }
-
-            if pretty {
-                sender.blocking_send("\n".into())?;
-            }
-            sender.blocking_send("]".into())?;
-            anyhow::Ok(())
-        })
-        .await??;
-
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_json_line(
-        &self, sql: &str, query_id: Option<&str>, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let this = Clone::clone(self);
-        let sql = sql.to_owned();
-        let query_id = query_id.map(|s| s.to_owned());
-        spawn_blocking(move || {
-            let conn = this.get_conn_by_query_id(query_id.as_deref())?;
-            let conn = conn.lock().expect("lock failed");
-            let mut stmt = conn.prepare(&sql)?;
-            let mut stream = stmt.query([])?;
-            while let Some(row) = stream.next()? {
-                let serde_value = encode_row_as_json(row)?;
-                let str = serde_json::to_string(&serde_value)?;
-                sender.blocking_send(str.into())?;
-            }
-            anyhow::Ok(())
-        })
-        .await??;
-        anyhow::Ok(())
-    }
 }
 
 fn encode_row_as_json<'stmt>(
@@ -448,47 +257,87 @@ impl ExportQueryResult for DuckDB {
     }
 
     async fn export_query_result(
-        &self, query_id: &str, sql: &str, kind: ExportKind,
+        &self, query_id: Option<&str>, sql: &str, kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        match kind {
-            ExportKind::Csv {
-                include_header,
-                delimiter,
-            } => {
-                self.export_query_result_as_csv(
-                    sql,
-                    Some(query_id),
-                    include_header,
-                    delimiter,
-                    sender,
-                )
-                .await
+        let this = Clone::clone(self);
+        let sql = sql.to_owned();
+        let query_id = query_id.map(|s| s.to_owned());
+        spawn_blocking(move || {
+            let conn = this.get_conn_by_query_id(query_id.as_deref())?;
+            let conn = conn.lock().expect("lock failed");
+            let mut stmt = conn.prepare(&sql)?;
+            let mut stream = stmt.query([])?;
+            let mut first = true;
+            let mut row_num = 0;
+            while let Some(row) = stream.next()? {
+                match kind {
+                    ExportKind::Csv {
+                        include_header,
+                        delimiter,
+                    } => {
+                        if first {
+                            first = false;
+                            if include_header {
+                                let fs =
+                                    row.as_ref().column_names().into_iter().map(Some).collect();
+                                sender.blocking_send(create_csv(&[fs], delimiter)?.into())?;
+                            }
+                        }
+                        let d = encode_row(row)?;
+                        let r = create_csv(&d, delimiter)?;
+                        sender.blocking_send(r.into())?;
+                    }
+                    ExportKind::Json { .. } | ExportKind::JsonLine => {
+                        let serde_value = encode_row_as_json(row)?;
+                        sender.blocking_send(serde_value.into())?;
+                    }
+                    ExportKind::Sql { .. } => {
+                        anyhow::bail!("query as sql not supported.");
+                    }
+                    ExportKind::Xlsx { include_header } => {
+                        if first {
+                            first = false;
+                            if include_header {
+                                let names: Vec<_> =
+                                    row.as_ref().column_names().into_iter().map(Some).collect();
+                                export_query_as_xlsx_send_blocking_data(
+                                    &mut row_num,
+                                    names,
+                                    sender.clone(),
+                                )?;
+                            }
+                        }
+                        let d = encode_row(row)?;
+                        export_query_as_xlsx_send_blocking_data(&mut row_num, d, sender.clone())?;
+                    }
+                    ExportKind::Html { include_header } => {
+                        if first {
+                            first = false;
+                            if include_header {
+                                let names = row.as_ref().column_names();
+                                sender.blocking_send(create_html_table_header(&names).into())?;
+                            }
+                        }
+                        let d = encode_row(row)?;
+                        let r = create_html_table_data(&[d]);
+                        sender.blocking_send(r.into())?;
+                    }
+                    ExportKind::MarkDown => {
+                        if first {
+                            first = false;
+                            let names = row.as_ref().column_names();
+                            sender.blocking_send(create_markdown_header(&names).into())?;
+                        }
+                        let d = encode_row(row)?;
+                        let r = create_markdown_data(&d);
+                        sender.blocking_send(r.into())?;
+                    }
+                }
             }
-            ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, Some(query_id), pretty, sender)
-                    .await
-            }
-            ExportKind::JsonLine => {
-                self.export_query_result_as_json_line(sql, Some(query_id), sender)
-                    .await
-            }
-            ExportKind::Sql {
-                include_table_schema: _,
-            } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { include_header } => {
-                self.export_query_result_as_xlsx(sql, Some(query_id), include_header, sender)
-                    .await
-            }
-            ExportKind::Html { include_header } => {
-                self.export_query_result_as_html(sql, Some(query_id), include_header, sender)
-                    .await
-            }
-            ExportKind::MarkDown => {
-                self.export_query_result_as_md(sql, Some(query_id), sender)
-                    .await
-            }
-        }
+            anyhow::Ok(())
+        })
+        .await?
     }
 }
 
@@ -786,87 +635,6 @@ fn encode_row<'stmt>(row: &duckdb::Row<'stmt>) -> anyhow::Result<Vec<Option<Stri
 }
 
 impl DuckDB {
-    async fn export_table_as_csv(
-        &self, table_name: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"SELECT * from "{}"."{}""#,
-            self.config.schema_str(),
-            table_name
-        );
-        log::info!("sql:{}", sql);
-
-        self.export_query_result_as_csv(sql.as_str(), None, include_header, delimiter, sender)
-            .await
-    }
-
-    async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"SELECT * from "{}"."{}""#,
-            self.config.schema_str(),
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_json(&sql, None, pretty, sender)
-            .await
-    }
-
-    async fn export_table_as_html(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"SELECT * from "{}"."{}""#,
-            self.config.schema_str(),
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_html(&sql, None, include_header, sender)
-            .await
-    }
-
-    async fn export_table_as_md(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"SELECT * from "{}"."{}""#,
-            self.config.schema_str(),
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_md(&sql, None, sender).await
-    }
-
-    async fn export_table_as_xlsx(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"SELECT * from "{}"."{}""#,
-            self.config.schema_str(),
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_xlsx(&sql, None, include_header, sender)
-            .await
-    }
-
-    async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"SELECT * from "{}"."{}""#,
-            self.config.schema_str(),
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_json_line(&sql, None, sender)
-            .await
-    }
-
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
@@ -1141,30 +909,16 @@ impl SchemaTrait for DuckDB {
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::Csv {
-                include_header,
-                delimiter,
-            } => {
-                self.export_table_as_csv(name, include_header, delimiter, sender)
-                    .await
-            }
-            ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
-            ExportKind::JsonLine => self.export_table_as_json_line(name, sender).await,
             ExportKind::Sql {
                 include_table_schema,
             } => {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
-            ExportKind::Xlsx { include_header } => {
-                self.export_table_as_xlsx(name, include_header, sender)
-                    .await
+            _ => {
+                let sql = format!(r#"SELECT * from "{}"."{}""#, self.config.schema_str(), name);
+                self.export_query_result(None, &sql, kind, sender).await
             }
-            ExportKind::Html { include_header } => {
-                self.export_table_as_html(name, include_header, sender)
-                    .await
-            }
-            ExportKind::MarkDown => self.export_table_as_md(name, sender).await,
         }
     }
 
@@ -1659,7 +1413,6 @@ fn format_date(days_since_epoch: i32) -> anyhow::Result<String> {
     }
 }
 #[cfg(test)]
-
 pub(crate) fn duckdb_test_file_path() -> String {
     std::env::var("DBPAL_DUCKDB_TEST_FILE").unwrap()
 }

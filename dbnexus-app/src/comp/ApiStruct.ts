@@ -205,6 +205,23 @@ export namespace types {
         "schema": (string | null);
         "conn_timeout": (types.ConnTimeOut | null);
     };
+    export type Usize = number;
+    export type OdbcCommon = {
+        "driver_name": string;
+        "max_str_len": types.Usize;
+        "max_bin_len": types.Usize;
+    };
+    export type Db2Config = (types.OdbcCommon & {
+        "host": string;
+        "port": types.U16;
+        "username": string;
+        "password": string;
+        "db": string;
+        "save_password": boolean;
+        "read_only": boolean;
+        "conn_timeout": (types.ConnTimeOut | null);
+        "schema": (string | null);
+    });
     export type DBConnectionConfig = (({
         "conn_type": "sqlite";
     } & (types.SqliteDBConfig & {
@@ -265,13 +282,16 @@ export namespace types {
         "conn_type": "duckdb";
     } & (types.DuckDBConfig & {
         "name": string;
+    })) | ({
+        "conn_type": "db2";
+    } & (types.Db2Config & {
+        "name": string;
     })));
     export type U64 = number;
     export type ListTable = {
         "name": string;
         "size": (types.U64 | null);
     };
-    export type I64 = number;
     export type Field = {
         "field": string;
         "data_type": string;
@@ -288,7 +308,6 @@ export namespace types {
         "is_primary": boolean;
         "is_auto_increment": boolean;
         "sortable": boolean;
-        "firebird_binary_sub_type": (types.I64 | null);
     };
     export type IndexKind = ("Index" | "Unique" | "Primary");
     export type Index = {
@@ -440,7 +459,6 @@ export namespace types {
     } & {
         "parameters": (string)[];
     }));
-    export type Usize = number;
     export type F64 = number;
     export type ShowTableParameter = {
         "where_str"?: (string | null);

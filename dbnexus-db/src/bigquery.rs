@@ -165,7 +165,7 @@ impl ExportQueryResult for BigQueryDb {
     }
 
     async fn export_query_result(
-        &self, query_id: &str, _sql: &str, _kind: ExportKind,
+        &self, query_id: Option<&str>, _sql: &str, _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         todo!()
@@ -173,7 +173,6 @@ impl ExportQueryResult for BigQueryDb {
 }
 
 #[cfg(test)]
-
 fn make_test_object() -> BigQueryDb {
     unimplemented!()
 }

@@ -475,6 +475,7 @@ pub struct Db2Config {
     pub save_password: bool,
     pub read_only: bool,
     pub conn_timeout: Option<ConnTimeOut>,
+    pub schema: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]

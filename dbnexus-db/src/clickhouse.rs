@@ -28,83 +28,6 @@ impl GetBackendKind for ClickHouseDB {
 }
 
 impl ClickHouseDB {
-    async fn export_table_as_csv(
-        &self, table_name: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"SELECT * from `{}`.`{}`"#,
-            self.config.db_str(),
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_csv(&sql, include_header, delimiter, sender)
-            .await
-    }
-    async fn export_table_as_html(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"SELECT * from `{}`.`{}`"#,
-            self.config.db_str(),
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_html(&sql, include_header, sender)
-            .await
-    }
-    async fn export_table_as_md(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"SELECT * from `{}`.`{}`"#,
-            self.config.db_str(),
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_md(&sql, sender).await
-    }
-
-    async fn export_table_as_json(
-        &self, table_name: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"SELECT * from `{}`.`{}`"#,
-            self.config.db_str(),
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_json(sql.as_str(), pretty, sender)
-            .await
-    }
-
-    async fn export_table_as_json_line(
-        &self, table_name: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"SELECT * from `{}`.`{}`"#,
-            self.config.db_str(),
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_json_line(&sql, sender).await
-    }
-
-    async fn export_table_as_xlsx(
-        &self, table_name: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"SELECT * from `{}`.`{}`"#,
-            self.config.db_str(),
-            table_name
-        );
-        log::info!("sql:{}", sql);
-        self.export_query_result_as_xlsx(&sql, include_header, sender)
-            .await
-    }
-
     async fn export_table_as_sql(
         &self, table_name: &str, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
@@ -269,30 +192,17 @@ impl SchemaTrait for ClickHouseDB {
         &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
-            ExportKind::Csv {
-                include_header,
-                delimiter,
-            } => {
-                self.export_table_as_csv(name, include_header, delimiter, sender)
-                    .await
-            }
-            ExportKind::Json { pretty } => self.export_table_as_json(name, pretty, sender).await,
-            ExportKind::JsonLine => self.export_table_as_json_line(name, sender).await,
             ExportKind::Sql {
                 include_table_schema,
             } => {
                 self.export_table_as_sql(name, include_table_schema, sender)
                     .await
             }
-            ExportKind::Xlsx { include_header } => {
-                self.export_table_as_xlsx(name, include_header, sender)
-                    .await
+            _ => {
+                let sql = format!(r#"SELECT * from `{}`.`{}`"#, self.config.db_str(), name);
+                log::info!("sql:{}", sql);
+                self.export_query_result(None, &sql, kind, sender).await
             }
-            ExportKind::Html { include_header } => {
-                self.export_table_as_html(name, include_header, sender)
-                    .await
-            }
-            ExportKind::MarkDown => self.export_table_as_md(name, sender).await,
         }
     }
 
@@ -369,7 +279,6 @@ impl SchemaTrait for ClickHouseDB {
         self.can_write()?;
         let sql = format!(r#"TRUNCATE TABLE `{table_name}`"#);
         log::info!("sql:{}", sql);
-
         self.client.query(&sql).execute().await?;
         anyhow::Ok(())
     }
@@ -797,7 +706,6 @@ impl ClickHouseDB {
                 FieldsOrData::Data(data) => {
                     sender.send(create_html_table_data(&[data]).into()).await?;
                 }
-
                 FieldsOrData::ReadingColumns => {}
             }
         }
@@ -829,33 +737,14 @@ impl ClickHouseDB {
     }
 
     async fn export_query_result_as_json(
-        &self, sql: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut stream = self.query_as_text_line(sql, "JSONEachRow", None).await?;
-        sender.send("[".into()).await?;
-        let mut first = true;
         while let Some(data) = stream.next().await {
             let data = data?;
-            if !first {
-                sender.send(",".into()).await?;
-            }
-            if pretty {
-                sender.send("\n".into()).await?;
-            }
-            if pretty {
-                let v: HashMap<String, serde_json::Value> = serde_json::from_str(&data)?;
-                sender
-                    .send(serde_json::to_string_pretty(&v)?.into())
-                    .await?;
-            } else {
-                sender.send(data.into()).await?;
-            }
-            first = false;
+            let v: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&data)?;
+            sender.send(v.into()).await?;
         }
-        if pretty {
-            sender.send("\n".into()).await?;
-        }
-        sender.send("]".into()).await?;
         anyhow::Ok(())
     }
 
@@ -932,7 +821,7 @@ impl ExportQueryResult for ClickHouseDB {
     }
 
     async fn export_query_result(
-        &self, _query_id: &str, sql: &str, kind: ExportKind,
+        &self, _query_id: Option<&str>, sql: &str, kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
@@ -943,9 +832,7 @@ impl ExportQueryResult for ClickHouseDB {
                 self.export_query_result_as_csv(sql, include_header, delimiter, sender)
                     .await
             }
-            ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(sql, pretty, sender).await
-            }
+            ExportKind::Json { .. } => self.export_query_result_as_json(sql, sender).await,
             ExportKind::JsonLine => self.export_query_result_as_json_line(sql, sender).await,
             ExportKind::Sql {
                 include_table_schema: _,

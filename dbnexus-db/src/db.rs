@@ -428,10 +428,11 @@ pub trait SchemaTrait:
         not_support_feature(self.backend_name())
     }
 
+    #[cfg(test)]
     async fn export_table_to_string(
         &self, table_name: &str, kind: ExportKind,
     ) -> anyhow::Result<String> {
-        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+        let (sender, receiver) = tokio::sync::mpsc::channel(10);
         let h1 = {
             let x = SchemaTrait::clone(self);
             let table_name = table_name.to_string();
@@ -441,15 +442,7 @@ pub trait SchemaTrait:
                 );
             h1
         };
-        let h2 = {
-            tokio::spawn(async move {
-                let mut s = String::new();
-                while let Some(r) = receiver.recv().await {
-                    s.push_str(r.to_string().as_str());
-                }
-                anyhow::Ok(s)
-            })
-        };
+        let h2 = { tokio::spawn(async move { collect_export_str(kind, receiver).await }) };
         h1.await??;
         h2.await?
     }
@@ -914,6 +907,19 @@ pub enum ExportFrame {
     String(String),
     Xlsx(XlsxEdit),
     Bytes(tokio_util::bytes::Bytes),
+    JsonValue(serde_json::Value),
+}
+
+impl From<serde_json::Value> for ExportFrame {
+    fn from(value: serde_json::Value) -> Self {
+        Self::JsonValue(value)
+    }
+}
+
+impl From<serde_json::Map<String, serde_json::Value>> for ExportFrame {
+    fn from(value: serde_json::Map<String, serde_json::Value>) -> Self {
+        Self::JsonValue(serde_json::Value::Object(value))
+    }
 }
 
 impl From<tokio_util::bytes::Bytes> for ExportFrame {
@@ -931,6 +937,7 @@ impl std::fmt::Display for ExportFrame {
             ExportFrame::Bytes(bytes) => {
                 write!(f, "{}", String::from_utf8_lossy(bytes.deref()))
             }
+            ExportFrame::JsonValue(value) => write!(f, "{:?}", value),
         }
     }
 }
@@ -946,6 +953,9 @@ impl ExportFrame {
             ExportFrame::Bytes(..) => {
                 anyhow::bail!("this is bytes,should be a internal error")
             }
+            ExportFrame::JsonValue(..) => {
+                anyhow::bail!("this is json value ,should be interal error")
+            }
         };
         anyhow::Ok(r)
     }
@@ -958,6 +968,9 @@ impl ExportFrame {
                 anyhow::bail!("this is xlsx edit,should be a internal error")
             }
             ExportFrame::Bytes(bytes) => &bytes,
+            ExportFrame::JsonValue(..) => {
+                anyhow::bail!("this is json value,should be a internal error")
+            }
         };
         anyhow::Ok(r)
     }
@@ -981,38 +994,94 @@ impl From<XlsxEdit> for ExportFrame {
     }
 }
 
+#[cfg(test)]
+async fn collect_export_str(
+    kind: ExportKind, mut receiver: tokio::sync::mpsc::Receiver<ExportFrame>,
+) -> anyhow::Result<String> {
+    match kind {
+        ExportKind::Json { pretty } => {
+            let mut ret = "[".to_string();
+            let mut first = true;
+            while let Some(r) = receiver.recv().await {
+                let value = match r {
+                    ExportFrame::JsonValue(x) => x,
+                    _ => {
+                        unreachable!()
+                    }
+                };
+                if !first {
+                    ret.push(',');
+                }
+                if pretty {
+                    ret.push('\n');
+                }
+                ret.push_str(
+                    if pretty {
+                        serde_json::to_string_pretty(&value)
+                    } else {
+                        serde_json::to_string(&value)
+                    }?
+                    .as_str(),
+                );
+                first = false;
+            }
+            if pretty {
+                ret.push('\n');
+            }
+            ret.push(']');
+            anyhow::Ok(ret)
+        }
+        ExportKind::JsonLine => {
+            let mut ret = String::new();
+            while let Some(x) = receiver.recv().await {
+                match x {
+                    ExportFrame::Bytes(x) => {
+                        ret.push_str(&String::from_utf8_lossy(&x));
+                    }
+                    ExportFrame::JsonValue(x) => {
+                        let x = serde_json::to_string(&x)?;
+                        ret.push_str(&x);
+                    }
+                    _ => unreachable!("kind:{:?} data:{:?}", kind, x),
+                }
+            }
+
+            anyhow::Ok(ret)
+        }
+        _ => {
+            let mut ret = String::new();
+            while let Some(r) = receiver.recv().await {
+                ret.push_str(r.to_string().as_str());
+            }
+            anyhow::Ok(ret)
+        }
+    }
+}
 #[async_trait::async_trait]
 pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
     fn clone(&self) -> Box<dyn ExportQueryResult>;
 
     async fn export_query_result(
-        &self, query_id: &str, _sql: &str, _kind: ExportKind,
+        &self, query_id: Option<&str>, _sql: &str, _kind: ExportKind,
         _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()>;
 
+    #[cfg(test)]
     async fn export_query_result_to_string(
         &self, query_id: &str, sql: &str, kind: ExportKind,
     ) -> anyhow::Result<String> {
-        let (sender, mut receiver) = tokio::sync::mpsc::channel(10);
+        let (sender, receiver) = tokio::sync::mpsc::channel(10);
         let j1 = {
             let x = ExportQueryResult::clone(self);
             let sql = sql.to_string();
             let query_id = query_id.to_string();
-            let h1 =
-                tokio::spawn(
-                    async move { x.export_query_result(&query_id, &sql, kind, sender).await },
-                );
+            let h1 = tokio::spawn(async move {
+                x.export_query_result(Some(&query_id), &sql, kind, sender)
+                    .await
+            });
             h1
         };
-        let j2 = {
-            tokio::spawn(async move {
-                let mut ret = String::new();
-                while let Some(r) = receiver.recv().await {
-                    ret.push_str(r.to_string().as_str());
-                }
-                anyhow::Ok(ret)
-            })
-        };
+        let j2 = { tokio::spawn(async move { collect_export_str(kind, receiver).await }) };
         j1.await??;
         j2.await?
     }
@@ -1025,7 +1094,10 @@ pub trait ExportQueryResult: GetBackendKind + Send + Sync + 'static {
             let x = self.clone();
             let sql = sql.to_string();
             let query_id = query_id.to_string();
-            tokio::spawn(async move { x.export_query_result(&query_id, &sql, kind, sender).await })
+            tokio::spawn(async move {
+                x.export_query_result(Some(&query_id), &sql, kind, sender)
+                    .await
+            })
         };
         let j2 = {
             let sql = sql.to_string();
@@ -1046,6 +1118,56 @@ async fn write_export_file(
 ) -> anyhow::Result<()> {
     let mut size = TimeElapsed::new();
     let r = match kind {
+        ExportKind::Json { pretty } => {
+            let mut file = tokio::fs::File::create(&filepath).await?;
+            file.write("[".as_bytes()).await?;
+            let mut first = true;
+            while let Some(e) = receiver.recv().await {
+                let value = match e {
+                    ExportFrame::JsonValue(x) => x,
+                    _ => {
+                        anyhow::bail!("not json value but:{:?}", e);
+                    }
+                };
+                if !first {
+                    file.write(",".as_bytes()).await?;
+                }
+                if pretty {
+                    file.write("\n".as_bytes()).await?;
+                }
+                let s = if pretty {
+                    serde_json::to_string_pretty(&value)
+                } else {
+                    serde_json::to_string(&value)
+                }?;
+                file.write(s.as_bytes()).await?;
+                first = false;
+            }
+            if pretty {
+                file.write("\n".as_bytes()).await?;
+            }
+            file.write("]".as_bytes()).await?;
+            anyhow::Ok(())
+        }
+        ExportKind::JsonLine => {
+            let mut file = tokio::fs::File::create(&filepath).await?;
+            while let Some(e) = receiver.recv().await {
+                match e {
+                    ExportFrame::Bytes(x) => {
+                        file.write(&x).await?;
+                    }
+                    ExportFrame::JsonValue(x) => {
+                        let value = serde_json::to_string(&x)?;
+                        file.write(value.as_bytes()).await?;
+                        file.write("\n".as_bytes()).await?;
+                    }
+                    _ => {
+                        anyhow::bail!("wrong export frame data:{:?}", e);
+                    }
+                }
+            }
+            anyhow::Ok(())
+        }
         ExportKind::Html { .. } => {
             let mut file = tokio::fs::File::create(&filepath).await?;
             // Add a worksheet to the workbook.

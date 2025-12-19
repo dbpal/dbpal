@@ -17,8 +17,8 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame,
     ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryEvent,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlExecuteRet, XlsxEdit, create_html_table_data, create_html_table_header,
-    create_markdown_data, create_markdown_header,
+    ShowTableParameter, SqlExecuteRet, XlsxEdit, create_html_table_data, create_markdown_data,
+    create_markdown_header,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 
@@ -496,129 +496,58 @@ impl RedisDB {
     }
 
     async fn export_table_as_json(
-        &self, key: &str, pretty: bool, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self, key: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let ty = Self::get_key_type(&mut conn, key).await?;
-
         match ty {
             RedisType::String => {
                 let value: Vec<u8> = conn.get(key).await?;
-                let mut m = HashMap::new();
-                m.insert(key, to_json_value(value));
-                let value = if pretty {
-                    serde_json::to_string_pretty(&m)
-                } else {
-                    serde_json::to_string(&m)
-                };
-                let value = value?;
-                sender.send(value.into()).await?;
+                let mut m = serde_json::Map::new();
+                m.insert(key.to_string(), to_json_value(value));
+                sender.send(m.into()).await?;
             }
             RedisType::List => {
-                sender.send("[".into()).await?;
-
                 let total: isize = conn.llen(key).await?;
                 let size: isize = 100;
                 let iter = OffsetLimitIter::new(total, 100);
-                let mut first = true;
                 for x in iter {
                     let values: Vec<Vec<u8>> = conn.lrange(key, x, x + size).await?;
                     for value in values {
-                        if !first {
-                            sender.send(",".into()).await?;
-                        }
-                        if pretty {
-                            sender.send("\n".into()).await?;
-                        }
                         let value = to_json_value(value);
-
-                        sender
-                            .send(
-                                if pretty {
-                                    serde_json::to_string_pretty(&value)?
-                                } else {
-                                    serde_json::to_string(&value)?
-                                }
-                                .into(),
-                            )
-                            .await?;
-                        first = false;
+                        sender.send(value.into()).await?;
                     }
                 }
-                if pretty {
-                    sender.send("\n".into()).await?;
-                }
-                sender.send("]".into()).await?;
             }
             RedisType::Set => {
                 let mut iter = conn.sscan::<_, Vec<u8>>(key).await?;
-                let mut first = true;
-                sender.send("[".into()).await?;
-                if pretty {
-                    sender.send("\n".into()).await?;
-                }
                 while let Some(s) = iter.next().await {
                     let s = s?;
-                    if !first {
-                        sender.send(",".into()).await?;
-                        if pretty {
-                            sender.send("\n".into()).await?;
-                        }
-                    }
                     let value = to_json_value(s);
-
-                    sender
-                        .send(
-                            if pretty {
-                                serde_json::to_string_pretty(&value)?
-                            } else {
-                                serde_json::to_string(&value)?
-                            }
-                            .into(),
-                        )
-                        .await?;
-                    first = false;
+                    sender.send(value.into()).await?;
                 }
-                if pretty {
-                    sender.send("\n".into()).await?;
-                }
-                sender.send("]".into()).await?;
             }
             RedisType::Hash => {
                 let mut stream = conn.hscan::<_, Vec<u8>>(key).await?.chunks(2);
-                let mut m = HashMap::new();
+                let mut m = serde_json::Map::new();
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
                     let key = to_string_or_hex(kv[0].clone());
                     let value = to_json_value(kv[1].clone());
                     m.insert(key, value);
                 }
-                sender
-                    .send(
-                        if pretty {
-                            serde_json::to_string_pretty(&m)?
-                        } else {
-                            serde_json::to_string(&m)?
-                        }
-                        .into(),
-                    )
-                    .await?;
+                sender.send(m.into()).await?;
             }
             RedisType::Zset => {
                 let mut stream = conn.zscan::<_, Vec<u8>>(key).await?.chunks(2);
-                let mut m = HashMap::new();
+                let mut m = serde_json::Map::new();
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
                     let key = to_string_or_hex(kv[0].clone());
                     let value = to_json_value(kv[1].clone());
                     m.insert(key, value);
                 }
-                let value = if pretty {
-                    serde_json::to_string_pretty(&m)?
-                } else {
-                    serde_json::to_string(&m)?
-                };
-                sender.send(value.into()).await?;
+                sender.send(m.into()).await?;
             }
         }
         anyhow::Ok(())
@@ -632,8 +561,8 @@ impl RedisDB {
         match ty {
             RedisType::String => {
                 let value: Vec<u8> = conn.get(key).await?;
-                let mut m = HashMap::new();
-                m.insert(key, to_json_value(value));
+                let mut m = serde_json::Map::new();
+                m.insert(key.to_owned(), to_json_value(value));
                 let value = serde_json::to_string(&m);
                 let value = value?;
                 sender.send(value.into()).await?;
@@ -646,9 +575,8 @@ impl RedisDB {
                     let list: Vec<Vec<u8>> = conn.lrange(key, x, x + size).await?;
                     let list = list.into_iter().map(to_json_value).collect::<Vec<_>>();
                     let value = serde_json::value::Value::from(list);
-                    let json_str = serde_json::to_string(&value)?;
-                    sender.send(json_str.into()).await?;
-                    sender.send("\n".into()).await?;
+
+                    sender.send(value.into()).await?;
                 }
             }
             RedisType::Set => {
@@ -656,34 +584,27 @@ impl RedisDB {
                 while let Some(s) = iter.next().await {
                     let s = s?;
                     let json_value = to_json_value(s);
-                    let json_str = serde_json::to_string(&json_value)?;
-                    sender.send(json_str.into()).await?;
-                    sender.send("\n".into()).await?;
+                    sender.send(json_value.into()).await?;
                 }
             }
             RedisType::Hash => {
                 let mut stream = conn.hscan::<_, Vec<u8>>(key).await?.chunks(2);
                 while let Some(value) = stream.next().await {
-                    let mut m = HashMap::new();
+                    let mut m = serde_json::Map::new();
                     let kv = check_resp(value)?;
                     let key = to_string_or_hex(kv[0].clone());
                     m.insert(key, to_json_value(kv[1].clone()));
-                    let json_str = serde_json::to_string(&m)?;
-                    sender.send(json_str.into()).await?;
-                    sender.send("\n".into()).await?;
+                    sender.send(m.into()).await?;
                 }
             }
             RedisType::Zset => {
                 let mut stream = conn.zscan::<_, Vec<u8>>(key).await?.chunks(2);
-
                 while let Some(value) = stream.next().await {
                     let kv = check_resp(value)?;
-                    let mut m = HashMap::new();
+                    let mut m = serde_json::Map::new();
                     let key = to_string_or_hex(kv[0].clone());
                     m.insert(key, to_json_value(kv[1].clone()));
-                    let json_str = serde_json::to_string(&m)?;
-                    sender.send(json_str.into()).await?;
-                    sender.send("\n".into()).await?;
+                    sender.send(m.into()).await?;
                 }
             }
         }
@@ -854,229 +775,18 @@ impl RedisDB {
             }
         }
     }
-
-    async fn export_query_result_as_csv(
-        &self, query_id: Option<&str>, sql: &str, include_header: bool, delimiter: char,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        if include_header {
-            anyhow::bail!("don't support export without header")
-        }
-        let commands = get_command_from_sql(sql)?;
-        if commands.len() != 1 {
-            anyhow::bail!("Redis does not support multiple commands");
-        }
-        let c = &commands[0];
-        log::info!("cmd is:{:?}", c);
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let args = &c[1..];
-        let mut redis_cmd = redis::cmd(c[0].as_str());
-        redis_cmd.arg(args);
-        let mut stream = redis_cmd.iter_async::<String>(conn).await?;
-        while let Some(value) = stream.next().await {
-            let value = value?;
-            sender
-                .send(create_csv(&[Some(value)], delimiter)?.into())
-                .await?;
-        }
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_html(
-        &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        if include_header {
-            anyhow::bail!("don't support export without header")
-        }
-        let commands = get_command_from_sql(sql)?;
-        if commands.len() != 1 {
-            anyhow::bail!("Redis does not support multiple commands");
-        }
-        let c = &commands[0];
-        log::info!("cmd is:{:?}", c);
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let args = &c[1..];
-        let mut redis_cmd = redis::cmd(c[0].as_str());
-        redis_cmd.arg(args);
-        let mut stream = redis_cmd.iter_async::<String>(conn).await?;
-        while let Some(value) = stream.next().await {
-            let value = value?;
-            sender
-                .send(create_html_table_data(&[vec![Some(value)]]).into())
-                .await?;
-        }
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_md(
-        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let commands = get_command_from_sql(sql)?;
-        if commands.len() != 1 {
-            anyhow::bail!("Redis does not support multiple commands");
-        }
-        let c = &commands[0];
-        log::info!("cmd is:{:?}", c);
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let args = &c[1..];
-        let mut redis_cmd = redis::cmd(c[0].as_str());
-        redis_cmd.arg(args);
-        let mut stream = redis_cmd.iter_async::<String>(conn).await?;
-        sender
-            .send(create_html_table_header(&["result".to_string()]).into())
-            .await?;
-        while let Some(value) = stream.next().await {
-            let value = value?;
-            sender
-                .send(create_markdown_data(&[Some(value)]).into())
-                .await?;
-        }
-        anyhow::Ok(())
-    }
-    async fn export_query_result_as_json(
-        &self, query_id: Option<&str>, sql: &str, pretty: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let commands = get_command_from_sql(sql)?;
-        if commands.len() != 1 {
-            anyhow::bail!("Redis does not support multiple commands");
-        }
-        sender.send("[".into()).await?;
-        if pretty {
-            sender.send("\n".into()).await?;
-        }
-        let c = &commands[0];
-        log::info!("cmd is:{:?}", c);
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let args = &c[1..];
-        let mut redis_cmd = redis::cmd(c[0].as_str());
-        redis_cmd.arg(args);
-        let mut stream = redis_cmd.iter_async::<Vec<u8>>(conn).await?;
-        let mut first = true;
-        while let Some(value) = stream.next().await {
-            if !first {
-                sender.send(",".into()).await?;
-            }
-            if pretty {
-                sender.send("\n".into()).await?;
-            }
-            let value = value?;
-            sender
-                .send(
-                    if pretty {
-                        serde_json::to_string_pretty(&value)?
-                    } else {
-                        serde_json::to_string(&value)?
-                    }
-                    .into(),
-                )
-                .await?;
-            first = false;
-        }
-        if pretty {
-            sender.send("\n".into()).await?;
-        }
-        sender.send("]".into()).await?;
-        anyhow::Ok(())
-    }
-
-    async fn export_query_result_as_jsonline(
-        &self, query_id: Option<&str>, sql: &str, sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        let commands = get_command_from_sql(sql)?;
-        if commands.len() != 1 {
-            anyhow::bail!("Redis does not support multiple commands");
-        }
-        let c = &commands[0];
-        log::info!("cmd is:{:?}", c);
-        let conn = self.get_conn_by_query_id(query_id).await?;
-        let mut conn = conn.lock().await;
-        let conn = conn.deref_mut();
-        let args = &c[1..];
-        let mut redis_cmd = redis::cmd(c[0].as_str());
-        redis_cmd.arg(args);
-        let mut stream = redis_cmd.iter_async::<Vec<u8>>(conn).await?;
-        while let Some(value) = stream.next().await {
-            let value = value?;
-            sender.send(serde_json::to_string(&value)?.into()).await?;
-            sender.send("\n".into()).await?;
-        }
-        anyhow::Ok(())
-    }
 }
 
 #[async_trait::async_trait]
-
 impl ExportQueryResult for RedisDB {
     async fn export_query_result(
-        &self, query_id: &str, sql: &str, kind: ExportKind,
+        &self, query_id: Option<&str>, sql: &str, kind: ExportKind,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
-        match kind {
-            ExportKind::Csv {
-                include_header,
-                delimiter,
-            } => {
-                self.export_query_result_as_csv(
-                    Some(query_id),
-                    sql,
-                    include_header,
-                    delimiter,
-                    sender,
-                )
-                .await
-            }
-            ExportKind::Json { pretty } => {
-                self.export_query_result_as_json(Some(query_id), sql, pretty, sender)
-                    .await
-            }
-            ExportKind::JsonLine => {
-                self.export_query_result_as_jsonline(Some(query_id), sql, sender)
-                    .await
-            }
-            ExportKind::Sql { .. } => ExportKind::cannot_query_result_export_as_sql(),
-            ExportKind::Xlsx { include_header } => {
-                self.export_query_result_as_xlsx(Some(query_id), sql, include_header, sender)
-                    .await
-            }
-            ExportKind::Html { include_header } => {
-                self.export_query_result_as_html(Some(query_id), sql, include_header, sender)
-                    .await
-            }
-            ExportKind::MarkDown => {
-                self.export_query_result_as_md(Some(query_id), sql, sender)
-                    .await
-            }
-        }
-    }
-
-    fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
-    }
-}
-
-impl RedisDB {
-    async fn export_query_result_as_xlsx(
-        &self, query_id: Option<&str>, sql: &str, include_header: bool,
-        sender: tokio::sync::mpsc::Sender<ExportFrame>,
-    ) -> anyhow::Result<()> {
-        if include_header {
-            anyhow::bail!("Redis does not support exporting header");
-        }
         let commands = get_command_from_sql(sql)?;
         if commands.len() != 1 {
             anyhow::bail!("Redis does not support multiple commands");
         }
-
         let c = &commands[0];
         log::info!("cmd is:{:?}", c);
         let conn = self.get_conn_by_query_id(query_id).await?;
@@ -1089,19 +799,48 @@ impl RedisDB {
         let mut row = 0;
         while let Some(value) = stream.next().await {
             let value = value?;
-            sender
-                .send(
-                    XlsxEdit {
-                        row,
-                        column: 0,
-                        content: value,
-                    }
-                    .into(),
-                )
-                .await?;
-            row += 1;
+            match kind {
+                ExportKind::Csv { delimiter, .. } => {
+                    sender
+                        .send(create_csv(&[Some(value)], delimiter)?.into())
+                        .await?;
+                }
+                ExportKind::Json { .. } | ExportKind::JsonLine => {
+                    sender.send(serde_json::Value::from(value).into()).await?;
+                }
+                ExportKind::Sql { .. } => {
+                    anyhow::bail!("can't export query result to sql")
+                }
+                ExportKind::Xlsx { .. } => {
+                    sender
+                        .send(
+                            XlsxEdit {
+                                row,
+                                column: 0,
+                                content: value,
+                            }
+                            .into(),
+                        )
+                        .await?;
+                    row += 1;
+                }
+                ExportKind::Html { .. } => {
+                    sender
+                        .send(create_html_table_data(&[vec![Some(value)]]).into())
+                        .await?;
+                }
+                ExportKind::MarkDown => {
+                    sender
+                        .send(create_markdown_data(&[Some(value)]).into())
+                        .await?;
+                }
+            }
         }
         anyhow::Ok(())
+    }
+
+    fn clone(&self) -> Box<dyn ExportQueryResult> {
+        Box::new(Clone::clone(self))
     }
 }
 
@@ -1302,7 +1041,7 @@ impl SchemaTrait for RedisDB {
                 }
                 self.export_table_as_csv(key, delimiter, sender).await
             }
-            ExportKind::Json { pretty } => self.export_table_as_json(key, pretty, sender).await,
+            ExportKind::Json { .. } => self.export_table_as_json(key, sender).await,
             ExportKind::Sql {
                 include_table_schema: _,
             } => self.export_table_to_command(key, sender).await,
@@ -2253,7 +1992,6 @@ mod tests {
                 Err(x) => assert!(x.to_string().contains("single")),
             }
         }
-
         {
             // error case
             let tokens = RedisToken::tokenize(r#" "a"#, 1);
