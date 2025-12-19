@@ -1374,6 +1374,7 @@ function AllKindQuery(props: {
     case DataSourceKind.FireBird:
     case DataSourceKind.DuckDB:
     case DataSourceKind.Cockroach:
+    case DataSourceKind.Db2:
       content = (
         <SqlQuery
           uuid={uuid}

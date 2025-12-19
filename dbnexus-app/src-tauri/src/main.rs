@@ -62,6 +62,7 @@ static HOOK_SET: Once = Once::new();
 fn setup_panic_hook(dir: PathBuf) {
     HOOK_SET.call_once(|| {
         panic::set_hook(Box::new(move |panic_info| {
+            eprintln!("{}", panic_info);
             eprintln!("{}", std::backtrace::Backtrace::capture());
             // 1. 提取信息（防御式，每一步都可能失败）
             let payload = panic_info
