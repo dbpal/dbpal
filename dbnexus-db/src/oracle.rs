@@ -1725,7 +1725,7 @@ pub(crate) fn make_test_object(schema: Option<String>) -> OracleDB {
             host: crate::TEST_HOST.to_string(),
             port: 1521,
             db: "XE".to_string(),
-            save_password: true,
+            
         },
         Some(2),
     )

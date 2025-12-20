@@ -1018,7 +1018,7 @@ pub(crate) async fn make_test_object() -> FireBirdDB {
         db: "/var/lib/firebird/data/test.fdb".to_string(),
         read_only: false,
         conn_timeout: Some(500000.into()),
-        save_password: true,
+        
     })
     .await
     .unwrap()

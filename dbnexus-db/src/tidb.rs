@@ -18,7 +18,7 @@ pub(crate) fn make_config() -> MysqlDBConfig {
         port: 4000,
         db: None,
         read_only: false,
-        save_password: true,
+
         ssl: Default::default(),
     }
 }
@@ -38,7 +38,6 @@ mod tests {
             port: 4000,
             db: Some("test".to_string()),
             read_only: false,
-            save_password: true,
             ssl: Default::default(),
         }
     }

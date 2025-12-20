@@ -1954,7 +1954,7 @@ pub(crate) async fn make_test_object() -> RedisDB {
         db: Some("db0".to_string()),
         read_only: false,
         conn_timeout: Some(5000.into()),
-        save_password: true,
+        
         enable_ssl: false,
     })
     .await

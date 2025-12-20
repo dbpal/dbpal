@@ -1790,7 +1790,6 @@ impl SqlServerDB {
             self.pool.get_owned().await
         })
         .await??;
-
         anyhow::Ok(conn)
     }
 }
@@ -1894,7 +1893,7 @@ pub(crate) async fn make_test_object() -> SqlServerDB {
         trust_cert: true,
         schema: Some(SqlServerDB::DBO_SCHEMA.to_string()),
         read_only: false,
-        save_password: true,
+        
         cert_ca: None,
     })
     .await

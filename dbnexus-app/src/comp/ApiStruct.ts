@@ -52,7 +52,6 @@ export namespace types {
         "port": types.U16;
         "username": string;
         "password": (string | null);
-        "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
         "conn_timeout": (types.ConnTimeOut | null);
@@ -95,7 +94,6 @@ export namespace types {
         "port": types.U16;
         "username": string;
         "password": (string | null);
-        "save_password": boolean;
         "db": (string | null);
         "schema": (string | null);
         "read_only": boolean;
@@ -106,7 +104,6 @@ export namespace types {
         "port": types.U16;
         "username": (string | null);
         "password": (string | null);
-        "save_password": boolean;
         "db": (string | null);
         "trust_cert": boolean;
         "schema": (string | null);
@@ -122,7 +119,6 @@ export namespace types {
         "port": types.U16;
         "username": (string | null);
         "password": (string | null);
-        "save_password": boolean;
         "conn_timeout": (types.ConnTimeOut | null);
         "db": (string | null);
         "read_only": boolean;
@@ -132,7 +128,6 @@ export namespace types {
         "port": (types.U16 | null);
         "username": (string | null);
         "password": (string | null);
-        "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
         "enable_ssl": boolean;
@@ -141,7 +136,6 @@ export namespace types {
     export type OracleDBConfig = {
         "username": string;
         "password": string;
-        "save_password": boolean;
         "host": string;
         "port": types.U16;
         "schema": (string | null);
@@ -155,7 +149,6 @@ export namespace types {
         "port": (types.U16 | null);
         "username": (string | null);
         "password": (string | null);
-        "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
         "ssl": types.CassandraSsl;
@@ -166,7 +159,6 @@ export namespace types {
         "port": types.U16;
         "username": string;
         "password": (string | null);
-        "save_password": boolean;
         "db": (string | null);
         "read_only": boolean;
         "https": boolean;
@@ -193,7 +185,6 @@ export namespace types {
         "port": types.U16;
         "username": string;
         "password": string;
-        "save_password": boolean;
         "db": string;
         "read_only": boolean;
         "conn_timeout": (types.ConnTimeOut | null);
@@ -217,7 +208,6 @@ export namespace types {
         "username": string;
         "password": string;
         "db": string;
-        "save_password": boolean;
         "read_only": boolean;
         "conn_timeout": (types.ConnTimeOut | null);
         "schema": (string | null);
@@ -226,66 +216,82 @@ export namespace types {
         "conn_type": "sqlite";
     } & (types.SqliteDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "mysql";
     } & (types.MysqlDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "mariadb";
     } & (types.MysqlDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "tidb";
     } & (types.MysqlDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "postgres";
     } & (types.PGDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "cockroach";
     } & (types.PGDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "sqlserver";
     } & (types.SqlServerDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "mongo";
     } & (types.MongoDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "redis";
     } & (types.RedisDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "oracle";
     } & (types.OracleDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "cassandra";
     } & (types.CassandraDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "clickhouse";
     } & (types.ClickHouseConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "libsql";
     } & (types.LibSqlDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "firebird";
     } & (types.FireBirdConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "duckdb";
     } & (types.DuckDBConfig & {
         "name": string;
+        "save_password": boolean;
     })) | ({
         "conn_type": "db2";
     } & (types.Db2Config & {
         "name": string;
+        "save_password": boolean;
     })));
     export type U64 = number;
     export type ListTable = {

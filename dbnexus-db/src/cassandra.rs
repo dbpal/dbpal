@@ -1308,7 +1308,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         read_only: false,
         db,
         conn_timeout: Some(500000.into()),
-        save_password: true,
+        
         ssl: CassandraSsl {
             ssl_files: SSLFiles {
                 ssl_ca: None,

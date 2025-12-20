@@ -735,9 +735,11 @@ pub fn odbc_query<T: FromSql>(
     let mut row_set_cursor = cursor.bind_buffer(&mut buffers)?;
     let mut ret = vec![];
     while let Some(batch) = row_set_cursor.fetch()? {
+        // println!("now row:{} {:?}", batch.num_rows(), *batch.indicator_at());
+
         for row_index in 0..batch.num_rows() {
             let mut t = T::default();
-            t.from_sql(&batch, row_index)?;
+            t.from_sql(&batch, row_index, helper.clone())?;
             ret.push(t);
         }
     }
@@ -745,38 +747,50 @@ pub fn odbc_query<T: FromSql>(
 }
 
 pub trait FromSql: Default {
-    fn from_sql(&mut self, buffer: &ColumnarAnyBuffer, row_index: usize) -> anyhow::Result<()>;
+    fn from_sql(
+        &mut self, buffer: &ColumnarAnyBuffer, row_index: usize, helper: Arc<dyn OdbcHelper>,
+    ) -> anyhow::Result<()>;
 }
 
 impl<T: FromSqlElement> FromSql for (T) {
-    fn from_sql(&mut self, buffer: &ColumnarAnyBuffer, row_index: usize) -> anyhow::Result<()> {
-        self.from_sql_col(buffer.column(0), row_index)?;
+    fn from_sql(
+        &mut self, buffer: &ColumnarAnyBuffer, row_index: usize, helper: Arc<dyn OdbcHelper>,
+    ) -> anyhow::Result<()> {
+        self.from_sql_col(buffer.column(0), row_index, helper)?;
         anyhow::Ok(())
     }
 }
 
 impl<T1: FromSqlElement, T2: FromSqlElement> FromSql for (T1, T2) {
-    fn from_sql(&mut self, buffer: &ColumnarAnyBuffer, row_index: usize) -> anyhow::Result<()> {
-        self.0.from_sql_col(buffer.column(0), row_index)?;
-        self.1.from_sql_col(buffer.column(1), row_index)?;
+    fn from_sql(
+        &mut self, buffer: &ColumnarAnyBuffer, row_index: usize, helper: Arc<dyn OdbcHelper>,
+    ) -> anyhow::Result<()> {
+        self.0
+            .from_sql_col(buffer.column(0), row_index, helper.clone())?;
+        self.1
+            .from_sql_col(buffer.column(1), row_index, helper.clone())?;
         anyhow::Ok(())
     }
 }
 
 pub trait FromSqlElement: Default {
-    fn from_sql_col(&mut self, buffer: AnySlice<'_>, row_index: usize) -> anyhow::Result<()>;
+    fn from_sql_col(
+        &mut self, buffer: AnySlice<'_>, row_index: usize, helper: Arc<dyn OdbcHelper>,
+    ) -> anyhow::Result<()>;
 }
 
 impl FromSqlElement for String {
-    fn from_sql_col(&mut self, buffer: AnySlice<'_>, row_index: usize) -> anyhow::Result<()> {
+    fn from_sql_col(
+        &mut self, buffer: AnySlice<'_>, row_index: usize, helper: Arc<dyn OdbcHelper>,
+    ) -> anyhow::Result<()> {
         match buffer {
             AnySlice::Text(text_column_view) => {
                 let r = match text_column_view.get(row_index) {
                     Some(x) => x,
                     None => anyhow::bail!("text is null using Option<String>"),
                 };
-                let cs = CStr::from_bytes_until_nul(r)?;
-                *self = cs.to_str()?.to_string();
+                let s = helper.get_str(r)?;
+                *self = s;
             }
             _ => anyhow::bail!("this is not text buffer."),
         }
@@ -785,18 +799,21 @@ impl FromSqlElement for String {
 }
 
 impl FromSqlElement for Option<String> {
-    fn from_sql_col(&mut self, buffer: AnySlice<'_>, row_index: usize) -> anyhow::Result<()> {
+    fn from_sql_col(
+        &mut self, buffer: AnySlice<'_>, row_index: usize, helper: Arc<dyn OdbcHelper>,
+    ) -> anyhow::Result<()> {
         match buffer {
             AnySlice::Text(text_column_view) => {
                 let r = match text_column_view.get(row_index) {
                     Some(x) => x,
                     None => {
+                        println!("row index is none:{}", row_index);
                         // nothing here option data default to None
                         return anyhow::Ok(());
                     }
                 };
-                let cs = CStr::from_bytes_until_nul(r)?;
-                *self = Some(cs.to_str()?.to_string());
+                let s = helper.get_str(r)?;
+                *self = Some(s);
             }
             _ => {
                 anyhow::bail!("this is not a text buffer.")

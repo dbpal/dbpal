@@ -44,94 +44,110 @@ pub enum DBConnectionConfig {
         #[serde(flatten)]
         conn: SqliteDBConfig,
         name: String,
+        save_password: bool,
     },
     Mysql {
         #[serde(flatten)]
         conn: MysqlDBConfig,
         name: String,
+        save_password: bool,
     },
     MariaDB {
         #[serde(flatten)]
         conn: MysqlDBConfig,
         name: String,
+        save_password: bool,
     },
     Tidb {
         #[serde(flatten)]
         conn: MysqlDBConfig,
         name: String,
+        save_password: bool,
     },
     Postgres {
         #[serde(flatten)]
         conn: PGDBConfig,
         name: String,
+        save_password: bool,
     },
     CockRoach {
         #[serde(flatten)]
         conn: PGDBConfig,
         name: String,
+        save_password: bool,
     },
     SqlServer {
         #[serde(flatten)]
         conn: SqlServerDBConfig,
         name: String,
+        save_password: bool,
     },
     Mongo {
         #[serde(flatten)]
         conn: MongoDBConfig,
         name: String,
+        save_password: bool,
     },
     Redis {
         #[serde(flatten)]
         conn: RedisDBConfig,
         name: String,
+        save_password: bool,
     },
     Oracle {
         #[serde(flatten)]
         conn: OracleDBConfig,
         name: String,
+        save_password: bool,
     },
     Cassandra {
         #[serde(flatten)]
         conn: CassandraDBConfig,
         name: String,
+        save_password: bool,
     },
     ClickHouse {
         #[serde(flatten)]
         conn: ClickHouseConfig,
         name: String,
+        save_password: bool,
     },
     LibSql {
         #[serde(flatten)]
         conn: LibSqlDBConfig,
         name: String,
+        save_password: bool,
     },
     FireBird {
         #[serde(flatten)]
         conn: FireBirdConfig,
         name: String,
+        save_password: bool,
     },
     DuckDB {
         #[serde(flatten)]
         conn: DuckDBConfig,
         name: String,
+        save_password: bool,
     },
     Db2 {
         #[serde(flatten)]
         conn: Db2Config,
         name: String,
+        save_password: bool,
     },
 }
 
 impl DBConnectionConfig {
     pub async fn open(&self) -> anyhow::Result<DatabaseBackend> {
         match self {
-            DBConnectionConfig::Sqlite { conn, name: _ } => {
+            DBConnectionConfig::Sqlite { conn, .. } => {
                 let db: Arc<dyn SchemaTrait> = Arc::new(
                     dbnexus_db::sqlite::SqliteDB::new(conn.clone(), conn.read_only).await?,
                 );
                 anyhow::Ok(DatabaseBackend::Schema(db))
             }
-            DBConnectionConfig::Mysql { conn, name: _ } => match &conn.db {
+            DBConnectionConfig::Mysql { conn, .. } => match &conn.db {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
                         Arc::new(dbnexus_db::mysql::MysqlDB::new(conn.clone()).await?);
@@ -143,7 +159,7 @@ impl DBConnectionConfig {
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
-            DBConnectionConfig::MariaDB { conn, name: _ } => match &conn.db {
+            DBConnectionConfig::MariaDB { conn, .. } => match &conn.db {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
                         Arc::new(SubDB::new_mariadb(conn.clone()).await?);
@@ -154,7 +170,7 @@ impl DBConnectionConfig {
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
-            DBConnectionConfig::Tidb { conn, name: _ } => match &conn.db {
+            DBConnectionConfig::Tidb { conn, .. } => match &conn.db {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> = Arc::new(SubDB::new_tidb(conn.clone()).await?);
                     anyhow::Ok(DatabaseBackend::Schema(db))
@@ -164,7 +180,7 @@ impl DBConnectionConfig {
                     anyhow::Ok(DatabaseBackend::DataBase(db))
                 }
             },
-            DBConnectionConfig::Postgres { conn, name: _ } => {
+            DBConnectionConfig::Postgres { conn, .. } => {
                 let o = Arc::new(dbnexus_db::pg::PostGresDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
                     return anyhow::Ok(DatabaseBackend::Catalog(o as Arc<dyn CatalogTrait>));
@@ -185,7 +201,7 @@ impl DBConnectionConfig {
                     Some(_) => anyhow::Ok(DatabaseBackend::Schema(o as Arc<dyn SchemaTrait>)),
                 }
             }
-            DBConnectionConfig::SqlServer { conn, name: _ } => {
+            DBConnectionConfig::SqlServer { conn, .. } => {
                 let o = Arc::new(dbnexus_db::mssql::SqlServerDB::new(conn.clone()).await?);
                 if conn.db.is_none() {
                     return anyhow::Ok(DatabaseBackend::Catalog(o as Arc<dyn CatalogTrait>));
@@ -195,7 +211,7 @@ impl DBConnectionConfig {
                     None => anyhow::Ok(DatabaseBackend::DataBase(o as Arc<dyn DBTrait>)),
                 }
             }
-            DBConnectionConfig::Mongo { conn, name: _ } => {
+            DBConnectionConfig::Mongo { conn, .. } => {
                 let db: Arc<MongoDB> = Arc::new(dbnexus_db::mongo::MongoDB::new(conn.clone())?);
                 match conn.db {
                     Some(_) => anyhow::Ok(DatabaseBackend::Schema(db)),
@@ -212,7 +228,7 @@ impl DBConnectionConfig {
 
                 anyhow::Ok(db)
             }
-            DBConnectionConfig::Oracle { conn, name: _ } => match conn.schema.as_ref() {
+            DBConnectionConfig::Oracle { conn, .. } => match conn.schema.as_ref() {
                 Some(_) => {
                     let db: Arc<dyn SchemaTrait> =
                         Arc::new(dbnexus_db::oracle::OracleDB::new(conn.clone(), None)?);

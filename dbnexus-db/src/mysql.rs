@@ -1448,7 +1448,11 @@ impl MysqlDB {
     }
 
     pub async fn get_conn(&self) -> anyhow::Result<PoolConnection<sqlx::MySql>> {
-        let conn = self.pool.acquire().await?;
+        let mut conn = self.pool.acquire().await?;
+        if let Some(db) = &self.config.db {
+            conn.execute(AssertSqlSafe(format!("use {};", db).as_str()))
+                .await?;
+        }
         anyhow::Ok(conn)
     }
 }
@@ -2828,7 +2832,7 @@ mod tests {
             port: 3306,
             db: Some("test".to_string()),
             read_only: false,
-            save_password: true,
+            
             ssl: Default::default(),
         }
     }

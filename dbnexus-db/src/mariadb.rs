@@ -97,7 +97,7 @@ pub(crate) fn make_config() -> MysqlDBConfig {
         port: 3307,
         db: Some("test".to_string()),
         read_only: false,
-        save_password: true,
+        
         ssl: Default::default(),
     }
 }

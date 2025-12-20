@@ -20,7 +20,7 @@ pub(crate) async fn make_test_object() -> SubDB {
         db: Some("test".into()),
         schema: Some("xxx".to_string()),
         read_only: false,
-        save_password: true,
+        
         ssl: Default::default(),
         conn_timeout: Some(5000.into()),
     };

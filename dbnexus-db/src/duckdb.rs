@@ -107,7 +107,6 @@ impl DuckDB {
     pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<DuckdbConnectionManager>> {
         let conn = self.pool.get()?;
         self.use_database(&conn)?;
-
         anyhow::Ok(conn)
     }
 }

@@ -830,7 +830,7 @@ pub(crate) fn make_test_object() -> MongoDB {
         password: None,
         db: Some("test".to_string()),
         read_only: false,
-        save_password: true,
+        
         ssl: Default::default(),
     });
     x.unwrap()

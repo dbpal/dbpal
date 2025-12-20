@@ -184,12 +184,12 @@ impl Db2Config {
 #[async_trait::async_trait]
 impl DBTrait for Db2Db {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let sql = "select tbspace from syscat.tablespaces";
+        let sql = "select tbspace from syscat.tablespaces".to_uppercase();
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            let r: Vec<(Option<String>)> = crate::odbc::odbc_query(&conn, sql, this.make_helper())?;
-
+            let r: Vec<(Option<String>)> =
+                crate::odbc::odbc_query(&conn, &sql, this.make_helper())?;
             let mut ret = vec![];
             for x in r {
                 if let Some(name) = x {
@@ -256,7 +256,7 @@ async fn make_test_object() -> Db2Db {
         username: "db2inst1".to_string(),
         password: "db2inst1-pwd".to_string(),
         db: "TSKDB".to_string(),
-        save_password: true,
+
         read_only: false,
         conn_timeout: Some(5000.into()),
         schema: None,

@@ -1301,7 +1301,7 @@ pub(crate) fn make_test_object() -> ClickHouseDB {
         username: "default".to_string(),
         password: Some("root".to_string()),
         https: false,
-        save_password: true,
+        
     })
     .unwrap()
 }
