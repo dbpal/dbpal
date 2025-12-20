@@ -28,8 +28,7 @@ use crate::language_server::{CompletionItem, LexerCompletionTrait};
 #[derive(Clone)]
 pub struct SqliteDB {
     pool: sqlx::SqlitePool,
-    read_only: bool,
-    path: String,
+    config: SqliteDBConfig,
     pub(crate) query_connection: Arc<DashMap<String, Arc<Mutex<PoolConnection<sqlx::Sqlite>>>>>,
     pub(crate) build_in_fn_completion: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_cache: Arc<Mutex<Vec<String>>>,
@@ -191,7 +190,7 @@ impl ServerMetas for SqliteDB {
 
 impl std::fmt::Debug for SqliteDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "sqlite on:{:?}", self.path)
+        write!(f, "sqlite on:{:?}", self.config.path)
     }
 }
 
@@ -1047,7 +1046,7 @@ fn encode_row(row: &SqliteRow) -> anyhow::Result<Vec<Option<String>>> {
 }
 
 impl SqliteDB {
-    pub async fn new(conn: SqliteDBConfig, read_only: bool) -> anyhow::Result<Self> {
+    pub async fn new(conn: SqliteDBConfig) -> anyhow::Result<Self> {
         let mut opts: PoolOptions<sqlx::sqlite::Sqlite> = PoolOptions::new();
         opts = opts.max_connections(POOL_MAX_CONNECTIONS);
         if let Some(timeout) = conn.conn_timeout {
@@ -1055,7 +1054,7 @@ impl SqliteDB {
         }
         let pool = opts.connect(conn.path.as_str()).await?;
 
-        if read_only {
+        if conn.read_only {
             let r = sqlx::raw_sql("PRAGMA query_only = true;")
                 .execute(pool.acquire().await?.deref_mut())
                 .await;
@@ -1066,9 +1065,8 @@ impl SqliteDB {
         }
         anyhow::Ok(Self {
             pool,
-            read_only,
             query_connection: Default::default(),
-            path: conn.path.clone(),
+            config: conn,
             build_in_fn_completion: Default::default(),
             keywords_cache: Default::default(),
             pragma_completion: Default::default(),
@@ -1457,14 +1455,11 @@ pub(crate) fn sqlite_test_file_path() -> String {
 #[cfg(test)]
 pub(crate) async fn make_test_object() -> SqliteDB {
     let path = sqlite_test_file_path();
-    let db = SqliteDB::new(
-        SqliteDBConfig {
-            path,
-            read_only: false,
-            conn_timeout: Some(5000.into()),
-        },
-        false,
-    )
+    let db = SqliteDB::new(SqliteDBConfig {
+        path,
+        read_only: false,
+        conn_timeout: Some(5000.into()),
+    })
     .await
     .unwrap();
     db
@@ -1472,7 +1467,7 @@ pub(crate) async fn make_test_object() -> SqliteDB {
 
 impl ReadOnlyTrait for SqliteDB {
     fn read_only(&self) -> bool {
-        self.read_only
+        self.config.read_only
     }
 }
 

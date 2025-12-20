@@ -142,9 +142,8 @@ impl DBConnectionConfig {
     pub async fn open(&self) -> anyhow::Result<DatabaseBackend> {
         match self {
             DBConnectionConfig::Sqlite { conn, .. } => {
-                let db: Arc<dyn SchemaTrait> = Arc::new(
-                    dbnexus_db::sqlite::SqliteDB::new(conn.clone(), conn.read_only).await?,
-                );
+                let db: Arc<dyn SchemaTrait> =
+                    Arc::new(dbnexus_db::sqlite::SqliteDB::new(conn.clone()).await?);
                 anyhow::Ok(DatabaseBackend::Schema(db))
             }
             DBConnectionConfig::Mysql { conn, .. } => match &conn.db {
