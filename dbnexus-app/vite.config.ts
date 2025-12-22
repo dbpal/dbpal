@@ -26,7 +26,6 @@ export default defineConfig(async ({ command }) => {
           setting: resolve(__dirname, "setting.html"),
           add_connection: resolve(__dirname, "add_connection.html"),
           info: resolve(__dirname, "info.html"),
-          table_add: resolve(__dirname, "table_add.html"),
         },
         output: {
           manualChunks: id => {

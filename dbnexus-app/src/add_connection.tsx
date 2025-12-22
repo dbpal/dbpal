@@ -9,7 +9,7 @@ const currentWebview = WebviewWindow.getCurrent();
 
 function View() {
   return (
-    <div>
+    <div style={{ maxWidth: "800px", margin: "0 auto" }}>
       <AddConnection
         handleClose={() => {
           currentWebview.close();

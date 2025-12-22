@@ -581,7 +581,6 @@ function SqlQuery(props: {
                 kind={kind}
               />
             )}
-
             <Tooltip title="query log">
               <IconButton
                 onClick={() => {

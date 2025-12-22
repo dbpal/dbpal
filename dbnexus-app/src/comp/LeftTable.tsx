@@ -484,28 +484,6 @@ function TableMenu(props: {
       ];
     });
   };
-  const handleAddDataNewWindow = async () => {
-    const id = generateRandomString(10);
-    SomeTempStore.set({
-      uuid,
-      table,
-      kind,
-      redisTableType: redisTableType,
-    } as NewWindowTableParameter);
-    const webview = new WebviewWindow(id, {
-      title: "table insert",
-      url: "table_add.html",
-      width: 800,
-      height: 600,
-      maximized: true,
-    });
-    webview.once("tauri://created", () =>
-      console.info("create add connection view successfully"),
-    );
-    webview.once("tauri://error", e => {
-      showNotification("error", "create webview failed", e.event.toString());
-    });
-  };
 
   const handleStructure = () => {
     const id = uuid + "-table-" + table + "-struct";
@@ -568,20 +546,6 @@ function TableMenu(props: {
             <ListItemText> Add Data </ListItemText>
           </MenuItem>
         )}
-
-        {redisTableType != RedisTableType.String && (
-          <MenuItem
-            onClick={() => {
-              handleAddDataNewWindow();
-            }}
-          >
-            <ListItemIcon>
-              <AddIcon />
-            </ListItemIcon>
-            <ListItemText> Add Data(new window) </ListItemText>
-          </MenuItem>
-        )}
-
         <MenuItem onClick={handleStructure}>
           <ListItemIcon>
             <IoConstructOutline style={{ fontSize: "1.2rem" }} />
