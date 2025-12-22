@@ -328,10 +328,10 @@ function makeViewTable(
 }
 
 function AddTableView(props: {
-  uuid;
+  uuid: string;
   table: string;
   kind: DataSourceKind;
-  redisTableType: RedisTableType;
+  redisTableType?: RedisTableType;
 }) {
   const { uuid, table, kind, redisTableType } = props;
   const [fields, setFields] = useState<types.Field[]>([]);
@@ -1075,7 +1075,7 @@ function RedisTables() {
               value={filter}
               fullWidth
               label="filer"
-              helperText="key filter , can be '*key' or 'key*' etc..."
+              helperText="key filter"
               onChange={e => {
                 setFilter(e.target.value);
               }}

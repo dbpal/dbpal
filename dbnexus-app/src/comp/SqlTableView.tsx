@@ -91,7 +91,7 @@ import {
 import { editor, Position } from "monaco-editor";
 import wcmatch from "wildcard-match";
 import { MdEditNote } from "react-icons/md";
-import { SimpleFlexEditor, SliderSize } from "./CommonComp2";
+import { SimpleFlexEditor, SliderSize, TableAddButton } from "./CommonComp2";
 import {
   makePutValueInSql,
   makeTableDelete,
@@ -100,6 +100,7 @@ import {
   showTable,
 } from "./handlers";
 import { invoke } from "@tauri-apps/api/core";
+import { AddTableView } from "./LeftTable";
 const confirmAboutPrimary = async (
   notWarnPri: boolean,
   fields: types.Field[],
@@ -413,6 +414,7 @@ function SqlTableView(props: {
   const clientModel = [DataSourceKind.Cassandra].includes(kind);
   const [viewInModal, setViewInModal] = useState<object>(null);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
   const handleResp = (resp: MuiDataGridData) => {
     resp.data.forEach((data, index) => {
       data[keyNotInTable] = index;
@@ -594,7 +596,6 @@ function SqlTableView(props: {
     },
     [deleteOP, handleReload, notWarnPri, resp.data, resp.fields, showNotification],
   );
-
   useEffect(() => {
     handleReload(false);
   }, [page, pageSize, where, sort, allowFiltering, handleReload]);
@@ -782,6 +783,17 @@ function SqlTableView(props: {
       };
     }
   }, [viewInModalBox]);
+
+  const [addModalBox, setAddModalBox] = useState(null);
+  useEffect(() => {
+    if (addModalBox) {
+      const x1 = saveAndSetSize(addModalBox, "table-insert");
+      return () => {
+        x1();
+      };
+    }
+  }, [addModalBox]);
+
   const slots = useMemo(() => {
     return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
   }, []);
@@ -789,6 +801,14 @@ function SqlTableView(props: {
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" style={{ alignItems: "center" }}>
+        {isTable && (
+          <TableAddButton
+            handleAdd={() => {
+              setShowAdd(true);
+            }}
+          />
+        )}
+
         <Button
           loading={loading}
           color="primary"
@@ -922,6 +942,31 @@ function SqlTableView(props: {
               }}
             />
             <ViewRowInModal fields={resp.fields} data={viewInModal} isTable={isTable} />
+          </Box>
+        </Modal>
+      )}
+
+      {showAdd && (
+        <Modal
+          open={showAdd}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowAdd(false);
+          })}
+        >
+          <Box
+            sx={{ resize: "both", ...modalStyle }}
+            ref={setAddModalBox}
+            width="80%"
+            height="30vh"
+          >
+            <ModalHeader
+              title="insert data"
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+            />
+            <AddTableView uuid={uuid} table={tableName} kind={kind} />
           </Box>
         </Modal>
       )}

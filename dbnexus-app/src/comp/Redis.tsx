@@ -28,7 +28,6 @@ import {
   Divider,
 } from "@mui/material";
 
-import AddIcon from "@mui/icons-material/Add";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { modalStyle, reloadOK, EscDownEvent, modalHandleClose } from "./Common";
@@ -59,12 +58,15 @@ import {
   extractFieldAndIDFromMouseEvent,
   dataGridStyle,
   pageSizeOptions,
+  RedisTableType,
+  DataSourceKind,
 } from "./helper.ts";
 import { ExecutingTime, ModalHeader } from "./CommonComp.tsx";
 import { editor, Position } from "monaco-editor";
-import { SliderSize, SimpleFlexEditor } from "./CommonComp2.tsx";
+import { SliderSize, SimpleFlexEditor, TableAddButton } from "./CommonComp2.tsx";
 import { invoke } from "@tauri-apps/api/core";
 import { showTable } from "./handlers.ts";
+import { AddTableView } from "./LeftTable.tsx";
 
 class RedisZsetHashModifyReq {
   constructor(public oldKey: string, public newKey: string, public value: string) {}
@@ -755,6 +757,8 @@ function LimitMaxRowNotice() {
   return <Stack> limit the max row retrun. </Stack>;
 }
 
+const keyMatcherHelpText = "key matcher string,could be *key,key*,*key*";
+
 function RedisSetTable(props: { setKey: string; uuid: string }) {
   const { setKey, uuid } = props;
 
@@ -776,14 +780,12 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
     },
     [setKey, uuid],
   );
-
   const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState<{ id; value }>(null);
   const [loading, setLoading] = useState(false);
   const maxRowRef = useRef<number>(2000);
-  const [showAdd, setShowAdd] = useState(false);
   const handleReload = useCallback(
     showOK => {
       setLoading(true);
@@ -877,14 +879,6 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
     }
   }, [modifyModalBox]);
 
-  const [addModalBox, setAddModalBox] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (addModalBox) {
-      const clean = saveAndSetSize(addModalBox, "redis-add");
-      return clean;
-    }
-  }, [addModalBox]);
-
   return (
     <Stack style={{ height: "100%" }}>
       <Stack
@@ -892,12 +886,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         style={{ alignItems: "center", justifyContent: "space-between" }}
       >
         <Stack direction="row" style={{ alignItems: "center", width: "50%" }}>
-          <AddButton
-            handleAdd={() => {
-              setShowAdd(true);
-            }}
-          />
-
+          <AddTable uuid={uuid} redisKey={setKey} redisType={RedisTableType.Set} />
           <Button
             color="primary"
             onClick={() => {
@@ -915,30 +904,32 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
             step={1000}
             notice=<LimitMaxRowNotice />
           />
-          <TextField
-            label="key match could be *key,key*,*key*"
-            value={keyMatch}
-            onChange={event => {
-              setKeyMatch(event.target.value);
-            }}
-            style={{ flex: 1 }}
-            slotProps={{
-              input: {
-                endAdornment: keyMatch && (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => {
-                        setKeyMatch("");
-                      }}
-                      edge="end"
-                    >
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
+          <Tooltip title={keyMatcherHelpText}>
+            <TextField
+              label="key matcher"
+              value={keyMatch}
+              onChange={event => {
+                setKeyMatch(event.target.value);
+              }}
+              style={{ flex: 1 }}
+              slotProps={{
+                input: {
+                  endAdornment: keyMatch && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => {
+                          setKeyMatch("");
+                        }}
+                        edge="end"
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+          </Tooltip>
 
           <DoubleClickToModify />
         </Stack>
@@ -1006,30 +997,6 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
                 setSelectRow(null);
               }}
             />
-          </Box>
-        </Modal>
-      )}
-      {showAdd && (
-        <Modal
-          open={showAdd}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowAdd(false);
-          })}
-        >
-          <Box
-            sx={{ resize: "both", ...modalStyle }}
-            width="80%"
-            ref={setAddModalBox}
-            height="70vh"
-          >
-            <ModalHeader
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-              title="add Set value"
-            />
-            <RedisAddSet uuid={uuid} setKey={setKey} />
           </Box>
         </Modal>
       )}
@@ -1124,11 +1091,54 @@ function RedisListTableContextMenu(props: {
   );
 }
 
-function AddButton({ handleAdd }) {
+function AddTable(props: {
+  uuid: string;
+  redisKey: string;
+  redisType: RedisTableType;
+}) {
+  const { redisKey, redisType, uuid } = props;
+  const [showAdd, setShowAdd] = useState(false);
+  const [addModalBox, setAddModalBox] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (addModalBox) {
+      const clean = saveAndSetSize(addModalBox, "redis-add-" + redisType);
+      return clean;
+    }
+  }, [addModalBox, redisType]);
   return (
-    <Button onClick={handleAdd} style={{ fontSize: "1rem" }}>
-      <AddIcon> </AddIcon>
-    </Button>
+    <>
+      <TableAddButton handleAdd={() => setShowAdd(true)} />
+      {showAdd && (
+        <Modal
+          open={showAdd}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowAdd(false);
+          })}
+        >
+          <Box
+            sx={{ resize: "both", ...modalStyle }}
+            width="80%"
+            height="70vh"
+            ref={setAddModalBox}
+          >
+            <ModalHeader
+              noTextTransform
+              title={`add ${redisKey} `}
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+            />
+            <AddTableView
+              uuid={uuid}
+              table={redisKey}
+              redisTableType={redisType}
+              kind={DataSourceKind.Redis}
+            />
+          </Box>
+        </Modal>
+      )}
+    </>
   );
 }
 
@@ -1162,7 +1172,6 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const setting = useContext(SettingContext);
-  const [showAdd, setShowAdd] = useState(false);
   const handleReload = useCallback(
     (showOk: boolean) => {
       showTable({
@@ -1304,14 +1313,6 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
     }
   }, [modifyModalBox]);
 
-  const [addModalBox, setAddModalBox] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (addModalBox) {
-      const clean = saveAndSetSize(addModalBox, "redis-add");
-      return clean;
-    }
-  }, [addModalBox]);
-
   return (
     <Stack style={{ height: "100%" }}>
       <Stack
@@ -1319,11 +1320,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
         style={{ justifyContent: "space-between", alignItems: "center" }}
       >
         <Stack direction="row" style={{ alignItems: "center" }}>
-          <AddButton
-            handleAdd={() => {
-              setShowAdd(true);
-            }}
-          />
+          <AddTable uuid={uuid} redisKey={listKey} redisType={RedisTableType.List} />
           <Button
             color="primary"
             onClick={() => {
@@ -1410,31 +1407,6 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
           </Box>
         </Modal>
       )}
-
-      {showAdd && (
-        <Modal
-          open={!!showAdd}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowAdd(false);
-          })}
-        >
-          <Box
-            sx={{ resize: "both", ...modalStyle }}
-            width="80%"
-            height="70vh"
-            ref={setAddModalBox}
-          >
-            <ModalHeader
-              title="add list value"
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-            />
-            <RedisAddList uuid={uuid} listKey={listKey} />
-          </Box>
-        </Modal>
-      )}
     </Stack>
   );
 }
@@ -1495,7 +1467,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const [selectRow, setSelectRow] = useState<any>();
-  const [showAdd, setShowAdd] = useState(false);
   const [min, setMin] = useState("");
   const [max, setMax] = useState("");
   const [minErr, setMinErr] = useState(false);
@@ -1612,14 +1583,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     }
   }, [modifyModalBox]);
 
-  const [addModalBox, setaddModalBox] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (addModalBox) {
-      const clean = saveAndSetSize(addModalBox, "redis-add");
-      return clean;
-    }
-  }, [addModalBox]);
-
   const onColumnResize = useCallback(({ colDef, width }) => {
     if (colDef.field == "score") {
       ColumnWidth.instance.save(colDef.field, width);
@@ -1628,11 +1591,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" style={{ alignItems: "center" }}>
-        <AddButton
-          handleAdd={() => {
-            setShowAdd(true);
-          }}
-        />
+        <AddTable uuid={uuid} redisKey={zsetKey} redisType={RedisTableType.Zset} />
         <Button
           color="primary"
           onClick={() => {
@@ -1650,32 +1609,35 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           notice=<LimitMaxRowNotice />
           valueRef={maxRowRef}
         />
+        <Tooltip title={keyMatcherHelpText}>
+          <TextField
+            label="key matcher"
+            value={keyMatch}
+            onChange={event => {
+              setKeyMatch(event.target.value);
+            }}
+            slotProps={{
+              input: {
+                endAdornment: keyMatch && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => {
+                        setKeyMatch("");
+                      }}
+                      edge="end"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+            style={{ flex: 1 }}
+          />
+        </Tooltip>
+
         <TextField
-          label="key match could be *key,key*,*key*"
-          value={keyMatch}
-          onChange={event => {
-            setKeyMatch(event.target.value);
-          }}
-          slotProps={{
-            input: {
-              endAdornment: keyMatch && (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => {
-                      setKeyMatch("");
-                    }}
-                    edge="end"
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
-          style={{ flex: 1 }}
-        />
-        <TextField
-          label="minimum value(float64)"
+          label="minimum value"
           value={min}
           error={minErr}
           onChange={event => {
@@ -1705,7 +1667,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           style={{ flex: 0.5 }}
         />
         <TextField
-          label="maximum value(float64)"
+          label="maximum value"
           value={max}
           error={maxErr}
           onChange={event => {
@@ -1739,7 +1701,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
 
         <ExecutingTime loading={loading} title="loading time" />
       </Stack>
-
       {resp && (
         <DataGrid
           showToolbar
@@ -1760,7 +1721,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           paginationMode="client"
         />
       )}
-
       {selectRow && (
         <Modal
           open={!!selectRow}
@@ -1803,31 +1763,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
                 setSelectRow(null);
               }}
             />
-          </Box>
-        </Modal>
-      )}
-
-      {showAdd && (
-        <Modal
-          open={showAdd}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowAdd(false);
-          })}
-        >
-          <Box
-            sx={{ resize: "both", ...modalStyle }}
-            width="80%"
-            height="70vh"
-            ref={setaddModalBox}
-          >
-            <ModalHeader
-              title="add Zset Value"
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-            />
-            <RedisAddZset uuid={uuid} zsetKey={zsetKey} />
           </Box>
         </Modal>
       )}
@@ -1906,7 +1841,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const [selectRow, setSelectRow] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const setting = useContext(SettingContext);
-  const [showAdd, setShowAdd] = useState(false);
 
   const handleReload = useCallback(
     showOK => {
@@ -2001,14 +1935,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
       return clean;
     }
   }, [modifyModalBox]);
-
-  const [addModalBox, setAddModalBox] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (addModalBox) {
-      const clean = saveAndSetSize(addModalBox, "redis-add");
-      return clean;
-    }
-  }, [addModalBox]);
   const onColumnResize = useCallback(({ colDef, width }) => {
     if (colDef.field == "key") {
       ColumnWidth.instance.save(colDef.field, width);
@@ -2022,11 +1948,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         style={{ justifyContent: "space-between" }}
       >
         <Stack direction="row" style={{ width: "55%", alignItems: "center" }}>
-          <AddButton
-            handleAdd={() => {
-              setShowAdd(true);
-            }}
-          />
+          <AddTable uuid={uuid} redisKey={hashKey} redisType={RedisTableType.Hash} />
           <Button
             color="primary"
             onClick={() => {
@@ -2045,31 +1967,34 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
             step={1000}
             notice=<LimitMaxRowNotice />
           />
-          <TextField
-            label="key match could be *key,key*,*key*"
-            variant="outlined"
-            value={keyMatch}
-            onChange={event => {
-              setKeyMatch(event.target.value);
-            }}
-            slotProps={{
-              input: {
-                endAdornment: keyMatch && (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => {
-                        setKeyMatch("");
-                      }}
-                      edge="end"
-                    >
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              },
-            }}
-            style={{ flex: 1 }}
-          />
+
+          <Tooltip title={keyMatcherHelpText}>
+            <TextField
+              label="key matcher"
+              variant="outlined"
+              value={keyMatch}
+              onChange={event => {
+                setKeyMatch(event.target.value);
+              }}
+              slotProps={{
+                input: {
+                  endAdornment: keyMatch && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => {
+                          setKeyMatch("");
+                        }}
+                        edge="end"
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
+              style={{ flex: 1 }}
+            />
+          </Tooltip>
 
           <DoubleClickToModify />
         </Stack>
@@ -2143,30 +2068,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
               oldValue={selectRow.value}
               oldKey={selectRow.key}
             />
-          </Box>
-        </Modal>
-      )}
-      {showAdd && (
-        <Modal
-          open={showAdd}
-          onClose={modalHandleClose((e: EscDownEvent) => {
-            e.preventDefault();
-            setShowAdd(false);
-          })}
-        >
-          <Box
-            sx={{ resize: "both", ...modalStyle }}
-            width="80%"
-            height="70vh"
-            ref={setAddModalBox}
-          >
-            <ModalHeader
-              title="add Hash Value"
-              handleClose={() => {
-                setShowAdd(false);
-              }}
-            />
-            <RedisAddHash uuid={uuid} hashKey={hashKey} />
           </Box>
         </Modal>
       )}
