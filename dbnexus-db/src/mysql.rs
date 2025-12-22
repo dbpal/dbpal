@@ -2278,7 +2278,7 @@ pub(crate) mod test_fns {
         {
             let s = schema_trait
                 .export_query_result_to_string(
-                    query_id.into(),
+                    query_id,
                     format!("select * from {table_name}").as_str(),
                     ExportKind::Json { pretty: true },
                 )
@@ -2290,7 +2290,7 @@ pub(crate) mod test_fns {
         {
             let s = schema_trait
                 .export_query_result_to_string(
-                    "".into(),
+                    "",
                     format!("select * from {table_name}").as_str(),
                     ExportKind::Csv {
                         include_header: true,
@@ -2305,7 +2305,7 @@ pub(crate) mod test_fns {
         {
             let s = schema_trait
                 .export_query_result_to_string(
-                    query_id.into(),
+                    query_id,
                     format!("select * from {table_name}").as_str(),
                     ExportKind::JsonLine,
                 )
@@ -2832,7 +2832,7 @@ mod tests {
             port: 3306,
             db: Some("test".to_string()),
             read_only: false,
-            
+
             ssl: Default::default(),
         }
     }

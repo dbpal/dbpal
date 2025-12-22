@@ -286,7 +286,7 @@ async function showTable(
     uuid: string;
     para?: types.ShowTableParameter;
     name: string;
-    isView: boolean;
+    isView?: boolean;
     showNotification;
     silent?: boolean;
   } & ShowTableCallBack,
@@ -302,6 +302,8 @@ async function showTable(
     setLoading,
     silent,
   } = props;
+
+  isView = !!isView;
   if (!para) {
     para = {};
   }
@@ -353,7 +355,9 @@ async function showTable(
     });
     await invoke("show_table", { name: uuid, tableName: name, para, isView, emit });
     if (okCallBack) {
-      okCallBack();
+      setTimeout(() => {
+        okCallBack();
+      }, 100);
     }
   } catch (e) {
     setTimeout(() => {

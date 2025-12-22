@@ -1893,7 +1893,7 @@ pub(crate) async fn make_test_object() -> SqlServerDB {
         trust_cert: true,
         schema: Some(SqlServerDB::DBO_SCHEMA.to_string()),
         read_only: false,
-        
+
         cert_ca: None,
     })
     .await
@@ -2799,18 +2799,14 @@ END;
         let sql = sql.as_str();
         {
             let s = db
-                .export_query_result_to_string(query_id.into(), sql, ExportKind::JsonLine)
+                .export_query_result_to_string(query_id, sql, ExportKind::JsonLine)
                 .await
                 .unwrap();
             println!("json:{}", s);
         }
         {
             let s = db
-                .export_query_result_to_string(
-                    query_id.into(),
-                    sql,
-                    ExportKind::Json { pretty: true },
-                )
+                .export_query_result_to_string(query_id, sql, ExportKind::Json { pretty: true })
                 .await
                 .unwrap();
             println!("json:{}", s);
@@ -2819,7 +2815,7 @@ END;
         {
             let s = db
                 .export_query_result_to_string(
-                    query_id.into(),
+                    query_id,
                     sql,
                     ExportKind::Csv {
                         include_header: true,

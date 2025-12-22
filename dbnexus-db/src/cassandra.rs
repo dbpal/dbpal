@@ -248,7 +248,7 @@ fn format_date(mut days_since_epoch: u32) -> anyhow::Result<String> {
     days_since_epoch &= !(1 << 31);
 
     let date = NaiveDate::from_ymd_opt(1970, 1, 1)
-        .unwrap()
+        .expect("date should be valid")
         .checked_add_days(chrono::Days::new(days_since_epoch as i64 as u64));
     match date {
         Some(x) => anyhow::Ok(x.to_string()),
@@ -736,6 +736,7 @@ impl CassandraDB {
                 .into_rows_result()?;
             let pager = r.rows::<(String, String, String, String)>()?;
             let mut create_statement = "".to_string();
+            #[allow(clippy::never_loop)]
             for row in pager {
                 let row = row?;
                 create_statement = row.3;
@@ -827,7 +828,7 @@ impl SchemaTrait for CassandraDB {
         let rows = self.session.query_iter(sql.as_ref(), &[]).await?;
 
         let mut stream = rows.rows_stream::<(String, String, String, String)>()?;
-
+        #[allow(clippy::never_loop)]
         while let Some(row) = stream.next().await {
             let row = row?;
             return anyhow::Ok(CreateTableAndIndexSql {
@@ -1308,7 +1309,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         read_only: false,
         db,
         conn_timeout: Some(500000.into()),
-        
+
         ssl: CassandraSsl {
             ssl_files: SSLFiles {
                 ssl_ca: None,

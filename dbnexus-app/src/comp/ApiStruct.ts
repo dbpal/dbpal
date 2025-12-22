@@ -216,7 +216,6 @@ export namespace types {
         "conn_type": "sqlite";
     } & (types.SqliteDBConfig & {
         "name": string;
-        "save_password": boolean;
     })) | ({
         "conn_type": "mysql";
     } & (types.MysqlDBConfig & {
@@ -276,7 +275,6 @@ export namespace types {
         "conn_type": "libsql";
     } & (types.LibSqlDBConfig & {
         "name": string;
-        "save_password": boolean;
     })) | ({
         "conn_type": "firebird";
     } & (types.FireBirdConfig & {
@@ -286,7 +284,6 @@ export namespace types {
         "conn_type": "duckdb";
     } & (types.DuckDBConfig & {
         "name": string;
-        "save_password": boolean;
     })) | ({
         "conn_type": "db2";
     } & (types.Db2Config & {

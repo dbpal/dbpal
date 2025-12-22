@@ -141,6 +141,9 @@ function queryRespFix(data: MuiDataGridData) {
 
 function QueryResp(props: { data: MuiDataGridData }) {
   const { data } = props;
+
+  queryRespFix(data);
+
   const setting = useContext(SettingContext);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
 
@@ -374,5 +377,5 @@ function MultiQueryResp(props: { data: QueryRespData[] }) {
   );
 }
 
-export { MultiQueryResp, QueryResp, queryRespFix };
+export { MultiQueryResp, QueryResp };
 export type { QueryRespData };

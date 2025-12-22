@@ -32,14 +32,12 @@ use sqlx_core::bytes::buf;
 use std::sync::LazyLock;
 use tokio::task::spawn_blocking;
 
-pub(crate) static ODBC_ENV: LazyLock<Environment> = LazyLock::new(|| {
-    let env = Environment::new().unwrap();
-    env
-});
+pub(crate) static ODBC_ENV: LazyLock<Environment> =
+    LazyLock::new(|| Environment::new().expect("should be able to create an environment"));
 
 pub(crate) fn make_conn(conn_str: &str) -> Result<Connection<'static>, odbc_api::Error> {
     ODBC_ENV.connect_with_connection_string(
-        &conn_str,
+        conn_str,
         ConnectionOptions {
             login_timeout_sec: Some(10),
             packet_size: None,
@@ -65,7 +63,7 @@ impl r2d2::ManageConnection for OdbcPool {
     }
 
     fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        conn.execute(&self.select_1_sql, (), None)?;
+        conn.execute(self.select_1_sql, (), None)?;
         Ok(())
     }
 
@@ -143,21 +141,21 @@ impl dyn OdbcHelper {
                     AnySlice::Date(dates) => {
                         let v = dates.get(row_index);
                         match v {
-                            Some(x) => serde_json::Value::from(self.format_date(&x)),
+                            Some(x) => serde_json::Value::from(self.format_date(x)),
                             None => serde_json::Value::Null,
                         }
                     }
                     AnySlice::Time(times) => {
                         let v = times.get(row_index);
                         match v {
-                            Some(x) => serde_json::Value::from(self.format_time(&x)),
+                            Some(x) => serde_json::Value::from(self.format_time(x)),
                             None => serde_json::Value::Null,
                         }
                     }
                     AnySlice::Timestamp(timestamps) => {
                         let v = timestamps.get(row_index);
                         match v {
-                            Some(x) => serde_json::Value::from(self.format_timestamp(&x)),
+                            Some(x) => serde_json::Value::from(self.format_timestamp(x)),
                             None => serde_json::Value::Null,
                         }
                     }
@@ -407,11 +405,11 @@ impl dyn OdbcHelper {
                     }
                     AnySlice::NullableBit(nullable_slice) => {
                         let v = nullable_slice.get(row_index);
-                        v.map(|x| self.format_bit(&x))
+                        v.map(|x| self.format_bit(x))
                     }
                     AnySlice::NullableNumeric(nullable_slice) => {
                         let v = nullable_slice.get(row_index);
-                        v.map(|x| self.format_numeric(&x))
+                        v.map(|x| self.format_numeric(x))
                     }
                 };
                 values.push(v);
@@ -527,7 +525,7 @@ impl OdbcDbQuery {
             let mut buffers = ColumnarAnyBuffer::from_descs(100, buffer_desc);
             let mut row_set_cursor = cursor.bind_buffer(&mut buffers)?;
             while let Some(batch) = row_set_cursor.fetch()? {
-                let data = this.helper.encode_batch(*batch)?;
+                let data = this.helper.encode_batch(batch)?;
                 emit.send(data.into())?;
             }
             anyhow::Ok(())
@@ -571,7 +569,7 @@ impl dyn OdbcHelper {
         self.fix_length(&mut ty);
         for (t, null) in ty.iter().zip(null.iter()) {
             let d = BufferDesc::from_data_type(
-                t.clone(),
+                *t,
                 match null {
                     Nullability::Unknown => true,
                     Nullability::Nullable => true,
@@ -591,31 +589,6 @@ impl dyn OdbcHelper {
             buffer_desc: desc,
         })
     }
-}
-
-// https://public.dhe.ibm.com/ibmdl/export/pub/software/data/db2/drivers/odbc_cli/
-fn test_db2() -> anyhow::Result<()> {
-    let conn_str = "Driver={Driver_IBM_DB2};Database=TSKDB;Hostname=127.0.0.1;Port=50000;Protocol=TCPIP;UID=db2inst1;PWD=db2inst1-pwd;";
-    let conn = ODBC_ENV
-        .connect_with_connection_string(conn_str, ConnectionOptions::default())
-        .unwrap();
-    let mut cursor = conn
-        .execute("SELECT 1 FROM SYSIBM.SYSDUMMY1", (), None)
-        .unwrap()
-        .unwrap();
-    let mut buffer = TextRowSet::for_cursor(100, &mut cursor, Some(4096)).unwrap();
-    let mut row_mut_set = cursor.bind_buffer(&mut buffer).unwrap();
-
-    while let Some(batch) = row_mut_set.fetch().unwrap() {
-        for row_index in 0..batch.num_rows() {
-            for col_index in 0..batch.num_cols() {
-                println!("col_index:{} , row_index:{}", col_index, row_index);
-                let r = batch.at(col_index, row_index).unwrap();
-                dbg!(r);
-            }
-        }
-    }
-    anyhow::Ok(())
 }
 
 impl OdbcDbQuery {
@@ -645,14 +618,14 @@ impl OdbcDbQuery {
                         include_header,
                         delimiter,
                     } => {
-                        let r = this.helper.encode_batch(&batch)?;
+                        let r = this.helper.encode_batch(batch)?;
                         for x in r {
                             let e = create_csv(&x, delimiter)?;
                             sender.blocking_send(e.into())?;
                         }
                     }
                     ExportKind::Json { .. } | ExportKind::JsonLine => {
-                        let rs = this.helper.encode_batch_as_json(*batch, &col_names)?;
+                        let rs = this.helper.encode_batch_as_json(batch, &col_names)?;
                         for v in rs {
                             sender.blocking_send(v.into())?;
                         }
@@ -676,7 +649,7 @@ impl OdbcDbQuery {
                             }
                             num_row += 1;
                         }
-                        let r = this.helper.encode_batch(&batch)?;
+                        let r = this.helper.encode_batch(batch)?;
                         for x in r {
                             for (index, col) in x.into_iter().enumerate() {
                                 if let Some(col) = col {
@@ -699,7 +672,7 @@ impl OdbcDbQuery {
                             let r = create_html_table_header(&col_names);
                             sender.blocking_send(r.into())?;
                         }
-                        let r = this.helper.encode_batch(&batch)?;
+                        let r = this.helper.encode_batch(batch)?;
                         sender.blocking_send(create_html_table_data(&r).into())?;
                     }
                     ExportKind::MarkDown => {
@@ -708,7 +681,7 @@ impl OdbcDbQuery {
                             let r = create_markdown_header(&col_names);
                             sender.blocking_send(r.into())?;
                         }
-                        let r = this.helper.encode_batch(&batch)?;
+                        let r = this.helper.encode_batch(batch)?;
                         for x in r {
                             let r = create_markdown_data(&x);
                             sender.blocking_send(r.into())?;
@@ -730,7 +703,7 @@ pub fn odbc_query<T: FromSql>(
         Some(x) => x,
         None => return anyhow::Ok(vec![]),
     };
-    let meta = helper.collect_meta(&mut cursor).unwrap();
+    let meta = helper.collect_meta(&mut cursor)?;
     let mut buffers = ColumnarAnyBuffer::from_descs(100, meta.buffer_desc);
     let mut row_set_cursor = cursor.bind_buffer(&mut buffers)?;
     let mut ret = vec![];
@@ -739,7 +712,7 @@ pub fn odbc_query<T: FromSql>(
 
         for row_index in 0..batch.num_rows() {
             let mut t = T::default();
-            t.from_sql(&batch, row_index, helper.clone())?;
+            t.use_sql(batch, row_index, helper.clone())?;
             ret.push(t);
         }
     }
@@ -747,40 +720,40 @@ pub fn odbc_query<T: FromSql>(
 }
 
 pub trait FromSql: Default {
-    fn from_sql(
+    fn use_sql(
         &mut self, buffer: &ColumnarAnyBuffer, row_index: usize, helper: Arc<dyn OdbcHelper>,
     ) -> anyhow::Result<()>;
 }
 
 impl<T: FromSqlElement> FromSql for (T) {
-    fn from_sql(
+    fn use_sql(
         &mut self, buffer: &ColumnarAnyBuffer, row_index: usize, helper: Arc<dyn OdbcHelper>,
     ) -> anyhow::Result<()> {
-        self.from_sql_col(buffer.column(0), row_index, helper)?;
+        self.use_sql_col(buffer.column(0), row_index, helper)?;
         anyhow::Ok(())
     }
 }
 
 impl<T1: FromSqlElement, T2: FromSqlElement> FromSql for (T1, T2) {
-    fn from_sql(
+    fn use_sql(
         &mut self, buffer: &ColumnarAnyBuffer, row_index: usize, helper: Arc<dyn OdbcHelper>,
     ) -> anyhow::Result<()> {
         self.0
-            .from_sql_col(buffer.column(0), row_index, helper.clone())?;
+            .use_sql_col(buffer.column(0), row_index, helper.clone())?;
         self.1
-            .from_sql_col(buffer.column(1), row_index, helper.clone())?;
+            .use_sql_col(buffer.column(1), row_index, helper.clone())?;
         anyhow::Ok(())
     }
 }
 
 pub trait FromSqlElement: Default {
-    fn from_sql_col(
+    fn use_sql_col(
         &mut self, buffer: AnySlice<'_>, row_index: usize, helper: Arc<dyn OdbcHelper>,
     ) -> anyhow::Result<()>;
 }
 
 impl FromSqlElement for String {
-    fn from_sql_col(
+    fn use_sql_col(
         &mut self, buffer: AnySlice<'_>, row_index: usize, helper: Arc<dyn OdbcHelper>,
     ) -> anyhow::Result<()> {
         match buffer {
@@ -799,7 +772,7 @@ impl FromSqlElement for String {
 }
 
 impl FromSqlElement for Option<String> {
-    fn from_sql_col(
+    fn use_sql_col(
         &mut self, buffer: AnySlice<'_>, row_index: usize, helper: Arc<dyn OdbcHelper>,
     ) -> anyhow::Result<()> {
         match buffer {
@@ -823,12 +796,5 @@ impl FromSqlElement for Option<String> {
     }
 }
 
-mod tests {
-    use super::*;
-
-    #[test]
-
-    fn ddddd() {
-        test_db2();
-    }
-}
+#[cfg(test)]
+mod tests {}

@@ -447,7 +447,7 @@ function DbSchemaCadidates(props: {
 
 type MakeConfig = () => types.DBConnectionConfig;
 
-function Mysql(props: { config?: types.MysqlDBConfig; kind: DataSourceKind }) {
+function Mysql(props: { config; kind: DataSourceKind }) {
   const { config, kind } = props;
   const { connectionName, connTimeOut, readOnly } = useContext(AddConnectionContext);
   let defaultPort = 3306;
@@ -473,7 +473,6 @@ function Mysql(props: { config?: types.MysqlDBConfig; kind: DataSourceKind }) {
       port: parseInt(port),
       username: user,
       password: password ? password : null,
-      save_password: savePassword,
       db: database ? database : null,
       read_only: readOnly,
       conn_timeout: connTimeOut,
@@ -486,6 +485,7 @@ function Mysql(props: { config?: types.MysqlDBConfig; kind: DataSourceKind }) {
         return {
           conn_type: kind,
           name: connectionName,
+          save_password: savePassword,
           ...x,
         };
       default:
@@ -518,7 +518,7 @@ function Mysql(props: { config?: types.MysqlDBConfig; kind: DataSourceKind }) {
   );
 }
 
-function Oracle(props: { config?: types.OracleDBConfig }) {
+function Oracle(props: { config? }) {
   const { config } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 1521) + "");
@@ -586,7 +586,7 @@ function Oracle(props: { config?: types.OracleDBConfig }) {
   );
 }
 
-function ClickHouse(props: { config?: types.ClickHouseConfig }) {
+function ClickHouse(props: { config? }) {
   const { config } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 8123) + "");
@@ -635,7 +635,7 @@ function ClickHouse(props: { config?: types.ClickHouseConfig }) {
   );
 }
 
-function PostGres(props: { config?: types.PGDBConfig; kind: DataSourceKind }) {
+function PostGres(props: { config; kind: DataSourceKind }) {
   const { config, kind } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState<string>((config?.port || 5432) + "");
@@ -659,7 +659,6 @@ function PostGres(props: { config?: types.PGDBConfig; kind: DataSourceKind }) {
       port: parseInt(port),
       username: user,
       password: password ? password : null,
-      save_password: savePassword,
       db: database ? database : null,
       read_only: readOnly,
       conn_timeout: connTimeOut,
@@ -672,6 +671,7 @@ function PostGres(props: { config?: types.PGDBConfig; kind: DataSourceKind }) {
         return {
           conn_type: kind,
           name: connectionName,
+          save_password: savePassword,
           ...x,
         };
       default:
@@ -712,7 +712,7 @@ function PostGres(props: { config?: types.PGDBConfig; kind: DataSourceKind }) {
   );
 }
 
-function Sqlite(props: { config?: types.SqliteDBConfig }) {
+function Sqlite(props: { config? }) {
   const { config } = props;
   const [path, setPath] = useState(config?.path);
   const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
@@ -856,7 +856,7 @@ function getSchema(config?: { schema: string }) {
   return config ? config.schema : "";
 }
 
-function FireBird(props: { config?: types.FireBirdConfig }) {
+function FireBird(props: { config? }) {
   const { config } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 3050) + "");
@@ -903,7 +903,7 @@ function FireBird(props: { config?: types.FireBirdConfig }) {
   );
 }
 
-function Redis(props: { config?: types.RedisDBConfig }) {
+function Redis(props: { config? }) {
   const { config } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 6379) + "");
@@ -961,7 +961,7 @@ function Redis(props: { config?: types.RedisDBConfig }) {
   );
 }
 
-function MongoDb(props: { config?: types.MongoDBConfig }) {
+function MongoDb(props: { config? }) {
   const { config } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 27017) + "");
@@ -1028,7 +1028,7 @@ function MongoDb(props: { config?: types.MongoDBConfig }) {
   );
 }
 
-function Cassandra(props: { config?: types.CassandraDBConfig }) {
+function Cassandra(props: { config? }) {
   const { config } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 9042) + "");
@@ -1074,7 +1074,7 @@ function Cassandra(props: { config?: types.CassandraDBConfig }) {
   );
 }
 
-function SqlServer(props: { config?: types.SqlServerDBConfig }) {
+function SqlServer(props: { config? }) {
   const { config } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState((config?.port || 1433) + "");
@@ -1262,56 +1262,30 @@ function AddConnection(props: {
           {(connectionType === DataSourceKind.Mysql ||
             connectionType === DataSourceKind.MariaDB ||
             connectionType === DataSourceKind.TiDB) && (
-            <Mysql
-              config={config as types.MysqlDBConfig}
-              kind={connectionType as DataSourceKind}
-            />
+            <Mysql config={config} kind={connectionType as DataSourceKind} />
           )}
 
-          {connectionType === DataSourceKind.LibSql && (
-            <LibSql config={config as types.LibSqlDBConfig} />
-          )}
+          {connectionType === DataSourceKind.LibSql && <LibSql config={config} />}
 
-          {connectionType === DataSourceKind.FireBird && (
-            <FireBird config={config as types.FireBirdConfig} />
-          )}
+          {connectionType === DataSourceKind.FireBird && <FireBird config={config} />}
 
           {(connectionType === DataSourceKind.Postgres ||
             connectionType === DataSourceKind.Cockroach) && (
-            <PostGres
-              config={config as types.PGDBConfig}
-              kind={connectionType as DataSourceKind}
-            />
+            <PostGres config={config} kind={connectionType as DataSourceKind} />
           )}
           {connectionType === DataSourceKind.ClickHouse && (
-            <ClickHouse config={config as types.ClickHouseConfig} />
+            <ClickHouse config={config} />
           )}
 
-          {connectionType === DataSourceKind.Cassandra && (
-            <Cassandra config={config as types.CassandraDBConfig} />
-          )}
+          {connectionType === DataSourceKind.Cassandra && <Cassandra config={config} />}
 
-          {connectionType === DataSourceKind.Redis && (
-            <Redis config={config as types.RedisDBConfig} />
-          )}
-          {connectionType === DataSourceKind.Mongo && (
-            <MongoDb config={config as types.MongoDBConfig} />
-          )}
-          {connectionType === DataSourceKind.SqlServer && (
-            <SqlServer config={config as types.SqlServerDBConfig} />
-          )}
-          {connectionType === DataSourceKind.Oracle && (
-            <Oracle config={config as types.OracleDBConfig} />
-          )}
-          {connectionType === DataSourceKind.Sqlite && (
-            <Sqlite config={config as types.SqliteDBConfig} />
-          )}
-          {connectionType === DataSourceKind.DuckDB && (
-            <DuckDB config={config as types.DuckDBConfig} />
-          )}
-          {connectionType === DataSourceKind.Db2 && (
-            <Db2 config={config as types.Db2Config} />
-          )}
+          {connectionType === DataSourceKind.Redis && <Redis config={config} />}
+          {connectionType === DataSourceKind.Mongo && <MongoDb config={config} />}
+          {connectionType === DataSourceKind.SqlServer && <SqlServer config={config} />}
+          {connectionType === DataSourceKind.Oracle && <Oracle config={config} />}
+          {connectionType === DataSourceKind.Sqlite && <Sqlite config={config} />}
+          {connectionType === DataSourceKind.DuckDB && <DuckDB config={config} />}
+          {connectionType === DataSourceKind.Db2 && <Db2 config={config} />}
         </Stack>
       </AddConnectionContext>
 
@@ -1320,7 +1294,7 @@ function AddConnection(props: {
   );
 }
 
-function DuckDB(props: { config: types.DuckDBConfig }) {
+function DuckDB(props: { config? }) {
   const { config } = props;
 
   function getConfigStr(key: string) {
@@ -1371,15 +1345,15 @@ function DuckDB(props: { config: types.DuckDBConfig }) {
   );
 }
 
-function LibSql(props: { config?: types.LibSqlDBConfig }) {
+function LibSql(props: { config }) {
   const { config } = props;
   const urlOld = config && config.source == "remote" && config.url;
   const [url, setUrl] = useState(urlOld ? urlOld : "");
   // const [replica, setReplica] = useState(config?.replica);
   const oldAuth = config && config.source == "remote" && config.auth_token;
   const [authToken, setAuthToken] = useState(oldAuth ? oldAuth : "");
-  const [libSqlModel] = useState<"remote" | "local">(config?.source || "remote");
-  const [path, setPath] = useState(config?.path);
+  const [libSqlModel] = useState<"remote">(config?.source || "remote");
+  const [path] = useState(config?.path);
   const { connTimeOut, connectionName, readOnly } = useContext(AddConnectionContext);
 
   function makeConfig(): types.DBConnectionConfig {
@@ -1415,14 +1389,14 @@ function LibSql(props: { config?: types.LibSqlDBConfig }) {
         ))}
       </RadioGroup> */}
 
-      {libSqlModel === "local" && (
+      {/* {libSqlModel === "local" && (
         <SelectPath
           path={path}
           setPath={setPath}
           required
           label="libsql database file"
         />
-      )}
+      )} */}
       {libSqlModel === "remote" && (
         <>
           <Stack direction="row">
@@ -1595,7 +1569,7 @@ function OdbcDriverCommon(props: { config: RefObject<types.OdbcCommon> }) {
   );
 }
 
-function Db2(props: { config?: types.Db2Config }) {
+function Db2(props: { config?: any }) {
   const { config } = props;
   const [host, setHost] = useState(getHost(config));
   const [port, setPort] = useState<string>((config?.port || 50000) + "");

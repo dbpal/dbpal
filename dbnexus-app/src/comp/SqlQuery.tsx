@@ -1,5 +1,5 @@
 import { Editor } from "@monaco-editor/react";
-import { MultiQueryResp, QueryRespData, queryRespFix } from "./QueryResp";
+import { MultiQueryResp, QueryRespData } from "./QueryResp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import {
   Box,
@@ -325,9 +325,6 @@ function SqlQuery(props: {
       .then(e => {
         if (SaveQueryLogConfigure.get()) {
           queryLogHandler.current.save(text, rustResultOk(e));
-        }
-        if (e.Ok) {
-          queryRespFix(e.Ok);
         }
         setTimeout(() => {
           setResp([e]);
@@ -710,7 +707,6 @@ function appendQueryResult(
 ): QueryRespData[] {
   switch (event.kind) {
     case "structure":
-      queryRespFix(event.resp);
       return [...data, { Ok: event.resp }];
     case "err":
       return [...data, { Err: event.err }];
@@ -750,7 +746,6 @@ function appendQueryResult(
         }),
       ];
       let arr = [...data];
-      queryRespFix(cop);
       arr[index].Ok = cop;
       return arr;
     }

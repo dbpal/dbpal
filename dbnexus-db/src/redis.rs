@@ -1954,7 +1954,7 @@ pub(crate) async fn make_test_object() -> RedisDB {
         db: Some("db0".to_string()),
         read_only: false,
         conn_timeout: Some(5000.into()),
-        
+
         enable_ssl: false,
     })
     .await
@@ -2127,28 +2127,7 @@ db1:keys=1,expires=0,avg_ttl=0"#,
 
         db.drop_schema("db11").await.unwrap();
     }
-    #[ignore = "run me by hand"]
-    #[tokio::test]
-    async fn test_check_a_lot_of_key() {
-        let db = make_test_object().await;
-        crate::db::CheckConn::check_conn(&db).await.unwrap();
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-        for i in 0..100000 {
-            db.execute_sql(
-                query_id,
-                format!("set test_a_lot_of_key{} {}", i, i).as_str(),
-            )
-            .await
-            .unwrap()
-            .unwrap();
 
-            println!("{}", i);
-        }
-        let now = std::time::Instant::now();
-        let x = db.redis_list_table(None, 100).await.unwrap();
-        println!("used{:?} key_len:{}", now.elapsed(), x.string_tables.len());
-    }
     #[tokio::test]
     async fn test_large_key() {
         {

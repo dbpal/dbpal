@@ -12,7 +12,7 @@ import {
   makeExecuteSql,
   resizeHandlerSize,
 } from "./helper";
-import { MultiQueryResp, queryRespFix } from "./QueryResp";
+import { MultiQueryResp } from "./QueryResp";
 import { editor } from "monaco-editor";
 import { SimpleFlexEditor } from "./CommonComp2";
 import types from "./ApiStruct";
@@ -62,9 +62,6 @@ function DefAndMetasView(props: {
 
     executeOP(sql)
       .then(e => {
-        if (e.Ok) {
-          queryRespFix(e.Ok);
-        }
         setQueryResp([e]);
       })
       .catch(e => {

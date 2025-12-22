@@ -137,6 +137,7 @@ struct QueryRespMemoryCollector {
 }
 
 impl QueryRespMemoryCollector {
+    #[cfg(test)]
     fn result(&self) -> QueryResp {
         self.ret
             .lock()
@@ -158,7 +159,7 @@ impl QueryEventEmit for QueryRespMemoryCollector {
             QueryEvent::Data(data) => {
                 use std::ops::DerefMut;
                 let x = lock.deref_mut();
-                let x = x.as_mut().unwrap();
+                let x = x.as_mut().expect("the structure must be there");
                 x.data.extend(data);
             }
             QueryEvent::Status(s) => {
@@ -168,7 +169,7 @@ impl QueryEventEmit for QueryRespMemoryCollector {
             QueryEvent::Row(data) => {
                 use std::ops::DerefMut;
                 let x = lock.deref_mut();
-                let x = x.as_mut().unwrap();
+                let x = x.as_mut().expect("must emit structure");
                 x.data.push(data);
             }
         };
@@ -204,6 +205,7 @@ pub trait SchemaTrait:
         &self, table_name: &str, _: ShowTableParameter, _: QueryEventEmitter,
     ) -> anyhow::Result<()>;
 
+    #[cfg(test)]
     async fn show_table_collect(
         &self, table_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
@@ -213,6 +215,8 @@ pub trait SchemaTrait:
             .await?;
         anyhow::Ok(result.result())
     }
+
+    #[cfg(test)]
     async fn show_view_collect(
         &self, table_name: &str, para: ShowTableParameter,
     ) -> anyhow::Result<QueryResp> {
@@ -954,7 +958,7 @@ impl ExportFrame {
                 anyhow::bail!("this is bytes,should be a internal error")
             }
             ExportFrame::JsonValue(..) => {
-                anyhow::bail!("this is json value ,should be interal error")
+                anyhow::bail!("this is json value ,should be internal error")
             }
         };
         anyhow::Ok(r)
@@ -967,7 +971,7 @@ impl ExportFrame {
             ExportFrame::Xlsx(..) => {
                 anyhow::bail!("this is xlsx edit,should be a internal error")
             }
-            ExportFrame::Bytes(bytes) => &bytes,
+            ExportFrame::Bytes(bytes) => bytes,
             ExportFrame::JsonValue(..) => {
                 anyhow::bail!("this is json value,should be a internal error")
             }
@@ -1120,7 +1124,7 @@ async fn write_export_file(
     let r = match kind {
         ExportKind::Json { pretty } => {
             let mut file = tokio::fs::File::create(&filepath).await?;
-            file.write("[".as_bytes()).await?;
+            file.write_all("[".as_bytes()).await?;
             let mut first = true;
             while let Some(e) = receiver.recv().await {
                 let value = match e {
@@ -1130,23 +1134,23 @@ async fn write_export_file(
                     }
                 };
                 if !first {
-                    file.write(",".as_bytes()).await?;
+                    file.write_all(",".as_bytes()).await?;
                 }
                 if pretty {
-                    file.write("\n".as_bytes()).await?;
+                    file.write_all("\n".as_bytes()).await?;
                 }
                 let s = if pretty {
                     serde_json::to_string_pretty(&value)
                 } else {
                     serde_json::to_string(&value)
                 }?;
-                file.write(s.as_bytes()).await?;
+                file.write_all(s.as_bytes()).await?;
                 first = false;
             }
             if pretty {
-                file.write("\n".as_bytes()).await?;
+                file.write_all("\n".as_bytes()).await?;
             }
-            file.write("]".as_bytes()).await?;
+            file.write_all("]".as_bytes()).await?;
             anyhow::Ok(())
         }
         ExportKind::JsonLine => {
@@ -1154,12 +1158,12 @@ async fn write_export_file(
             while let Some(e) = receiver.recv().await {
                 match e {
                     ExportFrame::Bytes(x) => {
-                        file.write(&x).await?;
+                        file.write_all(&x).await?;
                     }
                     ExportFrame::JsonValue(x) => {
                         let value = serde_json::to_string(&x)?;
-                        file.write(value.as_bytes()).await?;
-                        file.write("\n".as_bytes()).await?;
+                        file.write_all(value.as_bytes()).await?;
+                        file.write_all("\n".as_bytes()).await?;
                     }
                     _ => {
                         anyhow::bail!("wrong export frame data:{:?}", e);
@@ -1386,7 +1390,6 @@ impl QueryResp {
             }],
             sql: sql.into(),
             total: 0,
-            ..Default::default()
         }
     }
 
@@ -1445,7 +1448,6 @@ impl QueryResp {
             total,
             sql,
             data,
-            ..Default::default()
         };
         ret.check()?;
         anyhow::Ok(ret)
@@ -1760,12 +1762,18 @@ pub struct TimeElapsed {
     ins: std::time::Instant,
 }
 
-impl TimeElapsed {
-    pub fn new() -> Self {
+impl Default for TimeElapsed {
+    fn default() -> Self {
         Self {
             d: Duration::from_millis(100),
             ins: std::time::Instant::now(),
         }
+    }
+}
+
+impl TimeElapsed {
+    pub fn new() -> Self {
+        Self::default()
     }
     pub fn elapsed(&mut self) -> bool {
         let e = self.ins.elapsed() > self.d;

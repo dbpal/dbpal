@@ -8,12 +8,6 @@ use dbnexus_db::db::{
     ShowTableParameter, SqlEvent, SqlExecuteRet, TimeElapsed, TriggerDetail,
     UdfOrProcedureExtraParameter, escape_sql_str,
 };
-use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
-use std::sync::{Arc, LazyLock, Mutex};
-use std::time::Duration;
-use std::usize;
-
 use dbnexus_db::firebird::FireBirdDB;
 use dbnexus_db::language_server::{CompletionList, ErrAndLoc};
 use dbnexus_db::libsql::LibSqlDB;
@@ -26,6 +20,10 @@ use dbnexus_db::redis::{RedisDB, RedisListTable, RedisToken};
 use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use dbnexus_db::sqlite::SqliteDB;
 use dbnexus_db::sub::SubDB;
+use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+use std::sync::{Arc, LazyLock, Mutex};
+use std::time::Duration;
 
 use crate::app::{self, DBConnectionConfig, DBPal, DatabaseBackend, name_to_parts};
 use font_kit::error::SelectionError;

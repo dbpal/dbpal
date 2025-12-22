@@ -44,7 +44,6 @@ pub enum DBConnectionConfig {
         #[serde(flatten)]
         conn: SqliteDBConfig,
         name: String,
-        save_password: bool,
     },
     Mysql {
         #[serde(flatten)]
@@ -116,7 +115,6 @@ pub enum DBConnectionConfig {
         #[serde(flatten)]
         conn: LibSqlDBConfig,
         name: String,
-        save_password: bool,
     },
     FireBird {
         #[serde(flatten)]
@@ -128,7 +126,6 @@ pub enum DBConnectionConfig {
         #[serde(flatten)]
         conn: DuckDBConfig,
         name: String,
-        save_password: bool,
     },
     Db2 {
         #[serde(flatten)]

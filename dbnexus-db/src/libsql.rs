@@ -1546,7 +1546,7 @@ mod tests {
         {
             let s = db
                 .export_query_result_to_string(
-                    query_id.into(),
+                    query_id,
                     "select * from persons",
                     ExportKind::Json { pretty: true },
                 )

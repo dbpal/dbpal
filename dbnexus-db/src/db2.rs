@@ -191,10 +191,9 @@ impl DBTrait for Db2Db {
             let r: Vec<(Option<String>)> =
                 crate::odbc::odbc_query(&conn, &sql, this.make_helper())?;
             let mut ret = vec![];
-            for x in r {
-                if let Some(name) = x {
-                    ret.push(name);
-                }
+            let mut tmp = r.into_iter();
+            for name in tmp.flatten() {
+                ret.push(name);
             }
             anyhow::Ok(ret)
         })
