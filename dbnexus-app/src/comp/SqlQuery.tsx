@@ -593,7 +593,6 @@ function SqlQuery(props: {
               </IconButton>
             </Tooltip>
             {extras}
-
             <ModifyLLMConfigModal />
             <ExecutingTime loading={loading} disableTime />
             <SliderSize
@@ -602,15 +601,12 @@ function SqlQuery(props: {
               min={1000}
               max={100000}
               step={1000}
-              notice=<Typography color="info">
+              notice=<Typography>
                 limit max rows can be query.we don&apos;t want OOM!!!😀
+                <br />
+                dbpal use Stream technology to query data,so we can query large data
               </Typography>
             />
-            {openOk && import.meta.env.DEV && (
-              <Tooltip title="connection id">
-                <Typography> #{conn.queryId} </Typography>
-              </Tooltip>
-            )}
           </Stack>
           <div
             style={{

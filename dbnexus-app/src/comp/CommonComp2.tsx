@@ -28,6 +28,7 @@ import {
   ListItemText,
   MenuItem,
   Modal,
+  Paper,
   Radio,
   RadioGroup,
   Slider,
@@ -885,7 +886,7 @@ function SliderSize(props: {
           style: { maxWidth: width, padding: 0, margin: 0 },
         },
       }}
-      title=<div
+      title=<Paper
         style={{
           width,
           padding: "8px",
@@ -899,11 +900,12 @@ function SliderSize(props: {
             onChange={(_, v) => {
               setMaxRow(v);
             }}
+            color="success"
             step={step}
           />
           {notice}
         </Stack>
-      </div>
+      </Paper>
     >
       <Chip label={maxRow} color="info" />
     </Tooltip>
