@@ -689,8 +689,12 @@ pub trait SqlBuilder: GetBackendKind {
     fn sqlite_create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
         let mut sql = format!("create table {}(\n", req.name);
         let last = req.columns.len() - 1;
-        let primay_is_inc = req.primary_key_auto_inc();
-        let pk = req.format_primary_keys();
+        let primary_is_inc = req.primary_key_auto_increment();
+        let pk = if primary_is_inc {
+            None
+        } else {
+            req.format_primary_keys()
+        };
         for (index, col) in req.columns.iter().enumerate() {
             if col.auto_increment && col.default_value.is_some() {
                 anyhow::bail!("auto increment column can not have default value.");
@@ -713,7 +717,7 @@ pub trait SqlBuilder: GetBackendKind {
             }
             sql.push('\n');
         }
-        if !primay_is_inc {
+        if !primary_is_inc {
             if let Some(pks) = pk {
                 sql.push_str(format!("\tPRIMARY KEY ({})", pks).as_str());
             }
@@ -1064,7 +1068,7 @@ impl CreateTableReq {
         }
     }
 
-    pub(crate) fn primary_key_auto_inc(&self) -> bool {
+    pub(crate) fn primary_key_auto_increment(&self) -> bool {
         self.columns
             .iter()
             .any(|x| x.primary_key && x.auto_increment)
