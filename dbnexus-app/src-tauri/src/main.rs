@@ -395,8 +395,7 @@ fn main() {
                     WebviewUrl::App("setting.html".to_string().into()),
                 )
                 .title("setting")
-                .inner_size(800f64, 600f64)
-                .maximized(true)
+                .inner_size(900f64, 700f64)
                 .build()
                 {
                     log::error!("create setting window failed:{}", err);

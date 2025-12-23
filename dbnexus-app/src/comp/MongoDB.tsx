@@ -1510,7 +1510,6 @@ function MongoTableObject(props: {
   modifyOP?: (doc: BSON.Document) => Promise<void>;
   deleteOP?: (ids: any[] | any) => Promise<void>;
   triggerReload;
-
   setLoading;
 }) {
   const { filter, sort, reloadOPDocs, modifyOP, deleteOP, triggerReload, setLoading } =
