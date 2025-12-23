@@ -135,7 +135,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   return (
     <Stack>
       <Stack style={{ ...containerStyle }}>
-        <Typography variant="h5"> columns </Typography>
+        <Typography variant="h5"> column </Typography>
         {cols.map((col, index) => {
           return (
             <TableColumn
@@ -178,14 +178,28 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
       {cols.length > 0 && (
         <Stack style={{ ...containerStyle }}>
           <Stack direction="row">
-            <Typography variant="h5"> indexes </Typography>
+            <Typography variant="h5"> index </Typography>
+            <Button
+              onClick={() => {
+                setIndexes([
+                  ...indexes,
+                  {
+                    name: "",
+                    columns: [],
+                    kind: "index",
+                  } as types.CreateIndexReq,
+                ]);
+              }}
+            >
+              <AddIcon />
+            </Button>
           </Stack>
           <Stack direction="row" style={{ overflow: "scroll" }} spacing={1}>
             {indexes.map((_, index) => {
               return (
                 <Stack key={index} direction="row" style={{}}>
                   <CreateIndexReq
-                    style={{ width: "22rem" }}
+                    style={{ width: "28rem" }}
                     fields={cols.filter(e => !!e.name).map(f => f.name)}
                     handleReq={ret => {
                       indexes[index] = ret;
@@ -203,21 +217,6 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                 </Stack>
               );
             })}
-
-            <Button
-              onClick={() => {
-                setIndexes([
-                  ...indexes,
-                  {
-                    name: "",
-                    columns: [],
-                    kind: "index",
-                  } as types.CreateIndexReq,
-                ]);
-              }}
-            >
-              <AddIcon />
-            </Button>
           </Stack>
         </Stack>
       )}
