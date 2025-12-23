@@ -312,7 +312,7 @@ export namespace types {
         "is_auto_increment": boolean;
         "sortable": boolean;
     };
-    export type IndexKind = ("Index" | "Unique" | "Primary");
+    export type IndexKind = ("index" | "unique" | "primary");
     export type Index = {
         "name": (string | null);
         "kind": types.IndexKind;
@@ -472,5 +472,27 @@ export namespace types {
         "min"?: (types.F64 | null);
         "max"?: (types.F64 | null);
         "allow_filtering"?: boolean;
+    };
+    export type CreateTableReqColumn = {
+        "name": string;
+        "data_type": string;
+        "auto_increment": boolean;
+        "primary_key": boolean;
+        "default_value": (string | null);
+        "nullable": (string | null);
+    };
+    export type CreateIndexColumn = {
+        "col": string;
+        "asc": (boolean | null);
+    };
+    export type CreateIndexReq = {
+        "name": string;
+        "columns": (types.CreateIndexColumn)[];
+        "kind": types.IndexKind;
+    };
+    export type CreateTableReq = {
+        "name": string;
+        "columns": (types.CreateTableReqColumn)[];
+        "indexes": (types.CreateIndexReq)[];
     };
 }

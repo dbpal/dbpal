@@ -1,5 +1,4 @@
 import {
-  CSSProperties,
   ReactNode,
   useCallback,
   useContext,
@@ -34,7 +33,6 @@ import {
   Chip,
   Divider,
   FormControlLabel,
-  FormLabel,
   IconButton,
   InputAdornment,
   ListItemIcon,
@@ -55,7 +53,7 @@ import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import AddIcon from "@mui/icons-material/Add";
 import { BSON } from "bson";
 import { MongoValueEditor } from "./MongoDB";
-import { ModalHeader, SelectColumns, TrueOrFalse } from "./CommonComp";
+import { ModalHeader, TrueOrFalse } from "./CommonComp";
 import ClearIcon from "@mui/icons-material/Clear";
 import { DefAndMetasView, TriggerDetail } from "./UdfAndMetaView";
 import {
@@ -65,6 +63,12 @@ import {
   showTableColumn,
   showTrigger,
 } from "./handlers";
+import {
+  ColumnNullness,
+  CreateIndexReq,
+  SqlDefaultValue,
+  TypeSelect,
+} from "./CommonComp2";
 
 function ColumnMenu(props: {
   col: string;
@@ -772,8 +776,8 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
   const [indexType, setIndexType] = useState(indexTypes[0]);
   const [indexName, setIndexName] = useState("");
   const indexNameDom = useRef<HTMLInputElement>(null);
-
   const { showNotification } = useContext(NotificationContext);
+
   const handleAdd = async keys => {
     try {
       if (!indexName) {
@@ -830,42 +834,17 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
   );
 }
 
-function AddIndex(props: { uuid; table; handleClose; reload; kind: DataSourceKind }) {
+function AddIndex(props: {
+  uuid: string;
+  table: string;
+  handleClose: () => void;
+  reload: () => void;
+  kind: DataSourceKind;
+}) {
   const { uuid, table, handleClose, reload, kind } = props;
-
   const [fields, setFields] = useState<types.Field[]>([]);
-  const [includes, setIncludes] = useState<string[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const indexTypes = ["normal", "unique"];
-  const [indexType, setIndexType] = useState(indexTypes[0]);
-  const [indexName, setIndexName] = useState("");
-  const indexNameDom = useRef<HTMLInputElement>(null);
-
-  let indexTypeJsx;
-
-  switch (kind) {
-    case DataSourceKind.Cassandra:
-      break;
-    default:
-      indexTypeJsx = (
-        <>
-          <FormLabel component="legend">unique</FormLabel>
-          <RadioGroup
-            row
-            onChange={e => {
-              setIndexType(e.target.value);
-            }}
-            value={indexType}
-          >
-            {indexTypes.map(e => (
-              <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
-            ))}
-          </RadioGroup>
-        </>
-      );
-      break;
-  }
-
+  const [req, setReq] = useState<types.CreateIndexReq>(null);
   useEffect(() => {
     showTableColumn(uuid, table)
       .then(e => {
@@ -876,12 +855,11 @@ function AddIndex(props: { uuid; table; handleClose; reload; kind: DataSourceKin
       });
   }, [showNotification, table, uuid]);
   const handleAdd = async () => {
-    if (!indexName) {
+    if (!req.name) {
       showNotification("warning", "index name can't be none");
-      indexNameDom.current.focus();
       return;
     }
-    if (includes.length == 0) {
+    if (req.columns.length == 0) {
       showNotification("warning", "select at least one column");
       return;
     }
@@ -889,9 +867,7 @@ function AddIndex(props: { uuid; table; handleClose; reload; kind: DataSourceKin
       await invoke("create_index", {
         name: uuid,
         tableName: table,
-        fields: includes,
-        indexType,
-        indexName: indexName ? indexName : null,
+        req,
       });
       showNotification("success", "create index ok");
       handleClose();
@@ -903,38 +879,13 @@ function AddIndex(props: { uuid; table; handleClose; reload; kind: DataSourceKin
 
   return (
     <Stack>
-      <TextField
-        value={indexName}
-        onChange={e => {
-          setIndexName(e.target.value);
+      <CreateIndexReq
+        handleReq={s => {
+          setReq(s);
         }}
-        inputRef={indexNameDom}
-        label="index name"
-        required
-        slotProps={{
-          input: {
-            endAdornment: indexName && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setIndexName("");
-                  }}
-                  edge="end"
-                >
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
-      />
-      <SelectColumns
-        includeAll={false}
-        includes={includes}
-        setIncludes={setIncludes}
         fields={fields.map(e => e.field)}
+        kind={kind}
       />
-      {indexTypeJsx}
       <Divider />
       <Stack direction="row">
         <Button onClick={handleAdd} color="primary">
@@ -966,6 +917,7 @@ function TableAddColumn(props: {
     kind == DataSourceKind.TiDB;
   const nameDom = useRef(null);
   const [loading, setLoading] = useState(false);
+
   const handleAdd = () => {
     if (!name) {
       showNotification("error", "column name is empty");
@@ -1074,62 +1026,6 @@ function TableAddColumn(props: {
           add
         </Button>
       </Stack>
-    </Stack>
-  );
-}
-
-function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue }) {
-  const { uuid, defaultValue, setDefaultValue } = props;
-  const [currentValue, setCurrentValue] = useState<string[]>([]);
-  const { showNotification } = useContext(NotificationContext);
-  useEffect(() => {
-    invoke<string[]>("list_sql_current_values", { name: uuid })
-      .then(ts => {
-        setCurrentValue(ts);
-      })
-      .catch(e => {
-        showNotification("success", "list sql current values failed", e);
-      });
-  }, [showNotification, uuid]);
-
-  return (
-    <Stack direction="row">
-      <TextField
-        label="default value"
-        value={defaultValue}
-        onChange={e => {
-          setDefaultValue(e.target.value);
-        }}
-        style={{ flex: 1 }}
-        slotProps={{
-          input: {
-            endAdornment: defaultValue && (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => {
-                    setDefaultValue("");
-                  }}
-                  edge="end"
-                >
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
-      />
-      <Autocomplete
-        freeSolo
-        options={currentValue}
-        style={{ width: "22rem" }}
-        value={defaultValue}
-        renderInput={params => (
-          <TextField {...params} label="some predefined value can pick" />
-        )}
-        onChange={(_, value) => {
-          setDefaultValue(value);
-        }}
-      />
     </Stack>
   );
 }
@@ -1249,64 +1145,6 @@ function ModifyTableColumn(props: {
         </Button>
       </Stack>
     </Stack>
-  );
-}
-
-function TypeSelect(props: { handleChange; uuid; type; style?: CSSProperties }) {
-  const { handleChange, uuid, type, style } = props;
-  const [types, setTypes] = useState<string[]>([]);
-  const { showNotification } = useContext(NotificationContext);
-  useEffect(() => {
-    invoke<string[]>("list_data_types", { name: uuid })
-      .then(ts => {
-        setTypes(ts);
-      })
-      .catch(e => {
-        showNotification("error", "should not return a error", e);
-      });
-  }, [showNotification, uuid]);
-  return (
-    <Autocomplete
-      freeSolo
-      options={types}
-      style={{ width: "22rem", ...style }}
-      value={type}
-      renderInput={params => (
-        <TextField {...params} label={`type def may require size varchar(100)`} />
-      )}
-      onChange={(_, type) => {
-        handleChange(type);
-      }}
-    />
-  );
-}
-
-function ColumnNullness({ nullness, handleNullness }) {
-  const xxx = [
-    { name: "none", value: "" },
-    { name: "null", value: "null" },
-    {
-      name: "not null",
-      value: "not null",
-    },
-  ];
-  return (
-    <RadioGroup
-      row
-      onChange={(_, value) => {
-        handleNullness(value);
-      }}
-      value={nullness}
-    >
-      {xxx.map(e => (
-        <FormControlLabel
-          key={e.name}
-          value={e.value}
-          control={<Radio />}
-          label={e.name}
-        />
-      ))}
-    </RadioGroup>
   );
 }
 

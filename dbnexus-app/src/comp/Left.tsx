@@ -118,6 +118,7 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { AllKindChat } from "./Chat.tsx";
 import { editor } from "monaco-editor";
 import { listSchema } from "./handlers.ts";
+import { CreateTable } from "./CreateTable.tsx";
 
 const addConnectionID = generateRandomString();
 function LeftTop(props: { matchPattern: string[]; setMatchPattern }) {
@@ -1359,7 +1360,6 @@ function AllKindQuery(props: {
 }) {
   const { kind, uuid, value, favoriteName, handleEditor, language } = props;
   let content: ReactNode;
-
   switch (kind) {
     case DataSourceKind.SqlServer:
     case DataSourceKind.Sqlite:
@@ -1444,6 +1444,24 @@ function openNewQuery(setSelectTab, setTabs, uuid: string, kind: DataSourceKind)
   });
 }
 
+function openNewCreateTable(setSelectTab, setTabs, uuid: string, kind: DataSourceKind) {
+  const id = uuid + "-query-" + generateRandomString();
+  const content = <CreateTable kind={kind} uuid={uuid} />;
+  setTabs((e: TabContent[]) => {
+    setTimeout(() => {
+      setSelectTab(e.length);
+    }, 100);
+    return [
+      ...e,
+      new TabContent(
+        id,
+        `${uuid} create table`,
+        content,
+        <TbDatabaseSearch> </TbDatabaseSearch>,
+      ),
+    ];
+  });
+}
 function SchemaMenu(props: {
   schema?: string;
   uuid: string;
@@ -1486,6 +1504,17 @@ function SchemaMenu(props: {
             openNewQueryWindow(uuid, kind, showNotification);
           }}
         />
+      )}
+
+      {opened && kind != DataSourceKind.Redis && kind != DataSourceKind.Mongo && (
+        <MenuItem
+          onClick={() => {
+            openNewCreateTable(setSelectTab, setTabs, uuid, kind);
+          }}
+        >
+          <ListItemIcon>{/* <CiViewTable /> */}</ListItemIcon>
+          <ListItemText>create table </ListItemText>
+        </MenuItem>
       )}
 
       {opened && !schema && <MenuConnectionInfo uuid={uuid} />}

@@ -352,6 +352,12 @@ impl SchemaTrait for Db2Db {
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         todo!()
     }
+
+    async fn create_table_sql(
+        &self, req: &crate::db::CreateTableReq,
+    ) -> anyhow::Result<Vec<String>> {
+        todo!()
+    }
 }
 
 pub struct Db2OdbcHelper {

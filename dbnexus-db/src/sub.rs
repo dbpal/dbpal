@@ -1,12 +1,13 @@
 use crate::{
     datasource_config::{MysqlDBConfig, PGDBConfig},
     db::{
-        BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-        CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind,
-        ExportQueryResult, ExportedSizeEmitter, Field, GetBackendKind, Index, IndexKind, ListTable,
-        MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmitter, QueryResp,
-        QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter,
-        SqlEvent, SqlExecuteRet, TriggerDetail, UdfOrProcedureExtraParameter,
+        BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq,
+        CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas,
+        ExportFrame, ExportKind, ExportQueryResult, ExportedSizeEmitter, Field, GetBackendKind,
+        Index, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail,
+        QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail,
+        ServerMetas, ShowTableParameter, SqlEvent, SqlExecuteRet, TriggerDetail,
+        UdfOrProcedureExtraParameter,
     },
     mariadb::MariaDB,
     mysql::MysqlDB,
@@ -360,12 +361,8 @@ impl SchemaTrait for SubDB {
         self.as_schema().show_indexes(_table_name).await
     }
 
-    async fn create_index(
-        &self, _table: &str, _name: &str, _kind: IndexKind, _fields: &[String],
-    ) -> anyhow::Result<()> {
-        self.as_schema()
-            .create_index(_table, _name, _kind, _fields)
-            .await
+    async fn create_index(&self, _table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
+        self.as_schema().create_index(_table, req).await
     }
 
     async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<()> {
@@ -408,19 +405,15 @@ impl SchemaTrait for SubDB {
             .await
     }
 
-    async fn create_table_and_index_sql(
+    async fn show_create_table_sql(
         &self, _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
-        self.as_schema()
-            .create_table_and_index_sql(_table_name)
-            .await
+        self.as_schema().show_create_table_sql(_table_name).await
     }
 
-    async fn create_view_sql(
-        &self, _view_name: &str, _materialized: bool,
-    ) -> anyhow::Result<String> {
+    async fn show_view_sql(&self, _view_name: &str, _materialized: bool) -> anyhow::Result<String> {
         self.as_schema()
-            .create_view_sql(_view_name, _materialized)
+            .show_view_sql(_view_name, _materialized)
             .await
     }
 
@@ -529,5 +522,11 @@ impl SchemaTrait for SubDB {
     }
     async fn drop_event(&self, _name: &str) -> anyhow::Result<()> {
         self.as_schema().drop_event(_name).await
+    }
+
+    async fn create_table_sql(
+        &self, req: &crate::db::CreateTableReq,
+    ) -> anyhow::Result<Vec<String>> {
+        self.as_schema().create_table_sql(req).await
     }
 }

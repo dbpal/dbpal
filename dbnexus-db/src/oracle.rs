@@ -11,8 +11,8 @@ use tokio::task::spawn_blocking;
 
 use crate::datasource_config::OracleDBConfig;
 use crate::db::{
-    BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
-    DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
+    BackendKind, CheckConn, ColumnType, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql,
+    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
     IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS,
     ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
     SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail,
@@ -777,7 +777,7 @@ impl OracleDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
+        let ss = SchemaTrait::show_create_table_sql(self, table_name).await?;
         let table_name = table_name.to_owned();
         let this = Clone::clone(self);
         spawn_blocking(move || {
@@ -1026,7 +1026,7 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(())
     }
 
-    async fn create_table_and_index_sql(
+    async fn show_create_table_sql(
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let create_table = self.create_table_sql_impl(table_name).await?;
@@ -1044,7 +1044,7 @@ impl SchemaTrait for OracleDB {
         })
     }
 
-    async fn create_view_sql(&self, view_name: &str, materialized: bool) -> anyhow::Result<String> {
+    async fn show_view_sql(&self, view_name: &str, materialized: bool) -> anyhow::Result<String> {
         anyhow::Ok(self.create_view_sql_impl(view_name, materialized).await?)
     }
 
@@ -1124,20 +1124,8 @@ impl SchemaTrait for OracleDB {
         self.list_table_impl(self.schema_str()).await
     }
 
-    async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"CREATE {} INDEX "{}" ON "{}"({})"#,
-            match kind {
-                IndexKind::Index => "",
-                IndexKind::Primary => anyhow::bail!("can't create primary index"),
-                IndexKind::Unique => "Unique",
-            },
-            name,
-            table,
-            fields.join(",")
-        );
+    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true)?;
         log::info!("sql:{}", sql);
         self.execute(sql).await?;
 
@@ -1573,6 +1561,12 @@ impl SchemaTrait for OracleDB {
         self.execute(sql).await?;
         anyhow::Ok(())
     }
+
+    async fn create_table_sql(
+        &self, req: &crate::db::CreateTableReq,
+    ) -> anyhow::Result<Vec<String>> {
+        todo!()
+    }
 }
 
 impl OracleDB {
@@ -1725,7 +1719,6 @@ pub(crate) fn make_test_object(schema: Option<String>) -> OracleDB {
             host: crate::TEST_HOST.to_string(),
             port: 1521,
             db: "XE".to_string(),
-            
         },
         Some(2),
     )
@@ -2013,7 +2006,7 @@ TEST_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Galaxy S21',
             .show_view_collect("TEST_VIEW", ShowTableParameter::new_stupid_test("id asc"))
             .await;
         println!("show view:{:?}", resp);
-        let sql = db.create_view_sql("TEST_VIEW", false).await.unwrap();
+        let sql = db.show_view_sql("TEST_VIEW", false).await.unwrap();
         println!("create view sql:{}", sql);
     }
 
@@ -2059,7 +2052,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             .await;
         println!("show view:{:?}", resp);
         let sql = db
-            .create_view_sql("TEST_MATERIALIZED_VIEW", true)
+            .show_view_sql("TEST_MATERIALIZED_VIEW", true)
             .await
             .unwrap();
         println!("create view sql:{}", sql);

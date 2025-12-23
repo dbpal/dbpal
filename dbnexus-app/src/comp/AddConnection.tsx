@@ -1285,7 +1285,7 @@ function AddConnection(props: {
           {connectionType === DataSourceKind.Oracle && <Oracle config={config} />}
           {connectionType === DataSourceKind.Sqlite && <Sqlite config={config} />}
           {connectionType === DataSourceKind.DuckDB && <DuckDB config={config} />}
-          {connectionType === DataSourceKind.Db2 && <Db2 config={config} />}
+          {/* {connectionType === DataSourceKind.Db2 && <Db2 config={config} />} */}
         </Stack>
       </AddConnectionContext>
 
@@ -1569,6 +1569,8 @@ function OdbcDriverCommon(props: { config: RefObject<types.OdbcCommon> }) {
   );
 }
 
+//@ts-ignore
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function Db2(props: { config?: any }) {
   const { config } = props;
   const [host, setHost] = useState(getHost(config));

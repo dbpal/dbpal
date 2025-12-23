@@ -13,13 +13,13 @@ use tokio::sync::Mutex;
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
-    CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame,
-    ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
-    NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent,
-    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail,
-    ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
-    create_html_table_header, create_markdown_data, create_markdown_header,
+    CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait,
+    DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
+    IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS,
+    ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
+    TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data,
 };
 
@@ -478,20 +478,8 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"CREATE {} INDEX "{}" ON "{}"({})"#,
-            match kind {
-                IndexKind::Index => "",
-                IndexKind::Primary => anyhow::bail!("can't create primary index"),
-                IndexKind::Unique => "Unique",
-            },
-            name,
-            table,
-            fields.join(",")
-        );
+    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -982,7 +970,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     /// FIXME 如果一个主键是自增的只能得到类型
-    async fn create_table_and_index_sql(
+    async fn show_create_table_sql(
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         // https://stackoverflow.com/questions/2593803/how-to-generate-the-create-table-sql-statement-for-an-existing-table-in-postgr
@@ -1477,6 +1465,12 @@ impl SchemaTrait for PostGresDB {
             ))
         }
         anyhow::Ok(ret)
+    }
+
+    async fn create_table_sql(
+        &self, req: &crate::db::CreateTableReq,
+    ) -> anyhow::Result<Vec<String>> {
+        todo!()
     }
 }
 
@@ -2102,7 +2096,7 @@ pub(crate) async fn make_test_object() -> PostGresDB {
         db: Some("test".into()),
         schema: Some("xxx".to_string()),
         read_only: false,
-        
+
         ssl: Default::default(),
         conn_timeout: Some(5000.into()),
     })
@@ -2137,8 +2131,9 @@ impl SqlBuilder for PostGresDB {
 mod tests {
     use super::make_test_object;
     use crate::db::{
-        CheckConn, ColumnType, DBTrait, ExportKind, ExportQueryResult, IndexKind, QuerySql,
-        SchemaTrait, ServerMetas, ShowTableParameter, UdfOrProcedureExtraParameter,
+        CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq, DBTrait, ExportKind,
+        ExportQueryResult, IndexKind, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter,
+        UdfOrProcedureExtraParameter,
     };
     #[allow(unused_imports)]
     use crate::enable_test_log;
@@ -2396,9 +2391,20 @@ mod tests {
         let index_name2 = format!("{}2", index_name);
         db.create_index(
             table_name,
-            index_name,
-            IndexKind::Unique,
-            &["a".to_string(), "b".to_string()],
+            CreateIndexReq {
+                name: index_name.to_owned(),
+                kind: IndexKind::Unique,
+                columns: vec![
+                    CreateIndexColumn {
+                        col: "a".to_string(),
+                        asc: Some(true),
+                    },
+                    CreateIndexColumn {
+                        col: "b".to_string(),
+                        asc: Some(true),
+                    },
+                ],
+            },
         )
         .await
         .unwrap();

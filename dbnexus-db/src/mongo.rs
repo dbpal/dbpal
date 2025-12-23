@@ -777,6 +777,12 @@ impl SchemaTrait for MongoDB {
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
         self.show_columns_impl(view_name).await
     }
+
+    async fn create_table_sql(
+        &self, req: &crate::db::CreateTableReq,
+    ) -> anyhow::Result<Vec<String>> {
+        not_support_feature(self.backend_name())
+    }
 }
 
 #[async_trait::async_trait]
@@ -830,7 +836,7 @@ pub(crate) fn make_test_object() -> MongoDB {
         password: None,
         db: Some("test".to_string()),
         read_only: false,
-        
+
         ssl: Default::default(),
     });
     x.unwrap()

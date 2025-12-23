@@ -19,12 +19,12 @@ RDB$RELATION_NAME 的数据类型是 CHAR(31)，定长字符，不足 31 字节�
 */
 use crate::datasource_config::FireBirdConfig;
 use crate::db::{
-    BackendKind, CheckConn, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
-    Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent,
-    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlExecuteRet, XlsxEdit, create_html_table_data,
-    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
-    export_query_as_xlsx_send_blocking_data, not_support_feature,
+    BackendKind, CheckConn, CreateIndexReq, ExportFrame, ExportKind, ExportQueryResult, Field,
+    GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr,
+    POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, XlsxEdit,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
 
 use crate::helper::create_csv;
@@ -747,22 +747,10 @@ impl SchemaTrait for FireBirdDB {
         Box::new(Clone::clone(self))
     }
 
-    async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            "CREATE {} INDEX {} ON {table}({})",
-            match kind {
-                IndexKind::Index => "",
-                IndexKind::Primary => anyhow::bail!("can't create primary index"),
-                IndexKind::Unique => "Unique",
-            },
-            name,
-            fields.join(",")
-        );
+    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true)?;
         log::info!("sql:{}", sql);
         self.execute(sql).await?;
-
         anyhow::Ok(())
     }
 
@@ -880,6 +868,12 @@ impl SchemaTrait for FireBirdDB {
             anyhow::Ok(())
         })
         .await?
+    }
+
+    async fn create_table_sql(
+        &self, req: &crate::db::CreateTableReq,
+    ) -> anyhow::Result<Vec<String>> {
+        todo!()
     }
 }
 
@@ -1018,7 +1012,6 @@ pub(crate) async fn make_test_object() -> FireBirdDB {
         db: "/var/lib/firebird/data/test.fdb".to_string(),
         read_only: false,
         conn_timeout: Some(500000.into()),
-        
     })
     .await
     .unwrap()
@@ -1027,7 +1020,7 @@ pub(crate) async fn make_test_object() -> FireBirdDB {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::IndexKind;
+    use crate::db::{CreateIndexColumn, IndexKind};
     use crate::enable_test_log;
     use tokio::sync::Mutex;
     #[tokio::test]
@@ -1217,9 +1210,20 @@ mod tests {
         .unwrap();
         db.create_index(
             table_name,
-            index_name,
-            IndexKind::Unique,
-            &["NAME".to_string(), "STATUS".to_string()],
+            CreateIndexReq {
+                name: index_name.to_owned(),
+                columns: vec![
+                    CreateIndexColumn {
+                        col: "NAME".to_string(),
+                        asc: Some(true),
+                    },
+                    CreateIndexColumn {
+                        col: "STATUS".to_string(),
+                        asc: Some(true),
+                    },
+                ],
+                kind: IndexKind::Unique,
+            },
         )
         .await
         .unwrap();

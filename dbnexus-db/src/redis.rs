@@ -18,7 +18,7 @@ use crate::db::{
     ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryEvent,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
     ShowTableParameter, SqlExecuteRet, XlsxEdit, create_html_table_data, create_markdown_data,
-    create_markdown_header,
+    create_markdown_header, not_support_feature,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
 
@@ -1255,6 +1255,12 @@ impl SchemaTrait for RedisDB {
         let mut conn: ConnectionManager = self.get_conn().await?;
         let _: () = conn.del(table).await?;
         Ok(())
+    }
+
+    async fn create_table_sql(
+        &self, _req: &crate::db::CreateTableReq,
+    ) -> anyhow::Result<Vec<String>> {
+        not_support_feature(self.backend_name())
     }
 }
 

@@ -28,7 +28,7 @@
 
 use crate::datasource_config::CassandraDBConfig;
 use crate::db::{
-    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
+    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
@@ -644,7 +644,7 @@ impl CassandraDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
+            let ss = SchemaTrait::show_create_table_sql(self, table_name).await?;
             sender.send(ss.create_table.clone().into()).await?;
             sender.send(";\n".into()).await?;
             for index in ss.indexes.into_iter() {
@@ -750,6 +750,18 @@ impl CassandraDB {
         anyhow::Ok(ret)
     }
 }
+
+impl CassandraDB {
+    fn make_create_index_sql(&self, table: &str, req: &CreateIndexReq) -> String {
+        let CreateIndexReq { name, .. } = req;
+        let sql = format!(
+            r#"CREATE INDEX "{name}" ON "{table}" ({});"#,
+            req.format_cols(false)
+        );
+        sql
+    }
+}
+
 #[async_trait::async_trait]
 impl SchemaTrait for CassandraDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
@@ -801,13 +813,8 @@ impl SchemaTrait for CassandraDB {
         self
     }
 
-    async fn create_index(
-        &self, table: &str, name: &str, _kind: IndexKind, fields: &[String],
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"CREATE INDEX "{name}" ON "{table}" ({});"#,
-            fields.join(",")
-        );
+    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
+        let sql = self.make_create_index_sql(table, &req);
         log::info!("sql:{}", sql);
         self.session.query_unpaged(sql.as_str(), &[]).await?;
         anyhow::Ok(())
@@ -820,7 +827,7 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(())
     }
 
-    async fn create_table_and_index_sql(
+    async fn show_create_table_sql(
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let sql = format!(r#"DESCRIBE TABLE "{table_name}""#);
@@ -841,7 +848,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
-        let sql = self.create_table_and_index_sql(table).await?.create_table;
+        let sql = self.show_create_table_sql(table).await?.create_table;
         // replace table name.
         let sql = sql.replacen(table, dup, 1);
         log::info!("sql:{}", sql);
@@ -1147,6 +1154,12 @@ impl SchemaTrait for CassandraDB {
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         LexerCompletionTrait::get_types(self).await
     }
+
+    async fn create_table_sql(
+        &self, req: &crate::db::CreateTableReq,
+    ) -> anyhow::Result<Vec<String>> {
+        todo!()
+    }
 }
 
 fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
@@ -1420,7 +1433,7 @@ impl CassandraDB {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::enable_test_log;
+    use crate::{db::CreateIndexColumn, enable_test_log};
     #[tokio::test]
     async fn test_list_schema() {
         let _guard = test_lock().lock().await;
@@ -2622,9 +2635,14 @@ mod tests {
         .unwrap();
         db.create_index(
             table_name,
-            "test_index_email_index",
-            IndexKind::Index,
-            &["email".to_string()],
+            CreateIndexReq {
+                name: "test_index_email_index".to_owned(),
+                columns: vec![CreateIndexColumn {
+                    col: "email".to_string(),
+                    asc: None,
+                }],
+                kind: IndexKind::Index,
+            },
         )
         .await
         .unwrap();

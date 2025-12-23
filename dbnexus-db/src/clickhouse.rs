@@ -33,7 +33,7 @@ impl ClickHouseDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let x = self.create_table_and_index_sql(table_name).await?;
+            let x = self.show_create_table_sql(table_name).await?;
             sender.send(x.create_table.into()).await?;
         }
 
@@ -175,7 +175,7 @@ impl SchemaTrait for ClickHouseDB {
         anyhow::Ok(())
     }
 
-    async fn create_table_and_index_sql(
+    async fn show_create_table_sql(
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let sql = format!(r#"SHOW CREATE TABLE `{table_name}`"#);
@@ -599,6 +599,12 @@ impl SchemaTrait for ClickHouseDB {
 
         self.client.query(&sql).execute().await?;
         anyhow::Ok(())
+    }
+
+    async fn create_table_sql(
+        &self, req: &crate::db::CreateTableReq,
+    ) -> anyhow::Result<Vec<String>> {
+        todo!()
     }
 }
 
@@ -1301,7 +1307,6 @@ pub(crate) fn make_test_object() -> ClickHouseDB {
         username: "default".to_string(),
         password: Some("root".to_string()),
         https: false,
-        
     })
     .unwrap()
 }

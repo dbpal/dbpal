@@ -1,4 +1,5 @@
 import {
+  CSSProperties,
   ReactNode,
   RefObject,
   useCallback,
@@ -8,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import ClearIcon from "@mui/icons-material/Clear";
 import { NotificationContext } from "./Notification";
 import Stack from "@mui/material/Stack";
 import InfoIcon from "@mui/icons-material/Info";
@@ -19,10 +21,13 @@ import {
   Autocomplete,
   Box,
   Button,
+  Checkbox,
   Chip,
   CircularProgress,
   FormControlLabel,
+  FormLabel,
   IconButton,
+  InputAdornment,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -919,6 +924,238 @@ function TableAddButton({ handleAdd }) {
   );
 }
 
+function SelectColumnAsc(props: {
+  fields: string[];
+  includes: types.CreateIndexColumn[];
+  setIncludes;
+  kind: DataSourceKind;
+}) {
+  const { fields, includes, setIncludes, kind } = props;
+  const [value, setValue] = useState("");
+  return (
+    <Stack>
+      {includes.length == 0 && (
+        <Typography color="warning"> need select at least one column </Typography>
+      )}
+      <Stack>
+        {includes.map((f, index) => {
+          return (
+            <Stack
+              direction="row"
+              style={{
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "2px 4px",
+                border: "1px solid grey",
+                borderRadius: "4px",
+              }}
+              key={f.col}
+            >
+              <Typography color="info" style={{ width: "45%" }}>
+                {f.col}
+              </Typography>
+              {kind != DataSourceKind.Cassandra && (
+                <FormControlLabel
+                  label="asc"
+                  control={
+                    <Checkbox
+                      checked={f.asc}
+                      onChange={e => {
+                        includes[index].asc = e.target.checked;
+                        setIncludes([...includes]);
+                      }}
+                    />
+                  }
+                />
+              )}
+              <IconButton
+                onClick={() => {
+                  let i = includes.filter(x => x.col != f.col);
+                  setIncludes(i);
+                }}
+              >
+                <CancelIcon> </CancelIcon>
+              </IconButton>
+            </Stack>
+          );
+        })}
+      </Stack>
+      <Autocomplete
+        style={{ flex: 1 }}
+        options={fields.filter(e => {
+          return !includes.find(f => f.col == e);
+        })}
+        freeSolo={false}
+        value={value}
+        onChange={(_, value) => {
+          setValue(value);
+          if (value) {
+            const index = includes.findIndex(e => e.col == value);
+            if (index == -1) {
+              setIncludes([
+                ...includes,
+                { col: value, asc: null } as types.CreateIndexColumn,
+              ]);
+            }
+          }
+        }}
+        renderInput={params => <TextField {...params} label="select columns" />}
+      />
+    </Stack>
+  );
+}
+
+function CreateIndexReq(props: {
+  fields: string[];
+  handleReq: (x: types.CreateIndexReq) => void;
+  kind: DataSourceKind;
+  style?: CSSProperties;
+}) {
+  const { handleReq, kind, fields, style } = props;
+  const indexTypes = ["index", "unique"];
+  const [req, setReq] = useState<types.CreateIndexReq>({
+    name: "",
+    columns: [],
+    kind: "index",
+  });
+  useEffect(() => {
+    handleReq(req);
+  }, [handleReq, req]);
+
+  let indexTypeJsx: ReactNode;
+  switch (kind) {
+    case DataSourceKind.Cassandra:
+      break;
+    default:
+      indexTypeJsx = (
+        <>
+          <FormLabel component="legend">unique</FormLabel>
+          <RadioGroup
+            row
+            onChange={e => {
+              setReq({ ...req, kind: e.target.value as types.IndexKind });
+            }}
+            value={req.kind}
+          >
+            {indexTypes.map(e => (
+              <FormControlLabel key={e} value={e} control={<Radio />} label={e} />
+            ))}
+          </RadioGroup>
+        </>
+      );
+      break;
+  }
+  return (
+    <Stack style={style}>
+      <TextField
+        value={req.name}
+        onChange={e => {
+          setReq({ ...req, name: e.target.value });
+        }}
+        label="index name"
+        required
+        slotProps={{
+          input: {
+            endAdornment: req.name && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => {
+                    setReq({ ...req, name: "" });
+                  }}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ),
+          },
+        }}
+      />
+      <SelectColumnAsc
+        includes={req.columns}
+        setIncludes={rs => {
+          setReq({ ...req, columns: rs });
+        }}
+        kind={kind}
+        fields={fields}
+      />
+      {indexTypeJsx}
+    </Stack>
+  );
+}
+function TypeSelect(props: { handleChange; uuid; type; style?: CSSProperties }) {
+  const { handleChange, uuid, type, style } = props;
+  const [types, setTypes] = useState<string[]>([]);
+  const { showNotification } = useContext(NotificationContext);
+  useEffect(() => {
+    invoke<string[]>("list_data_types", { name: uuid })
+      .then(ts => {
+        setTypes(ts);
+      })
+      .catch(e => {
+        showNotification("error", "should not return a error", e);
+      });
+  }, [showNotification, uuid]);
+  return (
+    <Autocomplete
+      freeSolo
+      options={types}
+      style={{ width: "22rem", ...style }}
+      value={type}
+      renderInput={params => (
+        <TextField {...params} label={`type def may require size varchar(100)`} />
+      )}
+      onChange={(_, type) => {
+        handleChange(type);
+      }}
+    />
+  );
+}
+
+function ColumnNullness({ nullness, handleNullness }) {
+  const opts = ["null", "not null"];
+  return (
+    <Autocomplete
+      value={nullness}
+      options={opts}
+      style={{ width: "17rem" }}
+      renderInput={params => <TextField {...params} label="specify null" />}
+      onChange={(_, value) => {
+        handleNullness(value);
+      }}
+    />
+  );
+}
+
+function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue }) {
+  const { uuid, defaultValue, setDefaultValue } = props;
+  const [currentValue, setCurrentValue] = useState<string[]>([]);
+  const { showNotification } = useContext(NotificationContext);
+  useEffect(() => {
+    invoke<string[]>("list_sql_current_values", { name: uuid })
+      .then(ts => {
+        setCurrentValue(ts);
+      })
+      .catch(e => {
+        showNotification("success", "list sql current values failed", e);
+      });
+  }, [showNotification, uuid]);
+
+  return (
+    <Stack direction="row">
+      <Autocomplete
+        freeSolo
+        options={currentValue}
+        style={{ width: "14rem" }}
+        value={defaultValue}
+        renderInput={params => <TextField {...params} label="default value" />}
+        onChange={(_, value) => {
+          setDefaultValue(value);
+        }}
+      />
+    </Stack>
+  );
+}
 export {
   CreateDatabase,
   CreateSchema,
@@ -935,4 +1172,9 @@ export {
   showProgressingStatus,
   SliderSize,
   TableAddButton,
+  SelectColumnAsc,
+  CreateIndexReq,
+  TypeSelect,
+  ColumnNullness,
+  SqlDefaultValue,
 };

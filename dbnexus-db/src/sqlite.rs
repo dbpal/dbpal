@@ -14,13 +14,13 @@ use sqlx::{AssertSqlSafe, Column, Executor, Row, SqlSafeStr, SqliteConnection, T
 
 use crate::datasource_config::SqliteDBConfig;
 use crate::db::{
-    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportFrame,
-    ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
-    NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit, create_html_table_data,
-    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
-    export_query_as_xlsx_send_data, not_support_feature,
+    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateIndexReq,
+    CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
+    Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS,
+    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
+    XlsxEdit, create_html_table_data, create_html_table_header, create_markdown_data,
+    create_markdown_header, escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
@@ -75,7 +75,7 @@ impl SqliteDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
+            let ss = SchemaTrait::show_create_table_sql(self, table_name).await?;
             sender.send(ss.create_table.clone().into()).await?;
             sender.send(";\n".into()).await?;
             for index in ss.indexes.into_iter() {
@@ -347,19 +347,8 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"CREATE {} INDEX "{}" ON "{table}"({})"#,
-            match kind {
-                IndexKind::Index => "",
-                IndexKind::Primary => anyhow::bail!("can't create primary index"),
-                IndexKind::Unique => "Unique",
-            },
-            name,
-            fields.join(",")
-        );
+    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -459,7 +448,7 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn create_table_and_index_sql(
+    async fn show_create_table_sql(
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let table = self.create_table_or_view_sql(table_name, "table").await?;
@@ -488,7 +477,7 @@ impl SchemaTrait for SqliteDB {
         }
     }
 
-    async fn create_view_sql(&self, view_name: &str, _: bool) -> anyhow::Result<String> {
+    async fn show_view_sql(&self, view_name: &str, _: bool) -> anyhow::Result<String> {
         self.create_table_or_view_sql(view_name, "view").await
     }
 
@@ -772,6 +761,12 @@ impl SchemaTrait for SqliteDB {
         }
         anyhow::Ok(ret)
     }
+
+    async fn create_table_sql(
+        &self, req: &crate::db::CreateTableReq,
+    ) -> anyhow::Result<Vec<String>> {
+        SqlBuilder::sqlite_create_table_sql(self, req)
+    }
 }
 
 impl SqliteDB {
@@ -809,6 +804,10 @@ pub const SQLITE_CURRENT_LITERALS: &[&str] = &[
 ];
 
 impl SqlBuilder for SqliteDB {
+    fn auto_increment_str(&self) -> anyhow::Result<&'static str> {
+        // 在 SQLite 里，“AUTOINCREMENT” 只能用在 INTEGER PRIMARY KEY 列上，否则语法直接报错。
+        anyhow::Ok("PRIMARY KEY AUTOINCREMENT")
+    }
     const CURRENT_VALUES: &'static [&'static str] = SQLITE_CURRENT_LITERALS;
     fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
@@ -1475,7 +1474,7 @@ impl ReadOnlyTrait for SqliteDB {
 mod tests {
 
     use super::*;
-    use crate::db::{ShowTableParameter, TestQueryEventEmit};
+    use crate::db::{CreateIndexColumn, ShowTableParameter, TestQueryEventEmit};
 
     #[ignore = "this test run by hand"]
     #[tokio::test]
@@ -1877,7 +1876,6 @@ mod tests {
     #[tokio::test]
     async fn test_index() {
         let index_name = "name_index";
-
         let db = make_test_object().await;
         let table_name = "test_index";
         let _ = db.drop_index(table_name, index_name).await;
@@ -1901,9 +1899,14 @@ mod tests {
 
         db.create_index(
             table_name,
-            index_name,
-            IndexKind::Unique,
-            &["name".to_string()],
+            CreateIndexReq {
+                name: index_name.to_owned(),
+                columns: vec![CreateIndexColumn {
+                    col: "name".to_owned(),
+                    asc: Some(true),
+                }],
+                kind: IndexKind::Unique,
+            },
         )
         .await
         .unwrap();

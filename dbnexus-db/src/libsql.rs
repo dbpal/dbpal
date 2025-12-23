@@ -9,12 +9,13 @@ use tokio::sync::Mutex;
 
 use crate::datasource_config::{LibSqlDBConfig, LibSqlDBConfigSource};
 use crate::db::{
-    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateTableAndIndexSql, ExportFrame,
-    ExportKind, ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
-    NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlExecuteRet, TriggerDetail, XlsxEdit, create_html_table_data, create_html_table_header,
-    create_markdown_data, create_markdown_header, escape_sql_str, export_query_as_xlsx_send_data,
+    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateIndexReq,
+    CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
+    Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS,
+    QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit, create_html_table_data,
+    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
+    export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
@@ -505,20 +506,8 @@ impl SchemaTrait for LibSqlDB {
         LexerCompletionTrait::get_types(self).await
     }
 
-    async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"CREATE {} INDEX "{}" ON "{}"({})"#,
-            match kind {
-                IndexKind::Index => "",
-                IndexKind::Primary => anyhow::bail!("can't create primary index"),
-                IndexKind::Unique => "Unique",
-            },
-            name,
-            table,
-            fields.join(",")
-        );
+    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true)?;
         log::info!("sql:{}", sql);
         let conn = self.get_conn().await?;
         conn.execute(&sql, params!()).await?;
@@ -633,7 +622,7 @@ impl SchemaTrait for LibSqlDB {
         anyhow::Ok(())
     }
 
-    async fn create_table_and_index_sql(
+    async fn show_create_table_sql(
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let table = self.create_table_or_view_sql(table_name, "table").await?;
@@ -663,7 +652,7 @@ impl SchemaTrait for LibSqlDB {
         }
     }
 
-    async fn create_view_sql(&self, view_name: &str, _: bool) -> anyhow::Result<String> {
+    async fn show_view_sql(&self, view_name: &str, _: bool) -> anyhow::Result<String> {
         self.create_table_or_view_sql(view_name, "view").await
     }
 
@@ -916,9 +905,18 @@ impl SchemaTrait for LibSqlDB {
         }
         anyhow::Ok(ret)
     }
+
+    async fn create_table_sql(
+        &self, req: &crate::db::CreateTableReq,
+    ) -> anyhow::Result<Vec<String>> {
+        SqlBuilder::sqlite_create_table_sql(self, req)
+    }
 }
 
 impl SqlBuilder for LibSqlDB {
+    fn auto_increment_str(&self) -> anyhow::Result<&'static str> {
+        anyhow::Ok("AUTOINCREMENT")
+    }
     const CURRENT_VALUES: &'static [&'static str] = crate::sqlite::SQLITE_CURRENT_LITERALS;
     fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
@@ -989,7 +987,7 @@ impl LibSqlDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
+            let ss = SchemaTrait::show_create_table_sql(self, table_name).await?;
             sender.send(ss.create_table.clone().into()).await?;
             sender.send(";\n".into()).await?;
             for index in ss.indexes.into_iter() {
@@ -1149,7 +1147,11 @@ pub(crate) async fn make_test_object() -> LibSqlDB {
 
 #[cfg(test)]
 mod tests {
-    use crate::{db::TestQueryEventEmit, enable_test_log};
+
+    use crate::{
+        db::{CreateIndexColumn, TestQueryEventEmit},
+        enable_test_log,
+    };
 
     use super::*;
     #[tokio::test]
@@ -1439,9 +1441,14 @@ mod tests {
 
         db.create_index(
             table_name,
-            index_name,
-            IndexKind::Unique,
-            &["name".to_string()],
+            CreateIndexReq {
+                name: index_name.to_owned(),
+                columns: vec![CreateIndexColumn {
+                    col: "name".to_string(),
+                    asc: Some(true),
+                }],
+                kind: IndexKind::Unique,
+            },
         )
         .await
         .unwrap();

@@ -2,10 +2,10 @@ use dashmap::DashMap;
 use dbnexus_db::cassandra::CassandraDB;
 use dbnexus_db::clickhouse::ClickHouseDB;
 use dbnexus_db::db::{
-    ColumnType, CreateDatabaseExtra, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef,
-    DBTrait, DefAndMetas, ExportKind, Field, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    OptionMustBeSomeErr, ProcedureDetail, QueryEventEmit, QueryResp, SequenceDetail,
-    ShowTableParameter, SqlEvent, SqlExecuteRet, TimeElapsed, TriggerDetail,
+    ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql,
+    CreateTableReq, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, Field, Index, ListTable,
+    MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmit, QueryResp,
+    SequenceDetail, ShowTableParameter, SqlEvent, SqlExecuteRet, TimeElapsed, TriggerDetail,
     UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use dbnexus_db::firebird::FireBirdDB;
@@ -464,8 +464,7 @@ pub async fn show_indexes(
 
 #[tauri::command]
 pub async fn create_index(
-    name: String, table_name: String, index_name: String, fields: Vec<String>, index_type: String,
-    app: tauri::State<'_, DBPal>,
+    name: String, table_name: String, req: CreateIndexReq, app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -473,10 +472,9 @@ pub async fn create_index(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-    let index_kind = IndexKind::try_from(index_type.as_str()).map_err(ErrorFrontend::from)?;
 
     schema
-        .create_index(&table_name, &index_name, index_kind, &fields[..])
+        .create_index(&table_name, req)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -1668,9 +1666,56 @@ pub async fn rename_table(
         .await
         .map_err(ErrorFrontend::from)
 }
+#[tauri::command]
+pub async fn create_table_req_sql(
+    name: String, req: CreateTableReq, app: tauri::State<'_, DBPal>,
+) -> Result<Vec<String>, ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    let ret = db
+        .create_table_sql(&req)
+        .await
+        .map_err(ErrorFrontend::from)?;
+    Ok(ret)
+}
 
 #[tauri::command]
-pub async fn create_table_and_index_sql(
+
+pub async fn create_table(
+    name: String, req: CreateTableReq, app: tauri::State<'_, DBPal>,
+) -> Result<(), ErrorFrontend> {
+    random_sleep().await;
+    random_error()?;
+    let db = app
+        .get_schema(name.as_str())
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    let ss = db
+        .create_table_sql(&req)
+        .await
+        .map_err(ErrorFrontend::from)?;
+
+    for sql in ss.iter() {
+        let r = db
+            .execute_sql_no_open_conn(sql)
+            .await
+            .map_err(ErrorFrontend::from)?;
+        match r {
+            Ok(..) => {}
+            Err(err) => return Err(ErrorFrontend::from(err)),
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn show_create_table_sql(
     name: String, table_name: String, app: tauri::State<'_, DBPal>,
 ) -> Result<CreateTableAndIndexSql, ErrorFrontend> {
     random_sleep().await;
@@ -1681,7 +1726,7 @@ pub async fn create_table_and_index_sql(
         .map_err(ErrorFrontend::from)?;
 
     let ret = db
-        .create_table_and_index_sql(&table_name)
+        .show_create_table_sql(&table_name)
         .await
         .map_err(ErrorFrontend::from)?;
     Ok(ret)
@@ -1699,7 +1744,7 @@ pub async fn create_view_sql(
         .map_err(ErrorFrontend::from)?;
 
     let ret = db
-        .create_view_sql(&view_name, materialized)
+        .show_view_sql(&view_name, materialized)
         .await
         .map_err(ErrorFrontend::from)?;
     Ok(ret)

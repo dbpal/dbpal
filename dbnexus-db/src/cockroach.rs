@@ -20,7 +20,7 @@ pub(crate) async fn make_test_object() -> SubDB {
         db: Some("test".into()),
         schema: Some("xxx".to_string()),
         read_only: false,
-        
+
         ssl: Default::default(),
         conn_timeout: Some(5000.into()),
     };
@@ -106,8 +106,8 @@ impl PostGresDB {
 mod tests {
     use super::*;
     use crate::db::{
-        CatalogTrait, CheckConn, ColumnType, IndexKind, QuerySql, SchemaTrait, ServerMetas,
-        UdfOrProcedureExtraParameter,
+        CatalogTrait, CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq, IndexKind,
+        QuerySql, SchemaTrait, ServerMetas, UdfOrProcedureExtraParameter,
     };
     use crate::db::{ExportKind, ShowTableParameter};
     use crate::enable_test_log;
@@ -243,9 +243,20 @@ mod tests {
         let index_name2 = format!("{}2", index_name);
         db.create_index(
             table_name,
-            index_name,
-            IndexKind::Unique,
-            &["a".to_string(), "b".to_string()],
+            CreateIndexReq {
+                name: index_name.to_string(),
+                kind: IndexKind::Unique,
+                columns: vec![
+                    CreateIndexColumn {
+                        col: "a".to_string(),
+                        asc: Some(true),
+                    },
+                    CreateIndexColumn {
+                        col: "b".to_string(),
+                        asc: Some(true),
+                    },
+                ],
+            },
         )
         .await
         .unwrap();

@@ -2,14 +2,14 @@
 use crate::TEST_HOST;
 use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
-    BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateSchemaExtra,
-    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
-    IndexKind, ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent,
-    QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
-    SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
-    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
-    create_markdown_data, create_markdown_header, escape_sql_str, export_query_as_xlsx_send_data,
-    format_data_time_fix_offset, not_support_feature,
+    BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq,
+    CreateSchemaExtra, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field,
+    GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS,
+    ProcedureDetail, QueryEvent, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent,
+    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
+    export_query_as_xlsx_send_data, format_data_time_fix_offset, not_support_feature,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::create_csv;
@@ -516,18 +516,8 @@ impl SchemaTrait for SqlServerDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
-    async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            r#"CREATE {} INDEX "{name}" ON "{table}"({})"#,
-            match kind {
-                IndexKind::Index => "",
-                IndexKind::Primary => anyhow::bail!("can't create primary index"),
-                IndexKind::Unique => "Unique",
-            },
-            fields.join(",")
-        );
+    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         conn.execute(&sql, &[]).await?;
@@ -1235,6 +1225,12 @@ impl SchemaTrait for SqlServerDB {
         log::info!("sql:{}", sql);
         self.execute_simple_execute(&sql).await?;
         anyhow::Ok(())
+    }
+
+    async fn create_table_sql(
+        &self, req: &crate::db::CreateTableReq,
+    ) -> anyhow::Result<Vec<String>> {
+        todo!()
     }
 }
 /// SQL Server 里可直接写在 SQL 语句中的 CURRENT_* / 无括号字面量

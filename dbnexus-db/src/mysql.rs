@@ -1,6 +1,6 @@
 use crate::datasource_config::MysqlDBConfig;
 use crate::db::{
-    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateSchemaExtra,
+    AutoCompletionQueryId, BackendKind, CheckConn, ColumnType, CreateIndexReq, CreateSchemaExtra,
     CreateTableAndIndexSql, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult,
     Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
     POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
@@ -282,7 +282,7 @@ impl MysqlDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
+            let ss = SchemaTrait::show_create_table_sql(self, table_name).await?;
             sender.send(ss.create_table.clone().into()).await?;
             sender.send(";\n".into()).await?;
 
@@ -649,19 +649,8 @@ impl SchemaTrait for MysqlDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
-    async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            "CREATE {} INDEX {} ON {table}({})",
-            match kind {
-                IndexKind::Index => "",
-                IndexKind::Primary => anyhow::bail!("can't create primary index"),
-                IndexKind::Unique => "Unique",
-            },
-            name,
-            fields.join(",")
-        );
+    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true)?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -959,7 +948,7 @@ impl SchemaTrait for MysqlDB {
         }
     }
 
-    async fn create_table_and_index_sql(
+    async fn show_create_table_sql(
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let mut conn = self.get_conn().await?;
@@ -977,7 +966,7 @@ impl SchemaTrait for MysqlDB {
         })
     }
 
-    async fn create_view_sql(&self, view_name: &str, _: bool) -> anyhow::Result<String> {
+    async fn show_view_sql(&self, view_name: &str, _: bool) -> anyhow::Result<String> {
         let mut conn = self.get_conn().await?;
         let row = sqlx::raw_sql(AssertSqlSafe(
             format!("SHOW CREATE VIEW `{view_name}`;").as_str(),
@@ -1282,6 +1271,12 @@ impl SchemaTrait for MysqlDB {
             }
         }
         anyhow::Ok(map.into_iter().map(|x| x.1).collect())
+    }
+
+    async fn create_table_sql(
+        &self, req: &crate::db::CreateTableReq,
+    ) -> anyhow::Result<Vec<String>> {
+        todo!()
     }
 }
 

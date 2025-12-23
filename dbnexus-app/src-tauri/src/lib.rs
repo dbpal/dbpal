@@ -8,7 +8,8 @@ mod tests {
         PgSsl, PgSslMode, SSLFiles,
     };
     use dbnexus_db::db::{
-        ColumnType, CreateTableAndIndexSql, CreatedTypeDef, SequenceDetail, ShowTableParameter,
+        ColumnType, CreateIndexColumn, CreateIndexReq, CreateTableAndIndexSql, CreateTableReq,
+        CreateTableReqColumn, CreatedTypeDef, IndexKind, SequenceDetail, ShowTableParameter,
         SqlEvent, UdfOrProcedureExtraParameter,
     };
     use dbnexus_db::language_server::CompletionList;
@@ -79,7 +80,12 @@ mod tests {
             &UdfOrProcedureExtraParameter::INFO,
             &ShowTableParameter::INFO,
             &Db2Config::INFO,
+            &CreateTableReq::INFO,
+            &CreateTableReqColumn::INFO,
+            &CreateIndexColumn::INFO,
             &OdbcCommon::INFO,
+            &CreateIndexReq::INFO,
+            &IndexKind::INFO,
         ];
 
         let options: DefinitionFileOptions = DefinitionFileOptions::default();

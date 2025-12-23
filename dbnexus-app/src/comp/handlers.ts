@@ -198,7 +198,7 @@ function showTrigger(uuid: string, table: string) {
 }
 
 function createTableAndIndexSql(uuid: string, table: string) {
-  return invoke<types.CreateTableAndIndexSql>("create_table_and_index_sql", {
+  return invoke<types.CreateTableAndIndexSql>("show_create_table_sql", {
     name: uuid,
     tableName: table,
   });

@@ -6,7 +6,6 @@ use std::time::Duration;
 
 use crate::language_server::LanguageServer;
 use chrono::{DateTime, FixedOffset};
-
 use tokio::io::AsyncWriteExt;
 use tokio::task::spawn_blocking;
 use typescript_type_def::TypeDef;
@@ -190,6 +189,8 @@ pub trait SchemaTrait:
     + ReadOnlyTrait
     + ExportQueryResult
 {
+    async fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>>;
+
     fn as_any(&self) -> &dyn std::any::Any;
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
@@ -277,9 +278,7 @@ pub trait SchemaTrait:
         not_support_feature(self.backend_name())
     }
 
-    async fn create_index(
-        &self, _table: &str, _name: &str, _kind: IndexKind, _fields: &[String],
-    ) -> anyhow::Result<()> {
+    async fn create_index(&self, _table: &str, _: CreateIndexReq) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
 
@@ -357,15 +356,13 @@ pub trait SchemaTrait:
         anyhow::Ok(())
     }
 
-    async fn create_table_and_index_sql(
+    async fn show_create_table_sql(
         &self, _table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         not_support_feature(self.backend_name())
     }
 
-    async fn create_view_sql(
-        &self, _view_name: &str, _materialized: bool,
-    ) -> anyhow::Result<String> {
+    async fn show_view_sql(&self, _view_name: &str, _materialized: bool) -> anyhow::Result<String> {
         not_support_feature(self.backend_name())
     }
 
@@ -684,6 +681,51 @@ pub trait SqlBuilder: GetBackendKind {
         }
         anyhow::Ok(sql)
     }
+
+    fn auto_increment_str(&self) -> anyhow::Result<&'static str> {
+        not_support_feature(self.backend_name())
+    }
+
+    fn sqlite_create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
+        let mut sql = format!("create table {}(\n", req.name);
+        let last = req.columns.len() - 1;
+        let primay_is_inc = req.primary_key_auto_inc();
+        let pk = req.format_primary_keys();
+        for (index, col) in req.columns.iter().enumerate() {
+            if col.auto_increment && col.default_value.is_some() {
+                anyhow::bail!("auto increment column can not have default value.");
+            }
+            let name = &col.name;
+            let data_type = &col.data_type;
+            let nullable = col.nullable.clone().unwrap_or_default();
+            let auto_increment: &str = if col.auto_increment {
+                self.auto_increment_str()?
+            } else {
+                ""
+            };
+            let dv = match &col.default_value {
+                Some(x) => format!("default({})", self.put_value_in_sql(data_type, Some(x))?),
+                None => "".to_owned(),
+            };
+            sql.push_str(format!("\t{name} {data_type} {nullable} {dv} {auto_increment}").as_str());
+            if index != last || pk.is_some() {
+                sql.push(',');
+            }
+            sql.push('\n');
+        }
+        if !primay_is_inc {
+            if let Some(pks) = pk {
+                sql.push_str(format!("\tPRIMARY KEY ({})", pks).as_str());
+            }
+        }
+
+        sql.push_str(")");
+        let mut ret = vec![sql];
+        for index in req.indexes.iter() {
+            ret.push(index.common_sql(&req.name, true)?);
+        }
+        anyhow::Ok(ret)
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, typescript_type_def::TypeDef)]
@@ -996,6 +1038,90 @@ impl From<XlsxEdit> for ExportFrame {
     fn from(value: XlsxEdit) -> Self {
         ExportFrame::Xlsx(value)
     }
+}
+
+#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize)]
+
+pub struct CreateTableReq {
+    pub name: String,
+    pub columns: Vec<CreateTableReqColumn>,
+    pub indexes: Vec<CreateIndexReq>,
+}
+
+impl CreateTableReq {
+    //
+    pub(crate) fn format_primary_keys(&self) -> Option<String> {
+        let cols = self
+            .columns
+            .iter()
+            .filter(|x| x.primary_key)
+            .map(|x| x.name.clone())
+            .collect::<Vec<_>>();
+        if cols.is_empty() {
+            None
+        } else {
+            Some(cols.join(","))
+        }
+    }
+
+    pub(crate) fn primary_key_auto_inc(&self) -> bool {
+        self.columns
+            .iter()
+            .any(|x| x.primary_key && x.auto_increment)
+    }
+}
+
+#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize)]
+pub struct CreateTableReqColumn {
+    pub name: String,
+    pub data_type: String,
+    pub auto_increment: bool,
+    pub primary_key: bool,
+    pub default_value: Option<String>,
+    pub nullable: Option<String>,
+}
+
+#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize)]
+pub struct CreateIndexReq {
+    pub name: String,
+    pub columns: Vec<CreateIndexColumn>,
+    pub kind: IndexKind,
+}
+
+impl CreateIndexReq {
+    pub(crate) fn format_cols(&self, has_order: bool) -> String {
+        self.columns
+            .iter()
+            .map(|col| match (has_order, col.asc) {
+                (true, Some(order)) => {
+                    format!("{} {}", col.col, if order { "asc" } else { "desc" })
+                }
+                _ => col.col.clone(),
+            })
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+
+    pub(crate) fn common_sql(&self, table: &str, has_order: bool) -> anyhow::Result<String> {
+        let sql = format!(
+            "CREATE {} INDEX {} ON {table}({})",
+            match self.kind {
+                IndexKind::Index => "",
+                IndexKind::Primary => anyhow::bail!("can't create primary index"),
+                IndexKind::Unique => "Unique",
+            },
+            self.name,
+            self.format_cols(has_order)
+        );
+        anyhow::Ok(sql)
+    }
+}
+
+#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize)]
+
+pub struct CreateIndexColumn {
+    pub col: String,
+    pub asc: Option<bool>,
 }
 
 #[cfg(test)]
@@ -1357,10 +1483,13 @@ impl Index {
     }
 }
 
-#[derive(Clone, serde::Serialize, Copy, Debug, TypeDef)]
+#[derive(Clone, serde::Serialize, Copy, Debug, TypeDef, serde::Deserialize)]
 pub enum IndexKind {
+    #[serde(rename = "index")]
     Index,
+    #[serde(rename = "unique")]
     Unique,
+    #[serde(rename = "primary")]
     Primary,
 }
 

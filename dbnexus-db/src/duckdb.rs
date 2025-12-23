@@ -1,10 +1,10 @@
 use crate::datasource_config::DuckDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
-    CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, ExportFrame, ExportKind, ExportQueryResult,
-    Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, POOL_MAX_CONNECTIONS,
-    QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlExecuteRet, create_html_table_data,
+    CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, ExportFrame, ExportKind,
+    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
+    POOL_MAX_CONNECTIONS, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
+    ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, create_html_table_data,
     create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
     export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
@@ -639,7 +639,7 @@ impl DuckDB {
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
-            let ss = SchemaTrait::create_table_and_index_sql(self, table_name).await?;
+            let ss = SchemaTrait::show_create_table_sql(self, table_name).await?;
             sender.send(ss.create_table.clone().into()).await?;
             sender.send(";\n".into()).await?;
 
@@ -793,19 +793,8 @@ impl SchemaTrait for DuckDB {
         .await?
     }
 
-    async fn create_index(
-        &self, table: &str, name: &str, kind: IndexKind, fields: &[String],
-    ) -> anyhow::Result<()> {
-        let sql = format!(
-            "CREATE {} INDEX {} ON {table}({})",
-            match kind {
-                IndexKind::Index => "",
-                IndexKind::Primary => anyhow::bail!("can't create primary index"),
-                IndexKind::Unique => "Unique",
-            },
-            name,
-            fields.join(",")
-        );
+    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true)?;
         log::info!("sql:{}", sql);
         self.execute(sql).await?;
         anyhow::Ok(())
@@ -814,7 +803,7 @@ impl SchemaTrait for DuckDB {
     async fn drop_table_column(&self, table: &str, col: &str) -> anyhow::Result<()> {
         let sql = format!(
             r#"
-             ALTER TABLE "{table}" DROP COLUMN "{col}";
+            ALTER TABLE "{table}" DROP COLUMN "{col}";
         "#
         );
         self.execute(sql).await?;
@@ -921,7 +910,7 @@ impl SchemaTrait for DuckDB {
         }
     }
 
-    async fn create_table_and_index_sql(
+    async fn show_create_table_sql(
         &self, table_name: &str,
     ) -> anyhow::Result<CreateTableAndIndexSql> {
         let sql = format!(
@@ -1269,6 +1258,12 @@ impl SchemaTrait for DuckDB {
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         crate::language_server::LexerCompletionTrait::get_types(self).await
     }
+
+    async fn create_table_sql(
+        &self, req: &crate::db::CreateTableReq,
+    ) -> anyhow::Result<Vec<String>> {
+        todo!()
+    }
 }
 
 fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
@@ -1466,7 +1461,10 @@ pub(crate) fn test_lock() -> &'static tokio::sync::Mutex<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{db::ShowTableParameter, enable_test_log};
+    use crate::{
+        db::{CreateIndexColumn, ShowTableParameter},
+        enable_test_log,
+    };
 
     #[test]
     fn test_extract_index_columns() {
@@ -1641,13 +1639,17 @@ mod tests {
 
         db.create_index(
             table_name,
-            "test_index_name",
-            IndexKind::Unique,
-            &["name".to_string()],
+            CreateIndexReq {
+                name: "test_index_name".to_owned(),
+                columns: vec![CreateIndexColumn {
+                    col: "name".to_owned(),
+                    asc: Some(true),
+                }],
+                kind: IndexKind::Unique,
+            },
         )
         .await
         .unwrap();
-
         let indexes = db.show_indexes(table_name).await.unwrap();
         for index in indexes.iter() {
             println!("index:{:?}", index);
