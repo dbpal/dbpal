@@ -86,10 +86,12 @@ import {
   dataGridStyle,
   pageSizeOptions,
   shrinkAble,
+  DataSourceKind,
 } from "./helper";
-import { EditorBar, SimpleFlexEditor } from "./CommonComp2";
+import { EditorBar, SimpleFlexEditor, TableAddButton } from "./CommonComp2";
 import { message } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
+import { AddTableView } from "./LeftTable";
 enum MongoDataViewModel {
   List,
   Object,
@@ -444,9 +446,11 @@ function MongoTableToolBar(props: {
   filter: BSON.Document;
   viewModel: MongoDataViewModel;
   handleViewModel: (doc: MongoDataViewModel) => void;
-  addOP: (doc: BSON.Document) => Promise<void>;
   someNotice?: ReactNode;
-  loading;
+  loading: boolean;
+  uuid: string;
+  table: string;
+  isTable: boolean;
 }) {
   const {
     handleReload,
@@ -458,9 +462,13 @@ function MongoTableToolBar(props: {
     handleViewModel,
     someNotice,
     loading,
+    uuid,
+    table,
+    isTable,
   } = props;
   const [showModifyFilter, setShowModifyFilter] = useState(false);
   const [showModifySort, setShowModifySort] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
   useEffect(() => {
     handleViewModel(viewModel);
   }, [handleViewModel, viewModel]);
@@ -471,6 +479,17 @@ function MongoTableToolBar(props: {
       return c;
     }
   }, [modalBox]);
+
+  const [addModalBox, setAddModalBox] = useState(null);
+  useEffect(() => {
+    if (addModalBox) {
+      const x1 = saveAndSetSize(addModalBox, "table-insert");
+      return () => {
+        x1();
+      };
+    }
+  }, [addModalBox]);
+
   return (
     <Stack
       direction="row"
@@ -480,6 +499,13 @@ function MongoTableToolBar(props: {
       }}
     >
       <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
+        {isTable && (
+          <TableAddButton
+            handleAdd={() => {
+              setShowAdd(true);
+            }}
+          />
+        )}
         <Button loading={loading} color="primary" onClick={handleReload}>
           reload
         </Button>
@@ -606,6 +632,31 @@ function MongoTableToolBar(props: {
               }}
               doc={sort}
             />
+          </Box>
+        </Modal>
+      )}
+
+      {showAdd && (
+        <Modal
+          open={showAdd}
+          onClose={modalHandleClose((e: EscDownEvent) => {
+            e.preventDefault();
+            setShowAdd(false);
+          })}
+        >
+          <Box
+            sx={{ resize: "both", ...modalStyle }}
+            ref={setAddModalBox}
+            width="80%"
+            height="30vh"
+          >
+            <ModalHeader
+              title="insert data"
+              handleClose={() => {
+                setShowAdd(false);
+              }}
+            />
+            <AddTableView uuid={uuid} table={table} kind={DataSourceKind.Mongo} />
           </Box>
         </Modal>
       )}
@@ -1638,7 +1689,6 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
   return (
     <Stack style={{ height: "100%" }}>
       <MongoTableToolBar
-        addOP={async () => {}}
         sort={sort}
         filter={filter}
         handleFilter={e => {
@@ -1658,6 +1708,9 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
           viewModel == MongoDataViewModel.List ? <DoubleClickToModify /> : null
         }
         loading={loading}
+        uuid={uuid}
+        table={table}
+        isTable={isTable}
       />
       <Stack
         direction="row"

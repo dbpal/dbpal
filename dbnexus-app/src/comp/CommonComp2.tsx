@@ -15,7 +15,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import SaveIcon from "@mui/icons-material/Save";
 import { FaBookmark } from "react-icons/fa";
 import CancelIcon from "@mui/icons-material/Cancel";
-import AddIcon from "@mui/icons-material/Add";
 import {
   Autocomplete,
   Box,
@@ -914,8 +913,8 @@ function SliderSize(props: {
 
 function TableAddButton({ handleAdd }) {
   return (
-    <Button onClick={handleAdd} style={{ fontSize: "1rem" }}>
-      <AddIcon> </AddIcon>
+    <Button onClick={handleAdd} color="success">
+      add
     </Button>
   );
 }
