@@ -370,7 +370,7 @@ function SqlQuery(props: {
         }
         setTimeout(() => {
           showNotification("success", "query OK");
-        }, 100);
+        }, 300);
       })
       .catch(e => {
         if (SaveQueryLogConfigure.get()) {

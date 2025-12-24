@@ -54,6 +54,7 @@ import {
   ViewRowInModal,
 } from "./CommonComp.tsx";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import { AppDataGridPagination } from "./CommonComp2.tsx";
 
 function RespContextMenu(props: {
   content;
@@ -222,7 +223,26 @@ function QueryResp(props: { data: MuiDataGridData }) {
   }, [viewInModalBox]);
 
   const slots = useMemo(() => {
-    return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
+    return {
+      columnMenu: AppColumnMenu,
+      pagination: () => {
+        return (
+          <Stack
+            direction="row"
+            style={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              flex: 1,
+            }}
+          >
+            <div />
+            <Stack direction="row" alignItems="center">
+              <AppDataGridPagination />
+            </Stack>
+          </Stack>
+        );
+      },
+    } as Partial<GridSlotsComponent>;
   }, []);
   return (
     <div
