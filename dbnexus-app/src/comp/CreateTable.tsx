@@ -129,7 +129,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   };
 
   return (
-    <Stack>
+    <Stack style={{ height: "100%" }}>
       <Stack style={{ ...containerStyle }}>
         <Typography variant="h5"> column </Typography>
         {cols.map((col, index) => {
@@ -270,7 +270,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
         {showQuery && <Button onClick={setCreateSql}> gen sql </Button>}
       </Stack>
       {showQuery && (
-        <div style={{ height: "45vh" }}>
+        <div style={{ minHeight: "45vh", flex: 1 }}>
           <AllKindChat value={editorValue} kind={kind} uuid={uuid} />
         </div>
       )}
@@ -286,7 +286,7 @@ function TableColumn(props: {
   kind: DataSourceKind;
   index: number;
   // only should have one column that is auto increment
-  //  impl don't need make make rerender
+  // impl don't need make make rerender
   resetAutoInc: () => void;
 }) {
   const { col, handleCol, uuid, handleClose, kind, index, resetAutoInc } = props;
@@ -305,7 +305,7 @@ function TableColumn(props: {
     <Stack
       direction="row"
       style={{
-        alignItems: "center",
+        alignItems: "flex-end",
         border: "1px solid grey",
         padding: "0.4rem",
         borderRadius: "10px",
