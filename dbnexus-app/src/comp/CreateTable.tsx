@@ -29,7 +29,24 @@ import { makeFormatFn } from "./Common";
 
 function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   const { uuid, kind } = props;
-  const [cols, setCols] = useState<types.CreateTableReqColumn[]>([]);
+  const [cols, setCols] = useState<types.CreateTableReqColumn[]>([
+    {
+      name: "id",
+      data_type: "",
+      auto_increment: false,
+      primary_key: false,
+      default_value: null,
+      nullable: "none",
+    },
+    {
+      name: "create_at",
+      data_type: "",
+      auto_increment: false,
+      primary_key: false,
+      default_value: null,
+      nullable: "none",
+    },
+  ]);
   const [indexes, setIndexes] = useState<types.CreateIndexReq[]>([]);
   const [table, setTable] = useState("");
   const containerStyle: CSSProperties = {
