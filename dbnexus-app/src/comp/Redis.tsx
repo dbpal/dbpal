@@ -38,6 +38,7 @@ import {
   DataGrid,
   GridCallbackDetails,
   GridPaginationModel,
+  GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
 } from "@mui/x-data-grid";
@@ -61,9 +62,14 @@ import {
   RedisTableType,
   DataSourceKind,
 } from "./helper.ts";
-import { ExecutingTime, ModalHeader } from "./CommonComp.tsx";
+import { AppColumnMenu, ExecutingTime, ModalHeader } from "./CommonComp.tsx";
 import { editor, Position } from "monaco-editor";
-import { SliderSize, SimpleFlexEditor, TableAddButton } from "./CommonComp2.tsx";
+import {
+  SliderSize,
+  SimpleFlexEditor,
+  TableAddButton,
+  AppDataGridPagination,
+} from "./CommonComp2.tsx";
 import { invoke } from "@tauri-apps/api/core";
 import { showTable } from "./handlers.ts";
 import { AddTableView } from "./LeftTable.tsx";
@@ -878,7 +884,33 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
       return clean;
     }
   }, [modifyModalBox]);
-
+  const slots = useMemo(() => {
+    if (!resp) {
+      return {};
+    }
+    return {
+      columnMenu: AppColumnMenu,
+      pagination: () => {
+        return (
+          <Stack
+            direction="row"
+            style={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              flex: 1,
+            }}
+          >
+            <div>
+              <AddTable uuid={uuid} redisKey={setKey} redisType={RedisTableType.Set} />
+            </div>
+            <Stack direction="row" alignItems="center">
+              <AppDataGridPagination />
+            </Stack>
+          </Stack>
+        );
+      },
+    } as Partial<GridSlotsComponent>;
+  }, [resp, setKey, uuid]);
   return (
     <Stack style={{ height: "100%" }}>
       <Stack
@@ -886,7 +918,6 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         style={{ alignItems: "center", justifyContent: "space-between" }}
       >
         <Stack direction="row" style={{ alignItems: "center", width: "50%" }}>
-          <AddTable uuid={uuid} redisKey={setKey} redisType={RedisTableType.Set} />
           <Button
             color="primary"
             onClick={() => {
@@ -942,6 +973,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
       {resp && (
         <DataGrid
           showToolbar
+          slots={slots}
           showCellVerticalBorder
           showColumnVerticalBorder
           slotProps={slotProps}
@@ -1312,7 +1344,37 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
       return clean;
     }
   }, [modifyModalBox]);
-
+  const slots = useMemo(() => {
+    if (!resp) {
+      return {};
+    }
+    return {
+      columnMenu: AppColumnMenu,
+      pagination: () => {
+        return (
+          <Stack
+            direction="row"
+            style={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              flex: 1,
+            }}
+          >
+            <div>
+              <AddTable
+                uuid={uuid}
+                redisKey={listKey}
+                redisType={RedisTableType.List}
+              />
+            </div>
+            <Stack direction="row" alignItems="center">
+              <AppDataGridPagination />
+            </Stack>
+          </Stack>
+        );
+      },
+    } as Partial<GridSlotsComponent>;
+  }, [listKey, resp, uuid]);
   return (
     <Stack style={{ height: "100%" }}>
       <Stack
@@ -1320,7 +1382,6 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
         style={{ justifyContent: "space-between", alignItems: "center" }}
       >
         <Stack direction="row" style={{ alignItems: "center" }}>
-          <AddTable uuid={uuid} redisKey={listKey} redisType={RedisTableType.List} />
           <Button
             color="primary"
             onClick={() => {
@@ -1341,6 +1402,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
       {resp && (
         <DataGrid
           showToolbar
+          slots={slots}
           loading={loading}
           showCellVerticalBorder
           showColumnVerticalBorder
@@ -1588,10 +1650,40 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       ColumnWidth.instance.save(colDef.field, width);
     }
   }, []);
+  const slots = useMemo(() => {
+    if (!resp) {
+      return {};
+    }
+    return {
+      columnMenu: AppColumnMenu,
+      pagination: () => {
+        return (
+          <Stack
+            direction="row"
+            style={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              flex: 1,
+            }}
+          >
+            <div>
+              <AddTable
+                uuid={uuid}
+                redisKey={zsetKey}
+                redisType={RedisTableType.Zset}
+              />
+            </div>
+            <Stack direction="row" alignItems="center">
+              <AppDataGridPagination />
+            </Stack>
+          </Stack>
+        );
+      },
+    } as Partial<GridSlotsComponent>;
+  }, [resp, uuid, zsetKey]);
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" style={{ alignItems: "center" }}>
-        <AddTable uuid={uuid} redisKey={zsetKey} redisType={RedisTableType.Zset} />
         <Button
           color="primary"
           onClick={() => {
@@ -1704,6 +1796,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       {resp && (
         <DataGrid
           showToolbar
+          slots={slots}
           onColumnResize={onColumnResize}
           loading={loading}
           showCellVerticalBorder
@@ -1940,6 +2033,37 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
       ColumnWidth.instance.save(colDef.field, width);
     }
   }, []);
+  const slots = useMemo(() => {
+    if (!resp) {
+      return {};
+    }
+    return {
+      columnMenu: AppColumnMenu,
+      pagination: () => {
+        return (
+          <Stack
+            direction="row"
+            style={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              flex: 1,
+            }}
+          >
+            <div>
+              <AddTable
+                uuid={uuid}
+                redisKey={hashKey}
+                redisType={RedisTableType.Hash}
+              />
+            </div>
+            <Stack direction="row" alignItems="center">
+              <AppDataGridPagination />
+            </Stack>
+          </Stack>
+        );
+      },
+    } as Partial<GridSlotsComponent>;
+  }, [hashKey, resp, uuid]);
   return (
     <Stack style={{ height: "100%" }}>
       <Stack
@@ -1948,7 +2072,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         style={{ justifyContent: "space-between" }}
       >
         <Stack direction="row" style={{ width: "55%", alignItems: "center" }}>
-          <AddTable uuid={uuid} redisKey={hashKey} redisType={RedisTableType.Hash} />
           <Button
             color="primary"
             onClick={() => {
@@ -2006,6 +2129,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
 
       {resp && (
         <DataGrid
+          slots={slots}
           showToolbar
           onColumnResize={onColumnResize}
           loading={loading}

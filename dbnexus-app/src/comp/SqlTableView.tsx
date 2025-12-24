@@ -91,7 +91,12 @@ import {
 import { editor, Position } from "monaco-editor";
 import wcmatch from "wildcard-match";
 import { MdEditNote } from "react-icons/md";
-import { SimpleFlexEditor, SliderSize, TableAddButton } from "./CommonComp2";
+import {
+  AppDataGridPagination,
+  SimpleFlexEditor,
+  SliderSize,
+  TableAddButton,
+} from "./CommonComp2";
 import {
   makePutValueInSql,
   makeTableDelete,
@@ -376,6 +381,7 @@ function makeExtractTableSelectSort(uuid: string) {
     });
   };
 }
+
 function SqlTableView(props: {
   notWarnPri?: boolean;
   kind: DataSourceKind;
@@ -796,20 +802,40 @@ function SqlTableView(props: {
   }, [addModalBox]);
 
   const slots = useMemo(() => {
-    return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
-  }, []);
+    return {
+      columnMenu: AppColumnMenu,
+      pagination: () => {
+        return (
+          <Stack
+            direction="row"
+            style={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              flex: 1,
+            }}
+          >
+            <div>
+              {isTable && (
+                <TableAddButton
+                  handleAdd={() => {
+                    setShowAdd(true);
+                  }}
+                />
+              )}
+            </div>
+            <Stack direction="row" alignItems="center">
+              result {resp.data.length} of {resp.total}
+              <AppDataGridPagination />
+            </Stack>
+          </Stack>
+        );
+      },
+    } as Partial<GridSlotsComponent>;
+  }, [isTable, resp.data.length, resp.total]);
   const someModel = clientModel ? "client" : "server";
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" style={{ alignItems: "center" }}>
-        {isTable && (
-          <TableAddButton
-            handleAdd={() => {
-              setShowAdd(true);
-            }}
-          />
-        )}
-
         <Button
           loading={loading}
           color="primary"

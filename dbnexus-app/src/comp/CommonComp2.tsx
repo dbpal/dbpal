@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import AddIcon from "@mui/icons-material/Add";
 import ClearIcon from "@mui/icons-material/Clear";
 import { NotificationContext } from "./Notification";
 import Stack from "@mui/material/Stack";
@@ -32,6 +33,7 @@ import {
   ListItemText,
   MenuItem,
   Modal,
+  Pagination,
   Paper,
   Radio,
   RadioGroup,
@@ -75,6 +77,12 @@ import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/pris
 import { styled } from "@mui/material/styles";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import {
+  gridPageCountSelector,
+  gridPaginationModelSelector,
+  useGridApiContext,
+  useGridSelector,
+} from "@mui/x-data-grid";
 function CreateDatabase({ uuid, handleClose }) {
   const { showNotification } = useContext(NotificationContext);
   const [database, setDatabase] = useState("");
@@ -918,9 +926,9 @@ function SliderSize(props: {
 
 function TableAddButton({ handleAdd }) {
   return (
-    <Button onClick={handleAdd} color="success">
-      add
-    </Button>
+    <IconButton onClick={handleAdd} color="primary">
+      <AddIcon />
+    </IconButton>
   );
 }
 
@@ -1166,6 +1174,24 @@ function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue })
     </Stack>
   );
 }
+
+function AppDataGridPagination() {
+  const apiRef = useGridApiContext();
+  const paginationModel = useGridSelector(apiRef, gridPaginationModelSelector);
+  const pageCount = useGridSelector(apiRef, gridPageCountSelector);
+
+  return (
+    <Pagination
+      count={pageCount}
+      page={paginationModel.page + 1}
+      color="primary"
+      showFirstButton
+      showLastButton
+      onChange={(_, value) => apiRef.current.setPage(value - 1)}
+    />
+  );
+}
+
 export {
   CreateDatabase,
   CreateSchema,
@@ -1187,4 +1213,5 @@ export {
   TypeSelect,
   ColumnNullness,
   SqlDefaultValue,
+  AppDataGridPagination,
 };
