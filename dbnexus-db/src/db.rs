@@ -1,11 +1,10 @@
+use crate::language_server::LanguageServer;
+use chrono::{DateTime, FixedOffset};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-
-use crate::language_server::LanguageServer;
-use chrono::{DateTime, FixedOffset};
 use tokio::io::AsyncWriteExt;
 use tokio::task::spawn_blocking;
 use typescript_type_def::TypeDef;
@@ -42,6 +41,10 @@ impl BackendKind {
     }
     pub(crate) fn postgres_like(self) -> bool {
         matches!(self, Self::PostGres | Self::CockRoach)
+    }
+
+    pub(crate) fn sqlite_like(&self) -> bool {
+        matches!(self, Self::Sqlite | Self::LibSql)
     }
 
     pub(crate) fn quote_style(self) -> &'static str {
@@ -189,7 +192,20 @@ pub trait SchemaTrait:
     + ReadOnlyTrait
     + ExportQueryResult
 {
-    async fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>>;
+    async fn create_table(&self, req: &CreateTableReq) -> anyhow::Result<()> {
+        let ss = self.create_table_sql(req)?;
+        for sql in ss.iter() {
+            self.execute_sql_no_open_conn(sql)
+                .await?
+                .map_err(anyhow::Error::msg)?;
+        }
+        anyhow::Ok(())
+    }
+    fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>>;
+
+    fn create_table_sql_string(&self, req: &CreateTableReq) -> anyhow::Result<String> {
+        self.create_table_sql(req).map(|x| x.join(";\n"))
+    }
 
     fn as_any(&self) -> &dyn std::any::Any;
 
@@ -278,7 +294,7 @@ pub trait SchemaTrait:
         not_support_feature(self.backend_name())
     }
 
-    async fn create_index(&self, _table: &str, _: CreateIndexReq) -> anyhow::Result<()> {
+    async fn create_index(&self, _table: &str, _: &CreateIndexReq) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
 
@@ -565,7 +581,6 @@ pub trait SqlBuilder: GetBackendKind {
             },
             format!("{}", self.quote(table_name))
         );
-
         sql.push_str(self.make_where(fs, wheres, &field_by_name)?.as_str());
         log::info!("delete sql:{}", sql);
         anyhow::Ok(sql)
@@ -598,7 +613,6 @@ pub trait SqlBuilder: GetBackendKind {
                 if f.is_none() {
                     anyhow::bail!("field '{}' not found", k);
                 }
-
                 sql.push_str(
                     format!(
                         "{} = {}",
@@ -682,51 +696,89 @@ pub trait SqlBuilder: GetBackendKind {
         anyhow::Ok(sql)
     }
 
-    fn auto_increment_str(&self) -> anyhow::Result<&'static str> {
-        not_support_feature(self.backend_name())
-    }
-
-    fn sqlite_create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
-        let mut sql = format!("create table {}(\n", req.name);
+    // stupid create table sql auto increment must be primary key.
+    // and  not primary key must can be in `PRIMARY KEY(aaa , bbb )` syntax
+    // this method should beable used most cases
+    fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
+        let mut sql = format!("CREATE TABLE {}(\n", self.quote(&req.name));
         let last = req.columns.len() - 1;
-        let primary_is_inc = req.primary_key_auto_increment();
-        let pk = if primary_is_inc {
+        let has_auto_increment = req.has_auto_increment();
+        let pks = if has_auto_increment {
             None
         } else {
-            req.format_primary_keys()
+            req.format_primary_keys(self.backend_name().quote_style())
         };
         for (index, col) in req.columns.iter().enumerate() {
             if col.auto_increment && col.default_value.is_some() {
                 anyhow::bail!("auto increment column can not have default value.");
             }
-            let name = &col.name;
+            let name = self.quote(&col.name);
             let data_type = &col.data_type;
-            let nullable = col.nullable.clone().unwrap_or_default();
+            let nullable = match self.backend_name() {
+                BackendKind::Cassandra => match col.nullable {
+                    SqlNullAble::None => "".to_owned(),
+                    SqlNullAble::Null | SqlNullAble::NotNull => {
+                        anyhow::bail!("cassandra not support null constraint")
+                    }
+                },
+
+                _ => col.nullable.to_string(),
+            };
             let auto_increment: &str = if col.auto_increment {
-                self.auto_increment_str()?
+                match self.backend_name() {
+                    _ if self.backend_name().sqlite_like() => " PRIMARY KEY AUTOINCREMENT ",
+                    _ if self.backend_name().mysql_like() => " PRIMARY KEY AUTO_INCREMENT ",
+                    _ => {
+                        anyhow::bail!(format!(
+                            "auto increment not handled for {}",
+                            self.backend_name()
+                        ))
+                    }
+                }
             } else {
                 ""
             };
             let dv = match &col.default_value {
-                Some(x) => format!("default({})", self.put_value_in_sql(data_type, Some(x))?),
+                Some(x) => match self.backend_name() {
+                    BackendKind::Cassandra => {
+                        anyhow::bail!("cassandra not support default value")
+                    }
+                    BackendKind::Firebird => {
+                        // silently differrent from other database
+                        format!("DEFAULT {}", self.put_value_in_sql(data_type, Some(x))?)
+                    }
+                    _ => format!("DEFAULT({})", self.put_value_in_sql(data_type, Some(x))?),
+                },
                 None => "".to_owned(),
             };
-            sql.push_str(format!("\t{name} {data_type} {nullable} {dv} {auto_increment}").as_str());
-            if index != last || pk.is_some() {
+
+            match self.backend_name() {
+                BackendKind::Firebird => {
+                    // somehow firebird need put nullable after default value
+                    sql.push_str(
+                        format!("{name} {data_type} {dv} {nullable}  {auto_increment}").as_str(),
+                    );
+                }
+                _ => {
+                    sql.push_str(
+                        format!("{name} {data_type} {nullable} {dv} {auto_increment}").as_str(),
+                    );
+                }
+            }
+
+            if index != last || pks.is_some() {
                 sql.push(',');
             }
             sql.push('\n');
         }
-        if !primary_is_inc {
-            if let Some(pks) = pk {
-                sql.push_str(format!("\tPRIMARY KEY ({})", pks).as_str());
-            }
+        if let Some(pks) = pks {
+            sql.push_str(format!("PRIMARY KEY ({})", pks).as_str());
+            sql.push('\n');
         }
-
-        sql.push_str(")");
+        sql.push(')');
         let mut ret = vec![sql];
         for index in req.indexes.iter() {
-            ret.push(index.common_sql(&req.name, true)?);
+            ret.push(index.common_sql(&req.name, true, self.backend_name().quote_style())?);
         }
         anyhow::Ok(ret)
     }
@@ -742,10 +794,9 @@ pub struct CreatedTypeDef {
 pub struct ColumnType {
     // type string like `varchar`
     pub(crate) typ: String,
-    pub(crate) nullness: Option<String>,
+    pub(crate) nullable: Option<SqlNullAble>,
     // mysql add column can have this field
     pub(crate) after: Option<String>,
-
     pub(crate) default_value: Option<String>,
 }
 
@@ -1053,13 +1104,13 @@ pub struct CreateTableReq {
 }
 
 impl CreateTableReq {
-    //
-    pub(crate) fn format_primary_keys(&self) -> Option<String> {
+    // format primary keys to `aaa,bbb`
+    pub(crate) fn format_primary_keys(&self, quote_str: &str) -> Option<String> {
         let cols = self
             .columns
             .iter()
             .filter(|x| x.primary_key)
-            .map(|x| x.name.clone())
+            .map(|x| format!("{}{}{}", quote_str, x.name.clone(), quote_str))
             .collect::<Vec<_>>();
         if cols.is_empty() {
             None
@@ -1068,21 +1119,42 @@ impl CreateTableReq {
         }
     }
 
-    pub(crate) fn primary_key_auto_increment(&self) -> bool {
-        self.columns
-            .iter()
-            .any(|x| x.primary_key && x.auto_increment)
+    pub(crate) fn has_auto_increment(&self) -> bool {
+        self.columns.iter().any(|x| x.auto_increment)
     }
 }
 
-#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize, Default)]
 pub struct CreateTableReqColumn {
     pub name: String,
     pub data_type: String,
     pub auto_increment: bool,
     pub primary_key: bool,
     pub default_value: Option<String>,
-    pub nullable: Option<String>,
+    pub nullable: SqlNullAble,
+}
+
+#[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize, Default, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum SqlNullAble {
+    #[default]
+    None,
+    Null,
+    NotNull,
+}
+
+impl std::fmt::Display for SqlNullAble {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                SqlNullAble::None => "",
+                SqlNullAble::Null => "NULL",
+                SqlNullAble::NotNull => "NOT NULL",
+            }
+        )
+    }
 }
 
 #[derive(Debug, Clone, TypeDef, serde::Deserialize, serde::Serialize)]
@@ -1093,12 +1165,16 @@ pub struct CreateIndexReq {
 }
 
 impl CreateIndexReq {
-    pub(crate) fn format_cols(&self, has_order: bool) -> String {
+    pub(crate) fn format_cols(&self, has_order: bool, quote_str: &str) -> String {
         self.columns
             .iter()
             .map(|col| match (has_order, col.asc) {
                 (true, Some(order)) => {
-                    format!("{} {}", col.col, if order { "asc" } else { "desc" })
+                    format!(
+                        "{} {}",
+                        format_args!("{}{}{}", quote_str, col.col, quote_str),
+                        if order { "asc" } else { "desc" }
+                    )
                 }
                 _ => col.col.clone(),
             })
@@ -1106,7 +1182,9 @@ impl CreateIndexReq {
             .join(",")
     }
 
-    pub(crate) fn common_sql(&self, table: &str, has_order: bool) -> anyhow::Result<String> {
+    pub(crate) fn common_sql(
+        &self, table: &str, has_order: bool, quote_str: &str,
+    ) -> anyhow::Result<String> {
         let sql = format!(
             "CREATE {} INDEX {} ON {table}({})",
             match self.kind {
@@ -1115,7 +1193,7 @@ impl CreateIndexReq {
                 IndexKind::Unique => "Unique",
             },
             self.name,
-            self.format_cols(has_order)
+            self.format_cols(has_order, quote_str)
         );
         anyhow::Ok(sql)
     }
@@ -2007,8 +2085,17 @@ pub trait QueryEventEmit: Sync + Send + 'static {
 pub struct TestQueryEventEmit {}
 
 impl QueryEventEmit for TestQueryEventEmit {
-    fn send(&self, _event: QueryEvent) -> anyhow::Result<()> {
-        println!("query event:{:?}", _event);
+    fn send(&self, event: QueryEvent) -> anyhow::Result<()> {
+        if let QueryEvent::Resp(x) = &event {
+            println!(
+                "#################################################################################"
+            );
+            for f in x.fields.iter() {
+                println!("column:{} data_type:{}", f.field, f.data_type);
+            }
+        }
+
+        println!("query event:{:?}", event);
         anyhow::Ok(())
     }
 }

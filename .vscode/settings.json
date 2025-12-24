@@ -285,7 +285,7 @@
     "nspname",
     "ntext",
     "NTILE",
-    "nullness",
+    "nullable",
     "NUMERICN",
     "NUMPAT",
     "numrange",

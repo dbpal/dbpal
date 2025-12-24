@@ -10,3 +10,5 @@ select * from main.employees
 19 main ; 29 employees
 install xxx
 12 sqlite  ; 12  sqlite3
+DROP SEQUENCE xxx
+18 seq_completion

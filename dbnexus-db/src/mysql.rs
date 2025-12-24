@@ -649,8 +649,8 @@ impl SchemaTrait for MysqlDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
-    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
-        let sql = req.common_sql(table, true)?;
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -675,11 +675,7 @@ impl SchemaTrait for MysqlDB {
         let mut sql = format!(
             "ALTER TABLE `{table}` ADD COLUMN `{name}` {} {} {}",
             col.typ,
-            if let Some(nullness) = col.nullness.as_ref() {
-                nullness.as_str()
-            } else {
-                ""
-            },
+            col.nullable.unwrap_or_default(),
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
@@ -728,11 +724,7 @@ impl SchemaTrait for MysqlDB {
                 MODIFY COLUMN `{new_name}` {} {};
             "#,
                 &typ.typ,
-                if let Some(null) = typ.nullness.as_ref() {
-                    null.as_str()
-                } else {
-                    ""
-                }
+                typ.nullable.unwrap_or_default(),
             );
             log::info!("sql:{}", sql);
             sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -1273,10 +1265,8 @@ impl SchemaTrait for MysqlDB {
         anyhow::Ok(map.into_iter().map(|x| x.1).collect())
     }
 
-    async fn create_table_sql(
-        &self, req: &crate::db::CreateTableReq,
-    ) -> anyhow::Result<Vec<String>> {
-        todo!()
+    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
+        SqlBuilder::create_table_sql(self, req)
     }
 }
 
@@ -1843,7 +1833,10 @@ impl SqlBuilder for MysqlDB {
 pub(crate) mod test_fns {
 
     use super::*;
-    use crate::enable_test_log;
+    use crate::{
+        db::{CreateIndexColumn, CreateTableReq, CreateTableReqColumn, SqlNullAble},
+        enable_test_log,
+    };
     // this test no need clean up, we use memory sqlite db.
     pub(crate) async fn make_test_object(config: MysqlDBConfig) -> MysqlDB {
         let db = MysqlDB::new(config).await.unwrap();
@@ -2033,7 +2026,7 @@ pub(crate) mod test_fns {
             "name",
             ColumnType {
                 typ: "VARCHAR(255)".to_string(),
-                nullness: Some("null".to_string()),
+                nullable: SqlNullAble::Null.into(),
                 after: Some("id".to_string()),
                 default_value: Some("abc".to_string()),
             },
@@ -2047,7 +2040,7 @@ pub(crate) mod test_fns {
             "name2",
             Some(ColumnType {
                 typ: "VARCHAR(100)".to_string(),
-                nullness: Some("null".to_string()),
+                nullable: SqlNullAble::Null.into(),
                 after: None,
                 default_value: Some("abc111".to_string()),
             }),
@@ -2311,38 +2304,75 @@ pub(crate) mod test_fns {
     }
 
     pub(crate) async fn test_index(db: MysqlDB) {
-        enable_test_log();
         let table_name = "test_index";
-
         let _ = db.drop_table(table_name, false).await;
+        let req = CreateTableReq {
+            name: table_name.to_string(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "id".to_string(),
+                    data_type: "int".to_string(),
+                    auto_increment: true,
+                    ..Default::default()
+                },
+                CreateTableReqColumn {
+                    name: "name".to_string(),
+                    data_type: "VARCHAR(255)".to_string(),
+                    nullable: SqlNullAble::Null,
+                    ..Default::default()
+                },
+                CreateTableReqColumn {
+                    name: "age".to_string(),
+                    data_type: "INT".to_string(),
+                    nullable: SqlNullAble::NotNull,
+                    default_value: Some(1.to_string()),
+                    ..Default::default()
+                },
+                CreateTableReqColumn {
+                    name: "email".to_string(),
+                    data_type: "VARCHAR(255)".to_string(),
+                    nullable: SqlNullAble::NotNull,
+                    ..Default::default()
+                },
+            ],
+            indexes: vec![],
+        };
 
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
+        println!("create sql:{}", db.create_table_sql_string(&req).unwrap());
 
-        db.execute_sql(
-            query_id,
-            format!(
-                r#"
-            CREATE TABLE {} (
-                id INT PRIMARY KEY,
-                name VARCHAR(255),
-                age INT,
-                email VARCHAR(255),
-                INDEX idx_name (name),
-                UNIQUE INDEX idx_email (email),
-                FULLTEXT INDEX idx_fulltext (name, email)
-            );
-        "#,
-                table_name
-            )
-            .as_str(),
+        db.create_table(&req).await.unwrap();
+        let index_name = format!("{}_name_age", table_name);
+        let index_name2 = format!("{}2", index_name);
+        db.create_index(
+            table_name,
+            &CreateIndexReq {
+                name: index_name.clone(),
+                columns: vec![
+                    CreateIndexColumn {
+                        col: "name".to_string(),
+                        asc: Some(true),
+                    },
+                    CreateIndexColumn {
+                        col: "age".to_string(),
+                        asc: Some(true),
+                    },
+                ],
+                kind: IndexKind::Unique,
+            },
         )
         .await
-        .unwrap()
         .unwrap();
-
         let indexes = db.show_indexes(table_name).await.unwrap();
-        println!("{:?}", indexes);
+        for index in indexes {
+            println!("index:{:?}", index);
+        }
+
+        db.rename_index(table_name, &index_name, &index_name2)
+            .await
+            .unwrap();
+        db.rename_index(table_name, &index_name2, &index_name)
+            .await
+            .unwrap();
     }
 
     pub(crate) async fn test_types1(db: MysqlDB) {
@@ -2816,7 +2846,6 @@ mod tests {
     use super::test_fns::{self, make_test_object};
     use crate::TEST_HOST;
     use crate::datasource_config::MysqlDBConfig;
-    use crate::db::{SchemaTrait, ShowTableParameter};
 
     pub(crate) fn make_config() -> MysqlDBConfig {
         MysqlDBConfig {
@@ -2830,24 +2859,6 @@ mod tests {
 
             ssl: Default::default(),
         }
-    }
-    #[ignore = "xxxx"]
-    #[tokio::test]
-    async fn test_xxx_yyyy() {
-        let mut config = make_config();
-        config.db = Some("mysql".to_string());
-        let db = make_test_object(config).await;
-
-        // SELECT * FROM `innodb_index_stats` LIMIT 100 OFFSET 0
-        let resp = db
-            .show_table_collect(
-                "innodb_index_stats",
-                ShowTableParameter::new_stupid_test("id asc"),
-            )
-            .await
-            .unwrap();
-
-        println!("{:?}", resp);
     }
 
     #[tokio::test]

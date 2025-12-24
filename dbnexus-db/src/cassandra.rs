@@ -756,7 +756,7 @@ impl CassandraDB {
         let CreateIndexReq { name, .. } = req;
         let sql = format!(
             r#"CREATE INDEX "{name}" ON "{table}" ({});"#,
-            req.format_cols(false)
+            req.format_cols(false, self.backend_name().quote_style())
         );
         sql
     }
@@ -813,8 +813,8 @@ impl SchemaTrait for CassandraDB {
         self
     }
 
-    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
-        let sql = self.make_create_index_sql(table, &req);
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+        let sql = self.make_create_index_sql(table, req);
         log::info!("sql:{}", sql);
         self.session.query_unpaged(sql.as_str(), &[]).await?;
         anyhow::Ok(())
@@ -1155,10 +1155,8 @@ impl SchemaTrait for CassandraDB {
         LexerCompletionTrait::get_types(self).await
     }
 
-    async fn create_table_sql(
-        &self, req: &crate::db::CreateTableReq,
-    ) -> anyhow::Result<Vec<String>> {
-        todo!()
+    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
+        SqlBuilder::create_table_sql(self, req)
     }
 }
 
@@ -1184,13 +1182,10 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
 // support multi parameter for aggregate function.
 fn extract_parameter_for_aggregate(sql: &str) -> anyhow::Result<DataType> {
     let x = CassandraAST::new(sql);
-
     if x.statements.len() != 1 {
         anyhow::bail!("should contains one statement.")
     }
-
     let s = &x.statements[0];
-
     match &s.statement {
         CassandraStatement::CreateAggregate(x) => anyhow::Ok(x.data_type.clone()),
         _ => {
@@ -1321,7 +1316,7 @@ pub(crate) async fn make_test_object(db: Option<String>) -> CassandraDB {
         password: Some("cassandra".to_string()),
         read_only: false,
         db,
-        conn_timeout: Some(500000.into()),
+        conn_timeout: Some(5000.into()),
 
         ssl: CassandraSsl {
             ssl_files: SSLFiles {
@@ -1432,8 +1427,12 @@ impl CassandraDB {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
-    use crate::{db::CreateIndexColumn, enable_test_log};
+    use crate::{
+        db::{CreateIndexColumn, CreateTableReq, CreateTableReqColumn},
+        enable_test_log,
+    };
     #[tokio::test]
     async fn test_list_schema() {
         let _guard = test_lock().lock().await;
@@ -2425,7 +2424,7 @@ mod tests {
             "name",
             ColumnType {
                 typ: "tinyint".to_string(),
-                nullness: None,
+                nullable: Default::default(),
                 after: None,
                 default_value: Some("1".to_string()),
             },
@@ -2439,7 +2438,7 @@ mod tests {
             "name2",
             Some(ColumnType {
                 typ: "smallint".to_string(),
-                nullness: None,
+                nullable: Default::default(),
                 after: None,
                 default_value: Some("2".to_string()),
             }),
@@ -2611,31 +2610,43 @@ mod tests {
     #[tokio::test]
     async fn test_index() {
         let _guard = test_lock().lock().await;
-
         let db = make_test_object(Some("test".to_string())).await;
         let table_name = "test_index";
         let _ = db.drop_index(table_name, "test_index_email_index").await;
         let _ = db.drop_table(table_name, false).await;
+        let req = CreateTableReq {
+            name: table_name.to_owned(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "id".to_string(),
+                    data_type: "UUID".into(),
+                    primary_key: true,
+                    ..Default::default()
+                },
+                CreateTableReqColumn {
+                    name: "name".into(),
+                    data_type: "TEXT".into(),
+                    ..Default::default()
+                },
+                CreateTableReqColumn {
+                    name: "email".to_string(),
+                    data_type: "TEXT".to_string(),
+                    ..Default::default()
+                },
+            ],
+            indexes: vec![],
+        };
 
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-        db.execute_sql(
-            query_id,
-            r#"
-                CREATE TABLE test_index (
-                    id UUID PRIMARY KEY,
-                    name TEXT,
-                    age INT,
-                    email TEXT
-                );
-                "#,
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        db.create_table(&req).await.unwrap();
+
+        {
+            let sql = db.create_table_sql_string(&req).unwrap();
+            println!("create table sql:{}", sql);
+        }
+
         db.create_index(
             table_name,
-            CreateIndexReq {
+            &CreateIndexReq {
                 name: "test_index_email_index".to_owned(),
                 columns: vec![CreateIndexColumn {
                     col: "email".to_string(),
@@ -2648,7 +2659,9 @@ mod tests {
         .unwrap();
 
         let list = db.show_indexes(table_name).await.unwrap();
-        println!("indexes:{:?}", list);
+        for index in list {
+            println!("index:{:?}", index);
+        }
     }
 
     #[tokio::test]

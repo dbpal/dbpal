@@ -601,10 +601,8 @@ impl SchemaTrait for ClickHouseDB {
         anyhow::Ok(())
     }
 
-    async fn create_table_sql(
-        &self, req: &crate::db::CreateTableReq,
-    ) -> anyhow::Result<Vec<String>> {
-        todo!()
+    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
+        SqlBuilder::create_table_sql(self, req)
     }
 }
 
@@ -815,7 +813,6 @@ impl ClickHouseDB {
                 FieldsOrData::ReadingColumns => {}
             }
         }
-
         anyhow::Ok(())
     }
 }
@@ -1330,7 +1327,8 @@ mod tests {
     use super::*;
     use super::{make_test_object, parse_type};
     use crate::db::{
-        ColumnType, DBTrait, ExportKind, QuerySql, SchemaTrait, ServerMetas, TestQueryEventEmit,
+        ColumnType, CreateTableReq, CreateTableReqColumn, DBTrait, ExportKind, QuerySql,
+        SchemaTrait, ServerMetas, SqlNullAble, TestQueryEventEmit,
     };
     use crate::enable_test_log;
     use std::collections::HashMap;
@@ -1428,7 +1426,7 @@ from test
             "name",
             ColumnType {
                 typ: "String".to_string(),
-                nullness: None,
+                nullable: Default::default(),
                 after: None,
                 default_value: Some("abc".to_string()),
             },
@@ -1442,7 +1440,7 @@ from test
             "name2",
             Some(ColumnType {
                 typ: "Nullable(String)".to_string(),
-                nullness: None,
+                nullable: Default::default(),
                 after: None,
                 default_value: Some("abc111".to_string()),
             }),
@@ -1474,23 +1472,37 @@ from test
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
 
-        db.execute_sql(
-            query_id,
-            r#"
-        
-                CREATE TABLE test_materialized_view_table (
-                    id UInt32,
-                    name String,
-                    value Float32
-                ) ENGINE = MergeTree()
-                ORDER BY id;
-                
+        let req = CreateTableReq {
+            name: table_name.to_owned(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "id".to_string(),
+                    data_type: "UInt32".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: Some(1.to_string()),
+                    nullable: SqlNullAble::NotNull,
+                },
+                CreateTableReqColumn {
+                    name: "name".to_owned(),
+                    data_type: "String".to_owned(),
+                    ..Default::default()
+                },
+                CreateTableReqColumn {
+                    name: "value".to_owned(),
+                    data_type: "Float32".to_owned(),
+                    ..Default::default()
+                },
+            ],
+            indexes: vec![],
+        };
 
-"#,
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        db.create_table(&req).await.unwrap();
+
+        {
+            let sql = db.create_table_sql_string(&req).unwrap();
+            println!("create table sql:{}", sql);
+        }
 
         db.execute_sql(
             query_id,

@@ -156,9 +156,7 @@ impl SchemaTrait for BigQueryDb {
         todo!()
     }
 
-    async fn create_table_sql(
-        &self, req: &crate::db::CreateTableReq,
-    ) -> anyhow::Result<Vec<String>> {
+    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
         todo!()
     }
 }

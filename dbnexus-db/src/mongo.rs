@@ -778,9 +778,7 @@ impl SchemaTrait for MongoDB {
         self.show_columns_impl(view_name).await
     }
 
-    async fn create_table_sql(
-        &self, req: &crate::db::CreateTableReq,
-    ) -> anyhow::Result<Vec<String>> {
+    fn create_table_sql(&self, _req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
 }

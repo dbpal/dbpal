@@ -474,7 +474,7 @@ pub async fn create_index(
         .map_err(ErrorFrontend::from)?;
 
     schema
-        .create_index(&table_name, req)
+        .create_index(&table_name, &req)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -1669,7 +1669,7 @@ pub async fn rename_table(
 #[tauri::command]
 pub async fn create_table_req_sql(
     name: String, req: CreateTableReq, app: tauri::State<'_, DBPal>,
-) -> Result<Vec<String>, ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app
@@ -1678,8 +1678,7 @@ pub async fn create_table_req_sql(
         .map_err(ErrorFrontend::from)?;
 
     let ret = db
-        .create_table_sql(&req)
-        .await
+        .create_table_sql_string(&req)
         .map_err(ErrorFrontend::from)?;
     Ok(ret)
 }
@@ -1695,22 +1694,7 @@ pub async fn create_table(
         .get_schema(name.as_str())
         .await
         .map_err(ErrorFrontend::from)?;
-
-    let ss = db
-        .create_table_sql(&req)
-        .await
-        .map_err(ErrorFrontend::from)?;
-
-    for sql in ss.iter() {
-        let r = db
-            .execute_sql_no_open_conn(sql)
-            .await
-            .map_err(ErrorFrontend::from)?;
-        match r {
-            Ok(..) => {}
-            Err(err) => return Err(ErrorFrontend::from(err)),
-        }
-    }
+    db.create_table(&req).await.map_err(ErrorFrontend::from)?;
     Ok(())
 }
 

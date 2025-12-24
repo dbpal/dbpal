@@ -11,14 +11,7 @@ import {
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
 import { DataSourceKind, SettingContext } from "./helper";
-import {
-  CSSProperties,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { CSSProperties, useCallback, useContext, useRef, useState } from "react";
 import types from "./ApiStruct";
 import AddIcon from "@mui/icons-material/Add";
 import {
@@ -48,10 +41,8 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   const [showQuery, setShowQuery] = useState(false);
   const [editorValue, setEditorValue] = useState("");
   const setting = useContext(SettingContext);
-
   const tableNameRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useContext(NotificationContext);
-
   const makeReq = useCallback(() => {
     {
       // check
@@ -102,23 +93,28 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
     if (!req) {
       return;
     }
-    invoke<string[]>("create_table_req_sql", { name: uuid, req })
-      .then(e => {
+    invoke<string>("create_table_req_sql", { name: uuid, req })
+      .then(sql => {
         setEditorValue("");
-        const sql = e.join(";\n");
-        setEditorValue(
-          makeFormatFn(kind)(sql, {
-            insertSpaces: true,
-            tabSize: setting.editor.tabSize,
-          }),
-        );
+        setTimeout(() => {
+          setEditorValue(
+            makeFormatFn(kind)(sql, {
+              insertSpaces: true,
+              tabSize: setting.editor.tabSize,
+            }),
+          );
+        }, 200);
       })
       .catch(e => {
         showNotification("error", "try generate sql failed", e);
       });
   }, [kind, makeReq, setting.editor.tabSize, showNotification, uuid]);
+
   const handleCreate = async () => {
     const req = makeReq();
+    if (!req) {
+      return;
+    }
     setLoading(true);
     invoke("create_table", { name: uuid, req })
       .then(() => {
@@ -155,6 +151,11 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                   return [...cols];
                 });
               }}
+              resetAutoInc={() => {
+                cols.forEach(col => {
+                  col.auto_increment = false;
+                });
+              }}
             />
           );
         })}
@@ -168,7 +169,8 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                 auto_increment: false,
                 primary_key: false,
                 default_value: null,
-              } as types.CreateTableReqColumn,
+                nullable: "none",
+              },
             ]);
           }}
         >
@@ -212,7 +214,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
                       setIndexes(indexes.filter((_, idx) => idx != index));
                     }}
                   >
-                    <CloseIcon> </CloseIcon>
+                    <ClearIcon />
                   </Button>
                 </Stack>
               );
@@ -220,8 +222,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
           </Stack>
         </Stack>
       )}
-
-      <Stack direction="row">
+      <Stack direction="row" style={{ alignItems: "center" }}>
         <Button onClick={handleCreate} loading={loading}>
           create
         </Button>
@@ -255,7 +256,6 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
             },
           }}
         />
-
         <Button
           onClick={() => {
             if (!showQuery) {
@@ -263,7 +263,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
             }
             setShowQuery(e => !e);
           }}
-          variant="outlined"
+          variant={showQuery ? "outlined" : "contained"}
         >
           {showQuery ? "close query" : "show query"}
         </Button>
@@ -285,8 +285,11 @@ function TableColumn(props: {
   handleClose: () => void;
   kind: DataSourceKind;
   index: number;
+  // only should have one column that is auto increment
+  //  impl don't need make make rerender
+  resetAutoInc: () => void;
 }) {
-  const { col, handleCol, uuid, handleClose, kind, index } = props;
+  const { col, handleCol, uuid, handleClose, kind, index, resetAutoInc } = props;
   const supportAutoInc = [
     DataSourceKind.Sqlite,
     DataSourceKind.LibSql,
@@ -294,12 +297,24 @@ function TableColumn(props: {
     DataSourceKind.TiDB,
     DataSourceKind.MariaDB,
   ].includes(kind);
+
+  const supportNull = ![DataSourceKind.Cassandra].includes(kind);
+  const supportDefault = ![DataSourceKind.Cassandra].includes(kind);
+
   return (
     <Stack
       direction="row"
-      style={{ alignItems: "center" }}
+      style={{
+        alignItems: "center",
+        border: "1px solid grey",
+        padding: "0.4rem",
+        borderRadius: "10px",
+      }}
       // divider="|"
     >
+      <IconButton onClick={handleClose}>
+        <CloseIcon />
+      </IconButton>
       #{index}
       {supportAutoInc && (
         <FormControlLabel
@@ -307,7 +322,15 @@ function TableColumn(props: {
           control=<Checkbox
             checked={col.auto_increment}
             onChange={e => {
-              handleCol({ ...col, auto_increment: e.target.checked });
+              const auto_inc = e.target.checked;
+              if (auto_inc) {
+                resetAutoInc();
+              }
+              handleCol({
+                ...col,
+                auto_increment: auto_inc,
+                primary_key: auto_inc,
+              });
             }}
           />
         />
@@ -316,6 +339,7 @@ function TableColumn(props: {
         <FormControlLabel
           label=<KeyIcon />
           control=<Checkbox
+            disabled={col.auto_increment}
             checked={col.primary_key}
             onChange={e => {
               handleCol({ ...col, primary_key: e.target.checked });
@@ -360,22 +384,23 @@ function TableColumn(props: {
         type={col.data_type}
         style={{ flex: 1 }}
       />
-      <ColumnNullness
-        nullness={col.nullable}
-        handleNullness={e => {
-          handleCol({ ...col, nullable: e ? e : null });
-        }}
-      />
-      <SqlDefaultValue
-        uuid={uuid}
-        defaultValue={col.default_value}
-        setDefaultValue={dv => {
-          handleCol({ ...col, default_value: dv ? dv : null });
-        }}
-      />
-      <IconButton onClick={handleClose}>
-        <CloseIcon />
-      </IconButton>
+      {supportNull && (
+        <ColumnNullness
+          nullable={col.nullable}
+          handleNullable={e => {
+            handleCol({ ...col, nullable: e ? e : null });
+          }}
+        />
+      )}
+      {!col.auto_increment && supportDefault && (
+        <SqlDefaultValue
+          uuid={uuid}
+          defaultValue={col.default_value}
+          setDefaultValue={dv => {
+            handleCol({ ...col, default_value: dv ? dv : null });
+          }}
+        />
+      )}
     </Stack>
   );
 }

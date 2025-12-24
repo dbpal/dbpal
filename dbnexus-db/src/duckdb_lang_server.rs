@@ -1,4 +1,4 @@
-use crate::db::CatalogTrait;
+use crate::db::{CatalogTrait, SequenceDetail};
 use crate::duckdb::{DuckDB, DuckDbPooledConn};
 use crate::language_server::{
     AstCompletionHelper, CompletionItem, CompletionKind, CompletionList, GetKeyWords,
@@ -54,12 +54,18 @@ impl LanguageServer for DuckDB {
 #[async_trait::async_trait]
 
 impl LangServerCommon for DuckDB {
+    async fn list_sequence(&self, schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
+        let db = self.get_database().await?;
+        let schema = self.get_schema(schema).await?;
+        self.list_sequence_impl(&db, &schema).await
+    }
+
     async fn duckdb_extensions(&self) -> anyhow::Result<Vec<CompletionItem>> {
         let sql = "SELECT extension_name, installed, description,aliases FROM duckdb_extensions()";
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            let mut stmt = conn.prepare(&sql)?;
+            let mut stmt = conn.prepare(sql)?;
             let mut rows = stmt.query([])?;
             let mut ret = Vec::new();
             while let Some(row) = rows.next()? {
@@ -145,8 +151,8 @@ impl LangServerCommon for DuckDB {
                 .into_iter()
                 .enumerate()
                 .map(|(index, name)| TempTableColumn {
-                    name: name.into(),
-                    data_type: Some(stmt.column_type(index).to_string().into()),
+                    name,
+                    data_type: Some(stmt.column_type(index).to_string()),
                 })
                 .collect::<Vec<_>>();
             anyhow::Ok(fs)
@@ -418,6 +424,12 @@ mod tests {
         .unwrap()
         .unwrap();
 
+        let _ = db.drop_sequence("seq_completion", false).await;
+
+        db.execute_sql(query_id, r#"CREATE SEQUENCE  seq_completion"#)
+            .await
+            .unwrap()
+            .unwrap();
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let mut file_path = Path::new(manifest_dir).to_path_buf();
         file_path.push("tests");

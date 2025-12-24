@@ -30,7 +30,7 @@ pub struct LibSqlDB {
     config: LibSqlDBConfig,
     pool: bb8::Pool<PoolManager>,
     pub(crate) query_connection: Arc<DashMap<String, Connection>>,
-    query_connections_transaction: Arc<DashMap<String, libsql::Transaction>>,
+    query_connection_transaction: Arc<DashMap<String, libsql::Transaction>>,
     pub(crate) build_in_fn_cache: Arc<Mutex<Vec<CompletionItem>>>,
     pub(crate) keywords_cache: Arc<Mutex<Vec<String>>>,
     pub(crate) pragma_completion: Arc<Mutex<Vec<CompletionItem>>>,
@@ -146,7 +146,7 @@ impl ExportQueryResult for LibSqlDB {
 impl QuerySql for LibSqlDB {
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
         anyhow::Ok(
-            self.query_connections_transaction
+            self.query_connection_transaction
                 .get(&query_id.to_string())
                 .is_none(),
         )
@@ -162,14 +162,14 @@ impl QuerySql for LibSqlDB {
             None => anyhow::bail!("collection closed????"),
         };
         let t = conn.transaction().await?;
-        self.query_connections_transaction
+        self.query_connection_transaction
             .insert(query_id.to_owned(), t);
         anyhow::Ok(())
     }
 
     async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
         let t = self
-            .query_connections_transaction
+            .query_connection_transaction
             .remove(&query_id.to_string());
         match t {
             Some(x) => {
@@ -185,7 +185,7 @@ impl QuerySql for LibSqlDB {
 
     async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
         let t = self
-            .query_connections_transaction
+            .query_connection_transaction
             .remove(&query_id.to_string());
         match t {
             Some(x) => {
@@ -211,7 +211,7 @@ impl QuerySql for LibSqlDB {
     async fn execute_sql(
         &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let tr = self.query_connections_transaction.get(&query_id.to_owned());
+        let tr = self.query_connection_transaction.get(&query_id.to_owned());
         let conn = self.query_connection.get(&query_id.to_string());
         let conn = conn.as_deref();
         let conn = match &tr {
@@ -231,7 +231,7 @@ impl QuerySql for LibSqlDB {
     async fn query_sql(
         &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let tr = self.query_connections_transaction.get(&query_id.to_owned());
+        let tr = self.query_connection_transaction.get(&query_id.to_owned());
         let conn = self.query_connection.get(&query_id.to_string());
         let conn = conn.as_deref();
         let conn = match &tr {
@@ -280,7 +280,7 @@ impl QuerySql for LibSqlDB {
     }
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
         let id = id.to_string();
-        self.query_connections_transaction.remove(&id);
+        self.query_connection_transaction.remove(&id);
         self.query_connection.remove(&id);
         anyhow::Ok(())
     }
@@ -389,7 +389,7 @@ impl LibSqlDB {
             config,
             pool,
             query_connection: Default::default(),
-            query_connections_transaction: Default::default(),
+            query_connection_transaction: Default::default(),
             build_in_fn_cache: Default::default(),
             keywords_cache: Default::default(),
             pragma_completion: Default::default(),
@@ -506,8 +506,8 @@ impl SchemaTrait for LibSqlDB {
         LexerCompletionTrait::get_types(self).await
     }
 
-    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
-        let sql = req.common_sql(table, true)?;
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
         let conn = self.get_conn().await?;
         conn.execute(&sql, params!()).await?;
@@ -534,11 +534,7 @@ impl SchemaTrait for LibSqlDB {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
             col.typ,
-            if let Some(nullness) = col.nullness.as_ref() {
-                nullness.as_str()
-            } else {
-                ""
-            },
+            col.nullable.unwrap_or_default(),
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
@@ -906,17 +902,12 @@ impl SchemaTrait for LibSqlDB {
         anyhow::Ok(ret)
     }
 
-    async fn create_table_sql(
-        &self, req: &crate::db::CreateTableReq,
-    ) -> anyhow::Result<Vec<String>> {
-        SqlBuilder::sqlite_create_table_sql(self, req)
+    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
+        SqlBuilder::create_table_sql(self, req)
     }
 }
 
 impl SqlBuilder for LibSqlDB {
-    fn auto_increment_str(&self) -> anyhow::Result<&'static str> {
-        anyhow::Ok("AUTOINCREMENT")
-    }
     const CURRENT_VALUES: &'static [&'static str] = crate::sqlite::SQLITE_CURRENT_LITERALS;
     fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
@@ -1149,7 +1140,10 @@ pub(crate) async fn make_test_object() -> LibSqlDB {
 mod tests {
 
     use crate::{
-        db::{CreateIndexColumn, TestQueryEventEmit},
+        db::{
+            CreateIndexColumn, CreateTableReq, CreateTableReqColumn, SqlNullAble,
+            TestQueryEventEmit,
+        },
         enable_test_log,
     };
 
@@ -1194,7 +1188,7 @@ mod tests {
             "name",
             ColumnType {
                 typ: "VARCHAR(255)".to_string(),
-                nullness: Some("null".to_string()),
+                nullable: SqlNullAble::Null.into(),
                 after: Some("id".to_string()),
                 default_value: Some("abc".to_string()),
             },
@@ -1425,23 +1419,45 @@ mod tests {
         if let Err(err) = _err {
             println!("drop table failed,err:{}", err);
         }
-        let conn = db.get_conn().await.unwrap();
-        conn.execute(
-            r#"
-                CREATE TABLE test_index (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 主键，自动增长
-                    name TEXT NOT NULL,                    -- 名称，非j空
-                    age INTEGER,                           -- 年龄
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP  -- 创建时间，默认为当前时间
-                ); "#,
-            params!(),
-        )
-        .await
-        .unwrap();
-
+        let req = CreateTableReq {
+            name: table_name.to_string(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "id".to_string(),
+                    data_type: "INTEGER".into(),
+                    auto_increment: true,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: Default::default(),
+                },
+                CreateTableReqColumn {
+                    name: "name".into(),
+                    data_type: "TEXT".to_string(),
+                    auto_increment: false,
+                    primary_key: false,
+                    default_value: None,
+                    nullable: SqlNullAble::NotNull,
+                },
+                CreateTableReqColumn {
+                    name: "age".into(),
+                    data_type: "INTEGER".into(),
+                    ..Default::default()
+                },
+                CreateTableReqColumn {
+                    name: "created_at".into(),
+                    data_type: "DATETIME".to_string(),
+                    auto_increment: false,
+                    primary_key: false,
+                    default_value: Some("CURRENT_TIMESTAMP".into()),
+                    nullable: Default::default(),
+                },
+            ],
+            indexes: vec![],
+        };
+        db.create_table(&req).await.unwrap();
         db.create_index(
             table_name,
-            CreateIndexReq {
+            &CreateIndexReq {
                 name: index_name.to_owned(),
                 columns: vec![CreateIndexColumn {
                     col: "name".to_string(),

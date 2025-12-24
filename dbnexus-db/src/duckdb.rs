@@ -4,9 +4,9 @@ use crate::db::{
     CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, ExportFrame, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
     POOL_MAX_CONNECTIONS, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, create_html_table_data,
-    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
-    export_query_as_xlsx_send_blocking_data, not_support_feature,
+    SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
 use chrono::NaiveDate;
@@ -90,7 +90,7 @@ impl DuckDB {
     pub fn new(config: DuckDBConfig) -> anyhow::Result<Self> {
         let mut builder = r2d2::Builder::<DuckdbConnectionManager>::new();
         builder = builder.max_size(POOL_MAX_CONNECTIONS);
-        builder = builder.min_idle(Some(5));
+        builder = builder.min_idle(Some(3));
 
         if let Some(timeout) = config.conn_timeout {
             builder = builder.connection_timeout(timeout.into());
@@ -236,7 +236,7 @@ fn encode_row_as_json<'stmt>(
                 }
                 serde_json::Value::Object(m)
             }
-            Value::Union(value) => value_2_json(&value)?,
+            Value::Union(value) => value_2_json(value)?,
         };
         anyhow::Ok(v)
     }
@@ -364,7 +364,7 @@ impl QuerySql for DuckDB {
             };
             let conn = conn.lock().expect("lock failed");
             for sql in sql.iter() {
-                let mut stmt = conn.prepare(&sql)?;
+                let mut stmt = conn.prepare(sql)?;
                 let mut stream = stmt.query([])?;
                 let mut first = true;
                 while let Some(row) = stream.next()? {
@@ -376,7 +376,9 @@ impl QuerySql for DuckDB {
                                 fields: (0..stmt.column_count())
                                     .map(|index| {
                                         Field::from_name_type(
-                                            stmt.column_name(index).unwrap().to_string(),
+                                            stmt.column_name(index)
+                                                .expect("column name must be Some")
+                                                .to_string(),
                                             format!("{:?}", stmt.column_type(index)),
                                         )
                                     })
@@ -485,11 +487,11 @@ fn format_timestamp(time_uint: TimeUnit, value: i64, is_time: bool) -> anyhow::R
         Some(x) => x,
         None => anyhow::bail!("empty datetime"),
     };
-    return anyhow::Ok(if is_time {
+    anyhow::Ok(if is_time {
         d.time().to_string()
     } else {
         d.naive_utc().to_string()
-    });
+    })
 }
 
 fn encode_value(value: &Value, nested: bool) -> anyhow::Result<Option<String>> {
@@ -522,7 +524,7 @@ fn encode_value(value: &Value, nested: bool) -> anyhow::Result<Option<String>> {
         Value::Blob(items) => {
             let x = items
                 .iter()
-                .map(|x| format!("\\x{}", hex::encode(&[*x])))
+                .map(|x| format!("\\x{}", hex::encode([*x])))
                 .collect::<Vec<_>>()
                 .join("");
             Some(format!("'{}'", x))
@@ -594,7 +596,7 @@ fn encode_value(value: &Value, nested: bool) -> anyhow::Result<Option<String>> {
                 values.join(",")
             ))
         }
-        Value::Union(value) => encode_value(&value, true)?,
+        Value::Union(value) => encode_value(value, true)?,
     };
     anyhow::Ok(r)
 }
@@ -697,7 +699,7 @@ impl DuckDB {
                 let name: String = row.get(0)?;
                 ret.push(name);
             }
-            anyhow::Ok(ret.into_iter().map(|x| ListTable::from(x)).collect())
+            anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
         })
         .await?
     }
@@ -720,11 +722,7 @@ impl DuckDB {
                 let name: String = row.get(0)?;
                 ret.push(name);
             }
-            anyhow::Ok(
-                ret.into_iter()
-                    .map(|x| ListTable::from(x))
-                    .collect::<Vec<_>>(),
-            )
+            anyhow::Ok(ret.into_iter().map(ListTable::from).collect::<Vec<_>>())
         })
         .await?
     }
@@ -793,8 +791,8 @@ impl SchemaTrait for DuckDB {
         .await?
     }
 
-    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
-        let sql = req.common_sql(table, true)?;
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
         self.execute(sql).await?;
         anyhow::Ok(())
@@ -834,24 +832,30 @@ impl SchemaTrait for DuckDB {
 
             self.execute(sql).await?;
 
-            if let Some(null) = typ.nullness.as_ref() {
-                let sql = if null.trim().to_lowercase() == "null" {
-                    format!(
-                        r#"
+            if let Some(null) = typ.nullable.as_ref() {
+                match null {
+                    crate::db::SqlNullAble::None => {}
+                    crate::db::SqlNullAble::Null => {
+                        let sql = format!(
+                            r#"
                         ALTER TABLE {table} 
                             ALTER COLUMN {new_name} DROP NOT NULL;
                     "#
-                    )
-                } else {
-                    format!(
-                        r#"
+                        );
+                        log::info!("sql:{}", sql);
+                        self.execute(sql).await?;
+                    }
+                    crate::db::SqlNullAble::NotNull => {
+                        let sql = format!(
+                            r#"
                         ALTER TABLE {table} 
                             ALTER COLUMN {new_name} SET NOT NULL;
                     "#
-                    )
-                };
-                log::info!("sql:{}", sql);
-                self.execute(sql).await?;
+                        );
+                        log::info!("sql:{}", sql);
+                        self.execute(sql).await?;
+                    }
+                }
             }
 
             if let Some(x) = typ.default_value.as_ref() {
@@ -874,11 +878,7 @@ impl SchemaTrait for DuckDB {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
             col.typ,
-            if let Some(nullness) = col.nullness.as_ref() {
-                nullness.as_str()
-            } else {
-                ""
-            },
+            col.nullable.unwrap_or_default(),
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
@@ -1004,7 +1004,7 @@ impl SchemaTrait for DuckDB {
             let mut stmt = conn.prepare(&sql)?;
             let mut rows = stmt.query([])?;
             while let Some(row) = rows.next()? {
-                let data = encode_row(&row)?;
+                let data = encode_row(row)?;
                 emit.send(data.into())?;
             }
 
@@ -1126,7 +1126,7 @@ impl SchemaTrait for DuckDB {
                 let typ: String = row.get(1)?;
                 fs.push(Field::from_name_type(name, typ));
             }
-            if fs.len() > 0 {
+            if !fs.is_empty() {
                 return anyhow::Ok(fs);
             }
             let sql = format!(
@@ -1259,10 +1259,22 @@ impl SchemaTrait for DuckDB {
         crate::language_server::LexerCompletionTrait::get_types(self).await
     }
 
-    async fn create_table_sql(
-        &self, req: &crate::db::CreateTableReq,
-    ) -> anyhow::Result<Vec<String>> {
-        todo!()
+    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
+        SqlBuilder::create_table_sql(self, req)
+    }
+
+    async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
+        self.list_sequence_impl(self.config.db_str(), self.config.schema_str())
+            .await
+    }
+    async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
+        not_support_feature(self.backend_name())
+    }
+
+    async fn drop_sequence(&self, name: &str, _cascade: bool) -> anyhow::Result<()> {
+        let sql = format!("DROP SEQUENCE {name};");
+        self.execute(sql).await?;
+        anyhow::Ok(())
     }
 }
 
@@ -1278,11 +1290,9 @@ fn put_value_in_sql(typ: &str, value: Option<&str>) -> anyhow::Result<String> {
                     .unwrap_or("null".to_string()),
             )
         }
-        _ if typ.ends_with("[]") => anyhow::Ok(
-            value
-                .map(|x| format!("{}", x))
-                .unwrap_or("null".to_string()),
-        ),
+        _ if typ.ends_with("[]") => {
+            anyhow::Ok(value.map(|x| x.to_string()).unwrap_or("null".to_string()))
+        }
         _ if typ.starts_with("time")
             || typ.starts_with("date")
             || typ.starts_with("utf8")
@@ -1365,7 +1375,7 @@ impl CatalogTrait for DuckDB {
             let sql = "SELECT database_name FROM duckdb_databases();";
             log::info!("sql:{}", sql);
             let conn = this.get_conn()?;
-            let mut p = conn.prepare(&sql)?;
+            let mut p = conn.prepare(sql)?;
             let mut rows = p.query([])?;
             let mut ret = Vec::new();
             while let Some(row) = rows.next()? {
@@ -1397,9 +1407,54 @@ impl CatalogTrait for DuckDB {
     }
 }
 
+impl DuckDB {
+    pub(crate) async fn list_sequence_impl(
+        &self, db: &str, schema: &str,
+    ) -> anyhow::Result<Vec<SequenceDetail>> {
+        let this = Clone::clone(self);
+        let db = db.to_owned();
+        let schema = schema.to_owned();
+
+        spawn_blocking(move || {
+            let sql = format!(
+                r#"select 
+                    sequence_name,start_value,min_value,max_value,increment_by,last_value,sql 
+                    from duckdb_sequences() 
+                    where database_name='{}' and schema_name='{}' "#,
+                db, schema
+            );
+            let conn = this.get_conn()?;
+            let mut stmt = conn.prepare(&sql)?;
+            let mut stream = stmt.query([])?;
+            let mut ret = vec![];
+            while let Some(row) = stream.next()? {
+                let name: String = row.get(0)?;
+                let start_value: Option<i64> = row.get(1)?;
+                let min_value: Option<i64> = row.get(2)?;
+                let max_value: Option<i64> = row.get(3)?;
+                let increment_by: Option<i64> = row.get(4)?;
+                let last_value: Option<i64> = row.get(5)?;
+                let def: String = row.get(6)?;
+                ret.push(SequenceDetail {
+                    start_value: start_value.unwrap_or_default().to_string(),
+                    min_value: min_value.unwrap_or_default().to_string(),
+                    max_value: max_value.unwrap_or_default().to_string(),
+                    increment_by: increment_by.unwrap_or_default().to_string(),
+                    last_value: last_value.map(|x| x.to_string()),
+                    name,
+                    sql: def,
+                    data_type: "".into(),
+                });
+            }
+            anyhow::Ok(ret)
+        })
+        .await?
+    }
+}
+
 fn format_date(days_since_epoch: i32) -> anyhow::Result<String> {
     let date = NaiveDate::from_ymd_opt(1970, 1, 1)
-        .unwrap()
+        .expect("must ba valid date")
         .checked_add_days(chrono::Days::new(days_since_epoch as i64 as u64));
     match date {
         Some(x) => anyhow::Ok(x.to_string()),
@@ -1443,7 +1498,7 @@ fn extract_index_columns(sql: &str) -> anyhow::Result<Vec<String>> {
                     }
                 }
             }
-            return anyhow::Ok(ret);
+            anyhow::Ok(ret)
         }
         _ => {
             anyhow::bail!("should be a create index statement but {:?}", s)
@@ -1460,9 +1515,13 @@ pub(crate) fn test_lock() -> &'static tokio::sync::Mutex<()> {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::{
-        db::{CreateIndexColumn, ShowTableParameter},
+        db::{
+            CreateIndexColumn, CreateTableReq, CreateTableReqColumn, ShowTableParameter,
+            SqlNullAble, TestQueryEventEmit,
+        },
         enable_test_log,
     };
 
@@ -1472,6 +1531,28 @@ mod tests {
             extract_index_columns(r#"CREATE UNIQUE INDEX test_index_name ON test_index("name")"#)
                 .unwrap();
         assert_eq!(s, vec!["name".to_string()])
+    }
+    #[tokio::test]
+
+    async fn test_seq() {
+        let _guard = test_lock().lock().await;
+        enable_test_log();
+        let db = make_test_object(Some("main".to_string()));
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        let name = "test_seq";
+        let _ = db.drop_sequence(name, false).await;
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE SEQUENCE test_seq"#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        for s in db.list_sequence().await.unwrap() {
+            println!("sequence: {:?}", s);
+        }
     }
 
     #[tokio::test]
@@ -1615,31 +1696,53 @@ mod tests {
     #[tokio::test]
     async fn test_index() {
         let _guard = test_lock().lock().await;
-        enable_test_log();
         let db = make_test_object(Some("main".to_string()));
         let table_name = "test_index";
         let _ = db.drop_index(table_name, "test_index_name").await;
+        let _ = db.drop_table(table_name, false).await;
+        let req = CreateTableReq {
+            name: table_name.to_owned(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "id".into(),
+                    data_type: "INTEGER".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::Null,
+                },
+                CreateTableReqColumn {
+                    name: "name".into(),
+                    data_type: "VARCHAR".into(),
+                    ..Default::default()
+                },
+                CreateTableReqColumn {
+                    name: "age".into(),
+                    data_type: "INTEGER".into(),
+                    nullable: SqlNullAble::Null,
+                    ..Default::default()
+                },
+                CreateTableReqColumn {
+                    name: "created_at".into(),
+                    data_type: "TIMESTAMP".into(),
 
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
-        let _ = db
-            .execute_sql(
-                query_id,
-                r#"
-            CREATE TABLE test_index (
-                id INTEGER PRIMARY KEY,
-                name VARCHAR,
-                age INTEGER NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        "#,
-            )
-            .await
-            .unwrap();
+                    nullable: SqlNullAble::Null,
+                    default_value: Some("CURRENT_TIMESTAMP".into()),
+                    ..Default::default()
+                },
+            ],
+            indexes: vec![],
+        };
+        db.create_table(&req).await.unwrap();
+        {
+            let sql = db.create_table_sql_string(&req).unwrap();
+
+            println!("create table sql:{}", sql);
+        }
 
         db.create_index(
             table_name,
-            CreateIndexReq {
+            &CreateIndexReq {
                 name: "test_index_name".to_owned(),
                 columns: vec![CreateIndexColumn {
                     col: "name".to_owned(),
@@ -1684,7 +1787,7 @@ mod tests {
             "email",
             ColumnType {
                 typ: "BIGINT".to_string(),
-                nullness: Some("null".to_string()),
+                nullable: SqlNullAble::Null.into(),
                 after: None,
                 default_value: Some(1.to_string()),
             },
@@ -1698,7 +1801,7 @@ mod tests {
             "email2",
             Some(ColumnType {
                 typ: "INT4".to_string(),
-                nullness: Some("not null".to_string()),
+                nullable: SqlNullAble::NotNull.into(),
                 after: None,
                 default_value: Some(2.to_string()),
             }),
@@ -1712,7 +1815,7 @@ mod tests {
             "email2",
             Some(ColumnType {
                 typ: "INT4".to_string(),
-                nullness: Some("null".to_string()),
+                nullable: SqlNullAble::Null.into(),
                 after: None,
                 default_value: Some(2.to_string()),
             }),
@@ -2378,6 +2481,22 @@ mod tests {
                 .unwrap();
             println!("sql:{}", ret);
         }
+    }
+
+    #[tokio::test]
+
+    async fn test_query_sequence_xxx() {
+        let _guard = test_lock().lock().await;
+        let db = make_test_object(Some("main".to_string()));
+        let query_id = "";
+        db.open_connection(query_id).await.unwrap();
+        db.query_sql(
+            query_id,
+            "select  * from  duckdb_sequences ();",
+            Arc::new(TestQueryEventEmit::default()),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]

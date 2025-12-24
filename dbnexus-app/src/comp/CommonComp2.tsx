@@ -924,6 +924,8 @@ function TableAddButton({ handleAdd }) {
   );
 }
 
+// select column include asc or desc
+// useful for create index
 function SelectColumnAsc(props: {
   fields: string[];
   includes: types.CreateIndexColumn[];
@@ -932,6 +934,10 @@ function SelectColumnAsc(props: {
 }) {
   const { fields, includes, setIncludes, kind } = props;
   const [value, setValue] = useState("");
+
+  const supportOrder = ![DataSourceKind.Cassandra, DataSourceKind.FireBird].includes(
+    kind,
+  );
   return (
     <Stack>
       {includes.length == 0 && (
@@ -947,14 +953,14 @@ function SelectColumnAsc(props: {
                 alignItems: "center",
                 padding: "2px 4px",
                 border: "1px solid grey",
-                borderRadius: "4px",
+                borderRadius: "10px",
               }}
               key={f.col}
             >
-              <Typography color="info" style={{ width: "45%" }}>
+              <Typography color="info" style={{ width: "55%" }}>
                 {f.col}
               </Typography>
-              {kind != DataSourceKind.Cassandra && (
+              {supportOrder && (
                 <FormControlLabel
                   label="asc"
                   control={
@@ -1112,11 +1118,15 @@ function TypeSelect(props: { handleChange; uuid; type; style?: CSSProperties }) 
   );
 }
 
-function ColumnNullness({ nullness, handleNullness }) {
-  const opts = ["null", "not null"];
+function ColumnNullness(props: {
+  nullable: types.SqlNullAble;
+  handleNullable: (_: types.SqlNullAble) => void;
+}) {
+  const { nullable, handleNullable: handleNullness } = props;
+  const opts: types.SqlNullAble[] = ["null", "notnull", "none"];
   return (
     <Autocomplete
-      value={nullness}
+      value={nullable}
       options={opts}
       style={{ width: "17rem" }}
       renderInput={params => <TextField {...params} label="specify null" />}

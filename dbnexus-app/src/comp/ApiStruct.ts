@@ -423,9 +423,10 @@ export namespace types {
          */
         "indexes": (string)[];
     };
+    export type SqlNullAble = ("none" | "null" | "notnull");
     export type ColumnType = {
         "typ": string;
-        "nullness": (string | null);
+        "nullable": (types.SqlNullAble | null);
         "after": (string | null);
         "default_value": (string | null);
     };
@@ -479,7 +480,7 @@ export namespace types {
         "auto_increment": boolean;
         "primary_key": boolean;
         "default_value": (string | null);
-        "nullable": (string | null);
+        "nullable": types.SqlNullAble;
     };
     export type CreateIndexColumn = {
         "col": string;

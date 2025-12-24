@@ -107,7 +107,7 @@ mod tests {
     use super::*;
     use crate::db::{
         CatalogTrait, CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq, IndexKind,
-        QuerySql, SchemaTrait, ServerMetas, UdfOrProcedureExtraParameter,
+        QuerySql, SchemaTrait, ServerMetas, SqlNullAble, UdfOrProcedureExtraParameter,
     };
     use crate::db::{ExportKind, ShowTableParameter};
     use crate::enable_test_log;
@@ -200,7 +200,7 @@ mod tests {
             "name",
             ColumnType {
                 typ: "INT2".to_string(),
-                nullness: Some("null".to_string()),
+                nullable: SqlNullAble::Null.into(),
                 after: None,
                 default_value: Some("1".to_string()),
             },
@@ -214,7 +214,7 @@ mod tests {
             "name2",
             Some(ColumnType {
                 typ: "INT4".to_string(),
-                nullness: Some("null".to_string()),
+                nullable: SqlNullAble::Null.into(),
                 after: None,
                 default_value: Some("2".to_string()),
             }),
@@ -243,7 +243,7 @@ mod tests {
         let index_name2 = format!("{}2", index_name);
         db.create_index(
             table_name,
-            CreateIndexReq {
+            &CreateIndexReq {
                 name: index_name.to_string(),
                 kind: IndexKind::Unique,
                 columns: vec![

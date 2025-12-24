@@ -906,7 +906,7 @@ function TableAddColumn(props: {
 }) {
   const { table, uuid, handleClose, reload, kind, fields } = props;
   const [name, setName] = useState("");
-  const [nullness, setNullness] = useState("");
+  const [nullable, setNullness] = useState<types.SqlNullAble>("none");
   const [typ, setTyp] = useState("");
   const { showNotification } = useContext(NotificationContext);
   const [after, setAfter] = useState("");
@@ -935,7 +935,7 @@ function TableAddColumn(props: {
       colName: name,
       typ: {
         typ: typ,
-        nullness: nullness ? nullness : null,
+        nullable: nullable ? nullable : null,
         after: after ? after : null,
         default_value: defaultValue ? defaultValue : null,
       } as types.ColumnType,
@@ -993,8 +993,8 @@ function TableAddColumn(props: {
         />
         {supportNull && (
           <ColumnNullness
-            nullness={nullness}
-            handleNullness={e => {
+            nullable={nullable}
+            handleNullable={e => {
               setNullness(e);
             }}
           />
@@ -1045,7 +1045,7 @@ function ModifyTableColumn(props: {
   const [newTyp, setNewTyp] = useState(typ);
   const { showNotification } = useContext(NotificationContext);
   const [modifyType, setModifyType] = useState(false);
-  const [nullness, setNullness] = useState("");
+  const [nullable, setNullness] = useState<null | types.SqlNullAble>(null);
   const handleModify = () => {
     if (newName == col && !newTyp) {
       showNotification("warning", "nothing is changed");
@@ -1056,9 +1056,14 @@ function ModifyTableColumn(props: {
       return;
     }
     setLoading(true);
-    let typePara = null;
+    let typePara: types.ColumnType = null;
     if (typ != newTyp) {
-      typePara = { typ: newTyp, null: nullness ? nullness : nullness };
+      typePara = {
+        typ: newTyp,
+        nullable: nullable ? nullable : nullable,
+        default_value: null,
+        after: null,
+      };
     }
     invoke("modify_table_column", {
       name: uuid,
@@ -1135,7 +1140,7 @@ function ModifyTableColumn(props: {
             type={typ}
           />
           {kindSupportNull(kind) && (
-            <ColumnNullness nullness={nullness} handleNullness={setNullness} />
+            <ColumnNullness nullable={nullable} handleNullable={setNullness} />
           )}
         </Stack>
       )}

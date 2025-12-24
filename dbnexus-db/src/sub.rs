@@ -361,7 +361,7 @@ impl SchemaTrait for SubDB {
         self.as_schema().show_indexes(_table_name).await
     }
 
-    async fn create_index(&self, _table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
+    async fn create_index(&self, _table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
         self.as_schema().create_index(_table, req).await
     }
 
@@ -524,9 +524,7 @@ impl SchemaTrait for SubDB {
         self.as_schema().drop_event(_name).await
     }
 
-    async fn create_table_sql(
-        &self, req: &crate::db::CreateTableReq,
-    ) -> anyhow::Result<Vec<String>> {
-        self.as_schema().create_table_sql(req).await
+    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
+        self.as_schema().create_table_sql(req)
     }
 }

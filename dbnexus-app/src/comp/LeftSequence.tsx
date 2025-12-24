@@ -26,7 +26,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { NotificationContext } from "./Notification";
 import { TabContent } from "./Tabs";
 import { DefAndMetasView } from "./UdfAndMetaView";
-import { GiProgression } from "react-icons/gi";
 import {
   ConnTypeContext,
   ContextMenuContext,
@@ -41,6 +40,7 @@ import {
 
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { listSequence } from "./handlers";
+import { GrSteps } from "react-icons/gr";
 function SequenceTree() {
   const { uuid } = useContext(UuidContext);
   const { kind } = useContext(ConnTypeContext);
@@ -93,7 +93,7 @@ function SequenceTree() {
           });
         }}
       >
-        <GiProgression />
+        <GrSteps />
         <span> sequences </span>
       </Stack>
     >
@@ -120,7 +120,7 @@ function SequenceTree() {
                 }}
                 sx={{ alignItems: "center" }}
               >
-                <GiProgression />
+                <GrSteps />
                 <span>{seq.name}</span>
               </Stack>
             />
@@ -183,7 +183,7 @@ function SequenceMenu(props: {
                 uuid={uuid}
               />
             ),
-            <GiProgression />,
+            <GrSteps />,
           ),
         ];
       });

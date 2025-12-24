@@ -2,6 +2,7 @@ import { types } from "./ApiStruct.ts";
 import {
   Alert,
   Box,
+  Button,
   Divider,
   ListItemIcon,
   ListItemText,
@@ -326,12 +327,23 @@ const styleForTrans: CSSProperties = {
 function MultiQueryResp(props: { data: QueryRespData[] }) {
   const { data } = props;
   const [value, setValue] = React.useState(0);
+
+  const { showNotification } = useContext(NotificationContext);
   if (data.length == 0) {
     return <></>;
   }
   if (data.length == 1) {
     return data[0].Err ? (
-      <Alert severity="error">{data[0].Err}</Alert>
+      <Stack direction="row" style={{ alignItems: "center" }}>
+        <Button
+          onClick={() => {
+            handleCopyToClipboard(data[0].Err, showNotification);
+          }}
+        >
+          copy
+        </Button>
+        <Alert severity="error">{data[0].Err}</Alert>
+      </Stack>
     ) : (
       <QueryResp data={data[0].Ok} />
     );

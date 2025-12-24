@@ -3,13 +3,14 @@ use crate::TEST_HOST;
 use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq,
-    CreateSchemaExtra, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field,
-    GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS,
-    ProcedureDetail, QueryEvent, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent,
-    TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
-    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
-    export_query_as_xlsx_send_data, format_data_time_fix_offset, not_support_feature,
+    CreateSchemaExtra, CreateTableReq, DBTrait, DefAndMetas, ExportFrame, ExportKind,
+    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
+    POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryResp, QuerySql, ReadOnlyTrait,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail,
+    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset,
+    not_support_feature,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::create_csv;
@@ -516,8 +517,8 @@ impl SchemaTrait for SqlServerDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
         <Self as SqlBuilder>::CURRENT_VALUES
     }
-    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
-        let sql = req.common_sql(table, true)?;
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         conn.execute(&sql, &[]).await?;
@@ -545,11 +546,7 @@ impl SchemaTrait for SqlServerDB {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD "{name}" {} {} {}"#,
             col.typ,
-            if let Some(nullness) = col.nullness.as_ref() {
-                nullness.as_str()
-            } else {
-                ""
-            },
+            col.nullable.unwrap_or_default(),
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
@@ -588,11 +585,7 @@ impl SchemaTrait for SqlServerDB {
             ALTER TABLE {table} ALTER COLUMN {new_name} {} {};
             "#,
                 typ.typ,
-                if let Some(null) = typ.nullness.as_ref() {
-                    null.as_str()
-                } else {
-                    ""
-                }
+                typ.nullable.unwrap_or_default()
             );
             log::info!("sql:{}", sql);
             conn.deref_mut().execute(&sql, &[]).await?;
@@ -1227,10 +1220,8 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(())
     }
 
-    async fn create_table_sql(
-        &self, req: &crate::db::CreateTableReq,
-    ) -> anyhow::Result<Vec<String>> {
-        todo!()
+    fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
+        SqlBuilder::create_table_sql(self, req)
     }
 }
 /// SQL Server 里可直接写在 SQL 语句中的 CURRENT_* / 无括号字面量
@@ -2213,7 +2204,10 @@ pub const INFORMATION_SCHEMA_VIEWS: &[&str] = &[
 mod tests {
 
     use super::*;
-    use crate::db::{CatalogTrait, ShowTableParameter, TestQueryEventEmit};
+    use crate::db::{
+        CatalogTrait, CreateIndexColumn, CreateTableReqColumn, ShowTableParameter, SqlNullAble,
+        TestQueryEventEmit,
+    };
     use crate::enable_test_log;
 
     #[tokio::test]
@@ -2699,31 +2693,77 @@ END;
     async fn test_index() {
         let _guard = test_lock().lock().await;
         let db = make_test_object().await;
-        let _ = db.drop_table("test_index_table", false).await;
+        let table_name = "test_index_table";
+        let _ = db.drop_table(table_name, false).await;
+        let req = CreateTableReq {
+            name: table_name.to_owned(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "Column1".to_string(),
+                    data_type: "int".to_string(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: Some(1.to_string()),
+                    nullable: SqlNullAble::NotNull,
+                },
+                CreateTableReqColumn {
+                    name: "name".to_string(),
+                    data_type: "int".to_string(),
+                    auto_increment: false,
+                    primary_key: false,
+                    default_value: None,
+                    nullable: Default::default(),
+                },
+                CreateTableReqColumn {
+                    name: "age".to_string(),
+                    data_type: "int".to_string(),
+                    auto_increment: false,
+                    primary_key: false,
+                    default_value: None,
+                    nullable: Default::default(),
+                },
+            ],
+            indexes: vec![],
+        };
+        db.create_table(&req).await.unwrap();
+        std::thread::sleep(Duration::from_secs(1));
 
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
+        //
 
-        db.execute_sql(
-            query_id,
-            r#"
-                CREATE TABLE test_index_table (
-                        Column1 int,
-                        Column2 int,
-                    );
-                    -- 添加唯一索引
-                CREATE UNIQUE INDEX IX_YourTableName_Column1_Column2
-                    ON test_index_table (Column1, Column2);
-        "#,
+        let index_name = format!("{}_name_age", table_name);
+        let index_name2 = format!("{}2", index_name);
+
+        db.create_index(
+            table_name,
+            &CreateIndexReq {
+                name: index_name.clone(),
+                columns: vec![
+                    CreateIndexColumn {
+                        col: "name".into(),
+                        asc: Some(true),
+                    },
+                    CreateIndexColumn {
+                        col: "age".into(),
+                        asc: Some(true),
+                    },
+                ],
+                kind: IndexKind::Unique,
+            },
         )
         .await
-        .unwrap()
         .unwrap();
 
-        std::thread::sleep(Duration::from_secs(1));
-        let indexes = db.show_indexes("test_index_table").await.unwrap();
-        println!("indexes:{:?}", indexes);
-        db.drop_table("test_index_table", false).await.unwrap();
+        db.rename_index(table_name, &index_name, &index_name2)
+            .await
+            .unwrap();
+        db.rename_index(table_name, &index_name2, &index_name)
+            .await
+            .unwrap();
+
+        let indexes = db.show_indexes(table_name).await.unwrap();
+        for index in indexes.iter() {
+            println!("index:{:?}", index);
+        }
     }
 
     #[tokio::test]
@@ -2887,7 +2927,7 @@ FROM sys.sequences;
             "name",
             ColumnType {
                 typ: "TINYINT".to_string(),
-                nullness: Some("null".to_string()),
+                nullable: SqlNullAble::Null.into(),
                 after: None,
                 // must be none here
                 // query failed
@@ -2906,7 +2946,7 @@ FROM sys.sequences;
             "name2",
             Some(ColumnType {
                 typ: "SMALLINT".to_string(),
-                nullness: Some("null".to_string()),
+                nullable: SqlNullAble::Null.into(),
                 after: None,
                 default_value: Some("2".to_string()),
             }),

@@ -511,7 +511,8 @@ function SqlTableView(props: {
 
   const handleProcessRowUpdate = useCallback(
     async (newRow: object, oldRow: object, { rowId }) => {
-      if (!updateOP) {
+      if (!isTable) {
+        // TODO this is  a view should return a error??
         return newRow;
       }
       const findDiff = (): Map<string, string | null> => {
@@ -554,7 +555,7 @@ function SqlTableView(props: {
       }
       return newRow;
     },
-    [notWarnPri, resp, showNotification, updateOP],
+    [isTable, notWarnPri, resp, showNotification, updateOP],
   );
 
   const handleDelete = useCallback(

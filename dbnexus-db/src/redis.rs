@@ -1257,9 +1257,7 @@ impl SchemaTrait for RedisDB {
         Ok(())
     }
 
-    async fn create_table_sql(
-        &self, _req: &crate::db::CreateTableReq,
-    ) -> anyhow::Result<Vec<String>> {
+    fn create_table_sql(&self, _req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
         not_support_feature(self.backend_name())
     }
 }

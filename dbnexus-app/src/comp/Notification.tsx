@@ -61,8 +61,10 @@ function NotificationProvider(props: { children: ReactNode }) {
     if (!React.isValidElement(err) && err) {
       err = String(err);
     }
-    setNotification({ severity, title, message: err });
-    setOpen(true);
+    setTimeout(() => {
+      setNotification({ severity, title, message: err });
+      setOpen(true);
+    }, 100);
   };
 
   const handleClose = (_, reason) => {

@@ -1066,7 +1066,7 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
       },
     },
     MuiStack: {
-      defaultProps: { spacing: 1 },
+      defaultProps: { spacing: 0.5 },
     },
     MuiMenuList: {
       styleOverrides: {

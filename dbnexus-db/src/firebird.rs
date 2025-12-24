@@ -259,7 +259,7 @@ impl ExportQueryResult for FireBirdDB {
 #[async_trait::async_trait]
 impl QuerySql for FireBirdDB {
     async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
-        let tx = self.query_connections_tx.contains(&query_id.to_string());
+        let tx = self.query_connection_tx.contains(&query_id.to_string());
         anyhow::Ok(!tx)
     }
 
@@ -277,7 +277,7 @@ impl QuerySql for FireBirdDB {
             let mut conn = conn.lock().expect("lock failed");
             let conn = conn.deref_mut();
             conn.begin_transaction()?;
-            this.query_connections_tx.insert(query_id.to_string());
+            this.query_connection_tx.insert(query_id.to_string());
             anyhow::Ok(())
         })
         .await?
@@ -294,7 +294,7 @@ impl QuerySql for FireBirdDB {
             let mut conn = conn.lock().expect("lock failed");
             let conn = conn.deref_mut();
             conn.commit()?;
-            this.query_connections_tx.remove(&query_id.to_string());
+            this.query_connection_tx.remove(&query_id.to_string());
             anyhow::Ok(())
         })
         .await?
@@ -311,7 +311,7 @@ impl QuerySql for FireBirdDB {
             let mut conn = conn.lock().expect("lock failed");
             let conn = conn.deref_mut();
             conn.rollback()?;
-            this.query_connections_tx.remove(&query_id.to_string());
+            this.query_connection_tx.remove(&query_id.to_string());
             anyhow::Ok(())
         })
         .await?
@@ -409,7 +409,7 @@ pub struct FireBirdDB {
     config: Arc<FireBirdConfig>,
     pool: Pool<PoolManager>,
     query_connection: Arc<DashMap<String, Arc<Mutex<PooledConnection<PoolManager>>>>>,
-    query_connections_tx: Arc<DashSet<String>>,
+    query_connection_tx: Arc<DashSet<String>>,
     pub(crate) key_words_completion: Arc<tokio::sync::Mutex<Vec<String>>>,
 }
 
@@ -747,8 +747,8 @@ impl SchemaTrait for FireBirdDB {
         Box::new(Clone::clone(self))
     }
 
-    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
-        let sql = req.common_sql(table, true)?;
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
         self.execute(sql).await?;
         anyhow::Ok(())
@@ -870,10 +870,8 @@ impl SchemaTrait for FireBirdDB {
         .await?
     }
 
-    async fn create_table_sql(
-        &self, req: &crate::db::CreateTableReq,
-    ) -> anyhow::Result<Vec<String>> {
-        todo!()
+    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
+        SqlBuilder::create_table_sql(self, req)
     }
 }
 
@@ -950,7 +948,7 @@ impl FireBirdDB {
                 config: Arc::new(config),
                 pool,
                 query_connection: Default::default(),
-                query_connections_tx: Default::default(),
+                query_connection_tx: Default::default(),
                 key_words_completion: Default::default(),
             })
         })
@@ -1020,9 +1018,12 @@ pub(crate) async fn make_test_object() -> FireBirdDB {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{CreateIndexColumn, IndexKind};
+    use crate::db::{
+        CreateIndexColumn, CreateTableReq, CreateTableReqColumn, IndexKind, SqlNullAble,
+    };
     use crate::enable_test_log;
     use tokio::sync::Mutex;
+
     #[tokio::test]
     async fn test_check_conn() {
         let db = make_test_object().await;
@@ -1191,35 +1192,57 @@ mod tests {
         if let Err(err) = _err {
             println!("drop table err:{}", err);
         }
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
+        let req = CreateTableReq {
+            name: table_name.to_owned(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "ID".into(),
+                    data_type: "INTEGER".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::NotNull,
+                },
+                CreateTableReqColumn {
+                    name: "NAME".into(),
+                    data_type: "VARCHAR(100)".into(),
+                    ..Default::default()
+                },
+                CreateTableReqColumn {
+                    name: "CREATED_DATE".into(),
+                    data_type: "TIMESTAMP".into(),
+                    default_value: Some("CURRENT_TIMESTAMP".into()),
+                    nullable: SqlNullAble::NotNull,
+                    ..Default::default()
+                },
+                CreateTableReqColumn {
+                    name: "STATUS".into(),
+                    data_type: "CHAR(1)".into(),
+                    ..Default::default()
+                },
+            ],
+            indexes: vec![],
+        };
 
-        db.execute_sql(
-            query_id,
-            r#"
-            CREATE TABLE TEST_INDEX (
-                ID INTEGER NOT NULL PRIMARY KEY,
-                NAME VARCHAR(100),
-                CREATED_DATE TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                STATUS CHAR(1) CHECK (STATUS IN ('A', 'I'))  -- 'A' for Active, 'I' for Inactive
-            );
-        "#,
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        {
+            let sql = db.create_table_sql_string(&req).unwrap();
+            println!("create table sql:{}", sql);
+        }
+
+        db.create_table(&req).await.unwrap();
+
         db.create_index(
             table_name,
-            CreateIndexReq {
+            &CreateIndexReq {
                 name: index_name.to_owned(),
                 columns: vec![
                     CreateIndexColumn {
                         col: "NAME".to_string(),
-                        asc: Some(true),
+                        asc: None,
                     },
                     CreateIndexColumn {
                         col: "STATUS".to_string(),
-                        asc: Some(true),
+                        asc: None,
                     },
                 ],
                 kind: IndexKind::Unique,

@@ -318,11 +318,7 @@ impl SchemaTrait for SqliteDB {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD COLUMN "{name}" {} {} {}"#,
             col.typ,
-            if let Some(nullness) = col.nullness.as_ref() {
-                nullness.as_str()
-            } else {
-                ""
-            },
+            col.nullable.unwrap_or_default(),
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
@@ -347,8 +343,8 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
-        let sql = req.common_sql(table, true)?;
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -762,10 +758,8 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(ret)
     }
 
-    async fn create_table_sql(
-        &self, req: &crate::db::CreateTableReq,
-    ) -> anyhow::Result<Vec<String>> {
-        SqlBuilder::sqlite_create_table_sql(self, req)
+    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
+        SqlBuilder::create_table_sql(self, req)
     }
 }
 
@@ -804,10 +798,6 @@ pub const SQLITE_CURRENT_LITERALS: &[&str] = &[
 ];
 
 impl SqlBuilder for SqliteDB {
-    fn auto_increment_str(&self) -> anyhow::Result<&'static str> {
-        // 在 SQLite 里，“AUTOINCREMENT” 只能用在 INTEGER PRIMARY KEY 列上，否则语法直接报错。
-        anyhow::Ok("PRIMARY KEY AUTOINCREMENT")
-    }
     const CURRENT_VALUES: &'static [&'static str] = SQLITE_CURRENT_LITERALS;
     fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
@@ -1474,7 +1464,10 @@ impl ReadOnlyTrait for SqliteDB {
 mod tests {
 
     use super::*;
-    use crate::db::{CreateIndexColumn, ShowTableParameter, TestQueryEventEmit};
+    use crate::db::{
+        CreateIndexColumn, CreateTableReq, CreateTableReqColumn, ShowTableParameter, SqlNullAble,
+        TestQueryEventEmit,
+    };
 
     #[ignore = "this test run by hand"]
     #[tokio::test]
@@ -1518,7 +1511,7 @@ mod tests {
             "name",
             ColumnType {
                 typ: "VARCHAR(255)".to_string(),
-                nullness: Some("null".to_string()),
+                nullable: SqlNullAble::Null.into(),
                 after: Some("id".to_string()),
                 default_value: Some("abc".to_string()),
             },
@@ -1883,23 +1876,55 @@ mod tests {
         if let Err(err) = _err {
             println!("drop table failed,err:{}", err);
         }
-        let mut conn = db.get_conn().await.unwrap();
-        sqlx::raw_sql(
-            r#"
-                CREATE TABLE test_index (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 主键，自动增长
-                    name TEXT NOT NULL,                    -- 名称，非j空
-                    age INTEGER,                           -- 年龄
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP  -- 创建时间，默认为当前时间
-                ); "#,
-        )
-        .execute(conn.deref_mut())
-        .await
-        .unwrap();
+
+        let req = CreateTableReq {
+            name: table_name.to_owned(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "id".to_string(),
+                    data_type: "INTEGER".to_string(),
+                    auto_increment: true,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: Default::default(),
+                },
+                CreateTableReqColumn {
+                    name: "name".to_string(),
+                    data_type: "TEXT".to_string(),
+                    auto_increment: false,
+                    primary_key: false,
+                    default_value: Some("haha".to_string()),
+                    nullable: SqlNullAble::NotNull,
+                },
+                CreateTableReqColumn {
+                    name: "age".to_string(),
+                    data_type: "INTEGER".to_string(),
+                    auto_increment: false,
+                    primary_key: false,
+                    default_value: None,
+                    nullable: Default::default(),
+                },
+                CreateTableReqColumn {
+                    name: "created_at".to_string(),
+                    data_type: "DATETIME".to_string(),
+                    auto_increment: false,
+                    primary_key: false,
+                    default_value: Some("CURRENT_TIMESTAMP".to_string()),
+                    nullable: Default::default(),
+                },
+            ],
+            indexes: vec![],
+        };
+
+        {
+            let sql = db.create_table_sql_string(&req).unwrap();
+            println!("create table sql:{}", sql);
+        }
+        db.create_table(&req).await.unwrap();
 
         db.create_index(
             table_name,
-            CreateIndexReq {
+            &CreateIndexReq {
                 name: index_name.to_owned(),
                 columns: vec![CreateIndexColumn {
                     col: "name".to_owned(),

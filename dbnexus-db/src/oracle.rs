@@ -1124,11 +1124,10 @@ impl SchemaTrait for OracleDB {
         self.list_table_impl(self.schema_str()).await
     }
 
-    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
-        let sql = req.common_sql(table, true)?;
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
         self.execute(sql).await?;
-
         anyhow::Ok(())
     }
 
@@ -1171,11 +1170,18 @@ impl SchemaTrait for OracleDB {
         if let Some(typ) = typ {
             let sql = format!(r#"ALTER TABLE {table} MODIFY "{new_name}" {}"#, typ.typ);
             self.execute(sql).await?;
-            if let Some(nullness) = typ.nullness.as_ref() {
-                let sql = format!(r#"ALTER TABLE "{table}" MODIFY "{new_name}" {nullness}"#);
-                log::info!("sql:{}", sql);
-                self.execute(sql).await?;
+
+            if let Some(null) = typ.nullable.as_ref() {
+                match null {
+                    crate::db::SqlNullAble::Null | crate::db::SqlNullAble::NotNull => {
+                        let sql = format!(r#"ALTER TABLE "{table}" MODIFY "{new_name}" {}"#, null);
+                        log::info!("sql:{}", sql);
+                        self.execute(sql).await?;
+                    }
+                    _ => {}
+                }
             }
+
             if let Some(dv) = typ.default_value.as_ref() {
                 let sql = format!(
                     r#"ALTER TABLE "{table}" MODIFY "{new_name}" DEFAULT {}"#,
@@ -1194,11 +1200,7 @@ impl SchemaTrait for OracleDB {
         let sql = format!(
             r#"ALTER TABLE "{table}" ADD "{name}"  {}  {} {}"#,
             typ.typ,
-            if let Some(nullness) = typ.nullness {
-                nullness.clone()
-            } else {
-                "".to_owned()
-            },
+            typ.nullable.unwrap_or_default(),
             if let Some(dv) = typ.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
@@ -1562,10 +1564,8 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(())
     }
 
-    async fn create_table_sql(
-        &self, req: &crate::db::CreateTableReq,
-    ) -> anyhow::Result<Vec<String>> {
-        todo!()
+    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
+        SqlBuilder::create_table_sql(self, req)
     }
 }
 
@@ -1729,7 +1729,10 @@ pub(crate) fn make_test_object(schema: Option<String>) -> OracleDB {
 mod tests {
 
     use super::*;
-    use crate::enable_test_log;
+    use crate::{
+        db::{CreateIndexColumn, CreateTableReq, CreateTableReqColumn, SqlNullAble},
+        enable_test_log,
+    };
     use tokio::sync::Mutex;
 
     // when I test via `cargo test`
@@ -2059,32 +2062,78 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
     }
 
     #[tokio::test]
-    async fn test_show_indexes() {
+    async fn test_index() {
         let _guard = test_lock().lock().await;
         let db = make_test_object(Some("SYSTEM".to_string()));
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         let table_name = "TEST_INDEXES";
+
         let _ = db.drop_table(table_name, false).await;
-        db.execute_sql(
-            query_id,
-            format!(
-                r#"
-        CREATE TABLE {table_name} (
-            order_id     NUMBER(10)     PRIMARY KEY,
-            customer_id  NUMBER(10)     NOT NULL,
-            order_date   DATE           NOT NULL,
-            CONSTRAINT unique_customer_order UNIQUE (customer_id, order_date)
-        )
-        "#
-            )
-            .as_str(),
+        let req = CreateTableReq {
+            name: table_name.to_string(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "ORDER_ID".to_string(),
+                    data_type: "NUMBER(10)".into(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: None,
+                    nullable: SqlNullAble::NotNull,
+                },
+                CreateTableReqColumn {
+                    name: "CUSTOMER_ID".to_string(),
+                    data_type: "NUMBER(10)".into(),
+                    auto_increment: false,
+                    ..Default::default()
+                },
+                CreateTableReqColumn {
+                    name: "ORDER_DATE".to_string(),
+                    data_type: "DATE".into(),
+                    auto_increment: false,
+                    ..Default::default()
+                },
+            ],
+            indexes: vec![],
+        };
+
+        db.create_table(&req).await.unwrap();
+        {
+            let sql = db.create_table_sql_string(&req).unwrap();
+            println!("create table sql:{}", sql);
+        }
+        let index_name = format!("{}_CUSTOMER_ID_ORDER_DATE", table_name,);
+        let index_name2 = format!("{}2", index_name);
+
+        db.create_index(
+            table_name,
+            &CreateIndexReq {
+                name: index_name.clone(),
+                columns: vec![
+                    CreateIndexColumn {
+                        col: "CUSTOMER_ID".into(),
+                        asc: Some(true),
+                    },
+                    CreateIndexColumn {
+                        col: "ORDER_DATE".into(),
+                        asc: None,
+                    },
+                ],
+                kind: IndexKind::Unique,
+            },
         )
         .await
-        .unwrap()
         .unwrap();
+        db.rename_index(table_name, &index_name, &index_name2)
+            .await
+            .unwrap();
+        db.rename_index(table_name, &index_name2, &index_name)
+            .await
+            .unwrap();
         let indexes = db.show_indexes(table_name).await.unwrap();
-        println!("{:?}", indexes);
+        for index in indexes.iter() {
+            println!("index:{:?}", index);
+        }
     }
 
     #[tokio::test]
@@ -2116,7 +2165,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             "NAME",
             ColumnType {
                 typ: "CHAR".to_string(),
-                nullness: Some("not null".to_string()),
+                nullable: SqlNullAble::NotNull.into(),
                 after: None,
 
                 default_value: None,
@@ -2131,7 +2180,7 @@ TEST_MATERIALIZED_VIEW_TABLE (product_name, category, price) VALUES ('Samsung Ga
             "NAME2",
             Some(ColumnType {
                 typ: "NCHAR(100)".to_string(),
-                nullness: Some("null".to_string()),
+                nullable: SqlNullAble::Null.into(),
                 after: None,
                 default_value: Some("abc".to_string()),
             }),

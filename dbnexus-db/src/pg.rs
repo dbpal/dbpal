@@ -13,8 +13,8 @@ use tokio::sync::Mutex;
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
-    CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait,
-    DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
+    CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef,
+    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
     IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS,
     ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
     SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
@@ -478,8 +478,8 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(())
     }
 
-    async fn create_index(&self, table: &str, req: CreateIndexReq) -> anyhow::Result<()> {
-        let sql = req.common_sql(table, true)?;
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+        let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
         log::info!("sql:{}", sql);
         let mut conn = self.get_conn().await?;
         sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
@@ -516,11 +516,7 @@ impl SchemaTrait for PostGresDB {
         let sql = format!(
             "ALTER TABLE {table} ADD COLUMN \"{name}\" {} {} {}",
             col.typ,
-            if let Some(nullness) = col.nullness.as_ref() {
-                nullness.as_str()
-            } else {
-                ""
-            },
+            col.nullable.unwrap_or_default(),
             if let Some(d) = col.default_value.as_ref() {
                 format!(
                     "DEFAULT {}",
@@ -570,22 +566,34 @@ impl SchemaTrait for PostGresDB {
             sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                 .execute(conn.deref_mut())
                 .await?;
-            if let Some(null) = typ.nullness.as_ref() {
-                let sql = if null.trim().to_lowercase() == "null" {
-                    format!(
-                        r#"
+
+            if let Some(null) = typ.nullable.as_ref() {
+                match null {
+                    crate::db::SqlNullAble::None => {}
+                    crate::db::SqlNullAble::Null => {
+                        let sql = format!(
+                            r#"
                         ALTER TABLE {table} 
                             ALTER COLUMN {new_name} DROP NOT NULL;
                     "#
-                    )
-                } else {
-                    format!(
-                        r#"
+                        );
+                        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                            .execute(conn.deref_mut())
+                            .await?;
+                    }
+                    crate::db::SqlNullAble::NotNull => {
+                        let sql = format!(
+                            r#"
                         ALTER TABLE {table} 
                             ALTER COLUMN {new_name} SET NOT NULL;
                     "#
-                    )
-                };
+                        );
+
+                        sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
+                            .execute(conn.deref_mut())
+                            .await?;
+                    }
+                }
                 log::info!("sql:{}", sql);
                 sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
                     .execute(conn.deref_mut())
@@ -1467,10 +1475,8 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ret)
     }
 
-    async fn create_table_sql(
-        &self, req: &crate::db::CreateTableReq,
-    ) -> anyhow::Result<Vec<String>> {
-        todo!()
+    fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
+        SqlBuilder::create_table_sql(self, req)
     }
 }
 
@@ -2129,11 +2135,12 @@ impl SqlBuilder for PostGresDB {
 }
 #[cfg(test)]
 mod tests {
+
     use super::make_test_object;
     use crate::db::{
-        CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq, DBTrait, ExportKind,
-        ExportQueryResult, IndexKind, QuerySql, SchemaTrait, ServerMetas, ShowTableParameter,
-        UdfOrProcedureExtraParameter,
+        CheckConn, ColumnType, CreateIndexColumn, CreateIndexReq, CreateTableReq,
+        CreateTableReqColumn, DBTrait, ExportKind, ExportQueryResult, IndexKind, QuerySql,
+        SchemaTrait, ServerMetas, ShowTableParameter, SqlNullAble, UdfOrProcedureExtraParameter,
     };
     #[allow(unused_imports)]
     use crate::enable_test_log;
@@ -2380,18 +2387,46 @@ mod tests {
 
         let _ = db.drop_index(table_name, index_name).await;
         let _ = db.drop_table(table_name, false).await;
-        let query_id = "";
-        db.open_connection(query_id).await.unwrap();
+        let req = CreateTableReq {
+            name: table_name.to_string(),
+            columns: vec![
+                CreateTableReqColumn {
+                    name: "a".to_string(),
+                    data_type: "int".to_string(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: Some(1.to_string()),
+                    nullable: Default::default(),
+                },
+                CreateTableReqColumn {
+                    name: "b".to_string(),
+                    data_type: "int".to_string(),
+                    auto_increment: false,
+                    primary_key: true,
+                    default_value: Some(1.to_string()),
+                    nullable: Default::default(),
+                },
+                CreateTableReqColumn {
+                    name: "c".to_string(),
+                    data_type: "int".to_string(),
+                    auto_increment: false,
+                    primary_key: false,
+                    default_value: Some(1.to_string()),
+                    nullable: SqlNullAble::Null,
+                },
+            ],
+            indexes: vec![],
+        };
+        db.create_table(&req).await.unwrap();
 
-        db.execute_sql (query_id,
-             format!(
-            r#" create table {table_name} (a int, b int, c int, constraint pk_test primary key(a, b)); "#,
-        ).as_str()).await .unwrap() .unwrap();
+        let sql = db.create_table_sql_string(&req).unwrap();
+
+        println!("create table sql:{}", sql);
 
         let index_name2 = format!("{}2", index_name);
         db.create_index(
             table_name,
-            CreateIndexReq {
+            &CreateIndexReq {
                 name: index_name.to_owned(),
                 kind: IndexKind::Unique,
                 columns: vec![
@@ -2888,7 +2923,7 @@ mod tests {
                 .await
                 .unwrap();
 
-            println!("export mdrkdown:{}", html);
+            println!("export markdown:{}", html);
         }
     }
 
@@ -3031,7 +3066,7 @@ mod tests {
             "name",
             ColumnType {
                 typ: "INT2".to_string(),
-                nullness: Some("null".to_string()),
+                nullable: SqlNullAble::Null.into(),
                 after: None,
                 default_value: Some("1".to_string()),
             },
@@ -3045,7 +3080,7 @@ mod tests {
             "name2",
             Some(ColumnType {
                 typ: "INT4".to_string(),
-                nullness: Some("null".to_string()),
+                nullable: SqlNullAble::Null.into(),
                 after: None,
                 default_value: Some("2".to_string()),
             }),

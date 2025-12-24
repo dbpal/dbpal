@@ -19,6 +19,7 @@ import {
   useTheme,
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
+import { IoIosCreate } from "react-icons/io";
 import {
   ReactNode,
   useCallback,
@@ -1009,6 +1010,7 @@ function SchemaTree(props: { schema?: string; reloadSchemas? }) {
     DataSourceKind.MariaDB,
     DataSourceKind.Postgres,
     DataSourceKind.Cockroach,
+    DataSourceKind.DuckDB,
   ].includes(kind);
 
   const supportType = [
@@ -1453,15 +1455,11 @@ function openNewCreateTable(setSelectTab, setTabs, uuid: string, kind: DataSourc
     }, 100);
     return [
       ...e,
-      new TabContent(
-        id,
-        `${uuid} create table`,
-        content,
-        <TbDatabaseSearch> </TbDatabaseSearch>,
-      ),
+      new TabContent(id, `create table`, content, <IoIosCreate> </IoIosCreate>),
     ];
   });
 }
+
 function SchemaMenu(props: {
   schema?: string;
   uuid: string;
@@ -1512,7 +1510,9 @@ function SchemaMenu(props: {
             openNewCreateTable(setSelectTab, setTabs, uuid, kind);
           }}
         >
-          <ListItemIcon>{/* <CiViewTable /> */}</ListItemIcon>
+          <ListItemIcon>
+            <IoIosCreate />
+          </ListItemIcon>
           <ListItemText>create table </ListItemText>
         </MenuItem>
       )}
