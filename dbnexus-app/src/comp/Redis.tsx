@@ -986,8 +986,6 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         <DataGrid
           showToolbar
           slots={slots}
-          showCellVerticalBorder
-          showColumnVerticalBorder
           slotProps={slotProps}
           rowHeight={settings.datagridRowHeightXXX()}
           columnHeaderHeight={settings.datagridRowHeightXXX()}
@@ -1422,8 +1420,6 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
           showToolbar
           slots={slots}
           loading={loading}
-          showCellVerticalBorder
-          showColumnVerticalBorder
           slotProps={slotProps}
           rowHeight={setting.appearance.datagridRowHeight()}
           columnHeaderHeight={setting.appearance.datagridRowHeight()}
@@ -1854,8 +1850,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           slots={slots}
           onColumnResize={onColumnResize}
           loading={loading}
-          showCellVerticalBorder
-          showColumnVerticalBorder
           slotProps={slotProps}
           rowHeight={setting.appearance.datagridRowHeight()}
           columnHeaderHeight={setting.appearance.datagridRowHeight()}
@@ -2196,8 +2190,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
           showToolbar
           onColumnResize={onColumnResize}
           loading={loading}
-          showCellVerticalBorder
-          showColumnVerticalBorder
           slotProps={slotProps}
           rowHeight={setting.appearance.datagridRowHeight()}
           columnHeaderHeight={setting.appearance.datagridRowHeight()}

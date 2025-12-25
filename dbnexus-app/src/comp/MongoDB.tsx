@@ -1442,8 +1442,6 @@ function MongoTableList(props: {
           loading={loading}
           slots={slots}
           style={dataGridStyle}
-          showCellVerticalBorder
-          showColumnVerticalBorder
           slotProps={slotProps}
           getRowId={getRowId}
           rowHeight={setting.appearance.datagridRowHeight()}

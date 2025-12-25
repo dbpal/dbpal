@@ -341,8 +341,6 @@ function ColumnsStructure(props: {
         getRowId={getRowId}
         slotProps={slotProps}
         onColumnResize={onColumnResize}
-        showCellVerticalBorder
-        showColumnVerticalBorder
         rowHeight={setting.appearance.datagridRowHeight()}
         columnHeaderHeight={setting.appearance.datagridRowHeight()}
         columns={cols}
@@ -676,8 +674,6 @@ function IndexesStructure(props: {
         getRowId={getRowId}
         slotProps={slotProps}
         onColumnResize={onColumnResize}
-        showCellVerticalBorder
-        showColumnVerticalBorder
         rowHeight={setting.appearance.datagridRowHeight()}
         columnHeaderHeight={setting.appearance.datagridRowHeight()}
         columns={cols}
@@ -1436,8 +1432,6 @@ function TriggersStructure(props: {
         getRowId={getRowId}
         slotProps={slotProps}
         onColumnResize={onColumnResize}
-        showCellVerticalBorder
-        showColumnVerticalBorder
         rowHeight={setting.appearance.datagridRowHeight()}
         columnHeaderHeight={setting.appearance.datagridRowHeight()}
         columns={cols}

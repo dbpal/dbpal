@@ -510,8 +510,6 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
       style={dataGridStyle}
       sortModel={sortModel}
       onSortModelChange={onSortModelChange}
-      showCellVerticalBorder
-      showColumnVerticalBorder
       slotProps={slotProps}
       rowHeight={setting.appearance.datagridRowHeight()}
       columnHeaderHeight={setting.appearance.datagridRowHeight()}

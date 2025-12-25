@@ -274,8 +274,6 @@ function QueryResp(props: { data: MuiDataGridData }) {
             slots={slots}
             sortModel={sortModel}
             onSortModelChange={onSortModelChange}
-            showCellVerticalBorder
-            showColumnVerticalBorder
             slotProps={slotProps}
             style={dataGridStyle}
             rowHeight={setting.appearance.datagridRowHeight()}

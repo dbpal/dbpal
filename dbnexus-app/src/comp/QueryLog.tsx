@@ -276,8 +276,6 @@ function QueryLog(props: {
       {showQueryLog && logs.length > 0 && (
         <DataGrid
           showToolbar
-          showCellVerticalBorder
-          showColumnVerticalBorder
           onRowDoubleClick={onRowDoubleClick}
           columns={columns}
           rows={logs}

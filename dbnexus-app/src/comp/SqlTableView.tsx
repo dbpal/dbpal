@@ -930,8 +930,6 @@ function SqlTableView(props: {
       <DataGrid
         showToolbar
         slots={slots}
-        showCellVerticalBorder
-        showColumnVerticalBorder
         slotProps={slotProps}
         style={dataGridStyle}
         rowHeight={setting.appearance.datagridRowHeight()}

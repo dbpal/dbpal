@@ -526,8 +526,6 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
         slots={slots}
         sortModel={sortModel}
         onSortModelChange={onSortModelChange}
-        showCellVerticalBorder
-        showColumnVerticalBorder
         slotProps={slotProps}
         rowHeight={setting.appearance.datagridRowHeight()}
         columnHeaderHeight={setting.appearance.datagridRowHeight()}
@@ -928,8 +926,6 @@ function FavoriteSqlList(props: { handleClose }) {
         sortModel={sortModel}
         slots={slots}
         onSortModelChange={onSortModelChange}
-        showCellVerticalBorder
-        showColumnVerticalBorder
         slotProps={slotProps}
         rowHeight={setting.appearance.datagridRowHeight()}
         columnHeaderHeight={setting.appearance.datagridRowHeight()}

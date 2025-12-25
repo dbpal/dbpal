@@ -388,8 +388,6 @@ function ColumnsContent(props: { uuid: string; view: string }) {
         getRowId={getRowId}
         slotProps={slotProps}
         onColumnResize={onColumnResize}
-        showCellVerticalBorder
-        showColumnVerticalBorder
         rowHeight={setting.appearance.datagridRowHeight()}
         columnHeaderHeight={setting.appearance.datagridRowHeight()}
         columns={cols}

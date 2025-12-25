@@ -1067,7 +1067,12 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
           boxShadow: "0 1px 3px",
         },
       },
-      defaultProps: { density: "compact", disableRowSelectionOnClick: true },
+      defaultProps: {
+        density: "compact",
+        disableRowSelectionOnClick: true,
+        showCellVerticalBorder: true,
+        showColumnVerticalBorder: true,
+      },
     },
     MuiStack: {
       defaultProps: { spacing: 0.5 },
