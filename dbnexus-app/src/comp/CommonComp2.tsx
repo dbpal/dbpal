@@ -68,7 +68,7 @@ import {
   reloadOK,
 } from "./Common";
 import types from "./ApiStruct";
-import { MetaValueView, ModalHeader } from "./CommonComp";
+import { MetaValueView, ModalHeader, SelectPageSize } from "./CommonComp";
 import { readFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { save, open, DialogFilter, message } from "@tauri-apps/plugin-dialog";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -83,6 +83,7 @@ import {
   useGridApiContext,
   useGridSelector,
 } from "@mui/x-data-grid";
+import { CustomToolbar } from "./AppToolBar";
 function CreateDatabase({ uuid, handleClose }) {
   const { showNotification } = useContext(NotificationContext);
   const [database, setDatabase] = useState("");
@@ -1175,20 +1176,49 @@ function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue })
   );
 }
 
-function AppDataGridPagination() {
+function AppDataGridPagination(props: { showPageSelect?: boolean }) {
+  const { showPageSelect } = props;
   const apiRef = useGridApiContext();
   const paginationModel = useGridSelector(apiRef, gridPaginationModelSelector);
   const pageCount = useGridSelector(apiRef, gridPageCountSelector);
-
   return (
-    <Pagination
-      count={pageCount}
-      page={paginationModel.page + 1}
-      color="primary"
-      showFirstButton
-      showLastButton
-      onChange={(_, value) => apiRef.current.setPage(value - 1)}
-    />
+    <>
+      <Pagination
+        count={pageCount}
+        page={paginationModel.page + 1}
+        color="primary"
+        showFirstButton
+        showLastButton
+        onChange={(_, value) => apiRef.current.setPage(value - 1)}
+      />
+      {showPageSelect && (
+        <SelectPageSize
+          pageSize={apiRef.current.state.pagination.paginationModel.pageSize}
+          handleChange={pageSize => {
+            apiRef.current.setPageSize(pageSize);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function AppToolBar(props: { title: string; left?: ReactNode; right?: ReactNode }) {
+  const { title, left, right } = props;
+  return (
+    <Stack
+      direction="row"
+      style={{ alignItems: "center", justifyContent: "space-between" }}
+    >
+      <Stack direction="row" style={{ alignItems: "center" }}>
+        {left}
+      </Stack>
+      <Typography variant="h5"> {title} </Typography>
+      <Stack direction="row">
+        {right}
+        <CustomToolbar />
+      </Stack>
+    </Stack>
   );
 }
 
@@ -1214,4 +1244,5 @@ export {
   ColumnNullness,
   SqlDefaultValue,
   AppDataGridPagination,
+  AppToolBar,
 };

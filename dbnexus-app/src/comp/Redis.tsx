@@ -42,7 +42,6 @@ import {
   GridSlotsComponentsProps,
   GridSortModel,
 } from "@mui/x-data-grid";
-import { BsFillLightbulbFill } from "react-icons/bs";
 import {
   ColumnWidth,
   ContextMenuContext,
@@ -61,8 +60,14 @@ import {
   pageSizeOptions,
   RedisTableType,
   DataSourceKind,
+  prettyMs,
 } from "./helper.ts";
-import { AppColumnMenu, ExecutingTime, ModalHeader } from "./CommonComp.tsx";
+import {
+  AppColumnMenu,
+  ModalHeader,
+  ResetColumnWidth,
+  TimeDuration,
+} from "./CommonComp.tsx";
 import { editor, Position } from "monaco-editor";
 import {
   SliderSize,
@@ -788,6 +793,11 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   );
   const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
+  const [lastFetchTime, setLastFetchTime] = useState(new Date());
+  useEffect(() => {
+    setLastFetchTime(new Date());
+  }, [resp]);
+  const [fetchDur, setFetchDur] = useState("");
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState<{ id; value }>(null);
   const [loading, setLoading] = useState(false);
@@ -800,6 +810,9 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         name: setKey,
         setLoading,
         para: { limit: maxRowRef.current },
+        handleExecuteTime: t => {
+          setFetchDur(prettyMs(t));
+        },
         showNotification,
         okCallBack: () => {
           if (showOK) {
@@ -902,15 +915,25 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
           >
             <div>
               <AddTable uuid={uuid} redisKey={setKey} redisType={RedisTableType.Set} />
+              {lastFetchTime.toLocaleString()}
+              <TimeDuration dur={fetchDur} />
+              <SliderSize
+                storeKey="redis-set-table"
+                valueRef={maxRowRef}
+                min={1000}
+                max={50000}
+                step={1000}
+                notice=<LimitMaxRowNotice />
+              />
+              <DoubleClickToModify />
             </div>
-            <Stack direction="row" alignItems="center">
-              <AppDataGridPagination />
-            </Stack>
+
+            <AppDataGridPagination showPageSelect />
           </Stack>
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, [resp, setKey, uuid]);
+  }, [fetchDur, lastFetchTime, resp, setKey, uuid]);
   return (
     <Stack style={{ height: "100%" }}>
       <Stack
@@ -927,14 +950,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
           >
             reload
           </Button>
-          <SliderSize
-            storeKey="redis-set-table"
-            valueRef={maxRowRef}
-            min={1000}
-            max={50000}
-            step={1000}
-            notice=<LimitMaxRowNotice />
-          />
+
           <Tooltip title={keyMatcherHelpText}>
             <TextField
               label="key matcher"
@@ -961,15 +977,8 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
               }}
             />
           </Tooltip>
-
-          <DoubleClickToModify />
-        </Stack>
-
-        <Stack direction="row" style={{ alignItems: "center" }}>
-          <ExecutingTime loading={loading} title="loading time" />
         </Stack>
       </Stack>
-
       {resp && (
         <DataGrid
           showToolbar
@@ -1195,8 +1204,12 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
     },
     [listKey, uuid],
   );
-
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
+  const [lastFetchTime, setLastFetchTime] = useState(new Date());
+  useEffect(() => {
+    setLastFetchTime(new Date());
+  }, [resp]);
+  const [fetchDur, setFetchDur] = useState("");
   const [respOrigin, setRespOrigin] = useState<MuiDataGridData | null>(null);
   const [selectRow, setSelectRow] = useState<any>(null);
   const { showNotification } = useContext(NotificationContext);
@@ -1217,6 +1230,9 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
               showNotification("success", "reload OK");
             }
           : undefined,
+        handleExecuteTime: t => {
+          setFetchDur(prettyMs(t));
+        },
         handleResult: resp => {
           resp.data.forEach((e, index) => {
             e["id"] = index;
@@ -1366,15 +1382,18 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
                 redisKey={listKey}
                 redisType={RedisTableType.List}
               />
+              {lastFetchTime.toLocaleString()}
+              <TimeDuration dur={fetchDur} />
+              <DoubleClickToModify />
+              <ResetColumnWidth />
             </div>
-            <Stack direction="row" alignItems="center">
-              <AppDataGridPagination />
-            </Stack>
+
+            <AppDataGridPagination showPageSelect />
           </Stack>
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, [listKey, resp, uuid]);
+  }, [fetchDur, lastFetchTime, listKey, resp, uuid]);
   return (
     <Stack style={{ height: "100%" }}>
       <Stack
@@ -1391,11 +1410,6 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
           >
             reload
           </Button>
-          <DoubleClickToModify />
-        </Stack>
-
-        <Stack direction="row" style={{ alignItems: "center" }}>
-          <ExecutingTime loading={loading} title="loading time" />
         </Stack>
       </Stack>
 
@@ -1528,6 +1542,13 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   );
   const [keyMatch, setKeyMatch] = useState("");
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
+
+  const [lastFetchTime, setLastFetchTime] = useState(new Date());
+  useEffect(() => {
+    setLastFetchTime(new Date());
+  }, [resp]);
+  const [fetchDur, setFetchDur] = useState("");
+
   const [selectRow, setSelectRow] = useState<any>();
   const [min, setMin] = useState("");
   const [max, setMax] = useState("");
@@ -1554,6 +1575,9 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           max: maxValue,
           where_str: keyMatch ? keyMatch : null,
           limit: maxRowRef.current,
+        },
+        handleExecuteTime: t => {
+          setFetchDur(prettyMs(t));
         },
         showNotification,
         silent: !showOK,
@@ -1672,15 +1696,28 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
                 redisKey={zsetKey}
                 redisType={RedisTableType.Zset}
               />
+              {lastFetchTime.toLocaleString()}
+              <TimeDuration dur={fetchDur} />
+              <SliderSize
+                min={1000}
+                max={50000}
+                step={1000}
+                storeKey="redis-zset-table"
+                notice=<LimitMaxRowNotice />
+                valueRef={maxRowRef}
+              />
+
+              <DoubleClickToModify />
+
+              <ResetColumnWidth />
             </div>
-            <Stack direction="row" alignItems="center">
-              <AppDataGridPagination />
-            </Stack>
+
+            <AppDataGridPagination showPageSelect />
           </Stack>
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, [resp, uuid, zsetKey]);
+  }, [fetchDur, lastFetchTime, resp, uuid, zsetKey]);
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" style={{ alignItems: "center" }}>
@@ -1693,14 +1730,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
         >
           reload
         </Button>
-        <SliderSize
-          min={1000}
-          max={50000}
-          step={1000}
-          storeKey="redis-zset-table"
-          notice=<LimitMaxRowNotice />
-          valueRef={maxRowRef}
-        />
+
         <Tooltip title={keyMatcherHelpText}>
           <TextField
             label="key matcher"
@@ -1788,10 +1818,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           }}
           style={{ flex: 0.5 }}
         />
-
-        <DoubleClickToModify />
-
-        <ExecutingTime loading={loading} title="loading time" />
       </Stack>
       {resp && (
         <DataGrid
@@ -1918,6 +1944,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
     },
     [hashKey, uuid],
   );
+
   const maxRowRef = useRef<number>(2000);
   const modifyOP = async (oldMember, newMember, newValue) => {
     return await invoke("redis_hash_replace", {
@@ -1934,6 +1961,11 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   const [selectRow, setSelectRow] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const setting = useContext(SettingContext);
+  const [lastFetchTime, setLastFetchTime] = useState(new Date());
+  useEffect(() => {
+    setLastFetchTime(new Date());
+  }, [resp]);
+  const [fetchDur, setFetchDur] = useState("");
 
   const handleReload = useCallback(
     showOK => {
@@ -1946,6 +1978,9 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
               showNotification("success", "reload OK");
             }
           : undefined,
+        handleExecuteTime: t => {
+          setFetchDur(prettyMs(t));
+        },
         para: { limit: maxRowRef.current },
         setLoading,
         showNotification,
@@ -2055,15 +2090,30 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
                 redisKey={hashKey}
                 redisType={RedisTableType.Hash}
               />
+
+              {lastFetchTime.toLocaleString()}
+              <TimeDuration dur={fetchDur} />
+              <SliderSize
+                storeKey="redis-hash-table"
+                valueRef={maxRowRef}
+                min={1000}
+                max={50000}
+                step={1000}
+                notice=<LimitMaxRowNotice />
+              />
+
+              <DoubleClickToModify />
+
+              <ResetColumnWidth />
             </div>
             <Stack direction="row" alignItems="center">
-              <AppDataGridPagination />
+              <AppDataGridPagination showPageSelect />
             </Stack>
           </Stack>
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, [hashKey, resp, uuid]);
+  }, [fetchDur, hashKey, lastFetchTime, resp, uuid]);
   return (
     <Stack style={{ height: "100%" }}>
       <Stack
@@ -2081,15 +2131,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
           >
             reload
           </Button>
-
-          <SliderSize
-            storeKey="redis-hash-table"
-            valueRef={maxRowRef}
-            min={1000}
-            max={50000}
-            step={1000}
-            notice=<LimitMaxRowNotice />
-          />
 
           <Tooltip title={keyMatcherHelpText}>
             <TextField
@@ -2118,12 +2159,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
               style={{ flex: 1 }}
             />
           </Tooltip>
-
-          <DoubleClickToModify />
-        </Stack>
-
-        <Stack direction="row" style={{ alignItems: "center" }}>
-          <ExecutingTime loading={loading} title="loading time" />
         </Stack>
       </Stack>
 
@@ -2202,7 +2237,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
 function DoubleClickToModify() {
   return (
     <Tooltip title="double click a row to modify.">
-      <BsFillLightbulbFill />
+      <span> modify? </span>
     </Tooltip>
   );
 }

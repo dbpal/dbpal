@@ -13,7 +13,9 @@ import {
   TextField,
   IconButton,
   Autocomplete,
+  Select,
 } from "@mui/material";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   CSSProperties,
   ReactNode,
@@ -32,13 +34,14 @@ import {
   GridColumnMenu,
   GridColumnMenuItemProps,
   GridColumnMenuProps,
+  GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
 } from "@mui/x-data-grid";
+
 import { FaFolderOpen } from "react-icons/fa";
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import AddIcon from "@mui/icons-material/Add";
 import { BsDatabaseAdd } from "react-icons/bs";
 import LinkOffIcon from "@mui/icons-material/LinkOff";
@@ -62,6 +65,7 @@ import {
   generateRandomString,
   handleCopyToClipboard,
   pageSizeOptions,
+  prettyMs,
   QueryLogHandler,
   resizeHandlerSize,
   SaveAlign,
@@ -83,6 +87,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { FaMarkdown } from "react-icons/fa";
 import { emit } from "@tauri-apps/api/event";
+import { AppDataGridPagination } from "./CommonComp2";
 
 function MenuExportMarkDownTable({ showExportMarkDown }) {
   return (
@@ -339,18 +344,20 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
 
 function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
   return (
-    <Stack direction="row">
+    <Select
+      style={{ width: "7rem" }}
+      value={pageSize}
+      onChange={e => {
+        handleChange(e.target.value);
+      }}
+      label="page size"
+    >
       {options.map(e => (
-        <Chip
-          label={e}
-          onClick={() => {
-            handleChange(e);
-          }}
-          key={e}
-          color={e == pageSize ? "success" : "default"}
-        />
+        <MenuItem value={e} key={e}>
+          {e}
+        </MenuItem>
       ))}
-    </Stack>
+    </Select>
   );
 }
 
@@ -444,7 +451,6 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
       e["id"] = index;
     }
   });
-
   const { setUpMenu } = useContext(ContextMenuContext);
   const slotProps = useMemo(() => {
     return {
@@ -453,7 +459,6 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
           const { target } = e;
           const content = (target as HTMLDivElement).innerHTML;
           const field = extractFieldAndIDFromMouseEvent(e).field;
-
           if (!field) {
             return;
           }
@@ -489,9 +494,15 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
       ColumnWidth.instance.save(f, width);
     }
   }, []);
+  const slots = useMemo(() => {
+    return {
+      pagination: AppDataGridPagination,
+    } as Partial<GridSlotsComponent>;
+  }, []);
   return (
     <DataGrid
       showToolbar
+      slots={slots}
       style={dataGridStyle}
       sortModel={sortModel}
       onSortModelChange={onSortModelChange}
@@ -507,22 +518,19 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
   );
 }
 
-function MenuResetColumnWidths(props: { reset: () => void }) {
+function ResetColumnWidth() {
   const { showNotification } = useContext(NotificationContext);
-  const { reset } = props;
-
   const handleReset = async () => {
     ColumnWidth.instance.reset();
-    reset();
     showNotification("success", "reset column width successfully");
   };
   return (
-    <MenuItem onClick={handleReset}>
-      <ListItemIcon>
+    <Tooltip title="reset column width">
+      <Button onClick={handleReset} variant="outlined">
+        width
         <RefreshIcon />
-      </ListItemIcon>
-      <ListItemText> Reset Column Width </ListItemText>
-    </MenuItem>
+      </Button>
+    </Tooltip>
   );
 }
 
@@ -755,6 +763,11 @@ function PossibleParseError(props: {
   );
 }
 
+function TimeDuration(props: { dur: string }) {
+  const { dur } = props;
+  return <Chip label={dur} icon={<IoTimerOutline fontSize="1.2rem" />} />;
+}
+
 function ExecutingTime(props: {
   loading: boolean;
   disableTime?: boolean;
@@ -773,7 +786,6 @@ function ExecutingTime(props: {
       timeExecuteClean.current = null;
     }
   };
-
   useEffect(() => {
     return () => {
       tryExecuteTimeClean();
@@ -784,18 +796,7 @@ function ExecutingTime(props: {
     const setUp = () => {
       //@ts-ignore
       const ms = new Date() - now;
-      function getTime() {
-        const s = Math.floor(ms / 1000);
-        if (s == 0) {
-          return `${ms}ms`;
-        }
-        const r = ms % 1000;
-        if (r == 0) {
-          return `${s}s`;
-        }
-        return `${s}s ${r}ms`;
-      }
-      (executeTimeRef.current as HTMLDivElement).innerHTML = `${getTime()}`;
+      (executeTimeRef.current as HTMLDivElement).innerHTML = prettyMs(ms);
     };
     const int = setInterval(() => {
       setUp();
@@ -805,7 +806,6 @@ function ExecutingTime(props: {
       setUp();
     };
   };
-
   useEffect(() => {
     tryExecuteTimeClean();
     if (!loading) {
@@ -814,7 +814,6 @@ function ExecutingTime(props: {
       timeExecute();
     }
   }, [loading]);
-
   return (
     <>
       <Tooltip title={title}>
@@ -1091,7 +1090,7 @@ export {
   MenuOpenConn,
   SelectPageSize,
   MenuDeleteConfig,
-  MenuResetColumnWidths,
+  ResetColumnWidth,
   TrueOrFalse,
   ModalHeader,
   ResizeWrapper,
@@ -1107,4 +1106,5 @@ export {
   MenuExportMarkDownTable,
   MenuNewQueryWindow,
   ResizeParentHeight,
+  TimeDuration,
 };

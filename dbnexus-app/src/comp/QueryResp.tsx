@@ -51,6 +51,7 @@ import {
   ExportMarkDownTable,
   MenuExportMarkDownTable,
   ModalHeader,
+  ResetColumnWidth,
   ViewRowInModal,
 } from "./CommonComp.tsx";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -235,10 +236,10 @@ function QueryResp(props: { data: MuiDataGridData }) {
               flex: 1,
             }}
           >
-            <div />
-            <Stack direction="row" alignItems="center">
-              <AppDataGridPagination />
+            <Stack style={{ flex: 1 }} direction="row">
+              <ResetColumnWidth />
             </Stack>
+            <AppDataGridPagination showPageSelect />
           </Stack>
         );
       },

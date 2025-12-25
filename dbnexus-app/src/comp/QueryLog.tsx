@@ -14,6 +14,7 @@ import {
   DataGrid,
   GridColDef,
   GridPaginationModel,
+  GridSlotsComponent,
   GridSortModel,
 } from "@mui/x-data-grid";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -43,7 +44,7 @@ import {
 import { ModalHeader, ResizeParentHeight } from "./CommonComp.tsx";
 import { BsFillLightbulbFill } from "react-icons/bs";
 import { NotificationContext } from "./Notification.tsx";
-import { SimpleFlexEditor } from "./CommonComp2.tsx";
+import { AppDataGridPagination, SimpleFlexEditor } from "./CommonComp2.tsx";
 
 const initialState: object = {
   sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
@@ -177,6 +178,13 @@ function QueryLog(props: {
 
   const [dom, setDom] = useState<HTMLDivElement>(null);
   const [saveQueryLog, setSaveQueryLog] = useState(SaveQueryLogConfigure.get());
+  const slots = useMemo(() => {
+    return {
+      pagination: () => {
+        return <AppDataGridPagination showPageSelect />;
+      },
+    } as Partial<GridSlotsComponent>;
+  }, []);
   return (
     <Paper
       style={{
@@ -273,6 +281,7 @@ function QueryLog(props: {
           onRowDoubleClick={onRowDoubleClick}
           columns={columns}
           rows={logs}
+          slots={slots}
           style={dataGridStyle}
           rowHeight={setting.appearance.datagridRowHeight()}
           columnHeaderHeight={setting.appearance.datagridRowHeight()}

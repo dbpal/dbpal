@@ -60,7 +60,6 @@ import {
   handleCopyToClipboard,
   isTypeLargeText,
   ErrAndLoc,
-  resetMuiDataRespWidth,
   saveAndSetSize,
   secondConfirm,
   SettingContext,
@@ -76,16 +75,17 @@ import {
   getLanguageFromDataSourceKind,
   dataGridheaderFontSize,
   shrinkAble,
+  prettyMs,
 } from "./helper";
 import { FaCopy } from "react-icons/fa6";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
 import {
   AppColumnMenu,
-  ExecutingTime,
   ExportMarkDownTable,
   MenuExportMarkDownTable,
-  MenuResetColumnWidths,
   ModalHeader,
+  ResetColumnWidth,
+  TimeDuration,
   ViewRowInModal,
 } from "./CommonComp";
 import { editor, Position } from "monaco-editor";
@@ -93,6 +93,7 @@ import wcmatch from "wildcard-match";
 import { MdEditNote } from "react-icons/md";
 import {
   AppDataGridPagination,
+  AppToolBar,
   SimpleFlexEditor,
   SliderSize,
   TableAddButton,
@@ -106,6 +107,7 @@ import {
 } from "./handlers";
 import { invoke } from "@tauri-apps/api/core";
 import { AddTableView } from "./LeftTable";
+
 const confirmAboutPrimary = async (
   notWarnPri: boolean,
   fields: types.Field[],
@@ -410,6 +412,12 @@ function SqlTableView(props: {
     cache_time: null,
     has_more: false,
   });
+  const [lastFetchTime, setLastFetchTime] = useState(new Date());
+  useEffect(() => {
+    setLastFetchTime(new Date());
+  }, [resp]);
+  const [fetchDur, setFetchDur] = useState("");
+
   const clientModelLimit = useRef<number>(1000);
   const { showNotification } = useContext(NotificationContext);
   const [allowFiltering, setAllowFiltering] = useState(false);
@@ -421,6 +429,7 @@ function SqlTableView(props: {
   const [viewInModal, setViewInModal] = useState<object>(null);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+
   const handleResp = (resp: MuiDataGridData) => {
     resp.data.forEach((data, index) => {
       data[keyNotInTable] = index;
@@ -488,6 +497,9 @@ function SqlTableView(props: {
         isView: !isTable,
         uuid,
         setLoading,
+        handleExecuteTime: dur => {
+          setFetchDur(prettyMs(dur));
+        },
         okCallBack: showOK
           ? () => {
               if (showOK) {
@@ -724,11 +736,6 @@ function SqlTableView(props: {
                       }
                     : undefined
                 }
-                resetColumnWidthCallBack={() => {
-                  setResp(old => {
-                    return resetMuiDataRespWidth(old);
-                  });
-                }}
                 viewInModal={() => {
                   setViewInModal(row);
                 }}
@@ -800,10 +807,83 @@ function SqlTableView(props: {
       };
     }
   }, [addModalBox]);
-
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
+      toolbar: () => {
+        return (
+          <AppToolBar
+            title={tableName}
+            left=<Stack direction="row" style={{ alignItems: "center" }}>
+              <Button
+                loading={loading}
+                color="primary"
+                onClick={() => {
+                  handleReload(true);
+                }}
+              >
+                reload
+              </Button>
+              <Tooltip title="filter something like 'age=18'">
+                <Chip
+                  label={where}
+                  onClick={() => {
+                    setShowSetWhere(true);
+                  }}
+                  style={shrinkAble}
+                  size="medium"
+                  color="primary"
+                  icon={<FilterAltIcon />}
+                />
+              </Tooltip>
+              {/* <Typography color="info"> order by </Typography> */}
+              <Tooltip title="sort something like 'age asc'">
+                <Chip
+                  label={sort}
+                  onClick={() => {
+                    setShowSetSort(true);
+                  }}
+                  style={shrinkAble}
+                  size="medium"
+                  color="secondary"
+                  variant="outlined"
+                  icon={<FaArrowsAltV />}
+                />
+              </Tooltip>
+              {kind == DataSourceKind.Cassandra && (
+                <>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={allowFiltering}
+                        onChange={e => setAllowFiltering(e.target.checked)}
+                      />
+                    }
+                    label="allow filtering"
+                  />
+                </>
+              )}
+              {clientModel && (
+                <SliderSize
+                  notice=""
+                  min={1000}
+                  max={100000}
+                  storeKey="sqltable-limit"
+                  step={1000}
+                  valueRef={clientModelLimit}
+                />
+              )}
+              {isTable && (
+                <TableAddButton
+                  handleAdd={() => {
+                    setShowAdd(true);
+                  }}
+                />
+              )}
+            </Stack>
+          />
+        );
+      },
       pagination: () => {
         return (
           <Stack
@@ -814,115 +894,37 @@ function SqlTableView(props: {
               flex: 1,
             }}
           >
-            <div>
-              {isTable && (
-                <TableAddButton
-                  handleAdd={() => {
-                    setShowAdd(true);
-                  }}
-                />
-              )}
-            </div>
+            <Stack direction="row" flex={1} style={{ alignItems: "center" }}>
+              {lastFetchTime.toLocaleString()}
+              <TimeDuration dur={fetchDur} />
+              <ResetColumnWidth />
+            </Stack>
             <Stack direction="row" alignItems="center">
               result {resp.data.length} of {resp.total}
-              <AppDataGridPagination />
+              <AppDataGridPagination showPageSelect />
             </Stack>
           </Stack>
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, [isTable, resp.data.length, resp.total]);
+  }, [
+    allowFiltering,
+    clientModel,
+    fetchDur,
+    handleReload,
+    isTable,
+    kind,
+    lastFetchTime,
+    loading,
+    resp,
+    sort,
+    tableName,
+    where,
+  ]);
+
   const someModel = clientModel ? "client" : "server";
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack direction="row" style={{ alignItems: "center" }}>
-        <Button
-          loading={loading}
-          color="primary"
-          onClick={() => {
-            handleReload(true);
-          }}
-        >
-          reload
-        </Button>
-        <Tooltip title="filter something like 'age=18'">
-          <Chip
-            label={where}
-            onClick={() => {
-              setShowSetWhere(true);
-            }}
-            style={shrinkAble}
-            size="medium"
-            color="primary"
-            icon={<FilterAltIcon />}
-          />
-        </Tooltip>
-        {/* <Typography color="info"> order by </Typography> */}
-        <Tooltip title="sort something like 'age asc'">
-          <Chip
-            label={sort}
-            onClick={() => {
-              setShowSetSort(true);
-            }}
-            style={shrinkAble}
-            size="medium"
-            color="secondary"
-            variant="outlined"
-            icon={<FaArrowsAltV />}
-          />
-        </Tooltip>
-        {kind == DataSourceKind.Cassandra && (
-          <>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={allowFiltering}
-                  onChange={e => setAllowFiltering(e.target.checked)}
-                />
-              }
-              label="allow filtering"
-            />
-          </>
-        )}
-        {clientModel && (
-          <SliderSize
-            notice=""
-            min={1000}
-            max={100000}
-            storeKey="sqltable-limit"
-            step={1000}
-            valueRef={clientModelLimit}
-          />
-        )}
-      </Stack>
-      <Stack direction="row" sx={{ alignItems: "center" }}>
-        <Typography
-          sx={{
-            cursor: "pointer",
-            fontSize: "0.9rem",
-            fontStyle: "italic",
-            color: "success.main",
-            ...textEllipsisStyle,
-          }}
-          variant="body1"
-          onClick={() => {
-            handleCopyToClipboard(resp.sql, showNotification);
-          }}
-        >
-          {resp.sql}
-        </Typography>
-
-        <Stack
-          direction="row"
-          style={{
-            justifyContent: "flex-end",
-            alignItems: "center",
-          }}
-        >
-          <ExecutingTime loading={loading} title="loading time" />
-        </Stack>
-      </Stack>
-
       <DataGrid
         showToolbar
         slots={slots}
@@ -1159,6 +1161,7 @@ function SqlTableViewData(props: {
   const [args, setArgs] = useState(initValues);
   const { showNotification } = useContext(NotificationContext);
   const inputDoms = useRef({});
+
   const handleModify = () => {
     const argsclone = { ...args };
     for (let i = 0; i < fields.length; i++) {
@@ -1288,7 +1291,6 @@ function Menu(props: {
   nullable: boolean;
   editCellInModal: () => void;
   editRowInModal: () => void;
-  resetColumnWidthCallBack: () => void;
   kind: DataSourceKind;
   viewInModal: () => void;
   showExportMarkDown: () => void;
@@ -1308,7 +1310,7 @@ function Menu(props: {
     nullable,
     editCellInModal,
     editRowInModal,
-    resetColumnWidthCallBack,
+
     kind,
     viewInModal,
     showExportMarkDown,
@@ -1446,7 +1448,6 @@ function Menu(props: {
             <ListItemText> Delete Row</ListItemText>
           </MenuItem>
         )}
-        <MenuResetColumnWidths reset={resetColumnWidthCallBack} />
 
         <MenuExportMarkDownTable showExportMarkDown={showExportMarkDown} />
       </MenuList>

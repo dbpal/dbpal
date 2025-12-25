@@ -63,10 +63,8 @@ import { BsFillLightbulbFill } from "react-icons/bs";
 import DataObjectIcon from "@mui/icons-material/DataObject";
 import {
   AppColumnMenu,
-  ExecutingTime,
   ExportMarkDownTable,
   MenuExportMarkDownTable,
-  MenuResetColumnWidths,
   ModalHeader,
   ResizeWrapper,
   SelectPageSize,
@@ -77,7 +75,6 @@ import {
   DocsAndCount,
   handleCopyToClipboard,
   ErrAndLoc,
-  resetMuiDataRespWidth,
   saveAndSetSize,
   SettingContext,
   validJson,
@@ -88,7 +85,12 @@ import {
   shrinkAble,
   DataSourceKind,
 } from "./helper";
-import { EditorBar, SimpleFlexEditor, TableAddButton } from "./CommonComp2";
+import {
+  AppDataGridPagination,
+  EditorBar,
+  SimpleFlexEditor,
+  TableAddButton,
+} from "./CommonComp2";
 import { message } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { AddTableView } from "./LeftTable";
@@ -677,18 +679,9 @@ function MongoTableListContextMenu(props: {
   loadDoc: () => Promise<BSON.Document>;
   setSort;
   showExportMarkDown;
-  resetColumnWidthCallBack;
 }) {
-  const {
-    delOP,
-    content,
-    field,
-    setFilter,
-    loadDoc,
-    setSort,
-    resetColumnWidthCallBack,
-    showExportMarkDown,
-  } = props;
+  const { delOP, content, field, setFilter, loadDoc, setSort, showExportMarkDown } =
+    props;
   const [showFilter, setShowFilter] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [showViewJson, setShowViewJson] = useState(false);
@@ -778,7 +771,6 @@ function MongoTableListContextMenu(props: {
           </MenuItem>
         )}
         <MenuExportMarkDownTable showExportMarkDown={showExportMarkDown} />
-        <MenuResetColumnWidths reset={resetColumnWidthCallBack} />
       </MenuList>
 
       {showViewJson && (
@@ -1360,11 +1352,6 @@ function MongoTableList(props: {
                   return await loadOne(EJSON.parse(doc[mongoID]));
                 }}
                 setSort={setSort}
-                resetColumnWidthCallBack={() => {
-                  setResp(old => {
-                    return resetMuiDataRespWidth(old);
-                  });
-                }}
                 showExportMarkDown={() => {
                   setShowExportMarkDown(true);
                 }}
@@ -1393,7 +1380,25 @@ function MongoTableList(props: {
     setting.export.includeHeader,
   ]);
   const slots = useMemo(() => {
-    return { columnMenu: AppColumnMenu } as Partial<GridSlotsComponent>;
+    return {
+      columnMenu: AppColumnMenu,
+      pagination: () => {
+        return (
+          <Stack
+            direction="row"
+            flex={1}
+            style={{
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <div style={{ flex: 1 }} />
+
+            <AppDataGridPagination showPageSelect />
+          </Stack>
+        );
+      },
+    } as Partial<GridSlotsComponent>;
   }, []);
   const onColumnResize = useCallback(({ colDef, width }) => {
     ColumnWidth.instance.save(colDef.field, width);
@@ -1711,13 +1716,6 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
         table={table}
         isTable={isTable}
       />
-      <Stack
-        direction="row"
-        style={{ justifyContent: "flex-end", alignItems: "center" }}
-      >
-        <ExecutingTime loading={loading} title="loading time" />
-      </Stack>
-
       {viewModel == MongoDataViewModel.List && (
         <MongoTableList
           setFilter={setFilter}

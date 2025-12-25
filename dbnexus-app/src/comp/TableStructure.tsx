@@ -24,7 +24,12 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import { NotificationContext } from "./Notification";
 import { invoke } from "@tauri-apps/api/core";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import { DataGrid, GridColDef, GridSlotsComponentsProps } from "@mui/x-data-grid";
+import {
+  DataGrid,
+  GridColDef,
+  GridSlotsComponent,
+  GridSlotsComponentsProps,
+} from "@mui/x-data-grid";
 import {
   Autocomplete,
   Box,
@@ -64,6 +69,7 @@ import {
   showTrigger,
 } from "./handlers";
 import {
+  AppDataGridPagination,
   ColumnNullness,
   CreateIndexReq,
   SqlDefaultValue,
@@ -301,6 +307,11 @@ function ColumnsStructure(props: {
       }
     }
   }, [kind, row, showNotification]);
+  const slots = useMemo(() => {
+    return {
+      pagination: AppDataGridPagination,
+    } as Partial<GridSlotsComponent>;
+  }, []);
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" style={{ alignItems: "center" }}>
@@ -325,6 +336,7 @@ function ColumnsStructure(props: {
       </Stack>
 
       <DataGrid
+        slots={slots}
         showToolbar
         getRowId={getRowId}
         slotProps={slotProps}
@@ -638,6 +650,11 @@ function IndexesStructure(props: {
       return c;
     }
   }, [kind, modalBox]);
+  const slots = useMemo(() => {
+    return {
+      pagination: AppDataGridPagination,
+    } as Partial<GridSlotsComponent>;
+  }, []);
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row">
@@ -666,6 +683,7 @@ function IndexesStructure(props: {
         columns={cols}
         rows={indexes}
         style={dataGridStyle}
+        slots={slots}
       />
 
       {showAdd && kind == DataSourceKind.Mongo && (
@@ -1395,7 +1413,11 @@ function TriggersStructure(props: {
       return c;
     }
   }, [modalBox]);
-
+  const slots = useMemo(() => {
+    return {
+      pagination: AppDataGridPagination,
+    } as Partial<GridSlotsComponent>;
+  }, []);
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" style={{ alignItems: "center" }}>
@@ -1422,6 +1444,7 @@ function TriggersStructure(props: {
         rows={triggers}
         onRowDoubleClick={onRowDoubleClick}
         style={dataGridStyle}
+        slots={slots}
       />
 
       {row && (

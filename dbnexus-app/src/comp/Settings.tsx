@@ -1064,6 +1064,7 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
           boxShadow: "0 1px 3px",
         },
       },
+      defaultProps: { density: "compact" },
     },
     MuiStack: {
       defaultProps: { spacing: 0.5 },

@@ -105,6 +105,7 @@ import { ProceduresTree } from "./LeftProcedure.tsx";
 import {
   DataGrid,
   GridColDef,
+  GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
 } from "@mui/x-data-grid";
@@ -113,7 +114,12 @@ import { FaBookmark } from "react-icons/fa";
 import { SequenceTree } from "./LeftSequence.tsx";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { TypesTree } from "./LeftType.tsx";
-import { CreateDatabase, CreateSchema, MenuConnectionInfo } from "./CommonComp2.tsx";
+import {
+  AppDataGridPagination,
+  CreateDatabase,
+  CreateSchema,
+  MenuConnectionInfo,
+} from "./CommonComp2.tsx";
 import { EventsTree } from "./LeftEvent.tsx";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { AllKindChat } from "./Chat.tsx";
@@ -491,7 +497,11 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
   useEffect(() => {
     handleReload();
   }, [handleReload]);
-
+  const slots = useMemo(() => {
+    return {
+      pagination: AppDataGridPagination,
+    } as Partial<GridSlotsComponent>;
+  }, []);
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row">
@@ -513,6 +523,7 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
         showToolbar
         getRowId={getRowId}
         style={dataGridStyle}
+        slots={slots}
         sortModel={sortModel}
         onSortModelChange={onSortModelChange}
         showCellVerticalBorder
@@ -852,6 +863,11 @@ function FavoriteSqlList(props: { handleClose }) {
     }
     FavoriteSql.clearByUuid(showNotification, uuidFilter);
   };
+  const slots = useMemo(() => {
+    return {
+      pagination: AppDataGridPagination,
+    } as Partial<GridSlotsComponent>;
+  }, []);
 
   return (
     <Stack style={{ height: "100%" }}>
@@ -910,6 +926,7 @@ function FavoriteSqlList(props: { handleClose }) {
       <DataGrid
         showToolbar
         sortModel={sortModel}
+        slots={slots}
         onSortModelChange={onSortModelChange}
         showCellVerticalBorder
         showColumnVerticalBorder

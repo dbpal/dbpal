@@ -289,6 +289,7 @@ async function showTable(
     isView?: boolean;
     showNotification;
     silent?: boolean;
+    handleExecuteTime?: (ms: number) => void;
   } & ShowTableCallBack,
 ) {
   let {
@@ -301,12 +302,14 @@ async function showTable(
     handleResult,
     setLoading,
     silent,
+    handleExecuteTime,
   } = props;
 
   isView = !!isView;
   if (!para) {
     para = {};
   }
+  let now = new Date();
   try {
     setLoading(true);
     let resp: MuiDataGridData = null;
@@ -364,6 +367,11 @@ async function showTable(
       showNotification("error", "fetch data failed", e);
     }, 50);
   } finally {
+    if (handleExecuteTime) {
+      //@ts-ignore
+      handleExecuteTime(new Date() - now);
+    }
+
     setLoading(false);
   }
 }

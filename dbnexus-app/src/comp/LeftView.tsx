@@ -64,8 +64,13 @@ import {
 } from "./helper";
 import { ExceedMaxTreeItem, MenuRefresh } from "./CommonComp";
 import { MongoTable } from "./MongoDB";
-import { DataGrid, GridColDef, GridSlotsComponentsProps } from "@mui/x-data-grid";
-import { SimpleFlexEditor } from "./CommonComp2";
+import {
+  DataGrid,
+  GridColDef,
+  GridSlotsComponent,
+  GridSlotsComponentsProps,
+} from "@mui/x-data-grid";
+import { AppDataGridPagination, SimpleFlexEditor } from "./CommonComp2";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { createViewSql, listView, showViewColumns } from "./handlers";
 import { filesize } from "filesize";
@@ -365,7 +370,11 @@ function ColumnsContent(props: { uuid: string; view: string }) {
   const getRowId = useCallback(e => {
     return e["field"];
   }, []);
-
+  const slots = useMemo(() => {
+    return {
+      pagination: AppDataGridPagination,
+    } as Partial<GridSlotsComponent>;
+  }, []);
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row">
@@ -375,6 +384,7 @@ function ColumnsContent(props: { uuid: string; view: string }) {
       </Stack>
       <DataGrid
         showToolbar
+        slots={slots}
         getRowId={getRowId}
         slotProps={slotProps}
         onColumnResize={onColumnResize}

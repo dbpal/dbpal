@@ -23,6 +23,11 @@ import { ChatOpenAI } from "@langchain/openai";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 const pageSizeOptions = [10, 20, 50, 100];
 const appStore = await load("store.json");
+import prettyMilliseconds from "pretty-ms";
+
+function prettyMs(x: number) {
+  return prettyMilliseconds(x);
+}
 
 const appDatabase = await Database.load("sqlite:dbpal.sqlite.db");
 
@@ -572,15 +577,6 @@ interface ErrAndLoc {
 
 function validJson(s: string): Promise<ErrAndLoc | null> {
   return invoke<ErrAndLoc | null>("valid_json", { jsonStr: s });
-}
-
-function resetMuiDataRespWidth(old: MuiDataGridData): MuiDataGridData {
-  return {
-    fields: old.fields.map(e => {
-      return { ...e, width: undefined } as types.Field;
-    }),
-    ...old,
-  };
 }
 
 type UISize = {
@@ -1199,7 +1195,6 @@ export {
   TabActiveContext,
   FavoriteSql,
   MatchPatternContext,
-  resetMuiDataRespWidth,
   quoteDatabaseIdentifier,
   saveAndSetSize,
   SaveDomSizes,
@@ -1253,6 +1248,7 @@ export {
   MongoLanguage,
   extractLastNameFromUuid,
   resizeHandlerSize,
+  prettyMs,
 };
 
 export type { ErrAndLoc, NewWindowTableParameter, QueryRespData };
