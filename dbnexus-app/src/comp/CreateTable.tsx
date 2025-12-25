@@ -1,6 +1,7 @@
 import {
   Button,
   Checkbox,
+  Divider,
   FormControlLabel,
   IconButton,
   InputAdornment,
@@ -147,7 +148,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
 
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack style={{ ...containerStyle }}>
+      <Stack style={{ ...containerStyle }} divider={<Divider />}>
         <Typography variant="h5"> column </Typography>
         {cols.map((col, index) => {
           return (
@@ -170,7 +171,10 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
               }}
               resetAutoInc={() => {
                 cols.forEach(col => {
-                  col.auto_increment = false;
+                  if (col.auto_increment) {
+                    col.auto_increment = false;
+                    col.primary_key = false;
+                  }
                 });
               }}
             />
@@ -322,12 +326,8 @@ function TableColumn(props: {
     <Stack
       direction="row"
       style={{
-        alignItems: "flex-end",
-        border: "1px solid grey",
-        padding: "0.4rem",
-        borderRadius: "10px",
+        alignItems: "center",
       }}
-      // divider="|"
     >
       <IconButton onClick={handleClose}>
         <CloseIcon />
