@@ -60,7 +60,6 @@ import {
   pageSizeOptions,
   RedisTableType,
   DataSourceKind,
-  prettyMs,
 } from "./helper.ts";
 import {
   AppColumnMenu,
@@ -799,7 +798,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   useEffect(() => {
     setLastFetchTime(new Date());
   }, [resp]);
-  const [fetchDur, setFetchDur] = useState("");
+  const [fetchDur, setFetchDur] = useState(0);
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState<{ id; value }>(null);
   const [loading, setLoading] = useState(false);
@@ -813,7 +812,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         setLoading,
         para: { limit: maxRowRef.current },
         handleExecuteTime: t => {
-          setFetchDur(prettyMs(t));
+          setFetchDur(t);
         },
         showNotification,
         okCallBack: () => {
@@ -1213,7 +1212,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
   useEffect(() => {
     setLastFetchTime(new Date());
   }, [resp]);
-  const [fetchDur, setFetchDur] = useState("");
+  const [fetchDur, setFetchDur] = useState(0);
   const [respOrigin, setRespOrigin] = useState<MuiDataGridData | null>(null);
   const [selectRow, setSelectRow] = useState<any>(null);
   const { showNotification } = useContext(NotificationContext);
@@ -1235,7 +1234,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
             }
           : undefined,
         handleExecuteTime: t => {
-          setFetchDur(prettyMs(t));
+          setFetchDur(t);
         },
         handleResult: resp => {
           resp.data.forEach((e, index) => {
@@ -1551,7 +1550,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   useEffect(() => {
     setLastFetchTime(new Date());
   }, [resp]);
-  const [fetchDur, setFetchDur] = useState("");
+  const [fetchDur, setFetchDur] = useState(0);
 
   const [selectRow, setSelectRow] = useState<any>();
   const [min, setMin] = useState("");
@@ -1581,7 +1580,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           limit: maxRowRef.current,
         },
         handleExecuteTime: t => {
-          setFetchDur(prettyMs(t));
+          setFetchDur(t);
         },
         showNotification,
         silent: !showOK,
@@ -1995,7 +1994,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
   useEffect(() => {
     setLastFetchTime(new Date());
   }, [resp]);
-  const [fetchDur, setFetchDur] = useState("");
+  const [fetchDur, setFetchDur] = useState(0);
 
   const handleReload = useCallback(
     showOK => {
@@ -2009,7 +2008,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
             }
           : undefined,
         handleExecuteTime: t => {
-          setFetchDur(prettyMs(t));
+          setFetchDur(t);
         },
         para: { limit: maxRowRef.current },
         setLoading,

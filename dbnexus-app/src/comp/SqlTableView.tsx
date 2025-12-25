@@ -75,7 +75,6 @@ import {
   getLanguageFromDataSourceKind,
   dataGridheaderFontSize,
   shrinkAble,
-  prettyMs,
 } from "./helper";
 import { FaCopy } from "react-icons/fa6";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
@@ -417,8 +416,7 @@ function SqlTableView(props: {
   useEffect(() => {
     setLastFetchTime(new Date());
   }, [resp]);
-  const [fetchDur, setFetchDur] = useState("");
-
+  const [fetchDur, setFetchDur] = useState(0);
   const clientModelLimit = useRef<number>(1000);
   const { showNotification } = useContext(NotificationContext);
   const [allowFiltering, setAllowFiltering] = useState(false);
@@ -499,7 +497,7 @@ function SqlTableView(props: {
         uuid,
         setLoading,
         handleExecuteTime: dur => {
-          setFetchDur(prettyMs(dur));
+          setFetchDur(dur);
         },
         okCallBack: showOK
           ? () => {

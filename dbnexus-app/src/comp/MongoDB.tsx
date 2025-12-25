@@ -86,7 +86,6 @@ import {
   pageSizeOptions,
   shrinkAble,
   DataSourceKind,
-  prettyMs,
 } from "./helper";
 import {
   AppDataGridPagination,
@@ -1220,7 +1219,7 @@ function MongoTableList(props: {
   useEffect(() => {
     setLastFetchTime(new Date());
   }, [resp]);
-  const [fetchDur, setFetchDur] = useState("");
+  const [fetchDur, setFetchDur] = useState(0);
   const handleReload = useCallback(
     async showOK => {
       const now = new Date();
@@ -1246,7 +1245,7 @@ function MongoTableList(props: {
         })
         .finally(() => {
           //@ts-ignore
-          setFetchDur(prettyMs(new Date() - now));
+          setFetchDur(new Date() - now);
           setLoading(false);
         });
     },
