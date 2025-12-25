@@ -149,7 +149,27 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   return (
     <Stack style={{ height: "100%" }}>
       <Stack style={{ ...containerStyle }} divider={<Divider />}>
-        <Typography variant="h5"> column </Typography>
+        <Stack direction="row" style={{ alignItems: "center" }}>
+          <Typography variant="h5"> column </Typography>
+          <Button
+            onClick={() => {
+              setCols([
+                ...cols,
+                {
+                  name: "",
+                  data_type: "",
+                  auto_increment: false,
+                  primary_key: false,
+                  default_value: null,
+                  nullable: "none",
+                },
+              ]);
+            }}
+          >
+            <AddIcon />
+          </Button>
+        </Stack>
+
         {cols.map((col, index) => {
           return (
             <TableColumn
@@ -180,23 +200,6 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
             />
           );
         })}
-        <Button
-          onClick={() => {
-            setCols([
-              ...cols,
-              {
-                name: "",
-                data_type: "",
-                auto_increment: false,
-                primary_key: false,
-                default_value: null,
-                nullable: "none",
-              },
-            ]);
-          }}
-        >
-          <AddIcon />
-        </Button>
       </Stack>
       {cols.length > 0 && (
         <Stack style={{ ...containerStyle }}>
