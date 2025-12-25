@@ -353,6 +353,7 @@ function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
         onChange={e => {
           handleChange(e.target.value);
         }}
+        label="page size"
       >
         {options.map(e => (
           <MenuItem value={e} key={e}>

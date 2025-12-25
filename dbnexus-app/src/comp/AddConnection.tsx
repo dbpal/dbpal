@@ -327,7 +327,7 @@ function PGSSL(props: { ssl: types.PgSsl; setSsl: any }) {
         <InputLabel> ssl mode </InputLabel>
         <Select
           value={ssl.ssl_mode}
-          label="candidates"
+          label="ssl mode"
           onChange={e => setSsl({ ...ssl, ssl_mode: e.target.value } as types.PgSsl)}
         >
           {modes.map(e => (
@@ -358,7 +358,7 @@ function MysqlSSl(props: { ssl: types.MysqlSsl; setSsl: any }) {
         <InputLabel> ssl mode </InputLabel>
         <Select
           value={ssl.ssl_mode}
-          label="candidates"
+          label="ssl mode"
           onChange={e => setSsl({ ...ssl, ssl_mode: e.target.value } as types.MysqlSsl)}
         >
           {modes.map(e => (
