@@ -768,7 +768,13 @@ function PossibleParseError(props: {
 function TimeDuration(props: { dur: number }) {
   const { dur } = props;
   return (
-    dur && <Chip label={prettyMs(dur)} icon={<IoTimerOutline fontSize="1.2rem" />} />
+    dur && (
+      <Chip
+        label={prettyMs(dur)}
+        color={dur > 2000 ? "error" : "info"}
+        icon={<IoTimerOutline fontSize="1.2rem" />}
+      />
+    )
   );
 }
 
