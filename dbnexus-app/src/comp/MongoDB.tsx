@@ -66,8 +66,10 @@ import {
   ExportMarkDownTable,
   MenuExportMarkDownTable,
   ModalHeader,
+  ResetColumnWidth,
   ResizeWrapper,
   SelectPageSize,
+  TimeDuration,
 } from "./CommonComp";
 import {
   ColumnWidth,
@@ -84,10 +86,13 @@ import {
   pageSizeOptions,
   shrinkAble,
   DataSourceKind,
+  prettyMs,
 } from "./helper";
 import {
   AppDataGridPagination,
+  AppToolBar,
   EditorBar,
+  LastFetchTime,
   SimpleFlexEditor,
   TableAddButton,
 } from "./CommonComp2";
@@ -501,13 +506,6 @@ function MongoTableToolBar(props: {
       }}
     >
       <Stack direction="row" style={{ flexWrap: "wrap", alignItems: "center" }}>
-        {isTable && (
-          <TableAddButton
-            handleAdd={() => {
-              setShowAdd(true);
-            }}
-          />
-        )}
         <Button loading={loading} color="primary" onClick={handleReload}>
           reload
         </Button>
@@ -542,6 +540,13 @@ function MongoTableToolBar(props: {
           variant="outlined"
           icon={<FaArrowsAltV />}
         />
+        {isTable && (
+          <TableAddButton
+            handleAdd={() => {
+              setShowAdd(true);
+            }}
+          />
+        )}
         {someNotice}
       </Stack>
       <Stack direction="row" style={{ alignItems: "center" }}>
@@ -1002,42 +1007,44 @@ function MongoTableJson(props: {
     handleReload(true);
   }, [handleReload, triggerReload]);
   return (
-    <Stack>
-      {jsons.docs.map(doc => {
-        return (
-          <ResizeWrapper
-            sizeKeyKind="height"
-            sizeKey="mongo-view-data-json"
-            height="300px"
-            key={renderId(doc[mongoID])}
-          >
-            <JsonEditor
-              value={doc}
-              modifyOP={
-                modifyOP
-                  ? async doc => {
-                      try {
-                        await modifyOP(doc);
-                      } catch (e) {
-                        showNotification("error", "modify failed", e);
-                        return;
+    <Stack style={{ flex: 1, height: "100px" }}>
+      <div style={{ flex: 1, height: "100px", overflow: "auto" }}>
+        {jsons.docs.map(doc => {
+          return (
+            <ResizeWrapper
+              sizeKeyKind="height"
+              sizeKey="mongo-view-data-json"
+              height="300px"
+              key={renderId(doc[mongoID])}
+            >
+              <JsonEditor
+                value={doc}
+                modifyOP={
+                  modifyOP
+                    ? async doc => {
+                        try {
+                          await modifyOP(doc);
+                        } catch (e) {
+                          showNotification("error", "modify failed", e);
+                          return;
+                        }
+                        handleReload(false);
+                        showNotification("success", "Modify OK");
                       }
-                      handleReload(false);
-                      showNotification("success", "Modify OK");
-                    }
-                  : undefined
-              }
-              handleDelete={
-                deleteOP
-                  ? async () => {
-                      await handleDelete(doc[mongoID]);
-                    }
-                  : undefined
-              }
-            />
-          </ResizeWrapper>
-        );
-      })}
+                    : undefined
+                }
+                handleDelete={
+                  deleteOP
+                    ? async () => {
+                        await handleDelete(doc[mongoID]);
+                      }
+                    : undefined
+                }
+              />
+            </ResizeWrapper>
+          );
+        })}
+      </div>
 
       {/* // here is pagination */}
       <BsonJsonPagination
@@ -1144,7 +1151,10 @@ function JsonEditor(props: {
 
 function BsonJsonPagination({ pageSize, total, setPage, length, page, setPageSize }) {
   return (
-    <Stack direction="row" alignItems="center">
+    <Stack direction="row" style={{ alignItems: "center", justifyContent: "flex-end" }}>
+      <Typography>
+        result {length} of {total}
+      </Typography>
       <Pagination
         page={page}
         defaultPage={1}
@@ -1155,9 +1165,6 @@ function BsonJsonPagination({ pageSize, total, setPage, length, page, setPageSiz
           setPage(page);
         }}
       />
-      <Typography>
-        result {length} of {total}
-      </Typography>
       <SelectPageSize
         options={[10, 20]}
         pageSize={pageSize}
@@ -1186,6 +1193,7 @@ function MongoTableList(props: {
   triggerReload;
   loading: boolean;
   setLoading;
+  tableName: string;
 }) {
   const {
     filter,
@@ -1198,6 +1206,7 @@ function MongoTableList(props: {
     triggerReload,
     setFilter,
     loading,
+    tableName,
     setLoading,
   } = props;
   const [page, setPage] = useState(0);
@@ -1207,8 +1216,14 @@ function MongoTableList(props: {
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(null);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
   const setting = useContext(SettingContext);
+  const [lastFetchTime, setLastFetchTime] = useState(new Date());
+  useEffect(() => {
+    setLastFetchTime(new Date());
+  }, [resp]);
+  const [fetchDur, setFetchDur] = useState("");
   const handleReload = useCallback(
     async showOK => {
+      const now = new Date();
       setLoading(true);
       reloadOP(filter, sort, page + 1, pageSize)
         .then(r => {
@@ -1230,6 +1245,8 @@ function MongoTableList(props: {
           showNotification("error", "fetch data failed", e);
         })
         .finally(() => {
+          //@ts-ignore
+          setFetchDur(prettyMs(new Date() - now));
           setLoading(false);
         });
     },
@@ -1382,6 +1399,9 @@ function MongoTableList(props: {
   const slots = useMemo(() => {
     return {
       columnMenu: AppColumnMenu,
+      toolbar: () => {
+        return <AppToolBar title={tableName} />;
+      },
       pagination: () => {
         return (
           <Stack
@@ -1392,14 +1412,18 @@ function MongoTableList(props: {
               justifyContent: "space-between",
             }}
           >
-            <div style={{ flex: 1 }} />
-
+            <Stack style={{ flex: 1, alignItems: "center" }} direction="row">
+              <LastFetchTime date={lastFetchTime} />
+              <TimeDuration dur={fetchDur} />
+              <ResetColumnWidth />
+            </Stack>
             <AppDataGridPagination showPageSelect />
           </Stack>
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, []);
+  }, [fetchDur, lastFetchTime, tableName]);
+
   const onColumnResize = useCallback(({ colDef, width }) => {
     ColumnWidth.instance.save(colDef.field, width);
   }, []);
@@ -1560,42 +1584,44 @@ function MongoTableObject(props: {
     handleReload(true);
   }, [handleReload, triggerReload]);
   return (
-    <Stack>
-      {docs.docs.map(doc => {
-        return (
-          <ResizeWrapper
-            key={renderId(doc[mongoID])}
-            sizeKeyKind="height"
-            sizeKey="mongo-view-data"
-            height="300px"
-          >
-            <MongoBsonEditor
-              doc={doc}
-              setOP={
-                modifyOP
-                  ? async doc => {
-                      try {
-                        await modifyOP(doc);
-                      } catch (e) {
-                        showNotification("error", "Modify failed", e);
-                        return;
+    <Stack style={{ flex: 1, height: "100px" }}>
+      <div style={{ flex: 1, height: "100px", overflow: "auto" }}>
+        {docs.docs.map(doc => {
+          return (
+            <ResizeWrapper
+              key={renderId(doc[mongoID])}
+              sizeKeyKind="height"
+              sizeKey="mongo-view-data"
+              height="300px"
+            >
+              <MongoBsonEditor
+                doc={doc}
+                setOP={
+                  modifyOP
+                    ? async doc => {
+                        try {
+                          await modifyOP(doc);
+                        } catch (e) {
+                          showNotification("error", "Modify failed", e);
+                          return;
+                        }
+                        showNotification("success", "modify ok");
+                        handleReload(false);
                       }
-                      showNotification("success", "modify ok");
-                      handleReload(false);
-                    }
-                  : undefined
-              }
-              delOP={
-                deleteOP
-                  ? async () => {
-                      return await handleDelete(doc[mongoID]);
-                    }
-                  : undefined
-              }
-            />
-          </ResizeWrapper>
-        );
-      })}
+                    : undefined
+                }
+                delOP={
+                  deleteOP
+                    ? async () => {
+                        return await handleDelete(doc[mongoID]);
+                      }
+                    : undefined
+                }
+              />
+            </ResizeWrapper>
+          );
+        })}
+      </div>
 
       {/* // here is pagination */}
       <BsonJsonPagination
@@ -1731,6 +1757,7 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
           triggerReload={triggerReload}
           loading={loading}
           setLoading={setLoading}
+          tableName={table}
         />
       )}
 

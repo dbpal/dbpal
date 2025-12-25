@@ -1,3 +1,6 @@
+// https://mui.com/x/react-data-grid/components/toolbar/ copeid here we want to keep build in function.
+// and style={{ border: "none" }} modify this
+
 import * as React from "react";
 import { styled } from "@mui/material/styles";
 import {
@@ -24,7 +27,6 @@ import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import CancelIcon from "@mui/icons-material/Cancel";
 import SearchIcon from "@mui/icons-material/Search";
-import Typography from "@mui/material/Typography";
 
 type OwnerState = {
   expanded: boolean;
@@ -62,7 +64,7 @@ function CustomToolbar() {
   const exportMenuTriggerRef = React.useRef<HTMLButtonElement>(null);
 
   return (
-    <Toolbar>
+    <Toolbar style={{ border: "none" }}>
       <Tooltip title="Columns">
         <ColumnsPanelTrigger render={<ToolbarButton />}>
           <ViewColumnIcon fontSize="small" />

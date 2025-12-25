@@ -94,6 +94,7 @@ import { MdEditNote } from "react-icons/md";
 import {
   AppDataGridPagination,
   AppToolBar,
+  LastFetchTime,
   SimpleFlexEditor,
   SliderSize,
   TableAddButton,
@@ -529,10 +530,6 @@ function SqlTableView(props: {
 
   const handleProcessRowUpdate = useCallback(
     async (newRow: object, oldRow: object, { rowId }) => {
-      if (!isTable) {
-        // TODO this is  a view should return a error??
-        return newRow;
-      }
       const findDiff = (): Map<string, string | null> => {
         const m = new Map();
         for (const key in newRow) {
@@ -573,7 +570,7 @@ function SqlTableView(props: {
       }
       return newRow;
     },
-    [isTable, notWarnPri, resp, showNotification, updateOP],
+    [notWarnPri, resp, showNotification, updateOP],
   );
 
   const handleDelete = useCallback(
@@ -865,7 +862,10 @@ function SqlTableView(props: {
               )}
               {clientModel && (
                 <SliderSize
-                  notice=""
+                  notice=<Typography>
+                    some backend not support pagination like sql,cassandra etc,we use
+                    client model.
+                  </Typography>
                   min={1000}
                   max={100000}
                   storeKey="sqltable-limit"
@@ -895,12 +895,16 @@ function SqlTableView(props: {
             }}
           >
             <Stack direction="row" flex={1} style={{ alignItems: "center" }}>
-              {lastFetchTime.toLocaleString()}
+              <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
               <ResetColumnWidth />
             </Stack>
             <Stack direction="row" alignItems="center">
-              result {resp.data.length} of {resp.total}
+              {!clientModel && (
+                <Typography color="info">
+                  result {resp.data.length} of {resp.total}
+                </Typography>
+              )}
               <AppDataGridPagination showPageSelect />
             </Stack>
           </Stack>
@@ -946,7 +950,7 @@ function SqlTableView(props: {
         columns={resp.fields}
         rows={resp.data}
         onColumnResize={onColumnResize}
-        processRowUpdate={handleProcessRowUpdate}
+        processRowUpdate={isTable ? handleProcessRowUpdate : undefined}
         onProcessRowUpdateError={onProcessRowUpdateError}
       />
 

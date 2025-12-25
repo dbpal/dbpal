@@ -1035,6 +1035,9 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
         },
       },
     },
+    MuiToolbar: {
+      defaultProps: { variant: "dense" },
+    },
     MuiSlider: {
       defaultProps: { size: "small" },
     },
@@ -1064,7 +1067,7 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
           boxShadow: "0 1px 3px",
         },
       },
-      defaultProps: { density: "compact" },
+      defaultProps: { density: "compact", disableRowSelectionOnClick: true },
     },
     MuiStack: {
       defaultProps: { spacing: 0.5 },

@@ -9,7 +9,6 @@ import {
   useRef,
   useState,
 } from "react";
-import AddIcon from "@mui/icons-material/Add";
 import ClearIcon from "@mui/icons-material/Clear";
 import { NotificationContext } from "./Notification";
 import Stack from "@mui/material/Stack";
@@ -67,6 +66,7 @@ import {
   modalStyle,
   reloadOK,
 } from "./Common";
+import AddIcon from "@mui/icons-material/Add";
 import types from "./ApiStruct";
 import { MetaValueView, ModalHeader, SelectPageSize } from "./CommonComp";
 import { readFile, writeTextFile } from "@tauri-apps/plugin-fs";
@@ -83,7 +83,7 @@ import {
   useGridApiContext,
   useGridSelector,
 } from "@mui/x-data-grid";
-import { CustomToolbar } from "./AppToolBar";
+import { CustomToolbar } from "./CustomToolBar";
 function CreateDatabase({ uuid, handleClose }) {
   const { showNotification } = useContext(NotificationContext);
   const [database, setDatabase] = useState("");
@@ -1203,17 +1203,37 @@ function AppDataGridPagination(props: { showPageSelect?: boolean }) {
   );
 }
 
-function AppToolBar(props: { title: string; left?: ReactNode; right?: ReactNode }) {
-  const { title, left, right } = props;
+function LastFetchTime(props: { date: Date }) {
+  const { date } = props;
+  return <Typography color="info"> {date.toLocaleString()} </Typography>;
+}
+
+function AppToolBar(props: {
+  title: string;
+  left?: ReactNode;
+  right?: ReactNode;
+  noWrapLeft?: boolean; // don't wrap left in `Stack` node
+}) {
+  const { title, left, right, noWrapLeft } = props;
   return (
     <Stack
       direction="row"
-      style={{ alignItems: "center", justifyContent: "space-between" }}
+      style={{
+        alignItems: "center",
+        justifyContent: "space-between",
+        border: "1px solid grey",
+        borderRadius: "4px",
+        padding: "2px",
+      }}
     >
-      <Stack direction="row" style={{ alignItems: "center" }}>
-        {left}
-      </Stack>
-      <Typography variant="h5"> {title} </Typography>
+      {noWrapLeft ? (
+        left
+      ) : (
+        <Stack direction="row" style={{ alignItems: "center" }}>
+          {left}
+        </Stack>
+      )}
+      <Typography variant="h5">{title}</Typography>
       <Stack direction="row">
         {right}
         <CustomToolbar />
@@ -1245,4 +1265,5 @@ export {
   SqlDefaultValue,
   AppDataGridPagination,
   AppToolBar,
+  LastFetchTime,
 };

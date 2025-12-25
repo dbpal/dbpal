@@ -14,6 +14,8 @@ import {
   IconButton,
   Autocomplete,
   Select,
+  FormControl,
+  InputLabel,
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
@@ -344,20 +346,21 @@ function MenuOpenConn({ handleOpened, name, setLoading }) {
 
 function SelectPageSize({ pageSize, handleChange, options = pageSizeOptions }) {
   return (
-    <Select
-      style={{ width: "7rem" }}
-      value={pageSize}
-      onChange={e => {
-        handleChange(e.target.value);
-      }}
-      label="page size"
-    >
-      {options.map(e => (
-        <MenuItem value={e} key={e}>
-          {e}
-        </MenuItem>
-      ))}
-    </Select>
+    <FormControl style={{ width: "10rem" }}>
+      <InputLabel>page size </InputLabel>
+      <Select
+        value={pageSize}
+        onChange={e => {
+          handleChange(e.target.value);
+        }}
+      >
+        {options.map(e => (
+          <MenuItem value={e} key={e}>
+            {e}
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
   );
 }
 
