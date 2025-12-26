@@ -353,15 +353,16 @@ async function showTable(
         case "status":
           setStatus.current(`${event.status}`);
           break;
+        case "end":
+          setStatus.current("");
+          break;
         default:
           console.error("server send wrong kind of data:", event);
       }
     });
     await invoke("show_table", { name: uuid, tableName: name, para, isView, emit });
     if (okCallBack) {
-      setTimeout(() => {
-        okCallBack();
-      }, 100);
+      okCallBack();
     }
   } catch (e) {
     showNotification("error", "fetch data failed", e);

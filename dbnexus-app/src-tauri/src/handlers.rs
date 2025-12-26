@@ -1024,6 +1024,9 @@ impl Drop for QueryEventChannelEmit {
         if let Err(err) = self.take_data_and_send() {
             println!("send data to frontend failed,err:{}", err);
         }
+        if let Err(err) = self.channel.send(QueryEvent::End) {
+            println!("send data to frontend failed,err:{}", err);
+        }
     }
 }
 
@@ -1128,6 +1131,7 @@ pub enum QueryEvent {
     Status { status: String },
     Data { data: Vec<Vec<Option<String>>> },
     Structure { resp: MuiDataGridData },
+    End,
 }
 
 #[tauri::command]

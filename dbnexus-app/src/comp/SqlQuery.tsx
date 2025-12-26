@@ -367,6 +367,7 @@ function SqlQuery(props: {
         return appendQueryResult(resp, e, queryStatus);
       });
     });
+
     conn
       .queryOP(text, emit, maxRow.current)
       .then(() => {
@@ -751,6 +752,9 @@ function appendQueryResult(
       setQueryStatus.current(event.status);
       return data;
     }
+    case "end":
+      setQueryStatus.current("");
+      return data;
     default:
       console.error("backend give some data which we can not handle", event);
   }

@@ -307,7 +307,8 @@ type QueryEvent =
   | ({ kind: "structure" } & { resp: MuiDataGridData })
   | ({ kind: "err" } & { err: string })
   | ({ kind: "data" } & { data: string[][] })
-  | ({ kind: "status" } & { status: string });
+  | ({ kind: "status" } & { status: string })
+  | { kind: "end" };
 
 class QueryConn {
   queryId: string;
