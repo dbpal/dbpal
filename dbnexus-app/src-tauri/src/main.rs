@@ -54,9 +54,13 @@ use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 #[allow(unused_imports)]
 use tauri_plugin_log::{Target, TargetKind};
 mod migration;
+use mimalloc::MiMalloc;
 use rustls::crypto::{CryptoProvider, aws_lc_rs};
 use std::fs::OpenOptions;
 use std::sync::Once;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 static HOOK_SET: Once = Once::new();
 

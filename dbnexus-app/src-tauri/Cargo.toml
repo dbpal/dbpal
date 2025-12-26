@@ -13,6 +13,7 @@ tauri-build = { version = "2", features = [] }
 
 
 [dependencies]
+mimalloc = { version = "*", features = ["v3"] }
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-dialog = "2.4"
 serde = { version = "1", features = ["derive"] }
