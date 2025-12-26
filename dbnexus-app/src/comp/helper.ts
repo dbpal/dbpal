@@ -631,7 +631,7 @@ class UserSettingAppearance {
   fontFamily: string = "";
   lightBgColor: string = "";
   darkBgColor: string = "";
-  datagridRowHeightFactor = 2;
+  datagridRowHeightFactor = 2.5;
   maxTreeSize: number = 150;
   intputVariant: string = "standard";
   static key = "dbpal-appearance-setting";
