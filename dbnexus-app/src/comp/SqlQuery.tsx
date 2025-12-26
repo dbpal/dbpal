@@ -16,6 +16,7 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { FaExclamation } from "react-icons/fa";
 import {
   ReactNode,
+  RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -52,6 +53,7 @@ import {
   SaveQueryLogConfigure,
   secondConfirm,
   SetCloseConfirmTextContext,
+  SetStatusFn,
   SettingContext,
   shrinkAble,
   TabActiveContext,
@@ -63,9 +65,9 @@ import {
   CancelButton,
   EditorBar,
   LoadStoreFile,
+  QueryStatus,
   SaveFavoriteSqlView,
   SliderSize,
-  showProgressingStatus,
 } from "./CommonComp2.tsx";
 import { ModifyLLMConfigModal } from "./Settings.tsx";
 import { cancelTask, checkSql } from "./handlers.ts";
@@ -190,6 +192,7 @@ class SaveCheckSql {
     localStorage.setItem(SaveCheckSql.key, x ? "1" : "0");
   }
 }
+
 function SqlQuery(props: {
   uuid: string;
   value?: string;
@@ -215,6 +218,8 @@ function SqlQuery(props: {
   const [showExport, setShowExport] = useState(false);
   const [openOk, setOpenOk] = useState(false);
   const [tryCheckSql, setTryCheckSql] = useState(SaveCheckSql.get());
+  const queryStatus = useRef<SetStatusFn>(null);
+
   useEffect(() => {
     SaveCheckSql.save(tryCheckSql);
   }, [tryCheckSql]);
@@ -359,7 +364,7 @@ function SqlQuery(props: {
     let emit = new Channel<QueryEvent>(e => {
       // In Strict Mode, React will call your initializer function twice in order to help you find accidental impurities. This is development-only behavior and does not affect production. If your initializer function is pure (as it should be), this should not affect the behavior. The result from one of the calls will be ignored.
       setResp(resp => {
-        return appendQueryResult(resp, e, showNotification);
+        return appendQueryResult(resp, e, queryStatus);
       });
     });
     conn
@@ -368,21 +373,18 @@ function SqlQuery(props: {
         if (SaveQueryLogConfigure.get()) {
           queryLogHandler.current.save(text, true);
         }
-        setTimeout(() => {
-          showNotification("success", "query OK");
-        }, 300);
+        showNotification("success", "query OK");
       })
       .catch(e => {
         if (SaveQueryLogConfigure.get()) {
           queryLogHandler.current.save(text, false);
         }
-        setTimeout(() => {
-          showNotification("error", "query failed", e);
-        }, 100);
+        showNotification("error", "query failed", e);
       })
       .finally(() => {
         setExecuteTimes(e => e + 1);
         setLoading(false);
+        queryStatus.current("");
       });
   };
 
@@ -596,17 +598,21 @@ function SqlQuery(props: {
             <ExecutingTime loading={loading} disableTime />
             <SliderSize
               storeKey="sql-query"
-              valueRef={maxRow}
               min={1000}
               max={100000}
               step={1000}
+              handleValue={v => {
+                maxRow.current = v;
+              }}
               notice=<Typography>
                 limit max rows can be query.we don&apos;t want OOM!!!😀
                 <br />
                 dbpal use Stream technology to query data,so we can query large data
               </Typography>
             />
+            <QueryStatus setRef={queryStatus} />
           </Stack>
+
           <div
             style={{
               flex: 1,
@@ -698,7 +704,7 @@ function SqlQuery(props: {
 function appendQueryResult(
   data: QueryRespData[],
   event: QueryEvent,
-  showNotification,
+  setQueryStatus: RefObject<SetStatusFn>,
 ): QueryRespData[] {
   switch (event.kind) {
     case "structure":
@@ -707,12 +713,10 @@ function appendQueryResult(
       return [...data, { Err: event.err }];
     case "data": {
       if (event.data.length == 0) {
-        showNotification("warning", "backend send empty data");
         return data;
       }
       let data0 = event.data[0];
-      showProgressingStatus(
-        showNotification,
+      setQueryStatus.current(
         `backend send ${event.data.length} record,data:${data0.slice(0, 3).join("-")}`,
       );
       let index = null;
@@ -723,8 +727,7 @@ function appendQueryResult(
         }
       }
       if (index === null) {
-        showNotification(
-          "error",
+        setQueryStatus.current(
           "should be able to find the index the place data ,this is internal error",
         );
         return data;
@@ -745,15 +748,11 @@ function appendQueryResult(
       return arr;
     }
     case "status": {
-      showProgressingStatus(showNotification, event.status);
+      setQueryStatus.current(event.status);
       return data;
     }
     default:
-      showNotification(
-        "error",
-        "backend give some data which we can not handle",
-        event,
-      );
+      console.error("backend give some data which we can not handle", event);
   }
 }
 

@@ -23,7 +23,7 @@ import {
 } from "./helper";
 
 import { cancelTask } from "./handlers";
-import { CancelButton } from "./CommonComp2";
+import { CancelButton, StackRowCenter } from "./CommonComp2";
 function IncludeHeader({ includeHeader, setIncludeHeader }) {
   return (
     <FormControlLabel
@@ -225,7 +225,7 @@ function ExportView(props: {
 
       <Divider />
 
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <StackRowCenter>
         <IconButton
           onClick={async () => {
             handleExport();
@@ -245,7 +245,7 @@ function ExportView(props: {
         )}
         <Typography ref={exportedSize} />
         <OpenFileWithDefaultApp file={file} />
-      </Stack>
+      </StackRowCenter>
     </Stack>
   );
 }

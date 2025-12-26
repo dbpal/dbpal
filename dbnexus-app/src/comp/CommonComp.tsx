@@ -19,7 +19,6 @@ import {
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
-  CSSProperties,
   ReactNode,
   useCallback,
   useContext,
@@ -71,7 +70,6 @@ import {
   QueryLogHandler,
   resizeHandlerSize,
   SaveAlign,
-  saveAndSetSize,
   SaveDomSizes,
   secondConfirm,
   SettingContext,
@@ -89,7 +87,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { FaMarkdown } from "react-icons/fa";
 import { emit } from "@tauri-apps/api/event";
-import { AppDataGridPagination } from "./CommonComp2";
+import { AppDataGridPagination, StackRowCenter } from "./CommonComp2";
 
 function MenuExportMarkDownTable({ showExportMarkDown }) {
   return (
@@ -505,14 +503,11 @@ function MetaValueView({ values = [] as types.MetaValue[] }) {
   }, []);
   return (
     <DataGrid
-      showToolbar
       slots={slots}
       style={dataGridStyle}
       sortModel={sortModel}
       onSortModelChange={onSortModelChange}
       slotProps={slotProps}
-      rowHeight={setting.appearance.datagridRowHeight()}
-      columnHeaderHeight={setting.appearance.datagridRowHeight()}
       columns={columns}
       rows={values}
       onColumnResize={onColumnResize}
@@ -559,7 +554,7 @@ function ModalHeader(props: {
         marginBottom: "0.4rem",
       }}
     >
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <StackRowCenter>
         <Typography
           variant="h6"
           style={{
@@ -571,7 +566,7 @@ function ModalHeader(props: {
           {title}
         </Typography>
         {headerExtra}
-      </Stack>
+      </StackRowCenter>
 
       <Tooltip title={"esc can close this too"}>
         <IconButton color="secondary" onClick={handleClose}>
@@ -579,58 +574,6 @@ function ModalHeader(props: {
         </IconButton>
       </Tooltip>
     </Stack>
-  );
-}
-
-function ResizeWrapper(props: {
-  children: ReactNode;
-  sizeKey: string;
-  sizeKeyKind: "both" | "width" | "height";
-  style?: CSSProperties;
-  height?: string | number;
-  minHeight?: string | number;
-}) {
-  let { children, sizeKey, sizeKeyKind, style, height, minHeight } = props;
-
-  if (!height) {
-    height = "20vh";
-  }
-  if (!minHeight) {
-    minHeight = "20vh";
-  }
-  const dom = useRef(null);
-  let resize;
-  switch (sizeKeyKind) {
-    case "both":
-      resize = "both";
-      break;
-    case "width":
-      resize = "horizontal";
-      break;
-    case "height":
-      resize = "vertical";
-      break;
-  }
-  useEffect(() => {
-    const c = saveAndSetSize(dom.current, sizeKey, sizeKeyKind);
-    return c;
-  }, [sizeKey, sizeKeyKind]);
-
-  return (
-    <div
-      style={{
-        overflow: "auto",
-        display: "flex",
-        flexDirection: "column",
-        height,
-        minHeight,
-        resize,
-        ...style,
-      }}
-      ref={dom}
-    >
-      {children}
-    </div>
   );
 }
 
@@ -768,10 +711,10 @@ function PossibleParseError(props: {
 function TimeDuration(props: { dur: number }) {
   const { dur } = props;
   return (
-    dur && (
+    !!dur && (
       <Chip
         label={prettyMs(dur)}
-        color={dur > 2000 ? "error" : "info"}
+        color={dur > 4000 ? "warning" : "info"}
         icon={<IoTimerOutline fontSize="1.2rem" />}
       />
     )
@@ -1013,7 +956,7 @@ function ExportMarkDownTable(props: {
       />
       <OpenFileWithDefaultApp file={file} />
       <Divider />
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <StackRowCenter>
         <Button
           onClick={() => {
             handleExport(false);
@@ -1036,7 +979,7 @@ function ExportMarkDownTable(props: {
             setAlign(e);
           }}
         />
-      </Stack>
+      </StackRowCenter>
     </Stack>
   );
 }
@@ -1103,7 +1046,6 @@ export {
   ResetColumnWidth,
   TrueOrFalse,
   ModalHeader,
-  ResizeWrapper,
   ViewRowInModal,
   ExceedMaxTreeItem,
   UdfNameAndParameters,

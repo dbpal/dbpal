@@ -76,7 +76,7 @@ import { TableStructure } from "./TableStructure";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { cancelTask, listTable, makeTableInsertFn, showTableColumn } from "./handlers";
 import { filesize } from "filesize";
-import { CancelButton } from "./CommonComp2";
+import { CancelButton, StackRowCenter } from "./CommonComp2";
 
 function TablesTree(props: { typ: TableType }) {
   const { typ } = props;
@@ -188,9 +188,9 @@ function TableTree(props: { table: string; reloadTables; size: number | null }) 
             });
           }}
         >
-          <Stack direction="row" style={{ alignItems: "center" }}>
+          <StackRowCenter>
             <TableViewIcon> </TableViewIcon> <span>{table}</span>
-          </Stack>
+          </StackRowCenter>
           {size && (
             <span style={{ ...shrinkAble, minWidth: 0 }}>
               {filesize(size, { round: 0 })}

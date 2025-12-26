@@ -54,7 +54,7 @@ import { Position } from "monaco-editor";
 import { invoke } from "@tauri-apps/api/core";
 import EditIcon from "@mui/icons-material/Edit";
 import ClearIcon from "@mui/icons-material/Clear";
-import { SimpleFlexEditor } from "./CommonComp2";
+import { SimpleFlexEditor, StackRowCenter } from "./CommonComp2";
 import {
   enable as enableApp,
   isEnabled as isEnabledApp,
@@ -373,7 +373,7 @@ function EditorSetting() {
             <Typography width={headerSize}>monaco editor options</Typography>
           </Tooltip>
           <Stack style={{ flex: 1 }}>
-            <Stack direction="row" style={{ alignItems: "center" }}>
+            <StackRowCenter>
               <IconButton
                 onClick={() => {
                   setShowEditOption(e => !e);
@@ -383,7 +383,7 @@ function EditorSetting() {
                 <EditIcon> </EditIcon>
               </IconButton>
               <Typography color="info">{editorOptions}</Typography>
-            </Stack>
+            </StackRowCenter>
 
             {editorOptions && (
               <EditorOptions
@@ -985,7 +985,11 @@ function EditorOptions(props: {
   );
 }
 
-function makeComponents(fontWeight: string | number, intputVariant: string) {
+function makeComponents(
+  fontWeight: string | number,
+  intputVariant: string,
+  dataGridRowHeight: number,
+) {
   const components: Components<Omit<Theme, "components" | "palette"> & CssVarsTheme> = {
     MuiCircularProgress: {
       defaultProps: { size: "1.2rem" },
@@ -1072,6 +1076,9 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
         disableRowSelectionOnClick: true,
         showCellVerticalBorder: true,
         showColumnVerticalBorder: true,
+        rowHeight: dataGridRowHeight,
+        columnHeaderHeight: dataGridRowHeight,
+        showToolbar: true,
       },
     },
     MuiStack: {
@@ -1143,7 +1150,8 @@ function makeComponents(fontWeight: string | number, intputVariant: string) {
   return components;
 }
 
-const makeTheme = (appearance: UserSettingAppearance) => {
+const makeTheme = (s: UserSetting) => {
+  const { appearance } = s;
   let color: string;
   if (isDarkTheme()) {
     color = appearance.darkBgColor ? appearance.darkBgColor : "#000";
@@ -1165,7 +1173,11 @@ const makeTheme = (appearance: UserSettingAppearance) => {
         paper: color,
       },
     },
-    components: makeComponents(fontWeight, appearance.intputVariant),
+    components: makeComponents(
+      fontWeight,
+      appearance.intputVariant,
+      s.datagridRowHeightXXX(),
+    ),
   });
 };
 
@@ -1212,7 +1224,7 @@ function SettingComp(props: { children: ReactNode }) {
 
   return (
     setting && (
-      <ThemeProvider theme={makeTheme(setting.appearance)}>
+      <ThemeProvider theme={makeTheme(setting)}>
         <CssBaseline />
         <SettingContext.Provider value={setting}>{children}</SettingContext.Provider>
       </ThemeProvider>

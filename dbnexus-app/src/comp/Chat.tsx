@@ -25,7 +25,12 @@ import {
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { editor } from "monaco-editor";
-import { AppMarkDown, SliderSize, SimpleFlexEditor } from "./CommonComp2";
+import {
+  AppMarkDown,
+  SliderSize,
+  SimpleFlexEditor,
+  StackRowCenter,
+} from "./CommonComp2";
 import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import EditIcon from "@mui/icons-material/Edit";
@@ -734,10 +739,12 @@ function SqlChatTextInput(props: {
 
         <SliderSize
           storeKey="chat-memory-buffer-size"
-          valueRef={chatMemoryK}
           max={20}
           min={0}
           step={2}
+          handleValue={value => {
+            chatMemoryK.current = value;
+          }}
           notice="chat memory buffer size"
         />
 
@@ -878,7 +885,7 @@ function EditPromptTemplate(props: {
           language="text"
         />
         <Divider />
-        <Stack direction="row" style={{ alignItems: "center" }}>
+        <StackRowCenter>
           <Button onClick={handleSave}> save </Button>
           <Autocomplete
             options={MakePrompt.getDefaultTemplatePredefineVariables(kind)}
@@ -906,7 +913,7 @@ function EditPromptTemplate(props: {
               <DeleteForeverIcon> </DeleteForeverIcon>
             </IconButton>
           </Tooltip>
-        </Stack>
+        </StackRowCenter>
       </Stack>
     </Paper>
   );

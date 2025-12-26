@@ -60,6 +60,8 @@ import {
   pageSizeOptions,
   RedisTableType,
   DataSourceKind,
+  SetStatusFn,
+  newEmptyResp,
 } from "./helper.ts";
 import {
   AppColumnMenu,
@@ -75,6 +77,8 @@ import {
   AppDataGridPagination,
   AppToolBar,
   LastFetchTime,
+  QueryStatus,
+  StackRowCenter,
 } from "./CommonComp2.tsx";
 import { invoke } from "@tauri-apps/api/core";
 import { showTable } from "./handlers.ts";
@@ -132,7 +136,7 @@ function RedisAddList(props: { uuid: string; listKey: string }) {
   };
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <StackRowCenter>
         <Typography color="info"> direction: </Typography>
         <RadioGroup
           row
@@ -144,7 +148,7 @@ function RedisAddList(props: { uuid: string; listKey: string }) {
           <FormControlLabel value="left" control={<Radio />} label="head" />
           <FormControlLabel value="right" control={<Radio />} label="tail" />
         </RadioGroup>
-      </Stack>
+      </StackRowCenter>
 
       <RedisValueEditor valueRef={valueRef} />
 
@@ -170,6 +174,7 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
   const [loading, setLoading] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const valueRef = useRef(new EditorAndMode());
+  const queryStatus = useRef<SetStatusFn>(null);
   useEffect(() => {
     showTable({
       uuid,
@@ -178,7 +183,7 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
       handleResult: resp => {
         setContent(resp.data[0]["result"]);
       },
-      silent: true,
+      setStatus: queryStatus,
       setLoading,
     });
   }, [showNotification, stringKey, uuid]);
@@ -582,7 +587,7 @@ function RedisValueEditor(props: {
   }, [editModel, valueRef]);
   return (
     <Stack flex={1}>
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <StackRowCenter>
         <Typography
           variant="h6"
           color="info"
@@ -618,7 +623,7 @@ function RedisValueEditor(props: {
             />
           </>
         )}
-      </Stack>
+      </StackRowCenter>
       <SimpleFlexEditor
         language={editModel == RedisEditorMode.Json ? "json" : "text"}
         value={newValue}
@@ -793,7 +798,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
     [setKey, uuid],
   );
   const [keyMatch, setKeyMatch] = useState("");
-  const [resp, setResp] = useState<MuiDataGridData | null>(null);
+  const [resp, setResp] = useState<MuiDataGridData>(null);
   const [lastFetchTime, setLastFetchTime] = useState(new Date());
   useEffect(() => {
     setLastFetchTime(new Date());
@@ -803,6 +808,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
   const [selectRow, setSelectRow] = useState<{ id; value }>(null);
   const [loading, setLoading] = useState(false);
   const maxRowRef = useRef<number>(2000);
+  const queryStatus = useRef<SetStatusFn>(null);
   const handleReload = useCallback(
     showOK => {
       setLoading(true);
@@ -820,7 +826,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
             reloadOK(showNotification);
           }
         },
-        silent: !showOK,
+        setStatus: queryStatus,
         handleResult: resp => {
           resp.data.forEach((e, index) => {
             e["id"] = index;
@@ -890,7 +896,6 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
     } as GridSlotsComponentsProps;
   }, [handleDel, setUpMenu, setting.export.csvDelimiter, setting.export.includeHeader]);
 
-  const settings = useContext(SettingContext);
   const [modifyModalBox, setModifyModalBox] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modifyModalBox) {
@@ -899,9 +904,6 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
     }
   }, [modifyModalBox]);
   const slots = useMemo(() => {
-    if (!resp) {
-      return {};
-    }
     return {
       columnMenu: AppColumnMenu,
 
@@ -966,10 +968,12 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
               <TimeDuration dur={fetchDur} />
               <SliderSize
                 storeKey="redis-set-table"
-                valueRef={maxRowRef}
                 min={1000}
                 max={50000}
                 step={1000}
+                handleValue={v => {
+                  maxRowRef.current = v;
+                }}
                 notice=<LimitMaxRowNotice />
               />
               <DoubleClickToModify />
@@ -979,16 +983,14 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, [fetchDur, handleReload, keyMatch, lastFetchTime, loading, resp, setKey, uuid]);
+  }, [fetchDur, handleReload, keyMatch, lastFetchTime, loading, setKey, uuid]);
   return (
     <Stack style={{ height: "100%" }}>
+      <QueryStatus setRef={queryStatus} />
       {resp && (
         <DataGrid
-          showToolbar
           slots={slots}
           slotProps={slotProps}
-          rowHeight={settings.datagridRowHeightXXX()}
-          columnHeaderHeight={settings.datagridRowHeightXXX()}
           rows={resp.data}
           editMode="row"
           checkboxSelection={false}
@@ -997,6 +999,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
           paginationMode="client"
           disableColumnFilter
           style={dataGridStyle}
+          loading={loading}
         />
       )}
 
@@ -1205,19 +1208,20 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
     },
     [listKey, uuid],
   );
-  const [resp, setResp] = useState<MuiDataGridData | null>(null);
+  const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
   const [lastFetchTime, setLastFetchTime] = useState(new Date());
   useEffect(() => {
     setLastFetchTime(new Date());
   }, [resp]);
   const [fetchDur, setFetchDur] = useState(0);
-  const [respOrigin, setRespOrigin] = useState<MuiDataGridData | null>(null);
+  const [respOrigin, setRespOrigin] = useState<MuiDataGridData>(newEmptyResp());
   const [selectRow, setSelectRow] = useState<any>(null);
   const { showNotification } = useContext(NotificationContext);
   const [pageSize, setPageSize] = useState(SavePageSize.instance.get());
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const setting = useContext(SettingContext);
+  const queryStatus = useRef<SetStatusFn>(null);
   const handleReload = useCallback(
     (showOk: boolean) => {
       showTable({
@@ -1225,7 +1229,6 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
         name: listKey,
         setLoading,
         showNotification,
-        silent: !showOk,
         okCallBack: showOk
           ? () => {
               showNotification("success", "reload OK");
@@ -1248,6 +1251,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
           setResp(resp);
           setRespOrigin(resp);
         },
+        setStatus: queryStatus,
       });
     },
     [listKey, showNotification, uuid],
@@ -1362,9 +1366,6 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
     }
   }, [modifyModalBox]);
   const slots = useMemo(() => {
-    if (!resp) {
-      return {};
-    }
     return {
       columnMenu: AppColumnMenu,
       toolbar: () => {
@@ -1412,17 +1413,15 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, [fetchDur, handleReload, lastFetchTime, listKey, loading, resp, uuid]);
+  }, [fetchDur, handleReload, lastFetchTime, listKey, loading, uuid]);
   return (
     <Stack style={{ height: "100%" }}>
+      <QueryStatus setRef={queryStatus} />
       {resp && (
         <DataGrid
-          showToolbar
           slots={slots}
           loading={loading}
           slotProps={slotProps}
-          rowHeight={setting.appearance.datagridRowHeight()}
-          columnHeaderHeight={setting.appearance.datagridRowHeight()}
           checkboxSelection={false}
           disableMultipleRowSelection
           disableColumnFilter
@@ -1540,7 +1539,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     [uuid, zsetKey],
   );
   const [keyMatch, setKeyMatch] = useState("");
-  const [resp, setResp] = useState<MuiDataGridData | null>(null);
+  const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
 
   const [lastFetchTime, setLastFetchTime] = useState(new Date());
   useEffect(() => {
@@ -1557,6 +1556,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
   const { showNotification } = useContext(NotificationContext);
   const setting = useContext(SettingContext);
   const maxRowRef = useRef(2000);
+  const queryStatus = useRef<SetStatusFn>(null);
   const handleReload = useCallback(
     (showOK: boolean) => {
       if (minErr || maxErr) {
@@ -1566,6 +1566,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       const maxValue = parseFloat(max);
       setLoading(true);
       showTable({
+        setStatus: queryStatus,
         uuid,
         name: zsetKey,
         setLoading,
@@ -1579,7 +1580,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
           setFetchDur(t);
         },
         showNotification,
-        silent: !showOK,
         okCallBack: showOK
           ? () => {
               showNotification("success", "reload OK");
@@ -1674,9 +1674,6 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     }
   }, []);
   const slots = useMemo(() => {
-    if (!resp) {
-      return {};
-    }
     return {
       columnMenu: AppColumnMenu,
       toolbar: () => {
@@ -1817,7 +1814,9 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
                 step={1000}
                 storeKey="redis-zset-table"
                 notice=<LimitMaxRowNotice />
-                valueRef={maxRowRef}
+                handleValue={v => {
+                  maxRowRef.current = v;
+                }}
               />
               <DoubleClickToModify />
               <ResetColumnWidth />
@@ -1838,21 +1837,18 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
     maxErr,
     min,
     minErr,
-    resp,
     uuid,
     zsetKey,
   ]);
   return (
     <Stack style={{ height: "100%" }}>
+      <QueryStatus setRef={queryStatus} />
       {resp && (
         <DataGrid
-          showToolbar
           slots={slots}
           onColumnResize={onColumnResize}
           loading={loading}
           slotProps={slotProps}
-          rowHeight={setting.appearance.datagridRowHeight()}
-          columnHeaderHeight={setting.appearance.datagridRowHeight()}
           rows={resp.data}
           checkboxSelection={false}
           editMode="row"
@@ -1979,7 +1975,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
     });
   };
   const [keyMatch, setKeyMatch] = useState("");
-  const [resp, setResp] = useState<MuiDataGridData | null>(null);
+  const [resp, setResp] = useState<MuiDataGridData>(newEmptyResp());
   const { showNotification } = useContext(NotificationContext);
   const [selectRow, setSelectRow] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -1989,13 +1985,13 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
     setLastFetchTime(new Date());
   }, [resp]);
   const [fetchDur, setFetchDur] = useState(0);
+  const queryStatus = useRef<SetStatusFn>(null);
 
   const handleReload = useCallback(
     showOK => {
       showTable({
         uuid,
         name: hashKey,
-        silent: !showOK,
         okCallBack: showOK
           ? () => {
               showNotification("success", "reload OK");
@@ -2004,6 +2000,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         handleExecuteTime: t => {
           setFetchDur(t);
         },
+        setStatus: queryStatus,
         para: { limit: maxRowRef.current },
         setLoading,
         showNotification,
@@ -2022,7 +2019,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
     },
     [hashKey, showNotification, uuid],
   );
-
   useEffect(() => {
     handleReload(false);
   }, [handleReload]);
@@ -2092,9 +2088,6 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
     }
   }, []);
   const slots = useMemo(() => {
-    if (!resp) {
-      return {};
-    }
     return {
       columnMenu: AppColumnMenu,
       toolbar: () => {
@@ -2158,22 +2151,24 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
               flex: 1,
             }}
           >
-            <div>
+            <StackRowCenter>
               <LastFetchTime date={lastFetchTime} />
               <TimeDuration dur={fetchDur} />
               <SliderSize
                 storeKey="redis-hash-table"
-                valueRef={maxRowRef}
                 min={1000}
                 max={50000}
                 step={1000}
+                handleValue={v => {
+                  maxRowRef.current = v;
+                }}
                 notice=<LimitMaxRowNotice />
               />
 
               <DoubleClickToModify />
 
               <ResetColumnWidth />
-            </div>
+            </StackRowCenter>
             <Stack direction="row" alignItems="center">
               <AppDataGridPagination showPageSelect />
             </Stack>
@@ -2181,18 +2176,16 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
         );
       },
     } as Partial<GridSlotsComponent>;
-  }, [fetchDur, handleReload, hashKey, keyMatch, lastFetchTime, loading, resp, uuid]);
+  }, [fetchDur, handleReload, hashKey, keyMatch, lastFetchTime, loading, uuid]);
   return (
     <Stack style={{ height: "100%" }}>
+      <QueryStatus setRef={queryStatus} />
       {resp && (
         <DataGrid
           slots={slots}
-          showToolbar
           onColumnResize={onColumnResize}
           loading={loading}
           slotProps={slotProps}
-          rowHeight={setting.appearance.datagridRowHeight()}
-          columnHeaderHeight={setting.appearance.datagridRowHeight()}
           rows={resp.data}
           checkboxSelection={false}
           editMode="row"

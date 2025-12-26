@@ -38,13 +38,16 @@ import {
   SavePageSize,
   SaveQueryLogConfigure,
   secondConfirm,
-  SettingContext,
   TabActiveContext,
 } from "./helper.ts";
 import { ModalHeader, ResizeParentHeight } from "./CommonComp.tsx";
 import { BsFillLightbulbFill } from "react-icons/bs";
 import { NotificationContext } from "./Notification.tsx";
-import { AppDataGridPagination, SimpleFlexEditor } from "./CommonComp2.tsx";
+import {
+  AppDataGridPagination,
+  SimpleFlexEditor,
+  StackRowCenter,
+} from "./CommonComp2.tsx";
 
 const initialState: object = {
   sorting: { sortModel: [{ field: "create_at", sort: "desc" }] },
@@ -80,7 +83,7 @@ function QueryLog(props: {
       SavePageSize.instance.save(e.pageSize);
     }
   }, []);
-
+  const [loading, setLoading] = useState(false);
   let sqlDesc = "sql";
   switch (kind) {
     case DataSourceKind.Redis:
@@ -127,6 +130,7 @@ function QueryLog(props: {
 
   useEffect(() => {
     const handleReload = async () => {
+      setLoading(true);
       try {
         const total = await handler.current.queryCount(matchSql);
         setTotal(total);
@@ -135,6 +139,8 @@ function QueryLog(props: {
       } catch (e) {
         showNotification("error", "get query log error", e);
         return;
+      } finally {
+        setLoading(false);
       }
     };
     if (showQueryLog) {
@@ -142,7 +148,6 @@ function QueryLog(props: {
     }
   }, [page, pageSize, matchSql, orderBy, executeTimes, showQueryLog, showNotification]);
 
-  const setting = useContext(SettingContext);
   const onColumnResize = useCallback(({ colDef, width }) => {
     const field = colDef.field;
     if (field == "create_at" || field == "success") {
@@ -209,7 +214,7 @@ function QueryLog(props: {
           justifyContent: "space-between",
         }}
       >
-        <Stack direction="row" style={{ alignItems: "center" }}>
+        <StackRowCenter>
           <IconButton
             onClick={() => {
               setShowQueryLog(false);
@@ -223,8 +228,8 @@ function QueryLog(props: {
           <Tooltip title="esc can close query log too">
             <span>esc</span>
           </Tooltip>
-        </Stack>
-        <Stack direction="row" style={{ alignItems: "center" }}>
+        </StackRowCenter>
+        <StackRowCenter>
           filter {sqlDesc}:
           <TextField
             value={matchSql}
@@ -271,18 +276,15 @@ function QueryLog(props: {
               label="save query log"
             />
           </Tooltip>
-        </Stack>
+        </StackRowCenter>
       </Stack>
       {showQueryLog && logs.length > 0 && (
         <DataGrid
-          showToolbar
           onRowDoubleClick={onRowDoubleClick}
           columns={columns}
           rows={logs}
           slots={slots}
           style={dataGridStyle}
-          rowHeight={setting.appearance.datagridRowHeight()}
-          columnHeaderHeight={setting.appearance.datagridRowHeight()}
           pageSizeOptions={pageSizeOptions}
           paginationModel={paginationModel}
           onPaginationModelChange={onPaginationModelChange}
@@ -291,6 +293,7 @@ function QueryLog(props: {
           onSortModelChange={onSortModelChange}
           rowCount={total}
           paginationMode="server"
+          loading={loading}
         />
       )}
 

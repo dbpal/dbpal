@@ -75,6 +75,7 @@ import {
   getLanguageFromDataSourceKind,
   dataGridheaderFontSize,
   shrinkAble,
+  SetStatusFn,
 } from "./helper";
 import { FaCopy } from "react-icons/fa6";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
@@ -94,8 +95,10 @@ import {
   AppDataGridPagination,
   AppToolBar,
   LastFetchTime,
+  QueryStatus,
   SimpleFlexEditor,
   SliderSize,
+  StackRowCenter,
   TableAddButton,
 } from "./CommonComp2";
 import {
@@ -221,7 +224,7 @@ function SetFilterSort(props: {
           language={getLanguageFromDataSourceKind(kind)}
         />
 
-        <Stack direction="row" style={{ alignItems: "center" }}>
+        <StackRowCenter>
           <Button onClick={handleSet}>set {label}</Button>
           <Button
             onClick={() => {
@@ -271,7 +274,7 @@ function SetFilterSort(props: {
               renderInput={params => <TextField {...params} label="filters" />}
             />
           )}
-        </Stack>
+        </StackRowCenter>
       </Box>
     </Modal>
   );
@@ -428,6 +431,7 @@ function SqlTableView(props: {
   const [viewInModal, setViewInModal] = useState<object>(null);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const queryStatus = useRef<SetStatusFn>(null);
 
   const handleResp = (resp: MuiDataGridData) => {
     resp.data.forEach((data, index) => {
@@ -461,12 +465,12 @@ function SqlTableView(props: {
           return ret;
         };
         return (
-          <Stack direction="row" style={{ alignItems: "center" }}>
+          <StackRowCenter>
             <Tooltip title={makeTitle()}>
               <Typography fontSize={dataGridheaderFontSize}>{def.field}</Typography>
             </Tooltip>
             {def.is_primary && <KeyIcon style={{ fontSize: "16px" }} />}
-          </Stack>
+          </StackRowCenter>
         );
       };
       if (!field.is_auto_increment) {
@@ -491,7 +495,7 @@ function SqlTableView(props: {
           allow_filtering: allowFiltering,
           limit: clientModelLimit.current,
         },
-        silent: true,
+        setStatus: queryStatus,
         name: tableName,
         isView: !isTable,
         uuid,
@@ -809,7 +813,7 @@ function SqlTableView(props: {
         return (
           <AppToolBar
             title={tableName}
-            left=<Stack direction="row" style={{ alignItems: "center" }}>
+            left=<StackRowCenter>
               <Button
                 loading={loading}
                 color="primary"
@@ -868,7 +872,9 @@ function SqlTableView(props: {
                   max={100000}
                   storeKey="sqltable-limit"
                   step={1000}
-                  valueRef={clientModelLimit}
+                  handleValue={v => {
+                    clientModelLimit.current = v;
+                  }}
                 />
               )}
               {isTable && (
@@ -878,7 +884,7 @@ function SqlTableView(props: {
                   }}
                 />
               )}
-            </Stack>
+            </StackRowCenter>
           />
         );
       },
@@ -927,13 +933,11 @@ function SqlTableView(props: {
   const someModel = clientModel ? "client" : "server";
   return (
     <Stack style={{ height: "100%" }}>
+      <QueryStatus setRef={queryStatus} />
       <DataGrid
-        showToolbar
         slots={slots}
         slotProps={slotProps}
         style={dataGridStyle}
-        rowHeight={setting.appearance.datagridRowHeight()}
-        columnHeaderHeight={setting.appearance.datagridRowHeight()}
         getRowId={getRowId}
         paginationModel={clientModel ? undefined : paginationModel}
         pageSizeOptions={pageSizeOptions}
@@ -948,6 +952,7 @@ function SqlTableView(props: {
         onColumnResize={onColumnResize}
         processRowUpdate={isTable ? handleProcessRowUpdate : undefined}
         onProcessRowUpdateError={onProcessRowUpdateError}
+        loading={loading}
       />
 
       {viewInModal && (
@@ -1606,7 +1611,7 @@ function FilterOnValue(props: {
       )}
 
       <Divider />
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <StackRowCenter>
         <Button
           onClick={() => {
             setWhere(where());
@@ -1618,7 +1623,7 @@ function FilterOnValue(props: {
         <Typography color="success" style={textEllipsisStyle}>
           <em> {where()} </em>
         </Typography>
-      </Stack>
+      </StackRowCenter>
     </Stack>
   );
 }

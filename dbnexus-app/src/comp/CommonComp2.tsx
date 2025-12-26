@@ -51,6 +51,7 @@ import {
   isMacOs,
   KeyPressed,
   secondConfirm,
+  SetStatusFn,
   SettingContext,
   SomeTempStore,
   TabActiveContext,
@@ -628,7 +629,7 @@ function LoadStoreFile(props: {
   return (
     <>
       {file && (
-        <Stack direction="row" style={{ alignItems: "center" }}>
+        <StackRowCenter>
           <Tooltip title={file}>
             <Typography>{extractBaseName(file)}</Typography>
           </Tooltip>
@@ -637,7 +638,7 @@ function LoadStoreFile(props: {
               <CloseIcon />
             </IconButton>
           </Tooltip>
-        </Stack>
+        </StackRowCenter>
       )}
       <Tooltip
         title={`attach file,keyboard shortcut is ${
@@ -865,33 +866,24 @@ function CancelButton({ handleCancel }) {
     </IconButton>
   );
 }
-function showProgressingStatus(showNotification, status: string) {
-  showNotification(
-    "info",
-    "server is doing this.",
-    <Stack direction="row">
-      <CircularProgress />
-      <Typography color="info"> {status} </Typography>
-    </Stack>,
-  );
-}
 
 function SliderSize(props: {
   storeKey: string;
-  valueRef: RefObject<number>;
   notice: ReactNode;
   min: number;
   max: number;
   step: number;
+  handleValue: (x: number) => void;
+  name?: string;
 }) {
-  const { storeKey, valueRef, notice, min, max, step } = props;
+  const { storeKey, handleValue, notice, min, max, step, name } = props;
   const width = "450px";
   const storekey = "dbpal-max-row-" + storeKey;
   const [maxRow, setMaxRow] = useState(parseInt(localStorage.getItem(storekey)) || min);
   useEffect(() => {
     localStorage.setItem(storekey, maxRow + "");
-    valueRef.current = maxRow;
-  }, [maxRow, valueRef, storekey]);
+    handleValue(maxRow);
+  }, [maxRow, storekey, handleValue]);
   return (
     <Tooltip
       slotProps={{
@@ -920,7 +912,7 @@ function SliderSize(props: {
         </Stack>
       </Paper>
     >
-      <Chip label={maxRow} color="info" />
+      <Chip label={`${name ? name + ":" : ""} ${maxRow}`} color="info" />
     </Tooltip>
   );
 }
@@ -1226,18 +1218,45 @@ function AppToolBar(props: {
         padding: "2px",
       }}
     >
-      {noWrapLeft ? (
-        left
-      ) : (
-        <Stack direction="row" style={{ alignItems: "center" }}>
-          {left}
-        </Stack>
-      )}
+      {noWrapLeft ? left : <StackRowCenter>{left}</StackRowCenter>}
       <Typography variant="h5">{title}</Typography>
       <Stack direction="row">
         {right}
         <CustomToolbar />
       </Stack>
+    </Stack>
+  );
+}
+
+function QueryStatus(props: { setRef: RefObject<SetStatusFn> }) {
+  const { setRef } = props;
+  const [queryStatus, setQueryStatus] = useState("");
+  useEffect(() => {
+    setRef.current = s => {
+      setQueryStatus(s);
+    };
+  }, [setRef]);
+
+  useEffect(() => {
+    console.log(new Date().toLocaleString(), "query status", queryStatus);
+  }, [queryStatus]);
+  return (
+    queryStatus && (
+      <Stack
+        direction="row"
+        style={{ position: "absolute", bottom: 0, left: 0, opacity: 0.5, zIndex: 14 }}
+      >
+        <CircularProgress />
+        <Typography> {queryStatus} </Typography>
+      </Stack>
+    )
+  );
+}
+
+function StackRowCenter({ children }) {
+  return (
+    <Stack style={{ alignItems: "center" }} direction="row">
+      {children}
     </Stack>
   );
 }
@@ -1255,7 +1274,6 @@ export {
   syntaxHightLightTheme,
   SaveFavoriteSqlView,
   CancelButton,
-  showProgressingStatus,
   SliderSize,
   TableAddButton,
   SelectColumnAsc,
@@ -1266,4 +1284,6 @@ export {
   AppDataGridPagination,
   AppToolBar,
   LastFetchTime,
+  QueryStatus,
+  StackRowCenter,
 };

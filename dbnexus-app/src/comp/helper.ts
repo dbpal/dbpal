@@ -1043,6 +1043,7 @@ const dataGridStyle = {
   // 这个值用 0% 在windows也有问题好像会把datagrid变得很高 用0 都可以 用0% 都不可以 然而flex为1 设置的值是0% 可能是兼容性的问题
   flexBasis: "0",
 } as CSSProperties;
+
 enum ViewKind {
   View,
   MaterializedView,
@@ -1170,6 +1171,17 @@ interface QueryRespData {
   Err?: string;
 }
 
+function newEmptyResp(): MuiDataGridData {
+  return {
+    fields: [],
+    data: [],
+    sql: "",
+    total: 0,
+    cache_time: 0,
+    has_more: false,
+  };
+}
+
 export {
   TabsSetContext,
   ConnTypeContext,
@@ -1249,9 +1261,12 @@ export {
   extractLastNameFromUuid,
   resizeHandlerSize,
   prettyMs,
+  newEmptyResp,
 };
 
-export type { ErrAndLoc, NewWindowTableParameter, QueryRespData };
+type SetStatusFn = (s: string) => void;
+
+export type { ErrAndLoc, NewWindowTableParameter, QueryRespData, SetStatusFn };
 
 async function webviewWIndowInit() {
   const currentWebview = await WebviewWindow.getCurrent();

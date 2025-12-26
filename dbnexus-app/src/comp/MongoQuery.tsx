@@ -42,6 +42,7 @@ import {
   LoadStoreFile,
   SaveFavoriteSqlView,
   SimpleFlexEditor,
+  StackRowCenter,
   syntaxHightLightTheme,
 } from "./CommonComp2";
 import { QueryLog } from "./QueryLog";
@@ -234,7 +235,7 @@ function TsEditCompilerOptions(props: { handleClose: () => void }) {
           )
         }
       />
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <StackRowCenter>
         <Button onClick={handleSave}> save </Button>
         <Link
           href="#"
@@ -246,7 +247,7 @@ function TsEditCompilerOptions(props: { handleClose: () => void }) {
         >
           options
         </Link>
-      </Stack>
+      </StackRowCenter>
     </Stack>
   );
 }

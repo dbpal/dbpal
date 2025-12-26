@@ -19,6 +19,7 @@ import {
   ColumnNullness,
   CreateIndexReq,
   SqlDefaultValue,
+  StackRowCenter,
   TypeSelect,
 } from "./CommonComp2";
 import CloseIcon from "@mui/icons-material/Close";
@@ -149,7 +150,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
   return (
     <Stack style={{ height: "100%" }}>
       <Stack style={{ ...containerStyle }} divider={<Divider />}>
-        <Stack direction="row" style={{ alignItems: "center" }}>
+        <StackRowCenter>
           <Typography variant="h5"> column </Typography>
           <Button
             onClick={() => {
@@ -168,7 +169,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
           >
             <AddIcon />
           </Button>
-        </Stack>
+        </StackRowCenter>
 
         {cols.map((col, index) => {
           return (
@@ -246,7 +247,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
           </Stack>
         </Stack>
       )}
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <StackRowCenter>
         <Button onClick={handleCreate} loading={loading}>
           create
         </Button>
@@ -292,7 +293,7 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
           {showQuery ? "close query" : "show query"}
         </Button>
         {showQuery && <Button onClick={setCreateSql}> gen sql </Button>}
-      </Stack>
+      </StackRowCenter>
       {showQuery && (
         <div style={{ minHeight: "45vh", flex: 1 }}>
           <AllKindChat value={editorValue} kind={kind} uuid={uuid} />

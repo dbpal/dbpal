@@ -383,16 +383,14 @@ function ColumnsContent(props: { uuid: string; view: string }) {
         </Button>
       </Stack>
       <DataGrid
-        showToolbar
         slots={slots}
         getRowId={getRowId}
         slotProps={slotProps}
         onColumnResize={onColumnResize}
-        rowHeight={setting.appearance.datagridRowHeight()}
-        columnHeaderHeight={setting.appearance.datagridRowHeight()}
         columns={cols}
         rows={fields}
         style={dataGridStyle}
+        loading={loading}
       />
     </Stack>
   );

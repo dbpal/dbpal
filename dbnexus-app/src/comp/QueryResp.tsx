@@ -55,7 +55,7 @@ import {
   ViewRowInModal,
 } from "./CommonComp.tsx";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import { AppDataGridPagination } from "./CommonComp2.tsx";
+import { AppDataGridPagination, StackRowCenter } from "./CommonComp2.tsx";
 
 function RespContextMenu(props: {
   content;
@@ -269,15 +269,12 @@ function QueryResp(props: { data: MuiDataGridData }) {
           )}
 
           <DataGrid
-            showToolbar
             getRowId={getRowId}
             slots={slots}
             sortModel={sortModel}
             onSortModelChange={onSortModelChange}
             slotProps={slotProps}
             style={dataGridStyle}
-            rowHeight={setting.appearance.datagridRowHeight()}
-            columnHeaderHeight={setting.appearance.datagridRowHeight()}
             columns={data.fields}
             rows={data.data}
             filterMode="client" // 使用客户端过滤
@@ -353,7 +350,7 @@ function MultiQueryResp(props: { data: QueryRespData[] }) {
   }
   if (data.length == 1) {
     return data[0].Err ? (
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <StackRowCenter>
         <Button
           onClick={() => {
             handleCopyToClipboard(data[0].Err, showNotification);
@@ -362,7 +359,7 @@ function MultiQueryResp(props: { data: QueryRespData[] }) {
           copy
         </Button>
         <Alert severity="error">{data[0].Err}</Alert>
-      </Stack>
+      </StackRowCenter>
     ) : (
       <QueryResp data={data[0].Ok} />
     );

@@ -4,12 +4,13 @@ import {
   DataSourceKind,
   ErrAndLoc,
   MuiDataGridData,
+  SetStatusFn,
   TableType,
   ViewKind,
 } from "./helper";
 import { message } from "@tauri-apps/plugin-dialog";
 import { QueryEvent } from "./Common";
-import { showProgressingStatus } from "./CommonComp2";
+import { RefObject } from "react";
 
 async function tryGetMaxID(uuid: string, tableOrView: string) {
   try {
@@ -288,8 +289,8 @@ async function showTable(
     name: string;
     isView?: boolean;
     showNotification;
-    silent?: boolean;
     handleExecuteTime?: (ms: number) => void;
+    setStatus: RefObject<SetStatusFn>;
   } & ShowTableCallBack,
 ) {
   let {
@@ -301,10 +302,9 @@ async function showTable(
     showNotification,
     handleResult,
     setLoading,
-    silent,
     handleExecuteTime,
+    setStatus,
   } = props;
-
   isView = !!isView;
   if (!para) {
     para = {};
@@ -325,10 +325,16 @@ async function showTable(
       }
       switch (event.kind) {
         case "structure":
+          if (event.resp.data.length > 0) {
+            setStatus.current(`server send ${event.resp.data.length} records`);
+          } else {
+            setStatus.current(`server send me column definition.`);
+          }
           resp = event.resp;
           handleResult(resp);
           break;
         case "data": {
+          setStatus.current(`server send ${event.data.length} records`);
           let cop = { ...resp };
           cop.data = [
             ...cop.data,
@@ -344,13 +350,8 @@ async function showTable(
           resp = cop;
           break;
         }
-        case "err":
-          showNotification("error", "server return error", event.err);
-          break;
         case "status":
-          if (!silent) {
-            showProgressingStatus(showNotification, event.status);
-          }
+          setStatus.current(`${event.status}`);
           break;
         default:
           console.error("server send wrong kind of data:", event);
@@ -363,16 +364,14 @@ async function showTable(
       }, 100);
     }
   } catch (e) {
-    setTimeout(() => {
-      showNotification("error", "fetch data failed", e);
-    }, 50);
+    showNotification("error", "fetch data failed", e);
   } finally {
     if (handleExecuteTime) {
       //@ts-ignore
       handleExecuteTime(new Date() - now);
     }
-
     setLoading(false);
+    setStatus.current("");
   }
 }
 

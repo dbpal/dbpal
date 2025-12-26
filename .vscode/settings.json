@@ -486,6 +486,7 @@
     "USERENV",
     "USMALLINT",
     "UTINYINT",
+    "uuidv",
     "VARBINARY",
     "VARINT",
     "VARP",

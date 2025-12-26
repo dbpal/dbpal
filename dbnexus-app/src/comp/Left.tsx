@@ -119,6 +119,7 @@ import {
   CreateDatabase,
   CreateSchema,
   MenuConnectionInfo,
+  StackRowCenter,
 } from "./CommonComp2.tsx";
 import { EventsTree } from "./LeftEvent.tsx";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -520,15 +521,12 @@ function CopyConnection(props: { handleClose; setCopyConn }) {
       </Stack>
 
       <DataGrid
-        showToolbar
         getRowId={getRowId}
         style={dataGridStyle}
         slots={slots}
         sortModel={sortModel}
         onSortModelChange={onSortModelChange}
         slotProps={slotProps}
-        rowHeight={setting.appearance.datagridRowHeight()}
-        columnHeaderHeight={setting.appearance.datagridRowHeight()}
         columns={cols}
         rows={conns}
         onColumnResize={onColumnResize}
@@ -869,7 +867,7 @@ function FavoriteSqlList(props: { handleClose }) {
 
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <StackRowCenter>
         <Autocomplete
           options={distinctUuid}
           style={{ width: "22rem" }}
@@ -920,15 +918,12 @@ function FavoriteSqlList(props: { handleClose }) {
             </Tooltip>
           </>
         )}
-      </Stack>
+      </StackRowCenter>
       <DataGrid
-        showToolbar
         sortModel={sortModel}
         slots={slots}
         onSortModelChange={onSortModelChange}
         slotProps={slotProps}
-        rowHeight={setting.appearance.datagridRowHeight()}
-        columnHeaderHeight={setting.appearance.datagridRowHeight()}
         columns={columns}
         rows={fs}
         style={dataGridStyle}

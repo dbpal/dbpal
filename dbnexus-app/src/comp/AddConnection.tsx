@@ -40,7 +40,7 @@ import {
 import { DataSourceKind } from "./helper";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { platform } from "@tauri-apps/plugin-os";
-import { UrlDocument } from "./CommonComp2";
+import { StackRowCenter, UrlDocument } from "./CommonComp2";
 import { emit } from "@tauri-apps/api/event";
 
 function HostAndPort(props: { host; port; setHost; setPort }) {
@@ -223,7 +223,7 @@ function Https(props: { https; setHttps }) {
 function SqlServerCert(props: { data: SqlServerCertData; setData }) {
   const { data, setData } = props;
   return (
-    <Stack direction="row" style={{ alignItems: "center" }}>
+    <StackRowCenter>
       <FormControlLabel
         control={
           <Checkbox
@@ -246,7 +246,7 @@ function SqlServerCert(props: { data: SqlServerCertData; setData }) {
           );
         }}
       />
-    </Stack>
+    </StackRowCenter>
   );
 }
 
@@ -813,7 +813,7 @@ function TestConnAndSave(props: { connectionNameDom }) {
   return (
     <Stack>
       <Divider />
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <StackRowCenter>
         <Button
           color="primary"
           onClick={() => {
@@ -830,7 +830,7 @@ function TestConnAndSave(props: { connectionNameDom }) {
         >
           test
         </Button>
-      </Stack>
+      </StackRowCenter>
     </Stack>
   );
 }

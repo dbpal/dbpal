@@ -73,6 +73,7 @@ import {
   ColumnNullness,
   CreateIndexReq,
   SqlDefaultValue,
+  StackRowCenter,
   TypeSelect,
 } from "./CommonComp2";
 
@@ -314,7 +315,7 @@ function ColumnsStructure(props: {
   }, []);
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <StackRowCenter>
         <Button loading={loading} onClick={handleReload}>
           reload
         </Button>
@@ -333,20 +334,18 @@ function ColumnsStructure(props: {
             <Typography color="info">modify </Typography>
           </Tooltip>
         )}
-      </Stack>
+      </StackRowCenter>
 
       <DataGrid
         slots={slots}
-        showToolbar
         getRowId={getRowId}
         slotProps={slotProps}
         onColumnResize={onColumnResize}
-        rowHeight={setting.appearance.datagridRowHeight()}
-        columnHeaderHeight={setting.appearance.datagridRowHeight()}
         columns={cols}
         rows={fields}
         onRowDoubleClick={onRowDoubleClick}
         style={dataGridStyle}
+        loading={loading}
       />
 
       {showAdd && (
@@ -670,16 +669,14 @@ function IndexesStructure(props: {
       </Stack>
 
       <DataGrid
-        showToolbar
         getRowId={getRowId}
         slotProps={slotProps}
         onColumnResize={onColumnResize}
-        rowHeight={setting.appearance.datagridRowHeight()}
-        columnHeaderHeight={setting.appearance.datagridRowHeight()}
         columns={cols}
         rows={indexes}
         style={dataGridStyle}
         slots={slots}
+        loading={loading}
       />
 
       {showAdd && kind == DataSourceKind.Mongo && (
@@ -996,7 +993,7 @@ function TableAddColumn(props: {
         }}
         label="column name"
       />
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <StackRowCenter>
         <TypeSelect
           uuid={uuid}
           handleChange={e => {
@@ -1013,7 +1010,7 @@ function TableAddColumn(props: {
             }}
           />
         )}
-      </Stack>
+      </StackRowCenter>
 
       {supportDefault && (
         <SqlDefaultValue
@@ -1144,7 +1141,7 @@ function ModifyTableColumn(props: {
       )}
 
       {modifyType && (
-        <Stack direction="row" style={{ alignItems: "center" }}>
+        <StackRowCenter>
           <TypeSelect
             uuid={uuid}
             handleChange={e => {
@@ -1156,7 +1153,7 @@ function ModifyTableColumn(props: {
           {kindSupportNull(kind) && (
             <ColumnNullness nullable={nullable} handleNullable={setNullness} />
           )}
-        </Stack>
+        </StackRowCenter>
       )}
       <Stack direction="row">
         <Button loading={loading} color="error" onClick={handleModify}>
@@ -1416,7 +1413,7 @@ function TriggersStructure(props: {
   }, []);
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack direction="row" style={{ alignItems: "center" }}>
+      <StackRowCenter>
         <Button loading={loading} onClick={handleReload}>
           reload
         </Button>
@@ -1425,22 +1422,19 @@ function TriggersStructure(props: {
             <Typography color="info">detail?</Typography>
           </Tooltip>
         )}
-      </Stack>
+      </StackRowCenter>
 
       <DataGrid
-        showToolbar
         getRowId={getRowId}
         slotProps={slotProps}
         onColumnResize={onColumnResize}
-        rowHeight={setting.appearance.datagridRowHeight()}
-        columnHeaderHeight={setting.appearance.datagridRowHeight()}
         columns={cols}
         rows={triggers}
         onRowDoubleClick={onRowDoubleClick}
         style={dataGridStyle}
         slots={slots}
+        loading={loading}
       />
-
       {row && (
         <Modal
           open={!!row}
