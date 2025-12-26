@@ -1417,7 +1417,7 @@ mod tests {
                 .export_table_to_string(table_name, ExportKind::MarkDown)
                 .await
                 .unwrap();
-            println!("markdonw:{}", ret);
+            println!("markdown:{}", ret);
         }
     }
 

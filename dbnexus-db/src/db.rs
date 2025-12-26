@@ -698,7 +698,7 @@ pub trait SqlBuilder: GetBackendKind {
 
     // stupid create table sql auto increment must be primary key.
     // and  not primary key must can be in `PRIMARY KEY(aaa , bbb )` syntax
-    // this method should beable used most cases
+    // this method should be able used most cases
     fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
         let mut sql = format!("CREATE TABLE {}(\n", self.quote(&req.name));
         let last = req.columns.len() - 1;
@@ -1328,7 +1328,8 @@ async fn write_export_file(
     kind: ExportKind, filepath: &str, mut receiver: tokio::sync::mpsc::Receiver<ExportFrame>,
     title: &str, emit: ExportedSizeEmitter,
 ) -> anyhow::Result<()> {
-    let mut size = TimeElapsed::new();
+    let mut time_elapsed = TimeElapsed::new();
+    let mut total = 0;
     let r = match kind {
         ExportKind::Json { pretty } => {
             let mut file = tokio::fs::File::create(&filepath).await?;
@@ -1347,18 +1348,23 @@ async fn write_export_file(
                 if pretty {
                     file.write_all("\n".as_bytes()).await?;
                 }
-                let s = if pretty {
+                let value = if pretty {
                     serde_json::to_string_pretty(&value)
                 } else {
                     serde_json::to_string(&value)
                 }?;
-                file.write_all(s.as_bytes()).await?;
+                total += value.len();
+                if time_elapsed.elapsed() {
+                    emit(total);
+                }
+                file.write_all(value.as_bytes()).await?;
                 first = false;
             }
             if pretty {
                 file.write_all("\n".as_bytes()).await?;
             }
             file.write_all("]".as_bytes()).await?;
+            emit(total);
             anyhow::Ok(())
         }
         ExportKind::JsonLine => {
@@ -1370,6 +1376,10 @@ async fn write_export_file(
                     }
                     ExportFrame::JsonValue(x) => {
                         let value = serde_json::to_string(&x)?;
+                        total += value.len();
+                        if time_elapsed.elapsed() {
+                            emit(total);
+                        }
                         file.write_all(value.as_bytes()).await?;
                         file.write_all("\n".as_bytes()).await?;
                     }
@@ -1378,6 +1388,7 @@ async fn write_export_file(
                     }
                 }
             }
+            emit(total);
             anyhow::Ok(())
         }
         ExportKind::Html { .. } => {
@@ -1391,12 +1402,11 @@ async fn write_export_file(
                 let x = x.replacen("THIS_IS_TITLE", title, 1);
                 file.write_all(x.as_bytes()).await?;
             }
-            let mut total = 0;
 
             while let Some(data) = receiver.recv().await {
                 file.write_all(data.as_str()?.as_bytes()).await?;
                 total += data.as_str()?.len();
-                if size.elapsed() {
+                if time_elapsed.elapsed() {
                     emit(total)
                 }
             }
@@ -1409,7 +1419,6 @@ async fn write_export_file(
             anyhow::Ok(())
         }
         ExportKind::Xlsx { .. } => {
-            let mut total = 0;
             let filepath = filepath.to_string();
             let emit = emit.clone();
             spawn_blocking(move || {
@@ -1425,7 +1434,7 @@ async fn write_export_file(
                     };
 
                     total += edit.content.len();
-                    if size.elapsed() {
+                    if time_elapsed.elapsed() {
                         emit(total)
                     }
                     worksheet.write_string(edit.row, edit.column, edit.content)?;
@@ -1437,12 +1446,11 @@ async fn write_export_file(
             .await?
         }
         _ => {
-            let mut total = 0;
             let mut file = tokio::fs::File::create(&filepath).await?;
             while let Some(data) = receiver.recv().await {
                 file.write_all(data.as_bytes()?).await?;
                 total += data.as_bytes()?.len();
-                if size.elapsed() {
+                if time_elapsed.elapsed() {
                     emit(total)
                 }
             }
