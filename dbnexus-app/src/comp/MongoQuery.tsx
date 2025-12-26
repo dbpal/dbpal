@@ -692,7 +692,9 @@ function MongoQuery(props: {
       <div
         style={{
           height: "100px",
-          flex: 1,
+          flexGrow: 1,
+          flexShrink: 1,
+          flexBasis: 0,
         }}
       >
         <Editor
