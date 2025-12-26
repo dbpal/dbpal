@@ -385,7 +385,6 @@ function SqlQuery(props: {
       .finally(() => {
         setExecuteTimes(e => e + 1);
         setLoading(false);
-        queryStatus.current("");
       });
   };
 
