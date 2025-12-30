@@ -21,7 +21,7 @@ impl LanguageServer for Db2Db {
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
-        LangServerCommon::is_dangerous_sql_by_parser(self, sql)
+        todo!()
     }
 
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {
