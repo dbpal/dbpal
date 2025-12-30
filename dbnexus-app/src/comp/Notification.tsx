@@ -37,7 +37,7 @@ function NotificationProvider(props: { children: ReactNode }) {
     }
     // const iscancelled = isCancelledError(err);
     if (typeof err == "object" && "reason" in err) {
-      console.error("detail:", err);
+      console.error("detail:", err.detail);
       // this a error from the backend
       // we only show `reason` the short message
       err = err["reason"];

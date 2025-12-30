@@ -2,16 +2,12 @@
 use std::{
     collections::HashMap,
     ffi::CStr,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
-
-use dashmap::DashMap;
-use futures_util::io::Close;
-use gcp_bigquery_client::google::cloud::bigquery::storage::v1::read_rows_response::Schema;
-use odbc_api::{Cursor, buffers::TextRowSet};
-use r2d2::{Pool, PooledConnection};
-use tokio::task::spawn_blocking;
 
 use crate::{
     datasource_config::{Db2Config, OdbcCommon},
@@ -21,8 +17,17 @@ use crate::{
         QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
         ShowTableParameter, SqlExecuteRet, not_support_feature,
     },
-    odbc::{ODBC_ENV, OdbcDbQuery, OdbcHelper, OdbcPool},
 };
+use dashmap::DashMap;
+use futures_util::{io::Close, stream::Cycle};
+use gcp_bigquery_client::google::cloud::bigquery::storage::v1::read_rows_response::Schema;
+use ibm_db::{
+    Allocated, ColumnDescriptor, Cursor, ODBCConnectionManager, ResultSetState, SqlDataType,
+    Statement, safe::AutocommitOn,
+};
+use r2d2::{Pool, PooledConnection};
+use std::ops::Deref;
+use tokio::task::spawn_blocking;
 
 impl GetBackendKind for Db2Db {
     fn backend_name(&self) -> BackendKind {
@@ -33,8 +38,22 @@ impl GetBackendKind for Db2Db {
 #[derive(Clone)]
 pub struct Db2Db {
     config: Db2Config,
-    pool: Arc<Pool<OdbcPool>>,
-    query_connection: Arc<DashMap<String, OdbcDbQuery>>,
+    pool: Arc<Pool<ODBCConnectionManager>>,
+    query_connection: Arc<DashMap<String, Db2QueryConn>>,
+}
+
+pub struct Db2QueryConn {
+    conn: Arc<Mutex<PooledConnection<ODBCConnectionManager>>>,
+    commit_mode: AtomicBool,
+}
+
+impl Db2QueryConn {
+    fn new(conn: PooledConnection<ODBCConnectionManager>) -> Self {
+        Self {
+            conn: Arc::new(Mutex::new(conn)),
+            commit_mode: AtomicBool::new(true),
+        }
+    }
 }
 
 impl ReadOnlyTrait for Db2Db {
@@ -44,93 +63,168 @@ impl ReadOnlyTrait for Db2Db {
 }
 
 impl Db2Db {
-    pub(crate) fn get_query_conn(&self, query_id: &str) -> anyhow::Result<OdbcDbQuery> {
-        match self.query_connection.get(&query_id.to_string()) {
-            Some(x) => anyhow::Ok(x.clone()),
-            None => anyhow::bail!("query connection closed???"),
-        }
+    pub(crate) fn get_query_conn(&self, query_id: &str) -> anyhow::Result<Db2QueryConn> {
+        unimplemented!()
     }
 }
 
+fn encode_row(
+    cols: &[ColumnDescriptor], batch: &mut Cursor<'_, '_, '_, Allocated, AutocommitOn>,
+) -> anyhow::Result<Vec<Option<String>>> {
+    let mut ret = Vec::with_capacity(cols.len());
+    for i in 0..cols.len() {
+        let index = (i + 1) as u16;
+
+        let v: Option<String> = match &cols[i].data_type {
+            SqlDataType::SQL_UNKNOWN_TYPE => todo!(),
+            SqlDataType::SQL_CHAR => {
+                let s: Option<String> = batch.get_data(index)?;
+                s.map(|s| s.trim().to_string())
+            }
+            SqlDataType::SQL_NUMERIC => todo!(),
+            SqlDataType::SQL_DECIMAL => todo!(),
+            SqlDataType::SQL_INTEGER => todo!(),
+            SqlDataType::SQL_SMALLINT => todo!(),
+            SqlDataType::SQL_FLOAT => todo!(),
+            SqlDataType::SQL_REAL => todo!(),
+            SqlDataType::SQL_DOUBLE => todo!(),
+            SqlDataType::SQL_DATETIME => todo!(),
+            SqlDataType::SQL_VARCHAR => {
+                let s: Option<String> = batch.get_data(index)?;
+                s
+            }
+            SqlDataType::SQL_DATE => todo!(),
+            SqlDataType::SQL_TIME => todo!(),
+            SqlDataType::SQL_TIMESTAMP => todo!(),
+            SqlDataType::SQL_EXT_TIME_OR_INTERVAL => todo!(),
+            SqlDataType::SQL_EXT_TIMESTAMP => todo!(),
+            SqlDataType::SQL_EXT_LONGVARCHAR => todo!(),
+            SqlDataType::SQL_EXT_BINARY => todo!(),
+            SqlDataType::SQL_EXT_VARBINARY => todo!(),
+            SqlDataType::SQL_EXT_LONGVARBINARY => todo!(),
+            SqlDataType::SQL_EXT_BIGINT => todo!(),
+            SqlDataType::SQL_EXT_TINYINT => todo!(),
+            SqlDataType::SQL_EXT_BIT => todo!(),
+            SqlDataType::SQL_EXT_WCHAR => {
+                let s: Option<String> = batch.get_data(index)?;
+                s.map(|s| s.trim().to_string())
+            }
+            SqlDataType::SQL_EXT_WVARCHAR => {
+                let s: Option<String> = batch.get_data(index)?;
+                s
+            }
+            SqlDataType::SQL_EXT_WLONGVARCHAR => {
+                let s: Option<String> = batch.get_data(index)?;
+                s
+            }
+            SqlDataType::SQL_EXT_GUID => todo!(),
+            SqlDataType::SQL_SS_VARIANT => todo!(),
+            SqlDataType::SQL_SS_UDT => todo!(),
+            SqlDataType::SQL_SS_XML => todo!(),
+            SqlDataType::SQL_SS_TABLE => todo!(),
+            SqlDataType::SQL_SS_TIME2 => todo!(),
+            SqlDataType::SQL_SS_TIMESTAMPOFFSET => todo!(),
+        };
+        ret.push(v);
+    }
+    anyhow::Ok(ret)
+}
 #[async_trait::async_trait]
 
 impl QuerySql for Db2Db {
-    async fn get_auto_commit(&self, query_id: &str) -> anyhow::Result<bool> {
-        let conn = self.get_query_conn(query_id)?;
-        let r = conn.get_auto_commit();
-        anyhow::Ok(r)
-    }
-
-    async fn set_auto_commit(&self, query_id: &str, commit: bool) -> anyhow::Result<()> {
-        let conn = self.get_query_conn(query_id)?;
-        conn.set_auto_commit(commit).await;
-        anyhow::Ok(())
-    }
-    async fn commit(&self, query_id: &str) -> anyhow::Result<()> {
-        let conn = self.get_query_conn(query_id)?;
-        conn.commit().await;
-        anyhow::Ok(())
-    }
-    async fn rollback(&self, query_id: &str) -> anyhow::Result<()> {
-        let conn = self.get_query_conn(query_id)?;
-        conn.rollback().await;
-        anyhow::Ok(())
-    }
-
     async fn query_sql(
         &self, query_id: &str, sql: &str, emit: QueryEventEmitter,
     ) -> anyhow::Result<()> {
-        let conn = self.get_query_conn(query_id)?;
-        conn.query_sql(sql, emit).await?;
-        anyhow::Ok(())
+        let sql = sql.to_owned();
+        let this = Clone::clone(self);
+        let query_id = query_id.to_owned();
+        spawn_blocking(move || {
+            let conn = this.get_query_conn(&query_id)?;
+            let conn = conn.conn.lock().expect("lock failed");
+            let stmt = Statement::with_parent(conn.raw()).map_err(convert_db2_err)?;
+            let mut cursor = stmt.exec_direct(&sql).map_err(convert_db2_err)?;
+            match cursor {
+                ResultSetState::Data(mut statement) => {
+                    let mut fields = vec![];
+                    let mut cols = vec![];
+                    for index in 1..statement.num_result_cols()? + 1 {
+                        let col = statement.describe_col(index as u16)?;
+                        fields.push(Field::from_name_type(
+                            col.name.clone(),
+                            format!("{:?}", col.data_type),
+                        ));
+                        cols.push(col);
+                    }
+                    emit.send(
+                        QueryResp {
+                            fields,
+                            ..Default::default()
+                        }
+                        .into(),
+                    )?;
+                    while let Some(mut batch) = statement.fetch().map_err(convert_db2_err)? {
+                        let d = encode_row(&cols, &mut batch)?;
+                        emit.send(d.into())?;
+                    }
+                }
+
+                ResultSetState::NoData(statement) => {
+                    emit.send(
+                        QueryResp {
+                            ..Default::default()
+                        }
+                        .into(),
+                    )?;
+                }
+            }
+            anyhow::Ok(())
+        })
+        .await?
     }
 
     async fn execute_sql(
         &self, query_id: &str, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let conn = self.get_query_conn(query_id)?;
-        let r = conn.execute_sql(sql).await?;
-        anyhow::Ok(r)
+        let sql = sql.to_owned();
+        let this = Clone::clone(self);
+        let query_id = query_id.to_owned();
+        spawn_blocking(move || {
+            let conn = this.get_query_conn(&query_id)?;
+            let conn = conn.conn.lock().expect("lock failed");
+            let stmt = Statement::with_parent(conn.raw()).map_err(convert_db2_err)?;
+            let r = match stmt.exec_direct(&sql) {
+                Ok(_) => Ok(QueryResp::execute_ok(None)),
+                Err(err) => Err(err.to_string()),
+            };
+            anyhow::Ok(r)
+        })
+        .await?
     }
 
     async fn execute_sql_no_open_conn(
         &self, sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>> {
-        let this = Clone::clone(self);
-        let sql = sql.to_owned();
-        spawn_blocking(move || {
-            let conn = this.get_conn()?;
-            let r = conn.execute(&sql, (), None);
-            anyhow::Ok(match r {
-                Ok(_) => todo!(),
-                Err(err) => Err(err.to_string()),
-            })
-        })
-        .await?
+        match self.execute(sql).await {
+            Ok(x) => anyhow::Ok(Ok(QueryResp::execute_ok(sql.to_string()))),
+            Err(err) => anyhow::Ok(Err(err.to_string())),
+        }
     }
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()> {
-        let this = Clone::clone(self);
         let id = id.to_owned();
+        let this = Clone::clone(self);
         spawn_blocking(move || {
-            let conn = crate::odbc::make_conn(&this.config.make_odbc_str())?;
-            this.query_connection
-                .insert(id, OdbcDbQuery::new(conn, this.make_helper()));
+            let conn = this.pool.get()?;
+            let query_conn = Db2QueryConn::new(conn);
+            this.query_connection.insert(id, query_conn);
             anyhow::Ok(())
         })
         .await?
     }
+
     async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
         self.query_connection.remove(&id.to_string());
         anyhow::Ok(())
-    }
-}
-
-impl Db2Db {
-    pub(crate) fn make_helper(&self) -> Arc<dyn OdbcHelper> {
-        Arc::new(Db2OdbcHelper {
-            config: self.config.clone(),
-        })
     }
 }
 
@@ -140,16 +234,13 @@ impl Db2Db {
     pub async fn new(config: Db2Config) -> anyhow::Result<Self> {
         spawn_blocking(move || {
             let conn_str = config.make_odbc_str();
-            let mut builder = r2d2::Pool::<OdbcPool>::builder();
+            let mut builder = r2d2::Pool::<ODBCConnectionManager>::builder();
             builder = builder.max_size(POOL_MAX_CONNECTIONS);
             if let Some(timeout) = config.conn_timeout {
                 builder = builder.connection_timeout(timeout.into());
             }
             builder = builder.min_idle(Some(0));
-            let pool = builder.build(OdbcPool {
-                conn_str,
-                select_1_sql: SELECT_1_SQL,
-            })?;
+            let pool = builder.build(ODBCConnectionManager::new(conn_str))?;
             anyhow::Ok(Db2Db {
                 config,
                 pool: Arc::new(pool),
@@ -181,47 +272,86 @@ impl Db2Config {
     }
 }
 
-#[async_trait::async_trait]
-impl DBTrait for Db2Db {
-    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let sql = "select tbspace from syscat.tablespaces".to_uppercase();
+impl Db2Db {
+    pub(crate) async fn execute(&self, sql: impl Into<String>) -> anyhow::Result<()> {
+        let sql = sql.into();
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            let r: Vec<(Option<String>)> =
-                crate::odbc::odbc_query(&conn, &sql, this.make_helper())?;
-            let mut ret = vec![];
-            let mut tmp = r.into_iter();
-            for name in tmp.flatten() {
-                ret.push(name);
-            }
+            let stmt = Statement::with_parent(conn.raw()).map_err(convert_db2_err)?;
+            stmt.exec_direct(&sql).map_err(convert_db2_err)?;
+            anyhow::Ok(())
+        })
+        .await?
+    }
+}
+
+#[async_trait::async_trait]
+impl DBTrait for Db2Db {
+    async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
+        let sql = "select schemaname from syscat.schemata";
+        let this = Clone::clone(self);
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let stmt = Statement::with_parent(conn.raw()).map_err(convert_db2_err)?;
+            let cursor = stmt.exec_direct(&sql).map_err(convert_db2_err)?;
+            let ret = match cursor {
+                ResultSetState::Data(mut statement) => {
+                    let mut ret = vec![];
+                    while let Some(mut cursor) = statement.fetch().unwrap() {
+                        match cursor.get_data::<&str>(1)? {
+                            Some(name) => {
+                                ret.push(name.trim().to_owned());
+                            }
+                            None => {}
+                        }
+                    }
+                    ret
+                }
+                ResultSetState::NoData(statement) => vec![],
+            };
             anyhow::Ok(ret)
         })
         .await?
     }
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
-        todo!()
+        let mut config = self.config.clone();
+        config.schema = Some(name.to_owned());
+        Ok(Arc::new(Db2Db::new(config).await?))
     }
 
     async fn create_schema(
         &self, name: &str, extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
-        todo!()
+        let sql = format!("CREATE TABLESPACE {}", name);
+        self.execute(sql).await?;
+        anyhow::Ok(())
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
-        todo!()
+        let sql = format!("DROP TABLESPACE {}", name);
+        self.execute(sql).await?;
+        anyhow::Ok(())
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
-        todo!()
+        self
     }
 }
 
+pub(crate) fn convert_db2_err(x: Box<dyn std::error::Error>) -> anyhow::Error {
+    anyhow::Error::msg(x.to_string())
+}
+
 impl Db2Db {
-    pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<OdbcPool>> {
+    pub(crate) fn get_conn(&self) -> anyhow::Result<PooledConnection<ODBCConnectionManager>> {
         let conn = self.pool.get()?;
+        if let Some(schema) = self.config.schema.as_ref() {
+            let sql = format!("set schema {}", schema);
+            let stmt = Statement::with_parent(conn.raw()).map_err(convert_db2_err)?;
+            stmt.exec_direct(&sql).map_err(convert_db2_err)?;
+        }
         anyhow::Ok(conn)
     }
 }
@@ -232,9 +362,10 @@ impl CheckConn for Db2Db {
     async fn check_conn(&self) -> anyhow::Result<Duration> {
         let this = Clone::clone(self);
         spawn_blocking(move || {
-            let now = std::time::Instant::now();
             let conn = this.get_conn()?;
-            conn.execute(SELECT_1_SQL, (), Some(5))?;
+            let stmt = Statement::with_parent(conn.raw()).map_err(convert_db2_err)?;
+            let now = std::time::Instant::now();
+            stmt.exec_direct(SELECT_1_SQL).map_err(convert_db2_err)?;
             anyhow::Ok(now.elapsed())
         })
         .await?
@@ -255,7 +386,6 @@ async fn make_test_object() -> Db2Db {
         username: "db2inst1".to_string(),
         password: "db2inst1-pwd".to_string(),
         db: "TSKDB".to_string(),
-
         read_only: false,
         conn_timeout: Some(5000.into()),
         schema: None,
@@ -283,13 +413,13 @@ impl ExportQueryResult for Db2Db {
 
 impl ServerMetas for Db2Db {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>> {
-        todo!()
+        anyhow::Ok(vec![])
     }
 }
 
 impl std::fmt::Debug for Db2Db {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "db2@{:?}", self.config)
     }
 }
 
@@ -362,38 +492,6 @@ pub struct Db2OdbcHelper {
     config: Db2Config,
 }
 
-impl OdbcHelper for Db2OdbcHelper {
-    fn max_str_len(&self) -> usize {
-        self.config.odbc_common.max_str_len
-    }
-
-    fn max_bin_len(&self) -> usize {
-        self.config.odbc_common.max_bin_len
-    }
-
-    fn format_timestamp(&self, x: &odbc_api::sys::Timestamp) -> String {
-        todo!()
-    }
-
-    fn format_bit(&self, x: &odbc_api::Bit) -> String {
-        todo!()
-    }
-
-    fn format_binary(&self, x: &[u8]) -> String {
-        todo!()
-    }
-
-    fn format_numeric(&self, x: &odbc_api::sys::Numeric) -> String {
-        todo!()
-    }
-
-    fn get_str(&self, bs: &[u8]) -> anyhow::Result<String> {
-        let x = CStr::from_bytes_until_nul(bs)?;
-        let r = x.to_str()?;
-        anyhow::Ok(r.to_string())
-    }
-}
-
 // 是的，这个理解完全正确——无法通过标准 SQL 语句列出 DB2 实例下的所有数据库，必须使用命令行工具或实例级 API。
 // 所以db2不实现catalogtrait
 
@@ -410,7 +508,6 @@ mod tests {
     #[tokio::test]
     async fn test_query() {
         let db = make_test_object().await;
-        crate::db::CheckConn::check_conn(&db).await.unwrap();
         let query_id = "";
         db.open_connection(query_id).await.unwrap();
         db.query_sql(

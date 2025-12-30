@@ -1285,7 +1285,7 @@ function AddConnection(props: {
           {connectionType === DataSourceKind.Oracle && <Oracle config={config} />}
           {connectionType === DataSourceKind.Sqlite && <Sqlite config={config} />}
           {connectionType === DataSourceKind.DuckDB && <DuckDB config={config} />}
-          {/* {connectionType === DataSourceKind.Db2 && <Db2 config={config} />} */}
+          {connectionType === DataSourceKind.Db2 && <Db2 config={config} />}
         </Stack>
       </AddConnectionContext>
 
@@ -1597,7 +1597,7 @@ function Db2(props: { config?: any }) {
       password: password,
       save_password: savePassword,
       db: database,
-      schema: schema,
+      schema: schema ? schema : null,
       conn_timeout: connTimeOut,
       read_only: readOnly,
       name: connectionName,

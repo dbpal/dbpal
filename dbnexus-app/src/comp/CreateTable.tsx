@@ -152,23 +152,6 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
       <Stack style={{ ...containerStyle }} divider={<Divider />}>
         <StackRowCenter>
           <Typography variant="h5"> column </Typography>
-          <Button
-            onClick={() => {
-              setCols([
-                ...cols,
-                {
-                  name: "",
-                  data_type: "",
-                  auto_increment: false,
-                  primary_key: false,
-                  default_value: null,
-                  nullable: "none",
-                },
-              ]);
-            }}
-          >
-            <AddIcon />
-          </Button>
         </StackRowCenter>
 
         {cols.map((col, index) => {
@@ -201,6 +184,23 @@ function CreateTable(props: { uuid: string; kind: DataSourceKind }) {
             />
           );
         })}
+        <Button
+          onClick={() => {
+            setCols([
+              ...cols,
+              {
+                name: "",
+                data_type: "",
+                auto_increment: false,
+                primary_key: false,
+                default_value: null,
+                nullable: "none",
+              },
+            ]);
+          }}
+        >
+          <AddIcon />
+        </Button>
       </Stack>
       {cols.length > 0 && (
         <Stack style={{ ...containerStyle }}>

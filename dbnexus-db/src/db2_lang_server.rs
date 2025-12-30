@@ -1,6 +1,9 @@
 #![allow(unused)]
 
-use crate::{db2::Db2Db, language_server::LanguageServer};
+use crate::{
+    db2::Db2Db,
+    language_server::{LangServerCommon, LanguageServer},
+};
 
 #[async_trait::async_trait]
 
@@ -17,8 +20,8 @@ impl LanguageServer for Db2Db {
         todo!()
     }
 
-    fn is_dangerous_sql(&self, _sql: &str) -> anyhow::Result<bool> {
-        todo!()
+    fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
+        LangServerCommon::is_dangerous_sql_by_parser(self, sql)
     }
 
     fn extract_table_select_selection(&self, sql: &str) -> anyhow::Result<Option<String>> {

@@ -524,8 +524,8 @@ function ResetColumnWidth() {
   return (
     <Tooltip title="reset column width">
       <Button onClick={handleReset} variant="outlined">
-        width
         <RefreshIcon />
+        width
       </Button>
     </Tooltip>
   );
