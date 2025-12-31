@@ -478,6 +478,12 @@ pub struct Db2Config {
     pub schema: Option<String>,
 }
 
+impl Db2Config {
+    pub(crate) fn schema_str(&self) -> &str {
+        self.schema.as_ref().expect("must be some")
+    }
+}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, TypeDef)]
 pub struct OdbcCommon {
     pub driver_name: String,

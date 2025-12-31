@@ -15,15 +15,15 @@ use crate::{
         BackendKind, CatalogTrait, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind,
         ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, POOL_MAX_CONNECTIONS,
         QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-        ShowTableParameter, SqlExecuteRet, not_support_feature,
+        ShowTableParameter, SqlBuilder, SqlExecuteRet, not_support_feature,
     },
 };
 use dashmap::DashMap;
 use futures_util::{io::Close, stream::Cycle};
 use gcp_bigquery_client::google::cloud::bigquery::storage::v1::read_rows_response::Schema;
 use ibm_db::{
-    Allocated, ColumnDescriptor, Cursor, ODBCConnectionManager, ResultSetState, SqlDataType,
-    Statement, safe::AutocommitOn,
+    Allocated, ColumnDescriptor, Cursor, ODBCConnectionManager, ResultSetState, SSHORT,
+    SqlDataType, Statement, safe::AutocommitOn,
 };
 use r2d2::{Pool, PooledConnection};
 use std::ops::Deref;
@@ -42,19 +42,7 @@ pub struct Db2Db {
     query_connection: Arc<DashMap<String, Db2QueryConn>>,
 }
 
-pub struct Db2QueryConn {
-    conn: Arc<Mutex<PooledConnection<ODBCConnectionManager>>>,
-    commit_mode: AtomicBool,
-}
-
-impl Db2QueryConn {
-    fn new(conn: PooledConnection<ODBCConnectionManager>) -> Self {
-        Self {
-            conn: Arc::new(Mutex::new(conn)),
-            commit_mode: AtomicBool::new(true),
-        }
-    }
-}
+pub type Db2QueryConn = Arc<Mutex<PooledConnection<ODBCConnectionManager>>>;
 
 impl ReadOnlyTrait for Db2Db {
     fn read_only(&self) -> bool {
@@ -64,10 +52,14 @@ impl ReadOnlyTrait for Db2Db {
 
 impl Db2Db {
     pub(crate) fn get_query_conn(&self, query_id: &str) -> anyhow::Result<Db2QueryConn> {
-        unimplemented!()
+        match self.query_connection.get(&query_id.to_string()) {
+            Some(x) => anyhow::Ok(x.clone()),
+            None => anyhow::bail!(format!("query conn '{}' not found", query_id)),
+        }
     }
 }
 
+// https://www.ibm.com/docs/en/db2-for-zos/13.0.0?topic=attributes-length-sql-data-types
 fn encode_row(
     cols: &[ColumnDescriptor], batch: &mut Cursor<'_, '_, '_, Allocated, AutocommitOn>,
 ) -> anyhow::Result<Vec<Option<String>>> {
@@ -83,11 +75,23 @@ fn encode_row(
             }
             SqlDataType::SQL_NUMERIC => todo!(),
             SqlDataType::SQL_DECIMAL => todo!(),
-            SqlDataType::SQL_INTEGER => todo!(),
-            SqlDataType::SQL_SMALLINT => todo!(),
-            SqlDataType::SQL_FLOAT => todo!(),
+            SqlDataType::SQL_INTEGER => {
+                let s: Option<i32> = batch.get_data(index)?;
+                s.map(|x| x.to_string())
+            }
+            SqlDataType::SQL_SMALLINT => {
+                let s: Option<i16> = batch.get_data(index)?;
+                s.map(|x| x.to_string())
+            }
+            SqlDataType::SQL_FLOAT => {
+                let s: Option<f64> = batch.get_data(index)?;
+                s.map(|x| x.to_string())
+            }
             SqlDataType::SQL_REAL => todo!(),
-            SqlDataType::SQL_DOUBLE => todo!(),
+            SqlDataType::SQL_DOUBLE => {
+                let s: Option<f64> = batch.get_data(index)?;
+                s.map(|x| x.to_string())
+            }
             SqlDataType::SQL_DATETIME => todo!(),
             SqlDataType::SQL_VARCHAR => {
                 let s: Option<String> = batch.get_data(index)?;
@@ -140,14 +144,15 @@ impl QuerySql for Db2Db {
         let query_id = query_id.to_owned();
         spawn_blocking(move || {
             let conn = this.get_query_conn(&query_id)?;
-            let conn = conn.conn.lock().expect("lock failed");
+            let conn = conn.lock().expect("lock failed");
             let stmt = Statement::with_parent(conn.raw()).map_err(convert_db2_err)?;
             let mut cursor = stmt.exec_direct(&sql).map_err(convert_db2_err)?;
             match cursor {
                 ResultSetState::Data(mut statement) => {
                     let mut fields = vec![];
                     let mut cols = vec![];
-                    for index in 1..statement.num_result_cols()? + 1 {
+                    for index in 0..statement.num_result_cols()? {
+                        let index = index + 1;
                         let col = statement.describe_col(index as u16)?;
                         fields.push(Field::from_name_type(
                             col.name.clone(),
@@ -190,7 +195,7 @@ impl QuerySql for Db2Db {
         let query_id = query_id.to_owned();
         spawn_blocking(move || {
             let conn = this.get_query_conn(&query_id)?;
-            let conn = conn.conn.lock().expect("lock failed");
+            let conn = conn.lock().expect("lock failed");
             let stmt = Statement::with_parent(conn.raw()).map_err(convert_db2_err)?;
             let r = match stmt.exec_direct(&sql) {
                 Ok(_) => Ok(QueryResp::execute_ok(None)),
@@ -215,8 +220,7 @@ impl QuerySql for Db2Db {
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.pool.get()?;
-            let query_conn = Db2QueryConn::new(conn);
-            this.query_connection.insert(id, query_conn);
+            this.query_connection.insert(id, Arc::new(Mutex::new(conn)));
             anyhow::Ok(())
         })
         .await?
@@ -286,33 +290,24 @@ impl Db2Db {
     }
 }
 
+impl Db2Db {
+    pub(crate) async fn list_schema_impl(&self) -> anyhow::Result<Vec<String>> {
+        let sql = "select schemaname from syscat.schemata";
+
+        let r = self
+            .query_something(sql, |b| {
+                let x: Option<String> = b.get_data(1)?;
+                anyhow::Ok(x)
+            })
+            .await?;
+        anyhow::Ok(r.into_iter().flatten().collect())
+    }
+}
+
 #[async_trait::async_trait]
 impl DBTrait for Db2Db {
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
-        let sql = "select schemaname from syscat.schemata";
-        let this = Clone::clone(self);
-        spawn_blocking(move || {
-            let conn = this.get_conn()?;
-            let stmt = Statement::with_parent(conn.raw()).map_err(convert_db2_err)?;
-            let cursor = stmt.exec_direct(&sql).map_err(convert_db2_err)?;
-            let ret = match cursor {
-                ResultSetState::Data(mut statement) => {
-                    let mut ret = vec![];
-                    while let Some(mut cursor) = statement.fetch().unwrap() {
-                        match cursor.get_data::<&str>(1)? {
-                            Some(name) => {
-                                ret.push(name.trim().to_owned());
-                            }
-                            None => {}
-                        }
-                    }
-                    ret
-                }
-                ResultSetState::NoData(statement) => vec![],
-            };
-            anyhow::Ok(ret)
-        })
-        .await?
+        self.list_schema_impl().await
     }
 
     async fn open_schema(&self, name: &str) -> anyhow::Result<Arc<dyn SchemaTrait>> {
@@ -324,13 +319,13 @@ impl DBTrait for Db2Db {
     async fn create_schema(
         &self, name: &str, extra: Option<CreateSchemaExtra>,
     ) -> anyhow::Result<()> {
-        let sql = format!("CREATE TABLESPACE {}", name);
+        let sql = format!("CREATE SCHEMA {}", name);
         self.execute(sql).await?;
         anyhow::Ok(())
     }
 
     async fn drop_schema(&self, name: &str) -> anyhow::Result<()> {
-        let sql = format!("DROP TABLESPACE {}", name);
+        let sql = format!("DROP SCHEMA {}", name);
         self.execute(sql).await?;
         anyhow::Ok(())
     }
@@ -388,7 +383,7 @@ async fn make_test_object() -> Db2Db {
         db: "TSKDB".to_string(),
         read_only: false,
         conn_timeout: Some(5000.into()),
-        schema: None,
+        schema: Some("TEST".to_string()),
     })
     .await
     .unwrap()
@@ -423,6 +418,102 @@ impl std::fmt::Debug for Db2Db {
     }
 }
 
+impl Db2Db {
+    pub(crate) async fn query_something<R: Default + Send + Sync + 'static>(
+        &self, sql: impl Into<String>,
+        mut extract_value: impl FnMut(
+            &mut Cursor<'_, '_, '_, Allocated, AutocommitOn>,
+        ) -> anyhow::Result<R>
+        + Send
+        + Sync
+        + 'static,
+    ) -> anyhow::Result<Vec<R>> {
+        let this = Clone::clone(self);
+        let sql = sql.into();
+        spawn_blocking(move || {
+            let conn = this.get_conn()?;
+            let stmt = Statement::with_parent(conn.raw()).map_err(convert_db2_err)?;
+            let cursor = stmt.exec_direct(&sql).map_err(convert_db2_err)?;
+            match cursor {
+                ResultSetState::Data(mut statement) => {
+                    #[cfg(debug_assertions)]
+                    {
+                        let num_result_cols = statement.num_result_cols()?;
+                        println!(
+                            "################################################# {}",
+                            num_result_cols
+                        );
+                        for idx in 0..num_result_cols {
+                            let idx = idx + 1;
+                            println!("col #{}", idx);
+                            let d = statement.describe_col(idx as u16).unwrap();
+                            println!("col #{} {:?}", idx, d);
+                        }
+                    }
+                    let mut ret = Vec::new();
+                    while let Some(mut batch) = statement.fetch().map_err(convert_db2_err)? {
+                        let r = extract_value(&mut batch)?;
+                        ret.push(r);
+                    }
+                    anyhow::Ok(ret)
+                }
+                ResultSetState::NoData(statement) => anyhow::Ok(Default::default()),
+            }
+        })
+        .await?
+    }
+}
+
+impl Db2Db {
+    fn query_count(&self, table: &str, where_str: Option<&str>) -> anyhow::Result<i64> {
+        let mut sql = format!(
+            r#"select count(*) from "{}"."{}" "#,
+            self.config.schema_str(),
+            table
+        );
+        if let Some(w) = where_str {
+            sql.push_str(format!(" where {}", w).as_str());
+        }
+        let conn = self.get_conn()?;
+        let stmt = Statement::with_parent(conn.raw()).map_err(convert_db2_err)?;
+        let cursor = stmt.exec_direct(&sql).map_err(convert_db2_err)?;
+        match cursor {
+            ResultSetState::Data(mut statement) => {
+                let batch = statement.fetch().map_err(convert_db2_err)?;
+                let mut batch = match batch {
+                    Some(x) => x,
+                    None => anyhow::bail!("count(*) should not return NoData"),
+                };
+                let r: Option<i64> = batch.get_data(1)?;
+                anyhow::Ok(r.unwrap_or_default())
+            }
+            ResultSetState::NoData(statement) => {
+                anyhow::bail!("count(*) should not return NoData")
+            }
+        }
+    }
+}
+
+impl Db2Db {
+    pub(crate) async fn list_table_impl(&self, schema: &str) -> anyhow::Result<Vec<ListTable>> {
+        let sql = format!(
+            r#"
+    SELECT TABNAME 
+    FROM SYSCAT.TABLES WHERE TABSCHEMA = '{}'   AND TYPE = 'T';
+        "#,
+            schema
+        );
+        let r = self
+            .query_something(sql, |b| {
+                let name: Option<String> = b.get_data(1)?;
+                anyhow::Ok(name)
+            })
+            .await?;
+        let r: Vec<_> = r.into_iter().flatten().map(ListTable::from).collect();
+        anyhow::Ok(r)
+    }
+}
+
 #[async_trait::async_trait]
 
 impl SchemaTrait for Db2Db {
@@ -431,15 +522,46 @@ impl SchemaTrait for Db2Db {
     }
 
     async fn duplicate_table(&self, table: &str, dup: &str) -> anyhow::Result<()> {
-        todo!()
+        let sql = format!(r#"CREATE TABLE "{}" AS SELECT * FROM "{}""#, dup, table);
+        self.execute(sql).await?;
+        anyhow::Ok(())
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
-        todo!()
+        self.list_table_impl(self.config.schema_str()).await
     }
 
     async fn show_table_columns(&self, table_name: &str) -> anyhow::Result<Vec<Field>> {
-        todo!()
+        let sql = format!(
+            r#"
+        SELECT 
+            C.COLNAME,
+            C.TYPENAME,
+            C.NULLS,
+            C.DEFAULT
+        FROM 
+            SYSCAT.COLUMNS C
+        JOIN 
+            SYSCAT.TABLES T ON C.TABNAME = T.TABNAME AND C.TABSCHEMA = T.TABSCHEMA
+        WHERE 
+            T.TABSCHEMA = '{}' AND
+            T.TABNAME = '{}'
+        ORDER BY 
+            C.COLNO;
+        "#,
+            self.config.schema_str(),
+            table_name
+        );
+
+        self.query_something(sql, |x| -> anyhow::Result<Field> {
+            let name: Option<String> = x.get_data(1)?;
+            let data_type: Option<String> = x.get_data(2)?;
+
+            unimplemented!()
+        })
+        .await?;
+
+        unimplemented!()
     }
 
     async fn show_table(
@@ -451,39 +573,69 @@ impl SchemaTrait for Db2Db {
     async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        todo!()
+        let fs = self.show_table_columns(table_name).await?;
+        let sql = self.insert_sql(self.config.schema.as_deref(), table_name, &fs, &values)?;
+        self.execute(&sql).await?;
+        anyhow::Ok(SqlExecuteRet { sql, changes: None })
     }
 
     async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        todo!()
+        let fs = self.show_table_columns(table_name).await?;
+        let sql = self.update_sql(
+            self.config.schema.as_deref(),
+            table_name,
+            &fs,
+            &values,
+            &wheres,
+        )?;
+        self.execute(&sql).await?;
+        anyhow::Ok(SqlExecuteRet { sql, changes: None })
     }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
-        todo!()
+        let sql = format!(r#"TRUNCATE TABLE  "{table_name}" "#);
+        self.execute(sql).await
     }
 
     async fn table_delete(
-        &self, _table_name: &str, _wheres: HashMap<String, Option<String>>,
+        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
     ) -> anyhow::Result<SqlExecuteRet> {
-        todo!()
+        let fs = self.show_table_columns(table_name).await?;
+        let sql = self.delete_sql(self.config.schema.as_deref(), table_name, &fs, &wheres)?;
+        self.execute(&sql).await?;
+        anyhow::Ok(SqlExecuteRet { sql, changes: None })
     }
 
     async fn drop_table(&self, table: &str, cascade: bool) -> anyhow::Result<()> {
-        todo!()
+        let sql = format!(
+            r#"DROP TABLE "{}"."{}" {}"#,
+            self.config.schema_str(),
+            table,
+            if cascade { "CASCADE" } else { "" }
+        );
+        println!("sql:{}", sql);
+        self.execute(sql).await?;
+        anyhow::Ok(())
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        todo!()
+        Box::new(Clone::clone(self))
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
-        todo!()
+        crate::language_server::LexerCompletionTrait::get_types(self).await
     }
 
     fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
+        todo!()
+    }
+}
+
+impl SqlBuilder for Db2Db {
+    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
         todo!()
     }
 }
@@ -521,8 +673,55 @@ mod tests {
 
     #[tokio::test]
     async fn test_schema() {
+        let name = "ABC";
         let db = make_test_object().await;
+        let _err = db.create_schema(name, None).await;
+        if let Err(_err) = _err {
+            println!("create scheam err:{}", _err);
+        }
         let s = db.list_schema().await.unwrap();
         println!("schema:{:?}", s);
+        db.drop_schema(name).await;
+    }
+
+    #[tokio::test]
+
+    async fn test_types1() {
+        let table_name = "TEST_TYPES1";
+        let query_id = "";
+        let db = make_test_object().await;
+        db.open_connection(query_id).await.unwrap();
+        {
+            let _err = db.drop_table(table_name, false).await;
+            if let Err(_err) = _err {
+                println!("drop table err:{}", _err);
+            }
+        }
+        // db2 need schema for create table.
+        db.execute_sql(
+            query_id,
+            r#"
+        CREATE TABLE TEST.TEST_TYPES1 (
+            ID INT,
+            BIGINT_COLUMN BIGINT,
+            BINARY_COLUMN BINARY(100),
+            BLOB_COLUMN BLOB,
+            BOOLEAN_COLUMN BOOLEAN,
+            CHARACTER_COLUMN CHAR(100),
+            CLOB_COLUMN CLOB
+        )
+"#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        for t in db.list_table().await.unwrap() {
+            let cols = db.show_table_columns(&t.name).await.unwrap();
+            println!("##################################################");
+            for col in cols.iter() {
+                println!("cols{:?}", col);
+            }
+        }
     }
 }

@@ -1476,7 +1476,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
-        SqlBuilder::create_table_sql(self, req)
+        SqlBuilder::create_table_sql(self, self.config.schema.as_deref(), req)
     }
 }
 

@@ -1221,7 +1221,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
-        SqlBuilder::create_table_sql(self, req)
+        SqlBuilder::create_table_sql(self, self.config.schema.as_deref(), req)
     }
 }
 /// SQL Server 里可直接写在 SQL 语句中的 CURRENT_* / 无括号字面量

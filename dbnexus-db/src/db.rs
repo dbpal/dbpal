@@ -699,8 +699,14 @@ pub trait SqlBuilder: GetBackendKind {
     // stupid create table sql auto increment must be primary key.
     // and  not primary key must can be in `PRIMARY KEY(aaa , bbb )` syntax
     // this method should be able used most cases
-    fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
-        let mut sql = format!("CREATE TABLE {}(\n", self.quote(&req.name));
+    fn create_table_sql(
+        &self, schema: Option<&str>, req: &CreateTableReq,
+    ) -> anyhow::Result<Vec<String>> {
+        let mut sql = format!(
+            "CREATE TABLE {}{}(\n",
+            schema.map(|x| self.quote(x)).unwrap_or_default(),
+            self.quote(&req.name)
+        );
         let last = req.columns.len() - 1;
         let has_auto_increment = req.has_auto_increment();
         let pks = if has_auto_increment {
@@ -2157,10 +2163,6 @@ impl From<Vec<Vec<Option<String>>>> for QueryEvent {
     fn from(value: Vec<Vec<Option<String>>>) -> Self {
         Self::Data(value)
     }
-}
-
-pub fn build_limit_sql(sql: &str, max: usize) -> String {
-    format!("select * from ({})  limit {} ", sql, max)
 }
 
 pub(crate) const POOL_MAX_CONNECTIONS: u32 = 200;

@@ -871,7 +871,7 @@ impl SchemaTrait for FireBirdDB {
     }
 
     fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
-        SqlBuilder::create_table_sql(self, req)
+        SqlBuilder::create_table_sql(self, None, req)
     }
 }
 
