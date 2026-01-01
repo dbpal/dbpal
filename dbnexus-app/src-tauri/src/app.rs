@@ -282,13 +282,14 @@ impl DBConnectionConfig {
                 let db = dbnexus_db::firebird::FireBirdDB::new(conn.clone()).await?;
                 anyhow::Ok(DatabaseBackend::from(Arc::new(db) as Arc<dyn SchemaTrait>))
             }
-            DBConnectionConfig::Db2 { conn, .. } => {
-                let db = dbnexus_db::db2::Db2Db::new(conn.clone()).await?;
-                let r = match &conn.schema {
-                    Some(_) => DatabaseBackend::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
-                    None => DatabaseBackend::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
-                };
-                anyhow::Ok(r)
+            DBConnectionConfig::Db2 { conn: _conn, .. } => {
+                // let db = dbnexus_db::db2::Db2Db::new(_conn.clone()).await?;
+                // let r = match &_conn.schema {
+                //     Some(_) => DatabaseBackend::Schema(Arc::new(db) as Arc<dyn SchemaTrait>),
+                //     None => DatabaseBackend::DataBase(Arc::new(db) as Arc<dyn DBTrait>),
+                // };
+                // anyhow::Ok(r)
+                anyhow::bail!("db2 not supported")
             }
         }
     }

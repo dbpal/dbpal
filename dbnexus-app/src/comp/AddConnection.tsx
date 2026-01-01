@@ -1181,7 +1181,7 @@ function AddConnection(props: {
           <MenuItem value={DataSourceKind.FireBird}> FireBird </MenuItem>
           <MenuItem value={DataSourceKind.DuckDB}> Duckdb </MenuItem>
           <MenuItem value={DataSourceKind.Cockroach}> Cockroach </MenuItem>
-          <MenuItem value={DataSourceKind.Db2}> Db2(luw) </MenuItem>
+          {/* <MenuItem value={DataSourceKind.Db2}> Db2(luw) </MenuItem> */}
         </Select>
       </FormControl>
       <Stack direction="row" style={{ alignItems: "flex-start" }}>
@@ -1285,6 +1285,7 @@ function AddConnection(props: {
           {connectionType === DataSourceKind.Oracle && <Oracle config={config} />}
           {connectionType === DataSourceKind.Sqlite && <Sqlite config={config} />}
           {connectionType === DataSourceKind.DuckDB && <DuckDB config={config} />}
+
           {connectionType === DataSourceKind.Db2 && <Db2 config={config} />}
         </Stack>
       </AddConnectionContext>

@@ -2176,7 +2176,7 @@ mod tests {
             parameters: "int".to_string(),
         });
         let s = serde_json::to_string_pretty(&x).unwrap();
-        println!("{:?}", s);
+        println!("{}", s);
     }
 
     #[test]

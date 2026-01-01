@@ -15,8 +15,6 @@ pub mod clickhouse;
 pub mod clickhouse_lang_server;
 pub mod cockroach;
 pub mod cockroach_lang_server;
-pub mod db2;
-pub mod db2_lang_server;
 #[cfg(feature = "duckdb")]
 pub mod duckdb;
 #[cfg(feature = "duckdb")]
@@ -34,6 +32,7 @@ pub mod mssql;
 pub mod mssql_lang_server;
 pub mod mysql;
 pub mod mysql_lang_server;
+#[cfg(feature = "odbc")]
 pub mod odbc;
 pub mod oracle;
 pub mod oracle_lang_server;

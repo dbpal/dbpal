@@ -479,6 +479,7 @@ pub struct Db2Config {
 }
 
 impl Db2Config {
+    #[allow(unused)]
     pub(crate) fn schema_str(&self) -> &str {
         self.schema.as_ref().expect("must be some")
     }
