@@ -803,31 +803,25 @@ impl SqlBuilder for SqliteDB {
         if self.hit_current_value(value) {
             return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }
+        let value = match value {
+            Some(x) => x,
+            None => return anyhow::Ok("null".to_string()),
+        };
+
         let typ = typ.to_uppercase();
         let v = match typ.as_str() {
-            "" | "NULL" => match value {
-                Some(x) => {
-                    if x.parse::<f64>().is_ok() {
-                        x.to_string()
-                    } else {
-                        format!("'{}'", escape_sql_str(x))
-                    }
+            "" | "NULL" => {
+                if value.parse::<f64>().is_ok() {
+                    value.to_string()
+                } else {
+                    format!("'{}'", escape_sql_str(value))
                 }
-                None => "null".to_string(),
-            },
-            "TEXT" | "DATE" | "TIME" | "DATETIME" => match value {
-                Some(x) => format!("'{}'", escape_sql_str(x)),
-                None => "null".to_string(),
-            },
-            _ if text_like(typ.as_str()) => match value {
-                Some(x) => format!("'{}'", escape_sql_str(x)),
-                None => "null".to_string(),
-            },
-            "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.unwrap_or("null").to_string(),
-            _ if integer_like(typ.as_str()) || numeric_like(typ.as_str()) => {
-                value.unwrap_or("null").to_string()
             }
-            "BLOB" => value.unwrap_or("null").to_string(),
+            "TEXT" | "DATE" | "TIME" | "DATETIME" => format!("'{}'", escape_sql_str(value)),
+            _ if text_like(typ.as_str()) => format!("'{}'", escape_sql_str(value)),
+            "REAL" | "INTEGER" | "NUMERIC" | "BOOLEAN" => value.to_string(),
+            _ if integer_like(typ.as_str()) || numeric_like(typ.as_str()) => value.to_string(),
+            "BLOB" => value.to_string(),
             _ => {
                 let e = format!("type '{}' not handled", typ);
                 log::error!("{}", e);
