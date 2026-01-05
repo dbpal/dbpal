@@ -829,18 +829,16 @@ class SaveQueryLogConfigure {
   }
 }
 
-function makeExecuteSql(uuid: string) {
-  return (sql: string) => {
-    return invoke<QueryRespData>("execute_sql_no_open_conn", {
-      name: uuid,
-      sql,
-    }).then(e => {
-      if (SaveQueryLogConfigure.get()) {
-        new QueryLogHandler(uuid).save(sql, rustResultOk(e));
-      }
-      return e;
-    });
-  };
+function executeSqlWithoutConn(uuid: string, sql: string) {
+  return invoke<QueryRespData>("execute_sql_no_open_conn", {
+    name: uuid,
+    sql,
+  }).then(e => {
+    if (SaveQueryLogConfigure.get()) {
+      new QueryLogHandler(uuid).save(sql, rustResultOk(e));
+    }
+    return e;
+  });
 }
 
 function getStackTrace() {
@@ -1219,7 +1217,7 @@ export {
   postgresLike,
   udfIdGenerate,
   getEditorText,
-  makeExecuteSql,
+  executeSqlWithoutConn,
   QueryLogHandler,
   ColorFn,
   getSupportExportKind,

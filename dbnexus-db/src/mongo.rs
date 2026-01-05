@@ -18,7 +18,7 @@ use crate::db::{
     BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame, ExportKind, ExportQueryResult,
     Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlExecuteRet, not_support_feature,
+    ShowTableParameter, not_support_feature,
 };
 
 #[derive(Clone)]
@@ -95,7 +95,7 @@ impl ExportQueryResult for MongoDB {
     }
 
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
     }
 }
 #[async_trait::async_trait]
@@ -609,7 +609,7 @@ impl SchemaTrait for MongoDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
     async fn export_table_or_view(
@@ -744,19 +744,6 @@ impl SchemaTrait for MongoDB {
         anyhow::Ok(ret)
     }
 
-    async fn table_insert(
-        &self, _table_name: &str, _values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        anyhow::bail!("use mongo insert")
-    }
-
-    async fn table_update(
-        &self, _table_name: &str, _values: HashMap<String, Option<String>>,
-        _wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        anyhow::bail!("use mongo update")
-    }
-
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
 
@@ -766,12 +753,6 @@ impl SchemaTrait for MongoDB {
             .await?;
 
         anyhow::Ok(())
-    }
-
-    async fn table_delete(
-        &self, _table_name: &str, _wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        anyhow::bail!("use mongo delete")
     }
 
     async fn show_view_columns(&self, view_name: &str) -> anyhow::Result<Vec<Field>> {
@@ -797,9 +778,7 @@ impl QuerySql for MongoDB {
         not_support_feature(self.backend_name())
     }
 
-    async fn execute_sql_no_open_conn(
-        &self, _sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>> {
+    async fn execute_sql_no_open_conn(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
         not_support_feature(self.backend_name())
     }
 

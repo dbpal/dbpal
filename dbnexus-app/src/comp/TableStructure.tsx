@@ -34,8 +34,8 @@ import {
   Autocomplete,
   Box,
   Button,
+  ButtonGroup,
   Checkbox,
-  Chip,
   Divider,
   FormControlLabel,
   IconButton,
@@ -1471,8 +1471,8 @@ function TriggersStructure(props: {
 
 function TableStructure(props: { table: string; uuid: string; kind: DataSourceKind }) {
   const { table, uuid, kind } = props;
-  const [structure, setStructure] = useState("columns");
-  const structures = [{ name: "columns" }];
+  const [structure, setStructure] = useState("column");
+  const structures = ["column"];
 
   const supportStatement = [
     DataSourceKind.Cassandra,
@@ -1485,7 +1485,7 @@ function TableStructure(props: { table: string; uuid: string; kind: DataSourceKi
     DataSourceKind.DuckDB,
   ].includes(kind);
   if (supportStatement) {
-    structures.push({ name: "statement" });
+    structures.push("statement");
   }
   const supportIndex = [
     DataSourceKind.MariaDB,
@@ -1505,7 +1505,7 @@ function TableStructure(props: { table: string; uuid: string; kind: DataSourceKi
   ].includes(kind);
 
   if (supportIndex) {
-    structures.push({ name: "indexes" });
+    structures.push("index");
   }
   const supportTrigger = [
     DataSourceKind.MariaDB,
@@ -1517,32 +1517,36 @@ function TableStructure(props: { table: string; uuid: string; kind: DataSourceKi
     DataSourceKind.Postgres,
   ].includes(kind);
   if (supportTrigger) {
-    structures.push({ name: "triggers" });
+    structures.push("trigger");
   }
 
   return (
     <Stack style={{ height: "100%" }}>
-      <Stack direction="row" style={{ justifyContent: "center" }}>
-        {structures.map(e => (
-          <Chip
-            onClick={() => {
-              setStructure(e.name);
-            }}
-            key={e.name}
-            color={e.name == structure ? "success" : "default"}
-            label={e.name}
-            size="medium"
-          />
-        ))}
+      <Stack direction="row" justifyContent="center">
+        <ButtonGroup>
+          {structures.map(e => {
+            return (
+              <Button
+                disabled={structure == e}
+                onClick={() => {
+                  setStructure(e);
+                }}
+                key={e}
+              >
+                {e}
+              </Button>
+            );
+          })}
+        </ButtonGroup>
       </Stack>
 
-      {structure == "columns" && (
+      {structure == "column" && (
         <ColumnsStructure table={table} kind={kind} uuid={uuid} />
       )}
-      {structure == "indexes" && (
+      {structure == "index" && (
         <IndexesStructure table={table} kind={kind} uuid={uuid} />
       )}
-      {structure == "triggers" && (
+      {structure == "trigger" && (
         <TriggersStructure table={table} kind={kind} uuid={uuid} />
       )}
       {structure == "statement" && (

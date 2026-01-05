@@ -21,7 +21,7 @@ import { IoConstructOutline } from "react-icons/io5";
 import {
   Box,
   Button,
-  Chip,
+  ButtonGroup,
   CircularProgress,
   Divider,
   ListItemIcon,
@@ -231,8 +231,8 @@ function ViewStructure(props: {
 }) {
   const { uuid, view, viewKind, kind } = props;
 
-  const [structure, setStructure] = useState("columns");
-  const structures = [{ name: "columns" }];
+  const [structure, setStructure] = useState("column");
+  const structures = ["column"];
 
   const supportStatement = [
     DataSourceKind.LibSql,
@@ -244,25 +244,32 @@ function ViewStructure(props: {
   ].includes(kind);
 
   if (supportStatement) {
-    structures.push({ name: "statement" });
+    structures.push("statement");
   }
 
   return (
     <Stack style={{ height: "100%" }}>
       <Stack direction="row" style={{ justifyContent: "center" }}>
-        {structures.map(e => (
-          <Chip
-            onClick={() => {
-              setStructure(e.name);
-            }}
-            color={structure == e.name ? "success" : "default"}
-            key={e.name}
-            label={e.name}
-            size="medium"
-          />
-        ))}
+        <Stack direction="row" justifyContent="center">
+          <ButtonGroup>
+            {structures.map(e => {
+              return (
+                <Button
+                  disabled={structure == e}
+                  onClick={() => {
+                    setStructure(e);
+                  }}
+                  variant="contained"
+                  key={e}
+                >
+                  {e}
+                </Button>
+              );
+            })}
+          </ButtonGroup>
+        </Stack>
       </Stack>
-      {structure == "columns" && <ColumnsContent uuid={uuid} view={view} />}
+      {structure == "column" && <ColumnsContent uuid={uuid} view={view} />}
       {structure == "statement" && (
         <StatementStructure uuid={uuid} kind={kind} viewKind={viewKind} view={view} />
       )}

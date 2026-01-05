@@ -3,6 +3,8 @@ import React, { ReactNode } from "react";
 import {
   DataSourceKind,
   NewWindowTableParameter,
+  secondConfirm,
+  SetCloseConfirmTextContext,
   SomeTempStore,
 } from "./comp/helper.ts";
 import { SqlTableView } from "./comp/SqlTableView.tsx";
@@ -10,6 +12,7 @@ import { SqlTableView } from "./comp/SqlTableView.tsx";
 import { SeparateWindow } from "./comp/MainPage.tsx";
 import { MongoTable } from "./comp/MongoDB.tsx";
 import { makeRedisViewTable } from "./comp/LeftTable.tsx";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 const { uuid, kind, table, redisTableType, isTable } =
   SomeTempStore.get<NewWindowTableParameter>();
@@ -29,8 +32,31 @@ switch (kind) {
     );
 }
 
+let closeMsg = "";
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <SeparateWindow>{content}</SeparateWindow>
+    <SetCloseConfirmTextContext.Provider
+      value={m => {
+        closeMsg = m;
+      }}
+    >
+      <SeparateWindow>{content}</SeparateWindow>
+    </SetCloseConfirmTextContext.Provider>
   </React.StrictMode>,
 );
+
+const webview = WebviewWindow.getCurrent();
+
+webview.onCloseRequested(async event => {
+  if (closeMsg) {
+    const confirm = await secondConfirm({
+      title: "close the window",
+      content: closeMsg,
+      confirmText: "close",
+    });
+    if (!confirm) {
+      event.preventDefault();
+    }
+  }
+});

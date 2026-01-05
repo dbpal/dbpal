@@ -17,7 +17,7 @@ use crate::db::{
     AutoCompletionQueryId, BackendKind, CheckConn, CreateSchemaExtra, DBTrait, ExportFrame,
     ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable, MetaValue, QueryEvent,
     QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlExecuteRet, XlsxEdit, create_html_table_data, create_markdown_data,
+    ShowTableParameter, SqlBuilder, XlsxEdit, create_html_table_data, create_markdown_data,
     create_markdown_header, not_support_feature,
 };
 use crate::helper::{OffsetLimitIter, create_csv};
@@ -840,7 +840,7 @@ impl ExportQueryResult for RedisDB {
     }
 
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
     }
 }
 
@@ -943,6 +943,16 @@ impl RedisDB {
     }
 }
 
+impl SqlBuilder for RedisDB {
+    fn get_schema(&self) -> Option<&str> {
+        todo!()
+    }
+
+    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
+        todo!()
+    }
+}
+
 #[async_trait::async_trait]
 impl SchemaTrait for RedisDB {
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -1025,7 +1035,7 @@ impl SchemaTrait for RedisDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
     async fn export_table_or_view(
@@ -1214,19 +1224,6 @@ impl SchemaTrait for RedisDB {
         }
     }
 
-    async fn table_insert(
-        &self, _table_name: &str, _values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        anyhow::bail!("use redis special api")
-    }
-
-    async fn table_update(
-        &self, _table_name: &str, _values: HashMap<String, Option<String>>,
-        _wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        anyhow::bail!("use redis special api")
-    }
-
     async fn truncate_table(&self, key: &str) -> anyhow::Result<()> {
         let mut conn = self.get_conn().await?;
         let typ = Self::get_key_type(&mut conn, key).await?;
@@ -1241,13 +1238,6 @@ impl SchemaTrait for RedisDB {
             }
         }
         anyhow::Ok(())
-    }
-
-    async fn table_delete(
-        &self, _key: &str, _wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        anyhow::bail!("not impl")
     }
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
@@ -1399,9 +1389,7 @@ impl QuerySql for RedisDB {
         self.query_connection.remove(&id.to_string());
         anyhow::Ok(())
     }
-    async fn execute_sql_no_open_conn(
-        &self, _sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>> {
+    async fn execute_sql_no_open_conn(&self, _sql: &str) -> anyhow::Result<Option<usize>> {
         anyhow::bail!("the frontend will not use the api for now.")
     }
     async fn execute_sql(

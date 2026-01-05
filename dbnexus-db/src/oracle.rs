@@ -15,10 +15,10 @@ use crate::db::{
     DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
     IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS,
     ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail,
-    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
-    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEnable,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
+    export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
 
 use crate::helper::{create_csv, run_with_timeout};
@@ -77,7 +77,7 @@ const QUERY_AUTO_COMMIT: bool = true;
 #[async_trait::async_trait]
 impl ExportQueryResult for OracleDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
     }
 
     async fn export_query_result(
@@ -254,14 +254,9 @@ impl QuerySql for OracleDB {
         anyhow::Ok(())
     }
 
-    async fn execute_sql_no_open_conn(
-        &self, sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>> {
-        let ret = match self.execute(sql).await {
-            Ok(_) => Ok(QueryResp::execute_ok(sql.to_owned())),
-            Err(err) => Err(err.to_string()),
-        };
-        anyhow::Ok(ret)
+    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
+        let ret = self.execute(sql).await?;
+        anyhow::Ok(Some(ret.row_count()? as usize))
     }
 
     async fn execute_sql(
@@ -800,7 +795,7 @@ impl OracleDB {
                 for (d, f) in data.into_iter().zip(cols.iter()) {
                     m.insert(f.field.clone(), d);
                 }
-                let insert_sql = this.insert_sql(None, &table_name, &cols, &m)?;
+                let insert_sql = this.insert_sql(&table_name, &cols, &m)?;
                 sender.blocking_send(insert_sql.into())?;
                 sender.blocking_send(";\n".into())?;
             }
@@ -955,7 +950,7 @@ impl OracleDB {
 #[async_trait::async_trait]
 impl SchemaTrait for OracleDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::CURRENT_VALUES
+        <Self as SqlBuilder>::get_current_values(self)
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -1113,7 +1108,7 @@ impl SchemaTrait for OracleDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1306,59 +1301,12 @@ impl SchemaTrait for OracleDB {
         anyhow::Ok(ret.into_values().collect())
     }
 
-    async fn table_insert(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fs = self.show_table_columns(table_name).await?;
-        let sql = self.insert_sql(None, table_name, &fs, &values)?;
-        log::info!("insert sql:{}", sql);
-        let stmt = self.execute(&sql).await?;
-        let changes = stmt.row_count()?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(changes),
-        })
-    }
-
-    async fn table_update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-
-        let fs = self.show_table_columns(table_name).await?;
-        let sql = self.update_sql(None, table_name, &fs, &values, &wheres)?;
-        log::info!("sql:{}", sql);
-        let stmt = self.execute(&sql).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(stmt.row_count()?),
-        })
-    }
-
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!(r#"TRUNCATE TABLE  "{table_name}""#);
         log::info!("sql:{}", sql);
         self.execute(sql).await?;
         anyhow::Ok(())
-    }
-
-    async fn table_delete(
-        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-
-        let fields = self.show_table_columns(table_name).await?;
-        let sql = self.delete_sql(None, table_name, &fields, &wheres)?;
-        log::info!("sql:{}", sql);
-        let stmt = self.execute(sql.as_str()).await?;
-        let row_count = stmt.row_count()?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(row_count),
-        })
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -1606,7 +1554,13 @@ pub const ORACLE_CURRENT_LITERALS: &[&str] = &[
 ];
 
 impl SqlBuilder for OracleDB {
-    const CURRENT_VALUES: &'static [&'static str] = ORACLE_CURRENT_LITERALS;
+    fn get_schema(&self) -> Option<&str> {
+        self.config.schema.as_deref()
+    }
+
+    fn get_current_values(&self) -> &'static [&'static str] {
+        ORACLE_CURRENT_LITERALS
+    }
 
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.

@@ -61,9 +61,7 @@ impl QuerySql for BigQueryDb {
         todo!()
     }
 
-    async fn execute_sql_no_open_conn(
-        &self, sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>> {
+    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         todo!()
     }
 
@@ -121,26 +119,7 @@ impl SchemaTrait for BigQueryDb {
         todo!()
     }
 
-    async fn table_insert(
-        &self, table_name: &str, values: std::collections::HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        todo!()
-    }
-
-    async fn table_update(
-        &self, table_name: &str, values: std::collections::HashMap<String, Option<String>>,
-        wheres: std::collections::HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        todo!()
-    }
-
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
-        todo!()
-    }
-
-    async fn table_delete(
-        &self, _table_name: &str, _wheres: std::collections::HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
         todo!()
     }
 

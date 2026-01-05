@@ -6,7 +6,7 @@ use crate::{
         ExportFrame, ExportKind, ExportQueryResult, ExportedSizeEmitter, Field, GetBackendKind,
         Index, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail,
         QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, SequenceDetail,
-        ServerMetas, ShowTableParameter, SqlEvent, SqlExecuteRet, TriggerDetail,
+        ServerMetas, ShowTableParameter, SqlBuilder, SqlEvent, TriggerDetail,
         UdfOrProcedureExtraParameter,
     },
     mariadb::MariaDB,
@@ -21,6 +21,26 @@ pub enum SubDB {
     TiDB(Arc<MysqlDB>),
     MariaDb(Arc<MysqlDB>),
     CocoRoach(Arc<PostGresDB>),
+}
+
+impl SubDB {
+    fn as_sql_builder(&self) -> &dyn SqlBuilder {
+        match self {
+            SubDB::TiDB(mysql_db) => mysql_db.as_ref(),
+            SubDB::MariaDb(mysql_db) => mysql_db.as_ref(),
+            SubDB::CocoRoach(mysql_db) => mysql_db.as_ref(),
+        }
+    }
+}
+
+impl SqlBuilder for SubDB {
+    fn get_schema(&self) -> Option<&str> {
+        self.as_sql_builder().get_schema()
+    }
+
+    fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
+        self.as_sql_builder().put_value_in_sql(typ, value)
+    }
 }
 
 impl SubDB {
@@ -40,9 +60,9 @@ impl SubDB {
 
     fn as_db_trait(&self) -> &dyn DBTrait {
         match self {
-            SubDB::TiDB(db) => db.as_ref(),
-            SubDB::MariaDb(db) => db.as_ref(),
-            SubDB::CocoRoach(db) => db.as_ref(),
+            SubDB::TiDB(db) => db.as_ref() as &dyn DBTrait,
+            SubDB::MariaDb(db) => db.as_ref() as &dyn DBTrait,
+            SubDB::CocoRoach(db) => db.as_ref() as &dyn DBTrait,
         }
     }
 }
@@ -132,24 +152,24 @@ impl CatalogTrait for SubDB {
 impl SubDB {
     fn as_schema(&self) -> &dyn SchemaTrait {
         match self {
-            SubDB::TiDB(db) => db.as_ref(),
-            SubDB::MariaDb(mysql_db) => mysql_db.as_ref(),
-            SubDB::CocoRoach(post_gres_db) => post_gres_db.as_ref(),
+            SubDB::TiDB(db) => db.as_ref() as &dyn SchemaTrait,
+            SubDB::MariaDb(mysql_db) => mysql_db.as_ref() as &dyn SchemaTrait,
+            SubDB::CocoRoach(post_gres_db) => post_gres_db.as_ref() as &dyn SchemaTrait,
         }
     }
     fn as_export_query_result(&self) -> &dyn ExportQueryResult {
         match self {
-            SubDB::TiDB(db) => db.as_ref(),
-            SubDB::MariaDb(mysql_db) => mysql_db.as_ref(),
-            SubDB::CocoRoach(post_gres_db) => post_gres_db.as_ref(),
+            SubDB::TiDB(db) => db.as_ref() as &dyn ExportQueryResult,
+            SubDB::MariaDb(mysql_db) => mysql_db.as_ref() as &dyn ExportQueryResult,
+            SubDB::CocoRoach(post_gres_db) => post_gres_db.as_ref() as &dyn ExportQueryResult,
         }
     }
 
     fn as_query_sql(&self) -> &dyn QuerySql {
         match self {
-            SubDB::TiDB(db) => db.as_ref(),
-            SubDB::MariaDb(mysql_db) => mysql_db.as_ref(),
-            SubDB::CocoRoach(post_gres_db) => post_gres_db.as_ref(),
+            SubDB::TiDB(db) => db.as_ref() as &dyn QuerySql,
+            SubDB::MariaDb(mysql_db) => mysql_db.as_ref() as &dyn QuerySql,
+            SubDB::CocoRoach(post_gres_db) => post_gres_db.as_ref() as &dyn QuerySql,
         }
     }
 }
@@ -167,7 +187,7 @@ impl GetBackendKind for SubDB {
 #[async_trait::async_trait]
 impl ExportQueryResult for SubDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
     }
 
     async fn export_query_result(
@@ -216,9 +236,7 @@ impl QuerySql for SubDB {
     ) -> anyhow::Result<Result<QueryResp, String>> {
         self.as_query_sql().execute_sql(query_id, sql).await
     }
-    async fn execute_sql_no_open_conn(
-        &self, sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>> {
+    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         self.as_query_sql().execute_sql_no_open_conn(sql).await
     }
 
@@ -288,15 +306,24 @@ impl SchemaTrait for SubDB {
             .await
     }
 
-    async fn table_insert(
+    async fn table_insert_sql(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.as_schema().table_insert(table_name, values).await
+    ) -> anyhow::Result<String> {
+        self.as_schema().table_insert_sql(table_name, values).await
     }
+    async fn table_update_sql(
+        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<String> {
+        self.as_schema()
+            .table_update_sql(table_name, values, wheres)
+            .await
+    }
+
     async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
+    ) -> anyhow::Result<Option<usize>> {
         self.as_schema()
             .table_update(table_name, values, wheres)
             .await
@@ -304,12 +331,6 @@ impl SchemaTrait for SubDB {
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.as_schema().truncate_table(table_name).await
-    }
-
-    async fn table_delete(
-        &self, _table_name: &str, _wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.as_schema().table_delete(_table_name, _wheres).await
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -326,7 +347,7 @@ impl SchemaTrait for SubDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -525,6 +546,6 @@ impl SchemaTrait for SubDB {
     }
 
     fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
-        self.as_schema().create_table_sql(req)
+        SchemaTrait::create_table_sql(self.as_schema(), req)
     }
 }

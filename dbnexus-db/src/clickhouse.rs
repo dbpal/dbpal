@@ -3,7 +3,7 @@ use crate::db::{
     BackendKind, CheckConn, ColumnType, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait,
     DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, ListTable,
     MetaValue, NamedStaff, OptionMustBeSomeErr, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
-    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
+    ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder,
     UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
     create_markdown_data, create_markdown_header, escape_sql_str, ty_is_float, ty_is_int,
 };
@@ -58,7 +58,7 @@ impl ClickHouseDB {
                         });
                         m
                     };
-                    let s = self.insert_sql(self.config.db.as_deref(), table_name, &fs, &values)?;
+                    let s = self.insert_sql(table_name, &fs, &values)?;
                     let s = format!("{};\n", s);
                     sender.send(s.into()).await?;
                 }
@@ -153,7 +153,7 @@ impl SchemaTrait for ClickHouseDB {
         LexerCompletionTrait::get_types(self).await
     }
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::CURRENT_VALUES
+        <Self as SqlBuilder>::get_current_values(self)
     }
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         self.list_view_impl(self.config.db_str()).await
@@ -207,20 +207,7 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self))
-    }
-
-    async fn table_delete(
-        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fs = self.show_table_columns(table_name).await?;
-        let sql = self.delete_sql(self.config.db.as_deref(), table_name, &fs, &wheres)?;
-        log::info!("sql:{}", sql);
-
-        self.client.query(&sql).execute().await?;
-
-        anyhow::Ok(SqlExecuteRet { sql, changes: None })
+        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
     async fn rename_table(&self, old: &str, new: &str) -> anyhow::Result<()> {
@@ -460,32 +447,6 @@ impl SchemaTrait for ClickHouseDB {
             }
         }
         anyhow::Ok(())
-    }
-
-    async fn table_insert(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fs = self.show_table_columns(table_name).await?;
-
-        let sql = self.insert_sql(self.config.db.as_deref(), table_name, &fs, &values)?;
-        log::info!("sql:{}", sql);
-
-        self.client.query(&sql).execute().await?;
-        anyhow::Ok(SqlExecuteRet { sql, changes: None })
-    }
-
-    async fn table_update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fs = self.show_table_columns(table_name).await?;
-        let sql = self.update_sql(self.config.db.as_deref(), table_name, &fs, &values, &wheres)?;
-        log::info!("sql:{}", sql);
-
-        self.client.query(&sql).execute().await?;
-        anyhow::Ok(SqlExecuteRet { sql, changes: None })
     }
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {
@@ -820,7 +781,7 @@ impl ClickHouseDB {
 #[async_trait::async_trait]
 impl ExportQueryResult for ClickHouseDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
     }
 
     async fn export_query_result(
@@ -869,16 +830,10 @@ impl ClickHouseDB {
 
 #[async_trait::async_trait]
 impl QuerySql for ClickHouseDB {
-    async fn execute_sql_no_open_conn(
-        &self, sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>> {
+    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         self.not_allow_switch_db(sql)?;
-
-        let ret = match self.client.query(sql).execute().await {
-            Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
-            Err(err) => Err(err.to_string()),
-        };
-        anyhow::Ok(ret)
+        self.client.query(sql).execute().await?;
+        anyhow::Ok(None)
     }
     async fn execute_sql(
         &self, _query_id: &str, sql: &str,
@@ -1234,13 +1189,15 @@ pub const CH_CURRENT_LITERALS: &[&str] = &[
 ];
 
 impl SqlBuilder for ClickHouseDB {
-    const CURRENT_VALUES: &'static [&'static str] = CH_CURRENT_LITERALS;
+    fn get_current_values(&self) -> &'static [&'static str] {
+        CH_CURRENT_LITERALS
+    }
     fn update_sql(
-        &self, schema: Option<&str>, table_name: &str, fs: &[Field],
-        values: &HashMap<String, Option<String>>, wheres: &HashMap<String, Option<String>>,
+        &self, table_name: &str, fs: &[Field], values: &HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         //
-
+        let schema = self.get_schema();
         let mut field_by_name = HashMap::new();
         for f in fs.iter() {
             field_by_name.insert(&f.field, f);
@@ -1290,6 +1247,10 @@ impl SqlBuilder for ClickHouseDB {
             return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }
         anyhow::Ok(put_value_in_sql(&parse_type(typ)?, value))
+    }
+
+    fn get_schema(&self) -> Option<&str> {
+        self.config.db.as_deref()
     }
 }
 

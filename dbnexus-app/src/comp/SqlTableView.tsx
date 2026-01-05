@@ -21,6 +21,8 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
+import CheckIcon from "@mui/icons-material/Check";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import { NotificationContext } from "./Notification";
@@ -76,6 +78,8 @@ import {
   dataGridheaderFontSize,
   shrinkAble,
   SetStatusFn,
+  executeSqlWithoutConn,
+  SetCloseConfirmTextContext,
 } from "./helper";
 import { FaCopy } from "react-icons/fa6";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
@@ -387,6 +391,75 @@ function makeExtractTableSelectSort(uuid: string) {
   };
 }
 
+enum DatabaseOpKind {
+  Update,
+  Delete,
+}
+
+class DatabaseOperation {
+  public constructor(
+    public op: DatabaseOpKind,
+    public sql: string,
+    public old: object,
+  ) {}
+}
+
+function DatabaseOperationView(props: {
+  op: DatabaseOperation;
+  handleDelete: (applied: boolean) => void;
+  uuid: string;
+}) {
+  const { handleDelete, uuid } = props;
+  const { sql } = props.op;
+  const [loading, setLoading] = useState(false);
+  const handleApply = () => {
+    setLoading(true);
+    executeSqlWithoutConn(uuid, sql)
+      .then(row_aff => {
+        showNotification("success", "database operation ok", `row affected:${row_aff}`);
+        handleDelete(true);
+      })
+      .catch(e => {
+        showNotification("error", "update failed", e);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  const { showNotification } = useContext(NotificationContext);
+
+  return (
+    <Stack direction="row" style={{ alignItems: "center" }}>
+      <Tooltip title="cancel this not apply anything">
+        <IconButton
+          onClick={() => {
+            handleDelete(false);
+          }}
+        >
+          <CloseIcon color="warning" />
+        </IconButton>
+      </Tooltip>
+
+      <Tooltip title="apply">
+        <IconButton loading={loading} onClick={handleApply}>
+          <CheckIcon color="primary" />
+        </IconButton>
+      </Tooltip>
+      <Button
+        onClick={() => {
+          handleCopyToClipboard(sql, showNotification);
+        }}
+        variant="outlined"
+      >
+        copy
+      </Button>
+
+      <Typography color="info">{sql}</Typography>
+    </Stack>
+  );
+}
+
 function SqlTableView(props: {
   notWarnPri?: boolean;
   kind: DataSourceKind;
@@ -395,8 +468,8 @@ function SqlTableView(props: {
   isTable: boolean;
 }) {
   const { notWarnPri, kind, tableName, uuid, isTable } = props;
-  const updateOP = makeTableUpdate(uuid, tableName);
-  const deleteOP = makeTableDelete(uuid, tableName);
+  const getUpdateSql = makeTableUpdate(uuid, tableName);
+  const getDeleteSql = makeTableDelete(uuid, tableName);
   const put_value_in_sql = makePutValueInSql(uuid);
   const addOP = makeTableInsertFn(uuid, tableName);
   const [loading, setLoading] = useState(false);
@@ -419,23 +492,42 @@ function SqlTableView(props: {
   useEffect(() => {
     setLastFetchTime(new Date());
   }, [resp]);
+
+  const [ops, setOps] = useState<DatabaseOperation[]>([]);
+  const [opsIds, setOpsIds] = useState<Set<string>>(new Set());
+  const setCloseConfirm = useContext(SetCloseConfirmTextContext);
+  useEffect(() => {
+    const s = new Set<string>();
+    for (const op of ops) {
+      s.add(op.old[keyNotInTable]);
+    }
+    setOpsIds(s);
+    if (s.size == 0) {
+      setCloseConfirm("");
+    } else {
+      setCloseConfirm(`sure to discard ${s.size} changes?`);
+    }
+  }, [ops, setCloseConfirm]);
+
+  const rowInOps = id => {
+    return opsIds.has(id);
+  };
+
   const [fetchDur, setFetchDur] = useState(0);
   const clientModelLimit = useRef<number>(1000);
   const { showNotification } = useContext(NotificationContext);
   const [allowFiltering, setAllowFiltering] = useState(false);
   const [editCellInModal, setEditCellInModal] = useState<EditInModalCellData>(null);
-  const [editRowInModal, setRowEditInModal] = useState<{ row: object; rowId: number }>(
-    null,
-  );
+  const [editRowInModal, setRowEditInModal] = useState<object>(null);
   const clientModel = [DataSourceKind.Cassandra].includes(kind);
   const [viewInModal, setViewInModal] = useState<object>(null);
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const queryStatus = useRef<SetStatusFn>(null);
-
+  const [clickedField, setClickedField] = useState("");
   const handleResp = (resp: MuiDataGridData) => {
     resp.data.forEach((data, index) => {
-      data[keyNotInTable] = index;
+      data[keyNotInTable] = index + "";
     });
     resp.fields.forEach(field => {
       const width = ColumnWidth.instance.get(field.field);
@@ -446,38 +538,44 @@ function SqlTableView(props: {
     for (let i = 0; i < resp.fields.length; i++) {
       const field = resp.fields[i] as FieldAndGridField;
       field.renderHeader = e => {
-        const def = e.colDef as unknown as FieldAndGridField;
+        const field = e.colDef as unknown as FieldAndGridField;
         const makeTitle = (): string => {
-          const f = def as unknown as FieldAndGridField;
-          let ret = f.field + " ";
-          ret += f.data_type;
-          if (f.nullable) {
+          let ret = field.field + " ";
+          ret += field.data_type;
+          if (field.nullable) {
             ret += " null";
           } else {
             ret += " not null";
           }
-          if (f.is_auto_increment) {
+          if (field.is_auto_increment) {
             ret += " auto increment";
           }
-          if (f.default_value) {
-            ret += " " + f.default_value;
+          if (field.default_value) {
+            ret += " " + field.default_value;
           }
           return ret;
         };
         return (
-          <StackRowCenter>
+          <Stack
+            onClick={e => {
+              e.stopPropagation();
+              setClickedField(field.field);
+            }}
+            style={{ alignItems: "center", cursor: "default" }}
+            direction="row"
+          >
             <Tooltip title={makeTitle()}>
-              <Typography fontSize={dataGridheaderFontSize}>{def.field}</Typography>
+              <Typography fontSize={dataGridheaderFontSize}>{field.field}</Typography>
             </Tooltip>
-            {def.is_primary && <KeyIcon style={{ fontSize: "16px" }} />}
-          </StackRowCenter>
+            {field.is_primary && <KeyIcon style={{ fontSize: "16px" }} />}
+          </Stack>
         );
       };
       if (!field.is_auto_increment) {
         field.editable = true;
       }
-      setResp(resp);
     }
+    setResp(resp);
   };
 
   const handleReload = useCallback(
@@ -531,7 +629,7 @@ function SqlTableView(props: {
   );
 
   const handleProcessRowUpdate = useCallback(
-    async (newRow: object, oldRow: object, { rowId }) => {
+    async (newRow: object, oldRow: object) => {
       const findDiff = (): Map<string, string | null> => {
         const m = new Map();
         for (const key in newRow) {
@@ -543,7 +641,6 @@ function SqlTableView(props: {
       };
       const updateRow = findDiff();
       const old = new Map(Object.entries(oldRow));
-      old.delete(keyNotInTable);
       if (updateRow.size == 0) {
         return newRow;
       }
@@ -551,28 +648,21 @@ function SqlTableView(props: {
         return oldRow;
       }
       try {
-        const ret = await updateOP(old, updateRow);
-        showNotification(
-          "success",
-          "Update OK",
-          <Stack>
-            <Typography> sql:{ret.sql} </Typography>
-            {typeof ret.changes == "number" && (
-              <Typography> row affected:{ret.changes} </Typography>
-            )}
-          </Stack>,
-        );
+        const sql = await getUpdateSql(old, updateRow);
+        setOps(e => [...e, new DatabaseOperation(DatabaseOpKind.Update, sql, oldRow)]);
         handleResp({
           ...resp,
-          data: resp.data.map((e, index) => (index == rowId ? newRow : e)),
+          data: resp.data.map(e =>
+            e[keyNotInTable] == newRow[keyNotInTable] ? newRow : e,
+          ),
         });
       } catch (e) {
-        showNotification("error", "update failed", e);
+        showNotification("error", "generate update sql failed", e);
         throw e;
       }
       return newRow;
     },
-    [notWarnPri, resp, showNotification, updateOP],
+    [notWarnPri, resp, showNotification, getUpdateSql],
   );
 
   const handleDelete = useCallback(
@@ -583,7 +673,7 @@ function SqlTableView(props: {
       let old;
       for (const e of resp.data) {
         if (e[keyNotInTable] == id) {
-          old = new Map(Object.entries(e));
+          old = { ...e };
           break;
         }
       }
@@ -595,24 +685,14 @@ function SqlTableView(props: {
         return;
       }
       try {
-        old.delete(keyNotInTable);
-        const ret = await deleteOP(old);
-        showNotification(
-          "success",
-          "delete OK",
-          <Stack>
-            <Typography> sql:{ret.sql} </Typography>
-            {typeof ret.changes == "number" && (
-              <Typography> row affected:{ret.changes} </Typography>
-            )}
-          </Stack>,
-        );
+        let old2 = { ...old };
+        const sql = await getDeleteSql(old2);
+        setOps(e => [...e, new DatabaseOperation(DatabaseOpKind.Delete, sql, old)]);
       } catch (e) {
-        showNotification("error", "delete failed", e);
+        showNotification("error", "generate delete sql failed", e);
       }
-      handleReload(false);
     },
-    [deleteOP, handleReload, notWarnPri, resp.data, resp.fields, showNotification],
+    [getDeleteSql, notWarnPri, resp.data, resp.fields, showNotification],
   );
   useEffect(() => {
     handleReload(false);
@@ -670,7 +750,6 @@ function SqlTableView(props: {
           }
           const row = { ...resp.data.find(e => e[keyNotInTable] == id) };
           const content = row[field];
-          delete row[keyNotInTable];
           const nullable = resp.fields.find(e => e.field == field).nullable;
           setUpMenu({
             content: (
@@ -685,7 +764,7 @@ function SqlTableView(props: {
                   );
                 }}
                 editRowInModal={() => {
-                  setRowEditInModal({ row, rowId: parseInt(id) });
+                  setRowEditInModal(row);
                 }}
                 isTable={isTable}
                 nullable={nullable}
@@ -693,21 +772,14 @@ function SqlTableView(props: {
                 field={field}
                 content={content}
                 handleDelete={
-                  deleteOP
+                  isTable
                     ? () => {
                         handleDelete(id);
                       }
                     : undefined
                 }
                 row={row}
-                addOP={
-                  addOP
-                    ? async row => {
-                        await addOP(row);
-                        handleReload(false);
-                      }
-                    : undefined
-                }
+                addOP={isTable && addOP}
                 setSort={setSort}
                 setWhere={setWhere}
                 put_value_in_sql={value => {
@@ -717,21 +789,12 @@ function SqlTableView(props: {
                   );
                 }}
                 setNull={
-                  updateOP
+                  isTable
                     ? async () => {
                         const row = resp.data.find(e => e[keyNotInTable] == id);
-                        try {
-                          const values = {};
-                          values[field] = null;
-                          delete row[keyNotInTable];
-                          await updateOP(row, values);
-                        } catch (e) {
-                          showNotification("error", "update failed", e);
-                          return;
-                        }
-                        showNotification("success", "set null OK");
-                        handleReload(false);
-                        return;
+                        let newRow = { ...row };
+                        newRow[field] = null;
+                        await handleProcessRowUpdate(newRow, row);
                       }
                     : undefined
                 }
@@ -753,20 +816,17 @@ function SqlTableView(props: {
       },
     } as GridSlotsComponentsProps;
   }, [
-    addOP,
-    deleteOP,
-    handleDelete,
-    handleReload,
-    isTable,
-    kind,
-    put_value_in_sql,
+    setting.export.csvDelimiter,
+    setting.export.includeHeader,
     resp.data,
     resp.fields,
     setUpMenu,
-    setting.export.csvDelimiter,
-    setting.export.includeHeader,
-    showNotification,
-    updateOP,
+    kind,
+    isTable,
+    addOP,
+    handleDelete,
+    put_value_in_sql,
+    handleProcessRowUpdate,
   ]);
 
   const [editInModalBox, setEditInModalBox] = useState(null);
@@ -820,6 +880,7 @@ function SqlTableView(props: {
                 onClick={() => {
                   handleReload(true);
                 }}
+                disabled={opsIds.size > 0}
               >
                 reload
               </Button>
@@ -924,7 +985,9 @@ function SqlTableView(props: {
     kind,
     lastFetchTime,
     loading,
-    resp,
+    opsIds.size,
+    resp.data.length,
+    resp.total,
     sort,
     tableName,
     where,
@@ -934,8 +997,57 @@ function SqlTableView(props: {
   return (
     <Stack style={{ height: "100%" }}>
       <QueryStatus setRef={queryStatus} />
+      {ops.map((operation, idx) => (
+        <DatabaseOperationView
+          op={operation}
+          handleDelete={applied => {
+            setOps(ops => ops.filter((_, index) => idx != index));
+            switch (operation.op) {
+              case DatabaseOpKind.Update:
+                {
+                  if (applied) {
+                    // nothing here
+                    // we have update the data on UI
+                  } else {
+                    setResp(resp => {
+                      return {
+                        ...resp,
+                        data: resp.data.map(data =>
+                          data[keyNotInTable] == operation.old[keyNotInTable]
+                            ? operation.old
+                            : data,
+                        ),
+                      };
+                    });
+                  }
+                }
+                break;
+              case DatabaseOpKind.Delete: {
+                handleReload(false);
+                break;
+              }
+            }
+          }}
+          uuid={uuid}
+          key={idx}
+        />
+      ))}
+
       <DataGrid
         slots={slots}
+        getCellClassName={e => {
+          if (rowInOps(e.id)) {
+            return "datagrid-field-been-modify";
+          }
+          if (e.field == clickedField) {
+            return "datagrid-field-clicked";
+          } else {
+            return "";
+          }
+        }}
+        onCellClick={() => {
+          setClickedField("");
+        }}
         slotProps={slotProps}
         style={dataGridStyle}
         getRowId={getRowId}
@@ -954,7 +1066,6 @@ function SqlTableView(props: {
         onProcessRowUpdateError={onProcessRowUpdateError}
         loading={loading}
       />
-
       {viewInModal && (
         <Modal
           open={!!viewInModal}
@@ -979,7 +1090,6 @@ function SqlTableView(props: {
           </Box>
         </Modal>
       )}
-
       {showAdd && (
         <Modal
           open={showAdd}
@@ -1029,10 +1139,7 @@ function SqlTableView(props: {
               handleModify={async value => {
                 const newRow = { ...editCellInModal.row };
                 newRow[editCellInModal.field] = value;
-                await handleProcessRowUpdate(newRow, editCellInModal.row, {
-                  rowId: editCellInModal[keyNotInTable],
-                });
-                handleReload(false);
+                await handleProcessRowUpdate(newRow, editCellInModal.row);
                 setEditCellInModal(null);
               }}
             />
@@ -1059,22 +1166,18 @@ function SqlTableView(props: {
               }}
             />
             <SqlTableViewData
-              initValues={editRowInModal.row}
+              initValues={editRowInModal}
               buttonName="modify"
               fields={resp.fields}
               isAdd={false}
               handleData={async args => {
-                await handleProcessRowUpdate(args, editRowInModal.row, {
-                  rowId: editRowInModal.rowId,
-                });
-                handleReload(false);
+                await handleProcessRowUpdate(args, editRowInModal);
               }}
               handleClose={() => setRowEditInModal(null)}
             />
           </Box>
         </Modal>
       )}
-
       {showExportMarkDown && (
         <Modal
           open={showExportMarkDown}
@@ -1094,7 +1197,6 @@ function SqlTableView(props: {
           </Box>
         </Modal>
       )}
-
       {showSetWhere && (
         <SetFilterSort
           tableName={tableName}
@@ -1111,7 +1213,6 @@ function SqlTableView(props: {
           uuid={uuid}
         />
       )}
-
       {showSetSort && (
         <SetFilterSort
           tableName={tableName}
@@ -1285,7 +1386,7 @@ function SqlTableViewData(props: {
 function Menu(props: {
   field: string;
   content: string;
-  handleDelete?;
+  handleDelete?: () => void;
   setSort;
   setWhere;
   put_value_in_sql: (value?: string) => Promise<string>;
@@ -1315,7 +1416,6 @@ function Menu(props: {
     nullable,
     editCellInModal,
     editRowInModal,
-
     kind,
     viewInModal,
     showExportMarkDown,

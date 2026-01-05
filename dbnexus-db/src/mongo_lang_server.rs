@@ -6,10 +6,18 @@ use mongodb::results::{
 };
 use mongodb::{IndexModel, SearchIndexModel};
 
-use crate::db::{GetBackendKind, SchemaTrait, not_support_feature};
+use crate::db::{GetBackendKind, SchemaTrait, SqlBuilder, not_support_feature};
 use crate::language_server::{CompletionItem, CompletionKind, CompletionList, LanguageServer};
 use crate::mongo::MongoDB;
+impl SqlBuilder for MongoDB {
+    fn get_schema(&self) -> Option<&str> {
+        None
+    }
 
+    fn put_value_in_sql(&self, _typ: &str, _value: Option<&str>) -> anyhow::Result<String> {
+        not_support_feature(self.backend_name())
+    }
+}
 #[async_trait::async_trait]
 impl LanguageServer for MongoDB {
     async fn ai_text_completion(

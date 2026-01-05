@@ -18,9 +18,9 @@ use crate::db::{
     CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
     Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS,
     QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming,
-    XlsxEdit, create_html_table_data, create_html_table_header, create_markdown_data,
-    create_markdown_header, escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
+    ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEvent, TriggerTiming, XlsxEdit,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    escape_sql_str, export_query_as_xlsx_send_data, not_support_feature,
 };
 use crate::helper::create_csv;
 use crate::language_server::{CompletionItem, LexerCompletionTrait};
@@ -95,7 +95,7 @@ impl SqliteDB {
             for (d, f) in data.into_iter().zip(cols.iter()) {
                 m.insert(f.field.clone(), d);
             }
-            let insert_sql = self.insert_sql(None, table_name, &cols, &m)?;
+            let insert_sql = self.insert_sql(table_name, &cols, &m)?;
             sender.send(insert_sql.into()).await?;
             sender.send(";\n".into()).await?;
         }
@@ -296,7 +296,7 @@ impl SqliteDB {
 #[async_trait::async_trait]
 impl SchemaTrait for SqliteDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::CURRENT_VALUES
+        <Self as SqlBuilder>::get_current_values(self)
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -478,7 +478,7 @@ impl SchemaTrait for SqliteDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -509,23 +509,6 @@ impl SchemaTrait for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn table_delete(
-        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fields = self.show_table_columns(table_name).await?;
-        let sql = self.delete_sql(None, table_name, &fields, &wheres)?;
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(r.rows_affected()),
-        })
-    }
-
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let s = format!(
@@ -539,44 +522,6 @@ impl SchemaTrait for SqliteDB {
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
-    }
-
-    async fn table_update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fields = self.show_table_columns(table_name).await?;
-
-        let mut conn = self.get_conn().await?;
-        let sql = self.update_sql(None, table_name, &fields, &values, &wheres)?;
-        log::info!("sql:{}", sql);
-
-        let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(r.rows_affected()),
-        })
-    }
-
-    async fn table_insert(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fields = self.show_table_columns(table_name).await?;
-        let sql = self.insert_sql(None, table_name, &fields, &values)?;
-        log::info!("insert sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-
-            changes: Some(r.rows_affected()),
-        })
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -798,7 +743,13 @@ pub const SQLITE_CURRENT_LITERALS: &[&str] = &[
 ];
 
 impl SqlBuilder for SqliteDB {
-    const CURRENT_VALUES: &'static [&'static str] = SQLITE_CURRENT_LITERALS;
+    fn get_schema(&self) -> Option<&str> {
+        None
+    }
+
+    fn get_current_values(&self) -> &'static [&'static str] {
+        SQLITE_CURRENT_LITERALS
+    }
     fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
             return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
@@ -1129,7 +1080,7 @@ impl SqliteDB {
 #[async_trait::async_trait]
 impl ExportQueryResult for SqliteDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
     }
 
     async fn export_query_result(
@@ -1301,16 +1252,10 @@ impl QuerySql for SqliteDB {
         anyhow::Ok(())
     }
 
-    async fn execute_sql_no_open_conn(
-        &self, sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>> {
+    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         let mut conn = self.get_conn().await?;
-        let ret = match conn.execute(sqlx::raw_sql(AssertSqlSafe(sql))).await {
-            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
-            Err(err) => Err(err.to_string()),
-        };
-
-        anyhow::Ok(ret)
+        let ret = conn.execute(sqlx::raw_sql(AssertSqlSafe(sql))).await?;
+        anyhow::Ok(Some(ret.rows_affected() as usize))
     }
 
     async fn execute_sql(

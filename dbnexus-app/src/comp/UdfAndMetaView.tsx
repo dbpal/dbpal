@@ -1,21 +1,12 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 
 import { NotificationContext } from "./Notification";
-import { Button, Stack, Tooltip } from "@mui/material";
-import { DefAndMetas, NameAndQueryId, SetAutoCompletionName } from "./Common";
-import { MetaValueView, PossibleParseError } from "./CommonComp";
-import {
-  DataSourceKind,
-  ErrAndLoc,
-  getEditorText,
-  getLanguageFromDataSourceKind,
-  makeExecuteSql,
-  resizeHandlerSize,
-} from "./helper";
-import { MultiQueryResp } from "./QueryResp";
-import { editor } from "monaco-editor";
-import { SimpleFlexEditor } from "./CommonComp2";
+import { Button, Stack } from "@mui/material";
+import { DefAndMetas } from "./Common";
+import { DataSourceKind, resizeHandlerSize } from "./helper";
 import types from "./ApiStruct";
+import { AllKindChat } from "./Chat";
+import { MetaValueView } from "./CommonComp";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 function DefAndMetasView(props: {
@@ -25,18 +16,12 @@ function DefAndMetasView(props: {
   showReload?: boolean;
 }) {
   const { reloadOP, kind, showReload, uuid } = props;
-  const executeOP = makeExecuteSql(uuid);
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<DefAndMetas>({
     def: "",
     metas: [],
   });
-
-  const editor = useRef<editor.IStandaloneCodeEditor>(null);
-  const [queryResp, setQueryResp] = useState<any[]>([]);
   const { showNotification } = useContext(NotificationContext);
-  const [executeLoading, setExecuteLoading] = useState(false);
-  const [parseErr] = useState<ErrAndLoc>(null);
   const handleReload = useCallback(
     showOk => {
       setLoading(true);
@@ -56,113 +41,44 @@ function DefAndMetasView(props: {
     },
     [reloadOP, showNotification],
   );
-  const handleExecute = () => {
-    const sql = getEditorText(editor.current, showNotification);
-    setExecuteLoading(true);
 
-    executeOP(sql)
-      .then(e => {
-        setQueryResp([e]);
-      })
-      .catch(e => {
-        showNotification("error", "execute failed", e);
-      })
-      .finally(() => {
-        setExecuteLoading(false);
-      });
-  };
   useEffect(() => {
     handleReload(false);
   }, [handleReload]);
   return (
-    <PanelGroup
-      autoSaveId="udf-and-meta-view"
-      direction="vertical"
-      style={{ height: "100%" }}
-    >
-      <Panel style={{ display: "flex", flexDirection: "column" }}>
-        <Stack height="100%">
-          <Stack direction="row">
-            {showReload && (
-              <Button
-                loading={loading}
-                color="primary"
-                onClick={() => {
-                  handleReload(true);
-                }}
-              >
-                reload
-              </Button>
-            )}
-            <Tooltip title="execute the sql">
-              <Button
-                loading={executeLoading}
-                color="success"
-                style={{
-                  minWidth: "3rem",
-                }}
-                onClick={() => {
-                  handleExecute();
-                }}
-              >
-                execute!
-              </Button>
-            </Tooltip>
-          </Stack>
-          {detail.def && (
-            <SimpleFlexEditor
-              language={getLanguageFromDataSourceKind(kind)}
-              value={detail.def}
-              handleEditor={ed => {
-                editor.current = ed;
-                SetAutoCompletionName.set(
-                  ed.getModel().id,
-                  new NameAndQueryId(uuid, kind),
-                );
+    <PanelGroup style={{ height: "100%" }} direction="vertical" autoSaveId="udf-view">
+      <Panel>
+        <Stack>
+          {showReload && (
+            <Button
+              loading={loading}
+              color="primary"
+              onClick={() => {
+                handleReload(true);
               }}
-              barLeft=<Stack direction="row" flex={1}>
-                {parseErr && (
-                  <PossibleParseError parseErr={parseErr} editor={editor.current} />
-                )}
-              </Stack>
-            />
+            >
+              reload
+            </Button>
           )}
         </Stack>
+        <AllKindChat uuid={uuid} kind={kind} value={detail.def} />
       </Panel>
-
-      {(queryResp.length > 0 || (detail.metas && detail.metas.length > 0)) && (
+      {detail.metas.length > 0 && (
         <>
           <PanelResizeHandle
             style={{ height: resizeHandlerSize }}
             className="resize-handle"
           />
-          <Panel
-            minSize={10}
-            collapsible
-            collapsedSize={0}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            {queryResp.length > 0 && (
-              <div style={{ height: "100px", flex: 1 }}>
-                <MultiQueryResp data={queryResp} />
-              </div>
-            )}
-            {detail.metas && detail.metas.length > 0 && (
-              <div
-                style={{
-                  height: "100px",
-                  flex: 1,
-
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <MetaValueView values={detail.metas} />
-              </div>
-            )}
+          <Panel collapsible collapsedSize={0} minSize={10}>
+            <div
+              style={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <MetaValueView values={detail.metas} />
+            </div>
           </Panel>
         </>
       )}

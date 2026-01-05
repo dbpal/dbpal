@@ -5,9 +5,9 @@ use crate::db::{
     Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr,
     POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql,
     ReadOnlyTrait, SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlEvent,
-    SqlExecuteRet, TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter,
-    XlsxEdit, create_html_table_data, create_html_table_header, create_markdown_data,
-    create_markdown_header, escape_sql_str, export_query_as_xlsx_send_data,
+    TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    escape_sql_str, export_query_as_xlsx_send_data,
 };
 use crate::helper::create_csv;
 use crate::language_server::LexerCompletionTrait;
@@ -303,7 +303,7 @@ impl MysqlDB {
             for (d, f) in data.into_iter().zip(cols.iter()) {
                 m.insert(f.field.clone(), d);
             }
-            let insert_sql = self.insert_sql(None, table_name, &cols, &m)?;
+            let insert_sql = self.insert_sql(table_name, &cols, &m)?;
             sender.send(insert_sql.into()).await?;
             sender.send(";\n".into()).await?;
         }
@@ -647,7 +647,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::CURRENT_VALUES
+        <Self as SqlBuilder>::get_current_values(self)
     }
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
@@ -970,7 +970,7 @@ impl SchemaTrait for MysqlDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1063,23 +1063,6 @@ impl SchemaTrait for MysqlDB {
         self.list_view_impl(self.config.schema_str()?).await
     }
 
-    async fn table_delete(
-        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fields = self.show_table_columns(table_name).await?;
-        let sql = self.delete_sql(None, table_name, &fields, &wheres)?;
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(r.rows_affected()),
-        })
-    }
-
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let s = format!(
@@ -1092,40 +1075,6 @@ impl SchemaTrait for MysqlDB {
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
-    }
-
-    async fn table_insert(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fs = self.show_table_columns(table_name).await?;
-        let s = self.insert_sql(None, table_name, &fs, &values)?;
-        let mut conn = self.get_conn().await?;
-        let r = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql: s,
-            changes: Some(r.rows_affected()),
-        })
-    }
-
-    async fn table_update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fs = self.show_table_columns(table_name).await?;
-        let s = self.update_sql(None, table_name, &fs, &values, &wheres)?;
-        let mut conn = self.get_conn().await?;
-
-        let r = sqlx::raw_sql(AssertSqlSafe(s.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql: s,
-            changes: Some(r.rows_affected()),
-        })
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -1506,7 +1455,7 @@ impl DBTrait for MysqlDB {
 #[async_trait::async_trait]
 impl ExportQueryResult for MysqlDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
     }
 
     async fn export_query_result(
@@ -1671,15 +1620,10 @@ impl QuerySql for MysqlDB {
 
         anyhow::Ok(())
     }
-    async fn execute_sql_no_open_conn(
-        &self, sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>> {
+    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         let mut conn = self.get_conn().await?;
-        let ret = match conn.execute(sqlx::raw_sql(AssertSqlSafe(sql))).await {
-            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
-            Err(err) => Err(err.to_string()),
-        };
-        anyhow::Ok(ret)
+        let ret = conn.execute(sqlx::raw_sql(AssertSqlSafe(sql))).await?;
+        anyhow::Ok(Some(ret.rows_affected() as usize))
     }
     async fn execute_sql(
         &self, query_id: &str, sql: &str,
@@ -1782,7 +1726,13 @@ pub const MYSQL_CURRENT_LITERALS: &[&str] = &[
 ];
 
 impl SqlBuilder for MysqlDB {
-    const CURRENT_VALUES: &'static [&'static str] = MYSQL_CURRENT_LITERALS;
+    fn get_schema(&self) -> Option<&str> {
+        self.config.db.as_deref()
+    }
+
+    fn get_current_values(&self) -> &'static [&'static str] {
+        MYSQL_CURRENT_LITERALS
+    }
     fn put_value_in_sql(&self, f: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
             return anyhow::Result::Ok(value.option_must_be_some()?.to_string());

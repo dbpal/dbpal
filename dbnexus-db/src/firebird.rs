@@ -22,9 +22,9 @@ use crate::db::{
     BackendKind, CheckConn, CreateIndexReq, ExportFrame, ExportKind, ExportQueryResult, Field,
     GetBackendKind, Index, IndexKind, ListTable, MetaValue, OptionMustBeSomeErr,
     POOL_MAX_CONNECTIONS, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, XlsxEdit,
-    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, XlsxEdit, create_html_table_data,
+    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
+    export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
 
 use crate::helper::create_csv;
@@ -173,7 +173,7 @@ fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Value> {
 #[async_trait::async_trait]
 impl ExportQueryResult for FireBirdDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
     }
 
     async fn export_query_result(
@@ -355,15 +355,9 @@ impl QuerySql for FireBirdDB {
         })
         .await?
     }
-    async fn execute_sql_no_open_conn(
-        &self, sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>> {
-        let resp = self
-            .execute(sql)
-            .await
-            .map(|x| QueryResp::row_affected(x as u64, sql.to_owned()))
-            .map_err(|e| e.to_string());
-        anyhow::Ok(resp)
+    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
+        let row_aff = self.execute(sql).await?;
+        anyhow::Ok(Some(row_aff))
     }
     async fn execute_sql(
         &self, query_id: &str, sql: &str,
@@ -472,7 +466,7 @@ impl FireBirdDB {
                 for (d, f) in data.into_iter().zip(cols.iter()) {
                     m.insert(f.field.clone(), d);
                 }
-                let insert_sql = firebird.insert_sql(None, &table_name, &cols, &m)?;
+                let insert_sql = firebird.insert_sql(&table_name, &cols, &m)?;
                 sender.blocking_send(insert_sql.into())?;
                 sender.blocking_send(";\n".into())?;
             }
@@ -553,7 +547,7 @@ impl SchemaTrait for FireBirdDB {
     }
 
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::CURRENT_VALUES
+        <Self as SqlBuilder>::get_current_values(self)
     }
 
     async fn export_table_or_view(
@@ -666,50 +660,11 @@ impl SchemaTrait for FireBirdDB {
         .await?
     }
 
-    async fn table_insert(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        let fs = self.show_table_columns(table_name).await?;
-
-        let sql = self.insert_sql(None, table_name, &fs, &values)?;
-        log::info!("sql:{}", sql);
-        let changes = self.execute(&sql).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(changes as u64),
-        })
-    }
-
-    async fn table_update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        let fs = self.show_table_columns(table_name).await?;
-        let sql = self.update_sql(None, table_name, &fs, &values, &wheres)?;
-        let changes = self.execute(&sql).await?;
-        anyhow::Ok(SqlExecuteRet {
-            changes: Some(changes as u64),
-            sql,
-        })
-    }
-
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         // firebird have no truncate statement.
         let sql = format!(r#"DELETE FROM "{}""#, table_name);
         self.execute(sql).await?;
         anyhow::Ok(())
-    }
-
-    async fn table_delete(
-        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        let fs = self.show_table_columns(table_name).await?;
-        let sql = self.delete_sql(None, table_name, &fs, &wheres)?;
-        let changes = self.execute(&sql).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(changes as u64),
-        })
     }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -744,7 +699,7 @@ impl SchemaTrait for FireBirdDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
@@ -883,12 +838,18 @@ pub const FB_CURRENT_LITERALS: &[&str] = &[
 ];
 
 impl SqlBuilder for FireBirdDB {
-    const CURRENT_VALUES: &'static [&'static str] = FB_CURRENT_LITERALS;
+    fn get_current_values(&self) -> &'static [&'static str] {
+        FB_CURRENT_LITERALS
+    }
+
     fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
             return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }
         put_value_in_sql(typ, value)
+    }
+    fn get_schema(&self) -> Option<&str> {
+        None
     }
 }
 

@@ -105,7 +105,6 @@ pub struct ClickHouseConfig {
     pub port: u16,
     pub username: String,
     pub password: Option<String>,
-
     pub db: Option<String>,
     pub read_only: bool,
     pub https: bool,

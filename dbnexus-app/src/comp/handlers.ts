@@ -27,7 +27,7 @@ async function tryGetMaxID(uuid: string, tableOrView: string) {
 
 function makeTableUpdate(uuid: string, table: string) {
   return async (wheres, values) => {
-    return await invoke<types.SqlExecuteRet>("table_update", {
+    return await invoke<string>("table_update_sql", {
       name: uuid,
       tableName: table,
       values,
@@ -38,7 +38,7 @@ function makeTableUpdate(uuid: string, table: string) {
 
 function makeTableDelete(uuid: string, table: string) {
   return async wheres => {
-    return await invoke<types.SqlExecuteRet>("table_delete", {
+    return await invoke<string>("table_delete_sql", {
       name: uuid,
       tableName: table,
       wheres,

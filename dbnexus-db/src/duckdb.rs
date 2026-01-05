@@ -4,9 +4,9 @@ use crate::db::{
     CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, DBTrait, ExportFrame, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue,
     POOL_MAX_CONNECTIONS, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
-    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_blocking_data, not_support_feature,
+    SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, create_html_table_data,
+    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
+    export_query_as_xlsx_send_blocking_data, not_support_feature,
 };
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
 use chrono::NaiveDate;
@@ -246,13 +246,16 @@ impl SqlBuilder for DuckDB {
     fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         put_value_in_sql(typ, value)
     }
+    fn get_schema(&self) -> Option<&str> {
+        self.config.schema.as_deref()
+    }
 }
 
 #[async_trait::async_trait]
 
 impl ExportQueryResult for DuckDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
     }
 
     async fn export_query_result(
@@ -436,18 +439,13 @@ impl QuerySql for DuckDB {
         anyhow::Ok(())
     }
 
-    async fn execute_sql_no_open_conn(
-        &self, sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>> {
+    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         let this = Clone::clone(self);
         let sql = sql.to_string();
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            let resp = match conn.execute_batch(&sql) {
-                Ok(_) => Ok(QueryResp::execute_ok(sql.to_string())),
-                Err(err) => Err(err.to_string()),
-            };
-            anyhow::Ok(resp)
+            conn.execute_batch(&sql)?;
+            anyhow::Ok(None)
         })
         .await?
     }
@@ -669,8 +667,7 @@ impl DuckDB {
                 for (f, value) in fs.iter().zip(data.into_iter()) {
                     values.insert(f.field.clone(), value);
                 }
-                let sql =
-                    this.insert_sql(this.config.schema.as_deref(), &table_name, &fs, &values)?;
+                let sql = this.insert_sql(&table_name, &fs, &values)?;
                 sender.blocking_send(sql.into())?;
             }
             anyhow::Ok(())
@@ -1193,52 +1190,6 @@ impl SchemaTrait for DuckDB {
         .await?
     }
 
-    async fn table_insert(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        let fs = self.show_table_columns(table_name).await?;
-        let sql = self.insert_sql(self.config.schema.as_deref(), table_name, &fs, &values)?;
-        log::info!("sql:{}", sql);
-        let changes = self.execute(&sql).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(changes as u64),
-        })
-    }
-
-    async fn table_update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        let fs = self.show_table_columns(table_name).await?;
-
-        let sql = self.update_sql(
-            self.config.schema.as_deref(),
-            table_name,
-            &fs,
-            &values,
-            &wheres,
-        )?;
-
-        let changes = self.execute(&sql).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(changes as u64),
-        })
-    }
-
-    async fn table_delete(
-        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        let fs = self.show_table_columns(table_name).await?;
-        let sql = self.delete_sql(self.config.schema.as_deref(), table_name, &fs, &wheres)?;
-        let changes = self.execute(&sql).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(changes as u64),
-        })
-    }
-
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         let sql = format!(r#"DELETE FROM "{}";"#, table_name);
         self.execute(sql).await?;
@@ -1252,7 +1203,7 @@ impl SchemaTrait for DuckDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {

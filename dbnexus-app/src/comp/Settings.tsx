@@ -994,6 +994,9 @@ function makeComponents(
     MuiCircularProgress: {
       defaultProps: { size: "1.2rem" },
     },
+    MuiButtonGroup: {
+      defaultProps: { size: "small", variant: "contained" },
+    },
     MuiButton: {
       styleOverrides: {
         root: {
@@ -1016,7 +1019,6 @@ function makeComponents(
         },
       },
     },
-
     MuiAlert: {
       styleOverrides: {
         root: {

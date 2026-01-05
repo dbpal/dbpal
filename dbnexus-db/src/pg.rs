@@ -17,9 +17,9 @@ use crate::db::{
     DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
     IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS,
     ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet,
-    TriggerDetail, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
-    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    create_html_table_header, create_markdown_data, create_markdown_header,
     export_query_as_xlsx_send_data,
 };
 
@@ -177,8 +177,7 @@ impl PostGresDB {
             for (d, f) in data.into_iter().zip(cols.iter()) {
                 m.insert(f.field.clone(), d);
             }
-            let insert_sql =
-                self.insert_sql(self.config.schema.as_deref(), table_name, &cols, &m)?;
+            let insert_sql = self.insert_sql(table_name, &cols, &m)?;
             sender.send(insert_sql.into()).await?;
             sender.send(";\n".into()).await?;
         }
@@ -436,7 +435,7 @@ impl PostGresDB {
 #[async_trait::async_trait]
 impl SchemaTrait for PostGresDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::CURRENT_VALUES
+        <Self as SqlBuilder>::get_current_values(self)
     }
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
         self.list_sequences_impl(self.config.schema_str()?).await
@@ -1041,7 +1040,7 @@ impl SchemaTrait for PostGresDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1158,23 +1157,6 @@ impl SchemaTrait for PostGresDB {
         anyhow::Ok(ret.into_iter().map(ListTable::from).collect())
     }
 
-    async fn table_delete(
-        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fields = self.show_table_columns(table_name).await?;
-        let sql = self.delete_sql(self.config.schema.as_deref(), table_name, &fields, &wheres)?;
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(r.rows_affected()),
-        })
-    }
-
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let schema = self.config.schema_str()?;
@@ -1188,47 +1170,6 @@ impl SchemaTrait for PostGresDB {
             .execute(conn.deref_mut())
             .await?;
         anyhow::Ok(())
-    }
-
-    async fn table_update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        let fs = self.show_table_columns(table_name).await?;
-        let sql = self.update_sql(
-            self.config.schema.as_deref(),
-            table_name,
-            &fs,
-            &values,
-            &wheres,
-        )?;
-        log::info!("update sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-
-        let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(r.rows_affected()),
-        })
-    }
-
-    async fn table_insert(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fs = self.show_table_columns(table_name).await?;
-        let sql = self.insert_sql(self.config.schema.as_deref(), table_name, &fs, &values)?;
-        log::info!("sql:{}", sql);
-        let mut conn = self.get_conn().await?;
-        let r = sqlx::raw_sql(AssertSqlSafe(sql.as_str()))
-            .execute(conn.deref_mut())
-            .await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(r.rows_affected()),
-        })
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -1734,7 +1675,7 @@ async fn set_current_schema(conn: &mut PgConnection, schema: &str) -> anyhow::Re
 
 impl ExportQueryResult for PostGresDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
     }
 
     async fn export_query_result(
@@ -1903,15 +1844,10 @@ impl QuerySql for PostGresDB {
         self.query_connection.remove(&id.to_owned());
         anyhow::Ok(())
     }
-    async fn execute_sql_no_open_conn(
-        &self, sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>> {
+    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         let mut conn = self.get_conn().await?;
-        let ret = match conn.execute(sqlx::raw_sql(AssertSqlSafe(sql))).await {
-            Ok(x) => Ok(QueryResp::row_affected(x.rows_affected(), sql.to_owned())),
-            Err(err) => Err(err.to_string()),
-        };
-        anyhow::Ok(ret)
+        let ret = conn.execute(sqlx::raw_sql(AssertSqlSafe(sql))).await?;
+        anyhow::Ok(Some(ret.rows_affected() as usize))
     }
 
     async fn execute_sql(
@@ -2121,7 +2057,14 @@ pub const PG_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_ROLE",      //  alice（或 SET ROLE 后的角色）
 ];
 impl SqlBuilder for PostGresDB {
-    const CURRENT_VALUES: &'static [&'static str] = PG_CURRENT_LITERALS;
+    fn get_schema(&self) -> Option<&str> {
+        self.config.schema.as_deref()
+    }
+
+    fn get_current_values(&self) -> &'static [&'static str] {
+        PG_CURRENT_LITERALS
+    }
+
     fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
             return anyhow::Result::Ok(value.option_must_be_some()?.to_string());

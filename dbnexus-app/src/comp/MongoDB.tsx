@@ -56,6 +56,7 @@ import {
   keyNotInTable,
   EscDownEvent,
   modalHandleClose,
+  FieldAndGridField,
 } from "./Common";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
@@ -85,6 +86,7 @@ import {
   pageSizeOptions,
   shrinkAble,
   DataSourceKind,
+  dataGridheaderFontSize,
 } from "./helper";
 import {
   AppDataGridPagination,
@@ -1127,6 +1129,7 @@ function MongoTableList(props: {
   const [showExportMarkDown, setShowExportMarkDown] = useState(false);
   const setting = useContext(SettingContext);
   const [lastFetchTime, setLastFetchTime] = useState(new Date());
+  const [clickedField, setClickedField] = useState("");
   useEffect(() => {
     setLastFetchTime(new Date());
   }, [resp]);
@@ -1145,6 +1148,28 @@ function MongoTableList(props: {
             if (width) {
               f["width"] = width;
             }
+
+            f["renderHeader"] = e => {
+              const field = e.colDef as unknown as FieldAndGridField;
+
+              return (
+                <Stack
+                  onClick={e => {
+                    e.stopPropagation();
+                    setClickedField(field.field);
+                  }}
+                  style={{
+                    alignItems: "center",
+                    cursor: "default",
+                  }}
+                  direction="row"
+                >
+                  <Typography fontSize={dataGridheaderFontSize}>
+                    {field.field}
+                  </Typography>
+                </Stack>
+              );
+            };
           });
           setResp(r);
           if (showOK) {
@@ -1348,6 +1373,16 @@ function MongoTableList(props: {
     <Stack style={{ height: "100%" }}>
       {resp && (
         <DataGrid
+          getCellClassName={e => {
+            if (e.field == clickedField) {
+              return "datagrid-field-clicked";
+            } else {
+              return "";
+            }
+          }}
+          onCellClick={() => {
+            setClickedField("");
+          }}
           loading={loading}
           slots={slots}
           style={dataGridStyle}

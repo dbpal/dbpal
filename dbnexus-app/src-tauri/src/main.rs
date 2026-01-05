@@ -41,8 +41,8 @@ use handlers::{
     redis_set_add, redis_set_del, redis_set_replace, redis_string_set, redis_zset_add,
     redis_zset_del, redis_zset_replace, rename_index, rename_sequence, rename_table, server_metas,
     set_log_level, show_create_table_sql, show_indexes, show_procedure, show_table,
-    show_table_columns, show_trigger, show_udf, show_view_columns, table_delete, table_insert,
-    table_update, test_connection, truncate_table, try_get_max_id,
+    show_table_columns, show_trigger, show_udf, show_view_columns, table_delete_sql, table_insert,
+    table_update_sql, test_connection, truncate_table, try_get_max_id,
     try_list_database_schema_candidates, valid_json,
 };
 use std::io::Write;
@@ -466,9 +466,9 @@ fn main() {
             show_table_columns,
             show_table,
             table_insert,
-            table_update,
+            table_update_sql,
             truncate_table,
-            table_delete,
+            table_delete_sql,
             list_view,
             drop_view,
             drop_table,

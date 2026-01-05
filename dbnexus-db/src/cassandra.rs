@@ -32,9 +32,9 @@ use crate::db::{
     CreateTableAndIndexSql, CreatedTypeDef, DBTrait, DefAndMetas, ExportFrame, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     OptionMustBeSomeErr, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait,
-    ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, UdfOrProcedureExtraParameter,
-    XlsxEdit, create_html_table_data, create_html_table_header, create_markdown_data,
-    create_markdown_header, escape_sql_str, export_query_as_xlsx_send_data,
+    ServerMetas, ShowTableParameter, SqlBuilder, UdfOrProcedureExtraParameter, XlsxEdit,
+    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
+    escape_sql_str, export_query_as_xlsx_send_data,
 };
 
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
@@ -46,7 +46,7 @@ use cql3_parser::common::{ColumnDefinition, DataType};
 use dashmap::DashMap;
 use futures_util::StreamExt;
 use num_bigint::BigInt;
-use scylla::authentication::PlainTextAuthenticator;
+use scylla::authentication::{AuthenticatorProvider, PlainTextAuthenticator};
 
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
@@ -76,7 +76,7 @@ async fn make_session(config: &CassandraDBConfig) -> anyhow::Result<Session> {
         builder = builder.authenticator_provider(Arc::new(PlainTextAuthenticator::new(
             user.clone(),
             pass.clone(),
-        )));
+        )) as Arc<dyn AuthenticatorProvider>);
     }
     let session = builder.build().await?;
     if let Some(key_space) = config.db.as_ref() {
@@ -409,7 +409,7 @@ impl CassandraDB {
 
 impl ExportQueryResult for CassandraDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
     }
 
     async fn export_query_result(
@@ -507,22 +507,11 @@ impl ExportQueryResult for CassandraDB {
 
 #[async_trait::async_trait]
 impl QuerySql for CassandraDB {
-    async fn execute_sql_no_open_conn(
-        &self, sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>> {
-        let mut ret = vec![];
+    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         for sql in sql_to_each(sql).iter() {
-            let resp = self.session.query_unpaged(sql.as_str(), &[]).await;
-            match resp {
-                Ok(_) => ret.push(Some("execute ok".to_string())),
-                Err(err) => ret.push(Some(format!("err:{}", err))),
-            }
+            self.session.query_unpaged(sql.as_str(), &[]).await?;
         }
-        anyhow::Ok(Ok(QueryResp {
-            fields: vec![Field::from_name_type("execute result", "")],
-            data: vec![ret],
-            ..Default::default()
-        }))
+        anyhow::Ok(None)
     }
 
     async fn execute_sql(
@@ -669,7 +658,7 @@ impl CassandraDB {
             cols.iter().zip(data.iter()).for_each(|(f, v)| {
                 m.insert(f.field.clone(), v.clone());
             });
-            let sql = self.insert_sql(self.config.db.as_deref(), table_name, &cols, &m)?;
+            let sql = self.insert_sql(table_name, &cols, &m)?;
             let sql = format!("{sql};\n");
             sender.send(sql.into()).await?;
         }
@@ -704,12 +693,19 @@ pub const CQL_CURRENT_LITERALS: &[&str] = &[
 ];
 
 impl SqlBuilder for CassandraDB {
-    const CURRENT_VALUES: &'static [&'static str] = CQL_CURRENT_LITERALS;
     fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
             return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
         }
         put_value_in_sql(typ, value)
+    }
+
+    fn get_current_values(&self) -> &'static [&'static str] {
+        CQL_CURRENT_LITERALS
+    }
+
+    fn get_schema(&self) -> Option<&str> {
+        self.config.db.as_deref()
     }
 }
 
@@ -765,7 +761,7 @@ impl CassandraDB {
 #[async_trait::async_trait]
 impl SchemaTrait for CassandraDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::CURRENT_VALUES
+        <Self as SqlBuilder>::get_current_values(self)
     }
 
     async fn drop_created_type(&self, name: &str) -> anyhow::Result<()> {
@@ -892,7 +888,7 @@ impl SchemaTrait for CassandraDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -983,55 +979,12 @@ impl SchemaTrait for CassandraDB {
         anyhow::Ok(ret)
     }
 
-    async fn table_insert(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fs = self.show_table_columns(table_name).await?;
-        let sql = self.insert_sql(None, table_name, &fs, &values)?;
-        log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql.as_str(), &[]).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(1),
-        })
-    }
-
-    async fn table_update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-
-        let fs = self.show_table_columns(table_name).await?;
-        let sql = self.update_sql(self.config.db.as_deref(), table_name, &fs, &values, &wheres)?;
-
-        log::info!("update sql:{}", sql);
-        self.session.query_unpaged(sql.as_str(), &[]).await?;
-        anyhow::Ok(SqlExecuteRet::from((sql, 1)))
-    }
-
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!(r#"TRUNCATE "{table_name}""#);
         log::info!("sql:{}", sql);
         self.session.query_unpaged(sql.as_str(), &[]).await?;
         anyhow::Ok(())
-    }
-
-    async fn table_delete(
-        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fs = self.show_table_columns(table_name).await?;
-
-        let sql = self.delete_sql(self.config.db.as_deref(), table_name, &fs, &wheres)?;
-        log::info!("sql:{}", sql);
-        self.session.query_unpaged(sql.as_str(), &[]).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(1),
-        })
     }
 
     async fn drop_table(&self, table: &str, _cascade: bool) -> anyhow::Result<()> {

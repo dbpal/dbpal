@@ -6,11 +6,10 @@ use crate::db::{
     CreateSchemaExtra, CreateTableReq, DBTrait, DefAndMetas, ExportFrame, ExportKind,
     ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
     POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail,
-    TriggerEnable, TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit,
-    create_html_table_data, create_html_table_header, create_markdown_data, create_markdown_header,
-    escape_sql_str, export_query_as_xlsx_send_data, format_data_time_fix_offset,
-    not_support_feature,
+    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEnable,
+    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
+    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
+    export_query_as_xlsx_send_data, format_data_time_fix_offset, not_support_feature,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::create_csv;
@@ -515,7 +514,7 @@ impl SqlServerDB {
 #[async_trait::async_trait]
 impl SchemaTrait for SqlServerDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::CURRENT_VALUES
+        <Self as SqlBuilder>::get_current_values(self)
     }
     async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
         let sql = req.common_sql(table, true, self.backend_name().quote_style())?;
@@ -745,7 +744,7 @@ impl SchemaTrait for SqlServerDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -1005,41 +1004,6 @@ impl SchemaTrait for SqlServerDB {
         anyhow::Ok(ret.into_values().collect())
     }
 
-    async fn table_insert(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-
-        let fs = self.show_table_columns(table_name).await?;
-        let s = self.insert_sql(self.config.schema.as_deref(), table_name, &fs, &values)?;
-
-        log::trace!("insert sql:{}", s);
-
-        self.execute_simple_execute(&s).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql: s,
-            changes: Some(1), // I know this
-        })
-    }
-
-    async fn table_update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-
-        let fs = self.show_table_columns(table_name).await?;
-        let s = self.update_sql(
-            self.config.schema.as_deref(),
-            table_name,
-            &fs,
-            &values,
-            &wheres,
-        )?;
-        let r = self.execute_simple_execute(&s).await?;
-        anyhow::Ok(SqlExecuteRet::from((s, r.rows_affected().iter().sum())))
-    }
-
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let s = format!(
@@ -1049,22 +1013,6 @@ impl SchemaTrait for SqlServerDB {
         );
         self.execute_simple_execute(&s).await?;
         anyhow::Ok(())
-    }
-
-    async fn table_delete(
-        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-
-        let fields = self.show_table_columns(table_name).await?;
-        let sql = self.delete_sql(self.config.schema.as_deref(), table_name, &fields, &wheres)?;
-        log::info!("sql:{}", sql);
-
-        let r = self.execute_simple_execute(&sql).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(r.rows_affected().iter().sum()),
-        })
     }
 
     async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
@@ -1232,7 +1180,13 @@ pub const SQLSERVER_CURRENT_LITERALS: &[&str] = &[
     "CURRENT_USER",      //  dbo
 ];
 impl SqlBuilder for SqlServerDB {
-    const CURRENT_VALUES: &'static [&'static str] = SQLSERVER_CURRENT_LITERALS;
+    fn get_schema(&self) -> Option<&str> {
+        self.config.schema.as_deref()
+    }
+
+    fn get_current_values(&self) -> &'static [&'static str] {
+        SQLSERVER_CURRENT_LITERALS
+    }
     /// format a value make it suitable for insert into sql.
     /// this method current use in `insert_sql` etc.
     fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
@@ -1461,8 +1415,7 @@ impl SqlServerDB {
                     for (d, f) in data.into_iter().zip(cols.iter()) {
                         m.insert(f.field.clone(), d);
                     }
-                    let insert_sql =
-                        self.insert_sql(self.config.schema.as_deref(), table_name, &cols, &m)?;
+                    let insert_sql = self.insert_sql(table_name, &cols, &m)?;
                     sender.send(insert_sql.into()).await?;
                     sender.send(";\n".into()).await?;
                 }
@@ -1506,7 +1459,7 @@ type Connection = Client<Compat<TcpStream>>;
 #[async_trait::async_trait]
 impl ExportQueryResult for SqlServerDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
     }
 
     async fn export_query_result(
@@ -1689,15 +1642,10 @@ impl QuerySql for SqlServerDB {
 
         anyhow::Ok(())
     }
-    async fn execute_sql_no_open_conn(
-        &self, sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>> {
+    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         let mut conn = self.get_conn().await?;
-        let ret = match conn.simple_query(sql.trim()).await {
-            Ok(..) => Ok(QueryResp::execute_ok(sql.to_owned())),
-            Err(err) => Err(err.to_string()),
-        };
-        anyhow::Ok(ret)
+        conn.simple_query(sql.trim()).await?;
+        anyhow::Ok(None)
     }
 
     async fn execute_sql(

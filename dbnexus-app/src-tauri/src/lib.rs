@@ -20,7 +20,7 @@ mod tests {
         };
         use dbnexus_db::db::{
             DefAndMetas, ExportKind, Field, Index, ListTable, NamedStaff, ProcedureDetail,
-            SqlExecuteRet, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+            TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
         };
         use dbnexus_db::language_server::{CompletionItem, CompletionKind};
         use dbnexus_db::redis::RedisListTable;
@@ -49,7 +49,6 @@ mod tests {
             &ListTable::INFO,
             &Field::INFO,
             &Index::INFO,
-            &SqlExecuteRet::INFO,
             &NamedStaff::INFO,
             &ExportKind::INFO,
             &RedisListTable::INFO,

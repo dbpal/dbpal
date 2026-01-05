@@ -1253,9 +1253,10 @@ function QueryStatus(props: { setRef: RefObject<SetStatusFn> }) {
   );
 }
 
-function StackRowCenter({ children }) {
+function StackRowCenter(props: { children: ReactNode; style?: CSSProperties }) {
+  const { children, style } = props;
   return (
-    <Stack style={{ alignItems: "center" }} direction="row">
+    <Stack style={{ alignItems: "center", ...style }} direction="row">
       {children}
     </Stack>
   );

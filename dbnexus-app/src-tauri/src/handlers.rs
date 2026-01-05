@@ -5,7 +5,7 @@ use dbnexus_db::db::{
     ColumnType, CreateDatabaseExtra, CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql,
     CreateTableReq, CreatedTypeDef, DBTrait, DefAndMetas, ExportKind, Field, Index, ListTable,
     MetaValue, NamedStaff, OptionMustBeSomeErr, ProcedureDetail, QueryEventEmit, QueryResp,
-    SequenceDetail, ShowTableParameter, SqlEvent, SqlExecuteRet, TimeElapsed, TriggerDetail,
+    SequenceDetail, ShowTableParameter, SqlEvent, TimeElapsed, TriggerDetail,
     UdfOrProcedureExtraParameter, escape_sql_str,
 };
 use dbnexus_db::firebird::FireBirdDB;
@@ -540,7 +540,7 @@ pub async fn drop_index(
 pub async fn table_insert(
     name: String, table_name: String, values: HashMap<String, Option<String>>,
     app: tauri::State<'_, DBPal>,
-) -> Result<SqlExecuteRet, ErrorFrontend> {
+) -> Result<Option<usize>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&name).await?;
@@ -550,14 +550,14 @@ pub async fn table_insert(
 }
 
 #[tauri::command]
-pub async fn table_update(
+pub async fn table_update_sql(
     name: String, table_name: String, values: HashMap<String, Option<String>>,
     wheres: HashMap<String, Option<String>>, app: tauri::State<'_, DBPal>,
-) -> Result<SqlExecuteRet, ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&name).await?;
-    db.table_update(&table_name, values, wheres)
+    db.table_update_sql(&table_name, values, wheres)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -659,14 +659,14 @@ pub async fn list_sql_current_values(
 }
 
 #[tauri::command]
-pub async fn table_delete(
+pub async fn table_delete_sql(
     name: String, table_name: String, wheres: HashMap<String, Option<String>>,
     app: tauri::State<'_, DBPal>,
-) -> Result<SqlExecuteRet, ErrorFrontend> {
+) -> Result<String, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
     let db = app.get_schema(&name).await?;
-    db.table_delete(&table_name, wheres)
+    db.table_delete_sql(&table_name, wheres)
         .await
         .map_err(ErrorFrontend::from)
 }
@@ -718,19 +718,19 @@ impl DatabaseBackend {
             DatabaseBackend::Schema(x) => {
                 let a = x.as_any();
                 if let Some(x) = a.downcast_ref::<MysqlDB>() {
-                    Some(x)
+                    Some(x as &dyn DBTrait)
                 } else if let Some(x) = a.downcast_ref::<SubDB>() {
-                    Some(x)
+                    Some(x as &dyn DBTrait)
                 } else if let Some(x) = a.downcast_ref::<PostGresDB>() {
-                    Some(x)
+                    Some(x as &dyn DBTrait)
                 } else if let Some(x) = a.downcast_ref::<SqlServerDB>() {
-                    Some(x)
+                    Some(x as &dyn DBTrait)
                 } else if let Some(x) = a.downcast_ref::<OracleDB>() {
-                    Some(x)
+                    Some(x as &dyn DBTrait)
                 } else if let Some(x) = a.downcast_ref::<CassandraDB>() {
-                    Some(x)
+                    Some(x as &dyn DBTrait)
                 } else if let Some(x) = a.downcast_ref::<ClickHouseDB>() {
-                    Some(x)
+                    Some(x as &dyn DBTrait)
                 } else {
                     None
                 }
@@ -1137,7 +1137,7 @@ pub enum QueryEvent {
 #[tauri::command]
 pub async fn execute_sql_no_open_conn(
     name: String, sql: String, app: tauri::State<'_, DBPal>,
-) -> Result<Result<MuiDataGridData, String>, ErrorFrontend> {
+) -> Result<Option<usize>, ErrorFrontend> {
     random_sleep().await;
     random_error()?;
 
@@ -1151,7 +1151,7 @@ pub async fn execute_sql_no_open_conn(
         .execute_sql_no_open_conn(&sql)
         .await
         .map_err(ErrorFrontend::from)?;
-    Ok(result.map(MuiDataGridData::from))
+    Ok(result)
 }
 
 #[tauri::command]

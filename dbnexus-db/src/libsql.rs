@@ -13,7 +13,7 @@ use crate::db::{
     CreateTableAndIndexSql, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind,
     Index, IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS,
     QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
-    ShowTableParameter, SqlBuilder, SqlExecuteRet, TriggerDetail, XlsxEdit, create_html_table_data,
+    ShowTableParameter, SqlBuilder, TriggerDetail, XlsxEdit, create_html_table_data,
     create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
     export_query_as_xlsx_send_data,
 };
@@ -57,7 +57,7 @@ fn get_row_types(r: &Row) -> Vec<Field> {
 #[async_trait::async_trait]
 impl ExportQueryResult for LibSqlDB {
     fn clone(&self) -> Box<dyn ExportQueryResult> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn ExportQueryResult>
     }
 
     async fn export_query_result(
@@ -198,15 +198,10 @@ impl QuerySql for LibSqlDB {
         }
     }
 
-    async fn execute_sql_no_open_conn(
-        &self, sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>> {
+    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>> {
         let conn = self.get_conn().await?;
-        let ret: Result<QueryResp, String> = match conn.execute_batch(sql).await {
-            Ok(..) => Ok(QueryResp::execute_ok(sql.to_owned())),
-            Err(err) => Err(err.to_string()),
-        };
-        anyhow::Ok(ret)
+        conn.execute_batch(sql).await?;
+        anyhow::Ok(None)
     }
     async fn execute_sql(
         &self, query_id: &str, sql: &str,
@@ -499,7 +494,7 @@ impl ServerMetas for LibSqlDB {
 #[async_trait::async_trait]
 impl SchemaTrait for LibSqlDB {
     fn list_sql_current_values(&self) -> &'static [&'static str] {
-        <Self as SqlBuilder>::CURRENT_VALUES
+        <Self as SqlBuilder>::get_current_values(self)
     }
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
@@ -653,7 +648,7 @@ impl SchemaTrait for LibSqlDB {
     }
 
     fn clone(&self) -> Box<dyn SchemaTrait> {
-        Box::new(Clone::clone(self))
+        Box::new(Clone::clone(self)) as Box<dyn SchemaTrait>
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -682,21 +677,6 @@ impl SchemaTrait for LibSqlDB {
         anyhow::Ok(())
     }
 
-    async fn table_delete(
-        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fields = self.show_table_columns(table_name).await?;
-        let sql = self.delete_sql(None, table_name, &fields, &wheres)?;
-        log::info!("sql:{}", sql);
-        let conn = self.get_conn().await?;
-        let changes = conn.execute(&sql, params!()).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(changes),
-        })
-    }
-
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()> {
         self.can_write()?;
         let sql = format!(
@@ -709,39 +689,6 @@ impl SchemaTrait for LibSqlDB {
         conn.execute(&sql, params!()).await?;
 
         anyhow::Ok(())
-    }
-
-    async fn table_update(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-        wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fields = self.show_table_columns(table_name).await?;
-
-        let conn = self.get_conn().await?;
-        let sql = self.update_sql(None, table_name, &fields, &values, &wheres)?;
-        log::info!("sql:{}", sql);
-        let changes = conn.execute(&sql, params!()).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-            changes: Some(changes),
-        })
-    }
-
-    async fn table_insert(
-        &self, table_name: &str, values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet> {
-        self.can_write()?;
-        let fields = self.show_table_columns(table_name).await?;
-        let sql = self.insert_sql(None, table_name, &fields, &values)?;
-        log::trace!("insert sql:{}", sql);
-        let conn = self.get_conn().await?;
-        let changes = conn.execute(&sql, params!()).await?;
-        anyhow::Ok(SqlExecuteRet {
-            sql,
-
-            changes: Some(changes),
-        })
     }
 
     async fn list_table(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -908,7 +855,9 @@ impl SchemaTrait for LibSqlDB {
 }
 
 impl SqlBuilder for LibSqlDB {
-    const CURRENT_VALUES: &'static [&'static str] = crate::sqlite::SQLITE_CURRENT_LITERALS;
+    fn get_current_values(&self) -> &'static [&'static str] {
+        crate::sqlite::SQLITE_CURRENT_LITERALS
+    }
     fn put_value_in_sql(&self, typ: &str, value: Option<&str>) -> anyhow::Result<String> {
         if self.hit_current_value(value) {
             return anyhow::Result::Ok(value.option_must_be_some()?.to_string());
@@ -941,6 +890,10 @@ impl SqlBuilder for LibSqlDB {
         };
 
         anyhow::Ok(v)
+    }
+
+    fn get_schema(&self) -> Option<&str> {
+        None
     }
 }
 impl LibSqlDB {
@@ -998,7 +951,7 @@ impl LibSqlDB {
             for (d, f) in data.into_iter().zip(cols.iter()) {
                 m.insert(f.field.clone(), d);
             }
-            let insert_sql = self.insert_sql(None, table_name, &cols, &m)?;
+            let insert_sql = self.insert_sql(table_name, &cols, &m)?;
             sender.send(insert_sql.into()).await?;
             sender.send(";\n".into()).await?;
         }

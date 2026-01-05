@@ -191,20 +191,19 @@ pub trait SchemaTrait:
     + 'static
     + ReadOnlyTrait
     + ExportQueryResult
+    + SqlBuilder
 {
     async fn create_table(&self, req: &CreateTableReq) -> anyhow::Result<()> {
-        let ss = self.create_table_sql(req)?;
+        let ss = SchemaTrait::create_table_sql(self, req)?;
         for sql in ss.iter() {
-            self.execute_sql_no_open_conn(sql)
-                .await?
-                .map_err(anyhow::Error::msg)?;
+            self.execute_sql_no_open_conn(sql).await?;
         }
         anyhow::Ok(())
     }
     fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>>;
 
     fn create_table_sql_string(&self, req: &CreateTableReq) -> anyhow::Result<String> {
-        self.create_table_sql(req).map(|x| x.join(";\n"))
+        SchemaTrait::create_table_sql(self, req).map(|x| x.join(";\n"))
     }
 
     fn as_any(&self) -> &dyn std::any::Any;
@@ -244,19 +243,47 @@ pub trait SchemaTrait:
         anyhow::Ok(result.result())
     }
 
+    async fn table_insert_sql(
+        &self, table_name: &str, values: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<String> {
+        let fs = self.show_table_columns(table_name).await?;
+        let sql = SqlBuilder::insert_sql(self, table_name, &fs, &values)?;
+        anyhow::Ok(sql)
+    }
+
     async fn table_insert(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet>;
+    ) -> anyhow::Result<Option<usize>> {
+        let sql = self.table_insert_sql(table_name, values).await?;
+        let r = self.execute_sql_no_open_conn(&sql).await?;
+        anyhow::Ok(r)
+    }
+
+    async fn table_update_sql(
+        &self, table_name: &str, values: HashMap<String, Option<String>>,
+        wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<String> {
+        let fs = self.show_table_columns(table_name).await?;
+        let sql = SqlBuilder::update_sql(self, table_name, &fs, &values, &wheres)?;
+        anyhow::Ok(sql)
+    }
+
     async fn table_update(
         &self, table_name: &str, values: HashMap<String, Option<String>>,
         wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet>;
+    ) -> anyhow::Result<Option<usize>> {
+        let sql = self.table_update_sql(table_name, values, wheres).await?;
+        self.execute_sql_no_open_conn(&sql).await
+    }
 
     async fn truncate_table(&self, table_name: &str) -> anyhow::Result<()>;
 
-    async fn table_delete(
-        &self, _table_name: &str, _wheres: HashMap<String, Option<String>>,
-    ) -> anyhow::Result<SqlExecuteRet>;
+    async fn table_delete_sql(
+        &self, table_name: &str, wheres: HashMap<String, Option<String>>,
+    ) -> anyhow::Result<String> {
+        let fs = self.show_table_columns(table_name).await?;
+        SqlBuilder::delete_sql(self, table_name, &fs, &wheres)
+    }
 
     async fn list_view(&self) -> anyhow::Result<Vec<ListTable>> {
         not_support_feature(self.backend_name())
@@ -492,13 +519,14 @@ pub struct SqlEvent {
     pub metas: Vec<MetaValue>,
 }
 pub trait SqlBuilder: GetBackendKind {
-    // like current_timestamp can directly use in sql
-    const CURRENT_VALUES: &'static [&'static str] = &[];
+    fn get_current_values(&self) -> &'static [&'static str] {
+        &[]
+    }
 
     fn hit_current_value(&self, value: Option<&str>) -> bool {
         value
             .map(|x| {
-                Self::CURRENT_VALUES
+                self.get_current_values()
                     .iter()
                     .any(|y| x.eq_ignore_ascii_case(y))
             })
@@ -509,6 +537,7 @@ pub trait SqlBuilder: GetBackendKind {
         true
     }
 
+    fn get_schema(&self) -> Option<&str>;
     fn quote(&self, name: &str) -> String {
         format!(
             "{}{}{}",
@@ -564,9 +593,9 @@ pub trait SqlBuilder: GetBackendKind {
     }
 
     fn delete_sql(
-        &self, schema: Option<&str>, table_name: &str, fs: &[Field],
-        wheres: &HashMap<String, Option<String>>,
+        &self, table_name: &str, fs: &[Field], wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
+        let schema = self.get_schema();
         let mut field_by_name = HashMap::new();
         for f in fs.iter() {
             field_by_name.insert(&f.field, f);
@@ -587,11 +616,11 @@ pub trait SqlBuilder: GetBackendKind {
     }
 
     fn update_sql(
-        &self, schema: Option<&str>, table_name: &str, fs: &[Field],
-        values: &HashMap<String, Option<String>>, wheres: &HashMap<String, Option<String>>,
+        &self, table_name: &str, fs: &[Field], values: &HashMap<String, Option<String>>,
+        wheres: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
         //
-
+        let schema = self.get_schema();
         let mut field_by_name = HashMap::new();
         for f in fs.iter() {
             field_by_name.insert(&f.field, f);
@@ -636,9 +665,9 @@ pub trait SqlBuilder: GetBackendKind {
     }
 
     fn insert_sql(
-        &self, schema: Option<&str>, table_name: &str, fs: &[Field],
-        values: &HashMap<String, Option<String>>,
+        &self, table_name: &str, fs: &[Field], values: &HashMap<String, Option<String>>,
     ) -> anyhow::Result<String> {
+        let schema = self.get_schema();
         #[allow(clippy::format_in_format_args)]
         let mut sql = format!(
             "INSERT INTO {}{}(",
@@ -1490,9 +1519,7 @@ pub trait QuerySql: GetBackendKind + Send + Sync + 'static + LanguageServer {
     async fn execute_sql(
         &self, query_id: &str, _sql: &str,
     ) -> anyhow::Result<Result<QueryResp, String>>;
-    async fn execute_sql_no_open_conn(
-        &self, sql: &str,
-    ) -> anyhow::Result<Result<QueryResp, String>>;
+    async fn execute_sql_no_open_conn(&self, sql: &str) -> anyhow::Result<Option<usize>>;
 
     async fn open_connection(&self, id: &str) -> anyhow::Result<()>;
 
@@ -1538,29 +1565,6 @@ pub trait ServerMetas: Sync + Send + 'static {
     async fn show_metas(&self) -> anyhow::Result<Vec<MetaValue>>;
 }
 
-#[derive(Clone, Debug, serde::Serialize, TypeDef)]
-pub struct SqlExecuteRet {
-    pub sql: String,
-    // some backend can't get the changes result
-    pub changes: Option<u64>,
-}
-
-impl From<(String, u64)> for SqlExecuteRet {
-    fn from((sql, changes): (String, u64)) -> Self {
-        Self {
-            sql,
-            changes: Some(changes),
-        }
-    }
-}
-impl From<u64> for SqlExecuteRet {
-    fn from(changes: u64) -> Self {
-        Self {
-            sql: "".to_string(),
-            changes: Some(changes),
-        }
-    }
-}
 #[derive(Debug, Clone, serde::Serialize, TypeDef)]
 pub struct Index {
     pub name: Option<String>,

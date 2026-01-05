@@ -318,10 +318,6 @@ export namespace types {
         "kind": types.IndexKind;
         "columns": (string)[];
     };
-    export type SqlExecuteRet = {
-        "sql": string;
-        "changes": (types.U64 | null);
-    };
 
     /**
      * meta value can used in various place.

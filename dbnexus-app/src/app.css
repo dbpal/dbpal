@@ -27,3 +27,11 @@
   background-color: rgb(132, 244, 132);
   box-shadow: 0 0 4px;
 }
+
+.datagrid-field-clicked {
+  background: #c8e6c9;
+  color: black;
+}
+.datagrid-field-been-modify {
+  opacity: 0.5;
+}
