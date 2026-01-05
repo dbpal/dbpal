@@ -929,6 +929,9 @@ function TableAddColumn(props: {
   const nameDom = useRef(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    console.log("default value:", defaultValue);
+  }, [defaultValue]);
   const handleAdd = () => {
     if (!name) {
       showNotification("error", "column name is empty");

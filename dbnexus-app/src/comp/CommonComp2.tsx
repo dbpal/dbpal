@@ -1138,7 +1138,11 @@ function ColumnNullness(props: {
   );
 }
 
-function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue }) {
+function SqlDefaultValue(props: {
+  uuid: string;
+  defaultValue: string;
+  setDefaultValue;
+}) {
   const { uuid, defaultValue, setDefaultValue } = props;
   const [currentValue, setCurrentValue] = useState<string[]>([]);
   const { showNotification } = useContext(NotificationContext);
@@ -1148,7 +1152,7 @@ function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue })
         setCurrentValue(ts);
       })
       .catch(e => {
-        showNotification("success", "list sql current values failed", e);
+        showNotification("error", "list sql current values failed", e);
       });
   }, [showNotification, uuid]);
 
