@@ -21,6 +21,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckIcon from "@mui/icons-material/Check";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -446,14 +447,16 @@ function DatabaseOperationView(props: {
           <CheckIcon color="primary" />
         </IconButton>
       </Tooltip>
-      <Button
-        onClick={() => {
-          handleCopyToClipboard(sql, showNotification);
-        }}
-        variant="outlined"
-      >
-        copy
-      </Button>
+
+      <Tooltip title="copy sql">
+        <IconButton
+          onClick={() => {
+            handleCopyToClipboard(sql, showNotification);
+          }}
+        >
+          <ContentCopyIcon />
+        </IconButton>
+      </Tooltip>
 
       <Typography color="info">{sql}</Typography>
     </Stack>
