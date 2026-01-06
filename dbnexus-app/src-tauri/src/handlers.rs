@@ -1219,8 +1219,8 @@ pub async fn query_sql_close_connection(
 #[tauri::command]
 pub async fn export_table_or_view(
     name: String, task_id: String, task_manager: tauri::State<'_, TaskManager>,
-    size_emitter: Channel<usize>, table_or_view: String, filepath: String, kind: ExportKind,
-    app: tauri::State<'_, DBPal>,
+    size_emitter: Channel<usize>, table_or_view: String, para: Option<ShowTableParameter>,
+    filepath: String, kind: ExportKind, app: tauri::State<'_, DBPal>,
 ) -> Result<(), ErrorFrontend> {
     random_sleep().await;
     random_error()?;
@@ -1234,8 +1234,9 @@ pub async fn export_table_or_view(
         #[cfg(feature = "random-sleep")]
         tokio::time::sleep(Duration::from_secs(10)).await;
         db.export_table_or_view_to_file(
-            table_or_view.as_str(),
-            filepath2.as_str(),
+            &table_or_view,
+            para,
+            &filepath2,
             kind,
             Arc::new(move |size| {
                 if let Err(err) = size_emitter.send(size) {

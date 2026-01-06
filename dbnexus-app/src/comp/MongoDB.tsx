@@ -64,8 +64,6 @@ import { BsFillLightbulbFill } from "react-icons/bs";
 import DataObjectIcon from "@mui/icons-material/DataObject";
 import {
   AppColumnMenu,
-  ExportMarkDownTable,
-  MenuExportMarkDownTable,
   ModalHeader,
   ResetColumnWidth,
   SelectPageSize,
@@ -87,10 +85,11 @@ import {
   shrinkAble,
   DataSourceKind,
   dataGridheaderFontSize,
+  secondConfirm,
 } from "./helper";
 import {
   AppDataGridPagination,
-  AppToolBar,
+  AppDataGridToolBar,
   EditorBar,
   LastFetchTime,
   SimpleFlexEditor,
@@ -402,8 +401,9 @@ function MongoValueEditor(props: {
   setName?;
   delOP?: () => Promise<void>;
   viewModel?: MongoDataViewModel;
+  needConfirm: boolean;
 }) {
-  let { doc, setOP, setName, delOP, viewModel: viewmoDelSet } = props;
+  let { doc, setOP, setName, delOP, viewModel: viewmoDelSet, needConfirm } = props;
   if (!setName) {
     setName = "set";
   }
@@ -414,6 +414,27 @@ function MongoValueEditor(props: {
   const getViewModel = () => {
     return viewmoDelSet || viewModel;
   };
+  const confirmAndSet = setOP
+    ? async doc => {
+        if (needConfirm) {
+          const confirm = await secondConfirm({ title: "are u sure to modify" });
+          if (!confirm) {
+            return;
+          }
+        }
+        setOP(doc);
+      }
+    : undefined;
+  const confirmAndDel = delOP
+    ? async () => {
+        if (needConfirm) {
+          const confirm = await secondConfirm({ title: "are u sure to delete" });
+          if (!confirm) {
+            return;
+          }
+        }
+      }
+    : undefined;
   return (
     <Stack flex={1}>
       {!viewmoDelSet && (
@@ -443,13 +464,18 @@ function MongoValueEditor(props: {
       {getViewModel() == MongoDataViewModel.Json && (
         <JsonEditor
           value={JSON.parse(EJSON.stringify(doc))}
-          modifyOP={setOP}
+          modifyOP={confirmAndSet}
           modifyOPName={setName}
-          delOP={delOP}
+          delOP={confirmAndDel}
         />
       )}
       {getViewModel() == MongoDataViewModel.Object && (
-        <MongoBsonEditor doc={doc} setOP={setOP} setOPName={setName} delOP={delOP} />
+        <MongoBsonEditor
+          doc={doc}
+          setOP={confirmAndSet}
+          setOPName={setName}
+          delOP={confirmAndDel}
+        />
       )}
     </Stack>
   );
@@ -621,6 +647,7 @@ function MongoTableToolBar(props: {
                 setShowModifyFilter(false);
               }}
               doc={filter}
+              needConfirm={false}
             />
           </Box>
         </Modal>
@@ -651,6 +678,7 @@ function MongoTableToolBar(props: {
                 handleSort(doc);
                 setShowModifySort(false);
               }}
+              needConfirm={false}
               doc={sort}
             />
           </Box>
@@ -697,10 +725,8 @@ function MongoTableListContextMenu(props: {
   setFilter;
   loadDoc: () => Promise<BSON.Document>;
   setSort;
-  showExportMarkDown;
 }) {
-  const { delOP, content, field, setFilter, loadDoc, setSort, showExportMarkDown } =
-    props;
+  const { delOP, content, field, setFilter, loadDoc, setSort } = props;
   const [showFilter, setShowFilter] = useState(false);
   const { showNotification } = useContext(NotificationContext);
   const [showViewJson, setShowViewJson] = useState(false);
@@ -789,7 +815,6 @@ function MongoTableListContextMenu(props: {
             <ListItemText> Delete </ListItemText>
           </MenuItem>
         )}
-        <MenuExportMarkDownTable showExportMarkDown={showExportMarkDown} />
       </MenuList>
 
       {showViewJson && (
@@ -1126,7 +1151,7 @@ function MongoTableList(props: {
   const { showNotification } = useContext(NotificationContext);
   const [resp, setResp] = useState<MuiDataGridData | null>(null);
   const [selectModifyDoc, setSelectModifyDoc] = useState<BSON.Document | null>(null);
-  const [showExportMarkDown, setShowExportMarkDown] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const setting = useContext(SettingContext);
   const [lastFetchTime, setLastFetchTime] = useState(new Date());
   const [clickedField, setClickedField] = useState("");
@@ -1304,9 +1329,6 @@ function MongoTableList(props: {
                   return await loadOne(EJSON.parse(doc[mongoID]));
                 }}
                 setSort={setSort}
-                showExportMarkDown={() => {
-                  setShowExportMarkDown(true);
-                }}
               />
             ),
             event: e,
@@ -1335,7 +1357,7 @@ function MongoTableList(props: {
     return {
       columnMenu: AppColumnMenu,
       toolbar: () => {
-        return <AppToolBar title={tableName} />;
+        return <AppDataGridToolBar title={tableName} />;
       },
       pagination: () => {
         return (
@@ -1437,28 +1459,28 @@ function MongoTableList(props: {
                     }
                   : undefined
               }
+              needConfirm
               doc={selectModifyDoc}
             />
           </Box>
         </Modal>
       )}
 
-      {showExportMarkDown && (
+      {showExport && (
         <Modal
-          open={showExportMarkDown}
+          open={showExport}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
-            setShowExportMarkDown(false);
+            setShowExport(false);
           })}
         >
           <Box sx={modalStyle} width="60%">
             <ModalHeader
               title="export markdown table"
               handleClose={() => {
-                setShowExportMarkDown(false);
+                setShowExport(false);
               }}
             />
-            <ExportMarkDownTable fields={resp.fields} data={resp.data} />
           </Box>
         </Modal>
       )}
@@ -1601,6 +1623,7 @@ function MongoTableObject(props: {
                       }
                     : undefined
                 }
+                needConfirm
               />
             </div>
           );
@@ -1737,7 +1760,7 @@ function MongoTable(props: { uuid: string; table: string; isTable: boolean }) {
                   setGridColCount(v);
                 }}
                 storeKey="mongo-table-list-grid-col-count"
-                name="editor column count"
+                name="column"
               />
               <SliderSize
                 name="height"
@@ -1810,7 +1833,7 @@ function MongoTableAdd(props: { addOP: (doc: BSON.Document) => Promise<void> }) 
         height: "100%",
       }}
     >
-      <MongoValueEditor doc={{}} setName="add" setOP={handleAdd} />
+      <MongoValueEditor doc={{}} setName="add" setOP={handleAdd} needConfirm={false} />
     </Stack>
   );
 }

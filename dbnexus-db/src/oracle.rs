@@ -326,7 +326,7 @@ impl QuerySql for OracleDB {
     }
 }
 
-fn gen_select_sql(
+fn gen_show_sql(
     table_name: &str, fields: Option<String>, where_str: Option<&str>, order_by: Option<&str>,
     page: usize, page_size: usize,
 ) -> String {
@@ -768,7 +768,7 @@ impl OracleDB {
 
 impl OracleDB {
     async fn export_table_as_sql(
-        &self, table_name: &str, include_table_schema: bool,
+        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
@@ -777,7 +777,25 @@ impl OracleDB {
         let this = Clone::clone(self);
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            let sql = format!(r#"SELECT * from "{}"."{}""#, this.schema_str(), table_name);
+            let sql = if let Some(para) = para {
+                let ShowTableParameter {
+                    where_str,
+                    order_by,
+                    page,
+                    page_size,
+                    ..
+                } = &para;
+                gen_show_sql(
+                    &table_name,
+                    this.backend_name().format_fields(Some(&cols)).into(),
+                    where_str.as_deref(),
+                    order_by.as_deref(),
+                    *page,
+                    *page_size,
+                )
+            } else {
+                format!(r#"SELECT * from "{}"."{}""#, this.schema_str(), table_name)
+            };
             log::info!("sql:{}", sql);
             if include_table_schema {
                 sender.blocking_send(ss.create_table.clone().into())?;
@@ -1044,17 +1062,36 @@ impl SchemaTrait for OracleDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self.export_table_as_sql(name, include_table_schema, sender)
+                self.export_table_as_sql(name, para, include_table_schema, sender)
                     .await
             }
             _ => {
-                let sql = format!("SELECT * from {}", name);
+                let sql = if let Some(para) = para {
+                    let ShowTableParameter {
+                        where_str,
+                        order_by,
+                        page,
+                        page_size,
+                        ..
+                    } = &para;
+                    gen_show_sql(
+                        name,
+                        None,
+                        where_str.as_deref(),
+                        order_by.as_deref(),
+                        *page,
+                        *page_size,
+                    )
+                } else {
+                    format!("SELECT * from {}", name)
+                };
                 self.export_query_result(None, &sql, kind, sender).await
             }
         }
@@ -1221,7 +1258,7 @@ impl SchemaTrait for OracleDB {
             ..
         } = &para;
         let cols = self.show_table_columns(table_name).await?;
-        let sql = gen_select_sql(
+        let sql = gen_show_sql(
             table_name,
             Some(self.backend_name().format_fields(Some(&cols))),
             where_str.as_deref(),
@@ -1341,7 +1378,7 @@ impl SchemaTrait for OracleDB {
             page_size,
             ..
         } = &para;
-        let sql = gen_select_sql(
+        let sql = gen_show_sql(
             view_name,
             None,
             where_str.as_deref(),
@@ -1510,10 +1547,6 @@ impl SchemaTrait for OracleDB {
         log::info!("sql:{}", sql);
         self.execute(sql).await?;
         anyhow::Ok(())
-    }
-
-    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
-        SqlBuilder::create_table_sql(self, self.config.schema.as_deref(), req)
     }
 }
 

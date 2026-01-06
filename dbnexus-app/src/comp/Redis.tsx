@@ -62,6 +62,7 @@ import {
   DataSourceKind,
   SetStatusFn,
   newEmptyResp,
+  secondConfirm,
 } from "./helper.ts";
 import {
   AppColumnMenu,
@@ -75,7 +76,7 @@ import {
   SimpleFlexEditor,
   TableAddButton,
   AppDataGridPagination,
-  AppToolBar,
+  AppDataGridToolBar,
   LastFetchTime,
   QueryStatus,
   StackRowCenter,
@@ -188,7 +189,11 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
     });
   }, [showNotification, stringKey, uuid]);
 
-  const handleModify = () => {
+  const handleModify = async () => {
+    const confirm = await secondConfirm({ title: "sure to modify?" });
+    if (!confirm) {
+      return;
+    }
     setLoading(true);
     modifyOP(valueRef.current.getValue())
       .then(() => {
@@ -222,6 +227,7 @@ function RedisStringTable(props: { uuid: string; stringKey: string }) {
           set
         </Button>
       </Stack>
+      <QueryStatus setRef={queryStatus} />
     </Stack>
   );
 }
@@ -397,7 +403,11 @@ function RedisEditHash(props: {
   const newValue = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
 
-  const handleModify = () => {
+  const handleModify = async () => {
+    const confirm = await secondConfirm({ title: "sure to modify?" });
+    if (!confirm) {
+      return;
+    }
     setLoading(true);
     modifyOP(
       new RedisZsetHashModifyReq(
@@ -447,8 +457,12 @@ function RedisEditZset(props: {
   const newKey = useRef(new EditorAndMode());
   const [newValue, setNewValue] = useState(oldValue);
   const { showNotification } = useContext(NotificationContext);
-  const handleModify = () => {
+  const handleModify = async () => {
     if (oldKey == newKey.current.getValue() && oldValue == newValue) {
+      return;
+    }
+    const confirm = await secondConfirm({ title: "sure to modify?" });
+    if (!confirm) {
       return;
     }
     setLoading(true);
@@ -675,7 +689,11 @@ function RedisEditList(props: {
   const { showNotification } = useContext(NotificationContext);
 
   // really modify the content.
-  const handleModify = () => {
+  const handleModify = async () => {
+    const confirm = await secondConfirm({ title: "sure to modify?" });
+    if (!confirm) {
+      return;
+    }
     setLoading(true);
     modifyOP(newValue.current.getValue())
       .then(() => {
@@ -711,7 +729,11 @@ function RedisEditSet(props: {
   const newValue = useRef(new EditorAndMode());
   const { showNotification } = useContext(NotificationContext);
 
-  const handleModify = () => {
+  const handleModify = async () => {
+    const confirm = await secondConfirm({ title: "sure to modify?" });
+    if (!confirm) {
+      return;
+    }
     setLoading(true);
     modifyOP(oldValue, newValue.current.getValue())
       .then(() => {
@@ -846,6 +868,10 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
 
   const handleDel = useCallback(
     async (id: string) => {
+      const confirm = await secondConfirm({ title: "sure to delete?" });
+      if (!confirm) {
+        return;
+      }
       const del = resp.data.find(e => e["id"] == id);
       try {
         await delOP(del.value);
@@ -909,7 +935,7 @@ function RedisSetTable(props: { setKey: string; uuid: string }) {
 
       toolbar: () => {
         return (
-          <AppToolBar
+          <AppDataGridToolBar
             left=<>
               <Button
                 color="primary"
@@ -1263,6 +1289,10 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
 
   const handleDel = useCallback(
     async (id, deleteCount: number) => {
+      const confirm = await secondConfirm({ title: "sure to delete?" });
+      if (!confirm) {
+        return;
+      }
       const del = resp.data.find(e => e.id == id);
       try {
         await delOP(deleteCount, del.value);
@@ -1370,7 +1400,7 @@ function RedisListTable(props: { listKey: string; uuid: string }) {
       columnMenu: AppColumnMenu,
       toolbar: () => {
         return (
-          <AppToolBar
+          <AppDataGridToolBar
             left=<>
               <Button
                 color="primary"
@@ -1611,6 +1641,10 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
 
   const handleDel = useCallback(
     async (id: string) => {
+      const confirm = await secondConfirm({ title: "sure to delete?" });
+      if (!confirm) {
+        return;
+      }
       const del = resp.data.find(e => e["id"] == id);
       try {
         await delOP(del.key);
@@ -1678,7 +1712,7 @@ function RedisZsetTable(props: { uuid: string; zsetKey: string }) {
       columnMenu: AppColumnMenu,
       toolbar: () => {
         return (
-          <AppToolBar
+          <AppDataGridToolBar
             noWrapLeft
             left=<Stack
               direction="row"
@@ -2025,6 +2059,10 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
 
   const handleDel = useCallback(
     async (id: string) => {
+      const confirm = await secondConfirm({ title: "sure to delete?" });
+      if (!confirm) {
+        return;
+      }
       const del = resp.data.find(e => e["id"] == id);
       try {
         await delOP(del.key);
@@ -2092,7 +2130,7 @@ function RedisHashTable(props: { hashKey: string; uuid: string }) {
       columnMenu: AppColumnMenu,
       toolbar: () => {
         return (
-          <AppToolBar
+          <AppDataGridToolBar
             left=<>
               <Button
                 color="primary"

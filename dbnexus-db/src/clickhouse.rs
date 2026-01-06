@@ -29,7 +29,7 @@ impl GetBackendKind for ClickHouseDB {
 
 impl ClickHouseDB {
     async fn export_table_as_sql(
-        &self, table_name: &str, include_table_schema: bool,
+        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
@@ -37,11 +37,30 @@ impl ClickHouseDB {
             sender.send(x.create_table.into()).await?;
         }
 
-        let sql = format!(
-            r#"select * from `{}`.`{}`"#,
-            self.config.db_str(),
-            table_name
-        );
+        let sql = if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = &para;
+            gen_show_sql(
+                self.config.db_str(),
+                table_name,
+                None,
+                where_str.as_deref(),
+                order_by.as_deref(),
+                *page,
+                *page_size,
+            )
+        } else {
+            format!(
+                r#"select * from `{}`.`{}`"#,
+                self.config.db_str(),
+                table_name
+            )
+        };
         let mut stream = self.query_row(&sql).await?;
         let mut fs = vec![];
         while let Some(row) = stream.next().await {
@@ -189,17 +208,37 @@ impl SchemaTrait for ClickHouseDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self.export_table_as_sql(name, include_table_schema, sender)
+                self.export_table_as_sql(name, para, include_table_schema, sender)
                     .await
             }
             _ => {
-                let sql = format!(r#"SELECT * from `{}`.`{}`"#, self.config.db_str(), name);
+                let sql = if let Some(para) = para {
+                    let ShowTableParameter {
+                        where_str,
+                        order_by,
+                        page,
+                        page_size,
+                        ..
+                    } = &para;
+                    gen_show_sql(
+                        self.config.db_str(),
+                        name,
+                        None,
+                        where_str.as_deref(),
+                        order_by.as_deref(),
+                        *page,
+                        *page_size,
+                    )
+                } else {
+                    format!(r#"SELECT * from `{}`.`{}`"#, self.config.db_str(), name)
+                };
                 log::info!("sql:{}", sql);
                 self.export_query_result(None, &sql, kind, sender).await
             }
@@ -236,6 +275,7 @@ impl SchemaTrait for ClickHouseDB {
             tokio::spawn(async move {
                 x.export_table_or_view(
                     &table,
+                    None,
                     ExportKind::Sql {
                         include_table_schema: false,
                     },
@@ -560,10 +600,6 @@ impl SchemaTrait for ClickHouseDB {
 
         self.client.query(&sql).execute().await?;
         anyhow::Ok(())
-    }
-
-    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
-        SqlBuilder::create_table_sql(self, self.config.db.as_deref(), req)
     }
 }
 

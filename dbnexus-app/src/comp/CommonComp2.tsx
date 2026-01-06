@@ -1112,8 +1112,11 @@ function TypeSelect(props: { handleChange; uuid; type; style?: CSSProperties }) 
       renderInput={params => (
         <TextField {...params} label={`type def may require size varchar(100)`} />
       )}
-      onChange={(_, type) => {
-        handleChange(type);
+      onChange={(_, t) => {
+        handleChange(t);
+      }}
+      onInputChange={(_, t) => {
+        handleChange(t);
       }}
     />
   );
@@ -1134,6 +1137,7 @@ function ColumnNullness(props: {
       onChange={(_, value) => {
         handleNullness(value);
       }}
+      freeSolo={false}
     />
   );
 }
@@ -1161,6 +1165,9 @@ function SqlDefaultValue(props: { uuid: string; defaultValue; setDefaultValue })
         value={defaultValue}
         renderInput={params => <TextField {...params} label="default value" />}
         onChange={(_, value) => {
+          setDefaultValue(value);
+        }}
+        onInputChange={(_, value) => {
           setDefaultValue(value);
         }}
       />
@@ -1200,7 +1207,7 @@ function LastFetchTime(props: { date: Date }) {
   return <Typography color="info"> {date.toLocaleString()} </Typography>;
 }
 
-function AppToolBar(props: {
+function AppDataGridToolBar(props: {
   title: string;
   left?: ReactNode;
   right?: ReactNode;
@@ -1220,7 +1227,7 @@ function AppToolBar(props: {
     >
       {noWrapLeft ? left : <StackRowCenter>{left}</StackRowCenter>}
       <Typography variant="h5">{title}</Typography>
-      <Stack direction="row">
+      <Stack direction="row" style={{ alignItems: "center" }}>
         {right}
         <CustomToolbar />
       </Stack>
@@ -1283,7 +1290,7 @@ export {
   ColumnNullness,
   SqlDefaultValue,
   AppDataGridPagination,
-  AppToolBar,
+  AppDataGridToolBar,
   LastFetchTime,
   QueryStatus,
   StackRowCenter,

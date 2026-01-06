@@ -13,8 +13,8 @@ use tokio::sync::Mutex;
 use crate::datasource_config::PGDBConfig;
 use crate::db::{
     AutoCompletionQueryId, BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra,
-    CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, CreateTableReq, CreatedTypeDef,
-    DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
+    CreateIndexReq, CreateSchemaExtra, CreateTableAndIndexSql, CreatedTypeDef, DBTrait,
+    DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field, GetBackendKind, Index,
     IndexKind, ListTable, MetaValue, NamedStaff, OptionMustBeSomeErr, POOL_MAX_CONNECTIONS,
     ProcedureDetail, QueryEvent, QueryEventEmitter, QueryResp, QuerySql, ReadOnlyTrait,
     SchemaTrait, SequenceDetail, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail,
@@ -145,7 +145,7 @@ impl DBTrait for PostGresDB {
 
 impl PostGresDB {
     async fn export_table_as_sql(
-        &self, table_name: &str, include_table_schema: bool,
+        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
@@ -163,11 +163,32 @@ impl PostGresDB {
 
         let mut conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let sql = format!(
-            r#"SELECT * from "{}"."{}""#,
-            self.config.schema_str()?,
-            table_name
-        );
+        let sql = if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = &para;
+
+            gen_show_sql(
+                self.config.schema_str()?,
+                table_name,
+                Some(self.backend_name().format_fields(Some(&cols))),
+                where_str.as_deref(),
+                order_by.as_deref(),
+                *page,
+                *page_size,
+            )
+        } else {
+            format!(
+                r#"SELECT * from "{}"."{}""#,
+                self.config.schema_str()?,
+                table_name
+            )
+        };
+
         log::info!("sql:{}", sql);
         let mut stream = sqlx::query(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
         while let Some(row) = stream.next().await {
@@ -956,21 +977,41 @@ impl SchemaTrait for PostGresDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self.export_table_as_sql(name, include_table_schema, sender)
+                self.export_table_as_sql(name, para, include_table_schema, sender)
                     .await
             }
             _ => {
-                let sql = format!(
-                    r#"SELECT * from "{}"."{}""#,
-                    self.config.schema_str()?,
-                    name
-                );
+                let sql = if let Some(para) = para {
+                    let ShowTableParameter {
+                        where_str,
+                        order_by,
+                        page,
+                        page_size,
+                        ..
+                    } = &para;
+                    gen_show_sql(
+                        self.config.schema_str()?,
+                        name,
+                        None,
+                        where_str.as_deref(),
+                        order_by.as_deref(),
+                        *page,
+                        *page_size,
+                    )
+                } else {
+                    format!(
+                        r#"SELECT * from "{}"."{}""#,
+                        self.config.schema_str()?,
+                        name
+                    )
+                };
                 self.export_query_result(None, &sql, kind, sender).await
             }
         }
@@ -1414,10 +1455,6 @@ impl SchemaTrait for PostGresDB {
             ))
         }
         anyhow::Ok(ret)
-    }
-
-    fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
-        SqlBuilder::create_table_sql(self, self.config.schema.as_deref(), req)
     }
 }
 

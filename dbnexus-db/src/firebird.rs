@@ -437,14 +437,14 @@ impl ServerMetas for FireBirdDB {
 
 impl FireBirdDB {
     async fn export_table_as_sql(
-        &self, table_name: &str, include_table_schema: bool,
+        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
             anyhow::bail!("include schema not support by firebird");
         }
         let table_name = table_name.to_owned();
-        let firebird = Clone::clone(self);
+        let this = Clone::clone(self);
         let cols = self.show_table_columns(&table_name).await?;
         spawn_blocking(move || {
             let mut types = HashMap::new();
@@ -455,8 +455,27 @@ impl FireBirdDB {
             cols.iter().for_each(|f| {
                 cols_map.insert(f.field.as_str(), f);
             });
-            let mut conn = firebird.get_conn()?;
-            let sql = format!("SELECT * from {}", table_name);
+            let mut conn = this.get_conn()?;
+            let sql = if let Some(para) = para {
+                let ShowTableParameter {
+                    where_str,
+                    order_by,
+                    page,
+                    page_size,
+                    ..
+                } = &para;
+
+                gen_show_sql(
+                    &table_name,
+                    this.backend_name().format_fields(Some(&cols)).into(),
+                    where_str.as_deref(),
+                    order_by.as_deref(),
+                    *page,
+                    *page_size,
+                )
+            } else {
+                format!("SELECT * from {}", table_name)
+            };
             log::info!("sql:{}", sql);
             let rows: Box<dyn Iterator<Item = Result<Row, FbError>>> = conn.query_iter(&sql, ())?;
             for row in rows {
@@ -466,7 +485,7 @@ impl FireBirdDB {
                 for (d, f) in data.into_iter().zip(cols.iter()) {
                     m.insert(f.field.clone(), d);
                 }
-                let insert_sql = firebird.insert_sql(&table_name, &cols, &m)?;
+                let insert_sql = this.insert_sql(&table_name, &cols, &m)?;
                 sender.blocking_send(insert_sql.into())?;
                 sender.blocking_send(";\n".into())?;
             }
@@ -551,18 +570,37 @@ impl SchemaTrait for FireBirdDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self.export_table_as_sql(name, include_table_schema, sender)
+                self.export_table_as_sql(name, para, include_table_schema, sender)
                     .await
             }
 
             _ => {
-                let sql = format!("SELECT * FROM {}", name);
+                let sql = if let Some(para) = para {
+                    let ShowTableParameter {
+                        where_str,
+                        order_by,
+                        page,
+                        page_size,
+                        ..
+                    } = &para;
+                    gen_show_sql(
+                        name,
+                        None,
+                        where_str.as_deref(),
+                        order_by.as_deref(),
+                        *page,
+                        *page_size,
+                    )
+                } else {
+                    format!(r#"SELECT * FROM "{}""#, name)
+                };
                 self.export_query_result(None, &sql, kind, sender).await
             }
         }
@@ -823,10 +861,6 @@ impl SchemaTrait for FireBirdDB {
             anyhow::Ok(())
         })
         .await?
-    }
-
-    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
-        SqlBuilder::create_table_sql(self, None, req)
     }
 }
 

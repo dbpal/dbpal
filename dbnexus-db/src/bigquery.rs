@@ -134,10 +134,6 @@ impl SchemaTrait for BigQueryDb {
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         todo!()
     }
-
-    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
-        todo!()
-    }
 }
 
 #[async_trait::async_trait]

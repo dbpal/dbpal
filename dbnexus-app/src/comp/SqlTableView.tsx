@@ -21,6 +21,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { IoLocation } from "react-icons/io5";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckIcon from "@mui/icons-material/Check";
@@ -28,6 +29,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import { NotificationContext } from "./Notification";
 import SaveIcon from "@mui/icons-material/Save";
+import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
 import {
   DataGrid,
   GridCallbackDetails,
@@ -35,6 +37,7 @@ import {
   GridSlotsComponent,
   GridSlotsComponentsProps,
   GridSortModel,
+  useGridApiRef,
 } from "@mui/x-data-grid";
 import ClearIcon from "@mui/icons-material/Clear";
 import {
@@ -81,13 +84,12 @@ import {
   SetStatusFn,
   executeSqlWithoutConn,
   SetCloseConfirmTextContext,
+  getSupportExportKind,
 } from "./helper";
 import { FaCopy } from "react-icons/fa6";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
 import {
   AppColumnMenu,
-  ExportMarkDownTable,
-  MenuExportMarkDownTable,
   ModalHeader,
   ResetColumnWidth,
   TimeDuration,
@@ -98,7 +100,7 @@ import wcmatch from "wildcard-match";
 import { MdEditNote } from "react-icons/md";
 import {
   AppDataGridPagination,
-  AppToolBar,
+  AppDataGridToolBar,
   LastFetchTime,
   QueryStatus,
   SimpleFlexEditor,
@@ -115,6 +117,7 @@ import {
 } from "./handlers";
 import { invoke } from "@tauri-apps/api/core";
 import { AddTableView } from "./LeftTable";
+import { ExportTableOrView } from "./Export";
 
 const confirmAboutPrimary = async (
   notWarnPri: boolean,
@@ -409,8 +412,9 @@ function DatabaseOperationView(props: {
   op: DatabaseOperation;
   handleDelete: (applied: boolean) => void;
   uuid: string;
+  handleHighLight: () => void;
 }) {
-  const { handleDelete, uuid } = props;
+  const { handleDelete, uuid, handleHighLight } = props;
   const { sql } = props.op;
   const [loading, setLoading] = useState(false);
   const handleApply = () => {
@@ -458,7 +462,14 @@ function DatabaseOperationView(props: {
         </IconButton>
       </Tooltip>
 
-      <Typography color="info">{sql}</Typography>
+      <Tooltip title="locate the row we are editing">
+        <IconButton onClick={handleHighLight}>
+          <IoLocation fontSize="1.4em" />
+        </IconButton>
+      </Tooltip>
+      <Typography color="info" style={textEllipsisStyle}>
+        {sql}
+      </Typography>
     </Stack>
   );
 }
@@ -491,6 +502,7 @@ function SqlTableView(props: {
     cache_time: null,
     has_more: false,
   });
+  const apiRef = useGridApiRef();
   const [lastFetchTime, setLastFetchTime] = useState(new Date());
   useEffect(() => {
     setLastFetchTime(new Date());
@@ -515,6 +527,21 @@ function SqlTableView(props: {
   const rowInOps = id => {
     return opsIds.has(id);
   };
+  const [highLightRow, setHighLightRow] = useState("");
+
+  useEffect(() => {
+    if (!highLightRow) {
+      return;
+    }
+    // get index
+    const index = resp.data.findIndex(e => e[keyNotInTable] === highLightRow);
+    if (index != -1) {
+      apiRef.current.scrollToIndexes({ rowIndex: index });
+    }
+    setTimeout(() => {
+      setHighLightRow("");
+    }, 5000);
+  }, [apiRef, highLightRow, resp.data]);
 
   const [fetchDur, setFetchDur] = useState(0);
   const clientModelLimit = useRef<number>(1000);
@@ -524,7 +551,7 @@ function SqlTableView(props: {
   const [editRowInModal, setRowEditInModal] = useState<object>(null);
   const clientModel = [DataSourceKind.Cassandra].includes(kind);
   const [viewInModal, setViewInModal] = useState<object>(null);
-  const [showExportMarkDown, setShowExportMarkDown] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const queryStatus = useRef<SetStatusFn>(null);
   const [clickedField, setClickedField] = useState("");
@@ -581,6 +608,18 @@ function SqlTableView(props: {
     setResp(resp);
   };
 
+  const makePara = useCallback(() => {
+    const where_str = where.trim();
+    let order_by = sort.trim();
+    return {
+      where_str: where_str ? where_str : null,
+      order_by: order_by ? order_by : null,
+      page: page + 1,
+      page_size: pageSize,
+      allow_filtering: allowFiltering,
+      limit: clientModelLimit.current,
+    } as types.ShowTableParameter;
+  }, [allowFiltering, page, pageSize, sort, where]);
   const handleReload = useCallback(
     (showOK: boolean) => {
       switch (kind) {
@@ -588,14 +627,7 @@ function SqlTableView(props: {
           break;
       }
       showTable({
-        para: {
-          where_str: where.trim(),
-          order_by: sort.trim(),
-          page: page + 1,
-          page_size: pageSize,
-          allow_filtering: allowFiltering,
-          limit: clientModelLimit.current,
-        },
+        para: makePara(),
         setStatus: queryStatus,
         name: tableName,
         isView: !isTable,
@@ -617,18 +649,7 @@ function SqlTableView(props: {
         },
       });
     },
-    [
-      allowFiltering,
-      isTable,
-      kind,
-      page,
-      pageSize,
-      showNotification,
-      sort,
-      tableName,
-      uuid,
-      where,
-    ],
+    [isTable, kind, makePara, showNotification, tableName, uuid],
   );
 
   const handleProcessRowUpdate = useCallback(
@@ -758,9 +779,6 @@ function SqlTableView(props: {
             content: (
               <Menu
                 kind={kind}
-                showExportMarkDown={() => {
-                  setShowExportMarkDown(true);
-                }}
                 editCellInModal={() => {
                   setEditCellInModal(
                     new EditInModalCellData(row, field, row[field], parseInt(id)),
@@ -874,8 +892,17 @@ function SqlTableView(props: {
       columnMenu: AppColumnMenu,
       toolbar: () => {
         return (
-          <AppToolBar
+          <AppDataGridToolBar
             title={tableName}
+            right=<>
+              <IconButton
+                onClick={() => {
+                  setShowExport(true);
+                }}
+              >
+                <ArrowCircleDownIcon />
+              </IconButton>
+            </>
             left=<StackRowCenter>
               <Button
                 loading={loading}
@@ -1033,12 +1060,21 @@ function SqlTableView(props: {
           }}
           uuid={uuid}
           key={idx}
+          handleHighLight={() => {
+            setHighLightRow("");
+            setTimeout(() => {
+              setHighLightRow(operation.old[keyNotInTable]);
+            }, 200);
+          }}
         />
       ))}
 
       <DataGrid
         slots={slots}
         getCellClassName={e => {
+          if (e.id == highLightRow) {
+            return "datagrid-field-row-highligth";
+          }
           if (rowInOps(e.id)) {
             return "datagrid-field-been-modify";
           }
@@ -1048,6 +1084,7 @@ function SqlTableView(props: {
             return "";
           }
         }}
+        apiRef={apiRef}
         onCellClick={() => {
           setClickedField("");
         }}
@@ -1181,22 +1218,24 @@ function SqlTableView(props: {
           </Box>
         </Modal>
       )}
-      {showExportMarkDown && (
+      {showExport && (
         <Modal
-          open={showExportMarkDown}
+          open={showExport}
           onClose={modalHandleClose((e: EscDownEvent) => {
             e.preventDefault();
-            setShowExportMarkDown(false);
+            setShowExport(false);
           })}
         >
           <Box sx={modalStyle} width="60%">
-            <ModalHeader
-              title="export markdown table"
+            <ExportTableOrView
+              uuid={uuid}
+              name={tableName}
+              supportKind={getSupportExportKind(kind, isTable)}
               handleClose={() => {
-                setShowExportMarkDown(false);
+                setShowExport(false);
               }}
+              para={makePara()}
             />
-            <ExportMarkDownTable fields={resp.fields} data={resp.data} />
           </Box>
         </Modal>
       )}
@@ -1402,7 +1441,6 @@ function Menu(props: {
   editRowInModal: () => void;
   kind: DataSourceKind;
   viewInModal: () => void;
-  showExportMarkDown: () => void;
   isTable: boolean;
 }) {
   const {
@@ -1421,7 +1459,6 @@ function Menu(props: {
     editRowInModal,
     kind,
     viewInModal,
-    showExportMarkDown,
     isTable,
   } = props;
   const { showNotification } = useContext(NotificationContext);
@@ -1556,8 +1593,6 @@ function Menu(props: {
             <ListItemText> Delete Row</ListItemText>
           </MenuItem>
         )}
-
-        <MenuExportMarkDownTable showExportMarkDown={showExportMarkDown} />
       </MenuList>
 
       {showClone && (

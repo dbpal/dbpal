@@ -628,10 +628,6 @@ impl SchemaTrait for Db2Db {
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         crate::language_server::LexerCompletionTrait::get_types(self).await
     }
-
-    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
-        todo!()
-    }
 }
 
 impl SqlBuilder for Db2Db {

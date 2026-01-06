@@ -33,5 +33,12 @@
   color: black;
 }
 .datagrid-field-been-modify {
-  opacity: 0.5;
+  color: gray;
+}
+.datagrid-field-row-highligth {
+  color: red;
+  font-weight: bolder;
+  font-size: 1.4rem;
+  font-style: italic;
+  text-decoration: underline;
 }

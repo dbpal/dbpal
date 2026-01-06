@@ -37,6 +37,7 @@ use crate::db::{
     escape_sql_str, export_query_as_xlsx_send_data,
 };
 
+use crate::firebird::gen_show_sql;
 use crate::helper::{create_csv, separate_sql_by_sqlparser_tokenizer};
 use crate::language_server::LexerCompletionTrait;
 use chrono::{DateTime, NaiveDate, NaiveTime};
@@ -629,7 +630,7 @@ impl ReadOnlyTrait for CassandraDB {
 }
 impl CassandraDB {
     async fn export_table_as_sql(
-        &self, table_name: &str, include_table_schema: bool,
+        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
@@ -642,11 +643,29 @@ impl CassandraDB {
             }
         }
         let cols = self.show_table_columns(table_name).await?;
-        let sql = format!(
-            r#"SELECT {} from "{}""#,
-            self.backend_name().format_fields(Some(&cols)),
-            table_name
-        );
+        let sql = if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = &para;
+            gen_show_sql(
+                table_name,
+                None,
+                where_str.as_deref(),
+                order_by.as_deref(),
+                *page,
+                *page_size,
+            )
+        } else {
+            format!(
+                r#"SELECT {} from "{}""#,
+                self.backend_name().format_fields(Some(&cols)),
+                table_name
+            )
+        };
         log::info!("sql:{}", sql);
         let pager = self.session.query_iter(sql.as_str(), &[]).await?;
 
@@ -789,17 +808,37 @@ impl SchemaTrait for CassandraDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self.export_table_as_sql(name, include_table_schema, sender)
+                self.export_table_as_sql(name, para, include_table_schema, sender)
                     .await
             }
             _ => {
-                let sql = format!(r#"SELECT * from "{}""#, name);
+                let sql = if let Some(para) = para {
+                    let ShowTableParameter {
+                        where_str,
+                        order_by,
+                        page,
+                        page_size,
+                        ..
+                    } = &para;
+
+                    gen_show_sql(
+                        name,
+                        None,
+                        where_str.as_deref(),
+                        order_by.as_deref(),
+                        *page,
+                        *page_size,
+                    )
+                } else {
+                    format!(r#"SELECT * from "{}""#, name)
+                };
                 self.export_query_result(None, &sql, kind, sender).await
             }
         }
@@ -860,6 +899,7 @@ impl SchemaTrait for CassandraDB {
             tokio::spawn(async move {
                 x.export_table_or_view(
                     &table,
+                    None,
                     ExportKind::Sql {
                         // we only need data now.
                         include_table_schema: false,
@@ -1106,10 +1146,6 @@ impl SchemaTrait for CassandraDB {
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         LexerCompletionTrait::get_types(self).await
-    }
-
-    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
-        SqlBuilder::create_table_sql(self, self.config.db.as_deref(), req)
     }
 }
 

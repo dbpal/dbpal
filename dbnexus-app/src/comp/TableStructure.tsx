@@ -840,6 +840,7 @@ function MongoAddIndex(props: { uuid; table; handleClose; reload }) {
         }}
         doc={{}}
         setName="create index"
+        needConfirm={false}
       />
     </Stack>
   );

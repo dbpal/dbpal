@@ -51,16 +51,16 @@ impl LanguageServer for SubDB {
         LexerCompletionTrait::ai_text_completion(self, sql, line, col).await
     }
 
-    async fn try_get_max_id(&self, _name: &str) -> anyhow::Result<String> {
-        self.as_lang_server().try_get_max_id(_name).await
+    async fn try_get_max_id(&self, name: &str) -> anyhow::Result<String> {
+        self.as_lang_server().try_get_max_id(name).await
     }
 
-    async fn get_search_path(&self, _query_id: &str) -> anyhow::Result<HashSet<String>> {
-        self.as_lang_server().get_search_path(_query_id).await
+    async fn get_search_path(&self, query_id: &str) -> anyhow::Result<HashSet<String>> {
+        self.as_lang_server().get_search_path(query_id).await
     }
 
-    async fn check_sql(&self, _sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
-        self.as_lang_server().check_sql(_sql).await
+    async fn check_sql(&self, sql: &str) -> anyhow::Result<Option<ErrAndLoc>> {
+        self.as_lang_server().check_sql(sql).await
     }
 
     fn is_dangerous_sql(&self, sql: &str) -> anyhow::Result<bool> {
@@ -107,9 +107,9 @@ impl LexerCompletionTrait for SubDB {
 impl SubDB {
     fn as_lang_server_common(&self) -> &dyn LangServerCommon {
         match self {
-            SubDB::TiDB(x) => x.as_ref(),
-            SubDB::MariaDb(db) => db.as_ref(),
-            SubDB::CocoRoach(db) => db.as_ref(),
+            SubDB::TiDB(x) => x.as_ref() as &dyn LangServerCommon,
+            SubDB::MariaDb(db) => db.as_ref() as &dyn LangServerCommon,
+            SubDB::CocoRoach(db) => db.as_ref() as &dyn LangServerCommon,
         }
     }
 }
@@ -144,19 +144,15 @@ impl LangServerCommon for SubDB {
     async fn list_user(&self) -> anyhow::Result<Vec<String>> {
         self.as_lang_server_common().list_user().await
     }
-    async fn list_domain(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        self.as_lang_server_common().list_domain(_schema).await
+    async fn list_domain(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        self.as_lang_server_common().list_domain(schema).await
     }
 
-    async fn list_created_type(
-        &self, _schema: Option<&str>,
-    ) -> anyhow::Result<Vec<CreatedTypeDef>> {
-        self.as_lang_server_common()
-            .list_created_type(_schema)
-            .await
+    async fn list_created_type(&self, schema: Option<&str>) -> anyhow::Result<Vec<CreatedTypeDef>> {
+        self.as_lang_server_common().list_created_type(schema).await
     }
-    async fn list_sequence(&self, _schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
-        self.as_lang_server_common().list_sequence(_schema).await
+    async fn list_sequence(&self, schema: Option<&str>) -> anyhow::Result<Vec<SequenceDetail>> {
+        self.as_lang_server_common().list_sequence(schema).await
     }
     async fn list_schema(&self) -> anyhow::Result<Vec<String>> {
         self.as_lang_server_common().list_schema().await
@@ -164,8 +160,8 @@ impl LangServerCommon for SubDB {
     async fn list_database(&self) -> anyhow::Result<Vec<String>> {
         self.as_ast_completion_helper().list_database().await
     }
-    async fn list_execute(&self, _schema: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
-        self.as_lang_server_common().list_execute(_schema).await
+    async fn list_execute(&self, schema: Option<&str>) -> anyhow::Result<Vec<DBExecutable>> {
+        self.as_lang_server_common().list_execute(schema).await
     }
     fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect + Send + Sync> {
         self.as_lang_server_common().dialect()
@@ -203,8 +199,8 @@ impl LangServerCommon for SubDB {
             }
         }
     }
-    async fn list_procedure(&self, _schema: Option<&str>) -> anyhow::Result<Vec<String>> {
-        self.as_lang_server_common().list_procedure(_schema).await
+    async fn list_procedure(&self, schema: Option<&str>) -> anyhow::Result<Vec<String>> {
+        self.as_lang_server_common().list_procedure(schema).await
     }
     async fn list_column(
         &self, schema: Option<&str>, name: &str, is_call: Option<Vec<String>>,
@@ -218,9 +214,9 @@ impl LangServerCommon for SubDB {
 impl SubDB {
     fn as_ast_completion_helper(&self) -> &dyn AstCompletionHelper {
         match self {
-            SubDB::TiDB(x) => x.as_ref(),
-            SubDB::MariaDb(db) => db.as_ref(),
-            SubDB::CocoRoach(db) => db.as_ref(),
+            SubDB::TiDB(x) => x.as_ref() as &dyn AstCompletionHelper,
+            SubDB::MariaDb(db) => db.as_ref() as &dyn AstCompletionHelper,
+            SubDB::CocoRoach(db) => db.as_ref() as &dyn AstCompletionHelper,
         }
     }
 }

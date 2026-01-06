@@ -200,7 +200,9 @@ pub trait SchemaTrait:
         }
         anyhow::Ok(())
     }
-    fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>>;
+    fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
+        SqlBuilder::create_table_sql(self, req)
+    }
 
     fn create_table_sql_string(&self, req: &CreateTableReq) -> anyhow::Result<String> {
         SchemaTrait::create_table_sql(self, req).map(|x| x.join(";\n"))
@@ -338,7 +340,8 @@ pub trait SchemaTrait:
     }
 
     async fn export_table_or_view(
-        &self, _name: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self, _name: &str, _: Option<ShowTableParameter>, _kind: ExportKind,
+        _sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         not_support_feature(self.backend_name())
     }
@@ -371,7 +374,8 @@ pub trait SchemaTrait:
 
     /// export as sql only support table so the frontend should only not pass this kind
     async fn export_table_or_view_to_file(
-        &self, table_name: &str, filepath: &str, kind: ExportKind, emit: ExportedSizeEmitter,
+        &self, table_name: &str, para: Option<ShowTableParameter>, filepath: &str,
+        kind: ExportKind, emit: ExportedSizeEmitter,
     ) -> anyhow::Result<()> {
         if !self.table_exists(table_name).await? {
             anyhow::bail!("table not exists")
@@ -380,11 +384,10 @@ pub trait SchemaTrait:
         let h1 = {
             let x = SchemaTrait::clone(self);
             let table_name = table_name.to_string();
-            let h1 =
-                tokio::spawn(
-                    async move { x.export_table_or_view(&table_name, kind, sender).await },
-                );
-
+            let h1 = tokio::spawn(async move {
+                x.export_table_or_view(&table_name, para, kind, sender)
+                    .await
+            });
             h1
         };
         let h2 = {
@@ -480,10 +483,10 @@ pub trait SchemaTrait:
         let h1 = {
             let x = SchemaTrait::clone(self);
             let table_name = table_name.to_string();
-            let h1 =
-                tokio::spawn(
-                    async move { x.export_table_or_view(&table_name, kind, sender).await },
-                );
+            let h1 = tokio::spawn(async move {
+                x.export_table_or_view(&table_name, None, kind, sender)
+                    .await
+            });
             h1
         };
         let h2 = { tokio::spawn(async move { collect_export_str(kind, receiver).await }) };
@@ -728,9 +731,8 @@ pub trait SqlBuilder: GetBackendKind {
     // stupid create table sql auto increment must be primary key.
     // and  not primary key must can be in `PRIMARY KEY(aaa , bbb )` syntax
     // this method should be able used most cases
-    fn create_table_sql(
-        &self, schema: Option<&str>, req: &CreateTableReq,
-    ) -> anyhow::Result<Vec<String>> {
+    fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
+        let schema = self.get_schema();
         let mut sql = format!(
             "CREATE TABLE {}{}(\n",
             schema.map(|x| self.quote(x)).unwrap_or_default(),

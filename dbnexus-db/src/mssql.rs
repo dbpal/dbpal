@@ -3,13 +3,13 @@ use crate::TEST_HOST;
 use crate::datasource_config::SqlServerDBConfig;
 use crate::db::{
     BackendKind, CatalogTrait, CheckConn, ColumnType, CreateDatabaseExtra, CreateIndexReq,
-    CreateSchemaExtra, CreateTableReq, DBTrait, DefAndMetas, ExportFrame, ExportKind,
-    ExportQueryResult, Field, GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff,
-    POOL_MAX_CONNECTIONS, ProcedureDetail, QueryEvent, QueryResp, QuerySql, ReadOnlyTrait,
-    SchemaTrait, ServerMetas, ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEnable,
-    TriggerEvent, TriggerTiming, UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data,
-    create_html_table_header, create_markdown_data, create_markdown_header, escape_sql_str,
-    export_query_as_xlsx_send_data, format_data_time_fix_offset, not_support_feature,
+    CreateSchemaExtra, DBTrait, DefAndMetas, ExportFrame, ExportKind, ExportQueryResult, Field,
+    GetBackendKind, Index, IndexKind, ListTable, MetaValue, NamedStaff, POOL_MAX_CONNECTIONS,
+    ProcedureDetail, QueryEvent, QueryResp, QuerySql, ReadOnlyTrait, SchemaTrait, ServerMetas,
+    ShowTableParameter, SqlBuilder, TriggerDetail, TriggerEnable, TriggerEvent, TriggerTiming,
+    UdfOrProcedureExtraParameter, XlsxEdit, create_html_table_data, create_html_table_header,
+    create_markdown_data, create_markdown_header, escape_sql_str, export_query_as_xlsx_send_data,
+    format_data_time_fix_offset, not_support_feature,
 };
 use crate::db::{OptionMustBeSomeErr, QueryEventEmitter};
 use crate::helper::create_csv;
@@ -277,7 +277,7 @@ fn encode_row(row: &tiberius::Row) -> anyhow::Result<Vec<Option<String>>> {
     anyhow::Ok(values)
 }
 
-fn gen_select_sql(
+fn gen_show_sql(
     schema: &str, table_name: &str, fields: Option<String>, where_str: Option<&str>,
     order_by: Option<&str>, page: usize, page_size: usize,
 ) -> String {
@@ -727,17 +727,37 @@ impl SchemaTrait for SqlServerDB {
     }
 
     async fn export_table_or_view(
-        &self, table_name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self, table_name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self.export_table_as_sql(table_name, include_table_schema, sender)
+                self.export_table_as_sql(table_name, para, include_table_schema, sender)
                     .await
             }
             _ => {
-                let sql = format!("SELECT * from {}", table_name);
+                let sql = if let Some(para) = para {
+                    let ShowTableParameter {
+                        where_str,
+                        order_by,
+                        page,
+                        page_size,
+                        ..
+                    } = &para;
+                    gen_show_sql(
+                        self.config.schema_str()?,
+                        table_name,
+                        None,
+                        where_str.as_deref(),
+                        order_by.as_deref(),
+                        *page,
+                        *page_size,
+                    )
+                } else {
+                    format!(r#"SELECT * from "{}" "#, table_name)
+                };
                 self.export_query_result(None, &sql, kind, sender).await
             }
         }
@@ -773,7 +793,7 @@ impl SchemaTrait for SqlServerDB {
             where_str.as_deref(),
         )
         .await?;
-        let sql = gen_select_sql(
+        let sql = gen_show_sql(
             self.config.schema_str()?.as_str(),
             view_name,
             None,
@@ -915,7 +935,7 @@ impl SchemaTrait for SqlServerDB {
         )
         .await?;
         let fields = self.show_table_columns(table_name).await?;
-        let sql = gen_select_sql(
+        let sql = gen_show_sql(
             self.config.schema_str()?.as_str(),
             table_name,
             Some(self.backend_name().format_fields(Some(&fields))),
@@ -1167,10 +1187,6 @@ impl SchemaTrait for SqlServerDB {
         self.execute_simple_execute(&sql).await?;
         anyhow::Ok(())
     }
-
-    fn create_table_sql(&self, req: &CreateTableReq) -> anyhow::Result<Vec<String>> {
-        SqlBuilder::create_table_sql(self, self.config.schema.as_deref(), req)
-    }
 }
 /// SQL Server 里可直接写在 SQL 语句中的 CURRENT_* / 无括号字面量
 pub const SQLSERVER_CURRENT_LITERALS: &[&str] = &[
@@ -1386,7 +1402,7 @@ fn encode_row_as_json(row: &Row) -> anyhow::Result<serde_json::Map<String, serde
 
 impl SqlServerDB {
     async fn export_table_as_sql(
-        &self, table_name: &str, include_table_schema: bool,
+        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
@@ -1403,7 +1419,26 @@ impl SqlServerDB {
         let mut conn = self.get_conn().await?;
         let conn = conn.deref_mut();
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let sql = format!(r#"SELECT * from "{}""#, table_name);
+        let sql = if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = &para;
+            gen_show_sql(
+                self.config.schema_str()?,
+                table_name,
+                Some(self.backend_name().format_fields(Some(&cols))),
+                where_str.as_deref(),
+                order_by.as_deref(),
+                *page,
+                *page_size,
+            )
+        } else {
+            format!(r#"SELECT * from "{}""#, table_name)
+        };
         log::info!("sql:{}", sql);
         let mut stream = conn.query(sql.as_str(), &[]).await?;
         while let Some(row) = stream.next().await {
@@ -2153,8 +2188,8 @@ mod tests {
 
     use super::*;
     use crate::db::{
-        CatalogTrait, CreateIndexColumn, CreateTableReqColumn, ShowTableParameter, SqlNullAble,
-        TestQueryEventEmit,
+        CatalogTrait, CreateIndexColumn, CreateTableReq, CreateTableReqColumn, ShowTableParameter,
+        SqlNullAble, TestQueryEventEmit,
     };
     use crate::enable_test_log;
 

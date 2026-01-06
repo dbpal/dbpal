@@ -354,40 +354,40 @@ impl SchemaTrait for SubDB {
         self.as_schema().list_data_types().await
     }
 
-    async fn drop_table_column(&self, _table: &str, _col: &str) -> anyhow::Result<()> {
-        self.as_schema().drop_table_column(_table, _col).await
+    async fn drop_table_column(&self, _table: &str, col: &str) -> anyhow::Result<()> {
+        self.as_schema().drop_table_column(_table, col).await
     }
     async fn modify_table_column(
-        &self, _table: &str, _old_name: &str, _new_name: &str, _typ: Option<ColumnType>,
+        &self, table: &str, old_name: &str, new_name: &str, typ: Option<ColumnType>,
     ) -> anyhow::Result<()> {
         self.as_schema()
-            .modify_table_column(_table, _old_name, _new_name, _typ)
+            .modify_table_column(table, old_name, new_name, typ)
             .await
     }
     async fn add_table_column(
-        &self, _table: &str, _name: &str, _col: ColumnType,
+        &self, table: &str, name: &str, col: ColumnType,
     ) -> anyhow::Result<()> {
-        self.as_schema().add_table_column(_table, _name, _col).await
+        self.as_schema().add_table_column(table, name, col).await
     }
 
     async fn rename_index(
-        &self, _table_name: &str, _oldname: &str, _newname: &str,
+        &self, table_name: &str, _oldname: &str, newname: &str,
     ) -> anyhow::Result<()> {
         self.as_schema()
-            .rename_index(_table_name, _oldname, _newname)
+            .rename_index(table_name, _oldname, newname)
             .await
     }
 
-    async fn show_indexes(&self, _table_name: &str) -> anyhow::Result<Vec<Index>> {
-        self.as_schema().show_indexes(_table_name).await
+    async fn show_indexes(&self, table_name: &str) -> anyhow::Result<Vec<Index>> {
+        self.as_schema().show_indexes(table_name).await
     }
 
-    async fn create_index(&self, _table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
-        self.as_schema().create_index(_table, req).await
+    async fn create_index(&self, table: &str, req: &CreateIndexReq) -> anyhow::Result<()> {
+        self.as_schema().create_index(table, req).await
     }
 
-    async fn drop_index(&self, _table_name: &str, _index: &str) -> anyhow::Result<()> {
-        self.as_schema().drop_index(_table_name, _index).await
+    async fn drop_index(&self, table_name: &str, _index: &str) -> anyhow::Result<()> {
+        self.as_schema().drop_index(table_name, _index).await
     }
 
     async fn list_materialized_view(&self) -> anyhow::Result<Vec<ListTable>> {
@@ -399,10 +399,11 @@ impl SchemaTrait for SubDB {
     }
 
     async fn export_table_or_view(
-        &self, _name: &str, _kind: ExportKind, _sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         self.as_schema()
-            .export_table_or_view(_name, _kind, _sender)
+            .export_table_or_view(name, para, kind, sender)
             .await
     }
 
@@ -419,10 +420,11 @@ impl SchemaTrait for SubDB {
     }
 
     async fn export_table_or_view_to_file(
-        &self, table_name: &str, filepath: &str, kind: ExportKind, emit: ExportedSizeEmitter,
+        &self, table_name: &str, para: Option<ShowTableParameter>, filepath: &str,
+        kind: ExportKind, emit: ExportedSizeEmitter,
     ) -> anyhow::Result<()> {
         self.as_schema()
-            .export_table_or_view_to_file(table_name, filepath, kind, emit)
+            .export_table_or_view_to_file(table_name, para, filepath, kind, emit)
             .await
     }
 
@@ -438,21 +440,21 @@ impl SchemaTrait for SubDB {
             .await
     }
 
-    async fn list_trigger(&self, _table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
-        self.as_schema().list_trigger(_table_name).await
+    async fn list_trigger(&self, table_name: &str) -> anyhow::Result<Vec<NamedStaff>> {
+        self.as_schema().list_trigger(table_name).await
     }
-    async fn show_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<TriggerDetail> {
-        self.as_schema().show_trigger(_table, _name).await
+    async fn show_trigger(&self, table: &str, name: &str) -> anyhow::Result<TriggerDetail> {
+        self.as_schema().show_trigger(table, name).await
     }
-    async fn drop_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
-        self.as_schema().drop_trigger(_table, _name).await
+    async fn drop_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        self.as_schema().drop_trigger(table, name).await
     }
 
-    async fn disable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
-        self.as_schema().disable_trigger(_table, _name).await
+    async fn disable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        self.as_schema().disable_trigger(table, name).await
     }
-    async fn enable_trigger(&self, _table: &str, _name: &str) -> anyhow::Result<()> {
-        self.as_schema().enable_trigger(_table, _name).await
+    async fn enable_trigger(&self, table: &str, name: &str) -> anyhow::Result<()> {
+        self.as_schema().enable_trigger(table, name).await
     }
 
     async fn list_udf(&self) -> anyhow::Result<Vec<NamedStaff>> {
@@ -460,29 +462,29 @@ impl SchemaTrait for SubDB {
     }
 
     async fn show_udf(
-        &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<DefAndMetas> {
-        self.as_schema().show_udf(_name, _arg).await
+        self.as_schema().show_udf(name, arg).await
     }
 
     async fn drop_udf(
-        &self, _name: &str, _extra: Option<UdfOrProcedureExtraParameter>,
+        &self, name: &str, extra: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        self.as_schema().drop_udf(_name, _extra).await
+        self.as_schema().drop_udf(name, extra).await
     }
 
     async fn list_procedure(&self) -> anyhow::Result<Vec<NamedStaff>> {
         self.as_schema().list_procedure().await
     }
     async fn show_procedure(
-        &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<ProcedureDetail> {
-        self.as_schema().show_procedure(_name, _arg).await
+        self.as_schema().show_procedure(name, arg).await
     }
     async fn drop_procedure(
-        &self, _name: &str, _arg: Option<UdfOrProcedureExtraParameter>,
+        &self, name: &str, arg: Option<UdfOrProcedureExtraParameter>,
     ) -> anyhow::Result<()> {
-        self.as_schema().drop_procedure(_name, _arg).await
+        self.as_schema().drop_procedure(name, arg).await
     }
 
     async fn table_exists(&self, table: &str) -> anyhow::Result<bool> {
@@ -514,24 +516,24 @@ impl SchemaTrait for SubDB {
             _ => self.as_schema().list_sequence().await,
         }
     }
-    async fn rename_sequence(&self, _old: &str, _new: &str) -> anyhow::Result<()> {
+    async fn rename_sequence(&self, old: &str, new: &str) -> anyhow::Result<()> {
         match self {
             SubDB::MariaDb(db) => {
                 let t = MariaDB { db: db.clone() };
-                t.rename_sequence(_old, _new).await
+                t.rename_sequence(old, new).await
             }
 
-            _ => self.as_schema().rename_sequence(_old, _new).await,
+            _ => self.as_schema().rename_sequence(old, new).await,
         }
     }
 
-    async fn drop_sequence(&self, _name: &str, _cascade: bool) -> anyhow::Result<()> {
+    async fn drop_sequence(&self, name: &str, cascade: bool) -> anyhow::Result<()> {
         match self {
             SubDB::MariaDb(db) => {
                 let t = MariaDB { db: db.clone() };
-                t.drop_sequence(_name, false).await
+                t.drop_sequence(name, cascade).await
             }
-            _ => self.as_schema().drop_sequence(_name, false).await,
+            _ => self.as_schema().drop_sequence(name, cascade).await,
         }
     }
 
@@ -541,11 +543,7 @@ impl SchemaTrait for SubDB {
     async fn list_event(&self) -> anyhow::Result<Vec<SqlEvent>> {
         self.as_schema().list_event().await
     }
-    async fn drop_event(&self, _name: &str) -> anyhow::Result<()> {
-        self.as_schema().drop_event(_name).await
-    }
-
-    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
-        SchemaTrait::create_table_sql(self.as_schema(), req)
+    async fn drop_event(&self, name: &str) -> anyhow::Result<()> {
+        self.as_schema().drop_event(name).await
     }
 }

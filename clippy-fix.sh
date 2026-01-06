@@ -1,1 +1,1 @@
-cargo clippy --fix  --allow-dirty
+cargo clippy --fix  --allow-dirty --features duckdb

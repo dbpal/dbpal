@@ -233,7 +233,7 @@ function ExportView(props: {
           color="primary"
           loading={loading}
         >
-          <ArrowCircleDownIcon> </ArrowCircleDownIcon>
+          <ArrowCircleDownIcon />
         </IconButton>
         {loading && (
           <CancelButton
@@ -255,8 +255,9 @@ function ExportTableOrView(props: {
   name: string;
   supportKind: string[];
   handleClose: () => void;
+  para?: types.ShowTableParameter;
 }) {
-  const { uuid, name, supportKind, handleClose } = props;
+  const { uuid, name, supportKind, handleClose, para } = props;
   return (
     <ExportView
       exportOP={async (kind, filepath, taskId, sizeEmitter) => {
@@ -267,6 +268,7 @@ function ExportTableOrView(props: {
           kind,
           sizeEmitter,
           taskId,
+          para,
         });
       }}
       supportKind={supportKind}

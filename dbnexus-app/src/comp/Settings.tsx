@@ -668,7 +668,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
         <Autocomplete
           style={{ flex: 1, maxWidth: "32rem" }}
           options={moddelCan}
-          value={model}
+          value={model as any}
           renderInput={params => (
             <TextField
               {...params}
@@ -703,7 +703,7 @@ function LLMSetting(props: { handleClose?: () => void }) {
               </Stack>
             </li>
           )}
-          freeSolo
+          freeSolo={false}
           onChange={(_, name) => {
             setModel(typeof name == "string" ? name : name.id);
           }}

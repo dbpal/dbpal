@@ -414,6 +414,9 @@ function DbSchemaCadidates(props: {
         onChange={(_, name) => {
           setName(name);
         }}
+        onInputChange={(_, value) => {
+          setName(value);
+        }}
       />
 
       <TextField

@@ -71,7 +71,7 @@ impl SqliteDB {
     }
 
     async fn export_table_as_sql(
-        &self, table_name: &str, include_table_schema: bool,
+        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
@@ -85,7 +85,25 @@ impl SqliteDB {
         }
         let mut conn = self.get_conn().await?;
         let cols = SchemaTrait::show_table_columns(self, table_name).await?;
-        let sql = format!("SELECT * from {}", table_name);
+        let sql = if let Some(para) = para {
+            let ShowTableParameter {
+                where_str,
+                order_by,
+                page,
+                page_size,
+                ..
+            } = &para;
+            gen_show_sql(
+                table_name,
+                self.backend_name().format_fields(Some(&cols)).into(),
+                where_str.as_deref(),
+                order_by.as_deref(),
+                *page,
+                *page_size,
+            )
+        } else {
+            format!("SELECT * from {}", table_name)
+        };
         log::info!("sql:{}", sql);
         let mut stream = sqlx::raw_sql(AssertSqlSafe(sql.as_str())).fetch(conn.deref_mut());
         while let Some(row) = stream.next().await {
@@ -457,17 +475,36 @@ impl SchemaTrait for SqliteDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self.export_table_as_sql(name, include_table_schema, sender)
+                self.export_table_as_sql(name, para, include_table_schema, sender)
                     .await
             }
             _ => {
-                let sql = format!("SELECT * from {}", name);
+                let sql = if let Some(para) = para {
+                    let ShowTableParameter {
+                        where_str,
+                        order_by,
+                        page,
+                        page_size,
+                        ..
+                    } = &para;
+                    gen_show_sql(
+                        name,
+                        None,
+                        where_str.as_deref(),
+                        order_by.as_deref(),
+                        *page,
+                        *page_size,
+                    )
+                } else {
+                    format!("SELECT * from {}", name)
+                };
                 self.export_query_result(None, &sql, kind, sender).await
             }
         }
@@ -701,10 +738,6 @@ impl SchemaTrait for SqliteDB {
             ))
         }
         anyhow::Ok(ret)
-    }
-
-    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
-        SqlBuilder::create_table_sql(self, None, req)
     }
 }
 
@@ -2014,6 +2047,7 @@ mod tests {
             let filepath = db.backend_name().make_test_xlsx_file(table_name);
             db.export_table_or_view_to_file(
                 table_name,
+                None,
                 &filepath,
                 ExportKind::Xlsx {
                     include_header: true,

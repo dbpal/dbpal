@@ -635,7 +635,7 @@ fn encode_row<'stmt>(row: &duckdb::Row<'stmt>) -> anyhow::Result<Vec<Option<Stri
 
 impl DuckDB {
     async fn export_table_as_sql(
-        &self, table_name: &str, include_table_schema: bool,
+        &self, table_name: &str, para: Option<ShowTableParameter>, include_table_schema: bool,
         sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         if include_table_schema {
@@ -653,12 +653,31 @@ impl DuckDB {
         let fs = self.show_table_columns(&table_name).await?;
         spawn_blocking(move || {
             let conn = this.get_conn()?;
-            let sql = format!(
-                r#"SELECT {} from "{}"."{}""#,
-                this.backend_name().format_fields(Some(&fs)),
-                this.config.schema_str(),
-                table_name
-            );
+            let sql = if let Some(para) = para {
+                let ShowTableParameter {
+                    where_str,
+                    order_by,
+                    page,
+                    page_size,
+                    ..
+                } = &para;
+                gen_show_sql(
+                    this.config.schema_str(),
+                    &table_name,
+                    this.backend_name().format_fields(Some(&fs)).as_str(),
+                    where_str.as_deref(),
+                    order_by.as_deref(),
+                    *page,
+                    *page_size,
+                )
+            } else {
+                format!(
+                    r#"SELECT {} from "{}"."{}""#,
+                    this.backend_name().format_fields(Some(&fs)),
+                    this.config.schema_str(),
+                    table_name
+                )
+            };
             let mut stmt = conn.prepare(&sql)?;
             let mut stream = stmt.query([])?;
             while let Some(row) = stream.next()? {
@@ -891,17 +910,37 @@ impl SchemaTrait for DuckDB {
     }
 
     async fn export_table_or_view(
-        &self, name: &str, kind: ExportKind, sender: tokio::sync::mpsc::Sender<ExportFrame>,
+        &self, name: &str, para: Option<ShowTableParameter>, kind: ExportKind,
+        sender: tokio::sync::mpsc::Sender<ExportFrame>,
     ) -> anyhow::Result<()> {
         match kind {
             ExportKind::Sql {
                 include_table_schema,
             } => {
-                self.export_table_as_sql(name, include_table_schema, sender)
+                self.export_table_as_sql(name, para, include_table_schema, sender)
                     .await
             }
             _ => {
-                let sql = format!(r#"SELECT * from "{}"."{}""#, self.config.schema_str(), name);
+                let sql = if let Some(para) = para {
+                    let ShowTableParameter {
+                        where_str,
+                        order_by,
+                        page,
+                        page_size,
+                        ..
+                    } = &para;
+                    gen_show_sql(
+                        self.config.schema_str(),
+                        name,
+                        "*",
+                        where_str.as_deref(),
+                        order_by.as_deref(),
+                        *page,
+                        *page_size,
+                    )
+                } else {
+                    format!(r#"SELECT * from "{}"."{}""#, self.config.schema_str(), name)
+                };
                 self.export_query_result(None, &sql, kind, sender).await
             }
         }
@@ -1208,10 +1247,6 @@ impl SchemaTrait for DuckDB {
 
     async fn list_data_types(&self) -> anyhow::Result<Vec<String>> {
         crate::language_server::LexerCompletionTrait::get_types(self).await
-    }
-
-    fn create_table_sql(&self, req: &crate::db::CreateTableReq) -> anyhow::Result<Vec<String>> {
-        SqlBuilder::create_table_sql(self, self.config.schema.as_deref(), req)
     }
 
     async fn list_sequence(&self) -> anyhow::Result<Vec<SequenceDetail>> {
