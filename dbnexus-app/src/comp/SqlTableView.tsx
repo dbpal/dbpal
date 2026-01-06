@@ -538,9 +538,6 @@ function SqlTableView(props: {
     if (index != -1) {
       apiRef.current.scrollToIndexes({ rowIndex: index });
     }
-    setTimeout(() => {
-      setHighLightRow("");
-    }, 5000);
   }, [apiRef, highLightRow, resp.data]);
 
   const [fetchDur, setFetchDur] = useState(0);
@@ -1065,6 +1062,9 @@ function SqlTableView(props: {
             setTimeout(() => {
               setHighLightRow(operation.old[keyNotInTable]);
             }, 200);
+            setTimeout(() => {
+              setHighLightRow("");
+            }, 10000);
           }}
         />
       ))}
