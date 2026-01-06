@@ -388,16 +388,21 @@ fn main() {
                     if let Err(err) = window.set_focus() {
                         log::error!("set focus failed:{}", err);
                     }
-                } else if let Err(err) = WebviewWindowBuilder::new(
-                    handle,
-                    setting_window_id.clone(),
-                    WebviewUrl::App("setting.html".to_string().into()),
-                )
-                .title("setting")
-                .inner_size(900f64, 700f64)
-                .build()
-                {
-                    log::error!("create setting window failed:{}", err);
+                } else {
+                    match WebviewWindowBuilder::new(
+                        handle,
+                        setting_window_id.clone(),
+                        WebviewUrl::App("setting.html".to_string().into()),
+                    )
+                    .title("setting")
+                    .inner_size(900f64, 700f64)
+                    // .devtools(true)
+                    // .maximized(true)
+                    .build()
+                    {
+                        Ok(_) => {}
+                        Err(err) => println!("create view failed,err:{}", err),
+                    }
                 }
             }
             if event.id.0 == "relauch" {

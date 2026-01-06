@@ -802,10 +802,6 @@ function MiscSetting() {
     showNotification("success", "save setting ok");
   };
   const [loglevel, setLogLevel] = useState(LoggerLevel.level);
-
-  useEffect(() => {
-    LoggerLevel.set(loglevel);
-  }, [loglevel]);
   return (
     <Stack style={{ textAlign: "right" }}>
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -824,6 +820,7 @@ function MiscSetting() {
           level={loglevel}
           handleChange={level => {
             setLogLevel(level);
+            LoggerLevel.set(level);
           }}
         />
         {loglevel !== "none" && (
