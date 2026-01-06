@@ -7,6 +7,10 @@ rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 
 [profile.release]
 opt-level = "z"
+# Generates minimal debug info for backtraces with function names, filename, and line numbers
+debug = "line-tables-only"
+# Ensure symbols and debuginfo are not removed after linking
+strip = false
 
 
 [target.x86_64-pc-windows-msvc]

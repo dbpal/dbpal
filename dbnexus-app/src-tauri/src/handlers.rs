@@ -21,7 +21,7 @@ use dbnexus_db::redis_lang_server::REDIS_COMMANDS_MD_FILES;
 use dbnexus_db::sqlite::SqliteDB;
 use dbnexus_db::sub::SubDB;
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
@@ -40,14 +40,25 @@ pub struct TaskManager {
     tokens: Arc<std::sync::Mutex<HashMap<String, CancellationToken>>>,
 }
 
-pub fn log_level_loc() -> &'static AtomicU32 {
-    static LOG_LEVEL_LOC: AtomicU32 = AtomicU32::new(0);
+pub fn log_level_loc() -> &'static Mutex<Option<log::Level>> {
+    static LOG_LEVEL_LOC: Mutex<Option<log::Level>> = Mutex::new(None);
     &LOG_LEVEL_LOC
 }
 
 #[tauri::command]
 pub fn set_log_level(level: Option<u32>) {
-    log_level_loc().store(level.unwrap_or_default(), Ordering::Relaxed);
+    let level = match level {
+        Some(level) => match level {
+            1 => Some(log::Level::Error),
+            2 => Some(log::Level::Warn),
+            3 => Some(log::Level::Info),
+            4 => Some(log::Level::Debug),
+            5 => Some(log::Level::Trace),
+            _ => None,
+        },
+        None => None,
+    };
+    *log_level_loc().lock().expect("lock failed") = level;
 }
 
 impl TaskManager {

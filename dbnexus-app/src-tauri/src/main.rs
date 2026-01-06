@@ -48,7 +48,6 @@ use handlers::{
 use std::io::Write;
 use std::panic;
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 #[allow(unused_imports)]
@@ -131,15 +130,7 @@ fn is_macos() -> bool {
 
 #[allow(dead_code)]
 fn get_logger_level() -> Option<log::Level> {
-    let level = log_level_loc().load(Ordering::Relaxed);
-    match level {
-        1 => Some(log::Level::Error),
-        2 => Some(log::Level::Warn),
-        3 => Some(log::Level::Info),
-        4 => Some(log::Level::Debug),
-        5 => Some(log::Level::Trace),
-        _ => None,
-    }
+    log_level_loc().lock().expect("lock failed").clone()
 }
 
 #[allow(unused)]
@@ -238,11 +229,29 @@ fn main() {
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default();
 
-    #[cfg(debug_assertions)] // only enable instrumentation in development builds
-    let devtools = tauri_plugin_devtools::init();
-    #[cfg(debug_assertions)]
+    #[cfg(all(debug_assertions, feature = "devtools"))]
     {
-        builder = builder.plugin(devtools);
+        let _devtools = tauri_plugin_devtools::init();
+        builder = builder.plugin(_devtools);
+    }
+
+    #[cfg(not(feature = "devtools"))]
+    {
+        builder = builder.plugin(
+            tauri_plugin_log::Builder::new()
+                .filter(|meta| {
+                    let level = get_logger_level();
+                    match level {
+                        Some(level) => level >= meta.level(),
+                        None => false,
+                    }
+                })
+                .targets(vec![
+                    Target::new(TargetKind::LogDir { file_name: None }),
+                    Target::new(TargetKind::Stdout),
+                ])
+                .build(),
+        );
     }
 
     builder
@@ -254,21 +263,6 @@ fn main() {
                 .add_migrations("sqlite:dbpal.sqlite.db", migration::migrations())
                 .build(),
         )
-        // .plugin(
-        //     tauri_plugin_log::Builder::new()
-        //         .filter(|meta| {
-        //             let level = get_logger_level();
-        //             match level {
-        //                 Some(level) => level >= meta.level(),
-        //                 None => false,
-        //             }
-        //         })
-        //         .targets(vec![
-        //             Target::new(TargetKind::LogDir { file_name: None }),
-        //             Target::new(TargetKind::Stdout),
-        //         ])
-        //         .build(),
-        // )
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())

@@ -1029,13 +1029,13 @@ function SqlTableView(props: {
           op={operation}
           handleDelete={applied => {
             setOps(ops => ops.filter((_, index) => idx != index));
+
             switch (operation.op) {
               case DatabaseOpKind.Update:
-                {
-                  if (applied) {
-                    // nothing here
-                    // we have update the data on UI
-                  } else {
+                if (applied) {
+                  // the value have been updated.
+                } else {
+                  if (!applied) {
                     setResp(resp => {
                       return {
                         ...resp,
@@ -1050,7 +1050,19 @@ function SqlTableView(props: {
                 }
                 break;
               case DatabaseOpKind.Delete: {
-                handleReload(false);
+                if (applied) {
+                  setResp(resp => {
+                    return {
+                      ...resp,
+                      data: resp.data.filter(
+                        data => data[keyNotInTable] != operation.old[keyNotInTable],
+                      ),
+                    };
+                  });
+                } else {
+                  // delete one line not change the data
+                  // no need use
+                }
                 break;
               }
             }
