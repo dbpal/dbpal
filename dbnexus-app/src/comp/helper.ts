@@ -8,7 +8,7 @@ import {
   ReactNode,
 } from "react";
 import { ask, message } from "@tauri-apps/plugin-dialog";
-import { load } from "@tauri-apps/plugin-store";
+import { LazyStore } from "@tauri-apps/plugin-store";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
 import { BSON } from "bson";
@@ -22,7 +22,7 @@ import { PassWordManager } from "./Common";
 import { ChatOpenAI } from "@langchain/openai";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 const pageSizeOptions = [10, 20, 50, 100];
-const appStore = await load("store.json");
+const appStore = new LazyStore("store.json");
 import prettyMilliseconds from "pretty-ms";
 
 function prettyMs(x: number) {
