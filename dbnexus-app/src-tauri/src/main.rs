@@ -396,8 +396,8 @@ fn main() {
                     )
                     .title("setting")
                     .inner_size(900f64, 700f64)
-                    // .devtools(true)
-                    // .maximized(true)
+                    .devtools(true)
+                    .maximized(true)
                     .build()
                     {
                         Ok(_) => {}

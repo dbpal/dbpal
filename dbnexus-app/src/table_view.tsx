@@ -1,5 +1,5 @@
 import ReactDOM from "react-dom/client";
-import React, { ReactNode } from "react";
+import { ReactNode } from "react";
 import {
   DataSourceKind,
   NewWindowTableParameter,
@@ -35,15 +35,13 @@ switch (kind) {
 let closeMsg = "";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <SetCloseConfirmTextContext.Provider
-      value={m => {
-        closeMsg = m;
-      }}
-    >
-      <SeparateWindow>{content}</SeparateWindow>
-    </SetCloseConfirmTextContext.Provider>
-  </React.StrictMode>,
+  <SetCloseConfirmTextContext.Provider
+    value={m => {
+      closeMsg = m;
+    }}
+  >
+    <SeparateWindow>{content}</SeparateWindow>
+  </SetCloseConfirmTextContext.Provider>,
 );
 
 const webview = WebviewWindow.getCurrent();
