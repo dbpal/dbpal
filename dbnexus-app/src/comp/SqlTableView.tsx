@@ -82,7 +82,6 @@ import {
   dataGridheaderFontSize,
   shrinkAble,
   SetStatusFn,
-  executeSqlWithoutConn,
   SetCloseConfirmTextContext,
   getSupportExportKind,
 } from "./helper";

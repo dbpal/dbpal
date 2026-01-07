@@ -1082,16 +1082,16 @@ function AllKindChat(props: {
         showNotification("error", "get llm config failed", e);
       });
   }, [showNotification]);
-  useEffect(() => {
-    const unlisten = appStore.onKeyChange(LLMConfig.key, () => {
-      handleReload();
-    });
-    return () => {
-      unlisten.then(x => {
-        x();
-      });
-    };
-  }, [handleReload]);
+  // useEffect(() => {
+  //   const unlisten = appStore.onKeyChange(LLMConfig.key, () => {
+  //     handleReload();
+  //   });
+  //   return () => {
+  //     unlisten.then(x => {
+  //       x();
+  //     });
+  //   };
+  // }, [handleReload]);
 
   useEffect(() => {
     handleReload();

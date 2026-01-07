@@ -509,13 +509,13 @@ class ColumnWidth {
   static instance = new ColumnWidth();
 }
 
-{
-  appDatabase.select("select * from column_width").then(xs => {
-    (xs as { name: string; width: number }[]).forEach(e => {
-      ColumnWidth.instance.width[e.name] = e.width;
-    });
-  });
-}
+// {
+//   appDatabase.select("select * from column_width").then(xs => {
+//     (xs as { name: string; width: number }[]).forEach(e => {
+//       ColumnWidth.instance.width[e.name] = e.width;
+//     });
+//   });
+// }
 
 const TabActiveContext = createContext(true);
 const handleCopyToClipboard = (text, showNotification?, okCallBack?) => {
@@ -758,15 +758,16 @@ class LoggerLevel {
   static level: string = "none";
   static async set(level: string) {
     LoggerLevel.level = level;
-    await appStore.set(LoggerLevel.key, level);
+    // await appStore.set(LoggerLevel.key, level);
   }
 }
-{
-  const level = await appStore.get<string>(LoggerLevel.key);
-  if (level) {
-    LoggerLevel.level = level;
-  }
-}
+
+// {
+//   const level = await appStore.get<string>(LoggerLevel.key);
+//   if (level) {
+//     LoggerLevel.level = level;
+//   }
+// }
 
 function postgresLike(x: DataSourceKind) {
   switch (x) {
@@ -1115,7 +1116,7 @@ class LLMConfig {
         }
       }
       this.apiKey = "";
-      appStore.set(LLMConfig.key, this);
+      // appStore.set(LLMConfig.key, this);
     } catch (e) {
       console.error("save llm config failed", e);
       message("save llm config failed", { kind: "error" });
@@ -1127,16 +1128,18 @@ class LLMConfig {
   }
 
   static async get(): Promise<LLMConfig | null> {
-    let ret = await appStore.get<LLMConfig | null>(LLMConfig.key);
-    if (ret) {
-      ret = { ...new LLMConfig(), ...ret } as LLMConfig;
-      Object.setPrototypeOf(ret, LLMConfig.prototype);
-      if (ret.enable()) {
-        const pass = await PassWordManager.getPassword(LLMConfig.key);
-        ret.apiKey = pass;
-      }
-    }
-    return ret;
+    return null;
+
+    // let ret = await appStore.get<LLMConfig | null>(LLMConfig.key);
+    // if (ret) {
+    //   ret = { ...new LLMConfig(), ...ret } as LLMConfig;
+    //   Object.setPrototypeOf(ret, LLMConfig.prototype);
+    //   if (ret.enable()) {
+    //     const pass = await PassWordManager.getPassword(LLMConfig.key);
+    //     ret.apiKey = pass;
+    //   }
+    // }
+    // return ret;
   }
 }
 enum MongoLanguage {
@@ -1252,16 +1255,16 @@ export type { ErrAndLoc, NewWindowTableParameter, QueryRespData, SetStatusFn };
 
 async function webviewWIndowInit() {
   const currentWebview = await WebviewWindow.getCurrent();
-  appStore.get<number>("zoom").then(async zoom => {
-    if (zoom) {
-      try {
-        await currentWebview.setZoom(zoom);
-      } catch (e) {
-        console.error("set zoom failed", e);
-        message("set zoom failed : " + String(e), { kind: "error" });
-      }
-    }
-  });
+  // appStore.get<number>("zoom").then(async zoom => {
+  //   if (zoom) {
+  //     try {
+  //       await currentWebview.setZoom(zoom);
+  //     } catch (e) {
+  //       console.error("set zoom failed", e);
+  //       message("set zoom failed : " + String(e), { kind: "error" });
+  //     }
+  //   }
+  // });
   if (["windows", "linux"].includes(platform())) {
     document.addEventListener("keydown", function (event) {
       if (event.key === "F11") {

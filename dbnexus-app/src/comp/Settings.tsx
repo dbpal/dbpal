@@ -104,20 +104,20 @@ function AppearanceSetting() {
     setBgColorErr("");
   }, [bgColor]);
 
-  useEffect(() => {
-    const key = "zoom";
-    appStore.get<number>(key).then(z => {
-      setZoom(z);
-    });
-    const unlisten = appStore.onKeyChange<number>(key, z => {
-      setZoom(z);
-    });
-    return () => {
-      unlisten.then(f => {
-        f();
-      });
-    };
-  }, []);
+  // useEffect(() => {
+  //   const key = "zoom";
+  //   appStore.get<number>(key).then(z => {
+  //     setZoom(z);
+  //   });
+  //   const unlisten = appStore.onKeyChange<number>(key, z => {
+  //     setZoom(z);
+  //   });
+  //   return () => {
+  //     unlisten.then(f => {
+  //       f();
+  //     });
+  //   };
+  // }, []);
 
   useEffect(() => {
     invoke<string[]>("all_font_family", {})

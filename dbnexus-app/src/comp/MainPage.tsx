@@ -345,7 +345,6 @@ function SeparateWindow(props: { children }) {
             }}
           >
             <div style={{ position: "relative", height: "100%", width: "100%" }}>
-              {" "}
               {children}
             </div>
           </div>
@@ -385,6 +384,6 @@ function calMenuStyle(e: MouseEvent): CSSProperties {
 
 export { App, SeparateWindow };
 
-setInterval(() => {
+setTimeout(() => {
   window.location.reload();
-}, 6000);
+}, 4000);
